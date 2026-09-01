@@ -1,0 +1,57 @@
+# Keelaryn architecture
+
+Keelaryn has one product source tree and any number of instance-owned Hubs.
+
+```text
+manager/ product source
+├── product/governance/hub   canonical generic governance overlay
+├── product/starter/hub      minimal Genesis/user-state skeleton
+├── product/migrations                  explicit system transitions
+└── product/docs                        product documentation
+
+                    manages
+                       ↓
+              hub instance
+```
+
+## Product / instance boundary
+
+Product source contains no user instance state. Runtime files such as CURRENT checkpoints, inbox, history, logs, releases and local binding are not managed product source and cannot become release inputs.
+
+## One governance source
+
+Genesis and legacy namespace migration consume the same `product/governance/hub` overlay. This prevents clean Genesis instances and migrated instances from silently implementing different system contracts under one `system_version`.
+
+The starter tree contains only the minimum canonical skeleton needed to instantiate user-owned state. Synthetic sample Hubs are not embedded in the Manager source tree.
+
+## Identity
+
+`instance_id` is stable for the lifetime of a Hub. `artifact_id` identifies a checkpoint. Product `release_id` identifies a generic system release. These identifiers are not interchangeable.
+
+## Runtime binding
+
+Binding v2 records absolute path plus stable instance identity. Paths may change; instance identity does not. Ambiguous discovery is blocked and explicit `BIND_INSTANCE.cmd` is available.
+
+## Portable inventory and lifecycle isolation
+
+Canonical Hub inventory prunes `.git/**`, `.obsidian/**` and shell-local files before recursion, rejects non-local reparse points and detects Windows/Unicode path collisions. Content and payload identities are calculated in one pass per file.
+
+Manager-only modes (`-UpdateManager`, `-SelfTest`, `-BuildDistribution`, `-BuildRelease`, `-BuildAIContext`) are Hub-blind unless explicit binding is requested.
+
+## AI development surface
+
+The managed AI-context generator derives a lossless runtime segment map, call/caller function map, task routes and exact managed-source mirrors. It is a derived development surface, never a second runtime implementation.
+
+## Performance invariants
+
+Portable Hub analysis is single-pass per explicit snapshot: each portable file is hashed once to derive full content identity, payload identity, and source-manifest identity. Safety-critical commit checks deliberately take a fresh snapshot rather than reusing stale analysis. Manager UPDATE validation indexes ZIP entries once per opened archive instead of rescanning the entry collection for every declared file.
+
+Hub ZIP inspection uses short-lived per-operation sessions for read-only validation paths. A session validates the archive envelope once and derives portable content/payload/source-manifest hashes from one entry-hash pass; callers may reuse that immutable snapshot only within the current operation. Transaction and commit boundaries still perform fresh installed-state validation and never rely on a process-global cache.
+
+## Windows lock diagnostics
+
+Sharing/lock failures remain fail-closed. On the terminal Windows sharing/lock violation, Manager queries the Windows Restart Manager API for processes or services that currently use the affected file and adds bounded owner metadata (PID, application/service name, application type and restartability) to the error. The diagnostic path is lazy, read-only, and never calls Restart Manager shutdown or restart operations. Failure of the diagnostic query never changes the underlying transaction decision.
+
+Doctor's healthy-MANIFEST path stops after exact ordered entry equality is proven; expensive missing/extra/changed classification is constructed only on mismatch. `DOCTOR_REPORT.json` also records fine-grained read-only Hub sub-timings so further optimization is measurement-driven rather than cache-driven.
+
+Candidate transport is a secondary, non-canonical resilience channel. `keelaryn.hub.candidate-transport.v1` stores only a bounded deterministic portable-tree delta from an exact CURRENT reconstruction identity to a validated artifact-v3 CANDIDATE. Embedded bytes are Base64 with independent length/SHA-256 checks. Reconstruction revalidates the resulting complete Hub and emits a complete CANDIDATE ZIP; it never bypasses Chat Manager approval or participates in automatic Hub installation.

@@ -1,0 +1,388 @@
+{
+  "schema": "keelaryn.public-file-manifest.v1",
+  "source_manager_version": "4.4.31",
+  "public_candidate_revision": 4,
+  "license": "MIT",
+  "files": [
+    {
+      "path": ".gitattributes",
+      "size": 952,
+      "sha256": "285bfb3f0d89a1b7eb54938dd5e0288786effa2276d95b4c48e3236e32eec777"
+    },
+    {
+      "path": ".github/workflows/windows-powershell.yml",
+      "size": 3501,
+      "sha256": "70cf9e21315032c56faeb0d6522a6b806db5823fb858aabe8497e7a0e88e0ebb"
+    },
+    {
+      "path": ".gitignore",
+      "size": 653,
+      "sha256": "e5191625101c410f26332736b5d3f6e43d6ab335a8aa7b948ee807e63c9d7973"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "size": 1762,
+      "sha256": "221dfea63effa5cbf0406488cf9ce32c13d635813a9402dd506b79eb31b986c5"
+    },
+    {
+      "path": "LICENSE",
+      "size": 1078,
+      "sha256": "32ad3555b0af2ffe336650add3246b45b6485970404a19110320d8fe1a5c2fc0"
+    },
+    {
+      "path": "PORTFOLIO.md",
+      "size": 4622,
+      "sha256": "0453a7b3ce23c1fa65c2a4e2f3c75566ac4e1a0e6d47acd8e3e04f1b3f2a6c45"
+    },
+    {
+      "path": "PUBLIC_PROVENANCE.json",
+      "size": 1760,
+      "sha256": "f072d9c90f3b86598394200161f9514674ca1a3f1cc8ed116c7f7f2aa238ae1f"
+    },
+    {
+      "path": "README.md",
+      "size": 5235,
+      "sha256": "441b554dfc9dc1cb5b6df7a5b96425016d9052bb0dcda3870643850e310a2f9f"
+    },
+    {
+      "path": "SECURITY.md",
+      "size": 659,
+      "sha256": "d8396b1915031c694582505c31dc7d1be7b1605f1f15aa31f42154e86acd9191"
+    },
+    {
+      "path": "docs/ARCHITECTURE_OVERVIEW.md",
+      "size": 2406,
+      "sha256": "277c7378add4acb2300cd36a499f0e6e12a26dfb34ac68bb3372cf921427312a"
+    },
+    {
+      "path": "docs/ENGINEERING_CASE_STUDY.md",
+      "size": 3318,
+      "sha256": "4f120e48104400ac8ac7972399fc1af8412e6d5eb3616395ca4960387ed9631e"
+    },
+    {
+      "path": "docs/PUBLISHING_CHECKLIST.md",
+      "size": 2708,
+      "sha256": "c3f4fe0147e8b6556bd349bdddbd2eee150cdb623881fdcd4be46e853c60e0eb"
+    },
+    {
+      "path": "docs/RELEASE_ENGINEERING.md",
+      "size": 1773,
+      "sha256": "4a902dd1a9156b2b8ab37e2c2343add2ce9e7f396bf1f4c51b40615cfbbbe144"
+    },
+    {
+      "path": "docs/SECURITY_MODEL.md",
+      "size": 2165,
+      "sha256": "d6201c02dd4e46c2d3d1fe362d41866a2cf56e979201ab0fc63e91b6869bedc0"
+    },
+    {
+      "path": "hub/README.md",
+      "size": 531,
+      "sha256": "31b01c80978e6d0bde5ec714b9fd81ead891fabb03dbd2aa3394b2d000b62d63"
+    },
+    {
+      "path": "manager/APPLY_MIGRATIONS.cmd",
+      "size": 166,
+      "sha256": "f35cadf85ab20d428219dbcff306a2f5ed5e6f72d37ddb786a01a35f2e3e716e"
+    },
+    {
+      "path": "manager/BIND_INSTANCE.cmd",
+      "size": 313,
+      "sha256": "4f3c2e88bd2ee31feb33d2bab720082adef697fb1295e64bac4ec31a14026938"
+    },
+    {
+      "path": "manager/BUILD_AI_CONTEXT.cmd",
+      "size": 186,
+      "sha256": "9ceba565c3e216b51f1caf4e06988a16767538383dc5f1cfa599de8990ee57ee"
+    },
+    {
+      "path": "manager/BUILD_CANDIDATE_TRANSPORT.cmd",
+      "size": 189,
+      "sha256": "0fb0a3d1d257219806bb98a7da23bf4b7d467d3ea5391c3a41fb56d4f09b80bf"
+    },
+    {
+      "path": "manager/BUILD_GENERIC_DISTRIBUTION.cmd",
+      "size": 311,
+      "sha256": "a56bc5616a39d338fc7b81608485d7de5113d34c53d98c9e9d4118e204ed92cb"
+    },
+    {
+      "path": "manager/BUILD_RELEASE.cmd",
+      "size": 184,
+      "sha256": "df341836882a2397aa14e1f2186e1b7bda9a52439cce958a5e0b75ec2421a562"
+    },
+    {
+      "path": "manager/CHECK_MIGRATIONS.cmd",
+      "size": 166,
+      "sha256": "5de1319ada2b2177c65101d7e5e72e0cb626b53f88aef12749ac34ae7abe0398"
+    },
+    {
+      "path": "manager/DOCTOR.cmd",
+      "size": 166,
+      "sha256": "effca54de64b2caa30709416c67e4426619b5e4f35ed16cafd23964470e66129"
+    },
+    {
+      "path": "manager/FINALIZE_LAYOUT.cmd",
+      "size": 312,
+      "sha256": "56c878f21f59c3c2fabb179f3e947434f23f69bbaf38b9a4a53b8adfbeed580b"
+    },
+    {
+      "path": "manager/GENESIS_KEELARYN__HUB.cmd",
+      "size": 279,
+      "sha256": "d15342f1b9f86436fb8803027dee661a44f3b4fbb311d1d16e959f6aacc56bcf"
+    },
+    {
+      "path": "manager/Keelaryn__Manager.ps1",
+      "size": 371412,
+      "sha256": "bcc49b4c4cfe605353325708236cc0342e01d95647fdd21a8b7b691fa119c0c7"
+    },
+    {
+      "path": "manager/MIGRATE_INSTANCE_IDENTITY.cmd",
+      "size": 172,
+      "sha256": "8a3469b47307ef417036084142e7e15fe4f480152b7aae87c4a598f38cd10bea"
+    },
+    {
+      "path": "manager/MIGRATE_LAYOUT.cmd",
+      "size": 312,
+      "sha256": "5bdbd85f1b1c9797ed6cfc614690c17957fc33b77b7866d083ff316ef99d2a3b"
+    },
+    {
+      "path": "manager/MIGRATE_TO_KEELARYN.cmd",
+      "size": 326,
+      "sha256": "71b242fc473c5ca72c668e1a693b48c029419068107f023d9b39c1f162ad89d1"
+    },
+    {
+      "path": "manager/OPEN_KEELARYN__HUB.cmd",
+      "size": 186,
+      "sha256": "aa8b841ed1c86a88a678ce0422a2707b19eba7502c1dcdcf500d0e0d7971ca97"
+    },
+    {
+      "path": "manager/PREPARE_TESTS.cmd",
+      "size": 184,
+      "sha256": "2e3081daeec10eb6a8f9da2f21263821f29b58ccdf2ed3b131593fa75e4c498b"
+    },
+    {
+      "path": "manager/README_FIRST.md",
+      "size": 3336,
+      "sha256": "965ce5e40149712748a8e0e1d4eb7820009f6297a29ba5f5b90df75e77e4f460"
+    },
+    {
+      "path": "manager/REPAIR_CURRENT_TRANSPORT.cmd",
+      "size": 188,
+      "sha256": "ea0e7aca6f13c519aa6cec2d0da21ef952dc238abbb23a106e1000e4d92d8563"
+    },
+    {
+      "path": "manager/RESTORE_CANDIDATE_TRANSPORT.cmd",
+      "size": 191,
+      "sha256": "01184e5f51fc4cde047f3c2e9db764ad5818448a10cbb88b768f52f77ac2ab7a"
+    },
+    {
+      "path": "manager/SHOW_INSTANCE_INFO.cmd",
+      "size": 163,
+      "sha256": "a54d71370a0d390fe2c01bd2aada812daf5ad4ca4b47ed55dcb8cb69a270c549"
+    },
+    {
+      "path": "manager/UPDATE_ALL.cmd",
+      "size": 334,
+      "sha256": "de17422d3e22c28f4a50071aaa6a4a4e0e648f387a31a6e5193c5f93bb275d22"
+    },
+    {
+      "path": "manager/UPDATE_HUB.cmd",
+      "size": 319,
+      "sha256": "a5707a406cda2bfefb6290836bdb998fefe5ea4da62ed975f6973668ddee792d"
+    },
+    {
+      "path": "manager/UPDATE_MANAGER.cmd",
+      "size": 331,
+      "sha256": "66628571e7b90a6cb9d14cc2ec886a468e22c5183a9db94ce76aebcbc5622791"
+    },
+    {
+      "path": "manager/_manager_manifest.json",
+      "size": 2216,
+      "sha256": "1d4a5a4a39c75cd47fabb065ca89eba3b099c4f6467ef5bfee1504da9cb7bc1f"
+    },
+    {
+      "path": "manager/_manager_version.txt",
+      "size": 7,
+      "sha256": "cecce4c406e1f207613cc51133a17620e56c33bbbf17b482cb282286ce662c2e"
+    },
+    {
+      "path": "manager/product/docs/AI_DEVELOPMENT.md",
+      "size": 3217,
+      "sha256": "645bba1c3c77997d784609e5b169f9813a7a48cde154b116f875b3161f30ecaa"
+    },
+    {
+      "path": "manager/product/docs/ARCHITECTURE.md",
+      "size": 4490,
+      "sha256": "c0b0544860f8179331beb0a0f102572bf2ae74be46f8a84d926682e378febe15"
+    },
+    {
+      "path": "manager/product/docs/CANDIDATE_TRANSPORT.md",
+      "size": 3070,
+      "sha256": "2157e589a377bfe363f1a5f8f0c260b2456d972e86d3fcfb9a40b1d01e30cd52"
+    },
+    {
+      "path": "manager/product/docs/GENESIS_AND_ONBOARDING.md",
+      "size": 1194,
+      "sha256": "9a1ec4b8e384b91ee6e4295d85589710f1be4c31fb54fe2173723edd3ccf4ff4"
+    },
+    {
+      "path": "manager/product/docs/LAYOUT.md",
+      "size": 1924,
+      "sha256": "7c90c2d1a91ca0fab50a0f8dc6700ce6bc7606cbf3b1747a0b0eab87288ad1f2"
+    },
+    {
+      "path": "manager/product/docs/MIGRATIONS.md",
+      "size": 1705,
+      "sha256": "52f9ccf534fe882cda2d707988159ce2092968d9daa29c64f86f4bee340c3584"
+    },
+    {
+      "path": "manager/product/docs/OPERATIONS.md",
+      "size": 5501,
+      "sha256": "51b33bdec913c45a0f46fe1b8193324f39bd63995762270dcedd4e52af0bc87c"
+    },
+    {
+      "path": "manager/product/docs/PRIVACY_AND_RELEASE.md",
+      "size": 1659,
+      "sha256": "c63cb7d5120fa8b4e35f9b2683533cb013f685c62ba190c14df9bea176478826"
+    },
+    {
+      "path": "manager/product/docs/RELEASE_BUILD.md",
+      "size": 2226,
+      "sha256": "a7f8d7638b8a001c422cfcf2a5284082359db80c07283d7376f236d1666b19a3"
+    },
+    {
+      "path": "manager/product/docs/TESTING.md",
+      "size": 1494,
+      "sha256": "7aa0aba29fb949d530c1a87b751bdb8559e2b63bf2eecc789bd724e35adbcd2e"
+    },
+    {
+      "path": "manager/product/governance/hub/README.md",
+      "size": 1079,
+      "sha256": "b9408559d31d759040fea45933b177042ea70702687848791fb0d657bc40a952"
+    },
+    {
+      "path": "manager/product/governance/hub/_System/BOOTSTRAP.md",
+      "size": 2061,
+      "sha256": "5866f02be2dca77baee00f01ed82bbaf0369b2d03f61cecdff0abda59bf54376"
+    },
+    {
+      "path": "manager/product/governance/hub/_System/CHAT_MANAGER.md",
+      "size": 2271,
+      "sha256": "98c8f663828b801d77a8bf03638449ae1219350e042125f37c63905b1712c9a5"
+    },
+    {
+      "path": "manager/product/governance/hub/_System/CHAT_MANAGER_LAUNCH.md",
+      "size": 770,
+      "sha256": "82b4d667fe75511ecc94ad37490e29fbf852af7d4c3b8b07ea3314faaa2dce6d"
+    },
+    {
+      "path": "manager/product/governance/hub/_System/GLOSSARY.md",
+      "size": 1253,
+      "sha256": "87a02340c5db460e1dbbcee55c461ecf457993dffb684dd11e242e0e30279381"
+    },
+    {
+      "path": "manager/product/governance/hub/_System/PROTOCOL.md",
+      "size": 4653,
+      "sha256": "a706c256ba53128c7b3cc12b7f7c4f5a630092a1c6ff90f1627980e60abbdcba"
+    },
+    {
+      "path": "manager/product/governance/hub/_System/WORKSPACE.md",
+      "size": 1782,
+      "sha256": "1431b3bd91bb1d630bb342b6ec977ae93e4d7a541abd5c04bf5194059e124af7"
+    },
+    {
+      "path": "manager/product/manager_release.json",
+      "size": 203,
+      "sha256": "f4e5bc8622b04bda98e993e7cd8510d3d757f40600238e74f835e6e22c8af174"
+    },
+    {
+      "path": "manager/product/migrations/2.0.0_to_2.1.0.json",
+      "size": 1071,
+      "sha256": "3ae985d71d1fcfa036ffd77d923d3d7f46884b19131e7e7ebf833a4d093880e5"
+    },
+    {
+      "path": "manager/product/migrations/README.md",
+      "size": 699,
+      "sha256": "d11a73582f07257d26afd5e954efc08b5f4035e911653110b06187aeb5014f36"
+    },
+    {
+      "path": "manager/product/migrations/index.json",
+      "size": 314,
+      "sha256": "622cef893a75a5bfe4dc4e674ff06373463d8f7dec400a9e3a1ad328e9f66bdd"
+    },
+    {
+      "path": "manager/product/release.json",
+      "size": 509,
+      "sha256": "8fefdc1841686b025ccc483cc346077bed8795fc921a4570ace55f88fe1385ab"
+    },
+    {
+      "path": "manager/product/starter/hub/Areas/README.md",
+      "size": 147,
+      "sha256": "bd51ffdc8c17fed04a7f0f226c9b4d53ff1308a7d78ef4abf237fb65b0c8edbb"
+    },
+    {
+      "path": "manager/product/starter/hub/HOME.md",
+      "size": 247,
+      "sha256": "f0e57f1834f20d448430d1c1c19e1aeaaff647516dc4304e2b01ae09f3d6f124"
+    },
+    {
+      "path": "manager/product/starter/hub/Projects/QUEUE.md",
+      "size": 112,
+      "sha256": "dad6840b720a7aafe5ce634166f47c377a76a34e15449ac973bc305487783ea7"
+    },
+    {
+      "path": "manager/product/starter/hub/Records/README.md",
+      "size": 154,
+      "sha256": "1da352aa00c4a6fd7205fa32d860de519aee4c566d6a536703b8a1776078f351"
+    },
+    {
+      "path": "manager/product/starter/hub/Resources/Prompts/Initialize New Hub.md",
+      "size": 347,
+      "sha256": "1bb91db184801c4bb1600661023f5ef6accd5cc41dfc82544d15c99f19ce561e"
+    },
+    {
+      "path": "manager/product/starter/hub/Resources/Prompts/WORKER_CHAT.md",
+      "size": 613,
+      "sha256": "578482bf01309baeb9a4d33e0bcdc319d2156ac0fc5597040873de9662a6e02b"
+    },
+    {
+      "path": "manager/product/starter/hub/Resources/README.md",
+      "size": 240,
+      "sha256": "f96350010c0d2e7610964be3cca07b92d9807c28c1c7bba9893f7962f470e8d5"
+    },
+    {
+      "path": "manager/product/starter/hub/_System/GENESIS.md",
+      "size": 402,
+      "sha256": "d3fc22a2cbcc50efd6c8785e1801e051ccf18047eee4022767927fde46259a56"
+    },
+    {
+      "path": "manager/product/tools/New-KeelarynAIContext.ps1",
+      "size": 21095,
+      "sha256": "c016c4f0ca654f0c198200b7380b6ae697e3720f39c0f673349895c2f8f2b109"
+    },
+    {
+      "path": "manager/product/tools/audit_cleanroom.ps1",
+      "size": 1829,
+      "sha256": "5651dfde943f6f20224c4cb59487f78907308bdc64b037985a11cbf15b5b3760"
+    },
+    {
+      "path": "tests/README.md",
+      "size": 482,
+      "sha256": "6f53d905d129acd92cde445a7c2e563e3d22079cb1eb715c8d1d9cc80eba3863"
+    },
+    {
+      "path": "tests/results/README.md",
+      "size": 113,
+      "sha256": "ad8a424ccdccafd752da55bc31463530a8122c45c123d11f663880162f3e7926"
+    },
+    {
+      "path": "tests/work/README.md",
+      "size": 75,
+      "sha256": "fc1accc81e9ed353a8de2903e3d4f9fc92e6af51965d449eb4a7162aa6b6edb1"
+    },
+    {
+      "path": "tools/Verify-PublicRepository.ps1",
+      "size": 3771,
+      "sha256": "71af6c543c56174daa8c453b79022869dbbed36952857b74375eee819289a711"
+    }
+  ]
+}

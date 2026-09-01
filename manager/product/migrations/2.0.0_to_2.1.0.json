@@ -1,0 +1,18 @@
+{
+  "schema": "keelaryn.migration.v1",
+  "id": "keelaryn-system-2.0.0-to-2.1.0",
+  "from_system_version": "2.0.0",
+  "to_system_version": "2.1.0",
+  "apply_mode": "chat_manager_required",
+  "requires_full_reconciliation": true,
+  "reason": "System 2.1.0 converges Genesis and migrated instances on one governance source, mandatory portable MANIFEST v1 / VALIDATION v2 semantics, and corrected historical namespace provenance. Existing customized governance must be reconciled rather than overwritten automatically.",
+  "required_outcomes": [
+    "Preserve instance_id and global data_revision lineage.",
+    "Preserve user-owned Areas, Projects, Records and Resources unless explicitly authorized otherwise.",
+    "Declare keelaryn.manifest.v1 and keelaryn.validation.v2 in STATE.",
+    "Rebuild INDEX, ROUTER, MANIFEST and VALIDATION deterministically.",
+    "Keep historical Core__ schema/protocol identifiers factual; do not rename them into fictitious Keelaryn predecessors.",
+    "Exclude local deployment state from portable checkpoints."
+  ],
+  "operations": []
+}

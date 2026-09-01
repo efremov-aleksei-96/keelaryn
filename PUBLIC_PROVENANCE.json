@@ -1,0 +1,39 @@
+{
+  "schema": "keelaryn.public-repository-provenance.v1",
+  "role": "portfolio_public_candidate",
+  "source_manager_version": "4.4.31",
+  "source_release": {
+    "schema": "keelaryn.manager.release-bundle.v1",
+    "system_version": "2.1.0",
+    "release_id": "keelaryn-system-2.1.0",
+    "artifacts": {
+      "source_sha256": "38fd714c36bea3d2b9b00d636859e3ffc1cc7e90ca903abead4d2fb3183b2ccd",
+      "distribution_sha256": "7536b72e0392a6e7f4ce7725c22ac34f144d1a6577c23108f3cc44c22780a74f",
+      "update_sha256": "26a635530764f4f00580e7837bfa3f82c052dac333b87f0925feebb8df6a888c",
+      "ai_context_sha256": "43cd1ce07c7bffe9125dd99789e8de670492f2f6b88087271725a64bf29550b3"
+    }
+  },
+  "manager_tree_sha256": "2546eca18f462f750e773816d86b65938fc91e3971c2857b5a0632722f3a3046",
+  "personal_hub_included": false,
+  "runtime_packages_included": false,
+  "license_selected": true,
+  "notes": "Manager tree is copied from verified production 4.4.31; public scaffolding is sanitized. Public candidate revision 4 fixes the explicit Git EOL contract for manager/_manager_version.txt and was tested through a Git add/commit/clone round-trip with core.autocrlf=true.",
+  "public_candidate_revision": 4,
+  "ci_policy": {
+    "github_actions_trigger": "workflow_dispatch_only",
+    "hosted_artifacts_uploaded": false,
+    "development_gates": "local_tests_work",
+    "publication_policy": "batched_milestones_only"
+  },
+  "license": {
+    "spdx_id": "MIT",
+    "file": "LICENSE",
+    "copyright": "Copyright (c) 2026 Keelaryn contributors"
+  },
+  "git_checkout_contract": {
+    "windows_core_autocrlf_true_tested": true,
+    "manager_files_byte_identical_after_roundtrip": 57,
+    "manager_files_different_after_roundtrip": 0,
+    "manager_version_txt_eol": "lf"
+  }
+}

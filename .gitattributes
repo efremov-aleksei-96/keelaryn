@@ -1,0 +1,30 @@
+# Preserve the byte conventions expected by the verified Manager 4.4.31 tree.
+* text=auto
+
+manager/**/*.ps1 text eol=lf
+manager/**/*.md text eol=lf
+manager/**/*.json text eol=lf
+manager/_manager_version.txt text eol=lf
+
+# Manager root CMD files are historically mixed LF/CRLF. Keep the exact
+# working-tree bytes so a normal Git checkout does not invalidate source hashes.
+manager/*.cmd text eol=lf
+manager/BIND_INSTANCE.cmd text eol=crlf
+manager/BUILD_AI_CONTEXT.cmd text eol=crlf
+manager/BUILD_RELEASE.cmd text eol=crlf
+manager/DOCTOR.cmd text eol=crlf
+manager/FINALIZE_LAYOUT.cmd text eol=crlf
+manager/MIGRATE_LAYOUT.cmd text eol=crlf
+manager/MIGRATE_TO_KEELARYN.cmd text eol=crlf
+manager/PREPARE_TESTS.cmd text eol=crlf
+manager/UPDATE_ALL.cmd text eol=crlf
+manager/UPDATE_HUB.cmd text eol=crlf
+manager/UPDATE_MANAGER.cmd text eol=crlf
+
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.ps1 text eol=lf
+
+LICENSE text eol=lf

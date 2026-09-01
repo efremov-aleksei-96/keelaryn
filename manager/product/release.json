@@ -1,0 +1,13 @@
+{
+  "schema": "keelaryn.system-release.v1",
+  "release_id": "keelaryn-system-2.1.0",
+  "system_version": "2.1.0",
+  "manager_min_version": "4.2.0",
+  "artifact_schema": "keelaryn.artifact.v3",
+  "instance_schema": "keelaryn.instance.v1",
+  "construction": "single_governance_source_clean_room_allowlist",
+  "manager_protocol": "keelaryn-chat-manager-v4.0",
+  "manifest_schema": "keelaryn.manifest.v1",
+  "validation_schema": "keelaryn.validation.v2",
+  "portable_state_policy": "keelaryn.portable-state.v1"
+}
