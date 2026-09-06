@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.manager.installation.v2",
-  "manager_version": "4.12.0",
+  "manager_version": "4.13.1",
   "layout_version": 2,
   "managed_files": [
     "compat/commands/APPLY_MIGRATIONS.cmd",
@@ -37,6 +37,11 @@
     "product/docs/REPOSITORY_MODEL.md",
     "product/docs/TESTING.md",
     "product/docs/USER_INTERFACE.md",
+    "product/docs/chatgpt-projects/WORKSPACE_PROJECT_INSTRUCTIONS.md",
+    "product/docs/chatgpt-projects/SETUP_GUIDE.md",
+    "product/docs/chatgpt-projects/MANAGER_DEVELOPMENT_PROJECT_INSTRUCTIONS.md",
+    "product/docs/chatgpt-projects/CHATS_PROJECT_INSTRUCTIONS.md",
+    "product/docs/chatgpt-projects/CHAT_MANAGER_PROJECT_INSTRUCTIONS.md",
     "product/governance/hub/_System/BOOTSTRAP.md",
     "product/governance/hub/_System/CHAT_MANAGER.md",
     "product/governance/hub/_System/CHAT_MANAGER_LAUNCH.md",
@@ -61,6 +66,7 @@
     "product/starter/hub/Resources/README.md",
     "product/tools/audit_cleanroom.ps1",
     "product/tools/KeelarynMenu.ps1",
+    "product/tools/Compact-KeelarynQualificationEvidence.ps1",
     "product/tools/New-KeelarynAIContext.ps1",
     "product/tools/Unpack-KeelarynTestArchive.ps1",
     "README_FIRST.md"

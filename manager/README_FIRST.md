@@ -1,10 +1,8 @@
-# Keelaryn Manager 4.12.0
+# Keelaryn Manager 4.13.1
 
-Manager 4.12.0 is a first-use onboarding release built on the production-qualified 4.11.0 Manager baseline. It does not change Hub schemas, update schemas, migration semantics or validation boundaries.
+Manager 4.13.1 is the grouped post-4.12 development cycle for supported ChatGPT exchange/onboarding and development-workspace hygiene. It preserves Hub schemas, native update compatibility, rollback semantics, deterministic release construction and fail-closed validation boundaries unless a separately qualified change explicitly says otherwise.
 
-The interactive frontend now distinguishes a genuinely empty fresh installation from an existing installation that merely has a missing/invalid Hub. A clean Generic DISTRIBUTION opens a guided first-run screen with Create, Connect, Main menu and Exit actions. Genesis and binding continue to use the existing validated Manager paths rather than a second setup implementation.
-
-After successful first-run Genesis or binding, Manager runs Doctor immediately and only reports setup ready when Doctor succeeds. Existing/colliding state remains fail-closed and routes to recovery; in particular, a source checkout containing the repository-only `hub/README.md` marker is never treated as an empty install target.
+The immutable development baseline is Manager 4.12.0. Gate Framework 2.0 r11 remains the reusable framework for this candidate unless reusable framework source actually changes.
 
 ## Canonical installed layout
 
@@ -27,37 +25,65 @@ keelaryn/
 │       ├── binding.json          (when bound)
 │       └── layout.json
 ├── hub/
-└── tests/
+├── tests/
+└── exchange/
+    └── chatgpt/
 ```
 
-The canonical runtime is `manager/product/runtime/Keelaryn__Manager.ps1`. The canonical installation manifest is `manager/product/install/INSTALLATION.json`. Compatibility commands remain under `manager/compat/commands/`.
+`exchange/chatgpt` is user-facing exchange state, not Manager runtime state and not canonical Hub state.
 
-Mutable Manager state belongs under `manager/state/`. Historical root runtime/version/manifest files are transport compatibility only and are not part of the canonical installed managed set.
+## ChatGPT architecture
+
+The complete Standard setup for a normal user is:
+
+```text
+Keelaryn — Workspace
+Keelaryn — Chats
+Keelaryn — Chat Manager
+```
+
+`Keelaryn — Manager Development` is optional and is only for contributors/system-level Keelaryn development.
+
+Manager ships authoritative copy-ready Project instruction templates under:
+
+```text
+manager/product/docs/chatgpt-projects
+```
+
+The supported artifact flow is:
+
+```text
+CURRENT
+  -> Workspace
+  -> WORKSPACE_CHECKOUT
+  -> Chats
+  -> HUB_RETURN / HUB_RETURN_INTERIM
+  -> Chat Manager
+  -> APPROVED
+  -> local Manager
+  -> next CURRENT
+```
+
+The Manager frontend can prepare CURRENT for Workspace or Chat Manager and opens the supported exchange location. Legacy `Inputs_outputs` migration is copy-only, rejects reparse points, verifies copied bytes with SHA-256 and never deletes the source automatically.
+
+## Development workspace hygiene
+
+The tests workspace contract is now explicit: `framework` holds one current reusable framework source, `work` is disposable, `results` holds active/current expanded evidence plus concise qualification indexes, and `archives` holds frozen verified history. Disposable `tests/work` cleanup is explicit, dry-run first, reparse-safe and file-granular. Completed Full Gate evidence can be compacted to a per-entry SHA-256-verified archive before expanded source cleanup; temporary empty-directory locks remain a cleanup state rather than a data-integrity failure.
+
+`manager/state/history` remains protected from generic cleanup. Existing release-bundle retention already validates and archives reproducible Manager release bundles; 4.13 does not introduce a second competing release-retention policy.
 
 ## Update compatibility
 
-Manager 4.12.0 preserves the native update compatibility floor required by the existing release policy. UPDATE artifacts therefore retain the narrow transition envelope (`Keelaryn__Manager.ps1`, `_manager_manifest.json`, `_manager_version.txt`) used by supported older Manager package validators. Those three files are not part of the final 4.11.0 installation manifest.
+Manager 4.13.1 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators.
 
-The one-time 4.7.2 -> 4.8.7 filesystem-finalization migration remains supported as historical compatibility code, but 4.12.0 does not reopen or redesign the filesystem architecture.
+Manager-only update commands clearly distinguish "no newer valid package" from failure and do not silently process Hub updates.
 
-## User interface
+## User interface compatibility
 
 Use `keelaryn\Keelaryn.cmd` or `manager\KEELARYN.cmd`.
 
-4.12.0 preserves the established menu/action contract and adds a bounded startup layer:
-
-- a genuinely empty canonical installation opens a Create / Connect first-run screen;
-- pre-existing or conflicting state routes to Doctor/binding recovery instead of implicit mutation;
-- successful first-run creation/binding runs Doctor before setup is declared ready;
-- choosing Main menu for now is session-only and does not suppress future setup guidance;
-- the ordinary main menu, semantic action results, picker behavior, Full Gate entrypoint and compatibility actions remain available unchanged.
-
-## Hub revision presentation
-
-New Hub revisions may carry immutable UTC `revision_time_utc`. Manager uses this as the human-facing revision time. Existing artifacts without the field remain valid and use their immutable `created` timestamp as the compatibility display fallback.
-
-`data_revision` remains the internal monotonic sequence used for lineage, ordering, deterministic validation and audit cadence. Existing `rNNNN` artifact/history contracts remain valid.
+The existing numeric main-menu contract is preserved to avoid breaking established Windows gate orchestration. ChatGPT is added as a separate lettered entry. Existing first-run Create, Connect and Main-menu choices keep their numeric meaning; ChatGPT setup is an additional optional path and remains reopenable later.
 
 ## Release gate
 
-Production approval requires Windows PowerShell 5.1 parser and SelfTests, deterministic release/package validation, a CURRENT-backed disposable 4.11.0 -> 4.12.0 update, rollback verification, Doctor, first-run/Create/Bind/recovery UI coverage, picker/archive orchestration regressions, revision compatibility checks, candidate-transport checks, generic distribution/Genesis smoke tests, AI_CONTEXT validation/performance control, and production immutability. The Windows candidate gate is generated through the independently Windows-qualified frozen Gate Framework v2 r9, which binds gate revisions cryptographically to unchanged managed candidate bytes and publishes the exact tested UPDATE plus a validated one-click production installer only after FULL GATE PASS.
+This source is not production-approved merely because it carries version 4.13.1. Production approval still requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic release/package checks, CURRENT-backed disposable 4.12.0 -> 4.13.1 native update, rollback/fault injection, migrations, Doctor, production immutability, UI regression coverage, public PR CI, exact tested/PR/post-merge/release artifact identity and gated publication.
