@@ -17,7 +17,7 @@ concurrency:
 jobs:
   windows-candidate-gate:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v6
@@ -87,11 +87,47 @@ jobs:
           if ([string]$spec.candidate_installation_sha256 -ne '7d616af1999a0071299044ac4f5f72d14f1bd74f5bc4fb280714db2076efaf77') { throw 'Gate INSTALLATION identity differs from issued candidate.' }
           if ([string]$spec.candidate_managed_content_sha256 -ne 'fb0137c9485475ba7af069d5f1b7fe97c1b16121b9b97d47b3669e0cd435b32b') { throw 'Gate managed-content identity differs from issued candidate.' }
           "CANDIDATE_ROOT=$candidate" >> $env:GITHUB_ENV
+          "CANDIDATE_GATE_ZIP=$gateZip" >> $env:GITHUB_ENV
 
       - name: Run Windows PowerShell 5.1 SourceGate
         shell: powershell
         run: |
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:CANDIDATE_ROOT\gate\Run-KeelarynManagerSourceGate.ps1" -ManagerRoot "$env:CANDIDATE_ROOT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Prepare immutable 4.11.0 CURRENT-backed fixture
+        shell: powershell
+        run: |
+          $releaseZip = Join-Path $env:RUNNER_TEMP 'Keelaryn_v4.11.0_Windows.zip'
+          $uri = 'https://github.com/efremov-aleksei-96/keelaryn/releases/download/v4.11.0/Keelaryn_v4.11.0_Windows.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $releaseZip
+          $hash = (Get-FileHash -LiteralPath $releaseZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne 'c4a3412d7a6e633f892b2451576c619c6de95375b8ba13aa818deb0f7b6e4241') { throw "Published 4.11.0 distribution hash mismatch: $hash" }
+
+          $fixtureParent = Join-Path $env:RUNNER_TEMP ('production_fixture_' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $fixtureParent | Out-Null
+          Expand-Archive -LiteralPath $releaseZip -DestinationPath $fixtureParent -Force
+          $prodRoot = Join-Path $fixtureParent 'keelaryn'
+          $runtime = Join-Path $prodRoot 'manager\product\runtime\Keelaryn__Manager.ps1'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runtime -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $cfgPath = Join-Path $fixtureParent 'genesis.json'
+          $cfg = [ordered]@{schema='keelaryn.genesis-input.v1';language='en';purpose='mixed';timezone='UTC';areas=@('Fixture');projects=@('Baseline')}
+          [System.IO.File]::WriteAllText($cfgPath,(($cfg | ConvertTo-Json -Depth 5) + "`n"),(New-Object System.Text.UTF8Encoding($false)))
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runtime -Genesis -GenesisConfigPath $cfgPath -GenesisConfirmed
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runtime -Doctor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $current = Join-Path $prodRoot 'manager\state\baseline\Keelaryn__Hub_CURRENT.zip'
+          if (-not (Test-Path -LiteralPath $current -PathType Leaf)) { throw 'Disposable 4.11.0 fixture did not create CURRENT baseline.' }
+          "PRODUCTION_FIXTURE=$prodRoot" >> $env:GITHUB_ENV
+
+      - name: Run CURRENT-backed disposable Full Gate
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:CANDIDATE_ROOT\gate\Run-KeelarynManagerFullGate.ps1" -CandidateRoot "$env:CANDIDATE_ROOT" -ProductionRoot "$env:PRODUCTION_FIXTURE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build candidate release and locate Generic DISTRIBUTION
@@ -196,3 +232,14 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $root 'hub\_System\INSTANCE.json') -PathType Leaf)) { throw 'Genesis did not create canonical Hub identity.' }
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runtime -Doctor
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Windows candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: manager-4.12.0-g1-windows-evidence
+          path: |
+            ${{ runner.temp }}/manager-4.12.0.zip
+            tests/results/manager-4.12.0/GATE_SUMMARY.json
+            tests/results/manager-4.12.0/FULL_GATE.log
+          if-no-files-found: error
+          retention-days: 30
