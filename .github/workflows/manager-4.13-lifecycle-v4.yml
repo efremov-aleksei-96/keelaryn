@@ -1,4 +1,4 @@
-name: Manager 4.13 lifecycle parser diagnostic
+name: Manager 4.13 lifecycle preflight
 
 on:
   push:
@@ -9,14 +9,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: manager-4.13-lifecycle-parser-${{ github.ref }}
+  group: manager-4.13-lifecycle-preflight-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  parser-diagnostic:
-    if: github.actor != 'github-actions[bot]'
+  lifecycle-preflight:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
         with:
@@ -33,40 +32,80 @@ jobs:
           python "$env:GITHUB_WORKSPACE\.github\manager-4.13-lifecycle.py"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: PowerShell parser and executable ASCII diagnostic
+      - name: PowerShell parser and executable ASCII safety
         shell: powershell
         run: |
           $install=Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\manager\product\install\INSTALLATION.json" -Raw -Encoding UTF8 | ConvertFrom-Json
-          $failed=$false
           foreach($rel in @($install.managed_files)){
             $path=Join-Path "$env:GITHUB_WORKSPACE\manager" ([string]$rel).Replace('/','\')
             $ext=[System.IO.Path]::GetExtension($path)
             if($ext-ieq'.ps1'){
               $tokens=$null;$errors=$null
               [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
-              foreach($e in @($errors)){
-                $failed=$true
-                $line=[int]$e.Extent.StartLineNumber
-                $column=[int]$e.Extent.StartColumnNumber
-                $endLine=[int]$e.Extent.EndLineNumber
-                $endColumn=[int]$e.Extent.EndColumnNumber
-                $extentText=([string]$e.Extent.Text).Replace("`r",'').Replace("`n",'\\n')
-                Write-Host ('PARSER_ERROR file='+$rel+' line='+$line+' column='+$column+' endLine='+$endLine+' endColumn='+$endColumn+' message='+$e.Message+' extent='+$extentText)
-                if($line-gt0){
-                  $sourceLines=Get-Content -LiteralPath $path -Encoding UTF8
-                  $from=[Math]::Max(1,$line-2)
-                  $to=[Math]::Min($sourceLines.Count,$line+2)
-                  for($n=$from;$n-le$to;$n++){Write-Host ('SOURCE '+$n.ToString().PadLeft(5)+' | '+$sourceLines[$n-1])}
-                }
+              if(@($errors).Count-ne0){
+                foreach($e in @($errors)){Write-Error ($path+': '+$e.Message+' line='+$e.Extent.StartLineNumber+' col='+$e.Extent.StartColumnNumber+' extent='+[string]$e.Extent.Text)}
+                exit 1
               }
             }
             if($ext-ieq'.ps1' -or $ext-ieq'.cmd'){
               $bytes=[System.IO.File]::ReadAllBytes($path)
-              if(@($bytes|Where-Object{$_-ge128}).Count-ne0){
-                $failed=$true
-                Write-Host ('ASCII_ERROR file='+$rel)
-              }
+              if(@($bytes|Where-Object{$_-ge128}).Count-ne0){throw('Managed executable ASCII safety failed: '+$path)}
             }
           }
-          if($failed){exit 1}
-          Write-Host 'MANAGER_4_13_LIFECYCLE_PARSER_DIAGNOSTIC=PASS'
+
+      - name: Qualification compaction self-test
+        shell: powershell
+        run: |
+          $tool="$env:GITHUB_WORKSPACE\manager\product\tools\Compact-KeelarynQualificationEvidence.ps1"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $tool -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Disposable Manager and frontend SelfTests
+        shell: powershell
+        run: |
+          $lab=Join-Path $env:RUNNER_TEMP 'selftest-keelaryn'
+          $manager=Join-Path $lab 'manager'
+          New-Item -ItemType Directory -Force -Path $lab|Out-Null
+          Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE\manager" -Destination $manager -Recurse -Force
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\runtime\Keelaryn__Manager.ps1" -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\tools\KeelarynMenu.ps1" -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: AI_CONTEXT generator preflight
+        shell: powershell
+        run: |
+          $manager=Join-Path $env:RUNNER_TEMP 'selftest-keelaryn\manager'
+          $out=Join-Path $env:RUNNER_TEMP ('ai-context-'+[guid]::NewGuid().ToString('N'))
+          try{
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\tools\New-KeelarynAIContext.ps1" -ManagerRoot $manager -OutputDirectory $out
+            if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          }finally{if(Test-Path -LiteralPath $out){Remove-Item -LiteralPath $out -Recurse -Force -ErrorAction SilentlyContinue}}
+
+      - name: Verify public source boundary
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Build r11 SourceGate in canonical workspace
+        shell: powershell
+        run: |
+          $root=$env:GITHUB_WORKSPACE
+          $gateZip=Join-Path $env:RUNNER_TEMP 'manager-4.13.0.zip'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tests\framework\manager-gate\Build-ManagerGate.ps1" -SourceRoot "$root\manager" -BaselineVersion '4.12.0' -GateRevision 9006 -OutputPath $gateZip -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $labRoot=Join-Path $env:RUNNER_TEMP 'gate-keelaryn'
+          $work=Join-Path $labRoot 'tests\work'
+          New-Item -ItemType Directory -Force -Path $work|Out-Null
+          Expand-Archive -LiteralPath $gateZip -DestinationPath $work -Force
+          $candidate=Join-Path $work 'manager-4.13.0'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$candidate\gate\Run-KeelarynManagerSourceGate.ps1" -ManagerRoot $candidate
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Report preflight identity
+        shell: powershell
+        run: |
+          $install=Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\manager\product\install\INSTALLATION.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+          Write-Host ('MANAGER_4_13_LIFECYCLE_PREFLIGHT=PASS managed_files='+$install.managed_files.Count)
+          git status --short
