@@ -44,20 +44,8 @@ full_text = full.read_bytes().decode("ascii")
 source_text = source.read_bytes().decode("ascii")
 full_text = replace_exact(full_text, old_prefix, new_prefix, 1, "FullGate bounded sidecars")
 source_text = replace_exact(source_text, old_prefix, new_prefix, 1, "SourceGate bounded sidecars")
-full_text = replace_exact(
-    full_text,
-    "$candA=New-CandidateFixture $stateCurrent",
-    "$candA=New-CandidateFixture $migCurrent",
-    1,
-    "candidate fixture A lineage",
-)
-full_text = replace_exact(
-    full_text,
-    "$candB=New-CandidateFixture $stateCurrent",
-    "$candB=New-CandidateFixture $migCurrent",
-    1,
-    "candidate fixture B lineage",
-)
+full_text = replace_exact(full_text, "$candA=New-CandidateFixture $stateCurrent", "$candA=New-CandidateFixture $migCurrent", 1, "candidate fixture A lineage")
+full_text = replace_exact(full_text, "$candB=New-CandidateFixture $stateCurrent", "$candB=New-CandidateFixture $migCurrent", 1, "candidate fixture B lineage")
 full.write_bytes(full_text.encode("ascii"))
 source.write_bytes(source_text.encode("ascii"))
 marker.write_bytes(b"11\n")
@@ -112,7 +100,7 @@ prov["public_candidate_revision"] = 9
 prov["gate_framework"]["revision"] = 11
 prov["gate_framework"]["windows_qualified"] = True
 prov["gate_framework"]["frozen_for_manager_candidate"] = True
-# production_validation.framework_revision intentionally remains 9: Manager 4.11.0 was qualified on r9.
+# Historical production qualification intentionally remains r9: Manager 4.11.0 was qualified on r9.
 prov_path.write_text(json.dumps(prov, indent=2, ensure_ascii=True) + "\n", encoding="utf-8", newline="\n")
 
 verifier = ROOT / "tools" / "Verify-PublicRepository.ps1"
@@ -127,15 +115,9 @@ new = "The reusable Manager gate harness under `tests/framework/manager-gate/` i
 root_text = replace_exact(root_text, old, new, 1, "root README framework baseline")
 root_readme.write_text(root_text, encoding="utf-8", newline="\n")
 
-workflow = ROOT / ".github" / "workflows" / "windows-powershell.yml"
-workflow_text = workflow.read_text(encoding="utf-8")
-workflow_text = replace_exact(workflow_text, "Generate frozen-r9 source gate", "Generate current framework source gate", 1, "source workflow label")
-workflow.write_text(workflow_text, encoding="utf-8", newline="\n")
-
-# The promotion mechanism is intentionally one-shot and must not become repository product surface.
-for temp in [ROOT / ".github" / "promote-framework-r11.py", ROOT / ".github" / "workflows" / "promote-framework-r11.yml"]:
-    if temp.exists():
-        temp.unlink()
+# Workflow files and this one-shot helper are intentionally left untouched by this commit.
+# They are cleaned/renamed through the connected GitHub API after the promoted tree is pushed,
+# because GitHub Actions tokens are not granted workflow-file mutation permission.
 
 print("Framework r11 promotion tree prepared")
 print("FullGate SHA256:", sha256(full))
