@@ -70,7 +70,7 @@ jobs:
           $canonical = Join-Path $env:RUNNER_TEMP 'framework-r10.patch'
           [System.IO.File]::WriteAllText($canonical,$patchText,(New-Object System.Text.UTF8Encoding($false)))
           $hash = (Get-FileHash -LiteralPath $canonical -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($hash -ne '326e8e70b2d0bdae551d38638ee955d67fadf94c2063a4cfd6a27551b179822a') { throw "Framework r10 patch hash mismatch: $hash" }
+          if ($hash -ne '39cd69ea69ab98638fcb5a54b74033b3b5131a963cb7db1ace84a20d6de91bdf') { throw "Framework r10 patch hash mismatch: $hash" }
           git apply --check --whitespace=nowarn "$canonical"
           if ($LASTEXITCODE -ne 0) { throw 'Framework r10 patch does not apply cleanly to frozen r9.' }
           git apply --whitespace=nowarn "$canonical"
