@@ -26,6 +26,8 @@ jobs:
       - name: Apply asserted lifecycle patch
         shell: powershell
         run: |
+          python "$env:GITHUB_WORKSPACE\.github\manager-4.13-lifecycle-fix1.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python "$env:GITHUB_WORKSPACE\.github\manager-4.13-lifecycle.py"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -98,7 +100,7 @@ jobs:
         shell: powershell
         run: |
           Set-Location $env:GITHUB_WORKSPACE
-          foreach($p in @('.github\manager-4.13-lifecycle.py','.github\workflows\manager-4.13-lifecycle.yml')){if(Test-Path -LiteralPath $p){Remove-Item -LiteralPath $p -Force}}
+          foreach($p in @('.github\manager-4.13-lifecycle.py','.github\manager-4.13-lifecycle-fix1.py','.github\workflows\manager-4.13-lifecycle.yml')){if(Test-Path -LiteralPath $p){Remove-Item -LiteralPath $p -Force}}
           git add -A
           if(-not(git status --porcelain)){throw 'Lifecycle validation produced no source changes.'}
           git config user.name 'github-actions[bot]'
