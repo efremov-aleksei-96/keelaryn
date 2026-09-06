@@ -1,0 +1,223 @@
+name: Promote exact Manager 4.12.0 source
+
+on:
+  push:
+    branches: [release-manager-4.12.0]
+    paths:
+      - '.github/workflows/promote-manager-4.12.0.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: release-manager-4.12.0
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Reconstruct exact qualified Manager 4.12.0 g1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = $env:GITHUB_WORKSPACE
+          $candidateRef = 'candidate-manager-4.12.0-g3'
+          git fetch origin $candidateRef --depth=1
+          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch archived 4.12.0 validation branch.' }
+
+          $temp = Join-Path $env:RUNNER_TEMP ('promote4120_' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $temp | Out-Null
+          $candidatePath = 'tests/candidates/manager-4.12.0-g1'
+          foreach ($name in @('part1.patch','part2.patch','part3.patch','part4.patch')) {
+            $target = Join-Path $temp $name
+            $spec = 'FETCH_HEAD:' + $candidatePath + '/' + $name
+            cmd.exe /d /c "git show `"$spec`" > `"$target`""
+            if ($LASTEXITCODE -ne 0) { throw "Could not materialize $name from archived validation branch." }
+          }
+
+          $patch = Join-Path $temp 'manager-4.12.0-g1.patch'
+          cmd.exe /d /c "copy /b `"$temp\part1.patch`"+`"$temp\part2.patch`"+`"$temp\part3.patch`"+`"$temp\part4.patch`" `"$patch`" >nul"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not reconstruct Manager 4.12.0 patch.' }
+          $patchText = [System.IO.File]::ReadAllText($patch,[System.Text.Encoding]::UTF8).Replace("`r`n","`n")
+          [System.IO.File]::WriteAllText($patch,$patchText,(New-Object System.Text.UTF8Encoding($false)))
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '644c124a32c74fa229b79a8c7e0652fc88d18ca002dd214fe17fd86c74471383') {
+            throw "Archived Manager patch identity mismatch: $patchHash"
+          }
+
+          $menu = Join-Path $root 'manager\product\tools\KeelarynMenu.ps1'
+          $menuBytes = [System.IO.File]::ReadAllBytes($menu)
+          $menuText = [System.Text.Encoding]::ASCII.GetString($menuBytes).Replace("`r`n","`n")
+          [System.IO.File]::WriteAllText($menu,$menuText,(New-Object System.Text.ASCIIEncoding))
+
+          git apply --check --whitespace=nowarn "$patch"
+          if ($LASTEXITCODE -ne 0) { throw 'Qualified 4.12.0 patch no longer applies cleanly to main.' }
+          git apply --whitespace=nowarn "$patch"
+          if ($LASTEXITCODE -ne 0) { throw 'Qualified 4.12.0 patch application failed.' }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'Patched source failed git diff --check.' }
+
+          $menuText = [System.IO.File]::ReadAllText($menu,[System.Text.Encoding]::ASCII).Replace("`r`n","`n").Replace("`n","`r`n")
+          [System.IO.File]::WriteAllText($menu,$menuText,(New-Object System.Text.ASCIIEncoding))
+
+          $installPath = Join-Path $root 'manager\product\install\INSTALLATION.json'
+          $install = Get-Content -LiteralPath $installPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ([string]$install.manager_version -ne '4.12.0') { throw 'Reconstructed Manager version is not 4.12.0.' }
+          $installHash = (Get-FileHash -LiteralPath $installPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($installHash -ne '7d616af1999a0071299044ac4f5f72d14f1bd74f5bc4fb280714db2076efaf77') {
+            throw "Reconstructed INSTALLATION identity mismatch: $installHash"
+          }
+
+          $gateZip = Join-Path $temp 'manager-4.12.0.zip'
+          $builder = Join-Path $root 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $root 'manager') -BaselineVersion '4.11.0' -GateRevision 3 -OutputPath $gateZip -Force
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $gateExtract = Join-Path $temp 'gate'
+          Expand-Archive -LiteralPath $gateZip -DestinationPath $gateExtract -Force
+          $spec = Get-Content (Join-Path $gateExtract 'manager-4.12.0\gate\GATE_SPEC.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ([int]$spec.framework_revision -ne 11 -or [int]$spec.gate_revision -ne 3) { throw 'Gate revision/framework identity mismatch.' }
+          if ([string]$spec.candidate_installation_sha256 -ne '7d616af1999a0071299044ac4f5f72d14f1bd74f5bc4fb280714db2076efaf77') { throw 'Gate INSTALLATION identity mismatch.' }
+          if ([string]$spec.candidate_managed_content_sha256 -ne 'fb0137c9485475ba7af069d5f1b7fe97c1b16121b9b97d47b3669e0cd435b32b') { throw 'Gate managed-content identity mismatch.' }
+
+      - name: Regenerate public manifest and production provenance
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = $env:GITHUB_WORKSPACE
+          $manager = Join-Path $root 'manager'
+          $framework = Join-Path $root 'tests\framework\manager-gate'
+          $installPath = Join-Path $manager 'product\install\INSTALLATION.json'
+          $install = Get-Content -LiteralPath $installPath -Raw -Encoding UTF8 | ConvertFrom-Json
+
+          $managerRows = @()
+          foreach ($raw in @($install.managed_files)) {
+            $rel = ([string]$raw).Replace('\','/')
+            $path = Join-Path $manager $rel.Replace('/','\')
+            $item = Get-Item -LiteralPath $path -Force
+            $managerRows += [ordered]@{
+              path = $rel
+              size_bytes = [int64]$item.Length
+              sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+          }
+
+          $frameworkFiles = @(
+            'Build-ManagerGate.ps1',
+            'FRAMEWORK_REVISION.txt',
+            'GATE_SPEC.schema.json',
+            'README.md',
+            'templates/Invoke-KeelarynGateChild.ps1',
+            'templates/Publish-KeelarynTestedArtifacts.ps1',
+            'templates/RUN_FULL_GATE.cmd.template',
+            'templates/Run-KeelarynManagerFullGate.ps1',
+            'templates/Run-KeelarynManagerSourceGate.ps1'
+          )
+          $frameworkRows = @()
+          foreach ($rel in $frameworkFiles) {
+            $path = Join-Path $framework $rel.Replace('/','\')
+            $item = Get-Item -LiteralPath $path -Force
+            $frameworkRows += [ordered]@{
+              path = $rel
+              size_bytes = [int64]$item.Length
+              sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+          }
+
+          $manifest = [ordered]@{
+            schema = 'keelaryn.public-file-manifest.v2'
+            scope = 'authoritative_source_sets'
+            manager = [ordered]@{
+              version = '4.12.0'
+              file_count = 61
+              installation_sha256 = '7d616af1999a0071299044ac4f5f72d14f1bd74f5bc4fb280714db2076efaf77'
+              gate_managed_content_sha256 = 'fb0137c9485475ba7af069d5f1b7fe97c1b16121b9b97d47b3669e0cd435b32b'
+              files = $managerRows
+            }
+            gate_framework = [ordered]@{
+              framework_version = '2.0'
+              revision = 11
+              file_count = 9
+              files = $frameworkRows
+            }
+            note = 'Public scaffolding is validated structurally; this manifest cryptographically binds the authoritative Manager and frozen gate-framework source sets.'
+          }
+          [System.IO.File]::WriteAllText((Join-Path $root 'PUBLIC_FILE_MANIFEST.json'),(($manifest | ConvertTo-Json -Depth 12) + "`n"),(New-Object System.Text.UTF8Encoding($false)))
+
+          $provenance = [ordered]@{
+            schema = 'keelaryn.public-repository-provenance.v2'
+            role = 'public_source_sync_candidate'
+            source_manager_version = '4.12.0'
+            source_gate_baseline_manager_version = '4.11.0'
+            source_manager_installation_sha256 = '7d616af1999a0071299044ac4f5f72d14f1bd74f5bc4fb280714db2076efaf77'
+            source_manager_gate_managed_content_sha256 = 'fb0137c9485475ba7af069d5f1b7fe97c1b16121b9b97d47b3669e0cd435b32b'
+            production_validation = [ordered]@{
+              full_gate_pass = $true
+              gate_revision = 3
+              framework_revision = 11
+              production_doctor_pass = $true
+              production_ux_smoke_pass = $true
+              production_managed_content_prefix = 'e640b8b53425'
+            }
+            personal_hub_included = $false
+            manager_runtime_state_included = $false
+            local_test_evidence_included = $false
+            gate_framework = [ordered]@{
+              version = '2.0'
+              revision = 11
+              windows_qualified = $true
+              frozen_for_manager_candidate = $true
+            }
+            license = [ordered]@{
+              spdx_id = 'MIT'
+              file = 'LICENSE'
+              copyright = 'Copyright (c) 2026 Keelaryn contributors'
+            }
+            public_candidate_revision = 10
+            git_checkout_contract = [ordered]@{
+              manager_authoritative_tree_attribute = '-text'
+              framework_authoritative_tree_attribute = '-text'
+              core_autocrlf_true_roundtrip_required = $true
+            }
+            known_nonsecret_source_hygiene_notes = @(
+              'manager/product/docs/TESTING.md retains one maintainer-local D:\0\0__Core example to preserve exact 4.12.0 managed source bytes; it is not a public installation default.'
+            )
+            ci_policy = [ordered]@{
+              github_actions = 'pull_request + main push + manual'
+              hosted_scope = 'repository verification + Hub-blind SourceGate + Generic DISTRIBUTION smoke'
+              full_gate = 'CURRENT-backed Windows Full Gate plus production Doctor and production UX smoke before publication'
+            }
+            known_nonsecret_hygiene_notes = @(
+              'manager/product/docs/TESTING.md retains a D:\0\0__Core example because Manager 4.12.0 source is published byte-identically; it is not a product default.',
+              'tests/framework/manager-gate/README.md retains D:\0\0__Core examples because Windows-qualified Framework r11 is published byte-identically; they are not product defaults.'
+            )
+          }
+          [System.IO.File]::WriteAllText((Join-Path $root 'PUBLIC_PROVENANCE.json'),(($provenance | ConvertTo-Json -Depth 10) + "`n"),(New-Object System.Text.UTF8Encoding($false)))
+
+      - name: Verify generated public source boundary
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit exact source promotion
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config --local user.name 'Aleksei Efremov'
+          git config --local user.email '322420575+efremov-aleksei-96@users.noreply.github.com'
+          git config --local commit.gpgsign false
+          git rm -- '.github/workflows/promote-manager-4.12.0.yml'
+          git add -- manager PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'Promotion commit failed git diff --cached --check.' }
+          $changed = @(git diff --cached --name-only)
+          $managerChanged = @($changed | Where-Object { $_ -like 'manager/*' })
+          if ($managerChanged.Count -ne 7) { throw "Expected exactly 7 changed Manager files; found $($managerChanged.Count): $($managerChanged -join ', ')" }
+          git commit -m 'Promote exact qualified Manager 4.12.0 source'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create exact source promotion commit.' }
+          git push origin HEAD:release-manager-4.12.0
+          if ($LASTEXITCODE -ne 0) { throw 'Could not push exact source promotion commit.' }
