@@ -14,10 +14,10 @@ Do not use the repository source ZIP as your normal installation. The repository
 
 ## 2. Extract it
 
-Extract the archive to a folder you control, for example:
+Extract the archive to a normal writable folder you control, for example:
 
 ```text
-C:\Users\<you>\Documents\Keelaryn
+Documents\Keelaryn
 ```
 
 Inside it you should see:
