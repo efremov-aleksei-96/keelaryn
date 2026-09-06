@@ -1,38 +1,36 @@
 # Contributing
 
-## Environment
+## Compatibility target
 
-The compatibility target is Windows PowerShell 5.1. Managed executable `.ps1` source is ASCII-only to avoid Windows PowerShell 5.1 UTF-8-without-BOM ambiguity; Unicode behavior is constructed by code point where necessary.
+The primary runtime compatibility target is **Windows PowerShell 5.1 Desktop**. Managed executable PowerShell/CMD source is kept ASCII-compatible where required by the product contracts.
 
 ## Development rules
 
-- Work only in disposable `tests/work` copies.
-- Do not run destructive development tests against an installed production Hub.
-- Do not silently modify an issued candidate after a defect is found.
+- Work in disposable `tests/work` targets.
+- Never use a personal production Hub as a mutable development fixture.
+- Do not silently replace an issued candidate after a real product defect.
 - Preserve fresh validation at transaction/commit boundaries.
-- Prefer removing duplicate work over removing validation.
-- Do not add personal Hub data to product source, tests, docs or examples.
+- Prefer eliminating duplicate work over removing validation.
+- Keep personal Hub data, credentials and local Manager state out of source/tests/docs.
+- Gate Framework revisions are qualified independently before they are frozen for Manager candidates.
 
 ## Before a pull request
 
 At minimum:
 
 1. run `tools/Verify-PublicRepository.ps1`;
-2. parse all managed PowerShell files with Windows PowerShell 5.1;
-3. run Manager `-SelfTest`;
-4. build AI_CONTEXT;
-5. run deterministic `BUILD_RELEASE` twice and compare artifact hashes;
-6. use a disposable Hub for update/migration changes;
-7. record benchmark evidence for performance claims.
+2. parse PowerShell with Windows PowerShell 5.1;
+3. run Manager, frontend and archive-tool SelfTests;
+4. run the Hub-blind SourceGate through frozen `tests/framework/manager-gate`;
+5. run the complete local Full Gate for any release candidate;
+6. include benchmark evidence for performance-sensitive changes.
 
-## Commit scope
+GitHub Actions is an additional source/repository check. It is not a substitute for the CURRENT-backed local Full Gate.
 
-Keep security/update/rollback changes separate from unrelated performance experiments when combined risk would make failures harder to diagnose. Related low-risk maintenance changes may be batched when they can share one release gate.
+## Release discipline
 
-## CI policy
+Correctness, regression prevention, rollback/data safety, determinism and security outrank performance or convenience. Related low-risk changes may be batched to reduce manual Windows gates, but an issued defective candidate requires a new candidate version.
 
-Run Keelaryn development gates locally. The GitHub-hosted Windows workflow is manual-only and is intended for milestone/publication verification, not for every push. Do not change it back to automatic `push`/`pull_request` triggers without a specific repository-level reason.
+## License
 
-## Licensing of contributions
-
-By submitting a contribution to this repository, you agree that the contribution may be distributed under the repository's MIT License.
+By contributing, you agree that your contribution may be distributed under the repository MIT License.

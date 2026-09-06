@@ -1,10 +1,10 @@
 # Hub CANDIDATE transport fallback
 
-`Keelaryn__Hub_CANDIDATE_*.zip` remains the primary, complete, non-canonical worker checkpoint sent to Chat Manager. Candidate transport does not replace ZIP, does not become canonical state, and is never installed by `UPDATE_HUB.cmd`.
+`Keelaryn__Hub_CANDIDATE_*.zip` remains the primary, complete, non-canonical worker checkpoint sent to Chat Manager. Candidate transport does not replace ZIP, does not become canonical state, and is never installed by Maintenance > Update Hub (legacy alias `UPDATE_HUB.cmd`).
 
 ## Build fallback transport
 
-Place one or more validated `Keelaryn__Hub_CANDIDATE_*.zip` files in Manager `_inbox`, keep the matching canonical `Keelaryn__Hub_CURRENT.zip` in place, and run `BUILD_CANDIDATE_TRANSPORT.cmd`.
+Place one or more validated `Keelaryn__Hub_CANDIDATE_*.zip` files in Manager `state/inbox`, keep the matching canonical `state/baseline/Keelaryn__Hub_CURRENT.zip` in place, and run Development > Build CANDIDATE transport (compatibility command `compat/commands/BUILD_CANDIDATE_TRANSPORT.cmd`).
 
 For every CANDIDATE, Manager writes `Keelaryn__Hub_CANDIDATE_TRANSPORT_<artifact-id>.json` beside it. Schema `keelaryn.hub.candidate-transport.v1` contains a deterministic Base64 delta from the exact CURRENT reconstruction baseline to the complete portable CANDIDATE tree.
 
@@ -20,11 +20,11 @@ Binary and text files use Base64 uniformly so UTF-8 BOMs, arbitrary binary data 
 
 ## Restore fallback transport
 
-If the original CANDIDATE ZIP is unavailable, place its transport JSON in `_inbox` with the exact CURRENT used as `reconstruction_base`, then run `RESTORE_CANDIDATE_TRANSPORT.cmd`.
+If the original CANDIDATE ZIP is unavailable, place its transport JSON in `state/inbox` with the exact CURRENT used as `reconstruction_base`, then run Development > Restore CANDIDATE transport (compatibility command `compat/commands/RESTORE_CANDIDATE_TRANSPORT.cmd`).
 
 Manager validates the JSON schema, path safety, operation uniqueness, Base64 bytes, per-file hashes, CURRENT reconstruction identity and all resulting Hub identities. It reconstructs a complete portable ZIP named `Keelaryn__Hub_CANDIDATE_RECONSTRUCTED_<artifact-id>.zip` and validates STATE, derived metadata, MANIFEST, ARTIFACT, payload/content hashes before publication.
 
-The reconstructed ZIP is still a CANDIDATE. Chat Manager must perform the normal semantic reconciliation/approval workflow. `RESTORE_CANDIDATE_TRANSPORT.cmd` never edits Hub, CURRENT, APPROVED state or candidate transport JSON.
+The reconstructed ZIP is still a CANDIDATE. Chat Manager must perform the normal semantic reconciliation/approval workflow. Development > Restore CANDIDATE transport (compatibility command `compat/commands/RESTORE_CANDIDATE_TRANSPORT.cmd`) never edits Hub, CURRENT, APPROVED state or candidate transport JSON.
 
 ## Scope and limits
 

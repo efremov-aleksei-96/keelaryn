@@ -1,44 +1,66 @@
-# Keelaryn Manager 4.4.31
-Keelaryn Manager is the single universal implementation used to create, bind, validate, migrate, service and release Keelaryn Hub instances. Product source is strictly separated from instance-specific state.
+# Keelaryn Manager 4.11.0
 
-## Everyday commands
+Manager 4.11.0 is a read-path performance release built on the production 4.10.2 release-engineering baseline. The canonical filesystem layout, Hub contracts, update schemas and user interface are unchanged.
 
-- `OPEN_KEELARYN__HUB.cmd` — open the bound Hub.
-- `DOCTOR.cmd` — read-only diagnostics and preflight report.
-- `UPDATE_MANAGER.cmd` — process Manager product updates only; Hub packages are untouched.
-- `UPDATE_HUB.cmd` — process validated Hub APPROVED packages only; Manager packages are untouched.
-- `UPDATE_ALL.cmd` — explicitly run Manager updates first, then Hub updates after the Manager chain is current.
+4.11.0 removes duplicate work from three hot paths without weakening fresh validation boundaries: Manager UPDATE parsing reuses one opened archive for envelope and payload validation, no-op Manager update cleanup reuses packages already validated during decision-making, and AI_CONTEXT lexical validation reuses the runtime text already parsed into the AST instead of reading the runtime a second time.
 
-## Instance and recovery maintenance
+## 4.11.0 duplicate-work cleanup
 
-- `BIND_INSTANCE.cmd` — explicitly bind this runtime to an existing Hub path.
-- `SHOW_INSTANCE_INFO.cmd` — display identity/release information.
-- `REPAIR_CURRENT_TRANSPORT.cmd` — remove workstation-local state from a legacy CURRENT ZIP without changing canonical payload identity.
-- `CHECK_MIGRATIONS.cmd` — plan system migrations.
-- `APPLY_MIGRATIONS.cmd` — apply only registry-declared manager-safe migrations.
-- `MIGRATE_INSTANCE_IDENTITY.cmd`, `MIGRATE_TO_KEELARYN.cmd`, `MIGRATE_LAYOUT.cmd`, `FINALIZE_LAYOUT.cmd` — explicit compatibility/migration entrypoints for older installations; keep them available, but they are not normal daily actions.
+The optimization is deliberately operation-local. It introduces no process-global cache and does not reuse validation across transaction/commit boundaries. Staged Manager UPDATE packages are still reparsed after copy before installation, installed payload hashes are still recomputed after mutation, and release/Doctor integrity checks retain their existing fresh-validation semantics.
 
-## Creation and development
+## Canonical installed layout
 
-- `GENESIS_KEELARYN__HUB.cmd` — create a new canonical r0001 instance.
-- `BUILD_GENERIC_DISTRIBUTION.cmd` — build a clean generic distribution.
-- `BUILD_RELEASE.cmd` — build source + distribution + future update + release manifest from one managed source tree.
-- `BUILD_AI_CONTEXT.cmd` — build deterministic task-routed AI development context.
-- `PREPARE_TESTS.cmd` — create/validate the canonical `tests/work` and `tests/results` development workspace without moving existing test data.
-- `BUILD_CANDIDATE_TRANSPORT.cmd` — build a verified Base64 delta fallback for Hub CANDIDATE ZIPs in `_inbox`.
-- `RESTORE_CANDIDATE_TRANSPORT.cmd` — reconstruct and verify Hub CANDIDATE ZIPs from fallback transport JSON without installing them.
+```text
+keelaryn/
+├── Keelaryn.cmd
+├── manager/
+│   ├── KEELARYN.cmd
+│   ├── README_FIRST.md
+│   ├── product/
+│   ├── compat/
+│   │   └── commands/
+│   └── state/
+│       ├── baseline/
+│       ├── inbox/
+│       ├── logs/
+│       ├── history/
+│       ├── releases/
+│       ├── work/
+│       ├── binding.json          (when bound)
+│       └── layout.json
+├── hub/
+└── tests/
+```
 
-## Update contract
+The canonical runtime is `manager/product/runtime/Keelaryn__Manager.ps1`. The canonical installation manifest is `manager/product/install/INSTALLATION.json`. Compatibility commands remain under `manager/compat/commands/`.
 
-Manager and Hub lifecycle operations are separate by default. Prefer `UPDATE_MANAGER.cmd` or `UPDATE_HUB.cmd` when only one layer should change. `UPDATE_ALL.cmd` is an explicit compound action, not an implicit inbox mode. Update commands never repair CURRENT transport as a side effect; use `REPAIR_CURRENT_TRANSPORT.cmd` explicitly when Doctor recommends it.
+Mutable Manager state belongs under `manager/state/`. Historical root runtime/version/manifest files are transport compatibility only and are not part of the canonical installed managed set.
 
-## System release
+## Update compatibility
 
-The current product system release is Keelaryn 2.1.0; Manager and system release versions are intentionally independent. Genesis and migration converge on one canonical governance source, with mandatory portable MANIFEST v1 and VALIDATION v2 semantics.
+Manager 4.11.0 preserves the native update compatibility floor required by the existing release policy. UPDATE artifacts therefore retain the narrow transition envelope (`Keelaryn__Manager.ps1`, `_manager_manifest.json`, `_manager_version.txt`) used by supported older Manager package validators. Those three files are not part of the final 4.11.0 installation manifest.
 
-Legacy `Core__*` identifiers exist only as explicit compatibility/history knowledge. Canonical installed layout is now `keelaryn/manager`, `keelaryn/hub`, and `keelaryn/tests`. `Keelaryn__Manager` / `Keelaryn__Hub` remain compatibility names for pre-4.4 installations and protocol artifacts.
+The one-time 4.7.2 -> 4.8.7 filesystem-finalization migration remains supported as historical compatibility code, but 4.11.0 does not reopen or redesign the filesystem architecture.
 
-## Fast development context
+## User interface
 
-`BUILD_AI_CONTEXT.cmd` builds a deterministic runtime-SHA-bound development context for ChatGPT. Use it for ordinary Manager analysis; use full SOURCE for cross-cutting edits/release reconstruction.
+Use `keelaryn\Keelaryn.cmd` or `manager\KEELARYN.cmd`.
 
+4.11.0 retains the 4.9.2 user-interface contract:
+
+- keeps the main status compact and moves diagnostic identity/path detail to Installation info;
+- separates visible `COMPLETED`, `NO CHANGES REQUIRED`, `CANCELLED` and `FAILED` results from backend exit codes;
+- treats GUI picker Cancel as an immediate cancellation;
+- keeps overwrite/confirmation decisions in the Manager frontend so redirected child processes never wait on hidden interactive prompts;
+- exposes Full Gate as a first-class Development action while preserving the external `UNPACK_MANAGER_GATE.cmd` workflow;
+- simplifies Maintenance and Advanced without removing compatibility capabilities.
+
+## Hub revision presentation
+
+New Hub revisions may carry immutable UTC `revision_time_utc`. Manager uses this as the human-facing revision time. Existing artifacts without the field remain valid and use their immutable `created` timestamp as the compatibility display fallback.
+
+`data_revision` remains the internal monotonic sequence used for lineage, ordering, deterministic validation and audit cadence. Existing `rNNNN` artifact/history contracts remain valid.
+
+## Release gate
+
+Production approval requires Windows PowerShell 5.1 parser and SelfTests, deterministic release/package validation, a CURRENT-backed disposable 4.10.2 -> 4.11.0 update, rollback verification, Doctor, UI/picker/archive orchestration regressions, revision compatibility checks, candidate-transport checks, generic distribution/Genesis smoke tests, AI_CONTEXT validation/performance control, and production immutability. The Windows candidate gate is generated through the independently Windows-qualified frozen Gate Framework v2 r9, which binds gate revisions cryptographically to unchanged managed candidate bytes and publishes the exact tested UPDATE plus a validated one-click production installer only after FULL GATE PASS.

@@ -14,7 +14,7 @@ Use a detached workbench when sustained topic work benefits from a smaller self-
 approved Hub -> WORKSPACE CHECKOUT -> detached workbench -> RETURN PACKET -> Hub-aware worker -> CANDIDATE -> Chat Manager -> APPROVED
 ```
 
-Checkout/return packets are context-transfer objects, not canonical artifacts and never belong in Local Manager `_inbox`.
+Checkout/return packets are context-transfer objects, not canonical artifacts and never belong in Local Manager `state/inbox`.
 
 ## WORKSPACE CHECKOUT
 

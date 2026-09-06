@@ -16,6 +16,8 @@ The Chat Manager reconciles complete CANDIDATE checkpoints against the current a
 - Artifact v3 `instance_id` must equal canonical INSTANCE identity.
 - Never merge artifacts from different instance IDs.
 - `artifact_id` is checkpoint-scoped and must never be reused as instance identity.
+- `revision_time_utc` is the immutable human-facing revision timestamp; preserve it across reconciliation of the same proposed revision.
+- `data_revision` remains an internal monotonic compatibility/order sequence.
 
 ## Start procedure
 
@@ -53,4 +55,4 @@ APPROVED artifacts use:
 - `producer_role = chat_manager`;
 - `manager_protocol = keelaryn-chat-manager-v4.0`.
 
-Genesis `r0001` is created by Keelaryn__Manager and has no fabricated `r0000` baseline.
+Genesis creates internal `data_revision: 1` (legacy sequence `r0001`) and an immutable `revision_time_utc`; it has no fabricated revision-zero baseline.

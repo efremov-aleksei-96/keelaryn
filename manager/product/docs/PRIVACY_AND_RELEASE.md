@@ -2,7 +2,7 @@
 
 Generic Keelaryn distributions are built exclusively from the Manager's managed product allowlist. Canonical Hub CURRENT files, inbox/history/logs/releases, local bindings and any user instance tree are outside that allowlist.
 
-`BUILD_GENERIC_DISTRIBUTION.cmd` produces a clean generic distribution. `BUILD_RELEASE.cmd` additionally produces source, update and release-manifest artifacts from the same allowlist.
+Development > Build generic distribution (legacy alias `BUILD_GENERIC_DISTRIBUTION.cmd`) produces a clean generic distribution. Development > Build full release (legacy alias `BUILD_RELEASE.cmd`) additionally produces source, update and release-manifest artifacts from the same allowlist.
 
 Managed source is text-only and clean-room audited for user-like emails, phone-like values and absolute user-profile paths. Technical GUIDs and full SHA-256 digests are normalized before phone-pattern inspection so machine identities cannot trigger bare-number phone detection.
 

@@ -24,7 +24,9 @@ The `_System/` layer defines identity, governance and deterministic metadata.
 
 `instance_id` is a stable UUID stored in `_System/INSTANCE.json`. It survives every normal revision, system-version change, path move and Manager upgrade.
 
-`data_revision` is a global monotonic checkpoint sequence for one instance. It starts at `r0001` at Genesis and does not reset when `system_version` changes.
+`revision_time_utc` is the immutable human-facing revision timestamp assigned when a checkpoint revision is created. It is UTC ISO-8601 and must be preserved when that revision moves through reconciliation.
+
+`data_revision` remains the internal global monotonic compatibility/order sequence for one instance. It starts at 1 at Genesis and does not reset when `system_version` changes. It is not the preferred human-facing revision label.
 
 `artifact_id` identifies one checkpoint only. It is not an instance identifier.
 

@@ -1,0 +1,25 @@
+{
+  "schema": "keelaryn.manager-gate-spec.schema.v1",
+  "required": [
+    "schema",
+    "framework_version",
+    "framework_revision",
+    "candidate_version",
+    "baseline_manager_version",
+    "gate_revision",
+    "candidate_installation_sha256",
+    "candidate_managed_content_sha256",
+    "final_managed_count"
+  ],
+  "contract": {
+    "schema": "keelaryn.manager-gate-spec.v1",
+    "framework_version": "2.0",
+    "candidate_version": "x.y.z",
+    "baseline_manager_version": "x.y.z",
+    "gate_revision": ">=1",
+    "candidate_installation_sha256": "lowercase SHA-256",
+    "candidate_managed_content_sha256": "lowercase SHA-256 over sorted path\\0file-sha rows",
+    "final_managed_count": ">=1",
+    "framework_revision": ">=1; exact generated framework source revision"
+  }
+}

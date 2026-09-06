@@ -1,41 +1,27 @@
-name: Windows PowerShell validation
+name: Windows source validation
 
-# Deliberately manual-only.
-#
-# Keelaryn development and release gates run locally under tests/work. GitHub
-# Actions is a public/milestone verification layer, not the primary development
-# runner. This prevents every local development push from consuming hosted
-# runner quota while a repository is private and keeps portfolio CI history
-# focused on meaningful checkpoints.
 on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: keelaryn-public-validation-${{ github.ref }}
+  group: keelaryn-source-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  manager-validation:
+  source-gate:
     runs-on: windows-latest
     timeout-minutes: 30
-
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Resolve Manager version
-        id: manager
-        shell: powershell
-        run: |
-          $manager = Join-Path $env:GITHUB_WORKSPACE 'manager'
-          $version = (Get-Content (Join-Path $manager '_manager_version.txt') -Raw -Encoding UTF8).Trim()
-          if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            throw "Invalid Manager version: $version"
-          }
-          "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Manager version: $version"
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Verify public repository boundary
         shell: powershell
@@ -43,44 +29,25 @@ jobs:
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Manager SelfTest
+      - name: Generate frozen-r9 source gate
         shell: powershell
         run: |
-          $manager = Join-Path $env:GITHUB_WORKSPACE 'manager'
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $manager 'Keelaryn__Manager.ps1') -SelfTest
+          $root = $env:GITHUB_WORKSPACE
+          $manager = Join-Path $root 'manager'
+          $install = Get-Content (Join-Path $manager 'product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $prov = Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $version = [string]$install.manager_version
+          $baseline = [string]$prov.source_gate_baseline_manager_version
+          $builder = Join-Path $root 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          $gateZip = Join-Path $root ('tests\manager-' + $version + '.zip')
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $builder -SourceRoot $manager -BaselineVersion $baseline -GateRevision 9001 -OutputPath $gateZip -Force
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $work = Join-Path $root 'tests\work'
+          Expand-Archive -LiteralPath $gateZip -DestinationPath $work -Force
+          "candidate=$work\manager-$version" >> $env:GITHUB_ENV
 
-      - name: Build AI_CONTEXT
+      - name: Run Hub-blind SourceGate
         shell: powershell
         run: |
-          $manager = Join-Path $env:GITHUB_WORKSPACE 'manager'
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $manager 'Keelaryn__Manager.ps1') -BuildAIContext
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:candidate\gate\Run-KeelarynManagerSourceGate.ps1" -ManagerRoot "$env:candidate"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Deterministic BUILD_RELEASE x2
-        shell: powershell
-        run: |
-          $manager = Join-Path $env:GITHUB_WORKSPACE 'manager'
-          $script = Join-Path $manager 'Keelaryn__Manager.ps1'
-          $version = '${{ steps.manager.outputs.version }}'
-          $releasePath = Join-Path $manager "_releases\Keelaryn__Manager_RELEASE_v$version.json"
-
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -BuildRelease
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          $release = Get-Content $releasePath -Raw -Encoding UTF8 | ConvertFrom-Json
-          $first = @{}
-          foreach ($a in $release.artifacts) {
-            $first[$a.role] = (Get-FileHash (Join-Path (Join-Path $manager '_releases') $a.path) -Algorithm SHA256).Hash.ToLowerInvariant()
-          }
-
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -BuildRelease
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          $release2 = Get-Content $releasePath -Raw -Encoding UTF8 | ConvertFrom-Json
-          foreach ($a in $release2.artifacts) {
-            $actual = (Get-FileHash (Join-Path (Join-Path $manager '_releases') $a.path) -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($first[$a.role] -ne $actual) {
-              throw "Non-deterministic artifact: $($a.role)"
-            }
-          }

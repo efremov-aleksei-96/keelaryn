@@ -1,6 +1,6 @@
 # Genesis and onboarding
 
-`GENESIS_KEELARYN__HUB.cmd` creates the canonical sibling `hub` next to `manager` in a 4.4+ layout and canonical `r0001`. There is no fabricated `r0000`.
+Advanced > Genesis new Hub (legacy alias `GENESIS_KEELARYN__HUB.cmd`) creates the canonical sibling `hub` next to `manager` in a 4.4+ layout. The initial Hub has internal monotonic `data_revision: 1` (legacy sequence `r0001`) and an immutable UTC `revision_time_utc`; human-facing UI uses the timestamp rather than `r0001`. There is no fabricated revision zero.
 
 Genesis combines two product-owned sources:
 
@@ -16,6 +16,9 @@ System 2.1.0 Genesis always creates:
 - `keelaryn.manifest.v1`;
 - `keelaryn.validation.v2`.
 
-Before committing r0001, Manager independently validates metadata, source manifest and payload identity. Local `.obsidian`/Git/workstation state is never included in the portable checkpoint.
+Before committing the initial revision, Manager independently validates metadata, source manifest and payload identity. Local `.obsidian`/Git/workstation state is never included in the portable checkpoint.
 
-Initial Area/Project names are planned before r0001 is committed. Manager rejects filename collisions after sanitization, collisions with canonical template files, Windows reserved device names, wikilink-breaking bracket names after normalization, and generated slugs longer than 80 characters. The display title remains the user-provided name; only the filesystem slug is normalized.
+Initial Area/Project names are planned before the initial revision is committed. Manager rejects filename collisions after sanitization, collisions with canonical template files, Windows reserved device names, wikilink-breaking bracket names after normalization, and generated slugs longer than 80 characters. The display title remains the user-provided name; only the filesystem slug is normalized.
+
+
+The interactive Manager frontend owns Genesis input and the commit confirmation. It serializes the validated choices into a short-lived `keelaryn.genesis-input.v1` document and invokes the runtime child non-interactively with explicit confirmation. Direct frontend automation must provide `-Path <config.json> -ConfirmChanges`; without explicit confirmation it is a safe no-op. The legacy compatibility command/runtime `-Genesis` path remains interactive for compatibility when invoked outside the Manager frontend.

@@ -4,7 +4,7 @@ Keelaryn Manager separates diagnostics, explicit binding, Manager product update
 
 ## Preflight
 
-Run `DOCTOR.cmd` before major migrations, after moving Manager/Hub folders, or when an update is rejected. Doctor is read-only with respect to canonical Hub state and writes `_logs/DOCTOR_REPORT.json`.
+Run Doctor (menu; compatibility command `compat/commands/DOCTOR.cmd`) before major migrations, after moving Manager/Hub folders, or when an update is rejected. Doctor is read-only with respect to canonical Hub state and writes `state/logs/DOCTOR_REPORT.json`.
 
 Exit codes:
 
@@ -18,17 +18,17 @@ Exit codes:
 
 ## Manager updates
 
-Use `UPDATE_MANAGER.cmd`. It scans and installs only Manager product packages. Hub CANDIDATE/APPROVED packages are not evaluated or changed. A Manager self-update restarts into the same explicit Manager-only mode until no newer compatible Manager package remains.
+Use Maintenance > Update Manager (legacy alias `UPDATE_MANAGER.cmd`). It scans and installs only Manager product packages. Hub CANDIDATE/APPROVED packages are not evaluated or changed. A Manager self-update restarts into the same explicit Manager-only mode until no newer compatible Manager package remains.
 
 Before snapshot or mutation, every managed destination is checked against the live filesystem. Existing managed targets must be regular non-reparse files, existing parents must be real directories, and reparse-point/directory collisions are rejected before update writes begin. The same target-safety check is repeated at the mutation and rollback boundaries.
 
 ## Hub updates
 
-Use `UPDATE_HUB.cmd`. It does not scan or install Manager packages. Worker CANDIDATEs remain pending for Chat Manager; only validated APPROVED artifacts can replace the canonical Hub.
+Use Maintenance > Update Hub (legacy alias `UPDATE_HUB.cmd`). It does not scan or install Manager packages. Worker CANDIDATEs remain pending for Chat Manager; only validated APPROVED artifacts can replace the canonical Hub.
 
 ## Combined updates
 
-Use `UPDATE_ALL.cmd` only when both layers are intentionally being serviced. Manager packages are resolved first. After the Manager chain is current, the newly installed Manager evaluates Hub APPROVED packages. A Manager conflict or failed self-test blocks the Hub phase.
+Use Maintenance > Update Manager + Hub (legacy alias `UPDATE_ALL.cmd`) only when both layers are intentionally being serviced. Manager packages are resolved first. After the Manager chain is current, the newly installed Manager evaluates Hub APPROVED packages. A Manager conflict or failed self-test blocks the Hub phase.
 
 This explicit three-command contract prevents a generic “inbox” action from silently changing a different lifecycle layer.
 
@@ -40,15 +40,15 @@ Incoming Hub ZIPs containing local deployment state are rejected. Update command
 
 ## Transport repair
 
-`REPAIR_CURRENT_TRANSPORT.cmd` is the explicit maintenance action for older CURRENT ZIPs that accidentally captured local deployment state. It validates STATE, ARTIFACT and payload identity before and after rewriting the ZIP. Product updates, Hub updates and `DOCTOR.cmd` never perform this repair as a startup side effect.
+Maintenance > Repair CURRENT transport (compatibility command `compat/commands/REPAIR_CURRENT_TRANSPORT.cmd`) is the explicit maintenance action for older CURRENT ZIPs that accidentally captured local deployment state. It validates STATE, ARTIFACT and payload identity before and after rewriting the ZIP. Product updates, Hub updates and Doctor (menu; compatibility command `compat/commands/DOCTOR.cmd`) never perform this repair as a startup side effect.
 
 Doctor emits ordered `recommended_actions` in the JSON report for actionable findings such as stale binding, non-portable CURRENT transport, registered migrations, baseline divergence, or invalid Manager packages. Recommendations never mutate the Hub automatically.
 
-After Manager update selection, valid Manager packages that are older than the installed version, or exact same-content copies of the installed version, are moved from `_inbox` to `_history/manager_packages/`. Divergent same-version packages and invalid/unrecognized ZIPs are never silently removed.
+After Manager update selection, valid Manager packages that are older than the installed version, or exact same-content copies of the installed version, are moved from `state/inbox` to `state/history/manager_packages/`. Cleanup reuses the package objects already validated during update decision-making instead of reopening those ZIPs. Divergent same-version packages and invalid/unrecognized ZIPs are never silently removed.
 
 ## AI development context
 
-Run `BUILD_AI_CONTEXT.cmd` to build a compact development handoff. Manager-only build/update/self-test commands are Hub-blind, so a missing or broken Hub cannot block them.
+Run Development > Build AI_CONTEXT (legacy alias `BUILD_AI_CONTEXT.cmd`) to build a compact development handoff. Manager-only build/update/self-test commands are Hub-blind, so a missing or broken Hub cannot block them.
 
 ## Locked-file diagnostics
 
@@ -58,7 +58,18 @@ Doctor timing telemetry includes `hub_state_core_ms`, `hub_portable_analysis_ms`
 
 ## Development test workspace
 
-Run `PREPARE_TESTS.cmd` on the canonical installation before Manager development gates. It creates and validates `tests/work` and `tests/results`, writes `tests/WORKSPACE.json`, and reports legacy/unclassified top-level entries without moving or deleting them. Candidate packs and disposable fixtures go under `work`; gate summaries, transcripts and raw benchmark reports go under `results`. `legacy-layout-backup` remains reserved for explicit layout finalization.
+Run Development > Prepare tests workspace (legacy alias `PREPARE_TESTS.cmd`) on the canonical installation before Manager development gates. It creates and validates `tests/work` and `tests/results`, writes `tests/WORKSPACE.json`, and reports legacy/unclassified top-level entries without moving or deleting them. Candidate packs and disposable fixtures go under `work`; gate summaries, transcripts and raw benchmark reports go under `results`. `legacy-layout-backup` remains reserved for explicit layout finalization.
 ## Hub candidate transport fallback
 
-`BUILD_CANDIDATE_TRANSPORT.cmd` and `RESTORE_CANDIDATE_TRANSPORT.cmd` are explicit non-installing transport-resilience actions. ZIP remains the primary CANDIDATE checkpoint. The JSON fallback is a deterministic Base64 delta against an exact CURRENT identity and may only reconstruct a CANDIDATE ZIP after path, byte, hash, ancestry and full Hub metadata validation. Neither command modifies Hub, CURRENT or APPROVED state. See `CANDIDATE_TRANSPORT.md`.
+Development > Build CANDIDATE transport (legacy alias `BUILD_CANDIDATE_TRANSPORT.cmd`) and Development > Restore CANDIDATE transport (legacy alias `RESTORE_CANDIDATE_TRANSPORT.cmd`) are explicit non-installing transport-resilience actions. ZIP remains the primary CANDIDATE checkpoint. The JSON fallback is a deterministic Base64 delta against an exact CURRENT identity and may only reconstruct a CANDIDATE ZIP after path, byte, hash, ancestry and full Hub metadata validation. Neither command modifies Hub, CURRENT or APPROVED state. See `CANDIDATE_TRANSPORT.md`.
+
+## Interactive frontend
+
+Prefer `KEELARYN.cmd` for human-operated workflows. The frontend only orchestrates existing explicit Manager modes and does not bypass update/package validation. Its package picker copies a selected Manager UPDATE or Hub APPROVED ZIP into `state/inbox`, verifies the copied bytes by SHA-256, and then invokes the corresponding canonical update action.
+
+The menu quick-status header is not a health assertion. Use Doctor for authoritative diagnostics.
+
+### Filesystem-finalization handoff
+
+During the one-time 4.7.2 -> 4.8.7 transition, a hidden root `_logs` directory may exist briefly after the update subprocess returns. It is a compatibility handoff for the still-running 4.7.2 parent, not canonical state. The next 4.8.7 Manager invocation completes the handoff, merges any final legacy-parent log line into `state/logs/manager.log`, removes root `_logs`, and records completion in `state/layout.json`.
+

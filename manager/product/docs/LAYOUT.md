@@ -1,35 +1,62 @@
 # Keelaryn layout
 
-## Canonical installed layout (4.4+)
+Canonical local layout:
 
 ```text
 keelaryn/
+├── Keelaryn.cmd
 ├── manager/
 ├── hub/
 └── tests/
 ```
 
-The same component naming is intended for a future GitHub repository: `manager/`, `hub/`, `tests/`, with optional `docs/` and `tools/`. Directory names are lowercase for cross-platform portability.
+Directory names are lowercase. Legacy `Keelaryn__*`, `Core__*` and prefixed filesystem names are compatibility/migration names only.
 
-## Compatibility
+## Manager physical layout
 
-Pre-4.4 sibling directories `Keelaryn__Manager` and `Keelaryn__Hub` are legacy installation-layout names only. They are never defaults for new installations after the migration. Wire-format/package names that contain `Keelaryn__Hub` or `Keelaryn__Manager` remain compatibility contracts until a separate protocol migration.
+Manager 4.8.7 finalizes physical organization:
 
-## Migration safety
+```text
+manager/
+├── KEELARYN.cmd
+├── README_FIRST.md
+├── product/
+│   ├── install/
+│   │   └── INSTALLATION.json
+│   ├── runtime/
+│   │   └── Keelaryn__Manager.ps1
+│   ├── tools/
+│   ├── docs/
+│   ├── governance/
+│   ├── migrations/
+│   └── starter/
+├── compat/
+│   └── commands/
+└── state/
+    ├── baseline/
+    │   └── Keelaryn__Hub_CURRENT.zip
+    ├── inbox/
+    ├── logs/
+    ├── history/
+    ├── releases/
+    ├── work/
+    ├── binding.json
+    └── layout.json
+```
 
-`MIGRATE_LAYOUT.cmd` uses copy-and-activate: it closes Obsidian, verifies the canonical baseline, copies Manager and Hub into staging, compares the full Hub tree and managed Manager content, activates `keelaryn/manager` and `keelaryn/hub`, writes a v2 binding, and runs SelfTest plus Doctor from the new Manager. Legacy directories are not deleted.
+`binding.json` and CURRENT exist only when applicable. `state/` is machine-local runtime state, not repository source. It is physically separated rather than hidden in the Manager root.
 
-`FINALIZE_LAYOUT.cmd` is a separate explicit step. It requires a clean Doctor on the canonical installation and archives the legacy directories under `keelaryn/tests/legacy-layout-backup/<timestamp>/` rather than deleting them.
+Historical root command aliases and the root runtime bootstrap are transition artifacts, not the canonical layout. The 4.7.2-compatible UPDATE envelope may temporarily materialize them during installation; the 4.8.7 filesystem-finalization transaction removes them, validates the canonical `state/` paths, and restarts the runtime before the update command completes.
+
+## Legacy layout migration
+
+Advanced > Migrate canonical layout handles older pre-`keelaryn/{manager,hub,tests}` installations. Manager filesystem state finalization is a separate 4.8.7 transaction and does not mutate Hub portable source.
 
 ## Tests workspace
 
-Development work under `tests/` uses only role-based directories that have an active purpose:
+`tests/work/` is disposable candidate/runtime state. `tests/results/` contains durable gate summaries, benchmark reports and logs.
 
-```text
-tests/
-├── work/
-├── results/
-└── legacy-layout-backup/   # on demand only
-```
+### 4.8.7 legacy-parent log handoff
 
-`work/` contains disposable candidate/runtime state. `results/` contains durable gate summaries, benchmark reports and logs. Synthetic fixtures live inside the current worktree instead of a permanent `fixtures/` directory; failed/rejected status is recorded under `results/` instead of a separate `rejected/` tree. `PREPARE_TESTS.cmd` creates/validates the active workspace and leaves pre-existing unclassified entries untouched.
+The 4.7.2 -> 4.8.7 self-update crosses a live legacy parent process. Phase 1 moves the canonical log tree to `state/logs` but temporarily recreates an empty hidden root `_logs` directory so the waiting 4.7.2 parent can write its final completion record after the new runtime returns. The next independent 4.8.7 invocation merges that handoff log into `state/logs`, removes root `_logs`, and clears `legacy_log_handoff_pending` in `state/layout.json`. This handoff is transition-only and is not part of the final filesystem contract.
+Distribution-only provenance is physically organized under `product/install/DISTRIBUTION_MANIFEST.json`. It is not canonical managed source and does not appear as a separate Manager-root object after extraction.

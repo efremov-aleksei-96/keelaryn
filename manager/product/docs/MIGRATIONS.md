@@ -2,13 +2,13 @@
 
 A Keelaryn Hub is identified by `_System/INSTANCE.json` (`keelaryn.instance.v1`). The UUID survives revision changes, system upgrades and folder moves.
 
-`CHECK_MIGRATIONS.cmd` computes a path from the installed `system_version` to `product/release.json`. A complete path is not automatically executable: any non-`manager_safe` step produces `review_required`.
+Maintenance > Check migrations (legacy alias `CHECK_MIGRATIONS.cmd`) computes a path from the installed `system_version` to `product/release.json`. A complete path is not automatically executable: any non-`manager_safe` step produces `review_required`.
 
-`APPLY_MIGRATIONS.cmd` only executes explicit `manager_safe` operations and refuses semantic merges.
+Maintenance > Apply migrations (legacy alias `APPLY_MIGRATIONS.cmd`) only executes explicit `manager_safe` operations and refuses semantic merges.
 
 Major namespace/history repair and customized governance convergence belong to Chat Manager. The 2.0.0 -> 2.1.0 transition is registered as `chat_manager_required`.
 
-Moving a Hub does not require a system migration. Use `BIND_INSTANCE.cmd` if automatic identity-based reconciliation cannot resolve the location unambiguously.
+Moving a Hub does not require a system migration. Use Maintenance > Bind existing Hub (legacy alias `BIND_INSTANCE.cmd`) if automatic identity-based reconciliation cannot resolve the location unambiguously.
 
 ## Legacy Core__ namespace compatibility
 
