@@ -1,12 +1,10 @@
-# Keelaryn Manager 4.11.0
+# Keelaryn Manager 4.12.0
 
-Manager 4.11.0 is a read-path performance release built on the production 4.10.2 release-engineering baseline. The canonical filesystem layout, Hub contracts, update schemas and user interface are unchanged.
+Manager 4.12.0 is a first-use onboarding release built on the production-qualified 4.11.0 Manager baseline. It does not change Hub schemas, update schemas, migration semantics or validation boundaries.
 
-4.11.0 removes duplicate work from three hot paths without weakening fresh validation boundaries: Manager UPDATE parsing reuses one opened archive for envelope and payload validation, no-op Manager update cleanup reuses packages already validated during decision-making, and AI_CONTEXT lexical validation reuses the runtime text already parsed into the AST instead of reading the runtime a second time.
+The interactive frontend now distinguishes a genuinely empty fresh installation from an existing installation that merely has a missing/invalid Hub. A clean Generic DISTRIBUTION opens a guided first-run screen with Create, Connect, Main menu and Exit actions. Genesis and binding continue to use the existing validated Manager paths rather than a second setup implementation.
 
-## 4.11.0 duplicate-work cleanup
-
-The optimization is deliberately operation-local. It introduces no process-global cache and does not reuse validation across transaction/commit boundaries. Staged Manager UPDATE packages are still reparsed after copy before installation, installed payload hashes are still recomputed after mutation, and release/Doctor integrity checks retain their existing fresh-validation semantics.
+After successful first-run Genesis or binding, Manager runs Doctor immediately and only reports setup ready when Doctor succeeds. Existing/colliding state remains fail-closed and routes to recovery; in particular, a source checkout containing the repository-only `hub/README.md` marker is never treated as an empty install target.
 
 ## Canonical installed layout
 
@@ -38,22 +36,21 @@ Mutable Manager state belongs under `manager/state/`. Historical root runtime/ve
 
 ## Update compatibility
 
-Manager 4.11.0 preserves the native update compatibility floor required by the existing release policy. UPDATE artifacts therefore retain the narrow transition envelope (`Keelaryn__Manager.ps1`, `_manager_manifest.json`, `_manager_version.txt`) used by supported older Manager package validators. Those three files are not part of the final 4.11.0 installation manifest.
+Manager 4.12.0 preserves the native update compatibility floor required by the existing release policy. UPDATE artifacts therefore retain the narrow transition envelope (`Keelaryn__Manager.ps1`, `_manager_manifest.json`, `_manager_version.txt`) used by supported older Manager package validators. Those three files are not part of the final 4.11.0 installation manifest.
 
-The one-time 4.7.2 -> 4.8.7 filesystem-finalization migration remains supported as historical compatibility code, but 4.11.0 does not reopen or redesign the filesystem architecture.
+The one-time 4.7.2 -> 4.8.7 filesystem-finalization migration remains supported as historical compatibility code, but 4.12.0 does not reopen or redesign the filesystem architecture.
 
 ## User interface
 
 Use `keelaryn\Keelaryn.cmd` or `manager\KEELARYN.cmd`.
 
-4.11.0 retains the 4.9.2 user-interface contract:
+4.12.0 preserves the established menu/action contract and adds a bounded startup layer:
 
-- keeps the main status compact and moves diagnostic identity/path detail to Installation info;
-- separates visible `COMPLETED`, `NO CHANGES REQUIRED`, `CANCELLED` and `FAILED` results from backend exit codes;
-- treats GUI picker Cancel as an immediate cancellation;
-- keeps overwrite/confirmation decisions in the Manager frontend so redirected child processes never wait on hidden interactive prompts;
-- exposes Full Gate as a first-class Development action while preserving the external `UNPACK_MANAGER_GATE.cmd` workflow;
-- simplifies Maintenance and Advanced without removing compatibility capabilities.
+- a genuinely empty canonical installation opens a Create / Connect first-run screen;
+- pre-existing or conflicting state routes to Doctor/binding recovery instead of implicit mutation;
+- successful first-run creation/binding runs Doctor before setup is declared ready;
+- choosing Main menu for now is session-only and does not suppress future setup guidance;
+- the ordinary main menu, semantic action results, picker behavior, Full Gate entrypoint and compatibility actions remain available unchanged.
 
 ## Hub revision presentation
 
@@ -63,4 +60,4 @@ New Hub revisions may carry immutable UTC `revision_time_utc`. Manager uses this
 
 ## Release gate
 
-Production approval requires Windows PowerShell 5.1 parser and SelfTests, deterministic release/package validation, a CURRENT-backed disposable 4.10.2 -> 4.11.0 update, rollback verification, Doctor, UI/picker/archive orchestration regressions, revision compatibility checks, candidate-transport checks, generic distribution/Genesis smoke tests, AI_CONTEXT validation/performance control, and production immutability. The Windows candidate gate is generated through the independently Windows-qualified frozen Gate Framework v2 r9, which binds gate revisions cryptographically to unchanged managed candidate bytes and publishes the exact tested UPDATE plus a validated one-click production installer only after FULL GATE PASS.
+Production approval requires Windows PowerShell 5.1 parser and SelfTests, deterministic release/package validation, a CURRENT-backed disposable 4.11.0 -> 4.12.0 update, rollback verification, Doctor, first-run/Create/Bind/recovery UI coverage, picker/archive orchestration regressions, revision compatibility checks, candidate-transport checks, generic distribution/Genesis smoke tests, AI_CONTEXT validation/performance control, and production immutability. The Windows candidate gate is generated through the independently Windows-qualified frozen Gate Framework v2 r9, which binds gate revisions cryptographically to unchanged managed candidate bytes and publishes the exact tested UPDATE plus a validated one-click production installer only after FULL GATE PASS.

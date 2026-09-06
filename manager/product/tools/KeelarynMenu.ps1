@@ -136,14 +136,18 @@ $ManagerScript=Join-Path $ManagerRoot 'product\runtime\Keelaryn__Manager.ps1'
 $ManagerInstallManifest=Join-Path $ManagerRoot 'product\install\INSTALLATION.json'
 $StateRoot=Join-Path $ManagerRoot 'state'
 $StateLayoutReceipt=Join-Path $StateRoot 'layout.json'
-$StateLayoutActive=Test-Path -LiteralPath $StateLayoutReceipt -PathType Leaf
 $CanonicalLayout=((Split-Path $ManagerRoot -Leaf) -ieq 'manager')
 $HubRoot=Join-Path $LayoutRoot 'hub'
 $TestsRoot=Join-Path $LayoutRoot 'tests'
-$Inbox=if($StateLayoutActive){Join-Path $StateRoot 'inbox'}else{Join-Path $ManagerRoot '_inbox'}
-$Logs=if($StateLayoutActive){Join-Path $StateRoot 'logs'}else{Join-Path $ManagerRoot '_logs'}
-$Releases=if($StateLayoutActive){Join-Path $StateRoot 'releases'}else{Join-Path $ManagerRoot '_releases'}
 $CompatCommands=Join-Path $ManagerRoot 'compat\commands'
+
+function Refresh-FrontendOperationalPaths {
+    $script:StateLayoutActive=Test-Path -LiteralPath $StateLayoutReceipt -PathType Leaf
+    $script:Inbox=if($script:StateLayoutActive){Join-Path $StateRoot 'inbox'}else{Join-Path $ManagerRoot '_inbox'}
+    $script:Logs=if($script:StateLayoutActive){Join-Path $StateRoot 'logs'}else{Join-Path $ManagerRoot '_logs'}
+    $script:Releases=if($script:StateLayoutActive){Join-Path $StateRoot 'releases'}else{Join-Path $ManagerRoot '_releases'}
+}
+Refresh-FrontendOperationalPaths
 
 function Read-ManagerVersion {
     if(-not(Test-Path -LiteralPath $ManagerInstallManifest -PathType Leaf)){return '<missing>'}
@@ -250,6 +254,30 @@ function Get-QuickHubBinding {
     }
 
     return [pscustomobject]@{Path=$HubRoot;Source='canonical'}
+}
+
+function Resolve-StartupDisposition {
+    param(
+        [bool]$CanonicalLayoutActive,
+        [bool]$HasValidHub,
+        [bool]$CanonicalHubPathExists,
+        [bool]$HasCurrentBaseline,
+        [bool]$HasBindingState,
+        [bool]$HasHubEnvironmentOverride
+    )
+    if(-not$CanonicalLayoutActive){return 'not_applicable'}
+    if($HasValidHub){return 'ready'}
+    if(-not$CanonicalHubPathExists -and -not$HasCurrentBaseline -and -not$HasBindingState -and -not$HasHubEnvironmentOverride){return 'new_install'}
+    return 'attention'
+}
+
+function Get-StartupDisposition {
+    $binding=Get-QuickHubBinding
+    $hasValidHub=Test-QuickHubCandidate ([string]$binding.Path)
+    $current=if($StateLayoutActive){Join-Path $StateRoot 'baseline\Keelaryn__Hub_CURRENT.zip'}else{Join-Path $ManagerRoot 'Keelaryn__Hub_CURRENT.zip'}
+    $bindingPath=if($StateLayoutActive){Join-Path $StateRoot 'binding.json'}else{Join-Path $ManagerRoot '_instance_binding.json'}
+    $hasEnvironment=(-not[string]::IsNullOrWhiteSpace([string]$env:KEELARYN_HUB_PATH))-or(-not[string]::IsNullOrWhiteSpace([string][Environment]::GetEnvironmentVariable('CORE_HUB_VAULT_PATH')))
+    return Resolve-StartupDisposition ([bool]$CanonicalLayout) ([bool]$hasValidHub) ([bool](Test-Path -LiteralPath $HubRoot)) ([bool](Test-Path -LiteralPath $current -PathType Leaf)) ([bool](Test-Path -LiteralPath $bindingPath -PathType Leaf)) ([bool]$hasEnvironment)
 }
 
 function Get-QuickStatus {
@@ -361,7 +389,9 @@ function Show-QuickStatus([switch]$DetailedWorkspace) {
 function Invoke-Manager([string[]]$ManagerArgs) {
     if(-not(Test-Path -LiteralPath $ManagerScript -PathType Leaf)){Fail('Manager runtime missing: '+$ManagerScript)}
     & (Join-Path $PSHOME 'powershell.exe') -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $ManagerScript @ManagerArgs 2>&1 | ForEach-Object { Write-UiHost ([string]$_) }
-    return [int]$LASTEXITCODE
+    $rc=[int]$LASTEXITCODE
+    Refresh-FrontendOperationalPaths
+    return $rc
 }
 
 function Open-Folder([string]$FolderPath) {
@@ -850,6 +880,84 @@ function Show-AdvancedMenu {
     }
 }
 
+function Show-SetupCompletion {
+    $doctorRc=[int](Invoke-MenuAction 'Doctor' $null 'Initial Doctor')
+    Write-UiHost ''
+    if($doctorRc-eq0){
+        Write-UiHost 'Keelaryn setup is ready.' -ForegroundColor Green
+        Write-UiHost '  [1] Open Hub'
+        Write-UiHost '  [2] Main menu'
+        $choice=(Read-UiInput 'Select').Trim()
+        if($choice-eq'1'){$null=Invoke-Action 'OpenHub' $null}
+        return
+    }
+    Write-UiHost 'Setup completed, but Doctor requires attention.' -ForegroundColor Yellow
+    Pause-Menu
+}
+
+function Show-FirstRunWizard {
+    while($true){
+        $disposition=Get-StartupDisposition
+        if($disposition-eq'ready' -or $disposition-eq'not_applicable'){return $true}
+        Clear-Ui
+        Set-UiTitle ('Keelaryn Manager '+(Read-ManagerVersion))
+        Write-UiHost '============================================================' -ForegroundColor DarkCyan
+        Write-UiHost ' Welcome to Keelaryn' -ForegroundColor Cyan
+        Write-UiHost '============================================================' -ForegroundColor DarkCyan
+        Write-UiHost ''
+
+        if($disposition-eq'new_install'){
+            Write-UiHost 'No Hub is configured yet.'
+            Write-UiHost 'Create a new Hub or connect an existing one.' -ForegroundColor DarkGray
+            Write-UiHost ''
+            Write-UiHost '  [1] Create a new Hub'
+            Write-UiHost '  [2] Connect an existing Hub'
+            Write-UiHost '  [3] Main menu for now'
+            Write-UiHost '  [0] Exit'
+            $choice=(Read-UiInput 'Select').Trim()
+            switch($choice){
+                '1' {
+                    $rc=[int](Invoke-MenuAction 'Genesis' $null 'Create new Hub')
+                    if($rc-eq0){Show-SetupCompletion;return $true}
+                    Pause-Menu
+                }
+                '2' {
+                    $rc=[int](Invoke-MenuAction 'BindInstance' $null 'Connect existing Hub')
+                    if($rc-eq0){Show-SetupCompletion;return $true}
+                    Pause-Menu
+                }
+                '3' {return $true}
+                '0' {return $false}
+                default {Write-UiHost 'Unknown selection.' -ForegroundColor Yellow;Pause-Menu}
+            }
+            continue
+        }
+
+        Write-UiHost 'No valid Hub is currently available, but this is not an empty first-run state.' -ForegroundColor Yellow
+        if(Test-Path -LiteralPath $HubRoot){
+            Write-UiHost ('Canonical Hub path already exists: '+$HubRoot)
+            Write-UiHost 'Genesis will not overwrite it. A source checkout is not a clean runtime installation.' -ForegroundColor DarkGray
+        }
+        Write-UiHost ''
+        Write-UiHost '  [1] Run Doctor'
+        Write-UiHost '  [2] Connect an existing Hub'
+        Write-UiHost '  [3] Main menu'
+        Write-UiHost '  [0] Exit'
+        $choice=(Read-UiInput 'Select').Trim()
+        switch($choice){
+            '1' {$null=Invoke-MenuAction 'Doctor' $null 'Doctor';Pause-Menu}
+            '2' {
+                $rc=[int](Invoke-MenuAction 'BindInstance' $null 'Connect existing Hub')
+                if($rc-eq0){Show-SetupCompletion;return $true}
+                Pause-Menu
+            }
+            '3' {return $true}
+            '0' {return $false}
+            default {Write-UiHost 'Unknown selection.' -ForegroundColor Yellow;Pause-Menu}
+        }
+    }
+}
+
 function Show-MainMenuScreen {
     Clear-Ui
     $version=Read-ManagerVersion
@@ -871,6 +979,7 @@ function Show-MainMenu {
     if(-not$NoRootLauncher){$null=Ensure-RootLauncher -Quiet}
     $presentationRc=Invoke-Manager @('-InitializePresentation')
     if($presentationRc-ne0){Write-UiHost('Presentation initialization returned '+$presentationRc+'. Core actions remain available.')-ForegroundColor Yellow}
+    if(-not(Show-FirstRunWizard)){return 0}
     while($true){
         Show-MainMenuScreen
         $choice=(Read-UiInput 'Select').Trim()
@@ -939,6 +1048,26 @@ function Test-FrontendSelf {
             $script:FrontendSelfTestReason='Interactive decline policy failed.'
             return $false
         }
+        if((Resolve-StartupDisposition $true $true $false $false $false $false)-cne'ready'){
+            $script:FrontendSelfTestReason='First-run ready-state classification failed.'
+            return $false
+        }
+        if((Resolve-StartupDisposition $true $false $false $false $false $false)-cne'new_install'){
+            $script:FrontendSelfTestReason='First-run new-install classification failed.'
+            return $false
+        }
+        if((Resolve-StartupDisposition $true $false $true $false $false $false)-cne'attention'){
+            $script:FrontendSelfTestReason='First-run collision classification failed.'
+            return $false
+        }
+        if((Resolve-StartupDisposition $true $false $false $true $false $false)-cne'attention'){
+            $script:FrontendSelfTestReason='First-run existing-state classification failed.'
+            return $false
+        }
+        if((Resolve-StartupDisposition $false $false $false $false $false $false)-cne'not_applicable'){
+            $script:FrontendSelfTestReason='First-run non-canonical classification failed.'
+            return $false
+        }
         $status=Get-QuickStatus
         if(-not$status.ManagerVersion){
             $script:FrontendSelfTestReason='Quick status did not report ManagerVersion.'
@@ -959,7 +1088,7 @@ function Test-FrontendSelf {
             return $false
         }
         $frontendSource=[System.IO.File]::ReadAllText($script:FrontendScriptPath,[System.Text.Encoding]::UTF8)
-        foreach($uiToken in @('function Invoke-MenuAction','function Invoke-FullGate','function Invoke-GenesisUi','GenesisConfigPath','GenesisConfirmed','-NonInteractive','[Enter] Back','product\runtime\Keelaryn__Manager.ps1')){
+        foreach($uiToken in @('function Invoke-MenuAction','function Invoke-FullGate','function Invoke-GenesisUi','function Show-FirstRunWizard','function Resolve-StartupDisposition','function Refresh-FrontendOperationalPaths','Show-SetupCompletion','GenesisConfigPath','GenesisConfirmed','-NonInteractive','[Enter] Back','product\runtime\Keelaryn__Manager.ps1')){
             if(-not$frontendSource.Contains($uiToken)){
                 $script:FrontendSelfTestReason='Visible action-output contract missing token: '+$uiToken
                 return $false

@@ -1,6 +1,6 @@
 # Getting Started with Keelaryn
 
-This guide is for a new Windows user who wants to go from the GitHub page to a working local Hub without learning the release-engineering internals first.
+This guide takes a new Windows user from the GitHub page to a working local Hub without requiring Git or release-engineering knowledge.
 
 ## 1. Download the packaged release
 
@@ -10,7 +10,7 @@ Open the repository **Releases** page and download:
 Keelaryn_v<version>_Windows.zip
 ```
 
-Do not use the repository source ZIP as your normal installation. The repository contains development/test boundary directories that are intentionally absent from the Generic DISTRIBUTION.
+Do not use the repository source ZIP as your normal installation. The source tree contains development/test boundary directories that are intentionally absent from the Generic DISTRIBUTION.
 
 ## 2. Extract it
 
@@ -40,16 +40,22 @@ Keelaryn.cmd
 
 The Manager opens in a console window. Normal operation does not require you to type PowerShell commands.
 
-## 4. Create your first Hub
+## 4. Complete first-run setup
 
-On Manager 4.11.x:
+On a clean Manager 4.12+ installation, startup shows:
 
 ```text
-Advanced
-  → Genesis new Hub
+Welcome to Keelaryn
+
+[1] Create a new Hub
+[2] Connect an existing Hub
+[3] Main menu for now
+[0] Exit
 ```
 
-Genesis asks for a few bounded initial choices:
+### Create a new Hub
+
+Choose **Create a new Hub**. Genesis asks for a small set of bounded initial choices:
 
 - canonical language;
 - purpose: personal / professional / mixed;
@@ -57,19 +63,29 @@ Genesis asks for a few bounded initial choices:
 - optional Areas;
 - optional live Projects.
 
-You do not need to design the whole system at this point. A small initial Hub is preferable; it can evolve later.
+You do not need to design the whole system immediately. A small initial Hub is preferable; it can evolve later.
 
-After confirmation, Genesis creates `hub\` next to `manager\`, assigns the Hub a stable instance identity, builds derived metadata, creates the initial portable checkpoint and validates the result before committing it.
+After confirmation, Genesis creates `hub\` next to `manager\`, assigns a stable instance identity, builds derived metadata, creates the initial portable checkpoint and validates the result before committing it.
+
+### Connect an existing Hub
+
+Choose **Connect an existing Hub** and select the existing Hub directory. Manager validates the binding rather than treating that directory as a new Hub.
+
+### Recovery behavior
+
+If Manager sees a canonical `hub\` path, existing CURRENT baseline, explicit binding or Hub environment override but cannot resolve a healthy Hub, it does **not** assume a fresh installation. It shows recovery guidance instead of overwriting anything.
+
+This is also why cloning the public source repository is not the normal installation path: the repository intentionally contains a boundary-only `hub/README.md`.
 
 ## 5. Run Doctor
 
-Return to the main menu and select:
+After creating or connecting the Hub, run:
 
 ```text
 Doctor
 ```
 
-A healthy new installation should complete without integrity failures. Doctor is the authoritative diagnostic path; the compact menu status is only a quick status display.
+A healthy installation should complete without integrity failures. Doctor is the authoritative diagnostic path; the compact menu status is only a quick status display.
 
 ## 6. Open your Hub
 
@@ -97,15 +113,11 @@ Do not put personal Hub data into the public source repository.
 
 Keelaryn does not upload your Hub automatically. You decide what checkpoint or handoff to attach to ChatGPT.
 
-Read:
-
-**[Using Keelaryn with ChatGPT](docs/USING_WITH_CHATGPT.md)**
-
-That guide separates normal project work from the stricter Chat Manager reconciliation workflow.
+Read **[Using Keelaryn with ChatGPT](docs/USING_WITH_CHATGPT.md)**. That guide separates ordinary project work from the stricter Chat Manager reconciliation workflow.
 
 ## 8. Updates
 
-GitHub Releases may contain two relevant assets:
+GitHub Releases normally contain two relevant assets:
 
 - `Keelaryn_v<version>_Windows.zip` — complete clean installation / fresh start;
 - `Keelaryn__Manager_Update_v<version>_Built.zip` — Manager update package for an existing installation.
@@ -116,7 +128,7 @@ For an existing installation, prefer the Manager UI:
 Install update package...
 ```
 
-The Manager copies the selected package into its inbox, verifies the copied bytes, validates the package contract and performs the normal transactional update path. Do not overwrite an existing `manager` directory manually with files from a newer release.
+Manager copies the selected package into its inbox, verifies the copied bytes, validates the package contract and performs the transactional update path. Do not manually overwrite an installed `manager` directory with files from a newer release.
 
 ## 9. Moving or backing up Keelaryn
 
@@ -129,6 +141,6 @@ After moving the installation, run **Doctor**. If an explicit binding points to 
 See **[Troubleshooting](docs/TROUBLESHOOTING.md)**. When reporting a problem, include:
 
 - Manager version;
-- the exact error text;
-- whether the problem happened during Genesis, Doctor, update or startup;
+- exact error text;
+- whether the problem happened during startup, Genesis, Doctor or update;
 - `manager\state\logs\manager.log` only after checking that you are comfortable sharing its contents.
