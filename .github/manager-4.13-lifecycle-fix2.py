@@ -24,5 +24,22 @@ for pat,repl in patterns:
     changes+=n
 if changes<1:
     raise RuntimeError('Expected at least one additional fused logical operator to normalize in staging compactor.')
+paren_fixes=[
+    (
+        "if(-not(Test-PublishedArchive $archivePath $manifestPath ([string]$index.archive_sha256) ([string]$index.manifest_sha256)){",
+        "if(-not(Test-PublishedArchive $archivePath $manifestPath ([string]$index.archive_sha256) ([string]$index.manifest_sha256))){",
+    ),
+    (
+        "if(-not(Test-PublishedArchive $archive $manifest ([string]$index.archive_sha256) ([string]$index.manifest_sha256)){",
+        "if(-not(Test-PublishedArchive $archive $manifest ([string]$index.archive_sha256) ([string]$index.manifest_sha256))){",
+    ),
+]
+paren_changes=0
+for old,new in paren_fixes:
+    found=s.count(old)
+    if found!=1:
+        raise RuntimeError(f'Expected exactly one missing-if-parenthesis sentinel, found {found}: {old}')
+    s=s.replace(old,new,1)
+    paren_changes+=1
 p.write_text(s,encoding='utf-8',newline='\n')
-print(f'LIFECYCLE_COMPACTOR_BOOLEAN_GLUE_FIX=PASS additional_changes={changes}')
+print(f'LIFECYCLE_COMPACTOR_BOOLEAN_GLUE_FIX=PASS additional_changes={changes} paren_fixes={paren_changes}')
