@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.repository-governance.v1",
-  "revision": 1,
+  "revision": 2,
   "repository": "efremov-aleksei-96/keelaryn",
   "default_branch": "main",
   "merge_policy": {
@@ -48,7 +48,19 @@
       "production Full Gate PASS",
       "production Doctor PASS",
       "production UX smoke PASS",
-      "exact Full-Gate-tested UPDATE SHA-256"
-    ]
+      "exact Full-Gate-tested UPDATE SHA-256",
+      "native GitHub immutable release for every non-legacy tag",
+      "valid GitHub release attestation for every non-legacy tag"
+    ],
+    "immutable_releases": {
+      "repository_setting_required": true,
+      "future_releases_must_be_immutable": true,
+      "release_attestation_required": true,
+      "verify_each_asset_attestation": true,
+      "legacy_mutable_tags": [
+        "v4.13.1"
+      ],
+      "legacy_policy": "Legacy mutable tags are historical exceptions only. They must already exist and remain byte-identical; the publisher must never create a new mutable legacy release."
+    }
   }
 }
