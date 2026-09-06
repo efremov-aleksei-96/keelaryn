@@ -1,0 +1,17 @@
+--- a/manager/README_FIRST.md
++++ b/manager/README_FIRST.md
+@@ -36,7 +36,7 @@
+ 
+ ## Update compatibility
+ 
+-Manager 4.12.0 preserves the native update compatibility floor required by the existing release policy. UPDATE artifacts therefore retain the narrow transition envelope (`Keelaryn__Manager.ps1`, `_manager_manifest.json`, `_manager_version.txt`) used by supported older Manager package validators. Those three files are not part of the final 4.11.0 installation manifest.
++Manager 4.12.0 preserves the native update compatibility floor required by the existing release policy. UPDATE artifacts therefore retain the narrow transition envelope (`Keelaryn__Manager.ps1`, `_manager_manifest.json`, `_manager_version.txt`) used by supported older Manager package validators. Those three files are not part of the final 4.12.0 installation manifest.
+ 
+ The one-time 4.7.2 -> 4.8.7 filesystem-finalization migration remains supported as historical compatibility code, but 4.12.0 does not reopen or redesign the filesystem architecture.
+ 
+@@ -60,4 +60,4 @@
+ 
+ ## Release gate
+ 
+-Production approval requires Windows PowerShell 5.1 parser and SelfTests, deterministic release/package validation, a CURRENT-backed disposable 4.11.0 -> 4.12.0 update, rollback verification, Doctor, first-run/Create/Bind/recovery UI coverage, picker/archive orchestration regressions, revision compatibility checks, candidate-transport checks, generic distribution/Genesis smoke tests, AI_CONTEXT validation/performance control, and production immutability. The Windows candidate gate is generated through the independently Windows-qualified frozen Gate Framework v2 r9, which binds gate revisions cryptographically to unchanged managed candidate bytes and publishes the exact tested UPDATE plus a validated one-click production installer only after FULL GATE PASS.
++Production approval requires Windows PowerShell 5.1 parser and SelfTests, deterministic release/package validation, a CURRENT-backed disposable 4.11.0 -> 4.12.0 update, rollback verification, Doctor, first-run/Create/Bind/recovery UI coverage, picker/archive orchestration regressions, revision compatibility checks, candidate-transport checks, generic distribution/Genesis smoke tests, AI_CONTEXT validation/performance control, and production immutability. The Windows candidate gate is generated through the independently Windows-qualified frozen Gate Framework v2 r11, which binds gate revisions cryptographically to unchanged managed candidate bytes and publishes the exact tested UPDATE plus a validated one-click production installer only after FULL GATE PASS.
