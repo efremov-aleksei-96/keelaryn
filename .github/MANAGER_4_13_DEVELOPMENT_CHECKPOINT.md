@@ -21,14 +21,14 @@ Current staged lifecycle patch pipeline:
 
 These helpers stage product changes only in the CI working tree. Lifecycle product changes are not yet materialized in the Git branch.
 
-## Latest validated preflight
+## Latest validated lifecycle preflight
 
 Workflow run: `34049698469`
 Job: `101530959491`
-Head commit before this checkpoint: `9ddf3f6597c875fc99b5a548229295e9298fe970`
+Validated staged head: `9ddf3f6597c875fc99b5a548229295e9298fe970`
 Result: PASS
 
-Staged product identity:
+Staged product identity at that checkpoint:
 
 - Manager version: 4.13.0
 - managed files: 67
@@ -59,7 +59,7 @@ Development-only SourceGate identity:
 
 ## Reparse evidence contract
 
-The staged compactor now implements `keelaryn.reparse-substitution-map.v1`.
+The staged compactor implements `keelaryn.reparse-substitution-map.v1`.
 
 Rules validated on Windows:
 
@@ -71,13 +71,13 @@ Rules validated on Windows:
 - original evidence attributes/timestamps plus substitution provenance are recorded in the manifest;
 - changed/unused/unsafe bindings fail closed;
 - cleanup deletes evidence links/files only after archive verification and never deletes the protected copy;
-- manager state history remains outside compaction cleanup scope.
+- Manager state history remains outside compaction cleanup scope.
 
 The regression fixture deliberately uses a symlink target with bytes different from the protected copy and verifies that the protected bytes, not link-target bytes, enter the archive.
 
 ## ChatGPT architecture audit
 
-The 4.13 branch already satisfies the required normal-user architecture:
+The 4.13 branch satisfies the required normal-user architecture:
 
 - `Keelaryn — Workspace`
 - `Keelaryn — Chats`
@@ -101,26 +101,39 @@ Verified current repository state:
 
 Branch protection/ruleset hardening remains an unresolved repository-governance action.
 
-## Artifact-identity gap
+## Exact UPDATE identity hardening
 
-`PUBLIC_PROVENANCE.json` currently records Full Gate/Doctor booleans and gate/framework revision but does not record the exact SHA-256 of the locally Full-Gate-tested UPDATE.
+The repository now stages a stricter qualification/publication contract:
 
-Required next change:
+- `PUBLIC_PROVENANCE.json` contains `production_validation.tested_update_sha256`;
+- an unqualified candidate must keep that value null/blank;
+- a Full-Gate-qualified source must bind a valid exact tested UPDATE SHA-256 and gate revision;
+- CI BuildRelease verifies its UPDATE SHA-256 against that Full-Gate identity when qualification is asserted;
+- publish is permitted only for a push to `main`, not for a feature-branch/manual validation run;
+- publish consumes the gated build artifact;
+- an existing GitHub Release is accepted only when its relevant assets are byte-identical.
 
-- add tested UPDATE SHA-256 to production qualification provenance;
-- when production qualification is asserted, require PR and post-merge BuildRelease UPDATE bytes to equal that SHA-256;
-- published release UPDATE is then transitively the same bytes because publish consumes the gated build artifact and verifies existing assets byte-for-byte.
+A dedicated read-only Windows self-test exercises exact-match and mismatched-hash paths. This block is awaiting a clean full preflight after the development checkpoint itself was portable-normalized.
 
 ## Source-hygiene note
 
-Public verification still warns about the maintainer-local `D:\0\0__Core\keelaryn` example in `manager/product/docs/TESTING.md`. Remove/portable-normalize that product-source example before materializing final 4.13 product bytes. Do not modify frozen Gate Framework r11 merely to remove the separate warning in `tests/framework/manager-gate/README.md`.
+Public verification still reports one Manager-source warning for the maintainer-local example retained in `manager/product/docs/TESTING.md`. Portable-normalize that product-source example before materializing final 4.13 product bytes. Do not modify frozen Gate Framework r11 merely to remove its separate historical documentation warning.
+
+## Update UX / Doctor review
+
+No additional product change is currently justified:
+
+- Manager-only update no-op wording explicitly states that no newer valid Manager was found, the installed Manager remains unchanged, and Hub inbox was not processed;
+- Hub update no-op distinguishes missing APPROVED state, pending CANDIDATEs and the reason;
+- Doctor already emits machine-readable coded findings, timings and recommended actions;
+- drift-related Doctor codes and recommendations are fail-closed and explicitly prohibit regenerating MANIFEST to hide drift.
 
 ## Next steps
 
-1. implement and validate exact tested-UPDATE identity binding;
+1. obtain a clean full preflight for the exact UPDATE identity contract;
 2. portable-normalize Manager TESTING documentation;
-3. complete remaining update UX / Doctor / performance/context review, changing product bytes only where evidence justifies it;
-4. materialize the fully validated staged lifecycle product changes in one controlled commit and delete staging helpers/workflow scaffolding;
+3. complete performance/context review, changing product bytes only where evidence justifies it;
+4. materialize the fully validated staged lifecycle product changes in one controlled commit and remove staging helpers/workflow scaffolding;
 5. run branch/PR CI and exact identity checks;
 6. only then issue one normal Windows `manager-4.13.0.zip` for the consolidated user Full Gate via `UNPACK_MANAGER_GATE.cmd`.
 
