@@ -47,6 +47,43 @@ It must remain:
 
 `distribution-gate` is intentionally not a global required check because the public-release workflow is path-scoped and does not run on every documentation/governance PR. It remains a release gate whenever that workflow is triggered, and release publication itself is separately fail-closed.
 
+## GitHub Actions supply chain
+
+Repository Governance r2 also treats workflow dependencies as part of the repository control plane.
+
+All external `uses:` references in `.github/workflows` must be pinned to a **full 40-hex Git commit SHA**. Moving tags such as `@v4` or `@v6` are not accepted as executable references. A same-line version comment such as `# v6` is retained so Dependabot can update both the immutable SHA and its human-readable release marker.
+
+The repository allowlist is deliberately narrow:
+
+- `actions/checkout@*`
+- `actions/upload-artifact@*`
+- `actions/download-artifact@*`
+
+Broad GitHub-owned and Marketplace verified-creator allowances are disabled. Future external actions require an explicit governance change before they can run.
+
+`.github/dependabot.yml` performs weekly `github-actions` version updates so SHA pinning does not freeze dependencies indefinitely.
+
+The server-side repository Actions policy must be:
+
+- Actions enabled;
+- `allowed_actions = selected`;
+- `sha_pinning_required = true`;
+- `github_owned_allowed = false`;
+- `verified_allowed = false`;
+- `patterns_allowed` exactly the three allowlist entries above;
+- default `GITHUB_TOKEN` permissions = **read**;
+- GitHub Actions may **not approve pull requests**.
+
+Administrator-authenticated REST endpoints used by the bootstrap are:
+
+```text
+PUT /repos/efremov-aleksei-96/keelaryn/actions/permissions
+PUT /repos/efremov-aleksei-96/keelaryn/actions/permissions/selected-actions
+PUT /repos/efremov-aleksei-96/keelaryn/actions/permissions/workflow
+```
+
+`tools/Verify-GitHubActionsPolicy.ps1` validates the repository-side source contract on Windows PowerShell 5.1. The server-side settings require repository Administration permission and are verified by the administrator bootstrap rather than by widening ordinary workflow permissions.
+
 ## Immutable releases
 
 Repository Governance r2 requires **GitHub native immutable releases** for every future non-legacy Manager release.
@@ -98,14 +135,15 @@ Once a release is native-immutable, it must not be added to the legacy exception
 
 ## Auditing
 
-Local/source-only audit:
+Local/source-only audits:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-RepositoryGovernance.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-GitHubActionsPolicy.ps1
 ```
 
-Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks repository merge settings where visible, protected `main`, the named active ruleset, pull-request parameters, strict required checks, force-push blocking, deletion protection, the immutable-release source contract, and the existence of declared legacy release exceptions.
+Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks repository merge settings where visible, protected `main`, the named active ruleset, pull-request parameters, strict required checks, force-push blocking, deletion protection, the immutable-release source contract, declared legacy release exceptions, action SHA pins, the explicit action allowlist, and Dependabot configuration.
 
-The native immutable-releases repository setting itself requires GitHub **Administration** permission to read/write. Ordinary Actions jobs deliberately run with read-only repository permissions, so this setting is verified at the administrator bootstrap boundary rather than by weakening workflow permissions.
+The native immutable-releases and server-side GitHub Actions policy settings require GitHub **Administration** permission to read/write. Ordinary Actions jobs deliberately run with read-only repository permissions, so these settings are verified at the administrator bootstrap boundary rather than by weakening workflow permissions.
 
 The policy source stays separate from Manager qualification provenance. Changing repository governance does not retroactively rewrite the provenance of already qualified Manager releases.
