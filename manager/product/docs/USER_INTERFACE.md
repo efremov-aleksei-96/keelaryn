@@ -4,6 +4,15 @@
 
 The frontend is `product/tools/KeelarynMenu.ps1`. It uses direct .NET console I/O with Windows PowerShell 5.1-safe fallbacks.
 
+## First-run and recovery startup
+
+On a clean canonical Generic DISTRIBUTION with no Hub, CURRENT baseline, binding or Hub environment override, the interactive frontend opens a first-run screen before the ordinary menu. It offers **Create a new Hub**, **Connect an existing Hub**, **Main menu for now**, or Exit. Creation and binding reuse the existing validated Genesis/binding paths; successful setup immediately runs Doctor and then offers Open Hub.
+
+The startup classifier is fail-safe. If no valid Hub is available but the canonical `hub` path, a CURRENT baseline, binding state or Hub environment override already exists, Manager does not assume a fresh installation and does not overwrite anything. It presents recovery actions (Doctor, bind existing Hub, or main menu). This also prevents a public source checkout containing the repository-only `hub/README.md` boundary marker from being mistaken for an empty runtime installation.
+
+The first-run screen is not persisted as a bypass flag. Choosing **Main menu for now** affects only that invocation; a still-unconfigured clean installation is offered setup again on the next launch.
+Frontend operational paths are refreshed after each Manager child action, so a fresh state-layout initialization or new binding is visible immediately within the same interactive session.
+
 ## Visible action-result contract
 
 Interactive actions preserve meaningful backend stdout/stderr, but their final human-facing status is semantic rather than a raw process exit code:

@@ -1,47 +1,48 @@
 {
-  "schema": "keelaryn.public-repository-provenance.v2",
-  "role": "public_source_sync_candidate",
-  "source_manager_version": "4.11.0",
-  "source_gate_baseline_manager_version": "4.10.2",
-  "source_manager_installation_sha256": "eb0762e974cec8f6e8970ab74b969a9c5cc6617a8b2b1206571d220628757f89",
-  "source_manager_gate_managed_content_sha256": "6b26e830d2d8a5ea843533abe323795bcce64c7e3dcb196f9d52ef6efa67f3aa",
-  "production_validation": {
-    "full_gate_pass": true,
-    "gate_revision": 1,
-    "framework_revision": 9,
-    "production_doctor_pass": true,
-    "production_managed_content_prefix": "b30ea309fe65"
-  },
-  "personal_hub_included": false,
-  "manager_runtime_state_included": false,
-  "local_test_evidence_included": false,
-  "gate_framework": {
-    "version": "2.0",
-    "revision": 11,
-    "windows_qualified": true,
-    "frozen_for_manager_candidate": true
-  },
-  "license": {
-    "spdx_id": "MIT",
-    "file": "LICENSE",
-    "copyright": "Copyright (c) 2026 Keelaryn contributors"
-  },
-  "public_candidate_revision": 9,
-  "git_checkout_contract": {
-    "manager_authoritative_tree_attribute": "-text",
-    "framework_authoritative_tree_attribute": "-text",
-    "core_autocrlf_true_roundtrip_required": true
-  },
-  "known_nonsecret_source_hygiene_notes": [
-    "manager/product/docs/TESTING.md retains one maintainer-local D:\\0\\0__Core example to preserve exact 4.11.0 managed source bytes; it is not a public installation default."
-  ],
-  "ci_policy": {
-    "github_actions": "pull_request + main push + manual",
-    "hosted_scope": "repository verification + Hub-blind SourceGate",
-    "full_gate": "local CURRENT-backed Windows gate"
-  },
-  "known_nonsecret_hygiene_notes": [
-    "manager/product/docs/TESTING.md retains a D:\\0\\0__Core example because Manager 4.11.0 source is published byte-identically; it is not a product default.",
-    "tests/framework/manager-gate/README.md retains D:\\0\\0__Core examples because frozen Windows-qualified Framework r9 is published byte-identically; they are not product defaults."
-  ]
+    "schema":  "keelaryn.public-repository-provenance.v2",
+    "role":  "public_source_sync_candidate",
+    "source_manager_version":  "4.12.0",
+    "source_gate_baseline_manager_version":  "4.11.0",
+    "source_manager_installation_sha256":  "7d616af1999a0071299044ac4f5f72d14f1bd74f5bc4fb280714db2076efaf77",
+    "source_manager_gate_managed_content_sha256":  "fb0137c9485475ba7af069d5f1b7fe97c1b16121b9b97d47b3669e0cd435b32b",
+    "production_validation":  {
+                                  "full_gate_pass":  true,
+                                  "gate_revision":  3,
+                                  "framework_revision":  11,
+                                  "production_doctor_pass":  true,
+                                  "production_ux_smoke_pass":  true,
+                                  "production_managed_content_prefix":  "e640b8b53425"
+                              },
+    "personal_hub_included":  false,
+    "manager_runtime_state_included":  false,
+    "local_test_evidence_included":  false,
+    "gate_framework":  {
+                           "version":  "2.0",
+                           "revision":  11,
+                           "windows_qualified":  true,
+                           "frozen_for_manager_candidate":  true
+                       },
+    "license":  {
+                    "spdx_id":  "MIT",
+                    "file":  "LICENSE",
+                    "copyright":  "Copyright (c) 2026 Keelaryn contributors"
+                },
+    "public_candidate_revision":  10,
+    "git_checkout_contract":  {
+                                  "manager_authoritative_tree_attribute":  "-text",
+                                  "framework_authoritative_tree_attribute":  "-text",
+                                  "core_autocrlf_true_roundtrip_required":  true
+                              },
+    "known_nonsecret_source_hygiene_notes":  [
+                                                 "manager/product/docs/TESTING.md retains one maintainer-local D:\\0\\0__Core example to preserve exact 4.12.0 managed source bytes; it is not a public installation default."
+                                             ],
+    "ci_policy":  {
+                      "github_actions":  "pull_request + main push + manual",
+                      "hosted_scope":  "repository verification + Hub-blind SourceGate + Generic DISTRIBUTION smoke",
+                      "full_gate":  "CURRENT-backed Windows Full Gate plus production Doctor and production UX smoke before publication"
+                  },
+    "known_nonsecret_hygiene_notes":  [
+                                          "manager/product/docs/TESTING.md retains a D:\\0\\0__Core example because Manager 4.12.0 source is published byte-identically; it is not a product default.",
+                                          "tests/framework/manager-gate/README.md retains D:\\0\\0__Core examples because Windows-qualified Framework r11 is published byte-identically; they are not product defaults."
+                                      ]
 }
