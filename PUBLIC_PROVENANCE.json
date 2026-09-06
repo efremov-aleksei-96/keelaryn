@@ -9,6 +9,7 @@
     "full_gate_pass": false,
     "gate_revision": null,
     "framework_revision": 11,
+    "tested_update_sha256": null,
     "production_doctor_pass": false,
     "production_ux_smoke_pass": false,
     "production_managed_content_prefix": null
@@ -39,7 +40,8 @@
   "ci_policy": {
     "github_actions": "pull_request + main push + manual",
     "hosted_scope": "repository verification + Hub-blind SourceGate + Generic DISTRIBUTION smoke",
-    "full_gate": "CURRENT-backed Windows Full Gate plus production Doctor and production UX smoke before publication"
+    "full_gate": "CURRENT-backed Windows Full Gate plus production Doctor and production UX smoke before publication",
+    "update_identity": "when full_gate_pass=true, PR and main BuildRelease UPDATE SHA-256 must equal production_validation.tested_update_sha256; publish consumes those gated bytes"
   },
   "known_nonsecret_hygiene_notes": [
     "manager/product/docs/TESTING.md and tests/framework/manager-gate/README.md retain maintainer-local D:\\0\\0__Core examples; they are not product defaults."
