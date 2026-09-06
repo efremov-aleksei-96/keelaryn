@@ -1,0 +1,41 @@
+name: Candidate Manager 4.12.0 Gate Revision 3
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/candidate-manager-4.12.0-g3.yml'
+      - 'tests/candidates/manager-4.12.0-g1/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-manager-4.12.0-g3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-full-gate:
+    runs-on: windows-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Run Manager 4.12.0 Gate Revision 3 with Framework r11
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tests\candidates\manager-4.12.0-g1\Run-Gate3.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Gate Revision 3 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manager-4.12.0-gate3-r11-evidence
+          path: |
+            ${{ runner.temp }}/manager-4.12.0.zip
+            tests/results/manager-4.12.0/**
+          if-no-files-found: warn
+          retention-days: 30
