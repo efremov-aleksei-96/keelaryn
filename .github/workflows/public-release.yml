@@ -100,12 +100,38 @@ jobs:
             Expand-Archive -LiteralPath $dist -DestinationPath $temp -Force
             $installRoot = Join-Path $temp 'keelaryn'
             $managerRoot = Join-Path $installRoot 'manager'
+            $runtime = Join-Path $managerRoot 'product\runtime\Keelaryn__Manager.ps1'
+            $menu = Join-Path $managerRoot 'product\tools\KeelarynMenu.ps1'
             if (-not (Test-Path -LiteralPath (Join-Path $installRoot 'Keelaryn.cmd') -PathType Leaf)) { throw 'Distribution root launcher is missing.' }
 
-            powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $managerRoot 'product\runtime\Keelaryn__Manager.ps1') -SelfTest
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runtime -SelfTest
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $managerRoot 'product\tools\KeelarynMenu.ps1') -SelfTest
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File $menu -SelfTest
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            # A clean Generic DISTRIBUTION must expose first-run guidance before
+            # falling back to the ordinary menu. Select "Main menu for now" and
+            # immediately exit; Genesis remains a separate validated mutation.
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = (Join-Path $PSHOME 'powershell.exe')
+            $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $menu + '" -Action Menu -NoRootLauncher'
+            $psi.UseShellExecute = $false
+            $psi.RedirectStandardInput = $true
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $p = New-Object System.Diagnostics.Process
+            $p.StartInfo = $psi
+            [void]$p.Start()
+            $outTask = $p.StandardOutput.ReadToEndAsync()
+            $errTask = $p.StandardError.ReadToEndAsync()
+            $p.StandardInput.Write("3`r`n0`r`n")
+            $p.StandardInput.Close()
+            $p.WaitForExit()
+            $startup = $outTask.Result + $errTask.Result
+            if ($p.ExitCode -ne 0) { throw "First-run menu smoke failed with exit $($p.ExitCode): $startup" }
+            foreach ($token in @('Welcome to Keelaryn','Create a new Hub','Connect an existing Hub','Everyday')) {
+              if (-not $startup.Contains($token)) { throw "First-run menu smoke missing token: $token`n$startup" }
+            }
 
             $cfgPath = Join-Path $temp 'genesis.json'
             $cfg = [ordered]@{
@@ -117,11 +143,11 @@ jobs:
               projects=@('Getting Started')
             }
             [System.IO.File]::WriteAllText($cfgPath,(($cfg | ConvertTo-Json -Depth 5) + "`n"),(New-Object System.Text.UTF8Encoding($false)))
-            powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $managerRoot 'product\runtime\Keelaryn__Manager.ps1') -Genesis -GenesisConfigPath $cfgPath -GenesisConfirmed
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runtime -Genesis -GenesisConfigPath $cfgPath -GenesisConfirmed
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             if (-not (Test-Path -LiteralPath (Join-Path $installRoot 'hub\_System\INSTANCE.json') -PathType Leaf)) { throw 'Genesis did not create a canonical Hub instance.' }
 
-            powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $managerRoot 'product\runtime\Keelaryn__Manager.ps1') -Doctor
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runtime -Doctor
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           finally {
@@ -158,7 +184,9 @@ jobs:
             ('1. Download `Keelaryn_v' + $version + '_Windows.zip`.'),
             '2. Extract it.',
             '3. Run `Keelaryn.cmd` inside the extracted `keelaryn` folder.',
-            '4. Create a Hub when startup guidance is shown. If this Manager does not show first-run guidance, use **Advanced -> Genesis new Hub**. Then run **Doctor**.',
+            '4. On a clean installation choose **Create a new Hub** on the Welcome screen, then run **Doctor**.',
+            '',
+            'If startup reports an existing or recovery state, do not overwrite it; follow the recovery guidance instead.',
             '',
             'See `GETTING_STARTED.md` in the repository for the full onboarding path.',
             '',
