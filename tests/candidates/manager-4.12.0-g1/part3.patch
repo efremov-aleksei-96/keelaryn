@@ -1,0 +1,84 @@
+ 
++function Resolve-StartupDisposition {
++    param(
++        [bool]$CanonicalLayoutActive,
++        [bool]$HasValidHub,
++        [bool]$CanonicalHubPathExists,
++        [bool]$HasCurrentBaseline,
++        [bool]$HasBindingState,
++        [bool]$HasHubEnvironmentOverride
++    )
++    if(-not$CanonicalLayoutActive){return 'not_applicable'}
++    if($HasValidHub){return 'ready'}
++    if(-not$CanonicalHubPathExists -and -not$HasCurrentBaseline -and -not$HasBindingState -and -not$HasHubEnvironmentOverride){return 'new_install'}
++    return 'attention'
++}
++
++function Get-StartupDisposition {
++    $binding=Get-QuickHubBinding
++    $hasValidHub=Test-QuickHubCandidate ([string]$binding.Path)
++    $current=if($StateLayoutActive){Join-Path $StateRoot 'baseline\Keelaryn__Hub_CURRENT.zip'}else{Join-Path $ManagerRoot 'Keelaryn__Hub_CURRENT.zip'}
++    $bindingPath=if($StateLayoutActive){Join-Path $StateRoot 'binding.json'}else{Join-Path $ManagerRoot '_instance_binding.json'}
++    $hasEnvironment=(-not[string]::IsNullOrWhiteSpace([string]$env:KEELARYN_HUB_PATH))-or(-not[string]::IsNullOrWhiteSpace([string][Environment]::GetEnvironmentVariable('CORE_HUB_VAULT_PATH')))
++    return Resolve-StartupDisposition ([bool]$CanonicalLayout) ([bool]$hasValidHub) ([bool](Test-Path -LiteralPath $HubRoot)) ([bool](Test-Path -LiteralPath $current -PathType Leaf)) ([bool](Test-Path -LiteralPath $bindingPath -PathType Leaf)) ([bool]$hasEnvironment)
++}
++
+ function Get-QuickStatus {
+     $version=Read-ManagerVersion
+     $hubBinding=Get-QuickHubBinding
+@@ -361,7 +389,9 @@ function Show-QuickStatus([switch]$DetailedWorkspace) {
+ function Invoke-Manager([string[]]$ManagerArgs) {
+     if(-not(Test-Path -LiteralPath $ManagerScript -PathType Leaf)){Fail('Manager runtime missing: '+$ManagerScript)}
+     & (Join-Path $PSHOME 'powershell.exe') -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $ManagerScript @ManagerArgs 2>&1 | ForEach-Object { Write-UiHost ([string]$_) }
+-    return [int]$LASTEXITCODE
++    $rc=[int]$LASTEXITCODE
++    Refresh-FrontendOperationalPaths
++    return $rc
+ }
+ 
+ function Open-Folder([string]$FolderPath) {
+@@ -850,6 +880,84 @@ function Show-AdvancedMenu {
+     }
+ }
+ 
++function Show-SetupCompletion {
++    $doctorRc=[int](Invoke-MenuAction 'Doctor' $null 'Initial Doctor')
++    Write-UiHost ''
++    if($doctorRc-eq0){
++        Write-UiHost 'Keelaryn setup is ready.' -ForegroundColor Green
++        Write-UiHost '  [1] Open Hub'
++        Write-UiHost '  [2] Main menu'
++        $choice=(Read-UiInput 'Select').Trim()
++        if($choice-eq'1'){$null=Invoke-Action 'OpenHub' $null}
++        return
++    }
++    Write-UiHost 'Setup completed, but Doctor requires attention.' -ForegroundColor Yellow
++    Pause-Menu
++}
++
++function Show-FirstRunWizard {
++    while($true){
++        $disposition=Get-StartupDisposition
++        if($disposition-eq'ready' -or $disposition-eq'not_applicable'){return $true}
++        Clear-Ui
++        Set-UiTitle ('Keelaryn Manager '+(Read-ManagerVersion))
++        Write-UiHost '============================================================' -ForegroundColor DarkCyan
++        Write-UiHost ' Welcome to Keelaryn' -ForegroundColor Cyan
++        Write-UiHost '============================================================' -ForegroundColor DarkCyan
++        Write-UiHost ''
++
++        if($disposition-eq'new_install'){
++            Write-UiHost 'No Hub is configured yet.'
++            Write-UiHost 'Create a new Hub or connect an existing one.' -ForegroundColor DarkGray
++            Write-UiHost ''
++            Write-UiHost '  [1] Create a new Hub'
++            Write-UiHost '  [2] Connect an existing Hub'
++            Write-UiHost '  [3] Main menu for now'
++            Write-UiHost '  [0] Exit'
++            $choice=(Read-UiInput 'Select').Trim()
++            switch($choice){
++                '1' {
++                    $rc=[int](Invoke-MenuAction 'Genesis' $null 'Create new Hub')
++                    if($rc-eq0){Show-SetupCompletion;return $true}
++                    Pause-Menu
++                }
