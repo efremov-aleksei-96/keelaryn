@@ -43,15 +43,23 @@ foreach($tag in $legacyTags){if($tag-notmatch'^v\d+\.\d+\.\d+$'){Fail('Invalid l
 if(@($legacyTags|Select-Object -Unique).Count-ne$legacyTags.Count){Fail('Legacy mutable release tags contain duplicates.')}
 if([string]::IsNullOrWhiteSpace([string]$immutable.legacy_policy)){Fail('Immutable release policy must explain the legacy exception contract.')}
 
+$conditional=$contract.release_policy.conditional_pr_gate
+if($null-eq$conditional){Fail('Governance is missing conditional PR release gate policy.')}
+if([string]$conditional.required_context-ne'release-policy'){Fail('Conditional PR release gate context must be release-policy.')}
+if([string]$conditional.dependency_context-ne'distribution-gate'){Fail('Conditional PR release gate dependency must be distribution-gate.')}
+
 foreach($relative in @(
     '.github/CODEOWNERS',
+    '.github/dependabot.yml',
     '.github/pull_request_template.md',
     '.github/workflows/repository-governance.yml',
+    '.github/workflows/release-policy.yml',
     '.github/workflows/windows-powershell.yml',
     '.github/workflows/public-release.yml',
     'CONTRIBUTING.md',
     'SECURITY.md',
     'docs/REPOSITORY_GOVERNANCE.md',
+    'tools/Verify-GitHubActionsPolicy.ps1',
     'tools/Verify-RepositoryGovernance.ps1'
 )){[void](Require-File $relative)}
 
@@ -66,7 +74,8 @@ Require-Token $contrib 'REPOSITORY_GOVERNANCE.json' 'Contributing governance ref
 $workflowPaths=@(
     '.github/workflows/windows-powershell.yml',
     '.github/workflows/public-release.yml',
-    '.github/workflows/repository-governance.yml'
+    '.github/workflows/repository-governance.yml',
+    '.github/workflows/release-policy.yml'
 )
 foreach($relative in $workflowPaths){
     $src=Read-Utf8 (Require-File $relative)
@@ -93,19 +102,30 @@ foreach($token in @(
 if($releaseSource-notmatch'(?s)New release was published without native immutability; deleting unsafe mutable release and tag.*gh release delete'){Fail('Public release workflow does not fail closed on a newly published mutable release.')}
 if($releaseSource-notmatch'(?s)Legacy mutable release exception: exact published assets are byte-identical.*leaving historical release unchanged'){Fail('Public release workflow does not preserve legacy mutable releases as read-only historical exceptions.')}
 
+$releasePolicySource=Read-Utf8 (Require-File '.github/workflows/release-policy.yml')
+foreach($token in @(
+    'release-policy:',
+    'distribution-gate',
+    'HEAD_SHA',
+    'Release-critical PR detected',
+    'Release policy PASS',
+    'check-runs?per_page=100'
+)){Require-Token $releasePolicySource $token 'Conditional release-policy workflow'}
+
 $governanceWorkflow=Read-Utf8 (Require-File '.github/workflows/repository-governance.yml')
 Require-Token $governanceWorkflow 'repository-governance:' 'Governance workflow job identity'
 Require-Token $governanceWorkflow 'Verify-RepositoryGovernance.ps1' 'Governance workflow implementation'
+Require-Token $governanceWorkflow 'Verify-GitHubActionsPolicy.ps1' 'GitHub Actions policy workflow implementation'
 
 $governanceDoc=Read-Utf8 (Require-File 'docs/REPOSITORY_GOVERNANCE.md')
-foreach($token in @('immutable releases','release attestation','legacy mutable')){Require-Token $governanceDoc $token 'Repository governance documentation'}
+foreach($token in @('immutable releases','release attestation','legacy mutable','release-policy')){Require-Token $governanceDoc $token 'Repository governance documentation'}
 
 $requiredContexts=@($contract.main_ruleset.required_rules.required_status_checks.contexts|ForEach-Object{[string]$_})
-if($requiredContexts.Count-ne2-or$requiredContexts-notcontains'source-gate'-or$requiredContexts-notcontains'repository-governance'){
-    Fail('Governance required status checks must be exactly source-gate and repository-governance.')
+if($requiredContexts.Count-ne3-or$requiredContexts-notcontains'source-gate'-or$requiredContexts-notcontains'repository-governance'-or$requiredContexts-notcontains'release-policy'){
+    Fail('Governance required status checks must be exactly source-gate, repository-governance, and release-policy.')
 }
 
-Write-Host ('Repository governance source contract: PASS. revision='+[int]$contract.revision+'; legacy_mutable_tags='+$legacyTags.Count) -ForegroundColor Green
+Write-Host ('Repository governance source contract: PASS. revision='+[int]$contract.revision+'; required_checks='+$requiredContexts.Count+'; legacy_mutable_tags='+$legacyTags.Count) -ForegroundColor Green
 
 if(-not$Online){exit 0}
 if([string]::IsNullOrWhiteSpace($Repository)-or$Repository-notmatch'^[^/]+/[^/]+$'){Fail('Online governance audit requires owner/repository.')}
@@ -194,5 +214,5 @@ foreach($tag in $legacyTags){
     if($null-ne$release.PSObject.Properties['immutable']-and[bool]$release.immutable){Fail('Legacy mutable release is already immutable and should be removed from the exception list: '+$tag)}
 }
 
-Write-Host ('Repository governance online enforcement: PASS. ruleset='+[string]$detail.name+'; legacy releases verified='+$legacyTags.Count) -ForegroundColor Green
+Write-Host ('Repository governance online enforcement: PASS. ruleset='+[string]$detail.name+'; required_checks='+$actualContexts.Count+'; legacy releases verified='+$legacyTags.Count) -ForegroundColor Green
 Write-Warning 'Native immutable-releases repository setting requires Administration read/write and is intentionally verified at the admin bootstrap boundary, not through the ordinary read-only Actions token.'
