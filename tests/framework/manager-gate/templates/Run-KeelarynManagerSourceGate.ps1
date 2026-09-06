@@ -81,7 +81,9 @@ function Invoke-SafeProcess(
 ){
     $script:CommandSequence++
     $safeLabel=($Label-replace'[^A-Za-z0-9_.-]','_')
-    $prefix=('{0:D3}_{1}'-f$script:CommandSequence,$safeLabel)
+    $labelHash=(TextSha $Label).Substring(0,12)
+    if($safeLabel.Length-gt80){$safeLabel=$safeLabel.Substring(0,80)}
+    $prefix=('{0:D3}_{1}_{2}'-f$script:CommandSequence,$safeLabel,$labelHash)
     $stdout=Join-Path $commandLogRoot ($prefix+'.stdout.txt')
     $stderr=Join-Path $commandLogRoot ($prefix+'.stderr.txt')
     $specPath=Join-Path $commandLogRoot ($prefix+'.spec.json')

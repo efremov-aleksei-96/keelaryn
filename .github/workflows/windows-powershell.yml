@@ -29,7 +29,7 @@ jobs:
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Generate frozen-r9 source gate
+      - name: Generate current framework source gate
         shell: powershell
         run: |
           $root = $env:GITHUB_WORKSPACE

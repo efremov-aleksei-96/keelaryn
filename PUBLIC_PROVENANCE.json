@@ -17,7 +17,7 @@
   "local_test_evidence_included": false,
   "gate_framework": {
     "version": "2.0",
-    "revision": 9,
+    "revision": 11,
     "windows_qualified": true,
     "frozen_for_manager_candidate": true
   },
@@ -26,7 +26,7 @@
     "file": "LICENSE",
     "copyright": "Copyright (c) 2026 Keelaryn contributors"
   },
-  "public_candidate_revision": 8,
+  "public_candidate_revision": 9,
   "git_checkout_contract": {
     "manager_authoritative_tree_attribute": "-text",
     "framework_authoritative_tree_attribute": "-text",

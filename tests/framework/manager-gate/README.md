@@ -117,3 +117,13 @@ The framework has three intentionally different ordering domains:
 - same-run diagnostic/snapshot ordering may retain the Windows-proven Full Gate behavior because no cross-machine identity is derived from it.
 
 `Build-ManagerGate.ps1` now validates `Sort-Object FullName` / `Sort-Object -Unique` in AST context instead of rejecting those tokens globally. The only allowlisted occurrences are the Windows-proven diagnostic/fixture functions. Canonical `GateSpecManagedDigest` remains explicitly ordinal.
+
+## Revision 10 bounded command sidecars
+
+Revision 10 bounds command-log and exit-code sidecar filenames on Windows. The human-visible command label remains complete, while the filesystem prefix uses at most the first 80 sanitized label characters plus a deterministic 12-hex SHA-256 suffix of the complete label. This prevents long command arguments from exceeding Windows path limits without weakening exit-code capture or log-name uniqueness.
+
+## Revision 11 candidate-lineage fixture correction
+
+Revision 11 preserves the revision 10 path-length hardening and corrects the Full Gate candidate-transport fixture source. Candidate fixtures use the valid non-genesis migration CURRENT already produced by the gate instead of the original Genesis CURRENT. This keeps the candidate transport regression on a normal parented lineage even when the disposable production fixture starts at Genesis.
+
+Revision 11 was independently qualified on Windows PowerShell 5.1 while testing unchanged Manager 4.12.0 g1 bytes. Gate Revision 3 passed SourceGate, CURRENT-backed Full Gate, rollback fault injection, native 4.11.0 -> 4.12.0 update, post-update Doctor, UI/archive/migration/candidate-transport/Genesis coverage, AI_CONTEXT performance control and production immutability.
