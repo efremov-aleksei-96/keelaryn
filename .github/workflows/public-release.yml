@@ -55,13 +55,17 @@ jobs:
           $version = ([string]$install.manager_version).Trim()
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid Manager version: $version" }
           if ([string]$prov.source_manager_version -ne $version) { throw 'Public provenance does not bind the current Manager version.' }
-          $publicationRun = '${{ github.event_name }}' -ne 'pull_request'
+          $publicationRun = ('${{ github.event_name }}' -eq 'push' -and '${{ github.ref }}' -eq 'refs/heads/main')
           if ($publicationRun) {
             if (-not [bool]$prov.production_validation.full_gate_pass) { throw 'Publication refused: provenance does not record a production Full Gate PASS.' }
             if (-not [bool]$prov.production_validation.production_doctor_pass) { throw 'Publication refused: provenance does not record a production Doctor PASS.' }
-            Write-Host 'Publication authorization: production Full Gate + Doctor evidence present.' -ForegroundColor Green
+            $tested = ([string]$prov.production_validation.tested_update_sha256).Trim().ToLowerInvariant()
+            if ($tested -notmatch '^[0-9a-f]{64}$') { throw 'Publication refused: provenance does not bind the Full-Gate-tested UPDATE SHA-256.' }
+            Write-Host 'Publication authorization: production Full Gate + Doctor + tested UPDATE identity present.' -ForegroundColor Green
+          } elseif ('${{ github.event_name }}' -eq 'pull_request') {
+            Write-Host 'PR candidate validation: production Full Gate evidence is not required until final qualified source is proposed.' -ForegroundColor DarkGray
           } else {
-            Write-Host 'PR candidate validation: production Full Gate evidence is not required until merge/publication.' -ForegroundColor DarkGray
+            Write-Host 'Manual validation run: publication is disabled; this run is read-only with respect to GitHub Releases.' -ForegroundColor DarkGray
           }
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=v$version" >> $env:GITHUB_OUTPUT
@@ -81,6 +85,25 @@ jobs:
           $manager = Join-Path $env:GITHUB_WORKSPACE 'manager'
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1') -BuildRelease
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify UPDATE identity against production qualification
+        shell: powershell
+        run: |
+          $root = $env:GITHUB_WORKSPACE
+          $install = Get-Content (Join-Path $root 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $prov = Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $version = ([string]$install.manager_version).Trim()
+          $update = Join-Path $root ('manager\state\releases\Keelaryn__Manager_Update_v' + $version + '_Built.zip')
+          if (-not (Test-Path -LiteralPath $update -PathType Leaf)) { throw 'BuildRelease did not produce the expected UPDATE artifact.' }
+          $actual = (Get-FileHash -LiteralPath $update -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ([bool]$prov.production_validation.full_gate_pass) {
+            $expected = ([string]$prov.production_validation.tested_update_sha256).Trim().ToLowerInvariant()
+            if ($expected -notmatch '^[0-9a-f]{64}$') { throw 'Qualified provenance is missing a valid tested UPDATE SHA-256.' }
+            if ($actual -cne $expected) { throw ('UPDATE identity mismatch: CI=' + $actual + ' FullGate=' + $expected) }
+            Write-Host ('Qualified UPDATE identity PASS: ' + $actual) -ForegroundColor Green
+          } else {
+            Write-Host ('Candidate UPDATE SHA-256: ' + $actual + ' (not yet bound to production Full Gate evidence)') -ForegroundColor DarkGray
+          }
 
       - name: Smoke-test extracted Generic DISTRIBUTION
         shell: powershell
@@ -207,7 +230,7 @@ jobs:
           retention-days: 7
 
   publish:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: distribution-gate
     runs-on: ubuntu-latest
     timeout-minutes: 10
