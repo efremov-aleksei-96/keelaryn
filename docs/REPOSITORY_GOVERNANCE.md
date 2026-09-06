@@ -42,10 +42,25 @@ It must remain:
 - Required status checks, exactly:
   - `source-gate`
   - `repository-governance`
+  - `release-policy`
 - Block force pushes: **enabled**.
 - Restrict deletions: **enabled**.
 
-`distribution-gate` is intentionally not a global required check because the public-release workflow is path-scoped and does not run on every documentation/governance PR. It remains a release gate whenever that workflow is triggered, and release publication itself is separately fail-closed.
+### Conditional release gate
+
+`distribution-gate` is a real release qualification gate but its expensive public-release workflow is path-scoped. A path-scoped check cannot be listed directly as a universal branch requirement because GitHub would leave unrelated pull requests waiting for a check that never starts.
+
+Repository Governance r2 solves this with the globally required `release-policy` proxy:
+
+1. `release-policy` starts on **every** pull request to `main`.
+2. It retrieves the full PR file list using the read-only GitHub token.
+3. If no release-critical path changed, it immediately returns PASS.
+4. If a release-critical path changed, it watches the **exact PR head SHA** for `distribution-gate`.
+5. It returns PASS only when `distribution-gate` succeeds on that same head; failure, cancellation, timeout, or absence blocks merge.
+
+Release-critical paths intentionally mirror the public-release pull-request triggers: Manager source, public provenance, repository governance, the release workflow itself, and the public release/onboarding documentation that is packaged or relied on by release publication.
+
+This gives the branch ruleset a cheap always-present required context while still making the expensive release gate server-enforced only where applicable.
 
 ## GitHub Actions supply chain
 
@@ -142,7 +157,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-Repositor
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-GitHubActionsPolicy.ps1
 ```
 
-Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks repository merge settings where visible, protected `main`, the named active ruleset, pull-request parameters, strict required checks, force-push blocking, deletion protection, the immutable-release source contract, declared legacy release exceptions, action SHA pins, the explicit action allowlist, and Dependabot configuration.
+Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks repository merge settings where visible, protected `main`, the named active ruleset, pull-request parameters, the three strict required checks, force-push blocking, deletion protection, the immutable-release source contract, declared legacy release exceptions, action SHA pins, the explicit action allowlist, and Dependabot configuration.
+
+`.github/workflows/release-policy.yml` independently enforces the conditional relationship between release-critical PRs and `distribution-gate` on the exact current head SHA.
 
 The native immutable-releases and server-side GitHub Actions policy settings require GitHub **Administration** permission to read/write. Ordinary Actions jobs deliberately run with read-only repository permissions, so these settings are verified at the administrator bootstrap boundary rather than by weakening workflow permissions.
 
