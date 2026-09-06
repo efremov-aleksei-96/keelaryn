@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 root=Path(__file__).resolve().parents[1]
 p=root/'manager/product/tools/Compact-KeelarynQualificationEvidence.ps1'
@@ -7,5 +8,21 @@ count=s.count('-or-not')
 if count!=2:
     raise RuntimeError(f'Expected exactly two fused -or-not tokens in staging compactor, found {count}')
 s=s.replace('-or-not',' -or -not ')
+patterns=[
+    (r'\)-or\(', ') -or ('),
+    (r'\)-and\(', ') -and ('),
+    (r'-or\[', ' -or ['),
+    (r'-and\[', ' -and ['),
+    (r'-or@\(', ' -or @('),
+    (r'-and@\(', ' -and @('),
+    (r'-or\(', ' -or ('),
+    (r'-and\(', ' -and ('),
+]
+changes=0
+for pat,repl in patterns:
+    s,n=re.subn(pat,repl,s)
+    changes+=n
+if changes<1:
+    raise RuntimeError('Expected at least one additional fused logical operator to normalize in staging compactor.')
 p.write_text(s,encoding='utf-8',newline='\n')
-print('LIFECYCLE_COMPACTOR_BOOLEAN_GLUE_FIX=PASS')
+print(f'LIFECYCLE_COMPACTOR_BOOLEAN_GLUE_FIX=PASS additional_changes={changes}')
