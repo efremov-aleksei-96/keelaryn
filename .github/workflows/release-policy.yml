@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
   checks: read
 
 concurrency:
@@ -19,12 +18,19 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Enforce conditional distribution gate
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           $ErrorActionPreference='Stop'
@@ -32,25 +38,16 @@ jobs:
             Write-Host 'Manual release-policy validation: no PR dependency to enforce.' -ForegroundColor DarkGray
             exit 0
           }
-          if([string]::IsNullOrWhiteSpace($env:PR_NUMBER)-or[string]::IsNullOrWhiteSpace($env:HEAD_SHA)){throw 'Release policy is missing PR identity.'}
-
-          $headers=@{
-            'Accept'='application/vnd.github+json'
-            'Authorization'='Bearer '+$env:GITHUB_TOKEN
-            'User-Agent'='Keelaryn-Release-Policy'
-            'X-GitHub-Api-Version'='2026-03-10'
+          foreach($value in @($env:BASE_SHA,$env:HEAD_SHA)){
+            if([string]::IsNullOrWhiteSpace($value)-or$value-notmatch'^[0-9a-fA-F]{40}$'){throw 'Release policy is missing a valid PR base/head SHA.'}
+            & git cat-file -e ($value+'^{commit}')
+            if($LASTEXITCODE-ne0){throw ('Release policy checkout is missing commit '+$value)}
           }
-          $api='https://api.github.com/repos/'+$env:GITHUB_REPOSITORY
 
-          $files=@()
-          $page=1
-          while($true){
-            $batch=@(Invoke-RestMethod -Method Get -Uri ($api+'/pulls/'+$env:PR_NUMBER+'/files?per_page=100&page='+$page) -Headers $headers -UseBasicParsing)
-            $files += $batch
-            if($batch.Count-lt100){break}
-            $page++
-            if($page-gt30){throw 'PR file list exceeds release-policy pagination safety limit.'}
-          }
+          $diffLines=@(& git diff --name-only --no-renames $env:BASE_SHA $env:HEAD_SHA 2>&1)
+          if($LASTEXITCODE-ne0){throw ('git diff failed: '+(($diffLines|ForEach-Object{[string]$_})-join'; '))}
+          $files=@($diffLines|ForEach-Object{([string]$_).Trim().Replace('\','/')}|Where-Object{$_})
+          if($files.Count-eq0){throw 'Release policy found an empty PR diff.'}
 
           function Test-ReleaseCritical([string]$Path){
             if($Path-eq'.github/workflows/public-release.yml'){return $true}
@@ -64,15 +61,22 @@ jobs:
             return $false
           }
 
-          $critical=@($files|Where-Object{Test-ReleaseCritical ([string]$_.filename)})
+          $critical=@($files|Where-Object{Test-ReleaseCritical ([string]$_)})
           if($critical.Count-eq0){
-            Write-Host ('Release policy PASS: non-release PR; files='+$files.Count) -ForegroundColor Green
+            Write-Host ('Release policy PASS: non-release PR; diff_files='+$files.Count) -ForegroundColor Green
             exit 0
           }
 
-          Write-Host ('Release-critical PR detected. files='+$critical.Count+'; waiting for distribution-gate on '+$env:HEAD_SHA) -ForegroundColor Cyan
-          foreach($row in $critical){Write-Host ('  '+[string]$row.filename) -ForegroundColor DarkGray}
+          Write-Host ('Release-critical PR detected. diff_files='+$files.Count+'; critical_files='+$critical.Count+'; waiting for distribution-gate on '+$env:HEAD_SHA) -ForegroundColor Cyan
+          foreach($path in $critical){Write-Host ('  '+$path) -ForegroundColor DarkGray}
 
+          $headers=@{
+            'Accept'='application/vnd.github+json'
+            'Authorization'='Bearer '+$env:GITHUB_TOKEN
+            'User-Agent'='Keelaryn-Release-Policy'
+            'X-GitHub-Api-Version'='2026-03-10'
+          }
+          $api='https://api.github.com/repos/'+$env:GITHUB_REPOSITORY
           $deadline=(Get-Date).AddMinutes(35)
           while((Get-Date)-lt$deadline){
             $doc=Invoke-RestMethod -Method Get -Uri ($api+'/commits/'+$env:HEAD_SHA+'/check-runs?per_page=100') -Headers $headers -UseBasicParsing
@@ -94,4 +98,4 @@ jobs:
             }
             Start-Sleep -Seconds 10
           }
-          throw 'Release policy timed out waiting for distribution-gate on the current PR head.'
+          throw 'Release policy timed out waiting for distribution-gate on the exact current PR head.'
