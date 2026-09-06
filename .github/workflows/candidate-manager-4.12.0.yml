@@ -40,6 +40,9 @@ jobs:
           $patch = Join-Path $env:RUNNER_TEMP 'manager-4.12.0-g1.patch'
           cmd.exe /d /c "copy /b `"$parts\part1.patch`"+`"$parts\part2.patch`"+`"$parts\part3.patch`"+`"$parts\part4.patch`" `"$patch`" >nul"
           if ($LASTEXITCODE -ne 0) { throw 'Could not reconstruct candidate patch.' }
+
+          $patchText = [System.IO.File]::ReadAllText($patch,[System.Text.Encoding]::UTF8).Replace("`r`n","`n")
+          [System.IO.File]::WriteAllText($patch,$patchText,(New-Object System.Text.UTF8Encoding($false)))
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($patchHash -ne '644c124a32c74fa229b79a8c7e0652fc88d18ca002dd214fe17fd86c74471383') { throw "Candidate patch hash mismatch: $patchHash" }
 
@@ -52,6 +55,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Manager 4.12.0 patch does not apply cleanly to public 4.11.0.' }
           git apply --whitespace=nowarn "$patch"
           if ($LASTEXITCODE -ne 0) { throw 'Manager 4.12.0 patch application failed.' }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'Patched LF-normalized candidate failed git diff --check.' }
 
           $text = [System.IO.File]::ReadAllText($menu,[System.Text.Encoding]::ASCII).Replace("`r`n","`n").Replace("`n","`r`n")
           [System.IO.File]::WriteAllText($menu,$text,(New-Object System.Text.ASCIIEncoding))
@@ -61,8 +66,6 @@ jobs:
           if ([string]$install.manager_version -ne '4.12.0') { throw 'Patched Manager version is not 4.12.0.' }
           $installHash = (Get-FileHash -LiteralPath $installPath -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($installHash -ne '7d616af1999a0071299044ac4f5f72d14f1bd74f5bc4fb280714db2076efaf77') { throw "Candidate INSTALLATION hash mismatch: $installHash" }
-          git diff --check
-          if ($LASTEXITCODE -ne 0) { throw 'Patched candidate failed git diff --check.' }
 
       - name: Build frozen-r9 gate and verify candidate identity
         shell: powershell
