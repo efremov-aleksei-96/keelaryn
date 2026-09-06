@@ -1,10 +1,9 @@
 # Tests
 
-Local development uses two role-based directories:
+Reusable test infrastructure belongs here.
 
-- `work/` — disposable candidate trees, generated fixtures, fault-injection targets and benchmark runtimes;
-- `results/` — durable summaries/transcripts when local evidence needs to be retained.
+- `framework/manager-gate/` — frozen Windows-qualified Manager Gate Framework source.
+- `work/` — disposable local candidate/install/fixture workspace; ignored except its README.
+- `results/` — durable local gate evidence; ignored except its README.
 
-Both are ignored by Git except for their boundary README files. Do not commit real Hub checkpoints or instance-specific transports.
-
-The installed Manager can initialize the local layout with `manager/PREPARE_TESTS.cmd`.
+The complete production-approval Full Gate remains a local Windows workflow because it uses a CURRENT-backed disposable Hub and verifies production immutability. GitHub Actions runs the Hub-blind SourceGate layer only.

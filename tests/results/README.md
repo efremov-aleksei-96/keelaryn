@@ -1,3 +1,3 @@
-# Local results
+# Local test evidence
 
-Generated gate summaries, transcripts and benchmark reports belong here and are ignored by Git.
+Full Gate summaries, command logs, Doctor reports and tested release handoff artifacts belong here and are ignored by Git.

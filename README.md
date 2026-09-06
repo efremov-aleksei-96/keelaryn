@@ -2,92 +2,92 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Keelaryn is a Windows-first PowerShell management and release system for a structured, instance-owned Hub. The project focuses on safe state transitions, deterministic release engineering, diagnostics, migration, rollback, and bounded AI-assisted development context.
+Keelaryn is a Windows-first PowerShell management and release-engineering system for a structured, instance-owned Hub. It emphasizes safe state transitions, deterministic builds, rollback, diagnostics, explicit migrations, package/path hardening, and bounded AI-assisted development context.
 
-The repository intentionally separates **product code** from **instance data**:
+## Current public source baseline
+
+This repository sync is based on production-qualified **Keelaryn Manager 4.11.0**. The Manager source under `manager/` is the exact 61-file managed product set bound by the Windows Full Gate. The reusable Manager gate harness under `tests/framework/manager-gate/` is frozen **Gate Framework v2 revision 9**, independently qualified on Windows PowerShell 5.1.
+
+No personal Hub, CURRENT/CANDIDATE/APPROVED package, binding, Manager state, logs, history, credentials or private test evidence is part of the public source tree.
 
 ```text
 keelaryn/
-├── manager/   # product/runtime source
-├── hub/       # runtime instance location; personal data is never committed
-└── tests/     # disposable work + durable test evidence
+├── manager/
+│   ├── KEELARYN.cmd
+│   ├── README_FIRST.md
+│   ├── compat/commands/
+│   └── product/
+│       ├── docs/
+│       ├── governance/hub/
+│       ├── install/INSTALLATION.json
+│       ├── migrations/
+│       ├── runtime/Keelaryn__Manager.ps1
+│       ├── starter/hub/
+│       └── tools/
+├── hub/
+└── tests/
+    └── framework/manager-gate/
 ```
 
-> **Portfolio status:** this repository candidate is derived from verified production Manager **4.4.31**. It contains the generic Manager product and sanitized repository scaffolding only. No personal Hub, CURRENT/CANDIDATE/APPROVED package, binding, logs, inbox, history, or credentials are included.
+Machine-local Manager state is created under `manager/state/` at runtime and is ignored by Git. The top-level `hub/` directory is only a boundary marker; real Hub data is not repository source.
 
 ## What the project demonstrates
 
-- PowerShell 5.1 automation on Windows.
-- Deterministic SOURCE / DISTRIBUTION / UPDATE / AI_CONTEXT release builds.
-- SHA-256 integrity validation and explicit product/instance identity.
-- Staged Manager updates with rollback snapshots and fail-closed target-path checks.
-- Hub update isolation: Manager and Hub lifecycle operations are separate by default.
-- Read-only `Doctor` diagnostics with granular timings.
+- Windows PowerShell 5.1 automation and compatibility engineering.
+- Deterministic SOURCE / DISTRIBUTION / UPDATE / AI_CONTEXT release construction.
+- Isolated double-build determinism checks.
+- SHA-256 package and installed-state validation.
+- Transactional Manager update with rollback fault injection.
+- Read-only Doctor diagnostics and CURRENT/installed identity validation.
+- ZIP traversal, Windows reserved-name, case/Unicode collision and reparse-point defenses.
 - Windows Restart Manager lock-owner diagnostics without terminating processes.
-- Path traversal, Unicode/case-collision, reparse-point, reserved-name, and ZIP-envelope defenses.
-- Explicit system migrations and compatibility aliases for legacy installations.
-- Candidate transport fallback that reconstructs a complete non-canonical CANDIDATE from an exact CURRENT baseline and a verified Base64 delta.
-- Task-routed, runtime-hash-bound AI development context that is derived from source rather than maintained as a second implementation.
-
-## Measured engineering work
-
-A Windows PowerShell 5.1 release gate compared Manager 4.4.25 with the later hashing optimization that entered production in 4.4.30 on the same disposable Hub/CURRENT baseline:
-
-| Metric | Before | After | Change |
-|---|---:|---:|---:|
-| Doctor hub + baseline | 578.5 ms | 503.8 ms | **-12.9%** |
-| Doctor total | 828.8 ms | 764.3 ms | **-7.8%** |
-| Portable Hub analysis | 153.9 ms | 104.2 ms | **-32.3%** |
-| CURRENT baseline | 206.4 ms | 182.2 ms | **-11.7%** |
-| Portable + CURRENT target sum | 360.3 ms | 286.4 ms | **-20.5%** |
-
-The optimization did **not** change SHA-256 input bytes or the digest algorithm. It replaced a PowerShell pipeline used only to render digest bytes as lowercase hex with a .NET `BitConverter` path after a microbenchmark demonstrated byte-for-byte equivalence and large formatting overhead.
-
-See [Engineering case study](docs/ENGINEERING_CASE_STUDY.md) for the full reasoning, including rejected experiments.
+- Explicit Hub migrations and compatibility boundaries.
+- Candidate transport build/reconstruction with independent integrity checks.
+- Generated task-routed AI_CONTEXT tied to exact Manager source.
+- A separately qualified reusable Windows Gate Framework.
 
 ## Quick start
 
-Requirements:
+Requirements: Windows 10/11 or Windows Server with **Windows PowerShell 5.1**.
 
-- Windows 10/11 or Windows Server with **Windows PowerShell 5.1**.
-- A normal filesystem path; production data should not live inside this Git repository.
-
-From `manager/`:
+Interactive frontend:
 
 ```text
-GENESIS_KEELARYN__HUB.cmd
-DOCTOR.cmd
+manager\KEELARYN.cmd
 ```
 
-`GENESIS_KEELARYN__HUB.cmd` creates a new canonical sibling `hub` instance. `DOCTOR.cmd` performs read-only validation. See [manager/README_FIRST.md](manager/README_FIRST.md) and [Genesis and onboarding](manager/product/docs/GENESIS_AND_ONBOARDING.md).
-
-## Development and release gates
-
-The repository is designed around disposable Windows testing. Development work belongs under `tests/work`; durable summaries and transcripts belong under `tests/results` and are normally ignored by Git.
-
-The production Manager itself can prepare the local workspace:
+Compatibility commands remain available under:
 
 ```text
-manager\PREPARE_TESTS.cmd
+manager\compat\commands\
 ```
 
-Canonical release construction:
+For example: `DOCTOR.cmd`, `GENESIS_KEELARYN__HUB.cmd`, and `BUILD_RELEASE.cmd`.
 
-```text
-manager\BUILD_RELEASE.cmd
-```
+## Development and validation
 
-The release builder reconstructs SOURCE, DISTRIBUTION, UPDATE and AI_CONTEXT independently from the managed allowlist, validates hashes before publication, and publishes the release manifest last.
+Local release approval is intentionally stronger than hosted CI. The Windows Full Gate operates only on disposable targets below `tests/work`, uses a CURRENT-backed disposable Hub, validates update/rollback/Doctor/UI/archive/candidate-transport/Genesis behavior, and proves production immutability.
 
-## Repository safety boundary
+GitHub Actions runs the repository boundary verifier and the Hub-blind SourceGate path on a Windows hosted runner. It does **not** replace the local Full Gate.
 
-The `hub/` directory in this repository contains only a boundary README. Real Hub state is ignored by Git. The same applies to Manager runtime directories such as `_inbox`, `_history`, `_logs`, `_releases`, local binding, and CURRENT packages.
-
-Run the public-tree verifier before publishing:
+Run the repository boundary verifier locally:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-PublicRepository.ps1
 ```
+
+## Repository safety boundary
+
+The public tree intentionally excludes:
+
+- `manager/state/**`;
+- a real `hub/**`;
+- `tests/work/**` and `tests/results/**` evidence;
+- Manager/Hub UPDATE, CURRENT, CANDIDATE or APPROVED ZIPs;
+- candidate transport JSON;
+- credentials, private keys and recovery material.
+
+The exact Manager source currently retains one maintainer-local test-entrypoint example in `manager/product/docs/TESTING.md`. It is non-secret documentation and not a product installation default; public-facing instructions in this README use repository-relative paths.
 
 ## Documentation
 
@@ -97,8 +97,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-PublicRep
 - [Release engineering](docs/RELEASE_ENGINEERING.md)
 - [Portfolio / interview notes](PORTFOLIO.md)
 - [Publishing checklist](docs/PUBLISHING_CHECKLIST.md)
-- Detailed product documentation lives under [`manager/product/docs`](manager/product/docs/).
+- Detailed product documentation: [`manager/product/docs`](manager/product/docs/)
 
 ## License
 
-Keelaryn is released under the [MIT License](LICENSE). The license applies to the generic product source and public repository scaffolding in this repository. Personal Hub instances, private runtime data, credentials, and other content that is not committed to this repository are outside this public source package.
+Keelaryn is released under the [MIT License](LICENSE). The license covers public repository source and documentation, not uncommitted personal Hub/runtime data.

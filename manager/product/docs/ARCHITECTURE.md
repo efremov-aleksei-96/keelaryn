@@ -30,7 +30,7 @@ The starter tree contains only the minimum canonical skeleton needed to instanti
 
 ## Runtime binding
 
-Binding v2 records absolute path plus stable instance identity. Paths may change; instance identity does not. Ambiguous discovery is blocked and explicit `BIND_INSTANCE.cmd` is available.
+Binding v2 records absolute path plus stable instance identity. Paths may change; instance identity does not. Ambiguous discovery is blocked and explicit Maintenance > Bind existing Hub (legacy alias `BIND_INSTANCE.cmd`) is available.
 
 ## Portable inventory and lifecycle isolation
 
@@ -40,11 +40,11 @@ Manager-only modes (`-UpdateManager`, `-SelfTest`, `-BuildDistribution`, `-Build
 
 ## AI development surface
 
-The managed AI-context generator derives a lossless runtime segment map, call/caller function map, task routes and exact managed-source mirrors. It is a derived development surface, never a second runtime implementation.
+The managed AI-context generator derives a lossless runtime segment map, call/caller function map, task routes and exact managed-source mirrors. Within one build it reuses the already decoded runtime text for parser and lexical validation rather than reopening the runtime. It is a derived development surface, never a second runtime implementation.
 
 ## Performance invariants
 
-Portable Hub analysis is single-pass per explicit snapshot: each portable file is hashed once to derive full content identity, payload identity, and source-manifest identity. Safety-critical commit checks deliberately take a fresh snapshot rather than reusing stale analysis. Manager UPDATE validation indexes ZIP entries once per opened archive instead of rescanning the entry collection for every declared file.
+Portable Hub analysis is single-pass per explicit snapshot: each portable file is hashed once to derive full content identity, payload identity, and source-manifest identity. Safety-critical commit checks deliberately take a fresh snapshot rather than reusing stale analysis. Manager UPDATE validation opens each package once per validation pass, performs envelope safety checks against that same archive handle, and indexes ZIP entries once instead of reopening or rescanning the archive for every declared file. Fresh staged-package validation remains a separate pass at the install boundary.
 
 Hub ZIP inspection uses short-lived per-operation sessions for read-only validation paths. A session validates the archive envelope once and derives portable content/payload/source-manifest hashes from one entry-hash pass; callers may reuse that immutable snapshot only within the current operation. Transaction and commit boundaries still perform fresh installed-state validation and never rely on a process-global cache.
 
@@ -55,3 +55,9 @@ Sharing/lock failures remain fail-closed. On the terminal Windows sharing/lock v
 Doctor's healthy-MANIFEST path stops after exact ordered entry equality is proven; expensive missing/extra/changed classification is constructed only on mismatch. `DOCTOR_REPORT.json` also records fine-grained read-only Hub sub-timings so further optimization is measurement-driven rather than cache-driven.
 
 Candidate transport is a secondary, non-canonical resilience channel. `keelaryn.hub.candidate-transport.v1` stores only a bounded deterministic portable-tree delta from an exact CURRENT reconstruction identity to a validated artifact-v3 CANDIDATE. Embedded bytes are Base64 with independent length/SHA-256 checks. Reconstruction revalidates the resulting complete Hub and emits a complete CANDIDATE ZIP; it never bypasses Chat Manager approval or participates in automatic Hub installation.
+
+## User-facing and repository boundaries
+
+The interactive frontend lives under `product/tools` and delegates every operational action back to the single Manager runtime. The optional root `Keelaryn.cmd` is generated local convenience state and is intentionally outside the managed product set.
+
+Installed production state and public repository source are related but not identical views. The repository's managed `manager/` tree is release source; installed Manager adds local runtime state, while the personal Hub remains outside generic source.

@@ -1,47 +1,43 @@
 # Public publishing checklist
 
-This candidate is designed to be safe for GitHub review, but public publishing should still be deliberate.
+## Source / privacy
 
-## Required before first public push
+- [ ] `tools/Verify-PublicRepository.ps1` passes on Windows PowerShell 5.1.
+- [ ] `manager/` matches `product/install/INSTALLATION.json` exactly.
+- [ ] `manager/state/` is absent.
+- [ ] `hub/` contains only its boundary README.
+- [ ] `tests/work` and `tests/results` contain only their committed README placeholders.
+- [ ] no CURRENT/CANDIDATE/APPROVED/UPDATE ZIP or candidate-transport JSON is committed.
+- [ ] no user-profile path, credential/private-key material or instance artifact ID is present.
+- [x] MIT license is present.
 
-- [ ] Run `tools/Verify-PublicRepository.ps1` on Windows PowerShell 5.1.
-- [ ] Run the full local Windows parser/SelfTest/release gate.
-- [ ] Run the GitHub Actions workflow manually only for a publication/milestone checkpoint.
-- [ ] Confirm `hub/` contains only its boundary README.
-- [ ] Confirm `tests/work` and `tests/results` contain no generated private evidence.
-- [ ] Confirm no CURRENT/CANDIDATE/APPROVED ZIP or candidate transport JSON is present.
-- [x] Repository license selected: MIT.
-- [ ] Review the public README and PORTFOLIO claims against current verified release evidence.
+## Release evidence
 
-## License
+- [ ] public Manager version corresponds to a production-qualified release.
+- [ ] latest local Full Gate passed with frozen qualified Gate Framework.
+- [ ] `PUBLIC_PROVENANCE.json` matches the published Manager/framework identities.
+- [ ] `PUBLIC_FILE_MANIFEST.json` exact source-file hashes match.
 
-The public repository uses the **MIT License**. `LICENSE` is part of the committed public tree and must remain present in published snapshots.
+## Git integrity
 
-The license covers the source and documentation actually committed to this public repository. It does not imply publication or licensing of personal Hub instance data, credentials, local runtime state, private CURRENT/CANDIDATE/APPROVED packages, or other uncommitted material.
+- [ ] clone/checkout with `core.autocrlf=true` leaves all 61 Manager managed files byte-identical.
+- [ ] frozen framework files remain byte-identical.
+- [ ] `.gitattributes` continues to mark authoritative Manager/Framework source as `-text`.
 
-## Git checkout integrity
+## CI
 
-- [x] Public candidate tested with `core.autocrlf=true`: all 57 Manager managed files remain byte-identical after Git round-trip.
-- [x] `manager/_manager_version.txt` is explicitly pinned to LF in `.gitattributes`.
+- [ ] Windows hosted CI passes repository verifier.
+- [ ] Windows hosted CI generates the gate with frozen framework.
+- [ ] SourceGate passes.
 
-## CI and publication cadence
+Hosted CI does not replace the local Full Gate.
 
-GitHub is not the development test runner for Keelaryn. Candidate iteration, profiling, fault injection and disposable update gates stay local under `tests/work` and durable results stay under the local `tests/results` boundary.
+## Repository settings
 
-The checked-in Windows workflow uses only `workflow_dispatch`; pushes and pull requests do not start hosted runners automatically. Run it manually after a batched milestone is ready for publication. The workflow intentionally does not upload Actions artifacts.
+Recommended:
 
-Recommended cadence:
-
-- do not push rejected candidates or every Manager patch version;
-- batch several locally verified changes into one public milestone;
-- validate locally before pushing;
-- run hosted CI once for the milestone, not once per development commit;
-- prefer a public repository for the published portfolio once it is ready; keep private staging CI manual-only.
-
-## Recommended repository settings
-
-- enable branch protection for the default branch;
-- require the Windows validation workflow before merge;
-- enable private vulnerability reporting if available;
-- avoid uploading generated release artifacts to Git unless a release page intentionally needs them;
-- keep real Hub data in a separate non-repository location.
+- protect `main`;
+- require the Windows source-validation workflow before PR merge;
+- enable private vulnerability reporting;
+- prefer squash merges for milestone syncs;
+- do not commit generated release artifacts.

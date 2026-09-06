@@ -2,6 +2,6 @@
 
 Please do not publish real Hub data, CURRENT/CANDIDATE/APPROVED packages, candidate transport JSON, credentials, private keys or recovery material in public issues.
 
-For a security-sensitive report, use GitHub Private Vulnerability Reporting when enabled. If private reporting is unavailable, open a minimal issue describing the affected component without exploit secrets or private data and request a private contact channel.
+For security-sensitive reports, use GitHub Private Vulnerability Reporting when enabled. If private reporting is unavailable, open a minimal issue identifying the affected component without exploit secrets/private data and request a private channel.
 
-The supported portfolio baseline in this repository candidate is Manager 4.4.31. Historical compatibility code exists for older installations, but security fixes should target the latest supported Manager first.
+The current public source baseline is **Manager 4.11.0**. Security fixes should target the latest production-qualified Manager first; historical compatibility paths are maintained only where required for supported updates/migrations.

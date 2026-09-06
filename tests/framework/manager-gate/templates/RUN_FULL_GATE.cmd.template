@@ -1,0 +1,27 @@
+@echo off
+setlocal EnableExtensions
+title Keelaryn Manager {{VERSION}} Full Gate
+cd /d "%~dp0"
+set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+"%PS%" -NoProfile -ExecutionPolicy Bypass -Command "$files=@(Get-ChildItem -LiteralPath '%~dp0' -Recurse -File -Filter '*.ps1'); foreach($f in $files){$tokens=$null;$errors=$null;$ast=[System.Management.Automation.Language.Parser]::ParseFile($f.FullName,[ref]$tokens,[ref]$errors); if(@($errors).Count -ne 0){Write-Host ('Gate/candidate parser preflight FAILED: '+$f.FullName) -ForegroundColor Red; @($errors) | ForEach-Object { Write-Host ('  '+$_.Message) -ForegroundColor Red }; exit 2}; $defs=@{}; foreach($fn in @($ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$true))){$a=$fn.Parent;$nested=$false;while($null-ne$a){if($a -is [System.Management.Automation.Language.FunctionDefinitionAst]){$nested=$true;break};$a=$a.Parent};if(-not$nested){$defs[[string]$fn.Name]=[int]$fn.Extent.StartOffset}}; foreach($c in @($ast.FindAll({param($n) $n -is [System.Management.Automation.Language.CommandAst]},$true))){$a=$c.Parent;$inside=$false;while($null-ne$a){if($a -is [System.Management.Automation.Language.FunctionDefinitionAst]){$inside=$true;break};$a=$a.Parent};if($inside){continue};$n=$c.GetCommandName();if($n-and$defs.ContainsKey([string]$n)-and[int]$c.Extent.StartOffset-lt[int]$defs[[string]$n]){Write-Host ('Gate helper-order preflight FAILED: '+$f.FullName+' calls '+$n+' before its function definition.') -ForegroundColor Red;exit 3}}}; Write-Host ('Gate/candidate parser + helper-order preflight PASS. PS1 files='+$files.Count) -ForegroundColor Green; $gr=(Get-Content -LiteralPath '%~dp0gate\GATE_REVISION.txt' -Raw).Trim(); Write-Host ('Gate revision: '+$gr) -ForegroundColor DarkGray"
+if errorlevel 1 (
+  set "RC=%ERRORLEVEL%"
+  echo.
+  echo FULL GATE NOT STARTED. Gate parser preflight failed. ExitCode=%RC%
+  echo.
+  pause
+  exit /b %RC%
+)
+
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0gate\Run-KeelarynManagerFullGate.ps1" -CandidateRoot "%~dp0."
+set "RC=%ERRORLEVEL%"
+echo.
+if "%RC%"=="0" (
+  echo FULL GATE PASSED.
+) else (
+  echo FULL GATE FAILED. ExitCode=%RC%
+)
+echo.
+pause
+exit /b %RC%

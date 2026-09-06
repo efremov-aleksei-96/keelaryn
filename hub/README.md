@@ -1,13 +1,7 @@
-# Hub runtime boundary
+# Hub boundary
 
-This directory is intentionally not a tracked example Hub.
+This repository does **not** contain a real Keelaryn Hub instance.
 
-A real Keelaryn Hub is **instance-owned state**, not product source code. Generate a disposable or new instance with:
+`hub/` is reserved as the canonical runtime location when a generic checkout is used as a local Keelaryn root. Personal Areas, Projects, Records, Resources, `_System` checkpoint metadata, `.obsidian`, CURRENT/CANDIDATE/APPROVED packages and other instance-owned state must never be committed here.
 
-```text
-..\manager\GENESIS_KEELARYN__HUB.cmd
-```
-
-The repository `.gitignore` ignores everything under `hub/` except this README so personal instance state cannot be committed accidentally.
-
-For tests, generate sanitized disposable instances under `tests/work` rather than copying a personal production Hub into the repository.
+Generic Hub governance and Genesis starter source used by Manager live under `manager/product/governance/hub` and `manager/product/starter/hub`.

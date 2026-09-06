@@ -1,3 +1,3 @@
-# Disposable work
+# Disposable test workspace
 
-Generated test work belongs here and is ignored by Git.
+Generated candidates, disposable installations, fixtures and benchmark roots belong here and are ignored by Git.

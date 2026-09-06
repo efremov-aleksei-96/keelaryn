@@ -2,34 +2,27 @@
 hub/*
 !hub/README.md
 
-# Manager runtime / local state
-manager/_inbox/
-manager/_history/
-manager/_logs/
-manager/_releases/
-manager/_binding*
-manager/Keelaryn__Hub_CURRENT*.zip
-manager/Keelaryn__Hub_CANDIDATE_*.zip
-manager/Keelaryn__Hub_APPROVED_*.zip
-manager/Keelaryn__Hub_CANDIDATE_TRANSPORT_*.json
-manager/_release_*/
-manager/_ai_context_*/
+# Manager machine-local runtime state
+manager/state/
+manager/Development/
 
-# Disposable/durable local test output
+# Disposable/durable local tests
 tests/work/*
 !tests/work/README.md
 tests/results/*
 !tests/results/README.md
 tests/WORKSPACE.json
+tests/legacy-layout-backup/
+tests/manager-*.zip
 
-# Local editors / OS
+# Generated release/test archives
+*.zip
+*.7z
+*.rar
+
+# Editors / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# Release archives are published separately, not committed
-*.zip
-*.7z
-*.rar

@@ -10,7 +10,7 @@ updated: {{DATE}}
 Work from a complete accepted Keelaryn__Hub checkpoint or a workspace checkout derived from it. When producing a CANDIDATE:
 
 1. preserve `instance_id`;
-2. increment `data_revision` exactly once relative to the declared base;
+2. increment `data_revision` exactly once relative to the declared base and assign a UTC `revision_time_utc` exactly once for the new revision;
 3. preserve unrelated durable state;
 4. rebuild derived metadata deterministically;
 5. set `artifact_status: candidate`, `producer_role: worker_chat`, and include exact base/ancestor payload hashes;
