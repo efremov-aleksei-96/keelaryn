@@ -26,6 +26,8 @@ jobs:
       - name: Apply asserted 4.13.1 fix
         shell: powershell
         run: |
+          python "$env:GITHUB_WORKSPACE\.github\manager-4.13.1-fix0.py"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           python "$env:GITHUB_WORKSPACE\.github\manager-4.13.1-fix.py"
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
 
