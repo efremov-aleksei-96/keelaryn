@@ -2,10 +2,10 @@
   "schema": "keelaryn.public-file-manifest.v2",
   "scope": "authoritative_source_sets",
   "manager": {
-    "version": "4.13.0",
+    "version": "4.13.1",
     "file_count": 67,
-    "installation_sha256": "5cf598b412168bde4f5e543c7a8eceb7f6170b22b7325c9e9b06bea6c316f32d",
-    "gate_managed_content_sha256": "c6a99234dabc75ca69100046cf4450cf85763891adba279a6062e511799599ab",
+    "installation_sha256": "2e95279c039067ba4b731021ffdc6e26ebe2c31045586f3ecd6db8cf1183a1c7",
+    "gate_managed_content_sha256": "3354e8301b97d9cfd15c32989e36b3571591df4d63323a96696f75feea491ce1",
     "files": [
       {
         "path": "KEELARYN.cmd",
@@ -15,7 +15,7 @@
       {
         "path": "README_FIRST.md",
         "size_bytes": 4226,
-        "sha256": "fc80f1b161271c93d2fc36d20b847df57641fd16cbb0afd6818cd38ac72c60d9"
+        "sha256": "bb9426361209c0910ccc42c937579b9eba5fe9488eb98eeb6aafb15b2510370c"
       },
       {
         "path": "compat/commands/APPLY_MIGRATIONS.cmd",
@@ -245,12 +245,12 @@
       {
         "path": "product/install/INSTALLATION.json",
         "size_bytes": 3170,
-        "sha256": "5cf598b412168bde4f5e543c7a8eceb7f6170b22b7325c9e9b06bea6c316f32d"
+        "sha256": "2e95279c039067ba4b731021ffdc6e26ebe2c31045586f3ecd6db8cf1183a1c7"
       },
       {
         "path": "product/manager_release.json",
         "size_bytes": 203,
-        "sha256": "5cd335af02e2334891b0d8de43f116e841c2140b05163a23486398b8cc9991b5"
+        "sha256": "6802f0d88c12f8aa76fd3767eba3754d2bf48aa16fc04bfaf765e0d0470bf8f8"
       },
       {
         "path": "product/migrations/2.0.0_to_2.1.0.json",
@@ -274,8 +274,8 @@
       },
       {
         "path": "product/runtime/Keelaryn__Manager.ps1",
-        "size_bytes": 439366,
-        "sha256": "30574bb6b6b8c5acdea0213ee18f0e46ae1de69d1854a09213bf4403d40194c0"
+        "size_bytes": 439931,
+        "sha256": "d7d98bcd73970bc9938cc1e0bf88f5bbbe7306101976a8105d602c31da6a1549"
       },
       {
         "path": "product/starter/hub/Areas/README.md",
@@ -319,8 +319,8 @@
       },
       {
         "path": "product/tools/Compact-KeelarynQualificationEvidence.ps1",
-        "size_bytes": 36871,
-        "sha256": "b064e22b709c9a94152ff1fc2c1e6dfb4d6338c04d971b8e56eed31a508a49c9"
+        "size_bytes": 39610,
+        "sha256": "fee74e7c3e33beb0fc1cce238d3d9380f298a371bd8b56edaf204c96c232b84d"
       },
       {
         "path": "product/tools/KeelarynMenu.ps1",

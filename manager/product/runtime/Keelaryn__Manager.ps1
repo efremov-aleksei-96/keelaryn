@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.13.0"
+$ManagerVersion = "4.13.1"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -6027,13 +6027,20 @@ function Test-TestsWorkspaceSelfTest {
     finally{if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue}}
 }
 
+$script:QualificationEvidenceCompactionToolSelfTestReason=''
 function Test-QualificationEvidenceCompactionToolSelfTest {
     try{
         $tool=Join-Path $Root 'product/tools/Compact-KeelarynQualificationEvidence.ps1'
-        if(-not(Test-Path -LiteralPath $tool -PathType Leaf)){return $false}
-        & (Join-Path $PSHOME 'powershell.exe') -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $tool -SelfTest | Out-Null
-        return [int]$LASTEXITCODE -eq 0
-    }catch{return $false}
+        if(-not(Test-Path -LiteralPath $tool -PathType Leaf)){$script:QualificationEvidenceCompactionToolSelfTestReason='tool missing: '+$tool;return $false}
+        $output=@(& (Join-Path $PSHOME 'powershell.exe') -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $tool -SelfTest 2>&1)
+        $code=[int]$LASTEXITCODE
+        if($code-ne0){
+            $tail=@($output|ForEach-Object{[string]$_}|Select-Object -Last 8)
+            $script:QualificationEvidenceCompactionToolSelfTestReason=('exit='+$code+'; '+[string]::Join(' | ',$tail))
+            return $false
+        }
+        return $true
+    }catch{$script:QualificationEvidenceCompactionToolSelfTestReason=$_.Exception.Message;return $false}
 }
 
 $script:UserInterfaceToolSourceSelfTestReason=''
@@ -6237,7 +6244,7 @@ if ($SelfTest) {
     if (-not (Test-LegacyNamespaceTransformSelfTest)) { Write-Host 'Manager self-test failed: legacy namespace transform contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-UpdateCommandSurfaceSelfTest)) { Write-Host 'Manager self-test failed: update command surface contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-TestsWorkspaceSelfTest)) { Write-Host 'Manager self-test failed: tests workspace contract.' -ForegroundColor Red; exit 1 }
-    if (-not (Test-QualificationEvidenceCompactionToolSelfTest)) { Write-Host 'Manager self-test failed: qualification evidence compaction contract.' -ForegroundColor Red; exit 1 }
+    if (-not (Test-QualificationEvidenceCompactionToolSelfTest)) { Write-Host ('Manager self-test failed: qualification evidence compaction contract. '+[string]$script:QualificationEvidenceCompactionToolSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-UserInterfaceToolSourceSelfTest)) { Write-Host ('Manager self-test failed: user-interface/test-archive tool contract. '+[string]$script:UserInterfaceToolSourceSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-LayoutContractSelfTest)) { Write-Host 'Manager self-test failed: canonical layout contract.' -ForegroundColor Red; exit 1 }
     if ($CanonicalLayoutActive -and $StateLayoutActive -and -not (Test-FinalFilesystemLayout)) { Write-Host 'Manager self-test failed: finalized filesystem layout contract.' -ForegroundColor Red; exit 1 }

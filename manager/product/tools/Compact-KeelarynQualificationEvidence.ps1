@@ -500,7 +500,10 @@ function Test-Self {
         if(-not(Test-PublishedArchive $archive $manifest ([string]$index.archive_sha256) ([string]$index.manifest_sha256))){return $false}
         if((Invoke-Compaction $results $tests $true)-ne0){return $false}
 
-        # File reparse substitution: the link target is intentionally different from the protected bound copy.
+        # File reparse substitution. Actual file-symlink coverage is used when the host grants
+        # symlink creation. Ordinary Windows without Developer Mode / SeCreateSymbolicLinkPrivilege
+        # must still be able to run Manager SelfTest, so the protected-copy binding/archive contract
+        # also has a privilege-free path that CI exercises explicitly.
         $r2=Join-Path $tests 'results\manager-9.9.10'
         New-Item -ItemType Directory -Force -Path $r2|Out-Null
         $summary2=[ordered]@{schema='keelaryn.manager.windows-gate-summary.v16';manager_version='9.9.10';baseline_version='9.9.9';gate_revision=3;framework_revision=11;status='PASS';completed='2026-01-02T00:00:00Z';candidate_installation_sha256=('c'*64);candidate_managed_content_sha256=('d'*64)}
@@ -509,24 +512,49 @@ function Test-Self {
         $protected=Join-Path $temp 'protected';New-Item -ItemType Directory -Force -Path $protected|Out-Null
         $protectedFile=Join-Path $protected 'copy.bin';Write-Utf8NoBom $protectedFile "protected-archive-bytes`n"
         $link=Join-Path $r2 'linked.txt'
-        New-Item -ItemType SymbolicLink -Path $link -Target $evil -ErrorAction Stop|Out-Null
-        $linkItem=Get-Item -LiteralPath $link -Force -ErrorAction Stop
-        if(($linkItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-eq0){return $false}
+        $forceNoFileSymlink=([string]$env:KEELARYN_SELFTEST_FORCE_NO_FILE_SYMLINK-eq'1')
+        $linkCreated=$false;$linkCreationDetail=''
+        if(-not$forceNoFileSymlink){
+            try{New-Item -ItemType SymbolicLink -Path $link -Target $evil -ErrorAction Stop|Out-Null;$linkCreated=$true}
+            catch{$linkCreationDetail=$_.Exception.Message}
+        }else{$linkCreationDetail='forced no-file-symlink mode'}
         $mapPath=Join-Path $temp 'reparse-map.json'
         $protectedItem=Get-Item -LiteralPath $protectedFile -Force
         $map=[ordered]@{schema='keelaryn.reparse-substitution-map.v1';protected_root=$protected;entries=@([ordered]@{path='linked.txt';protected_path='copy.bin';size=[int64]$protectedItem.Length;sha256=(Get-Sha256 $protectedFile)})}
         Write-Utf8NoBom $mapPath (($map|ConvertTo-Json -Depth 6)+"`n")
-        $unmappedRejected=$false
-        try{[void](Invoke-Compaction $r2 $tests $false $null)}catch{$unmappedRejected=$true}
-        if(-not$unmappedRejected){return $false}
-        if((Invoke-Compaction $r2 $tests $true $mapPath)-ne0){return $false}
-        if(-not(Test-Path -LiteralPath $evil -PathType Leaf)-or-not(Test-Path -LiteralPath $protectedFile -PathType Leaf)-or(Test-Path -LiteralPath $link)){return $false}
-        $idx2=Read-Json (Join-Path $r2 'QUALIFICATION_INDEX.json')
-        $manifest2=Read-Json (Join-Path $tests ([string]$idx2.manifest_path).Replace('/','\'))
-        $row2=@($manifest2.entries|Where-Object{[string]$_.path-ceq'linked.txt'})
-        if($row2.Count-ne1-or$null-eq$row2[0].substitution){return $false}
-        if([string]$row2[0].substitution.schema-ne'keelaryn.reparse-substitution.v1'-or[string]$row2[0].substitution.bound_sha256-cne(Get-Sha256 $protectedFile)){return $false}
-        if([string]$row2[0].sha256-cne(Get-Sha256 $protectedFile)-or[string]$row2[0].sha256-ceq(Get-Sha256 $evil)){return $false}
+        if($linkCreated){
+            $linkItem=Get-Item -LiteralPath $link -Force -ErrorAction Stop
+            if(($linkItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-eq0){return $false}
+            $unmappedRejected=$false
+            try{[void](Invoke-Compaction $r2 $tests $false $null)}catch{$unmappedRejected=$true}
+            if(-not$unmappedRejected){return $false}
+            if((Invoke-Compaction $r2 $tests $true $mapPath)-ne0){return $false}
+            if(-not(Test-Path -LiteralPath $evil -PathType Leaf)-or-not(Test-Path -LiteralPath $protectedFile -PathType Leaf)-or(Test-Path -LiteralPath $link)){return $false}
+            $idx2=Read-Json (Join-Path $r2 'QUALIFICATION_INDEX.json')
+            $manifest2=Read-Json (Join-Path $tests ([string]$idx2.manifest_path).Replace('/','\'))
+            $row2=@($manifest2.entries|Where-Object{[string]$_.path-ceq'linked.txt'})
+            if($row2.Count-ne1-or$null-eq$row2[0].substitution){return $false}
+            if([string]$row2[0].substitution.schema-ne'keelaryn.reparse-substitution.v1'-or[string]$row2[0].substitution.bound_sha256-cne(Get-Sha256 $protectedFile)){return $false}
+            if([string]$row2[0].sha256-cne(Get-Sha256 $protectedFile)-or[string]$row2[0].sha256-ceq(Get-Sha256 $evil)){return $false}
+        }else{
+            Write-Host ('Qualification compaction self-test: file-symlink fixture unavailable; validating privilege-free substitution binding. '+$linkCreationDetail) -ForegroundColor DarkGray
+            $subMap=Read-ReparseSubstitutionMap $mapPath
+            $resolved=Resolve-ReparseSubstitution $subMap 'linked.txt'
+            if([System.IO.Path]::GetFullPath([string]$resolved.ArchiveSourcePath)-cne[System.IO.Path]::GetFullPath($protectedFile)){return $false}
+            if([int64]$resolved.Size-ne[int64]$protectedItem.Length-or[string]$resolved.Sha256-cne(Get-Sha256 $protectedFile)){return $false}
+            if([string]$resolved.Substitution.schema-ne'keelaryn.reparse-substitution.v1'-or[string]$resolved.Substitution.bound_sha256-cne(Get-Sha256 $protectedFile)){return $false}
+            $syntheticFile=[pscustomobject]@{
+                Path=$evil;ArchiveSourcePath=$protectedFile;RelativePath='linked.txt';Size=[int64]$resolved.Size;Sha256=[string]$resolved.Sha256;
+                Attributes=[int]$protectedItem.Attributes;CreationTimeUtc=$protectedItem.CreationTimeUtc.ToString('o');LastWriteTimeUtc=$protectedItem.LastWriteTimeUtc.ToString('o');Substitution=$resolved.Substitution
+            }
+            $syntheticInventory=[pscustomobject]@{Files=@($syntheticFile);Directories=@()}
+            $digest2=Get-EvidenceDigest $syntheticInventory.Files
+            $manifestObject=Get-FrozenManifest $r2 $summary2 $syntheticInventory $digest2
+            $fallbackDir=Join-Path $tests 'archives\manager-9.9.10-fallback';Ensure-SafeDirectory $fallbackDir 'Qualification fallback archive directory'
+            $fallbackArchive=Join-Path $fallbackDir 'fallback.zip';$fallbackManifest=Join-Path $fallbackDir 'fallback.manifest.json'
+            $verifiedFallback=New-VerifiedArchive $fallbackArchive $fallbackManifest $manifestObject $syntheticInventory
+            if(-not(Test-PublishedArchive $fallbackArchive $fallbackManifest ([string]$verifiedFallback.ArchiveSha256) ([string]$verifiedFallback.ManifestSha256))){return $false}
+        }
 
         # Reparse-point directories remain unconditionally rejected and are never traversed.
         $r3=Join-Path $tests 'results\manager-9.9.11';New-Item -ItemType Directory -Force -Path $r3|Out-Null

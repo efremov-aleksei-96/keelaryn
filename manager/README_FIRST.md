@@ -1,6 +1,6 @@
-# Keelaryn Manager 4.13.0
+# Keelaryn Manager 4.13.1
 
-Manager 4.13.0 is the grouped post-4.12 development cycle for supported ChatGPT exchange/onboarding and development-workspace hygiene. It preserves Hub schemas, native update compatibility, rollback semantics, deterministic release construction and fail-closed validation boundaries unless a separately qualified change explicitly says otherwise.
+Manager 4.13.1 is the grouped post-4.12 development cycle for supported ChatGPT exchange/onboarding and development-workspace hygiene. It preserves Hub schemas, native update compatibility, rollback semantics, deterministic release construction and fail-closed validation boundaries unless a separately qualified change explicitly says otherwise.
 
 The immutable development baseline is Manager 4.12.0. Gate Framework 2.0 r11 remains the reusable framework for this candidate unless reusable framework source actually changes.
 
@@ -74,7 +74,7 @@ The tests workspace contract is now explicit: `framework` holds one current reus
 
 ## Update compatibility
 
-Manager 4.13.0 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators.
+Manager 4.13.1 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators.
 
 Manager-only update commands clearly distinguish "no newer valid package" from failure and do not silently process Hub updates.
 
@@ -86,4 +86,4 @@ The existing numeric main-menu contract is preserved to avoid breaking establish
 
 ## Release gate
 
-This source is not production-approved merely because it carries version 4.13.0. Production approval still requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic release/package checks, CURRENT-backed disposable 4.12.0 -> 4.13.0 native update, rollback/fault injection, migrations, Doctor, production immutability, UI regression coverage, public PR CI, exact tested/PR/post-merge/release artifact identity and gated publication.
+This source is not production-approved merely because it carries version 4.13.1. Production approval still requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic release/package checks, CURRENT-backed disposable 4.12.0 -> 4.13.1 native update, rollback/fault injection, migrations, Doctor, production immutability, UI regression coverage, public PR CI, exact tested/PR/post-merge/release artifact identity and gated publication.
