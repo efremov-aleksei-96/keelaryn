@@ -91,11 +91,8 @@ framework_readme.write_text(readme.rstrip() + addition, encoding="utf-8", newlin
 
 manifest_path = ROOT / "PUBLIC_FILE_MANIFEST.json"
 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-if manifest.get("public_candidate_revision") != 8:
-    raise RuntimeError("Unexpected public candidate revision before r11 promotion")
 if manifest["gate_framework"].get("revision") != 9:
     raise RuntimeError("Public manifest framework base is not r9")
-manifest["public_candidate_revision"] = 9
 manifest["gate_framework"]["revision"] = 11
 for row in manifest["gate_framework"]["files"]:
     path = framework / row["path"]
