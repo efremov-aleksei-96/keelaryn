@@ -1,0 +1,54 @@
+{
+  "schema": "keelaryn.repository-governance.v1",
+  "revision": 1,
+  "repository": "efremov-aleksei-96/keelaryn",
+  "default_branch": "main",
+  "merge_policy": {
+    "allow_squash_merge": true,
+    "allow_merge_commit": false,
+    "allow_rebase_merge": false,
+    "allow_auto_merge": false
+  },
+  "main_ruleset": {
+    "name": "Keelaryn main governance",
+    "target": "branch",
+    "enforcement": "active",
+    "include_refs": [
+      "refs/heads/main"
+    ],
+    "bypass_actors": [],
+    "required_rules": {
+      "pull_request": {
+        "required_approving_review_count": 0,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "dismiss_stale_reviews_on_push": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": [
+          "squash"
+        ]
+      },
+      "required_status_checks": {
+        "strict_required_status_checks_policy": true,
+        "contexts": [
+          "source-gate",
+          "repository-governance"
+        ]
+      },
+      "non_fast_forward": true,
+      "deletion": true
+    }
+  },
+  "workflow_permissions": {
+    "default": "contents: read",
+    "publication_exception": ".github/workflows/public-release.yml publish job: contents: write"
+  },
+  "release_policy": {
+    "manager_release_publication_requires": [
+      "production Full Gate PASS",
+      "production Doctor PASS",
+      "production UX smoke PASS",
+      "exact Full-Gate-tested UPDATE SHA-256"
+    ]
+  }
+}

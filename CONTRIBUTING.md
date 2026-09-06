@@ -14,16 +14,23 @@ The primary runtime compatibility target is **Windows PowerShell 5.1 Desktop**. 
 - Keep personal Hub data, credentials and local Manager state out of source/tests/docs.
 - Gate Framework revisions are qualified independently before they are frozen for Manager candidates.
 
+## Repository governance
+
+`REPOSITORY_GOVERNANCE.json` is the machine-readable repository policy and `docs/REPOSITORY_GOVERNANCE.md` is the maintainer setup guide. Changes must enter `main` through the active governance ruleset, required CI and squash-only merge. Do not use administrator bypasses to skip repository controls.
+
+A repository/governance/docs-only PR does not require a Manager version change when `manager/` bytes and the frozen Gate Framework are unchanged. Qualification provenance for an already released Manager must not be rewritten merely because repository governance evolves later.
+
 ## Before a pull request
 
 At minimum:
 
 1. run `tools/Verify-PublicRepository.ps1`;
-2. parse PowerShell with Windows PowerShell 5.1;
-3. run Manager, frontend and archive-tool SelfTests;
-4. run the Hub-blind SourceGate through frozen `tests/framework/manager-gate`;
-5. run the complete local Full Gate for any release candidate;
-6. include benchmark evidence for performance-sensitive changes.
+2. run `tools/Verify-RepositoryGovernance.ps1`;
+3. parse PowerShell with Windows PowerShell 5.1;
+4. run Manager, frontend and archive-tool SelfTests;
+5. run the Hub-blind SourceGate through frozen `tests/framework/manager-gate`;
+6. run the complete local Full Gate for any release candidate;
+7. include benchmark evidence for performance-sensitive changes.
 
 GitHub Actions is an additional source/repository check. It is not a substitute for the CURRENT-backed local Full Gate.
 

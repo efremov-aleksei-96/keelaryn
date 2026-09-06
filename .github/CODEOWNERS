@@ -1,0 +1,4 @@
+# Repository-level ownership. Review is intentionally not mandatory for the
+# single-maintainer repository; the active ruleset requires the PR record,
+# CI checks, conversation resolution, and squash-only merge instead.
+* @efremov-aleksei-96
