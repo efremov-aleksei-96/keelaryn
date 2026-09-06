@@ -43,6 +43,23 @@
     "default": "contents: read",
     "publication_exception": ".github/workflows/public-release.yml publish job: contents: write"
   },
+  "actions_policy": {
+    "enabled": true,
+    "allowed_actions": "selected",
+    "sha_pinning_required": true,
+    "selected_actions": {
+      "github_owned_allowed": false,
+      "verified_allowed": false,
+      "patterns_allowed": [
+        "actions/checkout@*",
+        "actions/upload-artifact@*",
+        "actions/download-artifact@*"
+      ]
+    },
+    "default_workflow_permissions": "read",
+    "can_approve_pull_request_reviews": false,
+    "dependabot_github_actions_updates": true
+  },
   "release_policy": {
     "manager_release_publication_requires": [
       "production Full Gate PASS",
