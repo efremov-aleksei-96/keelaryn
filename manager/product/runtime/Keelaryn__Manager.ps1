@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.12.0"
+$ManagerVersion = "4.13.0"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -393,6 +393,11 @@ $ManagedManagerFiles = @(
     "product/docs/REPOSITORY_MODEL.md",
     "product/docs/TESTING.md",
     "product/docs/USER_INTERFACE.md",
+    "product/docs/chatgpt-projects/CHAT_MANAGER_PROJECT_INSTRUCTIONS.md",
+    "product/docs/chatgpt-projects/CHATS_PROJECT_INSTRUCTIONS.md",
+    "product/docs/chatgpt-projects/MANAGER_DEVELOPMENT_PROJECT_INSTRUCTIONS.md",
+    "product/docs/chatgpt-projects/SETUP_GUIDE.md",
+    "product/docs/chatgpt-projects/WORKSPACE_PROJECT_INSTRUCTIONS.md",
     "product/governance/hub/_System/BOOTSTRAP.md",
     "product/governance/hub/_System/CHAT_MANAGER.md",
     "product/governance/hub/_System/CHAT_MANAGER_LAUNCH.md",
@@ -5199,7 +5204,7 @@ function Invoke-Update {
         if ($UpdateManager) {
             Cleanup-History
             Write-Host ''
-            Write-Host 'Manager update command completed; no newer valid Manager package was applied. Keelaryn__Hub inbox was left untouched.' -ForegroundColor Green
+            Write-Host 'Manager update: no newer valid Manager package was found. The installed Manager remains unchanged; the Hub inbox was not processed by this Manager-only command.' -ForegroundColor Green
             Log 'Manager update command completed without applying a newer Manager package; Hub inbox intentionally untouched.'
             return 0
         }

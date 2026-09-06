@@ -2,26 +2,28 @@
 param([string]$RepositoryRoot=(Join-Path $PSScriptRoot '..'))
 $ErrorActionPreference='Stop'
 $RepositoryRoot=[System.IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\')
-$original=Join-Path $RepositoryRoot '.github\Verify-PublicRepository-original.ps1'
-$target=Join-Path $RepositoryRoot 'tools\Verify-PublicRepository.ps1'
-if(-not(Test-Path -LiteralPath $original -PathType Leaf)){throw('Temporary original verifier missing: '+$original)}
-$temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_verify_public_'+[guid]::NewGuid().ToString('N')+'.ps1')
-try{
-    Copy-Item -LiteralPath $original -Destination $temp -Force
-    Copy-Item -LiteralPath $original -Destination $target -Force
-    Remove-Item -LiteralPath $original -Force
-    $generatedState=Join-Path $RepositoryRoot 'manager\state'
-    if(Test-Path -LiteralPath $generatedState){
-        $layout=Join-Path $generatedState 'layout.json'
-        if(-not(Test-Path -LiteralPath $layout -PathType Leaf)){throw('Refusing to clean unclassified Manager state during source bootstrap: '+$generatedState)}
-        $unexpected=@(Get-ChildItem -LiteralPath $generatedState -File -Recurse -Force -ErrorAction Stop|Where-Object{$_.FullName -ne $layout})
-        if($unexpected.Count-ne0){throw('Refusing to clean Manager state containing unexpected files: '+(($unexpected|ForEach-Object{$_.FullName})-join', '))}
-        Remove-Item -LiteralPath $generatedState -Recurse -Force -ErrorAction Stop
-        Write-Host 'Removed bootstrap-generated source-checkout Manager state before public verification.' -ForegroundColor DarkGray
-    }
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $temp -RepositoryRoot $RepositoryRoot
-    exit [int]$LASTEXITCODE
-}
-finally{
-    if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue}
-}
+function Fail([string]$Message){throw $Message}
+function Sha([string]$Path){return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()}
+function Rel([string]$Path){return [System.IO.Path]::GetFullPath($Path).Substring($RepositoryRoot.Length).TrimStart('\').Replace('\','/')}
+$manager=Join-Path $RepositoryRoot 'manager';$hub=Join-Path $RepositoryRoot 'hub';$tests=Join-Path $RepositoryRoot 'tests'
+foreach($p in @($manager,$hub,$tests)){if(-not(Test-Path -LiteralPath $p -PathType Container)){Fail('Missing canonical repository directory: '+$p)}}
+$installPath=Join-Path $manager 'product\install\INSTALLATION.json';if(-not(Test-Path -LiteralPath $installPath -PathType Leaf)){Fail 'Missing canonical INSTALLATION.json.'}
+$install=(Get-Content -LiteralPath $installPath -Raw -Encoding UTF8)|ConvertFrom-Json
+if([string]$install.schema-ne'keelaryn.manager.installation.v2'){Fail('Unsupported installation schema: '+[string]$install.schema)}
+$version=[string]$install.manager_version
+$expected=New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+foreach($raw in @($install.managed_files)){[void]$expected.Add(([string]$raw).Replace('\','/'))}
+if($expected.Count-ne@($install.managed_files).Count){Fail 'INSTALLATION managed_files contains duplicates.'}
+$actual=New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+foreach($f in @(Get-ChildItem -LiteralPath $manager -File -Recurse -Force)){$rel=$f.FullName.Substring($manager.Length).TrimStart('\').Replace('\','/');[void]$actual.Add($rel)}
+if($actual.Count-ne$expected.Count){Fail('manager/ must contain exactly the managed source set; expected='+$expected.Count+' actual='+$actual.Count)}
+foreach($rel in $expected){if(-not$actual.Contains($rel)){Fail('Managed source missing: '+$rel)}}
+foreach($rel in $actual){if(-not$expected.Contains($rel)){Fail('Unexpected Manager repository file: '+$rel)}}
+foreach($rel in $expected){$p=Join-Path $manager $rel.Replace('/','\');$ext=[System.IO.Path]::GetExtension($rel).ToLowerInvariant();if($ext-in@('.ps1','.cmd')){foreach($b in [System.IO.File]::ReadAllBytes($p)){if($b-ge128){Fail('Non-ASCII executable source: manager/'+$rel)}}};if($ext-eq'.ps1'){$src=[System.IO.File]::ReadAllText($p,[System.Text.Encoding]::UTF8);$tokens=$null;$errors=$null;[void][System.Management.Automation.Language.Parser]::ParseInput($src,[ref]$tokens,[ref]$errors);if(@($errors).Count){Fail('PowerShell parser error: manager/'+$rel+'; '+((@($errors)|ForEach-Object{$_.Message})-join'; '))}}}
+if(Test-Path -LiteralPath (Join-Path $manager 'state')){Fail 'manager/state must not be committed.'}
+$hubFiles=@(Get-ChildItem -LiteralPath $hub -File -Recurse -Force);if($hubFiles.Count-ne1-or(Rel $hubFiles[0].FullName)-ne'hub/README.md'){Fail 'Public hub/ must contain only README.md.'}
+foreach($area in @('work','results')){$dir=Join-Path $tests $area;if(-not(Test-Path -LiteralPath $dir -PathType Container)){Fail('Missing tests/'+$area)};$files=@(Get-ChildItem -LiteralPath $dir -File -Recurse -Force);if($files.Count-ne1-or$files[0].Name-ne'README.md'){Fail('Public tests/'+$area+' must contain only README.md.')}}
+$framework=Join-Path $tests 'framework\manager-gate';if(-not(Test-Path -LiteralPath $framework -PathType Container)){Fail 'Missing tests/framework/manager-gate.'};$fr=(Get-Content -LiteralPath (Join-Path $framework 'FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim();if($fr-ne'11'){Fail('Unexpected frozen Gate Framework revision: '+$fr)}
+$manifestPath=Join-Path $RepositoryRoot 'PUBLIC_FILE_MANIFEST.json';$publicManifest=(Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8)|ConvertFrom-Json;if([string]$publicManifest.schema-ne'keelaryn.public-file-manifest.v2'){Fail 'Unsupported PUBLIC_FILE_MANIFEST schema.'};if([string]$publicManifest.manager.version-ne$version){Fail 'Public manifest Manager version mismatch.'};foreach($row in @($publicManifest.manager.files)){$p=Join-Path $manager ([string]$row.path).Replace('/','\');if(-not(Test-Path -LiteralPath $p -PathType Leaf)-or(Sha $p)-ne[string]$row.sha256){Fail('Public Manager source hash mismatch: '+[string]$row.path)}};foreach($row in @($publicManifest.gate_framework.files)){$p=Join-Path $framework ([string]$row.path).Replace('/','\');if(-not(Test-Path -LiteralPath $p -PathType Leaf)-or(Sha $p)-ne[string]$row.sha256){Fail('Public Gate Framework source hash mismatch: '+[string]$row.path)}}
+$forbiddenExt=@('.kdbx','.pfx','.p12','.pem','.key','.bin');$warnings=@();$maintainerPath=('D:'+'\0'+'\0__Core'+'\keelaryn');foreach($f in @(Get-ChildItem -LiteralPath $RepositoryRoot -File -Recurse -Force)){$rel=Rel $f.FullName;if($rel.StartsWith('.git/')){continue};if($forbiddenExt-contains$f.Extension.ToLowerInvariant()){Fail('Potential private/binary file: '+$rel)};if($f.Extension-ieq'.zip'){Fail('ZIP archive must not be committed: '+$rel)};if($f.Length-le8MB-and$f.Extension.ToLowerInvariant()-in@('.md','.txt','.json','.ps1','.cmd','.yml','.yaml','.gitignore','.gitattributes')){$text=[System.IO.File]::ReadAllText($f.FullName,[System.Text.Encoding]::UTF8);foreach($pattern in @('(?i)[A-Z]:\\Users\\[^\\\s]+','(?i)/(?:home|Users)/[^/\s]+','(?i)BEGIN (?:RSA|OPENSSH|EC) PRIVATE KEY','(?i)appr-r\d{4}-[0-9a-f]{12}','(?i)cand-r\d{4}-[0-9a-f]{12}')){if($text-match$pattern){Fail('Potential instance/local leakage in '+$rel+'; pattern='+$pattern)}};if($text.IndexOf($maintainerPath,[System.StringComparison]::OrdinalIgnoreCase)-ge0){if($rel-eq'manager/product/docs/TESTING.md'-or$rel-eq'tests/framework/manager-gate/README.md'){$warnings += ('Nonportable maintainer-path example retained in exact qualified source: '+$rel)}else{Fail('Unexpected maintainer-local path in public tree: '+$rel)}}}}
+Write-Host('Public repository verification PASS. Manager '+$version+'; managed='+$expected.Count+'; framework=r'+$fr) -ForegroundColor Green;foreach($w in $warnings){Write-Warning $w}

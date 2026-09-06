@@ -6,6 +6,8 @@ param(
         'BuildRelease','BuildDistribution','BuildCandidateTransport','RestoreCandidateTransport',
         'RepairCurrentTransport','CheckMigrations','ApplyMigrations','BindInstance','Genesis',
         'MigrateInstanceIdentity','MigrateLegacyNamespace','MigrateLayout','FinalizeLayout','FinalizeFilesystemLayout',
+        'PrepareWorkspaceSession','PrepareChatManagerSession','OpenChatGPTExchange','OpenChatGPTGuide','ImportLegacyExchange',
+        'StorageReport','CleanTestsWork',
         'OpenInbox','OpenLogs','OpenReleases','OpenTestsWork','OpenTestsResults','OpenCompatCommands','OpenKeelarynRoot',
         'EnsureRootLauncher','RenderMain'
     )]
@@ -120,6 +122,7 @@ function Get-MainMenuContractLines {
         '  [7] Development',
         '  [8] Advanced',
         '  [9] Open Keelaryn folder',
+        '  [C] ChatGPT',
         '  [0] Exit'
     )
 }
@@ -140,6 +143,10 @@ $CanonicalLayout=((Split-Path $ManagerRoot -Leaf) -ieq 'manager')
 $HubRoot=Join-Path $LayoutRoot 'hub'
 $TestsRoot=Join-Path $LayoutRoot 'tests'
 $CompatCommands=Join-Path $ManagerRoot 'compat\commands'
+$ExchangeParent=Join-Path $LayoutRoot 'exchange'
+$ExchangeRoot=Join-Path $ExchangeParent 'chatgpt'
+$LegacyExchangeRoot=Join-Path $LayoutRoot 'Inputs_outputs'
+$ChatGPTDocsRoot=Join-Path $ManagerRoot 'product\docs\chatgpt-projects'
 
 function Refresh-FrontendOperationalPaths {
     $script:StateLayoutActive=Test-Path -LiteralPath $StateLayoutReceipt -PathType Leaf
@@ -148,6 +155,241 @@ function Refresh-FrontendOperationalPaths {
     $script:Releases=if($script:StateLayoutActive){Join-Path $StateRoot 'releases'}else{Join-Path $ManagerRoot '_releases'}
 }
 Refresh-FrontendOperationalPaths
+
+function Get-ChatGPTExchangeDirectoryNames {
+    return @('workspace-input','workspace-checkouts','chat-returns','chat-manager-input','chat-manager-results','development')
+}
+
+function Ensure-ChatGPTExchangeLayout {
+    Ensure-DirectorySafe $ExchangeParent 'Keelaryn exchange root'
+    Ensure-DirectorySafe $ExchangeRoot 'ChatGPT exchange root'
+    foreach($name in @(Get-ChatGPTExchangeDirectoryNames)){
+        Ensure-DirectorySafe (Join-Path $ExchangeRoot $name) ('ChatGPT exchange '+$name)
+    }
+}
+
+function Get-CurrentHubTransportPath {
+    $path=if($StateLayoutActive){Join-Path $StateRoot 'baseline\Keelaryn__Hub_CURRENT.zip'}else{Join-Path $ManagerRoot 'Keelaryn__Hub_CURRENT.zip'}
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){return $null}
+    $item=Get-Item -LiteralPath $path -Force -ErrorAction Stop
+    if(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('CURRENT transport must not be a reparse point: '+$path)}
+    if($item.Length-gt1GB){Fail('CURRENT transport exceeds the 1 GiB safety limit: '+$path)}
+    return $path
+}
+
+function Copy-CurrentForChatGPT([string]$DestinationDirectory) {
+    Ensure-ChatGPTExchangeLayout
+    Ensure-DirectorySafe $DestinationDirectory 'ChatGPT CURRENT destination'
+    $source=Get-CurrentHubTransportPath
+    if([string]::IsNullOrWhiteSpace($source)){
+        Write-UiHost 'No Manager CURRENT transport is available. Run Doctor and explicit CURRENT repair first.' -ForegroundColor Yellow
+        Set-ActionSemantic 'failed'
+        return 1
+    }
+    $target=Join-Path $DestinationDirectory 'Keelaryn__Hub_CURRENT.zip'
+    if(Test-Path -LiteralPath $target){
+        $item=Get-Item -LiteralPath $target -Force -ErrorAction Stop
+        if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Unsafe ChatGPT CURRENT destination: '+$target)}
+    }
+    $tmp=$target+'.tmp-'+[guid]::NewGuid().ToString('N')
+    try{
+        Copy-Item -LiteralPath $source -Destination $tmp -Force -ErrorAction Stop
+        if((Get-FileSha256Hex $source)-cne(Get-FileSha256Hex $tmp)){Fail('Prepared CURRENT failed SHA-256 verification.')}
+        if(Test-Path -LiteralPath $target -PathType Leaf){Remove-Item -LiteralPath $target -Force -ErrorAction Stop}
+        Move-Item -LiteralPath $tmp -Destination $target -ErrorAction Stop
+        Write-UiHost ('Prepared CURRENT: '+$target) -ForegroundColor Green
+        return 0
+    }finally{if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}}
+}
+
+function Get-SafeTreeInventory([string]$Directory) {
+    if(-not(Test-Path -LiteralPath $Directory -PathType Container)){return @()}
+    Ensure-DirectorySafe $Directory 'Inventory root'
+    $rows=New-Object System.Collections.ArrayList
+    $stack=New-Object 'System.Collections.Generic.Stack[string]'
+    $stack.Push([System.IO.Path]::GetFullPath($Directory))
+    while($stack.Count-gt0){
+        $dir=$stack.Pop()
+        foreach($item in @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction Stop)){
+            $isReparse=(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0)
+            [void]$rows.Add([pscustomobject]@{Path=$item.FullName;IsDirectory=[bool]$item.PSIsContainer;IsReparse=[bool]$isReparse;Length=$(if($item.PSIsContainer){[int64]0}else{[int64]$item.Length})})
+            if($item.PSIsContainer -and -not $isReparse){$stack.Push($item.FullName)}
+        }
+    }
+    return @($rows)
+}
+
+function Get-StorageStats([string]$Path) {
+    if(-not(Test-Path -LiteralPath $Path)){return [pscustomobject]@{Path=$Path;Files=0;Directories=0;Bytes=[int64]0;Reparse=0;Exists=$false}}
+    $inv=@(Get-SafeTreeInventory $Path)
+    [int64]$bytes=0
+    foreach($row in @($inv|Where-Object{-not$_.IsDirectory})){$bytes+=[int64]$row.Length}
+    return [pscustomobject]@{Path=$Path;Files=@($inv|Where-Object{-not$_.IsDirectory}).Count;Directories=@($inv|Where-Object{$_.IsDirectory}).Count;Bytes=$bytes;Reparse=@($inv|Where-Object{$_.IsReparse}).Count;Exists=$true}
+}
+
+function Format-ByteCount([int64]$Bytes) {
+    if($Bytes-ge1GB){return ('{0:N2} GiB' -f ($Bytes/1GB))}
+    if($Bytes-ge1MB){return ('{0:N2} MiB' -f ($Bytes/1MB))}
+    if($Bytes-ge1KB){return ('{0:N2} KiB' -f ($Bytes/1KB))}
+    return ($Bytes.ToString()+' B')
+}
+
+function Show-StorageReport {
+    Ensure-ChatGPTExchangeLayout
+    Write-UiHost 'Keelaryn storage report' -ForegroundColor Cyan
+    $targets=@(
+        [pscustomobject]@{Name='tests\framework';Path=(Join-Path $TestsRoot 'framework');Policy='current reusable test framework source'},
+        [pscustomobject]@{Name='tests\work';Path=(Join-Path $TestsRoot 'work');Policy='DISPOSABLE; explicit cleanup allowed'},
+        [pscustomobject]@{Name='tests\results';Path=(Join-Path $TestsRoot 'results');Policy='active/current expanded evidence and concise results'},
+        [pscustomobject]@{Name='tests\archives';Path=(Join-Path $TestsRoot 'archives');Policy='frozen verified historical evidence'},
+        [pscustomobject]@{Name='manager\state\releases';Path=$Releases;Policy='validated automatic Manager release-bundle retention'},
+        [pscustomobject]@{Name='manager\state\history';Path=(Join-Path $StateRoot 'history');Policy='PROTECTED; never generic-clean'},
+        [pscustomobject]@{Name='exchange\chatgpt';Path=$ExchangeRoot;Policy='user-facing ChatGPT exchange'},
+        [pscustomobject]@{Name='Inputs_outputs';Path=$LegacyExchangeRoot;Policy='legacy exception; copy-only migration source'}
+    )
+    foreach($target in $targets){
+        $s=Get-StorageStats $target.Path
+        Write-UiHost ('{0,-28} files={1,6} dirs={2,6} bytes={3,12} reparse={4,4}' -f $target.Name,$s.Files,$s.Directories,(Format-ByteCount $s.Bytes),$s.Reparse)
+        Write-UiHost ('  '+$target.Path) -ForegroundColor DarkGray
+        Write-UiHost ('  policy: '+$target.Policy) -ForegroundColor DarkGray
+    }
+    Write-UiHost 'Release ZIP retention is already enforced by validated BuildRelease logic; this report does not create a second cleanup policy.' -ForegroundColor DarkGray
+    return 0
+}
+
+function Remove-FileWithRetry([string]$FilePath) {
+    for($i=0;$i-lt5;$i++){
+        try{if(Test-Path -LiteralPath $FilePath -PathType Leaf){Remove-Item -LiteralPath $FilePath -Force -ErrorAction Stop};return $true}
+        catch{if($i-ge4){return $false};Start-Sleep -Milliseconds (150*($i+1))}
+    }
+    return $false
+}
+
+function Remove-EmptyDirectoryWithRetry([string]$Directory) {
+    for($i=0;$i-lt5;$i++){
+        try{if(Test-Path -LiteralPath $Directory -PathType Container){Remove-Item -LiteralPath $Directory -Force -ErrorAction Stop};return $true}
+        catch{if($i-ge4){return $false};Start-Sleep -Milliseconds (150*($i+1))}
+    }
+    return $false
+}
+
+function Invoke-CleanTestsWork([switch]$Apply) {
+    $root=Join-Path $TestsRoot 'work'
+    Ensure-DirectorySafe $root 'tests work'
+    $rootFull=[System.IO.Path]::GetFullPath($root).TrimEnd('\')
+    $managerFull=[System.IO.Path]::GetFullPath($ManagerRoot).TrimEnd('\')
+    if($managerFull.StartsWith(($rootFull+'\'),[System.StringComparison]::OrdinalIgnoreCase)){
+        Write-UiHost 'Cleanup refused: this Manager instance is running from inside tests\work.' -ForegroundColor Yellow
+        Write-UiHost ('Protected running candidate: '+$ManagerRoot)
+        return 2
+    }
+    $inv=@(Get-SafeTreeInventory $root)
+    $reparse=@($inv|Where-Object{$_.IsReparse})
+    $files=@($inv|Where-Object{-not$_.IsDirectory})
+    $dirs=@($inv|Where-Object{$_.IsDirectory})
+    [int64]$bytes=0;foreach($f in $files){$bytes+=[int64]$f.Length}
+    Write-UiHost 'Disposable test-work cleanup' -ForegroundColor Cyan
+    Write-UiHost ('Target: '+$root)
+    Write-UiHost ('Files: '+$files.Count+' | Directories: '+$dirs.Count+' | Bytes: '+(Format-ByteCount $bytes))
+    if($reparse.Count-ne0){
+        Write-UiHost ('Cleanup rejected: reparse entries='+$reparse.Count) -ForegroundColor Yellow
+        foreach($r in $reparse){Write-UiHost ('  '+$r.Path)}
+        return 1
+    }
+    foreach($item in @(Get-ChildItem -LiteralPath $root -Force -ErrorAction Stop)){Write-UiHost ('  '+$item.FullName)}
+    if(-not$Apply){Write-UiHost 'DRY RUN ONLY. Nothing was deleted.' -ForegroundColor DarkGray;return 0}
+    $failedFiles=New-Object System.Collections.ArrayList
+    foreach($f in $files){if(-not(Remove-FileWithRetry $f.Path)){[void]$failedFiles.Add($f.Path)}}
+    if($failedFiles.Count-ne0){Write-UiHost 'FAILED: one or more files remain locked/undeletable.' -ForegroundColor Red;foreach($p in $failedFiles){Write-UiHost ('  '+$p)};return 1}
+    $pending=New-Object System.Collections.ArrayList
+    foreach($d in @($dirs|Sort-Object {$_.Path.Length} -Descending)){
+        if(Test-Path -LiteralPath $d.Path -PathType Container){
+            $children=@(Get-ChildItem -LiteralPath $d.Path -Force -ErrorAction SilentlyContinue)
+            if($children.Count-eq0){if(-not(Remove-EmptyDirectoryWithRetry $d.Path)){[void]$pending.Add($d.Path)}}else{[void]$pending.Add($d.Path)}
+        }
+    }
+    $nonEmpty=@()
+    foreach($p in $pending){if((Test-Path -LiteralPath $p -PathType Container)-and@(Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue).Count-ne0){$nonEmpty+=,$p}}
+    if($nonEmpty.Count-ne0){Write-UiHost 'FAILED: non-empty paths remain after file cleanup.' -ForegroundColor Red;foreach($p in $nonEmpty){Write-UiHost ('  '+$p)};return 1}
+    $stillLocked=@($pending|Where-Object{Test-Path -LiteralPath $_ -PathType Container})
+    if($stillLocked.Count-ne0){
+        Write-UiHost 'PASS with pending empty-directory cleanup.' -ForegroundColor Yellow
+        foreach($p in $stillLocked){Write-UiHost ('  DISPOSABLE + SOURCE EMPTY + DIRECTORY LOCKED: '+$p)}
+        return 0
+    }
+    Write-UiHost 'PASS: tests\work is clean.' -ForegroundColor Green
+    return 0
+}
+
+function Ensure-SafeSubdirectoryPath([string]$Base,[string]$TargetDirectory) {
+    Ensure-DirectorySafe $Base 'Safe destination base'
+    $baseFull=[System.IO.Path]::GetFullPath($Base).TrimEnd('\')
+    $targetFull=[System.IO.Path]::GetFullPath($TargetDirectory).TrimEnd('\')
+    if(-not($targetFull.Equals($baseFull,[System.StringComparison]::OrdinalIgnoreCase)) -and -not ($targetFull.StartsWith(($baseFull+'\'),[System.StringComparison]::OrdinalIgnoreCase))){Fail('Destination escaped its allowed root: '+$targetFull)}
+    if($targetFull.Equals($baseFull,[System.StringComparison]::OrdinalIgnoreCase)){return $baseFull}
+    $relative=$targetFull.Substring($baseFull.Length).TrimStart('\')
+    $current=$baseFull
+    foreach($part in @($relative-split'\\')){
+        if([string]::IsNullOrWhiteSpace($part)){continue}
+        $current=Join-Path $current $part
+        if(Test-Path -LiteralPath $current){
+            $item=Get-Item -LiteralPath $current -Force -ErrorAction Stop
+            if(-not$item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Unsafe destination path component: '+$current)}
+        }else{New-Item -ItemType Directory -Path $current -ErrorAction Stop|Out-Null}
+    }
+    return $targetFull
+}
+
+function Invoke-LegacyExchangeMigration([switch]$Apply) {
+    Ensure-ChatGPTExchangeLayout
+    if(-not(Test-Path -LiteralPath $LegacyExchangeRoot -PathType Container)){Write-UiHost 'No legacy Inputs_outputs directory exists. No changes required.';Set-ActionSemantic 'no_changes';return 0}
+    Ensure-DirectorySafe $LegacyExchangeRoot 'Legacy Inputs_outputs'
+    $inv=@(Get-SafeTreeInventory $LegacyExchangeRoot)
+    $reparse=@($inv|Where-Object{$_.IsReparse})
+    if($reparse.Count-ne0){Write-UiHost 'Migration rejected: legacy exchange contains reparse points.' -ForegroundColor Yellow;foreach($r in $reparse){Write-UiHost ('  '+$r.Path)};return 1}
+    $files=@($inv|Where-Object{-not$_.IsDirectory})
+    [int64]$bytes=0;foreach($f in $files){$bytes+=[int64]$f.Length}
+    $destRoot=Join-Path $ExchangeRoot 'development\legacy-import'
+    Write-UiHost 'Legacy Inputs_outputs migration' -ForegroundColor Cyan
+    Write-UiHost ('Source:      '+$LegacyExchangeRoot)
+    Write-UiHost ('Destination: '+$destRoot)
+    Write-UiHost ('Files: '+$files.Count+' | Bytes: '+(Format-ByteCount $bytes))
+    Write-UiHost 'Source deletion: NEVER' -ForegroundColor DarkGray
+    if(-not$Apply){Write-UiHost 'DRY RUN ONLY. Nothing was copied.' -ForegroundColor DarkGray;return 0}
+    $null=Ensure-SafeSubdirectoryPath (Join-Path $ExchangeRoot 'development') $destRoot
+    $sourceBase=[System.IO.Path]::GetFullPath($LegacyExchangeRoot).TrimEnd('\')+'\'
+    $copied=0;$same=0
+    foreach($f in $files){
+        $rel=$f.Path.Substring($sourceBase.Length)
+        $target=Join-Path $destRoot $rel
+        $targetDir=Split-Path $target -Parent
+        $null=Ensure-SafeSubdirectoryPath $destRoot $targetDir
+        $sourceHash=Get-FileSha256Hex $f.Path
+        if(Test-Path -LiteralPath $target){
+            $item=Get-Item -LiteralPath $target -Force -ErrorAction Stop
+            if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Unsafe migration destination collision: '+$target)}
+            if((Get-FileSha256Hex $target)-ceq$sourceHash){$same++;continue}
+            $dir=Split-Path $target -Parent;$stem=[System.IO.Path]::GetFileNameWithoutExtension($target);$ext=[System.IO.Path]::GetExtension($target)
+            $target=Join-Path $dir ($stem+'.conflict-'+$sourceHash.Substring(0,8)+$ext)
+            if(Test-Path -LiteralPath $target){
+                $item=Get-Item -LiteralPath $target -Force -ErrorAction Stop
+                if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Unsafe migration conflict destination: '+$target)}
+                if((Get-FileSha256Hex $target)-ceq$sourceHash){$same++;continue}
+                Fail('Migration conflict destination already exists with different bytes: '+$target)
+            }
+        }
+        Copy-Item -LiteralPath $f.Path -Destination $target -ErrorAction Stop
+        if((Get-FileSha256Hex $target)-cne$sourceHash){Fail('Migrated file failed SHA-256 verification: '+$f.Path)}
+        $copied++
+    }
+    Write-UiHost ('PASS: copied='+$copied+' already-identical='+$same+' source-preserved='+$files.Count) -ForegroundColor Green
+    return 0
+}
+
+function Open-ChatGPTGuide {
+    if(-not(Test-Path -LiteralPath $ChatGPTDocsRoot -PathType Container)){Fail('ChatGPT setup docs missing: '+$ChatGPTDocsRoot)}
+    return Open-Folder $ChatGPTDocsRoot
+}
 
 function Read-ManagerVersion {
     if(-not(Test-Path -LiteralPath $ManagerInstallManifest -PathType Leaf)){return '<missing>'}
@@ -337,14 +579,14 @@ function Get-QuickStatus {
 
     $rootExtras=@()
     if(Test-Path -LiteralPath $LayoutRoot -PathType Container){
-        $allowed=@('manager','hub','tests','Keelaryn.cmd')
+        $allowed=@('manager','hub','tests','exchange','Inputs_outputs','Keelaryn.cmd')
         $rootExtras=@(Get-ChildItem -LiteralPath $LayoutRoot -Force -ErrorAction SilentlyContinue|
             Where-Object{$allowed-notcontains$_.Name}|Sort-Object Name|ForEach-Object{$_.Name})
     }
 
     $testsExtras=@()
     if(Test-Path -LiteralPath $TestsRoot -PathType Container){
-        $allowedTests=@('work','results','legacy-layout-backup','WORKSPACE.json')
+        $allowedTests=@('framework','work','results','archives','legacy-layout-backup','WORKSPACE.json')
         $testsExtras=@(Get-ChildItem -LiteralPath $TestsRoot -Force -ErrorAction SilentlyContinue|
             Where-Object{$allowedTests-notcontains$_.Name}|Sort-Object Name|ForEach-Object{$_.Name})
     }
@@ -695,6 +937,13 @@ function Invoke-Action([string]$Name,[string]$ActionPath) {
         'BuildDistribution' { return Invoke-Manager @('-BuildDistribution') }
         'BuildCandidateTransport' { $q=Get-QuickStatus;if($q.HubCandidate-eq0){Write-UiHost 'No Hub CANDIDATE is available. Nothing to build.';Set-ActionSemantic 'no_changes';return 0};return Invoke-Manager @('-BuildCandidateTransport') }
         'RestoreCandidateTransport' { $count=if(Test-Path -LiteralPath $Inbox -PathType Container){@(Get-ChildItem -LiteralPath $Inbox -File -Filter 'Keelaryn__Hub_CANDIDATE_TRANSPORT_*.json' -ErrorAction SilentlyContinue).Count}else{0};if($count-eq0){Write-UiHost 'No Hub CANDIDATE transport is available. Nothing to restore.';Set-ActionSemantic 'no_changes';return 0};return Invoke-Manager @('-RestoreCandidateTransport') }
+        'PrepareWorkspaceSession' { return Copy-CurrentForChatGPT (Join-Path $ExchangeRoot 'workspace-input') }
+        'PrepareChatManagerSession' { return Copy-CurrentForChatGPT (Join-Path $ExchangeRoot 'chat-manager-input') }
+        'OpenChatGPTExchange' { Ensure-ChatGPTExchangeLayout; return Open-Folder $ExchangeRoot }
+        'OpenChatGPTGuide' { return Open-ChatGPTGuide }
+        'ImportLegacyExchange' { return Invoke-LegacyExchangeMigration -Apply:$ConfirmChanges }
+        'StorageReport' { return Show-StorageReport }
+        'CleanTestsWork' { return Invoke-CleanTestsWork -Apply:$ConfirmChanges }
         'RepairCurrentTransport' { return Invoke-Manager @('-RepairCurrentTransport') }
         'CheckMigrations' { return Invoke-Manager @('-CheckMigrations') }
         'ApplyMigrations' { return Invoke-ApplyMigrationsUi }
@@ -749,6 +998,68 @@ function Pause-Menu {
     try{[void][Console]::ReadLine()}catch{[void](Microsoft.PowerShell.Utility\Read-Host)}
 }
 
+function Show-ChatGPTSetupMenu {
+    while($true){
+        Clear-Ui
+        Write-UiHost 'Set up ChatGPT for Keelaryn' -ForegroundColor Cyan
+        Write-UiHost '  [1] Standard setup (recommended)'
+        Write-UiHost '  [2] Developer / Contributor setup'
+        Write-UiHost '  [3] Skip / back'
+        $choice=(Read-UiInput 'Select').Trim()
+        switch($choice){
+            '1' {
+                Ensure-ChatGPTExchangeLayout
+                Write-UiHost 'Create these ChatGPT Projects:' -ForegroundColor Green
+                Write-UiHost '  Keelaryn - Workspace'
+                Write-UiHost '  Keelaryn - Chats'
+                Write-UiHost '  Keelaryn - Chat Manager'
+                Write-UiHost ('Copy the matching Project instructions from: '+$ChatGPTDocsRoot)
+                $null=Open-ChatGPTGuide
+                Pause-Menu
+            }
+            '2' {
+                Ensure-ChatGPTExchangeLayout
+                Write-UiHost 'Create the Standard three Projects plus:' -ForegroundColor Green
+                Write-UiHost '  Keelaryn - Manager Development'
+                Write-UiHost ('Copy the matching Project instructions from: '+$ChatGPTDocsRoot)
+                $null=Open-ChatGPTGuide
+                Pause-Menu
+            }
+            '3' {return}
+            default {Write-UiHost 'Unknown selection.' -ForegroundColor Yellow;Pause-Menu}
+        }
+    }
+}
+
+function Show-ChatGPTMenu {
+    while($true){
+        Clear-Ui
+        $null=Show-QuickStatus
+        Write-UiHost ''
+        Write-UiHost 'ChatGPT' -ForegroundColor Cyan
+        Write-UiHost '  [1] Prepare Workspace session'
+        Write-UiHost '  [2] Prepare Chat Manager session'
+        Write-UiHost '  [3] Open exchange folder'
+        Write-UiHost '  [4] Setup guide / Project templates'
+        Write-UiHost '  [5] Import legacy Inputs_outputs (copy only)...'
+        Write-UiHost '  [0] Back'
+        $choice=(Read-UiInput 'Select').Trim()
+        switch($choice){
+            '1' {$null=Invoke-MenuAction 'PrepareWorkspaceSession' $null 'Prepare Workspace session';Pause-Menu}
+            '2' {$null=Invoke-MenuAction 'PrepareChatManagerSession' $null 'Prepare Chat Manager session';Pause-Menu}
+            '3' {$null=Invoke-MenuAction 'OpenChatGPTExchange' $null 'Open ChatGPT exchange'}
+            '4' {Show-ChatGPTSetupMenu}
+            '5' {
+                $null=Invoke-LegacyExchangeMigration
+                if(Confirm 'Copy and SHA-256 verify legacy Inputs_outputs now?'){$null=Invoke-LegacyExchangeMigration -Apply}
+                Pause-Menu
+            }
+            '0' {return}
+            default {Write-UiHost 'Unknown selection.' -ForegroundColor Yellow;Pause-Menu}
+        }
+    }
+}
+
 function Show-MaintenanceMenu {
     while($true){
         Clear-Ui
@@ -761,6 +1072,8 @@ function Show-MaintenanceMenu {
         Write-UiHost '  [4] Bind existing Hub...'
         Write-UiHost '  [5] Open update inbox'
         Write-UiHost '  [6] Open logs'
+        Write-UiHost '  [7] Storage report'
+        Write-UiHost '  [8] Clean disposable test work...'
         Write-UiHost '  [0] Back'
         $choice=(Read-UiInput 'Select').Trim()
         switch -Regex($choice){
@@ -770,6 +1083,12 @@ function Show-MaintenanceMenu {
             '^4$' {$null=Invoke-MenuAction 'BindInstance' $null 'Bind existing Hub';Pause-Menu}
             '^5$' {$null=Invoke-MenuAction 'OpenInbox' $null 'Open update inbox'}
             '^6$' {$null=Invoke-MenuAction 'OpenLogs' $null 'Open logs'}
+            '^7$' {$null=Invoke-MenuAction 'StorageReport' $null 'Storage report';Pause-Menu}
+            '^8$' {
+                $null=Invoke-CleanTestsWork
+                if(Confirm 'Delete the listed disposable tests\work contents?'){$null=Invoke-CleanTestsWork -Apply}
+                Pause-Menu
+            }
             '^0$' {return}
             default {Write-UiHost 'Unknown selection.' -ForegroundColor Yellow;Pause-Menu}
         }
@@ -887,8 +1206,10 @@ function Show-SetupCompletion {
         Write-UiHost 'Keelaryn setup is ready.' -ForegroundColor Green
         Write-UiHost '  [1] Open Hub'
         Write-UiHost '  [2] Main menu'
+        Write-UiHost '  [3] Set up ChatGPT...'
         $choice=(Read-UiInput 'Select').Trim()
         if($choice-eq'1'){$null=Invoke-Action 'OpenHub' $null}
+        elseif($choice-eq'3'){Show-ChatGPTSetupMenu}
         return
     }
     Write-UiHost 'Setup completed, but Doctor requires attention.' -ForegroundColor Yellow
@@ -993,6 +1314,7 @@ function Show-MainMenu {
             '7' {Show-DevelopmentMenu}
             '8' {Show-AdvancedMenu}
             '9' {$null=Invoke-MenuAction 'OpenKeelarynRoot' $null 'Open Keelaryn folder'}
+            {$_-match'^(?i)c$'} {Show-ChatGPTMenu}
             '0' {return 0}
             default {Write-UiHost 'Unknown selection.' -ForegroundColor Yellow;Pause-Menu}
         }
@@ -1088,7 +1410,7 @@ function Test-FrontendSelf {
             return $false
         }
         $frontendSource=[System.IO.File]::ReadAllText($script:FrontendScriptPath,[System.Text.Encoding]::UTF8)
-        foreach($uiToken in @('function Invoke-MenuAction','function Invoke-FullGate','function Invoke-GenesisUi','function Show-FirstRunWizard','function Resolve-StartupDisposition','function Refresh-FrontendOperationalPaths','Show-SetupCompletion','GenesisConfigPath','GenesisConfirmed','-NonInteractive','[Enter] Back','product\runtime\Keelaryn__Manager.ps1')){
+        foreach($uiToken in @('function Invoke-MenuAction','function Invoke-FullGate','function Invoke-GenesisUi','function Show-FirstRunWizard','function Resolve-StartupDisposition','function Refresh-FrontendOperationalPaths','function Show-ChatGPTMenu','function Ensure-ChatGPTExchangeLayout','function Invoke-LegacyExchangeMigration','function Invoke-CleanTestsWork','Show-SetupCompletion','GenesisConfigPath','GenesisConfirmed','-NonInteractive','[Enter] Back','product\runtime\Keelaryn__Manager.ps1')){
             if(-not$frontendSource.Contains($uiToken)){
                 $script:FrontendSelfTestReason='Visible action-output contract missing token: '+$uiToken
                 return $false
@@ -1098,7 +1420,7 @@ function Test-FrontendSelf {
             $script:FrontendSelfTestReason='Interactive menu still suppresses Invoke-Action output.'
             return $false
         }
-        foreach($token in @('Keelaryn','Everyday','[2] Doctor','[5] Installation info','[7] Development','[0] Exit')){
+        foreach($token in @('Keelaryn','Everyday','[2] Doctor','[5] Installation info','[7] Development','[C] ChatGPT','[0] Exit')){
             if($contract-notmatch[regex]::Escape($token)){
                 $script:FrontendSelfTestReason='Main menu render contract omitted token: '+$token
                 return $false
