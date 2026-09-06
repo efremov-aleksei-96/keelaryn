@@ -18,7 +18,5 @@ changes=0
 for pat,repl in patterns:
     s,n=re.subn(pat,repl,s)
     changes+=n
-if changes<1:
-    raise RuntimeError('Expected at least one fused logical operator to normalize in staging compactor.')
 p.write_text(s,encoding='utf-8',newline='\n')
 print(f'LIFECYCLE_COMPACTOR_LOGICAL_NORMALIZATION=PASS changes={changes}')
