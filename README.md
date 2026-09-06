@@ -50,7 +50,7 @@ If you want to use the Hub with ChatGPT, continue with **[Using Keelaryn with Ch
 
 ## Current public source baseline
 
-The current public source is based on production-qualified **Keelaryn Manager 4.11.0**. The Manager source under `manager/` is the exact 61-file managed product set bound by the Windows Full Gate. The reusable Manager gate harness under `tests/framework/manager-gate/` is frozen **Gate Framework v2 revision 9**, independently qualified on Windows PowerShell 5.1.
+The current public source is based on production-qualified **Keelaryn Manager 4.11.0**. The Manager source under `manager/` is the exact 61-file managed product set bound by the Windows Full Gate. The reusable Manager gate harness under `tests/framework/manager-gate/` is frozen **Gate Framework v2 revision 11**, independently qualified on Windows PowerShell 5.1. Manager 4.11.0 itself was production-qualified with historical Framework r9; r11 is the current reusable framework for subsequent candidates.
 
 No personal Hub, CURRENT/CANDIDATE/APPROVED package, binding, Manager state, logs, history, credentials or private test evidence is part of the public source tree.
 

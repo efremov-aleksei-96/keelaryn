@@ -275,7 +275,9 @@ function Invoke-SafeProcess(
 ){
     $script:CommandSequence++
     $safeLabel=($Label-replace'[^A-Za-z0-9_.-]','_')
-    $prefix=('{0:D3}_{1}'-f$script:CommandSequence,$safeLabel)
+    $labelHash=(TextSha $Label).Substring(0,12)
+    if($safeLabel.Length-gt80){$safeLabel=$safeLabel.Substring(0,80)}
+    $prefix=('{0:D3}_{1}_{2}'-f$script:CommandSequence,$safeLabel,$labelHash)
     $stdout=Join-Path $commandLogRoot ($prefix+'.stdout.txt')
     $stderr=Join-Path $commandLogRoot ($prefix+'.stderr.txt')
     $specPath=Join-Path $commandLogRoot ($prefix+'.spec.json')
@@ -1034,9 +1036,9 @@ try{
     $none1=Invoke-ToolCapture $menuTool @('-Action','BuildCandidateTransport','-NoRootLauncher');$none2=Invoke-ToolCapture $menuTool @('-Action','RestoreCandidateTransport','-NoRootLauncher')
     if($none1.ExitCode-ne0-or$none2.ExitCode-ne0){throw 'Candidate transport no-input frontend is not a no-op.'};Assert-TextContains $none1.Text @('No Hub CANDIDATE is available. Nothing to build.') 'Candidate no-input';Assert-TextContains $none2.Text @('No Hub CANDIDATE transport is available. Nothing to restore.') 'Transport no-input';$summary.ux.candidate_no_input=$true
     $invalid=Join-Path $stateInbox 'Keelaryn__Hub_CANDIDATE_invalid.zip';[System.IO.File]::WriteAllBytes($invalid,[byte[]](1,2,3,4));$invalidResult=Invoke-ManagerCapture $mgr @('-BuildCandidateTransport');if($invalidResult.ExitCode-eq0){throw 'Invalid Hub CANDIDATE unexpectedly built a transport.'};if(-not(Test-Path -LiteralPath $invalid -PathType Leaf)){throw 'Invalid CANDIDATE rejection removed source unexpectedly.'};Remove-Item -LiteralPath $invalid -Force;$summary.ux.candidate_invalid_rejected=$true
-    $candA=New-CandidateFixture $stateCurrent (Join-Path $stateInbox 'Keelaryn__Hub_CANDIDATE_gate-a.zip') ('cand-gate-a-'+$version.Replace('.','')+'000') (Join-Path $runtime 'candidate-a-src')
+    $candA=New-CandidateFixture $migCurrent (Join-Path $stateInbox 'Keelaryn__Hub_CANDIDATE_gate-a.zip') ('cand-gate-a-'+$version.Replace('.','')+'000') (Join-Path $runtime 'candidate-a-src')
     Start-Sleep -Milliseconds 20
-    $candB=New-CandidateFixture $stateCurrent (Join-Path $stateInbox 'Keelaryn__Hub_CANDIDATE_gate-b.zip') ('cand-gate-b-'+$version.Replace('.','')+'000') (Join-Path $runtime 'candidate-b-src')
+    $candB=New-CandidateFixture $migCurrent (Join-Path $stateInbox 'Keelaryn__Hub_CANDIDATE_gate-b.zip') ('cand-gate-b-'+$version.Replace('.','')+'000') (Join-Path $runtime 'candidate-b-src')
     $buildCand=Run-Manager $mgr @('-BuildCandidateTransport') $true
     $transportFiles=@(Get-ChildItem -LiteralPath $stateInbox -File -Filter 'Keelaryn__Hub_CANDIDATE_TRANSPORT_*.json'|Sort-Object Name);if($transportFiles.Count-ne2){throw('Expected two candidate transport JSONs, got '+$transportFiles.Count)};$summary.ux.candidate_multi_build=$true
     $savedCand=Join-Path $runtime 'saved-candidates';New-Item -ItemType Directory -Force -Path $savedCand|Out-Null
