@@ -30,3 +30,9 @@ jobs:
         run: |
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-RepositoryGovernance.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Repository "$env:GITHUB_REPOSITORY" -Online
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify GitHub Actions supply-chain policy
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
