@@ -1,0 +1,221 @@
+name: Windows public release
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-release.yml'
+      - 'manager/**'
+      - 'PUBLIC_PROVENANCE.json'
+      - 'README.md'
+      - 'GETTING_STARTED.md'
+      - 'docs/USING_WITH_CHATGPT.md'
+      - 'docs/TROUBLESHOOTING.md'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-release.yml'
+      - 'manager/**'
+      - 'PUBLIC_PROVENANCE.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-public-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  distribution-gate:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Verify qualified public source
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Resolve qualified Manager version
+        id: release
+        shell: powershell
+        run: |
+          $root = $env:GITHUB_WORKSPACE
+          $install = Get-Content (Join-Path $root 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $prov = Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $version = ([string]$install.manager_version).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid Manager version: $version" }
+          if ([string]$prov.source_manager_version -ne $version) { throw 'Public provenance does not bind the current Manager version.' }
+          if (-not [bool]$prov.production_validation.full_gate_pass) { throw 'Public provenance does not record a production Full Gate PASS.' }
+          if (-not [bool]$prov.production_validation.production_doctor_pass) { throw 'Public provenance does not record a production Doctor PASS.' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Manager and frontend SelfTests
+        shell: powershell
+        run: |
+          $manager = Join-Path $env:GITHUB_WORKSPACE 'manager'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1') -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $manager 'product\tools\KeelarynMenu.ps1') -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build qualified release bundle
+        shell: powershell
+        run: |
+          $manager = Join-Path $env:GITHUB_WORKSPACE 'manager'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1') -BuildRelease
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Smoke-test extracted Generic DISTRIBUTION
+        shell: powershell
+        run: |
+          $version = '${{ steps.release.outputs.version }}'
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'manager\state\releases'
+          $dist = Join-Path $releaseDir ('Keelaryn__Manager_Distribution_v' + $version + '.zip')
+          $update = Join-Path $releaseDir ('Keelaryn__Manager_Update_v' + $version + '_Built.zip')
+          $manifest = Join-Path $releaseDir ('Keelaryn__Manager_RELEASE_v' + $version + '.json')
+          foreach ($path in @($dist,$update,$manifest)) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Expected release artifact is missing: $path" }
+          }
+
+          $temp = Join-Path $env:RUNNER_TEMP ('keelaryn_public_release_' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $temp | Out-Null
+          try {
+            Expand-Archive -LiteralPath $dist -DestinationPath $temp -Force
+            $installRoot = Join-Path $temp 'keelaryn'
+            $managerRoot = Join-Path $installRoot 'manager'
+            if (-not (Test-Path -LiteralPath (Join-Path $installRoot 'Keelaryn.cmd') -PathType Leaf)) { throw 'Distribution root launcher is missing.' }
+
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $managerRoot 'product\runtime\Keelaryn__Manager.ps1') -SelfTest
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $managerRoot 'product\tools\KeelarynMenu.ps1') -SelfTest
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            $cfgPath = Join-Path $temp 'genesis.json'
+            $cfg = [ordered]@{
+              schema='keelaryn.genesis-input.v1'
+              language='en'
+              purpose='mixed'
+              timezone='UTC'
+              areas=@('Personal')
+              projects=@('Getting Started')
+            }
+            [System.IO.File]::WriteAllText($cfgPath,(($cfg | ConvertTo-Json -Depth 5) + "`n"),(New-Object System.Text.UTF8Encoding($false)))
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $managerRoot 'product\runtime\Keelaryn__Manager.ps1') -Genesis -GenesisConfigPath $cfgPath -GenesisConfirmed
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            if (-not (Test-Path -LiteralPath (Join-Path $installRoot 'hub\_System\INSTANCE.json') -PathType Leaf)) { throw 'Genesis did not create a canonical Hub instance.' }
+
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $managerRoot 'product\runtime\Keelaryn__Manager.ps1') -Doctor
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          finally {
+            if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
+          }
+
+      - name: Prepare public release assets
+        shell: powershell
+        run: |
+          $version = '${{ steps.release.outputs.version }}'
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'manager\state\releases'
+          $assetDir = Join-Path $env:GITHUB_WORKSPACE 'release-assets'
+          New-Item -ItemType Directory -Force -Path $assetDir | Out-Null
+
+          $dist = Join-Path $releaseDir ('Keelaryn__Manager_Distribution_v' + $version + '.zip')
+          $update = Join-Path $releaseDir ('Keelaryn__Manager_Update_v' + $version + '_Built.zip')
+          $friendly = Join-Path $assetDir ('Keelaryn_v' + $version + '_Windows.zip')
+          $publicUpdate = Join-Path $assetDir ([System.IO.Path]::GetFileName($update))
+          Copy-Item -LiteralPath $dist -Destination $friendly -Force
+          Copy-Item -LiteralPath $update -Destination $publicUpdate -Force
+
+          $checksum = Join-Path $assetDir 'SHA256SUMS.txt'
+          @($friendly,$publicUpdate) | ForEach-Object {
+            $hash = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()
+            $hash + '  ' + [System.IO.Path]::GetFileName($_)
+          } | Set-Content -LiteralPath $checksum -Encoding ASCII
+
+          $notes = Join-Path $assetDir 'RELEASE_NOTES.md'
+          $notesText = @(
+            ('# Keelaryn ' + $version),
+            '',
+            '## New installation',
+            '',
+            ('1. Download `Keelaryn_v' + $version + '_Windows.zip`.'),
+            '2. Extract it.',
+            '3. Run `Keelaryn.cmd` inside the extracted `keelaryn` folder.',
+            '4. On Manager 4.11.x choose **Advanced -> Genesis new Hub**, then run **Doctor**.',
+            '',
+            'See `GETTING_STARTED.md` in the repository for the full onboarding path.',
+            '',
+            '## Existing installation',
+            '',
+            ('Use **Install update package...** with `Keelaryn__Manager_Update_v' + $version + '_Built.zip`.'),
+            '',
+            'Do not manually overwrite an installed Manager with files from the source repository.'
+          ) -join "`r`n"
+          [System.IO.File]::WriteAllText($notes,$notesText,(New-Object System.Text.UTF8Encoding($false)))
+
+      - name: Upload gated release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: keelaryn-windows-release-${{ steps.release.outputs.version }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: distribution-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download gated release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: keelaryn-windows-release-${{ needs.distribution-gate.outputs.version }}
+          path: release-assets
+
+      - name: Publish or verify immutable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.distribution-gate.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.distribution-gate.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          friendly="Keelaryn_v${RELEASE_VERSION}_Windows.zip"
+          update="Keelaryn__Manager_Update_v${RELEASE_VERSION}_Built.zip"
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; verifying immutable assets."
+            mkdir existing
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir existing --pattern "$friendly" --pattern "$update" --pattern 'SHA256SUMS.txt'
+            for name in "$friendly" "$update" SHA256SUMS.txt; do
+              test -f "existing/$name"
+              test "$(sha256sum "existing/$name" | awk '{print $1}')" = "$(sha256sum "release-assets/$name" | awk '{print $1}')"
+            done
+            echo "Existing release assets are byte-identical; leaving release unchanged."
+            exit 0
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            "release-assets/$friendly" \
+            "release-assets/$update" \
+            'release-assets/SHA256SUMS.txt' \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Keelaryn $RELEASE_VERSION" \
+            --notes-file 'release-assets/RELEASE_NOTES.md' \
+            --latest
