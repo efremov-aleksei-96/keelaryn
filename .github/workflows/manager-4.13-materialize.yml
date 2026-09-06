@@ -106,8 +106,11 @@ jobs:
           if($status.Count-lt1){throw 'Materialization produced no commit changes.'}
           Write-Host 'Materialized candidate change set:'
           $status|ForEach-Object{Write-Host $_}
-          git diff --check
-          if($LASTEXITCODE-ne0){throw 'git diff --check failed.'}
+
+          # Manager source is byte-authoritative (-text) and may legitimately contain CRLF.
+          # Its exact validated identity is guarded above; generic whitespace checks apply only outside manager/.
+          git diff --check -- . ':(exclude)manager/**'
+          if($LASTEXITCODE-ne0){throw 'git diff --check failed outside manager/.'}
           git diff --exit-code -- tests/framework/manager-gate
           if($LASTEXITCODE-ne0){throw 'Frozen Gate Framework r11 changed.'}
 
