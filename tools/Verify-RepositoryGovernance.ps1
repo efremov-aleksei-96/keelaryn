@@ -98,24 +98,32 @@ $api='https://api.github.com/repos/'+$Repository
 
 $repoDoc=Invoke-GitHubGet $api $headers
 if([string]$repoDoc.default_branch-ne[string]$contract.default_branch){Fail('GitHub default branch mismatch.')}
+
+# GitHub's read-only Actions token does not expose every repository merge toggle.
+# Main's actual allowed merge method is enforced below from the active branch
+# rules endpoint, which is readable with Metadata: read for a public repository.
 foreach($property in @('allow_squash_merge','allow_merge_commit','allow_rebase_merge','allow_auto_merge')){
-    $expected=[bool]$contract.merge_policy.$property
-    $actual=[bool]$repoDoc.$property
-    if($actual-ne$expected){Fail('GitHub repository merge setting mismatch: '+$property+' expected='+$expected+' actual='+$actual)}
+    if($null-ne$repoDoc.PSObject.Properties[$property]){
+        $expected=[bool]$contract.merge_policy.$property
+        $actual=[bool]$repoDoc.$property
+        if($actual-ne$expected){Fail('GitHub repository merge setting mismatch: '+$property+' expected='+$expected+' actual='+$actual)}
+    }
 }
 
 $branchName=[string]$contract.default_branch
 $branchDoc=Invoke-GitHubGet ($api+'/branches/'+[System.Uri]::EscapeDataString($branchName)) $headers
+$rulesets=@(Invoke-GitHubGet ($api+'/rulesets?per_page=100') $headers)
+$rules=@(Invoke-GitHubGet ($api+'/rules/branches/'+[System.Uri]::EscapeDataString($branchName)+'?per_page=100') $headers)
+Write-Host ('Online governance visibility: protected='+[bool]$branchDoc.protected+'; rulesets='+$rulesets.Count+'; active_rules='+$rules.Count) -ForegroundColor DarkGray
+
 if(-not[bool]$branchDoc.protected){Fail('Default branch is not protected by an active branch rule/ruleset.')}
 
-$rulesets=@(Invoke-GitHubGet ($api+'/rulesets?per_page=100') $headers)
 $named=@($rulesets|Where-Object{[string]$_.name-eq[string]$contract.main_ruleset.name})
 if($named.Count-ne1){Fail('Expected exactly one repository ruleset named '+[string]$contract.main_ruleset.name+'.')}
 if([string]$named[0].target-ne'branch'){Fail('Governance ruleset target must be branch.')}
 $enforcement=([string]$named[0].enforcement).ToLowerInvariant()
 if($enforcement-notin@('active','enabled')){Fail('Governance ruleset is not active: '+$enforcement)}
 
-$rules=@(Invoke-GitHubGet ($api+'/rules/branches/'+[System.Uri]::EscapeDataString($branchName)+'?per_page=100') $headers)
 $types=@($rules|ForEach-Object{[string]$_.type})
 foreach($requiredType in @('pull_request','required_status_checks','non_fast_forward','deletion')){
     if($types-notcontains$requiredType){Fail('Active main rules missing required rule type: '+$requiredType)}
