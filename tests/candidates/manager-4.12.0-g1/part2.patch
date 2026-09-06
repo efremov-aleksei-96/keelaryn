@@ -1,0 +1,84 @@
+@@ -4,6 +4,15 @@
+ 
+ The frontend is `product/tools/KeelarynMenu.ps1`. It uses direct .NET console I/O with Windows PowerShell 5.1-safe fallbacks.
+ 
++## First-run and recovery startup
++
++On a clean canonical Generic DISTRIBUTION with no Hub, CURRENT baseline, binding or Hub environment override, the interactive frontend opens a first-run screen before the ordinary menu. It offers **Create a new Hub**, **Connect an existing Hub**, **Main menu for now**, or Exit. Creation and binding reuse the existing validated Genesis/binding paths; successful setup immediately runs Doctor and then offers Open Hub.
++
++The startup classifier is fail-safe. If no valid Hub is available but the canonical `hub` path, a CURRENT baseline, binding state or Hub environment override already exists, Manager does not assume a fresh installation and does not overwrite anything. It presents recovery actions (Doctor, bind existing Hub, or main menu). This also prevents a public source checkout containing the repository-only `hub/README.md` boundary marker from being mistaken for an empty runtime installation.
++
++The first-run screen is not persisted as a bypass flag. Choosing **Main menu for now** affects only that invocation; a still-unconfigured clean installation is offered setup again on the next launch.
++Frontend operational paths are refreshed after each Manager child action, so a fresh state-layout initialization or new binding is visible immediately within the same interactive session.
++
+ ## Visible action-result contract
+ 
+ Interactive actions preserve meaningful backend stdout/stderr, but their final human-facing status is semantic rather than a raw process exit code:
+diff --git a/manager/product/install/INSTALLATION.json b/manager/product/install/INSTALLATION.json
+index ce2d1a5c092a92347b3f71d6c29835d8be1ab9b4..91b5272bd87e57e123fe07ce545c5fd22b2a1817 100644
+--- a/manager/product/install/INSTALLATION.json
++++ b/manager/product/install/INSTALLATION.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": "keelaryn.manager.installation.v2",
+-  "manager_version": "4.11.0",
++  "manager_version": "4.12.0",
+   "layout_version": 2,
+   "managed_files": [
+     "compat/commands/APPLY_MIGRATIONS.cmd",
+diff --git a/manager/product/manager_release.json b/manager/product/manager_release.json
+index 88533267d58accf8b7e1d772f8adafc6883735b4..d1fee3e10fb2ae08d591e38e66f8a586f797c7b8 100644
+--- a/manager/product/manager_release.json
++++ b/manager/product/manager_release.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": "keelaryn.manager.release-policy.v1",
+-  "manager_version": "4.11.0",
++  "manager_version": "4.12.0",
+   "native_update_schema": "keelaryn.manager.update.v2",
+   "update_min_version": "4.7.2",
+   "self_test_required": true
+diff --git a/manager/product/runtime/Keelaryn__Manager.ps1 b/manager/product/runtime/Keelaryn__Manager.ps1
+index 6c6b4478c11066e11168460c69f6282ca1014a76..c017300984e180073578f316c296d131de80871a 100644
+--- a/manager/product/runtime/Keelaryn__Manager.ps1
++++ b/manager/product/runtime/Keelaryn__Manager.ps1
+@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
+ Add-Type -AssemblyName System.IO.Compression.FileSystem
+ Add-Type -AssemblyName System.IO.Compression
+ 
+-$ManagerVersion = "4.11.0"
++$ManagerVersion = "4.12.0"
+ $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+ $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
+ $Root = Split-Path -Parent $RuntimeProductDirectory
+diff --git a/manager/product/tools/KeelarynMenu.ps1 b/manager/product/tools/KeelarynMenu.ps1
+index 3fc9888d5edf386278061ecc941981740131464d..b315063d85717eb61eb4a6a1fa4e0472471b710f 100644
+--- a/manager/product/tools/KeelarynMenu.ps1
++++ b/manager/product/tools/KeelarynMenu.ps1
+@@ -136,15 +136,19 @@ $ManagerScript=Join-Path $ManagerRoot 'product\runtime\Keelaryn__Manager.ps1'
+ $ManagerInstallManifest=Join-Path $ManagerRoot 'product\install\INSTALLATION.json'
+ $StateRoot=Join-Path $ManagerRoot 'state'
+ $StateLayoutReceipt=Join-Path $StateRoot 'layout.json'
+-$StateLayoutActive=Test-Path -LiteralPath $StateLayoutReceipt -PathType Leaf
+ $CanonicalLayout=((Split-Path $ManagerRoot -Leaf) -ieq 'manager')
+ $HubRoot=Join-Path $LayoutRoot 'hub'
+ $TestsRoot=Join-Path $LayoutRoot 'tests'
+-$Inbox=if($StateLayoutActive){Join-Path $StateRoot 'inbox'}else{Join-Path $ManagerRoot '_inbox'}
+-$Logs=if($StateLayoutActive){Join-Path $StateRoot 'logs'}else{Join-Path $ManagerRoot '_logs'}
+-$Releases=if($StateLayoutActive){Join-Path $StateRoot 'releases'}else{Join-Path $ManagerRoot '_releases'}
+ $CompatCommands=Join-Path $ManagerRoot 'compat\commands'
+ 
++function Refresh-FrontendOperationalPaths {
++    $script:StateLayoutActive=Test-Path -LiteralPath $StateLayoutReceipt -PathType Leaf
++    $script:Inbox=if($script:StateLayoutActive){Join-Path $StateRoot 'inbox'}else{Join-Path $ManagerRoot '_inbox'}
++    $script:Logs=if($script:StateLayoutActive){Join-Path $StateRoot 'logs'}else{Join-Path $ManagerRoot '_logs'}
++    $script:Releases=if($script:StateLayoutActive){Join-Path $StateRoot 'releases'}else{Join-Path $ManagerRoot '_releases'}
++}
++Refresh-FrontendOperationalPaths
++
+ function Read-ManagerVersion {
+     if(-not(Test-Path -LiteralPath $ManagerInstallManifest -PathType Leaf)){return '<missing>'}
+     try{return [string]((Get-Content -LiteralPath $ManagerInstallManifest -Raw -Encoding UTF8|ConvertFrom-Json).manager_version)}catch{return '<invalid>'}
+@@ -252,6 +256,30 @@ function Get-QuickHubBinding {
+     return [pscustomobject]@{Path=$HubRoot;Source='canonical'}
+ }
