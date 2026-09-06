@@ -152,7 +152,7 @@ jobs:
             ('1. Download `Keelaryn_v' + $version + '_Windows.zip`.'),
             '2. Extract it.',
             '3. Run `Keelaryn.cmd` inside the extracted `keelaryn` folder.',
-            '4. On Manager 4.11.x choose **Advanced → Genesis new Hub**, then run **Doctor**.',
+            '4. On Manager 4.11.x choose **Advanced -> Genesis new Hub**, then run **Doctor**.',
             '',
             'See `GETTING_STARTED.md` in the repository for the full onboarding path.',
             '',
