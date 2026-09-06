@@ -3,8 +3,8 @@
   "role": "public_source_sync_candidate",
   "source_manager_version": "4.13.0",
   "source_gate_baseline_manager_version": "4.12.0",
-  "source_manager_installation_sha256": "dba8fba1394f8192ac5e86a7ac13690d3d999ba712bb0c040a9f544442b9d8db",
-  "source_manager_gate_managed_content_sha256": "c66041bc933b5d81fe3a09c9750c5dfa3c634e9a4c49e842fae77b2a18ef93e6",
+  "source_manager_installation_sha256": "5cf598b412168bde4f5e543c7a8eceb7f6170b22b7325c9e9b06bea6c316f32d",
+  "source_manager_gate_managed_content_sha256": "c6a99234dabc75ca69100046cf4450cf85763891adba279a6062e511799599ab",
   "production_validation": {
     "full_gate_pass": false,
     "gate_revision": null,
@@ -28,7 +28,7 @@
     "file": "LICENSE",
     "copyright": "Copyright (c) 2026 Keelaryn contributors"
   },
-  "public_candidate_revision": 1,
+  "public_candidate_revision": 2,
   "git_checkout_contract": {
     "manager_authoritative_tree_attribute": "-text",
     "framework_authoritative_tree_attribute": "-text",

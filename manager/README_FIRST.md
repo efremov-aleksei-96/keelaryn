@@ -68,7 +68,7 @@ The Manager frontend can prepare CURRENT for Workspace or Chat Manager and opens
 
 ## Development workspace hygiene
 
-The intended tests lifecycle distinguishes current reusable framework source, disposable work, active/current expanded results and frozen archives. Disposable `tests/work` cleanup is explicit, dry-run first, reparse-safe and file-granular so temporary Windows directory locks do not become data-integrity failures.
+The tests workspace contract is now explicit: `framework` holds one current reusable framework source, `work` is disposable, `results` holds active/current expanded evidence plus concise qualification indexes, and `archives` holds frozen verified history. Disposable `tests/work` cleanup is explicit, dry-run first, reparse-safe and file-granular. Completed Full Gate evidence can be compacted to a per-entry SHA-256-verified archive before expanded source cleanup; temporary empty-directory locks remain a cleanup state rather than a data-integrity failure.
 
 `manager/state/history` remains protected from generic cleanup. Existing release-bundle retention already validates and archives reproducible Manager release bundles; 4.13 does not introduce a second competing release-retention policy.
 

@@ -66,6 +66,7 @@
     "product/starter/hub/Resources/README.md",
     "product/tools/audit_cleanroom.ps1",
     "product/tools/KeelarynMenu.ps1",
+    "product/tools/Compact-KeelarynQualificationEvidence.ps1",
     "product/tools/New-KeelarynAIContext.ps1",
     "product/tools/Unpack-KeelarynTestArchive.ps1",
     "README_FIRST.md"

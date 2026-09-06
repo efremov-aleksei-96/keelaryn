@@ -7,7 +7,7 @@ param(
         'RepairCurrentTransport','CheckMigrations','ApplyMigrations','BindInstance','Genesis',
         'MigrateInstanceIdentity','MigrateLegacyNamespace','MigrateLayout','FinalizeLayout','FinalizeFilesystemLayout',
         'PrepareWorkspaceSession','PrepareChatManagerSession','OpenChatGPTExchange','OpenChatGPTGuide','ImportLegacyExchange',
-        'StorageReport','CleanTestsWork',
+        'StorageReport','CleanTestsWork','CompactQualificationEvidence',
         'OpenInbox','OpenLogs','OpenReleases','OpenTestsWork','OpenTestsResults','OpenCompatCommands','OpenKeelarynRoot',
         'EnsureRootLauncher','RenderMain'
     )]
@@ -147,6 +147,7 @@ $ExchangeParent=Join-Path $LayoutRoot 'exchange'
 $ExchangeRoot=Join-Path $ExchangeParent 'chatgpt'
 $LegacyExchangeRoot=Join-Path $LayoutRoot 'Inputs_outputs'
 $ChatGPTDocsRoot=Join-Path $ManagerRoot 'product\docs\chatgpt-projects'
+$QualificationCompactionTool=Join-Path $PSScriptRoot 'Compact-KeelarynQualificationEvidence.ps1'
 
 function Refresh-FrontendOperationalPaths {
     $script:StateLayoutActive=Test-Path -LiteralPath $StateLayoutReceipt -PathType Leaf
@@ -817,6 +818,22 @@ function Invoke-FullGate([string]$ArchivePath) {
     return $gateRc
 }
 
+function Invoke-QualificationCompactor([string]$TargetPath,[bool]$DoApply=$false) {
+    if(-not(Test-Path -LiteralPath $QualificationCompactionTool -PathType Leaf)){Fail('Qualification compaction tool missing: '+$QualificationCompactionTool)}
+    $target=$TargetPath
+    if(-not$target){
+        $target=Select-Folder 'Select completed qualification results directory' (Join-Path $TestsRoot 'results')
+        if(-not$target){Set-ActionSemantic 'cancelled';return 2}
+    }
+    $target=[System.IO.Path]::GetFullPath($target).TrimEnd('\')
+    $args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$QualificationCompactionTool,'-ResultsPath',$target,'-TestsRoot',$TestsRoot)
+    if($DoApply){$args+='-Apply'}
+    & (Join-Path $PSHOME 'powershell.exe') @args 2>&1 | ForEach-Object { Write-UiHost ([string]$_) }
+    $rc=[int]$LASTEXITCODE
+    if($rc-ne0){Set-ActionSemantic 'failed'}
+    return $rc
+}
+
 function Invoke-ApplyMigrationsUi {
     $rc=Invoke-Manager @('-CheckMigrations')
     if($rc-ne0){Set-ActionSemantic 'failed';return $rc}
@@ -944,6 +961,7 @@ function Invoke-Action([string]$Name,[string]$ActionPath) {
         'ImportLegacyExchange' { return Invoke-LegacyExchangeMigration -Apply:$ConfirmChanges }
         'StorageReport' { return Show-StorageReport }
         'CleanTestsWork' { return Invoke-CleanTestsWork -Apply:$ConfirmChanges }
+        'CompactQualificationEvidence' { return Invoke-QualificationCompactor $ActionPath ([bool]$ConfirmChanges) }
         'RepairCurrentTransport' { return Invoke-Manager @('-RepairCurrentTransport') }
         'CheckMigrations' { return Invoke-Manager @('-CheckMigrations') }
         'ApplyMigrations' { return Invoke-ApplyMigrationsUi }
@@ -1074,6 +1092,7 @@ function Show-MaintenanceMenu {
         Write-UiHost '  [6] Open logs'
         Write-UiHost '  [7] Storage report'
         Write-UiHost '  [8] Clean disposable test work...'
+        Write-UiHost '  [9] Compact completed qualification evidence...'
         Write-UiHost '  [0] Back'
         $choice=(Read-UiInput 'Select').Trim()
         switch -Regex($choice){
@@ -1087,6 +1106,14 @@ function Show-MaintenanceMenu {
             '^8$' {
                 $null=Invoke-CleanTestsWork
                 if(Confirm 'Delete the listed disposable tests\work contents?'){$null=Invoke-CleanTestsWork -Apply}
+                Pause-Menu
+            }
+            '^9$' {
+                $target=Select-Folder 'Select completed qualification results directory' (Join-Path $TestsRoot 'results')
+                if($target){
+                    $rc=Invoke-QualificationCompactor $target $false
+                    if($rc-eq0-and(Confirm 'Archive, SHA-256 verify and compact this completed qualification evidence?')){$null=Invoke-QualificationCompactor $target $true}
+                }
                 Pause-Menu
             }
             '^0$' {return}
@@ -1410,7 +1437,7 @@ function Test-FrontendSelf {
             return $false
         }
         $frontendSource=[System.IO.File]::ReadAllText($script:FrontendScriptPath,[System.Text.Encoding]::UTF8)
-        foreach($uiToken in @('function Invoke-MenuAction','function Invoke-FullGate','function Invoke-GenesisUi','function Show-FirstRunWizard','function Resolve-StartupDisposition','function Refresh-FrontendOperationalPaths','function Show-ChatGPTMenu','function Ensure-ChatGPTExchangeLayout','function Invoke-LegacyExchangeMigration','function Invoke-CleanTestsWork','Show-SetupCompletion','GenesisConfigPath','GenesisConfirmed','-NonInteractive','[Enter] Back','product\runtime\Keelaryn__Manager.ps1')){
+        foreach($uiToken in @('function Invoke-MenuAction','function Invoke-FullGate','function Invoke-GenesisUi','function Show-FirstRunWizard','function Resolve-StartupDisposition','function Refresh-FrontendOperationalPaths','function Show-ChatGPTMenu','function Ensure-ChatGPTExchangeLayout','function Invoke-LegacyExchangeMigration','function Invoke-CleanTestsWork','function Invoke-QualificationCompactor','Show-SetupCompletion','GenesisConfigPath','GenesisConfirmed','-NonInteractive','[Enter] Back','product\runtime\Keelaryn__Manager.ps1')){
             if(-not$frontendSource.Contains($uiToken)){
                 $script:FrontendSelfTestReason='Visible action-output contract missing token: '+$uiToken
                 return $false

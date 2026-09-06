@@ -3,6 +3,7 @@ param(
     [string]$ResultsPath,
     [string]$TestsRoot,
     [switch]$Apply,
+    [string]$ReparseSubstitutionMapPath,
     [switch]$SelfTest
 )
 
@@ -60,7 +61,105 @@ function Assert-StrictChild([string]$Parent,[string]$Child,[string]$Purpose){
     return $childFull
 }
 
-function Get-SafeEvidenceInventory([string]$Root,[string]$ExcludeLeaf){
+function Test-SafeRelativeEvidencePath([string]$Value){
+    if([string]::IsNullOrWhiteSpace($Value)-or[System.IO.Path]::IsPathRooted($Value)){return $false}
+    $norm=$Value.Replace('\','/')
+    if($norm.StartsWith('/')-or$norm.EndsWith('/')){return $false}
+    $parts=@($norm.Split('/'))
+    if($parts.Count-lt1){return $false}
+    foreach($part in $parts){
+        if([string]::IsNullOrWhiteSpace($part)-or$part-eq'.'-or$part-eq'..'-or$part.Contains(':')-or$part.Contains('*')-or$part.Contains('?')){return $false}
+    }
+    return $true
+}
+
+function Assert-NoReparseDirectoryChain([string]$Directory,[string]$Purpose){
+    $full=[System.IO.Path]::GetFullPath($Directory).TrimEnd('\')
+    $root=[System.IO.Path]::GetPathRoot($full)
+    if([string]::IsNullOrWhiteSpace($root)){Fail($Purpose+' has no filesystem root: '+$full)}
+    $current=$root
+    $rootItem=Get-Item -LiteralPath $current -Force -ErrorAction Stop
+    if(($rootItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail($Purpose+' filesystem root is a reparse point: '+$current)}
+    $relative=$full.Substring($root.Length).Trim('\')
+    if(-not[string]::IsNullOrWhiteSpace($relative)){
+        foreach($part in @($relative.Split('\'))){
+            $current=Join-Path $current $part
+            $item=Get-Item -LiteralPath $current -Force -ErrorAction Stop
+            if(-not$item.PSIsContainer){Fail($Purpose+' path component is not a directory: '+$current)}
+            if(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail($Purpose+' path chain contains a reparse-point directory: '+$current)}
+        }
+    }
+    return $full
+}
+
+function Read-ReparseSubstitutionMap([string]$MapPath){
+    if([string]::IsNullOrWhiteSpace($MapPath)){return $null}
+    $full=[System.IO.Path]::GetFullPath($MapPath)
+    $parent=Split-Path $full -Parent
+    [void](Assert-NoReparseDirectoryChain $parent 'Reparse substitution map parent')
+    if(-not(Test-Path -LiteralPath $full -PathType Leaf)){Fail('Reparse substitution map is missing: '+$full)}
+    $mapItem=Get-Item -LiteralPath $full -Force -ErrorAction Stop
+    if(($mapItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Reparse substitution map must not be a reparse point: '+$full)}
+    if($mapItem.Length-gt4MB){Fail('Reparse substitution map exceeds 4 MiB safety limit: '+$full)}
+    $map=Read-Json $full
+    if([string]$map.schema-ne'keelaryn.reparse-substitution-map.v1'){Fail('Unsupported reparse substitution map schema.')}
+    $protectedRaw=([string]$map.protected_root).Trim()
+    if([string]::IsNullOrWhiteSpace($protectedRaw)-or-not[System.IO.Path]::IsPathRooted($protectedRaw)){Fail('Reparse substitution protected_root must be an absolute path.')}
+    $protectedRoot=[System.IO.Path]::GetFullPath($protectedRaw).TrimEnd('\')
+    [void](Assert-NoReparseDirectoryChain $protectedRoot 'Reparse substitution protected root')
+    Assert-SafeDirectory $protectedRoot 'Reparse substitution protected root'
+    $rows=@($map.entries)
+    if($rows.Count-lt1-or$rows.Count-gt4096){Fail('Reparse substitution map must contain 1..4096 entries.')}
+    $table=@{}
+    foreach($row in $rows){
+        $evidencePath=([string]$row.path).Replace('\','/').Trim()
+        $protectedPath=([string]$row.protected_path).Replace('\','/').Trim()
+        if(-not(Test-SafeRelativeEvidencePath $evidencePath)){Fail('Unsafe reparse substitution evidence path: '+$evidencePath)}
+        if(-not(Test-SafeRelativeEvidencePath $protectedPath)){Fail('Unsafe reparse substitution protected path: '+$protectedPath)}
+        if($table.ContainsKey($evidencePath)){Fail('Duplicate reparse substitution evidence path: '+$evidencePath)}
+        [int64]$boundSize=[int64]$row.size
+        $boundSha=([string]$row.sha256).Trim().ToLowerInvariant()
+        if($boundSize-lt0-or$boundSha-notmatch'^[0-9a-f]{64}$'){Fail('Invalid size/SHA-256 binding for reparse substitution: '+$evidencePath)}
+        $protectedFull=Join-Path $protectedRoot $protectedPath.Replace('/','\')
+        $protectedFull=[System.IO.Path]::GetFullPath($protectedFull)
+        if(-not$protectedFull.StartsWith(($protectedRoot+'\'),[System.StringComparison]::OrdinalIgnoreCase)){Fail('Protected substitution path escaped protected_root: '+$protectedPath)}
+        [void](Assert-NoReparseDirectoryChain (Split-Path $protectedFull -Parent) ('Protected substitution parent for '+$evidencePath))
+        if(-not(Test-Path -LiteralPath $protectedFull -PathType Leaf)){Fail('Protected substitution copy is missing: '+$protectedFull)}
+        $protectedItem=Get-Item -LiteralPath $protectedFull -Force -ErrorAction Stop
+        if($protectedItem.PSIsContainer-or($protectedItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Protected substitution copy must be a regular non-reparse file: '+$protectedFull)}
+        if([int64]$protectedItem.Length-ne$boundSize){Fail('Protected substitution size binding mismatch: '+$evidencePath)}
+        $actualSha=Get-Sha256 $protectedFull
+        if($actualSha-cne$boundSha){Fail('Protected substitution SHA-256 binding mismatch: '+$evidencePath)}
+        $table[$evidencePath]=[pscustomobject]@{
+            EvidencePath=$evidencePath;ProtectedRelativePath=$protectedPath;ProtectedFullPath=$protectedFull;
+            Size=$boundSize;Sha256=$boundSha;Used=$false
+        }
+    }
+    return [pscustomobject]@{Schema='keelaryn.reparse-substitution-map.v1';MapPath=$full;MapSha256=(Get-Sha256 $full);ProtectedRoot=$protectedRoot;Entries=$table}
+}
+
+function Resolve-ReparseSubstitution($SubstitutionMap,[string]$RelativePath){
+    if($null-eq$SubstitutionMap-or-not$SubstitutionMap.Entries.ContainsKey($RelativePath)){Fail('Qualification evidence contains an unmapped file reparse point: '+$RelativePath)}
+    $entry=$SubstitutionMap.Entries[$RelativePath]
+    $entry.Used=$true
+    $item=Get-Item -LiteralPath ([string]$entry.ProtectedFullPath) -Force -ErrorAction Stop
+    if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Protected substitution copy became unsafe: '+$RelativePath)}
+    if([int64]$item.Length-ne[int64]$entry.Size-or(Get-Sha256 ([string]$entry.ProtectedFullPath))-cne[string]$entry.Sha256){Fail('Protected substitution copy changed after map validation: '+$RelativePath)}
+    return [pscustomobject]@{
+        ArchiveSourcePath=[string]$entry.ProtectedFullPath
+        Size=[int64]$entry.Size
+        Sha256=[string]$entry.Sha256
+        Substitution=[ordered]@{
+            schema='keelaryn.reparse-substitution.v1'
+            map_sha256=[string]$SubstitutionMap.MapSha256
+            protected_relative_path=[string]$entry.ProtectedRelativePath
+            bound_size=[int64]$entry.Size
+            bound_sha256=[string]$entry.Sha256
+        }
+    }
+}
+
+function Get-SafeEvidenceInventory([string]$Root,[string]$ExcludeLeaf,$SubstitutionMap){
     Assert-SafeDirectory $Root 'Qualification evidence root'
     $rootFull=[System.IO.Path]::GetFullPath($Root).TrimEnd('\')
     $files=New-Object System.Collections.ArrayList
@@ -71,19 +170,32 @@ function Get-SafeEvidenceInventory([string]$Root,[string]$ExcludeLeaf){
         $dir=$stack.Pop()
         foreach($item in @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction Stop)){
             if($item.Name-ceq$ExcludeLeaf-and$item.FullName.Substring($rootFull.Length).TrimStart('\').IndexOf('\')-lt0){continue}
-            if(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Qualification evidence contains a reparse point and cannot be compacted automatically: '+$item.FullName)}
-            if($item.PSIsContainer){[void]$dirs.Add($item.FullName);$stack.Push($item.FullName);continue}
+            $isReparse=(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0)
+            if($item.PSIsContainer){
+                if($isReparse){Fail('Qualification evidence contains a reparse-point directory: '+$item.FullName)}
+                [void]$dirs.Add($item.FullName);$stack.Push($item.FullName);continue
+            }
             $rel=$item.FullName.Substring($rootFull.Length).TrimStart('\').Replace('\','/')
+            if($isReparse){
+                $resolved=Resolve-ReparseSubstitution $SubstitutionMap $rel
+                [void]$files.Add([pscustomobject]@{
+                    Path=$item.FullName;ArchiveSourcePath=[string]$resolved.ArchiveSourcePath;RelativePath=$rel;
+                    Size=[int64]$resolved.Size;Sha256=[string]$resolved.Sha256;Attributes=[int]$item.Attributes;
+                    CreationTimeUtc=$item.CreationTimeUtc.ToString('o');LastWriteTimeUtc=$item.LastWriteTimeUtc.ToString('o');
+                    Substitution=$resolved.Substitution
+                })
+                continue
+            }
             [void]$files.Add([pscustomobject]@{
-                Path=$item.FullName
-                RelativePath=$rel
-                Size=[int64]$item.Length
-                Sha256=(Get-Sha256 $item.FullName)
-                Attributes=[int]$item.Attributes
-                CreationTimeUtc=$item.CreationTimeUtc.ToString('o')
-                LastWriteTimeUtc=$item.LastWriteTimeUtc.ToString('o')
+                Path=$item.FullName;ArchiveSourcePath=$item.FullName;RelativePath=$rel;Size=[int64]$item.Length;
+                Sha256=(Get-Sha256 $item.FullName);Attributes=[int]$item.Attributes;
+                CreationTimeUtc=$item.CreationTimeUtc.ToString('o');LastWriteTimeUtc=$item.LastWriteTimeUtc.ToString('o');Substitution=$null
             })
         }
+    }
+    if($null-ne$SubstitutionMap){
+        $unused=@($SubstitutionMap.Entries.Values|Where-Object{-not[bool]$_.Used})
+        if($unused.Count-ne0){Fail('Reparse substitution map contains unused binding(s): '+[string]::Join(', ',@($unused|ForEach-Object{$_.EvidencePath})))}
     }
     return [pscustomobject]@{Files=@($files|Sort-Object RelativePath);Directories=@($dirs|Sort-Object Length -Descending)}
 }
@@ -113,7 +225,7 @@ function Get-FrozenManifest([string]$ResultsRoot,$Summary,$Inventory,[string]$Ev
             attributes=[int]$f.Attributes
             creation_time_utc=[string]$f.CreationTimeUtc
             last_write_time_utc=[string]$f.LastWriteTimeUtc
-            substitution=$null
+            substitution=$f.Substitution
         })
     }
     return [ordered]@{
@@ -149,7 +261,11 @@ function New-VerifiedArchive([string]$ArchivePath,[string]$ManifestPath,$Manifes
             foreach($f in @($Inventory.Files)){
                 $entry=$zip.CreateEntry([string]$f.RelativePath,[System.IO.Compression.CompressionLevel]::Optimal)
                 $entry.LastWriteTime=[DateTimeOffset]::Parse([string]$f.LastWriteTimeUtc)
-                $source=[System.IO.File]::OpenRead([string]$f.Path)
+                $archiveSource=[string]$f.ArchiveSourcePath
+                $archiveItem=Get-Item -LiteralPath $archiveSource -Force -ErrorAction Stop
+                if($archiveItem.PSIsContainer-or($archiveItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Archive source became a reparse point: '+[string]$f.RelativePath)}
+                if([int64]$archiveItem.Length-ne[int64]$f.Size-or(Get-Sha256 $archiveSource)-cne[string]$f.Sha256){Fail('Archive source changed after inventory: '+[string]$f.RelativePath)}
+                $source=[System.IO.File]::OpenRead($archiveSource)
                 $dest=$entry.Open()
                 try{$source.CopyTo($dest)}finally{$dest.Dispose();$source.Dispose()}
             }
@@ -193,15 +309,15 @@ function New-VerifiedArchive([string]$ArchivePath,[string]$ManifestPath,$Manifes
 }
 
 function Test-PublishedArchive([string]$ArchivePath,[string]$ManifestPath,[string]$ExpectedArchiveSha,[string]$ExpectedManifestSha){
-    if(-not(Test-Path -LiteralPath $ArchivePath -PathType Leaf)-or-not(Test-Path -LiteralPath $ManifestPath -PathType Leaf)){return $false}
-    if((Get-Sha256 $ArchivePath)-cne$ExpectedArchiveSha-or(Get-Sha256 $ManifestPath)-cne$ExpectedManifestSha){return $false}
+    if(-not(Test-Path -LiteralPath $ArchivePath -PathType Leaf) -or -not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)){return $false}
+    if((Get-Sha256 $ArchivePath)-cne$ExpectedArchiveSha -or (Get-Sha256 $ManifestPath)-cne$ExpectedManifestSha){return $false}
     $manifest=Read-Json $ManifestPath
     $read=[System.IO.File]::OpenRead($ArchivePath)
     $zip=New-Object System.IO.Compression.ZipArchive($read,[System.IO.Compression.ZipArchiveMode]::Read,$false)
     try{
         foreach($row in @($manifest.entries)){
             $matches=@($zip.Entries|Where-Object{$_.FullName-ceq[string]$row.path})
-            if($matches.Count-ne1-or[int64]$matches[0].Length-ne[int64]$row.size){return $false}
+            if($matches.Count-ne1 -or [int64]$matches[0].Length-ne[int64]$row.size){return $false}
             $s=$matches[0].Open();try{$h=Get-StreamSha256 $s}finally{$s.Dispose()}
             if($h-cne[string]$row.sha256){return $false}
         }
@@ -226,11 +342,30 @@ function Remove-EmptyDirectoryRetry([string]$Path){
 }
 
 function Invoke-CleanupAfterArchive([string]$ResultsRoot,[string]$IndexPath){
-    $inventory=Get-SafeEvidenceInventory $ResultsRoot ([System.IO.Path]::GetFileName($IndexPath))
+    Assert-SafeDirectory $ResultsRoot 'Qualification evidence root'
+    $rootFull=[System.IO.Path]::GetFullPath($ResultsRoot).TrimEnd('\')
+    $indexFull=[System.IO.Path]::GetFullPath($IndexPath)
+    $files=New-Object System.Collections.ArrayList
+    $dirs=New-Object System.Collections.ArrayList
+    $stack=New-Object 'System.Collections.Generic.Stack[string]'
+    $stack.Push($rootFull)
+    while($stack.Count-gt0){
+        $dir=$stack.Pop()
+        foreach($item in @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction Stop)){
+            $full=[System.IO.Path]::GetFullPath($item.FullName)
+            if($full-ceq$indexFull){continue}
+            $isReparse=(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0)
+            if($item.PSIsContainer){
+                if($isReparse){Fail('Cleanup refused a reparse-point directory that appeared after archive verification: '+$item.FullName)}
+                [void]$dirs.Add($item.FullName);$stack.Push($item.FullName);continue
+            }
+            [void]$files.Add($item.FullName)
+        }
+    }
     $pendingFiles=New-Object System.Collections.ArrayList
-    foreach($f in @($inventory.Files)){if(-not(Remove-FileRetry ([string]$f.Path))){[void]$pendingFiles.Add([string]$f.Path)}}
+    foreach($path in @($files)){if(-not(Remove-FileRetry ([string]$path))){[void]$pendingFiles.Add([string]$path)}}
     $pendingDirs=New-Object System.Collections.ArrayList
-    foreach($dir in @($inventory.Directories)){
+    foreach($dir in @($dirs|Sort-Object Length -Descending)){
         if(Test-Path -LiteralPath $dir -PathType Container){
             if(@(Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue).Count-eq0){if(-not(Remove-EmptyDirectoryRetry $dir)){[void]$pendingDirs.Add($dir)}}else{[void]$pendingDirs.Add($dir)}
         }
@@ -249,13 +384,18 @@ function Resolve-DefaultTestsRoot {
     return Join-Path $layoutRoot 'tests'
 }
 
-function Invoke-Compaction([string]$TargetResults,[string]$TargetTests,[bool]$DoApply){
+function Invoke-Compaction([string]$TargetResults,[string]$TargetTests,[bool]$DoApply,[string]$SubstitutionMapPath=$null){
     $tests=[System.IO.Path]::GetFullPath($TargetTests).TrimEnd('\')
     Assert-SafeDirectory $tests 'Tests root'
     $resultsParent=Join-Path $tests 'results';$archivesParent=Join-Path $tests 'archives'
     Ensure-SafeDirectory $resultsParent 'Tests results root';Ensure-SafeDirectory $archivesParent 'Tests archives root'
     $results=Assert-StrictChild $resultsParent $TargetResults 'Qualification result'
     Assert-SafeDirectory $results 'Qualification result'
+    $substitutionMap=Read-ReparseSubstitutionMap $SubstitutionMapPath
+    if($null-ne$substitutionMap){
+        if($substitutionMap.MapPath.StartsWith(($results+'\'),[System.StringComparison]::OrdinalIgnoreCase)){Fail('Reparse substitution map must be outside qualification evidence so cleanup cannot delete it.')}
+        if($substitutionMap.ProtectedRoot-ieq$results-or$substitutionMap.ProtectedRoot.StartsWith(($results+'\'),[System.StringComparison]::OrdinalIgnoreCase)){Fail('Reparse substitution protected_root must be outside qualification evidence.')}
+    }
     $indexPath=Join-Path $results 'QUALIFICATION_INDEX.json'
 
     if(Test-Path -LiteralPath $indexPath -PathType Leaf){
@@ -263,12 +403,12 @@ function Invoke-Compaction([string]$TargetResults,[string]$TargetTests,[bool]$Do
         if([string]$index.schema-ne'keelaryn.qualification-index.v1'){Fail('Existing qualification index schema is unsupported.')}
         $archivePath=Join-Path $tests ([string]$index.archive_path).Replace('/','\')
         $manifestPath=Join-Path $tests ([string]$index.manifest_path).Replace('/','\')
-        if(-not(Test-PublishedArchive $archivePath $manifestPath ([string]$index.archive_sha256) ([string]$index.manifest_sha256)){Fail('Existing qualification archive/index verification failed.')}
+        if(-not(Test-PublishedArchive $archivePath $manifestPath ([string]$index.archive_sha256) ([string]$index.manifest_sha256))){Fail('Existing qualification archive/index verification failed.')}
         if(-not$DoApply){Write-Host 'Qualification evidence is already archived and verified.' -ForegroundColor Green;Write-Host ('Index: '+$indexPath);return 0}
         $cleanup=Invoke-CleanupAfterArchive $results $indexPath
         $index.cleanup_pending_files=@($cleanup.PendingFiles|ForEach-Object{$_.Substring($results.Length).TrimStart('\').Replace('\','/')})
         $index.cleanup_pending_directories=@($cleanup.PendingDirectories|ForEach-Object{$_.Substring($results.Length).TrimStart('\').Replace('\','/')})
-        $index.cleanup_status=if(@($cleanup.PendingFiles).Count-ne0-or@($cleanup.PendingDirectories).Count-ne0){'pending'}else{'complete'}
+        $index.cleanup_status=if(@($cleanup.PendingFiles).Count-ne0 -or @($cleanup.PendingDirectories).Count-ne0){'pending'}else{'complete'}
         $index.cleanup_checked=(Get-Date).ToUniversalTime().ToString('o')
         Write-QualificationIndex $indexPath $index
         if([string]$index.cleanup_status-eq'complete'){Write-Host 'Qualification evidence archive verified; expanded evidence cleanup complete.' -ForegroundColor Green}else{Write-Host 'Qualification archive is verified; cleanup remains pending for locked paths.' -ForegroundColor Yellow}
@@ -278,8 +418,8 @@ function Invoke-Compaction([string]$TargetResults,[string]$TargetTests,[bool]$Do
     $summaryPath=Join-Path $results 'GATE_SUMMARY.json'
     $summary=Read-Json $summaryPath
     if([string]$summary.schema-notmatch'^keelaryn\.manager\.windows-gate-summary\.v\d+$'){Fail('Qualification GATE_SUMMARY schema is unsupported: '+[string]$summary.schema)}
-    if([string]::IsNullOrWhiteSpace([string]$summary.completed)-or[string]$summary.status-eq'running'){Fail('Qualification is not completed; evidence compaction is refused.')}
-    $inventory=Get-SafeEvidenceInventory $results 'QUALIFICATION_INDEX.json'
+    if([string]::IsNullOrWhiteSpace([string]$summary.completed) -or [string]$summary.status-eq'running'){Fail('Qualification is not completed; evidence compaction is refused.')}
+    $inventory=Get-SafeEvidenceInventory $results 'QUALIFICATION_INDEX.json' $substitutionMap
     if(@($inventory.Files).Count-lt1){Fail('Qualification result contains no evidence files.')}
     $evidenceDigest=Get-EvidenceDigest $inventory.Files
     $identity=Get-ArchiveIdentity $results $summary $evidenceDigest
@@ -294,7 +434,9 @@ function Invoke-Compaction([string]$TargetResults,[string]$TargetTests,[bool]$Do
     Write-Host ('Evidence:  files='+@($inventory.Files).Count+' bytes='+$bytes+' digest='+$evidenceDigest)
     Write-Host ('Archive:   '+$archivePath)
     Write-Host ('Manifest:  '+$manifestPath)
-    Write-Host 'Reparse points: rejected; manager\state\history: outside scope and never touched.' -ForegroundColor DarkGray
+    $substitutionCount=@($inventory.Files|Where-Object{$null-ne$_.Substitution}).Count
+    Write-Host ('Reparse policy: directories rejected; file substitutions='+$substitutionCount+'; unknown/unmapped file reparse points rejected.') -ForegroundColor DarkGray
+    Write-Host 'manager\state\history: outside cleanup scope and never touched.' -ForegroundColor DarkGray
     if(-not$DoApply){Write-Host 'DRY RUN ONLY. Nothing was archived or deleted.' -ForegroundColor DarkGray;return 0}
 
     $manifest=Get-FrozenManifest $results $summary $inventory $evidenceDigest
@@ -329,7 +471,7 @@ function Invoke-Compaction([string]$TargetResults,[string]$TargetTests,[bool]$Do
     $cleanup=Invoke-CleanupAfterArchive $results $indexPath
     $index.cleanup_pending_files=@($cleanup.PendingFiles|ForEach-Object{$_.Substring($results.Length).TrimStart('\').Replace('\','/')})
     $index.cleanup_pending_directories=@($cleanup.PendingDirectories|ForEach-Object{$_.Substring($results.Length).TrimStart('\').Replace('\','/')})
-    $index.cleanup_status=if(@($cleanup.PendingFiles).Count-ne0-or@($cleanup.PendingDirectories).Count-ne0){'pending'}else{'complete'}
+    $index.cleanup_status=if(@($cleanup.PendingFiles).Count-ne0 -or @($cleanup.PendingDirectories).Count-ne0){'pending'}else{'complete'}
     $index.cleanup_checked=(Get-Date).ToUniversalTime().ToString('o')
     Write-QualificationIndex $indexPath $index
     if([string]$index.cleanup_status-eq'complete'){Write-Host 'Qualification evidence archived, verified and compacted.' -ForegroundColor Green}else{Write-Host 'Qualification evidence archived and verified; locked-path cleanup is pending and resumable.' -ForegroundColor Yellow}
@@ -352,11 +494,49 @@ function Test-Self {
         $remaining=@(Get-ChildItem -LiteralPath $results -Force -Recurse)
         if(@($remaining|Where-Object{-not$_.PSIsContainer}).Count-ne1){return $false}
         $index=Read-Json $indexPath
-        if([string]$index.cleanup_status-ne'complete'-or-not[bool]$index.archive_verified){return $false}
+        if([string]$index.cleanup_status-ne'complete' -or -not [bool]$index.archive_verified){return $false}
         $archive=Join-Path $tests ([string]$index.archive_path).Replace('/','\')
         $manifest=Join-Path $tests ([string]$index.manifest_path).Replace('/','\')
-        if(-not(Test-PublishedArchive $archive $manifest ([string]$index.archive_sha256) ([string]$index.manifest_sha256)){return $false}
+        if(-not(Test-PublishedArchive $archive $manifest ([string]$index.archive_sha256) ([string]$index.manifest_sha256))){return $false}
         if((Invoke-Compaction $results $tests $true)-ne0){return $false}
+
+        # File reparse substitution: the link target is intentionally different from the protected bound copy.
+        $r2=Join-Path $tests 'results\manager-9.9.10'
+        New-Item -ItemType Directory -Force -Path $r2|Out-Null
+        $summary2=[ordered]@{schema='keelaryn.manager.windows-gate-summary.v16';manager_version='9.9.10';baseline_version='9.9.9';gate_revision=3;framework_revision=11;status='PASS';completed='2026-01-02T00:00:00Z';candidate_installation_sha256=('c'*64);candidate_managed_content_sha256=('d'*64)}
+        Write-Utf8NoBom (Join-Path $r2 'GATE_SUMMARY.json') (($summary2|ConvertTo-Json -Depth 4)+"`n")
+        $evil=Join-Path $temp 'evil-target.txt';Write-Utf8NoBom $evil "evil-target-bytes`n"
+        $protected=Join-Path $temp 'protected';New-Item -ItemType Directory -Force -Path $protected|Out-Null
+        $protectedFile=Join-Path $protected 'copy.bin';Write-Utf8NoBom $protectedFile "protected-archive-bytes`n"
+        $link=Join-Path $r2 'linked.txt'
+        New-Item -ItemType SymbolicLink -Path $link -Target $evil -ErrorAction Stop|Out-Null
+        $linkItem=Get-Item -LiteralPath $link -Force -ErrorAction Stop
+        if(($linkItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-eq0){return $false}
+        $mapPath=Join-Path $temp 'reparse-map.json'
+        $protectedItem=Get-Item -LiteralPath $protectedFile -Force
+        $map=[ordered]@{schema='keelaryn.reparse-substitution-map.v1';protected_root=$protected;entries=@([ordered]@{path='linked.txt';protected_path='copy.bin';size=[int64]$protectedItem.Length;sha256=(Get-Sha256 $protectedFile)})}
+        Write-Utf8NoBom $mapPath (($map|ConvertTo-Json -Depth 6)+"`n")
+        $unmappedRejected=$false
+        try{[void](Invoke-Compaction $r2 $tests $false $null)}catch{$unmappedRejected=$true}
+        if(-not$unmappedRejected){return $false}
+        if((Invoke-Compaction $r2 $tests $true $mapPath)-ne0){return $false}
+        if(-not(Test-Path -LiteralPath $evil -PathType Leaf)-or-not(Test-Path -LiteralPath $protectedFile -PathType Leaf)-or(Test-Path -LiteralPath $link)){return $false}
+        $idx2=Read-Json (Join-Path $r2 'QUALIFICATION_INDEX.json')
+        $manifest2=Read-Json (Join-Path $tests ([string]$idx2.manifest_path).Replace('/','\'))
+        $row2=@($manifest2.entries|Where-Object{[string]$_.path-ceq'linked.txt'})
+        if($row2.Count-ne1-or$null-eq$row2[0].substitution){return $false}
+        if([string]$row2[0].substitution.schema-ne'keelaryn.reparse-substitution.v1'-or[string]$row2[0].substitution.bound_sha256-cne(Get-Sha256 $protectedFile)){return $false}
+        if([string]$row2[0].sha256-cne(Get-Sha256 $protectedFile)-or[string]$row2[0].sha256-ceq(Get-Sha256 $evil)){return $false}
+
+        # Reparse-point directories remain unconditionally rejected and are never traversed.
+        $r3=Join-Path $tests 'results\manager-9.9.11';New-Item -ItemType Directory -Force -Path $r3|Out-Null
+        $summary3=[ordered]@{schema='keelaryn.manager.windows-gate-summary.v16';manager_version='9.9.11';baseline_version='9.9.10';gate_revision=4;framework_revision=11;status='PASS';completed='2026-01-03T00:00:00Z';candidate_installation_sha256=('e'*64);candidate_managed_content_sha256=('f'*64)}
+        Write-Utf8NoBom (Join-Path $r3 'GATE_SUMMARY.json') (($summary3|ConvertTo-Json -Depth 4)+"`n")
+        $dirTarget=Join-Path $temp 'dir-target';New-Item -ItemType Directory -Force -Path $dirTarget|Out-Null
+        New-Item -ItemType Junction -Path (Join-Path $r3 'linked-dir') -Target $dirTarget -ErrorAction Stop|Out-Null
+        $dirRejected=$false
+        try{[void](Invoke-Compaction $r3 $tests $false $null)}catch{$dirRejected=$true}
+        if(-not$dirRejected){return $false}
         return $true
     }catch{Write-Host ('Qualification compaction self-test detail: '+$_.Exception.Message) -ForegroundColor Red;return $false}
     finally{if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue}}
@@ -366,5 +546,5 @@ try{
     if($SelfTest){if(Test-Self){Write-Host 'Qualification evidence compaction self-test PASS.' -ForegroundColor Green;exit 0};Write-Host 'Qualification evidence compaction self-test FAIL.' -ForegroundColor Red;exit 1}
     if([string]::IsNullOrWhiteSpace($TestsRoot)){$TestsRoot=Resolve-DefaultTestsRoot}
     if([string]::IsNullOrWhiteSpace($ResultsPath)){Fail('ResultsPath is required.')}
-    exit (Invoke-Compaction $ResultsPath $TestsRoot ([bool]$Apply))
+    exit (Invoke-Compaction $ResultsPath $TestsRoot ([bool]$Apply) $ReparseSubstitutionMapPath)
 }catch{Write-Host ('Qualification evidence compaction error: '+$_.Exception.Message) -ForegroundColor Red;exit 1}

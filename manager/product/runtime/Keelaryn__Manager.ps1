@@ -422,6 +422,7 @@ $ManagedManagerFiles = @(
     "product/starter/hub/Resources/README.md",
     "product/tools/audit_cleanroom.ps1",
     "product/tools/KeelarynMenu.ps1",
+    'product/tools/Compact-KeelarynQualificationEvidence.ps1',
     "product/tools/New-KeelarynAIContext.ps1",
     "product/tools/Unpack-KeelarynTestArchive.ps1",
     "README_FIRST.md"
@@ -5961,36 +5962,47 @@ function Initialize-TestsWorkspaceAt([string]$TestsPath,[bool]$WriteMetadata=$tr
     $tests=[System.IO.Path]::GetFullPath($TestsPath).TrimEnd('\')
     if (-not (Test-Path -LiteralPath $tests)) { New-Item -ItemType Directory -Force -Path $tests | Out-Null }
     Assert-TestsWorkspaceDirectorySafe $tests 'Keelaryn tests root'
-    $work=Join-Path $tests 'work';$results=Join-Path $tests 'results';$legacy=Join-Path $tests 'legacy-layout-backup'
-    foreach($row in @(@($work,'Keelaryn tests work root'),@($results,'Keelaryn tests results root'))){
+    $framework=Join-Path $tests 'framework';$work=Join-Path $tests 'work';$results=Join-Path $tests 'results';$archives=Join-Path $tests 'archives';$legacy=Join-Path $tests 'legacy-layout-backup'
+    foreach($row in @(
+        @($framework,'Keelaryn tests framework root'),
+        @($work,'Keelaryn tests work root'),
+        @($results,'Keelaryn tests results root'),
+        @($archives,'Keelaryn tests archives root')
+    )){
         $path=[string]$row[0];$purpose=[string]$row[1]
         if (-not (Test-Path -LiteralPath $path)) { New-Item -ItemType Directory -Force -Path $path | Out-Null }
         Assert-TestsWorkspaceDirectorySafe $path $purpose
     }
     if (Test-Path -LiteralPath $legacy) { Assert-TestsWorkspaceDirectorySafe $legacy 'Keelaryn legacy-layout backup root' }
-    $allowed=@('work','results','legacy-layout-backup','WORKSPACE.json')
+    $allowed=@('framework','work','results','archives','legacy-layout-backup','WORKSPACE.json')
     $unclassified=@(Get-ChildItem -LiteralPath $tests -Force | Where-Object { $allowed -notcontains $_.Name } | Sort-Object Name | ForEach-Object { $_.Name })
     if($WriteMetadata){
         $meta=[ordered]@{
-            schema='keelaryn.tests.workspace.v1';manager_version=$ManagerVersion;tests_path=$tests;
-            work='work';results='results';legacy_layout_backup='legacy-layout-backup';
-            work_policy='ephemeral candidate/disposable runtime only';results_policy='durable gate summaries, benchmark reports and logs';
-            generated_fixtures_policy='generate inside work and remove with the run';rejected_policy='record failed/rejected status under results; no separate rejected tree';
+            schema='keelaryn.tests.workspace.v2';manager_version=$ManagerVersion;tests_path=$tests;
+            framework='framework';work='work';results='results';archives='archives';legacy_layout_backup='legacy-layout-backup';
+            framework_policy='one current reusable framework source; never historical qualification expansion';
+            work_policy='ephemeral candidate/disposable runtime only; normally empty between cycles';
+            results_policy='active/current expanded evidence plus concise qualification indexes; not permanent raw-history storage';
+            archives_policy='frozen verified historical evidence bundles with manifests and SHA-256 provenance';
+            generated_fixtures_policy='generate inside work and remove with the run';
+            rejected_policy='retain concise rejection/root-cause provenance; raw evidence only as a verified archive when durable value exists';
             unclassified_top_level=@($unclassified);updated=(Get-Date).ToUniversalTime().ToString('o')
         }
         $json=($meta|ConvertTo-Json -Depth 6).Replace("`r`n","`n")+"`n"
         [System.IO.File]::WriteAllText((Join-Path $tests 'WORKSPACE.json'),$json,(New-Object System.Text.UTF8Encoding($false)))
     }
-    return [pscustomobject]@{Tests=$tests;Work=$work;Results=$results;LegacyLayoutBackup=$legacy;Unclassified=@($unclassified)}
+    return [pscustomobject]@{Tests=$tests;Framework=$framework;Work=$work;Results=$results;Archives=$archives;LegacyLayoutBackup=$legacy;Unclassified=@($unclassified)}
 }
 
 function Invoke-PrepareTests {
     if (-not $CanonicalLayoutActive) { throw 'PREPARE_TESTS requires the canonical keelaryn/manager installation layout.' }
     $workspace=Initialize-TestsWorkspaceAt $CanonicalTestsPath $true
     Write-Host 'Keelaryn tests workspace ready.' -ForegroundColor Green
+    Write-Host ('framework: '+$workspace.Framework)
     Write-Host ('work: '+$workspace.Work)
     Write-Host ('results: '+$workspace.Results)
-    Write-Host ('legacy-layout-backup: '+$workspace.LegacyLayoutBackup+' (created only by explicit layout finalization)')
+    Write-Host ('archives: '+$workspace.Archives)
+    Write-Host ('legacy-layout-backup: '+$workspace.LegacyLayoutBackup+' (created only by explicit legacy layout finalization)')
     if(@($workspace.Unclassified).Count-gt0){
         Write-Host ('Unclassified top-level tests entries left untouched: '+[string]::Join(', ',@($workspace.Unclassified))) -ForegroundColor Yellow
     }
@@ -6003,22 +6015,31 @@ function Test-TestsWorkspaceSelfTest {
         New-Item -ItemType Directory -Force -Path $temp | Out-Null
         New-Item -ItemType Directory -Force -Path (Join-Path $temp 'manager-old') | Out-Null
         $ws=Initialize-TestsWorkspaceAt $temp $true
-        if(-not(Test-Path -LiteralPath $ws.Work -PathType Container)-or-not(Test-Path -LiteralPath $ws.Results -PathType Container)){return $false}
+        foreach($dir in @($ws.Framework,$ws.Work,$ws.Results,$ws.Archives)){if(-not(Test-Path -LiteralPath $dir -PathType Container)){return $false}}
         if(Test-Path -LiteralPath $ws.LegacyLayoutBackup){return $false}
         if(@($ws.Unclassified)-notcontains'manager-old'){return $false}
         $meta=Read-KeelarynJsonFile (Join-Path $temp 'WORKSPACE.json')
-        if([string]$meta.schema-ne'keelaryn.tests.workspace.v1'-or[string]$meta.work-ne'work'-or[string]$meta.results-ne'results'){return $false}
-        if([string]$meta.rejected_policy-notmatch'no separate rejected tree'){return $false}
+        if([string]$meta.schema-ne'keelaryn.tests.workspace.v2'-or[string]$meta.framework-ne'framework'-or[string]$meta.work-ne'work'-or[string]$meta.results-ne'results'-or[string]$meta.archives-ne'archives'){return $false}
+        if([string]$meta.results_policy-notmatch'not permanent raw-history'-or[string]$meta.archives_policy-notmatch'frozen verified'){return $false}
         return $true
     }
     catch{return $false}
     finally{if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue}}
 }
 
+function Test-QualificationEvidenceCompactionToolSelfTest {
+    try{
+        $tool=Join-Path $Root 'product/tools/Compact-KeelarynQualificationEvidence.ps1'
+        if(-not(Test-Path -LiteralPath $tool -PathType Leaf)){return $false}
+        & (Join-Path $PSHOME 'powershell.exe') -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $tool -SelfTest | Out-Null
+        return [int]$LASTEXITCODE -eq 0
+    }catch{return $false}
+}
+
 $script:UserInterfaceToolSourceSelfTestReason=''
 function Test-UserInterfaceToolSourceSelfTest {
     try {
-        foreach($rel in @('product/tools/KeelarynMenu.ps1','product/tools/Unpack-KeelarynTestArchive.ps1')){
+        foreach($rel in @('product/tools/KeelarynMenu.ps1','product/tools/Unpack-KeelarynTestArchive.ps1','product/tools/Compact-KeelarynQualificationEvidence.ps1')){
             $p=Join-Path $Root $rel
             if(-not(Test-Path -LiteralPath $p -PathType Leaf)){
                 $script:UserInterfaceToolSourceSelfTestReason='missing managed tool: '+$rel
@@ -6049,7 +6070,7 @@ function Test-UserInterfaceToolSourceSelfTest {
                 return $false
             }
         }
-        foreach($requiredAction in @('ImportPackage','UnpackTest','RunFullGate','Genesis','BuildRelease','EnsureRootLauncher','OpenCompatCommands','Doctor','UpdateAll','RenderMain')){
+        foreach($requiredAction in @('ImportPackage','UnpackTest','RunFullGate','CompactQualificationEvidence','Genesis','BuildRelease','EnsureRootLauncher','OpenCompatCommands','Doctor','UpdateAll','RenderMain')){
             if($menu-notmatch("'"+[regex]::Escape($requiredAction)+"'")){
                 $script:UserInterfaceToolSourceSelfTestReason='frontend action missing: '+$requiredAction
                 return $false
@@ -6216,6 +6237,7 @@ if ($SelfTest) {
     if (-not (Test-LegacyNamespaceTransformSelfTest)) { Write-Host 'Manager self-test failed: legacy namespace transform contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-UpdateCommandSurfaceSelfTest)) { Write-Host 'Manager self-test failed: update command surface contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-TestsWorkspaceSelfTest)) { Write-Host 'Manager self-test failed: tests workspace contract.' -ForegroundColor Red; exit 1 }
+    if (-not (Test-QualificationEvidenceCompactionToolSelfTest)) { Write-Host 'Manager self-test failed: qualification evidence compaction contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-UserInterfaceToolSourceSelfTest)) { Write-Host ('Manager self-test failed: user-interface/test-archive tool contract. '+[string]$script:UserInterfaceToolSourceSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-LayoutContractSelfTest)) { Write-Host 'Manager self-test failed: canonical layout contract.' -ForegroundColor Red; exit 1 }
     if ($CanonicalLayoutActive -and $StateLayoutActive -and -not (Test-FinalFilesystemLayout)) { Write-Host 'Manager self-test failed: finalized filesystem layout contract.' -ForegroundColor Red; exit 1 }

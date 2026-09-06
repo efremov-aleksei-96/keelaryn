@@ -48,9 +48,9 @@ Open Hub, Doctor, install an update package, install pending updates, Installati
 
 ### Maintenance
 
-Repair Hub CURRENT, check/apply migrations, bind an existing Hub, open update inbox and logs. Ordinary update actions are not duplicated here.
+Repair Hub CURRENT, check/apply migrations, bind an existing Hub, open update inbox/logs, show a storage report, clean disposable test work and compact completed qualification evidence. Ordinary update actions are not duplicated here.
 
-Zero pending migrations are a no-op and require no confirmation. When an applicable migration exists, the frontend shows the plan before commit. Binding shows both current and proposed Hub paths before confirmation.
+Zero pending migrations are a no-op and require no confirmation. When an applicable migration exists, the frontend shows the plan before commit. Binding shows both current and proposed Hub paths before confirmation. Storage/destructive maintenance actions are dry-run first. Qualification compaction verifies the frozen archive before expanded evidence cleanup and never targets Manager rollback history.
 
 ### Development
 
