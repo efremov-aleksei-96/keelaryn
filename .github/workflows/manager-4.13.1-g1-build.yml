@@ -1,0 +1,65 @@
+name: Manager 4.13.1 gate g1 build
+
+on:
+  push:
+    branches: [candidate-manager-4.13.1-g1]
+    paths:
+      - '.github/workflows/manager-4.13.1-g1-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-gate:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: candidate-manager-4.13.1-g1
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact materialized Manager source
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git diff --exit-code 79d1ec4aef3ccd0143858503f2ad295083461493 -- manager
+          if($LASTEXITCODE-ne0){throw 'Gate branch Manager tree differs from exact materialized 4.13.1 commit.'}
+          $install=Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\manager\product\install\INSTALLATION.json" -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$install.manager_version-cne'4.13.1'-or[int]$install.managed_files.Count-ne67){throw 'Manager identity mismatch.'}
+          $installSha=(Get-FileHash -LiteralPath "$env:GITHUB_WORKSPACE\manager\product\install\INSTALLATION.json" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($installSha-cne'2e95279c039067ba4b731021ffdc6e26ebe2c31045586f3ecd6db8cf1183a1c7'){throw('INSTALLATION SHA mismatch: '+$installSha)}
+          $prov=Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\PUBLIC_PROVENANCE.json" -Raw -Encoding UTF8|ConvertFrom-Json
+          if(([string]$prov.source_manager_gate_managed_content_sha256).ToLowerInvariant()-cne'3354e8301b97d9cfd15c32989e36b3571591df4d63323a96696f75feea491ce1'){throw 'Managed-content provenance mismatch.'}
+          git diff --exit-code 79d1ec4aef3ccd0143858503f2ad295083461493 -- tests/framework/manager-gate
+          if($LASTEXITCODE-ne0){throw 'Frozen Gate Framework r11 differs from materialized candidate.'}
+
+      - name: Build release qualification gate g1
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'manager-4.13.1.zip'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tests\framework\manager-gate\Build-ManagerGate.ps1" -SourceRoot "$env:GITHUB_WORKSPACE\manager" -BaselineVersion '4.12.0' -GateRevision 1 -OutputPath $out -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $sha=(Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expanded=Join-Path $env:RUNNER_TEMP 'inspect';Expand-Archive -LiteralPath $out -DestinationPath $expanded -Force
+          $specPath=Join-Path $expanded 'manager-4.13.1\gate\GATE_SPEC.json'
+          $spec=Get-Content -LiteralPath $specPath -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$spec.candidate_version-cne'4.13.1'-or[string]$spec.baseline_manager_version-cne'4.12.0'-or[int]$spec.gate_revision-ne1-or[int]$spec.framework_revision-ne11-or[int]$spec.final_managed_count-ne67){throw 'Generated GATE_SPEC identity mismatch.'}
+          if(([string]$spec.candidate_installation_sha256).ToLowerInvariant()-cne'2e95279c039067ba4b731021ffdc6e26ebe2c31045586f3ecd6db8cf1183a1c7'){throw 'Generated GATE_SPEC INSTALLATION mismatch.'}
+          if(([string]$spec.candidate_managed_content_sha256).ToLowerInvariant()-cne'3354e8301b97d9cfd15c32989e36b3571591df4d63323a96696f75feea491ce1'){throw 'Generated GATE_SPEC managed-content mismatch.'}
+          $dest=Join-Path $env:GITHUB_WORKSPACE 'gate-output';New-Item -ItemType Directory -Force -Path $dest|Out-Null
+          Copy-Item -LiteralPath $out -Destination (Join-Path $dest 'manager-4.13.1.zip') -Force
+          $identity=[ordered]@{schema='keelaryn.manager-gate-build-identity.v1';candidate_version='4.13.1';materialized_commit='79d1ec4aef3ccd0143858503f2ad295083461493';baseline_version='4.12.0';gate_revision=1;framework_revision=11;installation_sha256='2e95279c039067ba4b731021ffdc6e26ebe2c31045586f3ecd6db8cf1183a1c7';managed_content_sha256='3354e8301b97d9cfd15c32989e36b3571591df4d63323a96696f75feea491ce1';gate_zip_sha256=$sha;gate_zip_bytes=(Get-Item -LiteralPath $out).Length}
+          [System.IO.File]::WriteAllText((Join-Path $dest 'GATE_BUILD_IDENTITY.json'),(($identity|ConvertTo-Json -Depth 5)+"`n"),(New-Object System.Text.UTF8Encoding($false)))
+          Write-Host ('MANAGER_4_13_1_G1_SHA256='+$sha)
+
+      - name: Upload exact gate
+        uses: actions/upload-artifact@v4
+        with:
+          name: manager-4.13.1-g1
+          path: gate-output/*
+          if-no-files-found: error
+          retention-days: 7
