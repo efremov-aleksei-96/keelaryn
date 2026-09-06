@@ -1,0 +1,70 @@
+name: Manager 4.13.0 gate g1 build
+
+on:
+  push:
+    branches: [candidate-manager-4.13.0-g1]
+    paths:
+      - '.github/workflows/manager-4.13-g1-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-gate:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact materialized Manager source
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          git diff --exit-code 158f4642fb75347ff76fb5913dec4becc5a0775a HEAD -- manager
+          if($LASTEXITCODE-ne0){throw 'Gate branch Manager tree differs from materialized candidate commit.'}
+          $install=Join-Path $root 'manager\product\install\INSTALLATION.json'
+          $installSha=(Get-FileHash -LiteralPath $install -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($installSha-cne'5cf598b412168bde4f5e543c7a8eceb7f6170b22b7325c9e9b06bea6c316f32d'){throw('INSTALLATION SHA mismatch: '+$installSha)}
+          $prov=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if(([string]$prov.source_manager_gate_managed_content_sha256).Trim().ToLowerInvariant()-cne'c6a99234dabc75ca69100046cf4450cf85763891adba279a6062e511799599ab'){throw 'Managed-content identity mismatch.'}
+          if([bool]$prov.production_validation.full_gate_pass){throw 'Gate input must remain an unqualified candidate before user Full Gate.'}
+
+      - name: Build release qualification gate g1
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $out=Join-Path $root 'manager-4.13.0.zip'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tests\framework\manager-gate\Build-ManagerGate.ps1" -SourceRoot "$root\manager" -BaselineVersion '4.12.0' -GateRevision 1 -OutputPath $out -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          if(-not(Test-Path -LiteralPath $out -PathType Leaf)){throw 'Gate archive was not produced.'}
+          $hash=(Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash.ToLowerInvariant()
+          $size=(Get-Item -LiteralPath $out).Length
+          [ordered]@{
+            schema='keelaryn.manager-gate-build-identity.v1'
+            manager_version='4.13.0'
+            source_commit='158f4642fb75347ff76fb5913dec4becc5a0775a'
+            baseline_version='4.12.0'
+            gate_revision=1
+            framework_revision=11
+            installation_sha256='5cf598b412168bde4f5e543c7a8eceb7f6170b22b7325c9e9b06bea6c316f32d'
+            managed_content_sha256='c6a99234dabc75ca69100046cf4450cf85763891adba279a6062e511799599ab'
+            gate_zip_sha256=$hash
+            gate_zip_bytes=[int64]$size
+          }|ConvertTo-Json -Depth 4|Set-Content -LiteralPath (Join-Path $root 'GATE_BUILD_IDENTITY.json') -Encoding UTF8
+          Write-Host ('RELEASE_GATE_G1=PASS zip_sha256='+$hash+' bytes='+$size)
+
+      - name: Upload exact gate
+        uses: actions/upload-artifact@v4
+        with:
+          name: manager-4.13.0-g1
+          path: |
+            manager-4.13.0.zip
+            GATE_BUILD_IDENTITY.json
+          if-no-files-found: error
+          retention-days: 7
