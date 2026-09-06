@@ -1,0 +1,104 @@
+name: Manager 4.13.1 ordinary-Windows fallback preflight
+
+on:
+  push:
+    branches: [manager-4.13.1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-4.13.1-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: manager-4.13.1
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Apply asserted 4.13.1 fix
+        shell: powershell
+        run: |
+          python "$env:GITHUB_WORKSPACE\.github\manager-4.13.1-fix.py"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Parser and executable ASCII
+        shell: powershell
+        run: |
+          $install=Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\manager\product\install\INSTALLATION.json" -Raw -Encoding UTF8|ConvertFrom-Json
+          foreach($rel in @($install.managed_files)){
+            $path=Join-Path "$env:GITHUB_WORKSPACE\manager" ([string]$rel).Replace('/','\')
+            $ext=[System.IO.Path]::GetExtension($path)
+            if($ext-ieq'.ps1'){
+              $tokens=$null;$errors=$null
+              [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+              if(@($errors).Count-ne0){foreach($e in @($errors)){Write-Error ($path+': '+$e.Message+' line='+$e.Extent.StartLineNumber+' col='+$e.Extent.StartColumnNumber+' extent='+[string]$e.Extent.Text)};exit 1}
+            }
+            if($ext-ieq'.ps1'-or$ext-ieq'.cmd'){
+              $bytes=[System.IO.File]::ReadAllBytes($path)
+              if(@($bytes|Where-Object{$_-ge128}).Count-ne0){throw('Managed executable ASCII safety failed: '+$path)}
+            }
+          }
+
+      - name: Compactor SelfTest with file symlink when available
+        shell: powershell
+        run: |
+          $tool="$env:GITHUB_WORKSPACE\manager\product\tools\Compact-KeelarynQualificationEvidence.ps1"
+          Remove-Item Env:KEELARYN_SELFTEST_FORCE_NO_FILE_SYMLINK -ErrorAction SilentlyContinue
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $tool -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Compactor SelfTest forced ordinary-Windows fallback
+        shell: powershell
+        run: |
+          $env:KEELARYN_SELFTEST_FORCE_NO_FILE_SYMLINK='1'
+          $tool="$env:GITHUB_WORKSPACE\manager\product\tools\Compact-KeelarynQualificationEvidence.ps1"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $tool -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Manager SelfTest forced ordinary-Windows fallback
+        shell: powershell
+        run: |
+          $lab=Join-Path $env:RUNNER_TEMP ('manager-4131-'+[guid]::NewGuid().ToString('N'))
+          $manager=Join-Path $lab 'manager'
+          try{
+            New-Item -ItemType Directory -Force -Path $lab|Out-Null
+            Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE\manager" -Destination $manager -Recurse -Force
+            $env:KEELARYN_SELFTEST_FORCE_NO_FILE_SYMLINK='1'
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\runtime\Keelaryn__Manager.ps1" -SelfTest
+            if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\tools\KeelarynMenu.ps1" -SelfTest
+            if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          }finally{Remove-Item Env:KEELARYN_SELFTEST_FORCE_NO_FILE_SYMLINK -ErrorAction SilentlyContinue;if(Test-Path -LiteralPath $lab){Remove-Item -LiteralPath $lab -Recurse -Force -ErrorAction SilentlyContinue}}
+
+      - name: Verify public source boundary
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: r11 SourceGate forced ordinary-Windows fallback
+        shell: powershell
+        run: |
+          $root=$env:GITHUB_WORKSPACE
+          $zip=Join-Path $env:RUNNER_TEMP 'manager-4.13.1.zip'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tests\framework\manager-gate\Build-ManagerGate.ps1" -SourceRoot "$root\manager" -BaselineVersion '4.12.0' -GateRevision 9010 -OutputPath $zip -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $work=Join-Path $env:RUNNER_TEMP 'gate4131\tests\work';New-Item -ItemType Directory -Force -Path $work|Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath $work -Force
+          $env:KEELARYN_SELFTEST_FORCE_NO_FILE_SYMLINK='1'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$work\manager-4.13.1\gate\Run-KeelarynManagerSourceGate.ps1" -ManagerRoot "$work\manager-4.13.1"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Report candidate identity
+        shell: powershell
+        run: |
+          $prov=Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\PUBLIC_PROVENANCE.json" -Raw -Encoding UTF8|ConvertFrom-Json
+          Write-Host ('MANAGER_4_13_1_PREFLIGHT=PASS managed='+$prov.source_manager_gate_managed_content_sha256)
