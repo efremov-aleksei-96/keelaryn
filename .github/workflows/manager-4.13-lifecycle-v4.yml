@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: manager-4.13-lifecycle-parser-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   parser-diagnostic:
