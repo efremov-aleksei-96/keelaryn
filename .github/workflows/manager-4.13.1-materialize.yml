@@ -1,0 +1,89 @@
+name: Manager 4.13.1 controlled materialization
+
+on:
+  push:
+    branches: [manager-4.13.1]
+    paths:
+      - '.github/workflows/manager-4.13.1-materialize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-4.13.1-materialize
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: manager-4.13.1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Reproduce exact validated candidate
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git status --porcelain).Count-ne0){throw 'Materialization requires a clean checkout.'}
+          python "$env:GITHUB_WORKSPACE\.github\manager-4.13.1-fix0.py"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          python "$env:GITHUB_WORKSPACE\.github\manager-4.13.1-fix.py"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $install="$env:GITHUB_WORKSPACE\manager\product\install\INSTALLATION.json"
+          $installSha=(Get-FileHash -LiteralPath $install -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($installSha-cne'2e95279c039067ba4b731021ffdc6e26ebe2c31045586f3ecd6db8cf1183a1c7'){throw('INSTALLATION identity mismatch: '+$installSha)}
+          $prov=Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\PUBLIC_PROVENANCE.json" -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$prov.source_manager_version-cne'4.13.1'){throw 'Provenance version mismatch.'}
+          if(([string]$prov.source_manager_gate_managed_content_sha256).ToLowerInvariant()-cne'3354e8301b97d9cfd15c32989e36b3571591df4d63323a96696f75feea491ce1'){throw 'Managed-content identity mismatch.'}
+          if([bool]$prov.production_validation.full_gate_pass-or-not[string]::IsNullOrWhiteSpace([string]$prov.production_validation.tested_update_sha256)){throw 'Candidate must remain unqualified before local Full Gate.'}
+          git diff --exit-code -- tests/framework/manager-gate
+          if($LASTEXITCODE-ne0){throw 'Frozen framework r11 changed.'}
+
+      - name: Revalidate source-only tree and ordinary-Windows fallback
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $lab=Join-Path $env:RUNNER_TEMP ('manager-4131-materialize-'+[guid]::NewGuid().ToString('N'))
+          $manager=Join-Path $lab 'manager'
+          try{
+            New-Item -ItemType Directory -Force -Path $lab|Out-Null
+            Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE\manager" -Destination $manager -Recurse -Force
+            $env:KEELARYN_SELFTEST_FORCE_NO_FILE_SYMLINK='1'
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\runtime\Keelaryn__Manager.ps1" -SelfTest
+            if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\tools\KeelarynMenu.ps1" -SelfTest
+            if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          }finally{Remove-Item Env:KEELARYN_SELFTEST_FORCE_NO_FILE_SYMLINK -ErrorAction SilentlyContinue;if(Test-Path -LiteralPath $lab){Remove-Item -LiteralPath $lab -Recurse -Force -ErrorAction SilentlyContinue}}
+          if(Test-Path -LiteralPath "$env:GITHUB_WORKSPACE\manager\state"){throw 'Repository manager/state appeared during isolated validation.'}
+
+      - name: Remove dev scaffolding and commit exact candidate
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($rel in @(
+            '.github/manager-4.13.1-fix0.py',
+            '.github/manager-4.13.1-fix.py',
+            '.github/workflows/manager-4.13.1-dev.yml',
+            '.github/workflows/manager-4.13.1-materialize.yml'
+          )){
+            $path=Join-Path $env:GITHUB_WORKSPACE $rel.Replace('/','\')
+            if(Test-Path -LiteralPath $path){git rm -f -- $rel;if($LASTEXITCODE-ne0){throw('Could not remove scaffold: '+$rel)}}
+          }
+          git diff --exit-code -- tests/framework/manager-gate
+          if($LASTEXITCODE-ne0){throw 'Frozen framework r11 changed.'}
+          $installSha=(Get-FileHash -LiteralPath "$env:GITHUB_WORKSPACE\manager\product\install\INSTALLATION.json" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($installSha-cne'2e95279c039067ba4b731021ffdc6e26ebe2c31045586f3ecd6db8cf1183a1c7'){throw 'Candidate bytes changed after validation.'}
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(manager): make 4.13.1 SelfTest privilege-independent'
+          if($LASTEXITCODE-ne0){throw 'Candidate materialization commit failed.'}
+          git push origin HEAD:manager-4.13.1
+          if($LASTEXITCODE-ne0){throw 'Candidate materialization push failed.'}
