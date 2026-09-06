@@ -122,9 +122,26 @@ if(-not[bool]$branchDoc.protected){Fail('Default branch is not protected by an a
 
 $named=@($rulesets|Where-Object{[string]$_.name-eq[string]$contract.main_ruleset.name})
 if($named.Count-ne1){Fail('Expected exactly one repository ruleset named '+[string]$contract.main_ruleset.name+'.')}
-if([string]$named[0].target-ne'branch'){Fail('Governance ruleset target must be branch.')}
-$enforcement=([string]$named[0].enforcement).ToLowerInvariant()
-if($enforcement-notin@('active','enabled')){Fail('Governance ruleset is not active: '+$enforcement)}
+$summaryEnforcement=([string]$named[0].enforcement).ToLowerInvariant()
+if($summaryEnforcement-notin@('active','enabled')){Fail('Governance ruleset is not active: '+$summaryEnforcement)}
+if($null-eq$named[0].id){Fail('Governance ruleset summary is missing id.')}
+
+$detail=Invoke-GitHubGet ($api+'/rulesets/'+[string]$named[0].id) $headers
+if([string]$detail.name-ne[string]$contract.main_ruleset.name){Fail('Governance ruleset detail name mismatch.')}
+if([string]$detail.target-ne'branch'){Fail('Governance ruleset target must be branch.')}
+$detailEnforcement=([string]$detail.enforcement).ToLowerInvariant()
+if($detailEnforcement-notin@('active','enabled')){Fail('Governance ruleset detail is not active: '+$detailEnforcement)}
+
+$include=@();if($null-ne$detail.conditions.ref_name.include){$include=@($detail.conditions.ref_name.include|ForEach-Object{[string]$_})}
+$exclude=@();if($null-ne$detail.conditions.ref_name.exclude){$exclude=@($detail.conditions.ref_name.exclude|ForEach-Object{[string]$_})}
+if($include.Count-ne1-or($include[0]-ne'refs/heads/main'-and$include[0]-ne'~DEFAULT_BRANCH')){
+    Fail('Governance ruleset must target only main/default branch; include='+($include-join','))
+}
+if($exclude.Count-ne0){Fail('Governance ruleset must not exclude refs: '+($exclude-join','))}
+if($null-ne$detail.PSObject.Properties['bypass_actors']){
+    $bypass=@();if($null-ne$detail.bypass_actors){$bypass=@($detail.bypass_actors)}
+    if($bypass.Count-ne0){Fail('Governance ruleset bypass list must be empty.')}
+}
 
 $types=@($rules|ForEach-Object{[string]$_.type})
 foreach($requiredType in @('pull_request','required_status_checks','non_fast_forward','deletion')){
@@ -150,4 +167,4 @@ $actualContexts=@($status.required_status_checks|ForEach-Object{[string]$_.conte
 foreach($context in $requiredContexts){if($actualContexts-notcontains$context){Fail('Missing required status check: '+$context)}}
 if($actualContexts.Count-ne$requiredContexts.Count){Fail('Active required status checks contain unexpected contexts: '+($actualContexts-join', '))}
 
-Write-Host ('Repository governance online enforcement: PASS. ruleset='+[string]$named[0].name) -ForegroundColor Green
+Write-Host ('Repository governance online enforcement: PASS. ruleset='+[string]$detail.name) -ForegroundColor Green
