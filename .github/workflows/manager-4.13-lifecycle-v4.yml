@@ -1,0 +1,114 @@
+name: Manager 4.13 lifecycle candidate v4
+
+on:
+  push:
+    branches: [manager-4.13.0-lifecycle]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-4.13-lifecycle-v4-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lifecycle-v4:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: manager-4.13.0-lifecycle
+          fetch-depth: 0
+
+      - name: Apply asserted lifecycle patch
+        shell: powershell
+        run: |
+          python "$env:GITHUB_WORKSPACE\.github\manager-4.13-lifecycle-fix1.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python "$env:GITHUB_WORKSPACE\.github\manager-4.13-lifecycle-fix2.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python "$env:GITHUB_WORKSPACE\.github\manager-4.13-lifecycle.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: PowerShell parser and executable ASCII safety
+        shell: powershell
+        run: |
+          $install=Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\manager\product\install\INSTALLATION.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+          foreach($rel in @($install.managed_files)){
+            $path=Join-Path "$env:GITHUB_WORKSPACE\manager" ([string]$rel).Replace('/','\')
+            $ext=[System.IO.Path]::GetExtension($path)
+            if($ext-ieq'.ps1'){
+              $tokens=$null;$errors=$null
+              [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+              if(@($errors).Count-ne0){foreach($e in @($errors)){Write-Error ($path+': '+$e.Message)};exit 1}
+            }
+            if($ext-ieq'.ps1' -or $ext-ieq'.cmd'){
+              $bytes=[System.IO.File]::ReadAllBytes($path)
+              if(@($bytes|Where-Object{$_-ge128}).Count-ne0){throw('Managed executable ASCII safety failed: '+$path)}
+            }
+          }
+
+      - name: Qualification compaction self-test
+        shell: powershell
+        run: |
+          $tool="$env:GITHUB_WORKSPACE\manager\product\tools\Compact-KeelarynQualificationEvidence.ps1"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $tool -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Disposable Manager and frontend SelfTests
+        shell: powershell
+        run: |
+          $lab=Join-Path $env:RUNNER_TEMP 'selftest-keelaryn'
+          $manager=Join-Path $lab 'manager'
+          New-Item -ItemType Directory -Force -Path $lab|Out-Null
+          Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE\manager" -Destination $manager -Recurse -Force
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\runtime\Keelaryn__Manager.ps1" -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\tools\KeelarynMenu.ps1" -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: AI_CONTEXT generator preflight
+        shell: powershell
+        run: |
+          $manager=Join-Path $env:RUNNER_TEMP 'selftest-keelaryn\manager'
+          $out=Join-Path $env:RUNNER_TEMP ('ai-context-'+[guid]::NewGuid().ToString('N'))
+          try{
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\tools\New-KeelarynAIContext.ps1" -ManagerRoot $manager -OutputDirectory $out
+            if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          }finally{if(Test-Path -LiteralPath $out){Remove-Item -LiteralPath $out -Recurse -Force -ErrorAction SilentlyContinue}}
+
+      - name: Verify public source boundary
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Build r11 SourceGate in canonical workspace
+        shell: powershell
+        run: |
+          $root=$env:GITHUB_WORKSPACE
+          $gateZip=Join-Path $env:RUNNER_TEMP 'manager-4.13.0.zip'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tests\framework\manager-gate\Build-ManagerGate.ps1" -SourceRoot "$root\manager" -BaselineVersion '4.12.0' -GateRevision 9004 -OutputPath $gateZip -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $labRoot=Join-Path $env:RUNNER_TEMP 'gate-keelaryn'
+          $work=Join-Path $labRoot 'tests\work'
+          New-Item -ItemType Directory -Force -Path $work|Out-Null
+          Expand-Archive -LiteralPath $gateZip -DestinationPath $work -Force
+          $candidate=Join-Path $work 'manager-4.13.0'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$candidate\gate\Run-KeelarynManagerSourceGate.ps1" -ManagerRoot $candidate
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Commit validated lifecycle layer
+        shell: powershell
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+          foreach($p in @('.github\manager-4.13-lifecycle.py','.github\manager-4.13-lifecycle-fix1.py','.github\manager-4.13-lifecycle-fix2.py','.github\workflows\manager-4.13-lifecycle.yml','.github\workflows\manager-4.13-lifecycle-v2.yml','.github\workflows\manager-4.13-lifecycle-v3.yml','.github\workflows\manager-4.13-lifecycle-v4.yml')){if(Test-Path -LiteralPath $p){Remove-Item -LiteralPath $p -Force}}
+          git add -A
+          if(-not(git status --porcelain)){throw 'Lifecycle validation produced no source changes.'}
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(manager): verify and compact completed qualification evidence'
+          git push origin HEAD:manager-4.13.0-lifecycle
