@@ -212,8 +212,27 @@ jobs:
           git config --local commit.gpgsign false
           git rm -- '.github/workflows/promote-manager-4.12.0.yml'
           git add -- manager PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
-          git diff --cached --check
-          if ($LASTEXITCODE -ne 0) { throw 'Promotion commit failed git diff --cached --check.' }
+
+          # The qualified KeelarynMenu.ps1 is an authoritative CRLF file. Git's
+          # whitespace checker treats the CR byte on newly added CRLF lines as
+          # trailing whitespace, so bind all seven qualified Manager files by
+          # SHA-256 and run the staged whitespace check on every other path.
+          $expectedHashes = @{
+            'manager/product/docs/GENESIS_AND_ONBOARDING.md' = '743b23903858d940e021f5780c164464e8e28dcfcf06deea82b92cb630e21897'
+            'manager/product/docs/USER_INTERFACE.md' = '9a8ea6f6c6a493a1a94301526b21f917184d62a4fe6f1c3198a851ca471d6b2e'
+            'manager/product/install/INSTALLATION.json' = '7d616af1999a0071299044ac4f5f72d14f1bd74f5bc4fb280714db2076efaf77'
+            'manager/product/manager_release.json' = 'b7259c6f72bf6b5da6e1a02f5245325459b7e54927c5eabfead5cb3831ecc745'
+            'manager/product/runtime/Keelaryn__Manager.ps1' = 'fd1643afd53f5846ab2a37537816045ea3295f1621c186172de3c10ff9e072c3'
+            'manager/product/tools/KeelarynMenu.ps1' = '535468e490b83759874507f411b7f37c2274bf0f43d3bed65d8b9169a74d7af2'
+            'manager/README_FIRST.md' = 'a4104efa9b71e7b08fe0361851894a571b3bd12474c12418ab4e3cb6ab053b0b'
+          }
+          foreach ($rel in $expectedHashes.Keys) {
+            $actual = (Get-FileHash -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $rel.Replace('/','\')) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $expectedHashes[$rel]) { throw "Qualified Manager file identity mismatch before commit: $rel = $actual" }
+          }
+
+          git diff --cached --check -- . ':(exclude)manager/product/tools/KeelarynMenu.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Promotion commit failed staged whitespace check outside authoritative CRLF menu source.' }
           $changed = @(git diff --cached --name-only)
           $managerChanged = @($changed | Where-Object { $_ -like 'manager/*' })
           if ($managerChanged.Count -ne 7) { throw "Expected exactly 7 changed Manager files; found $($managerChanged.Count): $($managerChanged -join ', ')" }
