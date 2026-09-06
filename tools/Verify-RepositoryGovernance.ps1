@@ -112,8 +112,10 @@ foreach($property in @('allow_squash_merge','allow_merge_commit','allow_rebase_m
 
 $branchName=[string]$contract.default_branch
 $branchDoc=Invoke-GitHubGet ($api+'/branches/'+[System.Uri]::EscapeDataString($branchName)) $headers
-$rulesets=@(Invoke-GitHubGet ($api+'/rulesets?per_page=100') $headers)
-$rules=@(Invoke-GitHubGet ($api+'/rules/branches/'+[System.Uri]::EscapeDataString($branchName)+'?per_page=100') $headers)
+$rulesetsRaw=Invoke-GitHubGet ($api+'/rulesets?per_page=100') $headers
+$rulesRaw=Invoke-GitHubGet ($api+'/rules/branches/'+[System.Uri]::EscapeDataString($branchName)+'?per_page=100') $headers
+$rulesets=@();if($null-ne$rulesetsRaw){$rulesets=@($rulesetsRaw)}
+$rules=@();if($null-ne$rulesRaw){$rules=@($rulesRaw)}
 Write-Host ('Online governance visibility: protected='+[bool]$branchDoc.protected+'; rulesets='+$rulesets.Count+'; active_rules='+$rules.Count) -ForegroundColor DarkGray
 
 if(-not[bool]$branchDoc.protected){Fail('Default branch is not protected by an active branch rule/ruleset.')}
