@@ -58,14 +58,28 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\manager\product\runtime\Keelaryn__Manager.ps1" -SelfTest
-          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\manager\product\tools\KeelarynMenu.ps1" -SelfTest
-          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          # Public source verification must see a source-only repository tree.
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          # Manager execution is isolated so fresh-install runtime state cannot contaminate repository source.
+          $lab=Join-Path $env:RUNNER_TEMP ('materialized-manager-'+[guid]::NewGuid().ToString('N'))
+          $manager=Join-Path $lab 'manager'
+          try{
+            New-Item -ItemType Directory -Force -Path $lab|Out-Null
+            Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE\manager" -Destination $manager -Recurse -Force
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\runtime\Keelaryn__Manager.ps1" -SelfTest
+            if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$manager\product\tools\KeelarynMenu.ps1" -SelfTest
+            if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          }finally{
+            if(Test-Path -LiteralPath $lab){Remove-Item -LiteralPath $lab -Recurse -Force -ErrorAction SilentlyContinue}
+          }
+
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\.github\manager-4.13-release-contract-selftest.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          if(Test-Path -LiteralPath "$env:GITHUB_WORKSPACE\manager\state"){throw 'Repository manager/state appeared during isolated validation.'}
 
       - name: Remove development scaffolding and commit exact bytes
         shell: powershell
