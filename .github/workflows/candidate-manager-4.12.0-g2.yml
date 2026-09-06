@@ -71,10 +71,37 @@ jobs:
           [System.IO.File]::WriteAllText($canonical,$patchText,(New-Object System.Text.UTF8Encoding($false)))
           $hash = (Get-FileHash -LiteralPath $canonical -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -ne '39cd69ea69ab98638fcb5a54b74033b3b5131a963cb7db1ace84a20d6de91bdf') { throw "Framework r10 patch hash mismatch: $hash" }
+
+          $full = Join-Path $root 'tests\framework\manager-gate\templates\Run-KeelarynManagerFullGate.ps1'
+          $source = Join-Path $root 'tests\framework\manager-gate\templates\Run-KeelarynManagerSourceGate.ps1'
+          $pre = @{
+            $full='c6e1fc79e6ffff15baf69292d782134d3aae25334d7eb1b5a29b143766526d2a'
+            $source='a0afd33988451bf6af2460355ca5c8f577b7401a202734bb54dd660edccaf1eb'
+          }
+          foreach($path in @($full,$source)){
+            $actual=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if($actual-ne$pre[$path]){throw("Frozen r9 template identity mismatch before r10 patch: "+$path+" actual="+$actual)}
+            $text=[System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($path)).Replace("`r`n","`n")
+            [System.IO.File]::WriteAllText($path,$text,(New-Object System.Text.ASCIIEncoding))
+          }
+
           git apply --check --whitespace=nowarn "$canonical"
-          if ($LASTEXITCODE -ne 0) { throw 'Framework r10 patch does not apply cleanly to frozen r9.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Framework r10 patch does not apply cleanly to LF-normalized frozen r9.' }
           git apply --whitespace=nowarn "$canonical"
           if ($LASTEXITCODE -ne 0) { throw 'Framework r10 patch application failed.' }
+
+          foreach($path in @($full,$source)){
+            $text=[System.IO.File]::ReadAllText($path,[System.Text.Encoding]::ASCII).Replace("`r`n","`n").Replace("`n","`r`n")
+            [System.IO.File]::WriteAllText($path,$text,(New-Object System.Text.ASCIIEncoding))
+          }
+          $post = @{
+            $full='0a929e246fc23ca4b7813a5fff2f9e6d9bf63ddd69b1af42f7cf8f4a48256f3a'
+            $source='fff6dccaea97695a68820fdd64115a4364fdc6248bbaf4a9c91db6926c4ef414'
+          }
+          foreach($path in @($full,$source)){
+            $actual=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if($actual-ne$post[$path]){throw("Framework r10 template identity mismatch after patch: "+$path+" actual="+$actual)}
+          }
           $marker = (Get-Content "$root\tests\framework\manager-gate\FRAMEWORK_REVISION.txt" -Raw -Encoding UTF8).Trim()
           if ($marker -ne '10') { throw "Framework revision is not 10: $marker" }
 
