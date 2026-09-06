@@ -21,16 +21,15 @@ The resulting `main` history is one reviewed/qualified commit per merged PR.
 
 ## Required main ruleset
 
-In **Settings > Rules > Rulesets**, create a branch ruleset named exactly:
+The active branch ruleset is named exactly:
 
 `Keelaryn main governance`
 
-Configure it as follows:
+It must remain:
 
 - Enforcement status: **Active**.
-- Target: branch.
-- Target branch: **main** / `refs/heads/main` only.
-- Bypass list: **empty**. Do not grant the repository administrator, GitHub Apps, or other roles an unconditional bypass.
+- Target: default branch / `main` only.
+- Bypass list: **empty**.
 - Require a pull request before merging: **enabled**.
 - Required approving reviews: **0**.
 - Require code owner review: **disabled**.
@@ -48,18 +47,54 @@ Configure it as follows:
 
 `distribution-gate` is intentionally not a global required check because the public-release workflow is path-scoped and does not run on every documentation/governance PR. It remains a release gate whenever that workflow is triggered, and release publication itself is separately fail-closed.
 
-## Applying this governance PR
+## Immutable releases
 
-The `repository-governance` check is expected to fail while `main` is still unprotected. That failure is the intended bootstrap boundary.
+Repository Governance r2 requires **GitHub native immutable releases** for every future non-legacy Manager release.
 
-1. Open the governance PR and allow `source-gate` to complete.
-2. Apply the repository merge settings and the ruleset above in GitHub Settings.
-3. Re-run the failed `repository-governance` check.
-4. The check must report both source-contract PASS and online-enforcement PASS.
-5. Merge the governance PR with **Squash and merge**.
-6. Verify the post-merge `repository-governance` and `source-gate` checks on `main`.
+Enable the repository setting through GitHub **Settings > General > Releases > Enable release immutability**, or with an administrator-authenticated GitHub CLI:
 
-Do not temporarily add bypass actors merely to merge the bootstrap PR. The PR itself was created before the ruleset, so once the ruleset is active it can be evaluated normally.
+```text
+gh api --method PUT repos/efremov-aleksei-96/keelaryn/immutable-releases -H "X-GitHub-Api-Version: 2026-03-10"
+```
+
+Verify it with an administrator-authenticated token:
+
+```text
+gh api repos/efremov-aleksei-96/keelaryn/immutable-releases -H "X-GitHub-Api-Version: 2026-03-10"
+```
+
+The expected response contains `"enabled": true`.
+
+GitHub applies this setting only to releases published after it is enabled. Historical mutable releases are therefore represented explicitly by `release_policy.immutable_releases.legacy_mutable_tags` in `REPOSITORY_GOVERNANCE.json`.
+
+A **legacy mutable** release is a historical exception only:
+
+- it must already exist;
+- it must never be recreated by the publisher;
+- its release assets must remain byte-identical to the gated build;
+- it is not evidence that future mutable releases are acceptable.
+
+## Publication contract for future releases
+
+For a new non-legacy release, `.github/workflows/public-release.yml` performs the following sequence:
+
+1. Build and gate the exact Manager artifacts.
+2. Create a **draft** GitHub Release and attach all release assets before publication.
+3. Publish the draft.
+4. Require GitHub to report `isImmutable=true`.
+5. Verify the GitHub **release attestation** with `gh release verify`.
+6. Verify every published local asset against the release attestation with `gh release verify-asset`.
+7. Re-download the release assets and require byte-for-byte identity with the gated build.
+
+If a newly published release is unexpectedly mutable, the workflow immediately deletes that new mutable release and its new tag and fails the publication job. An existing published non-legacy mutable release is never silently overwritten or deleted; publication fails for investigation.
+
+For a workflow retry that finds an unfinished draft, the draft is recoverable only when it targets the exact current publication commit. Expected assets may be refreshed while it is still a draft; publication occurs only after the gated asset set is complete.
+
+## Legacy 4.13.1 boundary
+
+`v4.13.1` predates native immutable-release enforcement and remains a historical mutable exception. Repository Governance r2 does not rewrite its tag, release, or assets. Re-running the release workflow against 4.13.1 succeeds only after the already-published assets are proven byte-identical to the gated artifacts.
+
+Once a release is native-immutable, it must not be added to the legacy exception list.
 
 ## Auditing
 
@@ -69,6 +104,8 @@ Local/source-only audit:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-RepositoryGovernance.ps1
 ```
 
-Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks repository merge settings, protected `main`, the named active ruleset, pull-request parameters, strict required checks, force-push blocking and deletion protection.
+Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks repository merge settings where visible, protected `main`, the named active ruleset, pull-request parameters, strict required checks, force-push blocking, deletion protection, the immutable-release source contract, and the existence of declared legacy release exceptions.
 
-The policy source must stay separate from Manager qualification provenance. Changing repository governance does not retroactively rewrite the provenance of already qualified Manager releases.
+The native immutable-releases repository setting itself requires GitHub **Administration** permission to read/write. Ordinary Actions jobs deliberately run with read-only repository permissions, so this setting is verified at the administrator bootstrap boundary rather than by weakening workflow permissions.
+
+The policy source stays separate from Manager qualification provenance. Changing repository governance does not retroactively rewrite the provenance of already qualified Manager releases.
