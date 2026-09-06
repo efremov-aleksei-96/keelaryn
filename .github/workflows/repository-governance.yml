@@ -1,0 +1,32 @@
+name: Repository governance
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-governance:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Verify repository governance
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-RepositoryGovernance.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Repository "$env:GITHUB_REPOSITORY" -Online
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
