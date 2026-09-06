@@ -31,6 +31,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python "$env:GITHUB_WORKSPACE\.github\manager-4.13-lifecycle-fix4.py"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python "$env:GITHUB_WORKSPACE\.github\manager-4.13-lifecycle-fix5.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python "$env:GITHUB_WORKSPACE\.github\manager-4.13-lifecycle.py"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -95,7 +97,7 @@ jobs:
         run: |
           $root=$env:GITHUB_WORKSPACE
           $gateZip=Join-Path $env:RUNNER_TEMP 'manager-4.13.0.zip'
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tests\framework\manager-gate\Build-ManagerGate.ps1" -SourceRoot "$root\manager" -BaselineVersion '4.12.0' -GateRevision 9007 -OutputPath $gateZip -Force
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tests\framework\manager-gate\Build-ManagerGate.ps1" -SourceRoot "$root\manager" -BaselineVersion '4.12.0' -GateRevision 9008 -OutputPath $gateZip -Force
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           $labRoot=Join-Path $env:RUNNER_TEMP 'gate-keelaryn'
           $work=Join-Path $labRoot 'tests\work'
