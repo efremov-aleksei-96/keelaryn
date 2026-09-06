@@ -26,16 +26,16 @@ jobs:
         shell: powershell
         run: |
           $path = Join-Path $env:GITHUB_WORKSPACE '.github\workflows\public-release.yml'
-          $text = [System.IO.File]::ReadAllText($path,[System.Text.Encoding]::UTF8)
-          $old = "            if (-not [bool]`$prov.production_validation.production_doctor_pass) { throw 'Publication refused: provenance does not record a production Doctor PASS.' }`r`n            `$tested = ([string]`$prov.production_validation.tested_update_sha256).Trim().ToLowerInvariant()"
-          $new = "            if (-not [bool]`$prov.production_validation.production_doctor_pass) { throw 'Publication refused: provenance does not record a production Doctor PASS.' }`r`n            if (-not [bool]`$prov.production_validation.production_ux_smoke_pass) { throw 'Publication refused: provenance does not record a production UX smoke PASS.' }`r`n            `$tested = ([string]`$prov.production_validation.tested_update_sha256).Trim().ToLowerInvariant()"
+          $text = [System.IO.File]::ReadAllText($path,[System.Text.Encoding]::UTF8).Replace("`r`n","`n")
+          $old = "            if (-not [bool]`$prov.production_validation.production_doctor_pass) { throw 'Publication refused: provenance does not record a production Doctor PASS.' }`n            `$tested = ([string]`$prov.production_validation.tested_update_sha256).Trim().ToLowerInvariant()"
+          $new = "            if (-not [bool]`$prov.production_validation.production_doctor_pass) { throw 'Publication refused: provenance does not record a production Doctor PASS.' }`n            if (-not [bool]`$prov.production_validation.production_ux_smoke_pass) { throw 'Publication refused: provenance does not record a production UX smoke PASS.' }`n            `$tested = ([string]`$prov.production_validation.tested_update_sha256).Trim().ToLowerInvariant()"
           if(([regex]::Matches($text,[regex]::Escape($old))).Count -ne 1){throw 'Publication guard sentinel mismatch.'}
           $text=$text.Replace($old,$new)
           $oldMsg="            Write-Host 'Publication authorization: production Full Gate + Doctor + tested UPDATE identity present.' -ForegroundColor Green"
           $newMsg="            Write-Host 'Publication authorization: production Full Gate + Doctor + UX smoke + tested UPDATE identity present.' -ForegroundColor Green"
           if(([regex]::Matches($text,[regex]::Escape($oldMsg))).Count -ne 1){throw 'Publication authorization message sentinel mismatch.'}
           $text=$text.Replace($oldMsg,$newMsg)
-          [System.IO.File]::WriteAllText($path,$text,(New-Object System.Text.UTF8Encoding($false)))
+          [System.IO.File]::WriteAllText($path,($text.Replace("`n","`r`n")),(New-Object System.Text.UTF8Encoding($false)))
 
           $managerDiff = git diff --name-only -- manager
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
