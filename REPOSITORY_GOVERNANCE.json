@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.repository-governance.v1",
-  "revision": 2,
+  "revision": 3,
   "repository": "efremov-aleksei-96/keelaryn",
   "default_branch": "main",
   "merge_policy": {
@@ -59,7 +59,15 @@
     },
     "default_workflow_permissions": "read",
     "can_approve_pull_request_reviews": false,
-    "dependabot_github_actions_updates": true
+    "dependabot_github_actions_updates": true,
+    "runner_labels": {
+      "allowed": [
+        "windows-2025",
+        "ubuntu-24.04"
+      ],
+      "moving_latest_forbidden": true,
+      "policy": "Use explicit GA OS-family labels for GitHub-hosted runners. Image patch/build revisions may still advance within the pinned OS family."
+    }
   },
   "release_policy": {
     "manager_release_publication_requires": [
