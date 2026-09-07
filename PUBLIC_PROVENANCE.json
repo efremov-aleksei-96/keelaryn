@@ -1,49 +1,49 @@
 {
-  "schema": "keelaryn.public-repository-provenance.v2",
-  "role": "public_source_sync_candidate",
-  "source_manager_version": "4.13.1",
-  "source_gate_baseline_manager_version": "4.12.0",
-  "source_manager_installation_sha256": "2e95279c039067ba4b731021ffdc6e26ebe2c31045586f3ecd6db8cf1183a1c7",
-  "source_manager_gate_managed_content_sha256": "3354e8301b97d9cfd15c32989e36b3571591df4d63323a96696f75feea491ce1",
-  "production_validation": {
-    "full_gate_pass": true,
-    "gate_revision": 1,
-    "framework_revision": 11,
-    "tested_update_sha256": "258cecaa691506d255d168cda57d65b09ac15326e4dcbc2fa82968786291fa8f",
-    "production_doctor_pass": true,
-    "production_ux_smoke_pass": true,
-    "production_managed_content_prefix": "d2a2df0e6af9"
-  },
-  "personal_hub_included": false,
-  "manager_runtime_state_included": false,
-  "local_test_evidence_included": false,
-  "gate_framework": {
-    "version": "2.0",
-    "revision": 11,
-    "windows_qualified": true,
-    "frozen_for_manager_candidate": true
-  },
-  "license": {
-    "spdx_id": "MIT",
-    "file": "LICENSE",
-    "copyright": "Copyright (c) 2026 Keelaryn contributors"
-  },
-  "public_candidate_revision": 6,
-  "git_checkout_contract": {
-    "manager_authoritative_tree_attribute": "-text",
-    "framework_authoritative_tree_attribute": "-text",
-    "core_autocrlf_true_roundtrip_required": true
-  },
-  "known_nonsecret_source_hygiene_notes": [
-    "tests/framework/manager-gate/README.md retains a maintainer-local D:\\0\\0__Core example in frozen Gate Framework r11 source; it is historical qualification source, not a product installation default."
-  ],
-  "ci_policy": {
-    "github_actions": "pull_request + main push + manual",
-    "hosted_scope": "repository verification + Hub-blind SourceGate + Generic DISTRIBUTION smoke",
-    "full_gate": "CURRENT-backed Windows Full Gate plus production Doctor and production UX smoke before publication",
-    "update_identity": "when full_gate_pass=true, PR and main BuildRelease UPDATE SHA-256 must equal production_validation.tested_update_sha256; publish consumes those gated bytes"
-  },
-  "known_nonsecret_hygiene_notes": [
-    "tests/framework/manager-gate/README.md retains a maintainer-local D:\\0\\0__Core example in frozen Gate Framework r11 source; it is historical qualification source, not a product installation default."
-  ]
+    "schema":  "keelaryn.public-repository-provenance.v2",
+    "role":  "public_source_sync_candidate",
+    "source_manager_version":  "4.14.0",
+    "source_gate_baseline_manager_version":  "4.13.1",
+    "source_manager_installation_sha256":  "4b4941ec6c1f85ca8775b9577057264c686c7771a88cb2f52e6f136a426ad8ac",
+    "source_manager_gate_managed_content_sha256":  "0a545a874eb03d9e2a11dd73c02b1d45519141320f3ca9b2a7ea0ad39d7342b7",
+    "production_validation":  {
+                                  "full_gate_pass":  false,
+                                  "gate_revision":  null,
+                                  "framework_revision":  11,
+                                  "tested_update_sha256":  null,
+                                  "production_doctor_pass":  false,
+                                  "production_ux_smoke_pass":  false,
+                                  "production_managed_content_prefix":  null
+                              },
+    "personal_hub_included":  false,
+    "manager_runtime_state_included":  false,
+    "local_test_evidence_included":  false,
+    "gate_framework":  {
+                           "version":  "2.0",
+                           "revision":  11,
+                           "windows_qualified":  true,
+                           "frozen_for_manager_candidate":  true
+                       },
+    "license":  {
+                    "spdx_id":  "MIT",
+                    "file":  "LICENSE",
+                    "copyright":  "Copyright (c) 2026 Keelaryn contributors"
+                },
+    "public_candidate_revision":  1,
+    "git_checkout_contract":  {
+                                  "manager_authoritative_tree_attribute":  "-text",
+                                  "framework_authoritative_tree_attribute":  "-text",
+                                  "core_autocrlf_true_roundtrip_required":  true
+                              },
+    "known_nonsecret_source_hygiene_notes":  [
+                                                 "manager/product/docs/TESTING.md and tests/framework/manager-gate/README.md retain maintainer-local D:\\0\\0__Core examples for historical/maintainer qualification context; they are not product installation defaults."
+                                             ],
+    "ci_policy":  {
+                      "github_actions":  "pull_request + main push + manual",
+                      "hosted_scope":  "repository verification + Hub-blind SourceGate + Generic DISTRIBUTION smoke",
+                      "full_gate":  "CURRENT-backed Windows Full Gate plus production Doctor and production UX smoke before publication",
+                      "update_identity":  "when full_gate_pass=true, PR and main BuildRelease UPDATE SHA-256 must equal production_validation.tested_update_sha256; publish consumes those gated bytes"
+                  },
+    "known_nonsecret_hygiene_notes":  [
+                                          "manager/product/docs/TESTING.md and tests/framework/manager-gate/README.md retain maintainer-local D:\\0\\0__Core examples; they are not product defaults."
+                                      ]
 }
