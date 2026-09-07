@@ -37,3 +37,38 @@ jobs:
         run: |
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Prepare artifact transport roundtrip
+        shell: powershell
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'keelaryn_governance_artifact_roundtrip_source'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $payload = Join-Path $root 'payload.txt'
+          $text = 'Keelaryn governance artifact transport roundtrip; source_sha=' + $env:GITHUB_SHA + "`n"
+          [System.IO.File]::WriteAllText($payload,$text,(New-Object System.Text.UTF8Encoding($false)))
+          $hash = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
+          "KEELARYN_ROUNDTRIP_SOURCE=$root" >> $env:GITHUB_ENV
+          "KEELARYN_ROUNDTRIP_SHA256=$hash" >> $env:GITHUB_ENV
+
+      - name: Upload artifact transport roundtrip
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: keelaryn-governance-roundtrip-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_ROUNDTRIP_SOURCE }}\payload.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Download artifact transport roundtrip
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: keelaryn-governance-roundtrip-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\keelaryn_governance_artifact_roundtrip_download
+
+      - name: Verify artifact transport roundtrip
+        shell: powershell
+        run: |
+          $payload = Join-Path $env:RUNNER_TEMP 'keelaryn_governance_artifact_roundtrip_download\payload.txt'
+          if (-not (Test-Path -LiteralPath $payload -PathType Leaf)) { throw 'Artifact roundtrip payload is missing after download.' }
+          $actual = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -cne $env:KEELARYN_ROUNDTRIP_SHA256) { throw ('Artifact roundtrip SHA-256 mismatch: expected=' + $env:KEELARYN_ROUNDTRIP_SHA256 + ' actual=' + $actual) }
+          Write-Host ('GitHub Actions artifact transport roundtrip: PASS. sha256=' + $actual) -ForegroundColor Green
