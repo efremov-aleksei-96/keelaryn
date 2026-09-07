@@ -6,13 +6,13 @@
     "source_manager_installation_sha256":  "4b4941ec6c1f85ca8775b9577057264c686c7771a88cb2f52e6f136a426ad8ac",
     "source_manager_gate_managed_content_sha256":  "0a545a874eb03d9e2a11dd73c02b1d45519141320f3ca9b2a7ea0ad39d7342b7",
     "production_validation":  {
-                                  "full_gate_pass":  false,
-                                  "gate_revision":  2,
+                                  "full_gate_pass":  true,
+                                  "gate_revision":  3,
                                   "framework_revision":  12,
-                                  "tested_update_sha256":  null,
-                                  "production_doctor_pass":  false,
-                                  "production_ux_smoke_pass":  false,
-                                  "production_managed_content_prefix":  null
+                                  "tested_update_sha256":  "b9efad332c263957ea8b4541adadac4f785e7ae566136ef728e8e4b4fb760230",
+                                  "production_doctor_pass":  true,
+                                  "production_ux_smoke_pass":  true,
+                                  "production_managed_content_prefix":  "bb14f66c86c4"
                               },
     "personal_hub_included":  false,
     "manager_runtime_state_included":  false,
@@ -20,7 +20,7 @@
     "gate_framework":  {
                            "version":  "2.0",
                            "revision":  12,
-                           "windows_qualified":  false,
+                           "windows_qualified":  true,
                            "frozen_for_manager_candidate":  true
                        },
     "license":  {
@@ -28,7 +28,7 @@
                     "file":  "LICENSE",
                     "copyright":  "Copyright (c) 2026 Keelaryn contributors"
                 },
-    "public_candidate_revision":  1,
+    "public_candidate_revision":  2,
     "git_checkout_contract":  {
                                   "manager_authoritative_tree_attribute":  "-text",
                                   "framework_authoritative_tree_attribute":  "-text",
