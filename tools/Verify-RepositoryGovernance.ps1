@@ -160,9 +160,13 @@ foreach($property in @('allow_squash_merge','allow_merge_commit','allow_rebase_m
         if($actual-ne$expected){Fail('GitHub repository merge setting mismatch: '+$property+' expected='+$expected+' actual='+$actual)}
     }
 }
-if($null-eq$repoDoc.PSObject.Properties['delete_branch_on_merge']){Fail('GitHub repository metadata does not expose delete_branch_on_merge.')}
-if([bool]$repoDoc.delete_branch_on_merge-ne[bool]$hygiene.delete_branch_on_merge){
-    Fail('GitHub repository branch hygiene mismatch: delete_branch_on_merge expected='+[bool]$hygiene.delete_branch_on_merge+' actual='+[bool]$repoDoc.delete_branch_on_merge)
+if($null-ne$repoDoc.PSObject.Properties['delete_branch_on_merge']){
+    if([bool]$repoDoc.delete_branch_on_merge-ne[bool]$hygiene.delete_branch_on_merge){
+        Fail('GitHub repository branch hygiene mismatch: delete_branch_on_merge expected='+[bool]$hygiene.delete_branch_on_merge+' actual='+[bool]$repoDoc.delete_branch_on_merge)
+    }
+    Write-Host ('Online branch-hygiene setting visible: delete_branch_on_merge='+[bool]$repoDoc.delete_branch_on_merge) -ForegroundColor DarkGray
+}else{
+    Write-Warning 'delete_branch_on_merge is not exposed to the ordinary read-only Actions token; its server value is verified at the administrator cleanup/bootstrap boundary.'
 }
 
 $branchName=[string]$contract.default_branch
@@ -171,7 +175,7 @@ $rulesetsRaw=Invoke-GitHubGet ($api+'/rulesets?per_page=100') $headers
 $rulesRaw=Invoke-GitHubGet ($api+'/rules/branches/'+[System.Uri]::EscapeDataString($branchName)+'?per_page=100') $headers
 $rulesets=@();if($null-ne$rulesetsRaw){$rulesets=@($rulesetsRaw)}
 $rules=@();if($null-ne$rulesRaw){$rules=@($rulesRaw)}
-Write-Host ('Online governance visibility: protected='+[bool]$branchDoc.protected+'; rulesets='+$rulesets.Count+'; active_rules='+$rules.Count+'; delete_branch_on_merge='+[bool]$repoDoc.delete_branch_on_merge) -ForegroundColor DarkGray
+Write-Host ('Online governance visibility: protected='+[bool]$branchDoc.protected+'; rulesets='+$rulesets.Count+'; active_rules='+$rules.Count) -ForegroundColor DarkGray
 
 if(-not[bool]$branchDoc.protected){Fail('Default branch is not protected by an active branch rule/ruleset.')}
 
@@ -229,5 +233,5 @@ foreach($tag in $legacyTags){
     if($null-ne$release.PSObject.Properties['immutable']-and[bool]$release.immutable){Fail('Legacy mutable release is already immutable and should be removed from the exception list: '+$tag)}
 }
 
-Write-Host ('Repository governance online enforcement: PASS. ruleset='+[string]$detail.name+'; required_checks='+$actualContexts.Count+'; legacy releases verified='+$legacyTags.Count+'; branch_hygiene=PASS') -ForegroundColor Green
-Write-Warning 'Native immutable-releases repository setting requires Administration read/write and is intentionally verified at the admin bootstrap boundary, not through the ordinary read-only Actions token.'
+Write-Host ('Repository governance online enforcement: PASS. ruleset='+[string]$detail.name+'; required_checks='+$actualContexts.Count+'; legacy releases verified='+$legacyTags.Count+'; branch_hygiene_source=PASS') -ForegroundColor Green
+Write-Warning 'Native immutable releases, server-side GitHub Actions settings, and automatic merged-branch deletion require Administration visibility and are verified at administrator bootstrap/cleanup boundaries rather than by widening ordinary workflow permissions.'
