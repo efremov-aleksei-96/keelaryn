@@ -11,9 +11,15 @@ function Require-File([string]$Relative){
     return $path
 }
 function Read-Utf8([string]$Path){return [System.IO.File]::ReadAllText($Path,[System.Text.Encoding]::UTF8)}
+function Require-ExactSet([object[]]$Actual,[string[]]$Expected,[string]$Purpose){
+    $a=@($Actual|ForEach-Object{([string]$_).Trim()}|Where-Object{$_}|Sort-Object -Unique)
+    $e=@($Expected|Sort-Object -Unique)
+    if($a.Count-ne$e.Count){Fail($Purpose+' count mismatch. expected='+($e-join',')+' actual='+($a-join','))}
+    for($i=0;$i-lt$e.Count;$i++){if($a[$i]-cne$e[$i]){Fail($Purpose+' mismatch. expected='+($e-join',')+' actual='+($a-join','))}}
+}
 
 $contract=(Get-Content -LiteralPath (Require-File 'REPOSITORY_GOVERNANCE.json') -Raw -Encoding UTF8)|ConvertFrom-Json
-if([string]$contract.schema-ne'keelaryn.repository-governance.v1'-or[int]$contract.revision-lt2){Fail('GitHub Actions policy requires repository governance revision 2 or later.')}
+if([string]$contract.schema-ne'keelaryn.repository-governance.v1'-or[int]$contract.revision-lt3){Fail('GitHub Actions policy requires repository governance revision 3 or later.')}
 $policy=$contract.actions_policy
 if($null-eq$policy){Fail('Repository governance is missing actions_policy.')}
 if(-not[bool]$policy.enabled){Fail('GitHub Actions must remain enabled.')}
@@ -32,6 +38,12 @@ foreach($pattern in $patterns){
     if($pattern-notmatch'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@\*$'){Fail('Unsupported GitHub Actions allowlist pattern: '+$pattern)}
 }
 
+$runnerPolicy=$policy.runner_labels
+if($null-eq$runnerPolicy){Fail('Repository governance is missing actions_policy.runner_labels.')}
+if(-not[bool]$runnerPolicy.moving_latest_forbidden){Fail('Moving *-latest runner aliases must remain forbidden.')}
+$allowedRunnerLabels=@($runnerPolicy.allowed|ForEach-Object{([string]$_).Trim()})
+Require-ExactSet -Actual $allowedRunnerLabels -Expected @('windows-2025','ubuntu-24.04') -Purpose 'Allowed runner labels'
+
 $dependabot=Read-Utf8 (Require-File '.github/dependabot.yml')
 foreach($pattern in @(
     '(?m)^version:\s*2\s*$',
@@ -48,10 +60,21 @@ $workflowFiles=@(Get-ChildItem -LiteralPath $workflowRoot -File -Force|Where-Obj
 if($workflowFiles.Count-eq0){Fail('No GitHub Actions workflows found.')}
 
 $externalCount=0
+$runnerCount=0
 foreach($file in $workflowFiles){
     $lines=[System.IO.File]::ReadAllLines($file.FullName,[System.Text.Encoding]::UTF8)
     for($i=0;$i-lt$lines.Length;$i++){
         $line=[string]$lines[$i]
+
+        if($line-match'^\s*runs-on\s*:'){
+            $runnerMatch=[regex]::Match($line,'^\s*runs-on\s*:\s*["'']?([^"''\s#]+)["'']?\s*(?:#.*)?$')
+            if(-not$runnerMatch.Success){Fail('runs-on must use one literal approved GitHub-hosted runner label: '+$file.Name+':'+($i+1)+' '+$line.Trim())}
+            $runner=([string]$runnerMatch.Groups[1].Value).Trim()
+            if($runner-like'*-latest'){Fail('Moving *-latest runner aliases are forbidden: '+$file.Name+':'+($i+1)+' '+$runner)}
+            if($allowedRunnerLabels-notcontains$runner){Fail('Unapproved runner label: '+$file.Name+':'+($i+1)+' '+$runner)}
+            $runnerCount++
+        }
+
         $match=[regex]::Match($line,'^\s*(?:-\s*)?uses:\s*([^#\s]+)(?:\s+#\s*(.*))?\s*$')
         if(-not$match.Success){continue}
         $reference=[string]$match.Groups[1].Value
@@ -73,6 +96,7 @@ foreach($file in $workflowFiles){
     }
 }
 if($externalCount-eq0){Fail('No external GitHub Actions references were found to validate.')}
+if($runnerCount-eq0){Fail('No GitHub Actions runs-on labels were found to validate.')}
 
-Write-Host ('GitHub Actions supply-chain policy: PASS. workflows='+$workflowFiles.Count+'; external_actions='+$externalCount+'; allowlist='+$patterns.Count) -ForegroundColor Green
+Write-Host ('GitHub Actions supply-chain policy: PASS. workflows='+$workflowFiles.Count+'; external_actions='+$externalCount+'; allowlist='+$patterns.Count+'; runners='+$runnerCount+'; runner_labels='+($allowedRunnerLabels-join',')) -ForegroundColor Green
 Write-Warning 'Server-side Actions allowlist/SHA-pinning/default-token settings require repository Administration permission and are verified at the admin bootstrap boundary.'
