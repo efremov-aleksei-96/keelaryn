@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.repository-governance.v1",
-  "revision": 3,
+  "revision": 4,
   "repository": "efremov-aleksei-96/keelaryn",
   "default_branch": "main",
   "merge_policy": {
@@ -8,6 +8,19 @@
     "allow_merge_commit": false,
     "allow_rebase_merge": false,
     "allow_auto_merge": false
+  },
+  "branch_hygiene": {
+    "delete_branch_on_merge": true,
+    "cleanup_at_cycle_close": true,
+    "preserve_unique_qualification_refs": true,
+    "preserved_prefixes": [
+      "candidate-manager-",
+      "framework-",
+      "gate-framework-",
+      "manager-",
+      "release-manager-"
+    ],
+    "policy": "Delete merged service/development branches and fully absorbed temporary branches after each coherent cycle. Never delete the sole Git ref that preserves candidate, gate, framework, Manager-release, or qualification provenance. Never rewrite main or published release history for cleanup."
   },
   "main_ruleset": {
     "name": "Keelaryn main governance",
