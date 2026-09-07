@@ -45,9 +45,19 @@ jobs:
           $work = Join-Path $root 'tests\work'
           Expand-Archive -LiteralPath $gateZip -DestinationPath $work -Force
           "candidate=$work\manager-$version" >> $env:GITHUB_ENV
+          "gate_zip=$gateZip" >> $env:GITHUB_ENV
+          "gate_version=$version" >> $env:GITHUB_ENV
 
       - name: Run Hub-blind SourceGate
         shell: powershell
         run: |
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:candidate\gate\Run-KeelarynManagerSourceGate.ps1" -ManagerRoot "$env:candidate"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish exact SourceGate-qualified Manager gate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: keelaryn-manager-gate-${{ env.gate_version }}-${{ github.sha }}
+          path: ${{ env.gate_zip }}
+          if-no-files-found: error
+          retention-days: 7
