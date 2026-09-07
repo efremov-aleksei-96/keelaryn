@@ -72,7 +72,7 @@ $publicManifest=(Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8)|Con
 if([string]$publicManifest.schema-ne'keelaryn.public-file-manifest.v2'){Fail 'Unsupported PUBLIC_FILE_MANIFEST schema.'}
 if([string]$publicManifest.manager.version-ne$version){Fail 'Public manifest Manager version mismatch.'}
 if([int]$publicManifest.manager.file_count-ne$expected.Count){Fail 'Public manifest Manager file_count mismatch.'}
-if(([string]$publicManifest.manager.installation_sha256).ToLowerInvariant()-(ne)(Sha $installPath)){Fail 'Public manifest INSTALLATION SHA-256 mismatch.'}
+if(([string]$publicManifest.manager.installation_sha256).ToLowerInvariant()-ne(Sha $installPath)){Fail 'Public manifest INSTALLATION SHA-256 mismatch.'}
 
 $manifestManagerPaths=New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 foreach($row in @($publicManifest.manager.files)){
