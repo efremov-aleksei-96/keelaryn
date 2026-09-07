@@ -28,12 +28,20 @@ function Get-RelativePath([string]$Root,[string]$Path){
     $prefix=[System.IO.Path]::GetFullPath($Root).TrimEnd('\')+'\'
     $full=[System.IO.Path]::GetFullPath($Path)
     if(-not$full.StartsWith($prefix,[System.StringComparison]::OrdinalIgnoreCase)){Fail('Path escapes manifest root: '+$Path)}
-    return $full.Substring($prefix.Length).Replace('\','/')
+    $relative=$full.Substring($prefix.Length).Replace('\','/')
+    if([string]::IsNullOrWhiteSpace($relative)-or$relative.StartsWith('/')-or$relative.Contains('../')){Fail('Invalid manifest relative path: '+$relative)}
+    return $relative
+}
+function Get-SafeDirectory([string]$Path){
+    if(-not(Test-Path -LiteralPath $Path -PathType Container)){Fail('Required manifest source directory is missing: '+$Path)}
+    $item=Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    if(-not$item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Manifest source directory must be a real directory: '+$Path)}
+    return $item
 }
 function Get-SafeFile([string]$Path){
     if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){Fail('Required manifest source file is missing: '+$Path)}
     $item=Get-Item -LiteralPath $Path -Force -ErrorAction Stop
-    if(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Manifest source file must not be a reparse point: '+$Path)}
+    if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Manifest source file must be a real file: '+$Path)}
     return $item
 }
 function Get-FileRow([string]$Root,[string]$Path){
@@ -42,12 +50,17 @@ function Get-FileRow([string]$Root,[string]$Path){
 }
 function Get-OrdinalSortedUnique([object[]]$Values){
     $list=New-Object 'System.Collections.Generic.List[string]'
-    foreach($raw in @($Values)){if($null-ne$raw){[void]$list.Add([string]$raw)}}
+    foreach($raw in @($Values)){
+        if($null-eq$raw){continue}
+        $value=[string]$raw
+        if([string]::IsNullOrWhiteSpace($value)){Fail 'Manifest path list contains an empty value.'}
+        [void]$list.Add($value)
+    }
     $list.Sort([System.StringComparer]::Ordinal)
     $out=New-Object System.Collections.ArrayList
-    $last=$null
+    $haveLast=$false;$last=''
     foreach($value in $list){
-        if($null-eq$last-or-not[string]::Equals([string]$last,$value,[System.StringComparison]::Ordinal)){[void]$out.Add($value);$last=$value}
+        if((-not$haveLast)-or-not[string]::Equals($last,$value,[System.StringComparison]::Ordinal)){[void]$out.Add($value);$last=$value;$haveLast=$true}
     }
     return @($out)
 }
@@ -69,7 +82,7 @@ $managerRoot=Join-Path $RepositoryRoot 'manager'
 $frameworkRoot=Join-Path $RepositoryRoot 'tests\framework\manager-gate'
 $installPath=Join-Path $managerRoot 'product\install\INSTALLATION.json'
 $revisionPath=Join-Path $frameworkRoot 'FRAMEWORK_REVISION.txt'
-foreach($dir in @($managerRoot,$frameworkRoot)){if(-not(Test-Path -LiteralPath $dir -PathType Container)){Fail('Missing manifest source directory: '+$dir)}}
+[void](Get-SafeDirectory $RepositoryRoot);[void](Get-SafeDirectory $managerRoot);[void](Get-SafeDirectory $frameworkRoot)
 [void](Get-SafeFile $installPath);[void](Get-SafeFile $revisionPath)
 
 $install=(Get-Content -LiteralPath $installPath -Raw -Encoding UTF8)|ConvertFrom-Json
@@ -79,7 +92,7 @@ if($version-notmatch'^\d+\.\d+\.\d+$'){Fail('Invalid Manager version: '+$version
 $managedPaths=@(Get-OrdinalSortedUnique @($install.managed_files|ForEach-Object{([string]$_).Replace('\','/')}))
 if($managedPaths.Count-lt1-or$managedPaths.Count-ne@($install.managed_files).Count){Fail 'INSTALLATION managed_files is empty or contains duplicates.'}
 
-$actualManagerFiles=@(Get-ChildItem -LiteralPath $managerRoot -File -Recurse -Force|ForEach-Object{Get-RelativePath $managerRoot $_.FullName}|Sort-Object)
+$actualManagerFiles=@(Get-OrdinalSortedUnique @(Get-ChildItem -LiteralPath $managerRoot -File -Recurse -Force|ForEach-Object{Get-RelativePath $managerRoot $_.FullName}))
 if($actualManagerFiles.Count-ne$managedPaths.Count){Fail('manager/ source set count mismatch: install='+$managedPaths.Count+' actual='+$actualManagerFiles.Count)}
 for($i=0;$i-lt$managedPaths.Count;$i++){if([string]$managedPaths[$i]-cne[string]$actualManagerFiles[$i]){Fail('manager/ source set mismatch: expected='+[string]$managedPaths[$i]+' actual='+[string]$actualManagerFiles[$i])}}
 
@@ -88,10 +101,10 @@ foreach($rel in $managedPaths){[void]$managerRows.Add((Get-FileRow $managerRoot 
 
 $frameworkRevision=0
 if(-not[int]::TryParse((Get-Content -LiteralPath $revisionPath -Raw -Encoding UTF8).Trim(),[ref]$frameworkRevision)-or$frameworkRevision-lt1){Fail 'Invalid Gate Framework revision.'}
-$frameworkFiles=@(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Force|Sort-Object FullName)
-if($frameworkFiles.Count-lt1){Fail 'Gate Framework source set is empty.'}
+$frameworkRelativePaths=@(Get-OrdinalSortedUnique @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Force|ForEach-Object{Get-RelativePath $frameworkRoot $_.FullName}))
+if($frameworkRelativePaths.Count-lt1){Fail 'Gate Framework source set is empty.'}
 $frameworkRows=New-Object System.Collections.ArrayList
-foreach($file in $frameworkFiles){[void]$frameworkRows.Add((Get-FileRow $frameworkRoot $file.FullName))}
+foreach($rel in $frameworkRelativePaths){[void]$frameworkRows.Add((Get-FileRow $frameworkRoot (Join-Path $frameworkRoot $rel.Replace('/','\'))))}
 
 $manifest=[ordered]@{
     schema='keelaryn.public-file-manifest.v2'
@@ -106,7 +119,7 @@ $manifest=[ordered]@{
     gate_framework=[ordered]@{
         framework_version='2.0'
         revision=$frameworkRevision
-        file_count=$frameworkFiles.Count
+        file_count=$frameworkRelativePaths.Count
         files=@($frameworkRows)
     }
     note='Public scaffolding is validated structurally; this manifest cryptographically binds the authoritative Manager and frozen gate-framework source sets.'
