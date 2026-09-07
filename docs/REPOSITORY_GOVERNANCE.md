@@ -15,9 +15,10 @@ In **Settings > General > Pull Requests**:
 - enable **Allow squash merging**;
 - disable **Allow merge commits**;
 - disable **Allow rebase merging**;
-- keep auto-merge disabled.
+- keep auto-merge disabled;
+- enable automatic deletion of head branches after pull requests are merged.
 
-The resulting `main` history is one reviewed/qualified commit per merged PR.
+The resulting `main` history is one reviewed/qualified commit per merged PR, while merged service branches are removed automatically.
 
 ## Required main ruleset
 
@@ -66,7 +67,7 @@ This gives the branch ruleset a cheap always-present required context while stil
 
 Repository Governance r2 also treats workflow dependencies as part of the repository control plane.
 
-All external `uses:` references in `.github/workflows` must be pinned to a **full 40-hex Git commit SHA**. Moving tags such as `@v4` or `@v6` are not accepted as executable references. A same-line version comment such as `# v6` is retained so Dependabot can update both the immutable SHA and its human-readable release marker.
+All external `uses:` references in `.github/workflows` must be pinned to a **full 40-hex Git commit SHA**. Moving tags such as `@v4` or `@v6` are not accepted as executable references. A same-line version comment such as `# v7.0.1` is retained so Dependabot can update both the immutable SHA and its human-readable release marker.
 
 The repository allowlist is deliberately narrow:
 
@@ -98,6 +99,15 @@ PUT /repos/efremov-aleksei-96/keelaryn/actions/permissions/workflow
 ```
 
 `tools/Verify-GitHubActionsPolicy.ps1` validates the repository-side source contract on Windows PowerShell 5.1. The server-side settings require repository Administration permission and are verified by the administrator bootstrap rather than by widening ordinary workflow permissions.
+
+### Runner OS families
+
+Repository Governance r3 forbids moving `*-latest` runner aliases. GitHub-hosted jobs use explicit GA OS-family labels:
+
+- `windows-2025` for Windows validation, governance, release policy, and distribution jobs;
+- `ubuntu-24.04` for the GitHub Release publication job.
+
+This pins the operating-system generation while still allowing GitHub to service and patch the hosted image within that OS family. `tools/Verify-GitHubActionsPolicy.ps1` rejects any unapproved or dynamic `runs-on` value.
 
 ## Immutable releases
 
@@ -148,6 +158,32 @@ For a workflow retry that finds an unfinished draft, the draft is recoverable on
 
 Once a release is native-immutable, it must not be added to the legacy exception list.
 
+The branch hygiene policy below governs repository refs only; it never changes release or qualification history.
+
+## Branch hygiene
+
+Repository Governance r4 makes branch/ref cleanup part of cycle completion rather than optional housekeeping.
+
+Repository setting `delete_branch_on_merge` must be **enabled** so ordinary merged PR head branches are removed automatically. The machine-readable source contract requires it, while the actual server value is read back by the administrator cleanup/bootstrap because GitHub does not expose this field to the ordinary read-only Actions token.
+
+At the end of a coherent development or governance cycle:
+
+- delete merged service, CI, dependency, and temporary branches once their merged PR and squash commit preserve the durable result;
+- delete branches that are fully absorbed by `main` and therefore have no unique commits;
+- preserve any branch that is the sole Git ref for candidate, gate, framework, Manager-release, rejection, or qualification provenance;
+- treat prefixes `candidate-manager-`, `framework-`, `gate-framework-`, `manager-`, and `release-manager-` as protected-by-default and require explicit provenance analysis before deleting them;
+- never rewrite `main`, published tags, release assets, or historical qualification evidence merely to reduce Git history.
+
+Squash merging intentionally leaves pre-squash service commits outside `main`. Once a service branch is proven merged and non-qualification, deleting that branch is the correct cleanup: the durable public result is the squash commit and the merged PR record. This rule must **not** be generalized to qualification branches, whose unique commit graph may itself be evidence.
+
+Administrator CLI setting:
+
+```text
+gh api --method PATCH repos/efremov-aleksei-96/keelaryn -F delete_branch_on_merge=true
+```
+
+Current cleanup tooling uses an explicit branch allowlist plus exact branch-head and merged-PR / zero-ahead guards before deleting refs. It never performs wildcard branch deletion.
+
 ## Auditing
 
 Local/source-only audits:
@@ -157,10 +193,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-Repositor
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-GitHubActionsPolicy.ps1
 ```
 
-Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks repository merge settings where visible, protected `main`, the named active ruleset, pull-request parameters, the three strict required checks, force-push blocking, deletion protection, the immutable-release source contract, declared legacy release exceptions, action SHA pins, the explicit action allowlist, and Dependabot configuration.
+Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks the branch-hygiene source contract, repository merge settings where visible, protected `main`, the named active ruleset, pull-request parameters, the three strict required checks, force-push blocking, deletion protection, the immutable-release source contract, declared legacy release exceptions, action SHA pins, explicit runner OS-family labels, the explicit action allowlist, and Dependabot configuration.
 
 `.github/workflows/release-policy.yml` independently enforces the conditional relationship between release-critical PRs and `distribution-gate` on the exact current head SHA.
 
-The native immutable-releases and server-side GitHub Actions policy settings require GitHub **Administration** permission to read/write. Ordinary Actions jobs deliberately run with read-only repository permissions, so these settings are verified at the administrator bootstrap boundary rather than by weakening workflow permissions.
+Native immutable releases, server-side GitHub Actions policy, and automatic merged-branch deletion require GitHub **Administration** visibility to verify reliably. Ordinary Actions jobs deliberately run with read-only repository permissions, so these settings are verified at administrator bootstrap/cleanup boundaries rather than by weakening workflow permissions.
 
 The policy source stays separate from Manager qualification provenance. Changing repository governance does not retroactively rewrite the provenance of already qualified Manager releases.
