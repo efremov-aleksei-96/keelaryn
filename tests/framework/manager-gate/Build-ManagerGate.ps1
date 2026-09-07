@@ -196,6 +196,17 @@ try{
         }
 
         if($gatePs.Name -eq 'Run-KeelarynManagerFullGate.ps1'){
+            foreach($token in @(
+                'function Test-IsTransientFileLockException',
+                'function Open-ZipUpdateWithSharingRetry',
+                'function Test-ZipUpdateSharingRetrySelfTest',
+                '$za=Open-ZipUpdateWithSharingRetry $stateCurrent'
+            )){
+                if(-not$gateText.Contains($token)){throw('Framework r12 FullGate sharing-retry contract missing token: '+$token)}
+            }
+            if($gateText.Contains('$za=[System.IO.Compression.ZipFile]::Open($stateCurrent')){
+                throw 'Framework r12 forbids direct single-attempt CURRENT ZipFile.Open(Update) in Full Gate E4.'
+            }
             $gateDigestFns=@(
                 $sortAst.FindAll(
                     {
