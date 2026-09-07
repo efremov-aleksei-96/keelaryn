@@ -164,7 +164,7 @@ The branch hygiene policy below governs repository refs only; it never changes r
 
 Repository Governance r4 makes branch/ref cleanup part of cycle completion rather than optional housekeeping.
 
-Repository setting `delete_branch_on_merge` must be **enabled** so ordinary merged PR head branches are removed automatically. The repository verifier checks this setting online.
+Repository setting `delete_branch_on_merge` must be **enabled** so ordinary merged PR head branches are removed automatically. The machine-readable source contract requires it, while the actual server value is read back by the administrator cleanup/bootstrap because GitHub does not expose this field to the ordinary read-only Actions token.
 
 At the end of a coherent development or governance cycle:
 
@@ -193,10 +193,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-Repositor
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-GitHubActionsPolicy.ps1
 ```
 
-Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks repository merge settings where visible, automatic merged-branch deletion, protected `main`, the named active ruleset, pull-request parameters, the three strict required checks, force-push blocking, deletion protection, the immutable-release source contract, declared legacy release exceptions, action SHA pins, explicit runner OS-family labels, the explicit action allowlist, and Dependabot configuration.
+Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks the branch-hygiene source contract, repository merge settings where visible, protected `main`, the named active ruleset, pull-request parameters, the three strict required checks, force-push blocking, deletion protection, the immutable-release source contract, declared legacy release exceptions, action SHA pins, explicit runner OS-family labels, the explicit action allowlist, and Dependabot configuration.
 
 `.github/workflows/release-policy.yml` independently enforces the conditional relationship between release-critical PRs and `distribution-gate` on the exact current head SHA.
 
-The native immutable-releases and server-side GitHub Actions policy settings require GitHub **Administration** permission to read/write. Ordinary Actions jobs deliberately run with read-only repository permissions, so these settings are verified at the administrator bootstrap boundary rather than by weakening workflow permissions.
+Native immutable releases, server-side GitHub Actions policy, and automatic merged-branch deletion require GitHub **Administration** visibility to verify reliably. Ordinary Actions jobs deliberately run with read-only repository permissions, so these settings are verified at administrator bootstrap/cleanup boundaries rather than by weakening workflow permissions.
 
 The policy source stays separate from Manager qualification provenance. Changing repository governance does not retroactively rewrite the provenance of already qualified Manager releases.
