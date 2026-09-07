@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   distribution-gate:
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 35
     outputs:
       version: ${{ steps.release.outputs.version }}
@@ -258,7 +258,7 @@ jobs:
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: distribution-gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
