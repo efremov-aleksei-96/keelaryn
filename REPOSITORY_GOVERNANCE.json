@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.repository-governance.v1",
-  "revision": 1,
+  "revision": 2,
   "repository": "efremov-aleksei-96/keelaryn",
   "default_branch": "main",
   "merge_policy": {
@@ -32,7 +32,8 @@
         "strict_required_status_checks_policy": true,
         "contexts": [
           "source-gate",
-          "repository-governance"
+          "repository-governance",
+          "release-policy"
         ]
       },
       "non_fast_forward": true,
@@ -43,12 +44,46 @@
     "default": "contents: read",
     "publication_exception": ".github/workflows/public-release.yml publish job: contents: write"
   },
+  "actions_policy": {
+    "enabled": true,
+    "allowed_actions": "selected",
+    "sha_pinning_required": true,
+    "selected_actions": {
+      "github_owned_allowed": false,
+      "verified_allowed": false,
+      "patterns_allowed": [
+        "actions/checkout@*",
+        "actions/upload-artifact@*",
+        "actions/download-artifact@*"
+      ]
+    },
+    "default_workflow_permissions": "read",
+    "can_approve_pull_request_reviews": false,
+    "dependabot_github_actions_updates": true
+  },
   "release_policy": {
     "manager_release_publication_requires": [
       "production Full Gate PASS",
       "production Doctor PASS",
       "production UX smoke PASS",
-      "exact Full-Gate-tested UPDATE SHA-256"
-    ]
+      "exact Full-Gate-tested UPDATE SHA-256",
+      "native GitHub immutable release for every non-legacy tag",
+      "valid GitHub release attestation for every non-legacy tag"
+    ],
+    "conditional_pr_gate": {
+      "required_context": "release-policy",
+      "dependency_context": "distribution-gate",
+      "behavior": "Every PR gets release-policy. Non-release diffs pass immediately; release-critical diffs require distribution-gate success on the exact PR head SHA."
+    },
+    "immutable_releases": {
+      "repository_setting_required": true,
+      "future_releases_must_be_immutable": true,
+      "release_attestation_required": true,
+      "verify_each_asset_attestation": true,
+      "legacy_mutable_tags": [
+        "v4.13.1"
+      ],
+      "legacy_policy": "Legacy mutable tags are historical exceptions only. They must already exist and remain byte-identical; the publisher must never create a new mutable legacy release."
+    }
   }
 }

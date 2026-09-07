@@ -7,6 +7,7 @@ on:
       - '.github/workflows/public-release.yml'
       - 'manager/**'
       - 'PUBLIC_PROVENANCE.json'
+      - 'REPOSITORY_GOVERNANCE.json'
       - 'README.md'
       - 'GETTING_STARTED.md'
       - 'docs/USING_WITH_CHATGPT.md'
@@ -17,6 +18,7 @@ on:
       - '.github/workflows/public-release.yml'
       - 'manager/**'
       - 'PUBLIC_PROVENANCE.json'
+      - 'REPOSITORY_GOVERNANCE.json'
   workflow_dispatch:
 
 permissions:
@@ -24,7 +26,7 @@ permissions:
 
 concurrency:
   group: keelaryn-public-release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   distribution-gate:
@@ -33,9 +35,10 @@ jobs:
     outputs:
       version: ${{ steps.release.outputs.version }}
       tag: ${{ steps.release.outputs.tag }}
+      legacy_mutable: ${{ steps.release.outputs.legacy_mutable }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
@@ -52,9 +55,22 @@ jobs:
           $root = $env:GITHUB_WORKSPACE
           $install = Get-Content (Join-Path $root 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
           $prov = Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $governance = Get-Content (Join-Path $root 'REPOSITORY_GOVERNANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
           $version = ([string]$install.manager_version).Trim()
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid Manager version: $version" }
           if ([string]$prov.source_manager_version -ne $version) { throw 'Public provenance does not bind the current Manager version.' }
+          if ([string]$governance.schema -ne 'keelaryn.repository-governance.v1' -or [int]$governance.revision -lt 2) { throw 'Repository governance does not define immutable release policy r2.' }
+          if (-not [bool]$governance.release_policy.immutable_releases.repository_setting_required) { throw 'Repository governance must require native GitHub immutable releases.' }
+          if (-not [bool]$governance.release_policy.immutable_releases.future_releases_must_be_immutable) { throw 'Repository governance must require future releases to be immutable.' }
+          if (-not [bool]$governance.release_policy.immutable_releases.release_attestation_required) { throw 'Repository governance must require release attestations.' }
+          if (-not [bool]$governance.release_policy.immutable_releases.verify_each_asset_attestation) { throw 'Repository governance must require asset attestation verification.' }
+
+          $tag = 'v' + $version
+          $legacyTags = @($governance.release_policy.immutable_releases.legacy_mutable_tags | ForEach-Object { ([string]$_).Trim() })
+          if (@($legacyTags | Where-Object { $_ -notmatch '^v\d+\.\d+\.\d+$' }).Count -ne 0) { throw 'Repository governance contains an invalid legacy mutable release tag.' }
+          if (@($legacyTags | Select-Object -Unique).Count -ne $legacyTags.Count) { throw 'Repository governance legacy mutable release tags contain duplicates.' }
+          $legacyMutable = $legacyTags -contains $tag
+
           $publicationRun = ('${{ github.event_name }}' -eq 'push' -and '${{ github.ref }}' -eq 'refs/heads/main')
           if ($publicationRun) {
             if (-not [bool]$prov.production_validation.full_gate_pass) { throw 'Publication refused: provenance does not record a production Full Gate PASS.' }
@@ -69,7 +85,8 @@ jobs:
             Write-Host 'Manual validation run: publication is disabled; this run is read-only with respect to GitHub Releases.' -ForegroundColor DarkGray
           }
           "version=$version" >> $env:GITHUB_OUTPUT
-          "tag=v$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "legacy_mutable=$($legacyMutable.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
       - name: Manager and frontend SelfTests
         shell: powershell
@@ -79,6 +96,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $manager 'product\tools\KeelarynMenu.ps1') -SelfTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify release CLI capabilities
+        shell: powershell
+        run: |
+          gh --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gh release verify --help 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub CLI does not support release attestation verification.' }
+          gh release verify-asset --help 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub CLI does not support release asset attestation verification.' }
+          Write-Host 'GitHub CLI immutable-release verification capabilities: PASS' -ForegroundColor Green
 
       - name: Build release bundle
         shell: powershell
@@ -133,9 +161,6 @@ jobs:
             powershell.exe -NoProfile -ExecutionPolicy Bypass -File $menu -SelfTest
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-            # A clean Generic DISTRIBUTION must expose first-run guidance before
-            # falling back to the ordinary menu. Select "Main menu for now" and
-            # immediately exit; Genesis remains a separate validated mutation.
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = (Join-Path $PSHOME 'powershell.exe')
             $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $menu + '" -Action Menu -NoRootLauncher'
@@ -223,7 +248,7 @@ jobs:
           [System.IO.File]::WriteAllText($notes,$notesText,(New-Object System.Text.UTF8Encoding($false)))
 
       - name: Upload gated release bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: keelaryn-windows-release-${{ steps.release.outputs.version }}
           path: release-assets/*
@@ -240,7 +265,7 @@ jobs:
 
     steps:
       - name: Download gated release bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: keelaryn-windows-release-${{ needs.distribution-gate.outputs.version }}
           path: release-assets
@@ -250,30 +275,122 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.distribution-gate.outputs.tag }}
           RELEASE_VERSION: ${{ needs.distribution-gate.outputs.version }}
+          LEGACY_MUTABLE: ${{ needs.distribution-gate.outputs.legacy_mutable }}
         shell: bash
         run: |
           set -euo pipefail
           friendly="Keelaryn_v${RELEASE_VERSION}_Windows.zip"
           update="Keelaryn__Manager_Update_v${RELEASE_VERSION}_Built.zip"
+          expected_assets=("$friendly" "$update" "SHA256SUMS.txt")
+
+          verify_bytes() {
+            local dir="$1"
+            for name in "${expected_assets[@]}"; do
+              test -f "$dir/$name"
+              test "$(sha256sum "$dir/$name" | awk '{print $1}')" = "$(sha256sum "release-assets/$name" | awk '{print $1}')"
+            done
+          }
+
+          verify_immutable_attestation() {
+            local immutable
+            immutable="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isImmutable --jq '.isImmutable')"
+            test "$immutable" = 'true'
+
+            verified=false
+            for attempt in 1 2 3 4 5 6 7 8 9 10; do
+              if gh release verify "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                verified=true
+                break
+              fi
+              sleep 2
+            done
+            if [ "$verified" != 'true' ]; then
+              echo "::error::Immutable release attestation verification did not succeed."
+              return 1
+            fi
+
+            for name in "${expected_assets[@]}"; do
+              gh release verify-asset "$RELEASE_TAG" "release-assets/$name" --repo "$GITHUB_REPOSITORY" >/dev/null
+            done
+            echo "Immutable release + release/asset attestations: PASS"
+          }
 
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $RELEASE_TAG already exists; verifying immutable assets."
-            mkdir existing
-            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir existing --pattern "$friendly" --pattern "$update" --pattern 'SHA256SUMS.txt'
-            for name in "$friendly" "$update" SHA256SUMS.txt; do
-              test -f "existing/$name"
-              test "$(sha256sum "existing/$name" | awk '{print $1}')" = "$(sha256sum "release-assets/$name" | awk '{print $1}')"
-            done
-            echo "Existing release assets are byte-identical; leaving release unchanged."
-            exit 0
+            is_draft="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')"
+            if [ "$is_draft" = 'true' ]; then
+              target="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish')"
+              if [ "$target" != "$GITHUB_SHA" ]; then
+                echo "::error::Existing draft release targets $target instead of current publication commit $GITHUB_SHA."
+                exit 1
+              fi
+
+              while IFS= read -r existing_name; do
+                keep=false
+                for expected in "${expected_assets[@]}"; do
+                  if [ "$existing_name" = "$expected" ]; then keep=true; fi
+                done
+                if [ "$keep" != 'true' ]; then
+                  gh release delete-asset "$RELEASE_TAG" "$existing_name" --repo "$GITHUB_REPOSITORY" --yes
+                fi
+              done < <(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+
+              gh release upload "$RELEASE_TAG" \
+                "release-assets/$friendly" \
+                "release-assets/$update" \
+                'release-assets/SHA256SUMS.txt' \
+                --repo "$GITHUB_REPOSITORY" \
+                --clobber
+              gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+            else
+              echo "Release $RELEASE_TAG already exists; verifying published assets."
+              rm -rf existing
+              mkdir existing
+              gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir existing --pattern "$friendly" --pattern "$update" --pattern 'SHA256SUMS.txt'
+              verify_bytes existing
+
+              immutable="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isImmutable --jq '.isImmutable')"
+              if [ "$immutable" = 'true' ]; then
+                verify_immutable_attestation
+                echo "Existing immutable release is byte-identical and attested; leaving release unchanged."
+                exit 0
+              fi
+
+              if [ "$LEGACY_MUTABLE" = 'true' ]; then
+                echo "Legacy mutable release exception: exact published assets are byte-identical; leaving historical release unchanged."
+                exit 0
+              fi
+
+              echo "::error::Existing non-legacy release is mutable. Publication refused."
+              exit 1
+            fi
+          else
+            if [ "$LEGACY_MUTABLE" = 'true' ]; then
+              echo "::error::Legacy mutable tags are historical exceptions only; refusing to create a new legacy release."
+              exit 1
+            fi
+
+            gh release create "$RELEASE_TAG" \
+              "release-assets/$friendly" \
+              "release-assets/$update" \
+              'release-assets/SHA256SUMS.txt' \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Keelaryn $RELEASE_VERSION" \
+              --notes-file 'release-assets/RELEASE_NOTES.md' \
+              --draft
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           fi
 
-          gh release create "$RELEASE_TAG" \
-            "release-assets/$friendly" \
-            "release-assets/$update" \
-            'release-assets/SHA256SUMS.txt' \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title "Keelaryn $RELEASE_VERSION" \
-            --notes-file 'release-assets/RELEASE_NOTES.md' \
-            --latest
+          immutable="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isImmutable --jq '.isImmutable')"
+          if [ "$immutable" != 'true' ]; then
+            echo "::error::New release was published without native immutability; deleting unsafe mutable release and tag."
+            gh release delete "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+            exit 1
+          fi
+
+          rm -rf published
+          mkdir published
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir published --pattern "$friendly" --pattern "$update" --pattern 'SHA256SUMS.txt'
+          verify_bytes published
+          verify_immutable_attestation
+          echo "New GitHub Release publication: immutable, byte-identical, and attested PASS."
