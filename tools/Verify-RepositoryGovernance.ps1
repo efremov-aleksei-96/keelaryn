@@ -26,12 +26,23 @@ function Invoke-GitHubGet([string]$Uri,[hashtable]$Headers){
 $contractPath=Require-File 'REPOSITORY_GOVERNANCE.json'
 $contract=(Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8)|ConvertFrom-Json
 if([string]$contract.schema-ne'keelaryn.repository-governance.v1'){Fail('Unsupported governance schema: '+[string]$contract.schema)}
-if([int]$contract.revision-ne3){Fail('Unexpected governance revision: '+[string]$contract.revision)}
+if([int]$contract.revision-ne4){Fail('Unexpected governance revision: '+[string]$contract.revision)}
 if([string]$contract.default_branch-ne'main'){Fail('Governance default branch must be main.')}
 if(-not[bool]$contract.merge_policy.allow_squash_merge){Fail('Governance must allow squash merge.')}
 if([bool]$contract.merge_policy.allow_merge_commit){Fail('Governance must forbid merge commits.')}
 if([bool]$contract.merge_policy.allow_rebase_merge){Fail('Governance must forbid rebase merge.')}
 if([bool]$contract.merge_policy.allow_auto_merge){Fail('Governance must keep auto-merge disabled.')}
+
+$hygiene=$contract.branch_hygiene
+if($null-eq$hygiene){Fail('Governance is missing branch_hygiene.')}
+if(-not[bool]$hygiene.delete_branch_on_merge){Fail('Branch hygiene must require delete_branch_on_merge.')}
+if(-not[bool]$hygiene.cleanup_at_cycle_close){Fail('Branch hygiene must require cleanup at cycle close.')}
+if(-not[bool]$hygiene.preserve_unique_qualification_refs){Fail('Branch hygiene must preserve unique qualification refs.')}
+$preservedPrefixes=@($hygiene.preserved_prefixes|ForEach-Object{([string]$_).Trim()}|Where-Object{$_})
+$expectedPrefixes=@('candidate-manager-','framework-','gate-framework-','manager-','release-manager-')
+if($preservedPrefixes.Count-ne$expectedPrefixes.Count){Fail('Branch hygiene preserved-prefix count mismatch.')}
+foreach($prefix in $expectedPrefixes){if($preservedPrefixes-notcontains$prefix){Fail('Branch hygiene missing preserved prefix: '+$prefix)}}
+if([string]::IsNullOrWhiteSpace([string]$hygiene.policy)){Fail('Branch hygiene must include a policy statement.')}
 
 $immutable=$contract.release_policy.immutable_releases
 if($null-eq$immutable){Fail('Governance is missing immutable release policy.')}
@@ -118,14 +129,14 @@ Require-Token $governanceWorkflow 'Verify-RepositoryGovernance.ps1' 'Governance 
 Require-Token $governanceWorkflow 'Verify-GitHubActionsPolicy.ps1' 'GitHub Actions policy workflow implementation'
 
 $governanceDoc=Read-Utf8 (Require-File 'docs/REPOSITORY_GOVERNANCE.md')
-foreach($token in @('immutable releases','release attestation','legacy mutable','release-policy')){Require-Token $governanceDoc $token 'Repository governance documentation'}
+foreach($token in @('immutable releases','release attestation','legacy mutable','release-policy','branch hygiene')){Require-Token $governanceDoc $token 'Repository governance documentation'}
 
 $requiredContexts=@($contract.main_ruleset.required_rules.required_status_checks.contexts|ForEach-Object{[string]$_})
 if($requiredContexts.Count-ne3-or$requiredContexts-notcontains'source-gate'-or$requiredContexts-notcontains'repository-governance'-or$requiredContexts-notcontains'release-policy'){
     Fail('Governance required status checks must be exactly source-gate, repository-governance, and release-policy.')
 }
 
-Write-Host ('Repository governance source contract: PASS. revision='+[int]$contract.revision+'; required_checks='+$requiredContexts.Count+'; legacy_mutable_tags='+$legacyTags.Count) -ForegroundColor Green
+Write-Host ('Repository governance source contract: PASS. revision='+[int]$contract.revision+'; required_checks='+$requiredContexts.Count+'; legacy_mutable_tags='+$legacyTags.Count+'; preserved_prefixes='+$preservedPrefixes.Count) -ForegroundColor Green
 
 if(-not$Online){exit 0}
 if([string]::IsNullOrWhiteSpace($Repository)-or$Repository-notmatch'^[^/]+/[^/]+$'){Fail('Online governance audit requires owner/repository.')}
@@ -149,6 +160,10 @@ foreach($property in @('allow_squash_merge','allow_merge_commit','allow_rebase_m
         if($actual-ne$expected){Fail('GitHub repository merge setting mismatch: '+$property+' expected='+$expected+' actual='+$actual)}
     }
 }
+if($null-eq$repoDoc.PSObject.Properties['delete_branch_on_merge']){Fail('GitHub repository metadata does not expose delete_branch_on_merge.')}
+if([bool]$repoDoc.delete_branch_on_merge-ne[bool]$hygiene.delete_branch_on_merge){
+    Fail('GitHub repository branch hygiene mismatch: delete_branch_on_merge expected='+[bool]$hygiene.delete_branch_on_merge+' actual='+[bool]$repoDoc.delete_branch_on_merge)
+}
 
 $branchName=[string]$contract.default_branch
 $branchDoc=Invoke-GitHubGet ($api+'/branches/'+[System.Uri]::EscapeDataString($branchName)) $headers
@@ -156,7 +171,7 @@ $rulesetsRaw=Invoke-GitHubGet ($api+'/rulesets?per_page=100') $headers
 $rulesRaw=Invoke-GitHubGet ($api+'/rules/branches/'+[System.Uri]::EscapeDataString($branchName)+'?per_page=100') $headers
 $rulesets=@();if($null-ne$rulesetsRaw){$rulesets=@($rulesetsRaw)}
 $rules=@();if($null-ne$rulesRaw){$rules=@($rulesRaw)}
-Write-Host ('Online governance visibility: protected='+[bool]$branchDoc.protected+'; rulesets='+$rulesets.Count+'; active_rules='+$rules.Count) -ForegroundColor DarkGray
+Write-Host ('Online governance visibility: protected='+[bool]$branchDoc.protected+'; rulesets='+$rulesets.Count+'; active_rules='+$rules.Count+'; delete_branch_on_merge='+[bool]$repoDoc.delete_branch_on_merge) -ForegroundColor DarkGray
 
 if(-not[bool]$branchDoc.protected){Fail('Default branch is not protected by an active branch rule/ruleset.')}
 
@@ -214,5 +229,5 @@ foreach($tag in $legacyTags){
     if($null-ne$release.PSObject.Properties['immutable']-and[bool]$release.immutable){Fail('Legacy mutable release is already immutable and should be removed from the exception list: '+$tag)}
 }
 
-Write-Host ('Repository governance online enforcement: PASS. ruleset='+[string]$detail.name+'; required_checks='+$actualContexts.Count+'; legacy releases verified='+$legacyTags.Count) -ForegroundColor Green
+Write-Host ('Repository governance online enforcement: PASS. ruleset='+[string]$detail.name+'; required_checks='+$actualContexts.Count+'; legacy releases verified='+$legacyTags.Count+'; branch_hygiene=PASS') -ForegroundColor Green
 Write-Warning 'Native immutable-releases repository setting requires Administration read/write and is intentionally verified at the admin bootstrap boundary, not through the ordinary read-only Actions token.'
