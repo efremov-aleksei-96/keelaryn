@@ -158,6 +158,8 @@ For a workflow retry that finds an unfinished draft, the draft is recoverable on
 
 Once a release is native-immutable, it must not be added to the legacy exception list.
 
+The branch hygiene policy below governs repository refs only; it never changes release or qualification history.
+
 ## Branch hygiene
 
 Repository Governance r4 makes branch/ref cleanup part of cycle completion rather than optional housekeeping.
@@ -177,7 +179,7 @@ Squash merging intentionally leaves pre-squash service commits outside `main`. O
 Administrator CLI setting:
 
 ```text
-gh api --method PATCH repos/efremov-aleksei-96/keelaryn -f delete_branch_on_merge=true
+gh api --method PATCH repos/efremov-aleksei-96/keelaryn -F delete_branch_on_merge=true
 ```
 
 Current cleanup tooling uses an explicit branch allowlist plus exact branch-head and merged-PR / zero-ahead guards before deleting refs. It never performs wildcard branch deletion.
