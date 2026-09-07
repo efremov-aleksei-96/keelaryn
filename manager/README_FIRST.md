@@ -1,8 +1,8 @@
-# Keelaryn Manager 4.14.0
+# Keelaryn Manager 4.14.1
 
-Manager 4.14.0 is a focused AI_CONTEXT correctness and reproducibility cycle. It strengthens task-route dependency completeness, source-snapshot freshness and route-size observability without changing Hub schemas, native update compatibility, rollback semantics, deterministic release construction or supported user workflows.
+Manager 4.14.1 is a focused AI_CONTEXT correctness and reproducibility cycle. It strengthens task-route dependency completeness, source-snapshot freshness and route-size observability without changing Hub schemas, native update compatibility, rollback semantics, deterministic release construction or supported user workflows.
 
-The immutable development baseline is Manager 4.13.1. Gate Framework 2.0 r11 remains the reusable framework for this candidate unless reusable framework source actually changes.
+The immutable development baseline is Manager 4.13.1. Gate Framework 2.0 r12 is the frozen reusable framework for this corrective candidate; Framework source is unchanged from the independently Windows-qualified r12.
 
 ## Canonical installed layout
 
@@ -68,7 +68,7 @@ The Manager frontend can prepare CURRENT for Workspace or Chat Manager and opens
 
 ## AI_CONTEXT correctness
 
-AI_CONTEXT continues to preserve complete managed source while exposing the monolithic runtime as exact AST-bound slices. Manager 4.14.0 makes each configured task route fail closed when an entry function or related managed file is missing and expands runtime recommendations to the deterministic transitive closure of internal Manager-function dependencies rather than only one direct-call level.
+AI_CONTEXT continues to preserve complete managed source while exposing the monolithic runtime as exact AST-bound slices. Manager 4.14.1 makes each configured task route fail closed when an entry function or related managed file is missing and expands runtime recommendations to the deterministic transitive closure of internal Manager-function dependencies rather than only one direct-call level.
 
 The task router records entry, direct-dependency, transitive-dependency and total recommended-function counts together with the runtime byte budget. The generator validates that every internal call made by the recommended closure remains inside that closure.
 
@@ -82,7 +82,7 @@ The tests workspace contract is explicit: `framework` holds one current reusable
 
 ## Update compatibility
 
-Manager 4.14.0 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators.
+Manager 4.14.1 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators.
 
 Manager-only update commands clearly distinguish "no newer valid package" from failure and do not silently process Hub updates.
 
@@ -94,4 +94,4 @@ The existing numeric main-menu contract is preserved to avoid breaking establish
 
 ## Release gate
 
-This source is not production-approved merely because it carries version 4.14.0. Production approval still requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic release/package checks, CURRENT-backed disposable 4.13.1 -> 4.14.0 native update, rollback/fault injection, migrations, Doctor, production immutability, UI regression coverage, public PR CI, exact tested/PR/post-merge/release artifact identity and gated publication.
+This source is not production-approved merely because it carries version 4.14.1. Production approval still requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic release/package checks, CURRENT-backed disposable 4.13.1 -> 4.14.1 native update, rollback/fault injection, migrations, Doctor, production immutability, UI regression coverage, public PR CI, exact tested/PR/post-merge/release artifact identity and gated publication.

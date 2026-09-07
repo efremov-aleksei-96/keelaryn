@@ -10,13 +10,15 @@ Generated slices are derived views. Patch canonical managed source, regenerate c
 
 Route files must reference exact slices rather than embedding duplicate function bodies. This keeps search results unique, reduces archive/index size, and avoids making the model reconcile multiple derived copies of the same canonical code.
 
-Manager 4.14.0 makes route completeness fail closed. Every configured route entry function and related managed file must exist. Runtime recommendations are the deterministic transitive closure of internal Manager-function calls reachable from the configured entry functions, not merely one direct-call level. For every recommended function the generator verifies that all statically resolved internal Manager calls remain inside the same closure.
+Manager 4.14.1 makes route completeness fail closed. Every configured route entry function and related managed file must exist. Runtime recommendations are the deterministic transitive closure of internal Manager-function calls reachable from the configured entry functions, not merely one direct-call level. For every recommended function the generator verifies that all statically resolved internal Manager calls remain inside the same closure.
 
 `TASK_ROUTER.json` records entry-function count, direct-dependency count, deeper transitive-dependency count, total recommended-function count and recommended runtime bytes for each route. This makes context size measurable while keeping the closure complete. Route Markdown repeats the compact closure counts and byte budget without embedding source bodies.
 
 ## Source-snapshot consistency
 
-AI_CONTEXT is a build transaction over canonical managed source. Manager 4.14.0 captures preflight SHA-256 identities for the managed source set before derived output construction and revalidates fresh source hashes at the end of the build. The runtime file hash used to bind AST slicing must still match at the transaction boundary.
+AI_CONTEXT is a build transaction over canonical managed source. Manager 4.14.1 captures preflight SHA-256 identities for the managed source set before derived output construction and revalidates fresh source hashes at the end of the build. The runtime file hash used to bind AST slicing must still match at the transaction boundary.
+
+Manager 4.14.1 also binds the already UTF-8-decoded runtime text to the initial runtime file SHA-256 immediately after reading it and before AST parsing or any derived output. If the decoded text hash differs from the file hash, the build fails closed. This closes a reverted-mutation window in which the runtime file could otherwise be transiently replaced only while the parsed source string was read and then restored before later file-hash checks.
 
 For every non-runtime managed file, the final source SHA-256 must also equal the hash of `managed/<path>` already computed by the final `CONTEXT_MANIFEST.json` scan. A source mutation before or after copying therefore fails the build instead of producing a mixed source/context snapshot. The output comparison reuses the mandatory context-manifest hash pass rather than performing another separate hash traversal of generated files.
 
@@ -40,7 +42,7 @@ Use AI_CONTEXT route `candidate_transport` for fallback CANDIDATE transport work
 
 ## File hashing in the context builder
 
-The AI_CONTEXT generator hashes source/context files with direct `.NET SHA256(Stream)` plus `BitConverter` lowercase hex formatting rather than repeated `Get-FileHash` cmdlet invocations. The algorithm and hashed bytes are unchanged. Manager 4.14.0 intentionally performs a preflight and transaction-boundary source hash comparison because source-snapshot correctness takes precedence over eliminating that validation pass; generated-file consistency reuses the existing `CONTEXT_MANIFEST` hash scan.
+The AI_CONTEXT generator hashes source/context files with direct `.NET SHA256(Stream)` plus `BitConverter` lowercase hex formatting rather than repeated `Get-FileHash` cmdlet invocations. The algorithm and hashed bytes are unchanged. Manager 4.14.1 intentionally performs a preflight and transaction-boundary source hash comparison because source-snapshot correctness takes precedence over eliminating that validation pass; generated-file consistency reuses the existing `CONTEXT_MANIFEST` hash scan.
 
 Task routes include `user_interface` and `repository_model` so UX/repository work does not require broad runtime loading.
 
@@ -48,4 +50,4 @@ Task routes include `user_interface` and `repository_model` so UX/repository wor
 
 The canonical function-map runtime is `product/runtime/Keelaryn__Manager.ps1`; `product/install/INSTALLATION.json` is the canonical managed-file map. Transition root bootstrap/version/manifest files exist only inside the compatible UPDATE envelope and are not part of AI_CONTEXT managed source. Final hashing and lossless reconstruction remain fresh.
 
-The Windows performance gate retains the robust in-process ABBA methodology and the +5% regression ceiling. Gate Framework 2.0 r11 remains frozen for Manager 4.14.0 unless reusable gate-framework source itself changes.
+The Windows performance gate retains the robust in-process ABBA methodology and the +5% regression ceiling. Gate Framework 2.0 r12 remains frozen for Manager 4.14.1 unless reusable gate-framework source itself changes.
