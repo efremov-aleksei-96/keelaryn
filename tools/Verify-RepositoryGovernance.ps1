@@ -26,7 +26,7 @@ function Invoke-GitHubGet([string]$Uri,[hashtable]$Headers){
 $contractPath=Require-File 'REPOSITORY_GOVERNANCE.json'
 $contract=(Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8)|ConvertFrom-Json
 if([string]$contract.schema-ne'keelaryn.repository-governance.v1'){Fail('Unsupported governance schema: '+[string]$contract.schema)}
-if([int]$contract.revision-ne2){Fail('Unexpected governance revision: '+[string]$contract.revision)}
+if([int]$contract.revision-ne3){Fail('Unexpected governance revision: '+[string]$contract.revision)}
 if([string]$contract.default_branch-ne'main'){Fail('Governance default branch must be main.')}
 if(-not[bool]$contract.merge_policy.allow_squash_merge){Fail('Governance must allow squash merge.')}
 if([bool]$contract.merge_policy.allow_merge_commit){Fail('Governance must forbid merge commits.')}
