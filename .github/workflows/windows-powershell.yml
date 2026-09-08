@@ -142,7 +142,8 @@ jobs:
               $marker = '      - name: Verify candidate public boundary and Actions policy'
               $index = $text.IndexOf($marker,[System.StringComparison]::Ordinal)
               if ($index -lt 0) { throw 'Windows source workflow is missing the disposable qualification execution marker.' }
-              return TextIdentity $text.Substring($index)
+              $region = $text.Substring($index).Replace("`r`n","`n").Replace("`r","`n")
+              return TextIdentity $region
           }
           $candidateRoot = Join-Path $env:GITHUB_WORKSPACE 'candidate'
           $baseRoot = Join-Path $env:GITHUB_WORKSPACE 'base'
