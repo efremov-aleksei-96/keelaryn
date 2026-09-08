@@ -127,3 +127,14 @@ Revision 10 bounds command-log and exit-code sidecar filenames on Windows. The h
 Revision 11 preserves the revision 10 path-length hardening and corrects the Full Gate candidate-transport fixture source. Candidate fixtures use the valid non-genesis migration CURRENT already produced by the gate instead of the original Genesis CURRENT. This keeps the candidate transport regression on a normal parented lineage even when the disposable production fixture starts at Genesis.
 
 Revision 11 was independently qualified on Windows PowerShell 5.1 while testing unchanged Manager 4.12.0 g1 bytes. Gate Revision 3 passed SourceGate, CURRENT-backed Full Gate, rollback fault injection, native 4.11.0 -> 4.12.0 update, post-update Doctor, UI/archive/migration/candidate-transport/Genesis coverage, AI_CONTEXT performance control and production immutability.
+## Revision 12 transient CURRENT sharing retry
+
+Revision 12 corrects a Framework-only Windows Full Gate defect discovered while qualifying unchanged Manager 4.14.0 bytes. Full Gate E4 previously opened the disposable `Keelaryn__Hub_CURRENT.zip` exactly once in `ZipArchiveMode.Update`; a transient sharing violation from another process could therefore reject an otherwise healthy candidate.
+
+Revision 12:
+- retries only the actual disposable CURRENT ZIP update-open operation;
+- retries only Windows sharing/lock violations 32/33 and immediately rethrows unrelated failures;
+- includes a real Windows `FileShare.None` sharing-violation self-test before gate execution;
+- makes `Build-ManagerGate.ps1` statically require the retry/self-test contract and reject the old direct single-attempt E4 open.
+
+The Manager 4.14.0 product bytes are unchanged. Historical r11 / gate-revision-1 qualification evidence remains historical and rejected; repeated qualification uses Framework r12 with gate revision 2.

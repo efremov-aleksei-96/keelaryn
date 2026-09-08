@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.13.1"
+$ManagerVersion = "4.14.1"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -6193,6 +6193,18 @@ function Test-ProductSourceSelfTest {
             if(-not$runtimeSource.Contains($token)){return $false}
         }
         $aiToolSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\tools\New-KeelarynAIContext.ps1'),[System.Text.Encoding]::UTF8)
+        $runtimeReadBindingToken='$source=[System.IO.File]::ReadAllText($scriptPath,[System.Text.Encoding]::UTF8)'
+        $runtimeTextHashBindingToken='$runtimeTextHash=Get-TextSha256 $source'
+        $runtimeHashCheckBindingToken='if($runtimeTextHash-cne$runtimeHash){throw(''AI context runtime source/hash binding mismatch.'
+        $runtimeParseBindingToken='$ast=[System.Management.Automation.Language.Parser]::ParseInput($source'
+        $runtimeReadBindingPos=$aiToolSource.IndexOf($runtimeReadBindingToken,[System.StringComparison]::Ordinal)
+        $runtimeTextHashBindingPos=$aiToolSource.IndexOf($runtimeTextHashBindingToken,[System.StringComparison]::Ordinal)
+        $runtimeHashCheckBindingPos=$aiToolSource.IndexOf($runtimeHashCheckBindingToken,[System.StringComparison]::Ordinal)
+        $runtimeParseBindingPos=$aiToolSource.IndexOf($runtimeParseBindingToken,[System.StringComparison]::Ordinal)
+        if($runtimeReadBindingPos-lt0-or$runtimeTextHashBindingPos-le$runtimeReadBindingPos-or$runtimeHashCheckBindingPos-le$runtimeTextHashBindingPos-or$runtimeParseBindingPos-le$runtimeHashCheckBindingPos-or$aiToolSource.LastIndexOf($runtimeTextHashBindingToken,[System.StringComparison]::Ordinal)-ne$runtimeTextHashBindingPos){
+            $script:ProductSourceSelfTestReason='AI_CONTEXT runtime decoded-text/file-hash binding contract is missing, duplicated, or ordered after AST parsing.'
+            return $false
+        }
         $aiTokens=$null;$aiErrors=$null
         $aiAst=[System.Management.Automation.Language.Parser]::ParseInput($aiToolSource,[ref]$aiTokens,[ref]$aiErrors)
         if(@($aiErrors).Count-ne0){$script:ProductSourceSelfTestReason='AI_CONTEXT source parser failure: '+((@($aiErrors)|ForEach-Object{$_.Message})-join'; ');return $false}

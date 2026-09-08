@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.manager.release-policy.v1",
-  "manager_version": "4.13.1",
+  "manager_version": "4.14.1",
   "native_update_schema": "keelaryn.manager.update.v2",
   "update_min_version": "4.7.2",
   "self_test_required": true

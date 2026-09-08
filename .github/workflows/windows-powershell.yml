@@ -45,9 +45,47 @@ jobs:
           $work = Join-Path $root 'tests\work'
           Expand-Archive -LiteralPath $gateZip -DestinationPath $work -Force
           "candidate=$work\manager-$version" >> $env:GITHUB_ENV
+          "source_gate_zip=$gateZip" >> $env:GITHUB_ENV
+          "gate_version=$version" >> $env:GITHUB_ENV
 
       - name: Run Hub-blind SourceGate
         shell: powershell
         run: |
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:candidate\gate\Run-KeelarynManagerSourceGate.ps1" -ManagerRoot "$env:candidate"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish exact SourceGate CI gate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: keelaryn-manager-source-gate-${{ env.gate_version }}-${{ github.sha }}
+          path: ${{ env.source_gate_zip }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Generate qualification Manager gate
+        shell: powershell
+        run: |
+          $root = $env:GITHUB_WORKSPACE
+          $manager = Join-Path $root 'manager'
+          $install = Get-Content (Join-Path $manager 'product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $prov = Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $version = [string]$install.manager_version
+          $baseline = [string]$prov.source_gate_baseline_manager_version
+          $qualificationGateRevision = if ($null -ne $prov.production_validation.gate_revision) { [int]$prov.production_validation.gate_revision } else { 1 }
+          if ($qualificationGateRevision -lt 1 -or $qualificationGateRevision -ge 9000) { throw "Invalid qualification gate revision: $qualificationGateRevision" }
+          $builder = Join-Path $root 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          $qualificationDir = Join-Path $root 'tests\qualification-gate'
+          New-Item -ItemType Directory -Force -Path $qualificationDir | Out-Null
+          $qualificationZip = Join-Path $qualificationDir ('manager-' + $version + '.zip')
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $builder -SourceRoot $manager -BaselineVersion $baseline -GateRevision $qualificationGateRevision -OutputPath $qualificationZip -Force
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "qualification_gate_zip=$qualificationZip" >> $env:GITHUB_ENV
+          "qualification_gate_revision=$qualificationGateRevision" >> $env:GITHUB_ENV
+
+      - name: Publish qualification Manager gate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: keelaryn-manager-qualification-gate-${{ env.gate_version }}-g${{ env.qualification_gate_revision }}-${{ github.sha }}
+          path: ${{ env.qualification_gate_zip }}
+          if-no-files-found: error
+          retention-days: 7
