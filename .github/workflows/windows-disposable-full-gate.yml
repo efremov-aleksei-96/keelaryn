@@ -118,6 +118,8 @@ jobs:
       - name: Verify resolved baseline
         id: baseline
         shell: powershell
+        env:
+          CANDIDATE_VERSION: ${{ steps.resolve.outputs.candidate_version }}
         run: |
           $baselineRoot = Join-Path $env:GITHUB_WORKSPACE 'baseline'
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $baselineRoot 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $baselineRoot
@@ -125,7 +127,7 @@ jobs:
           $install = Get-Content (Join-Path $baselineRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
           $version = ([string]$install.manager_version).Trim()
           $sha = (git -C $baselineRoot rev-parse HEAD).Trim()
-          if ([version]${{ steps.resolve.outputs.candidate_version }} -le [version]$version) { throw ('Candidate must be newer than resolved baseline: '+$version) }
+          if ([version]$env:CANDIDATE_VERSION -le [version]$version) { throw ('Candidate must be newer than resolved baseline: '+$version) }
           "baseline_version=$version" >> $env:GITHUB_OUTPUT
           "baseline_sha=$sha" >> $env:GITHUB_OUTPUT
           Write-Host ('Resolved disposable baseline '+$version+' @ '+$sha)
