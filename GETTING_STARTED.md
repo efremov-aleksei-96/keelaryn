@@ -42,7 +42,7 @@ The Manager opens in a console window. Normal operation does not require you to 
 
 ## 4. Complete first-run setup
 
-On a clean Manager 4.12+ installation, startup shows:
+On a clean installation from a current packaged release, startup shows:
 
 ```text
 Welcome to Keelaryn

@@ -58,6 +58,9 @@ $workflowRoot=Join-Path $RepositoryRoot '.github\workflows'
 if(-not(Test-Path -LiteralPath $workflowRoot -PathType Container)){Fail('Missing .github/workflows directory.')}
 $workflowFiles=@(Get-ChildItem -LiteralPath $workflowRoot -File -Force|Where-Object{$_.Extension.ToLowerInvariant()-in@('.yml','.yaml')})
 if($workflowFiles.Count-eq0){Fail('No GitHub Actions workflows found.')}
+[void](Require-File 'tools/Verify-PublicPresentation.ps1')
+$governanceWorkflow=Read-Utf8 (Require-File '.github/workflows/repository-governance.yml')
+if($governanceWorkflow.IndexOf('Verify-PublicPresentation.ps1',[System.StringComparison]::Ordinal)-lt0){Fail('Repository governance workflow must execute Verify-PublicPresentation.ps1.')}
 
 $externalCount=0
 $runnerCount=0
