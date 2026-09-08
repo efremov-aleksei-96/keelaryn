@@ -12,6 +12,9 @@ $ErrorActionPreference='Stop'
 if($PSVersionTable.PSVersion.Major-lt5){throw 'Build-ManagerGate requires PowerShell 5 or newer.'}
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+$sourceZipSafetyPath=Join-Path $PSScriptRoot 'SourceZipSafety.ps1'
+if(-not(Test-Path -LiteralPath $sourceZipSafetyPath -PathType Leaf)){throw('Framework SourceZip safety helper missing: '+$sourceZipSafetyPath)}
+. $sourceZipSafetyPath
 
 function Sha([string]$Path){return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()}
 function TextSha([string]$Text){
@@ -91,8 +94,8 @@ try{
     New-Item -ItemType Directory -Force -Path $tempRoot|Out-Null
     if($PSCmdlet.ParameterSetName-eq'Zip'){
         $SourceZip=[System.IO.Path]::GetFullPath($SourceZip);if(-not(Test-Path -LiteralPath $SourceZip -PathType Leaf)){throw('SOURCE ZIP missing: '+$SourceZip)}
-        $expanded=Join-Path $tempRoot 'source-expanded';Expand-Archive -LiteralPath $SourceZip -DestinationPath $expanded -Force
-        $SourceRoot=Join-Path $expanded 'keelaryn\manager'
+        $expanded=Join-Path $tempRoot 'source-expanded'
+        $SourceRoot=Expand-KeelarynSourceZipSafely -ZipPath $SourceZip -Destination $expanded -RequiredRoot 'keelaryn'
     }
     $SourceRoot=[System.IO.Path]::GetFullPath($SourceRoot).TrimEnd('\');if(-not(Test-Path -LiteralPath $SourceRoot -PathType Container)){throw('Manager source root missing: '+$SourceRoot)}
     $installPath=Join-Path $SourceRoot 'product\install\INSTALLATION.json';if(-not(Test-Path -LiteralPath $installPath -PathType Leaf)){throw('INSTALLATION.json missing: '+$installPath)}
