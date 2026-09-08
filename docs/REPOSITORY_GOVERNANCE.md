@@ -40,7 +40,7 @@ It requires:
 - non-fast-forward updates blocked;
 - deletion blocked.
 
-`tools/Verify-RepositoryGovernance.ps1 -Online` verifies the effective server rules in addition to the source policy.
+`tools/Verify-RepositoryGovernance.ps1` validates the repository-side source contract. `tools/Verify-RepositoryGovernanceOnline.ps1` separately verifies effective GitHub server rules and historical release identities. Keeping those checks separate prevents read-only source validation from depending on GitHub API serialization or token visibility.
 
 ## Conditional release gate
 
@@ -115,7 +115,7 @@ They are not merely listed as exceptions. `LEGACY_RELEASE_BASELINE.json` freezes
 - exact asset size;
 - exact GitHub SHA-256 digest.
 
-`tools/Verify-RepositoryGovernance.ps1 -Online` compares the live GitHub release and tag to this baseline. A missing asset, extra asset, moved tag, changed size or changed SHA-256 fails governance validation.
+`tools/Verify-RepositoryGovernanceOnline.ps1` compares the live GitHub release and tag to this baseline. A missing asset, extra asset, moved tag, changed size or changed SHA-256 fails governance validation.
 
 A legacy mutable release is historical evidence only. It must never be recreated or rewritten. The fact that GitHub still permits mutation is mitigated by exact baseline verification and protected release tags.
 
@@ -201,11 +201,18 @@ Existing historical provenance is not rewritten merely because the future contra
 
 ## Auditing
 
-Source-only audits:
+Source-contract audits:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-RepositoryGovernance.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-GitHubActionsPolicy.ps1
+```
+
+Online GitHub audit:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-RepositoryGovernanceOnline.ps1 `
+  -Repository efremov-aleksei-96/keelaryn
 ```
 
 Online governance validates:
@@ -213,10 +220,14 @@ Online governance validates:
 - merge policy and protected `main`;
 - exact required checks and main ruleset behavior;
 - provenance tag ruleset once activated;
-- CI concurrency source policy;
-- exact legacy mutable release baseline;
+- exact legacy mutable release baseline.
+
+Source governance independently validates:
+
+- CI concurrency policy;
 - release-critical path synchronization;
 - bounded public-release smoke contract;
+- required source/admin tooling presence;
 - Actions SHA pins and runner labels.
 
 During the bootstrap PR only, absence of the new provenance tag ruleset is reported as a warning so the source policy can be reviewed first. The ruleset must be activated before the r5 source is merged; on `main` its absence is a hard failure.
