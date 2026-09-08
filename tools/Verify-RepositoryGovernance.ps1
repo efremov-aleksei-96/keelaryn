@@ -107,6 +107,17 @@ if ([string]$contract.release_policy.conditional_pr_gate.required_context -ne 'r
 $requiredFiles = @('.github/CODEOWNERS','.github/dependabot.yml','.github/pull_request_template.md','.github/workflows/repository-governance.yml','.github/workflows/release-policy.yml','.github/workflows/windows-powershell.yml','.github/workflows/public-release.yml','CONTRIBUTING.md','SECURITY.md','docs/REPOSITORY_GOVERNANCE.md','tools/Invoke-RepositoryGovernanceAdmin.ps1','tools/Verify-GitHubActionsPolicy.ps1','tools/Verify-RepositoryGovernance.ps1','tools/Verify-RepositoryGovernanceOnline.ps1')
 foreach ($relative in $requiredFiles) { [void](Require-File $relative) }
 
+$governancePowerShellFiles = @('tools/Invoke-RepositoryGovernanceAdmin.ps1','tools/Verify-GitHubActionsPolicy.ps1','tools/Verify-RepositoryGovernance.ps1','tools/Verify-RepositoryGovernanceOnline.ps1')
+foreach ($relative in $governancePowerShellFiles) {
+    $tokens = $null
+    $parseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile((Require-File $relative),[ref]$tokens,[ref]$parseErrors)
+    if (@($parseErrors).Count -gt 0) {
+        $messages = @($parseErrors | ForEach-Object { $_.Message }) -join '; '
+        Fail ('Windows PowerShell parser failed for ' + $relative + ': ' + $messages)
+    }
+}
+
 $workflowFiles = @('.github/workflows/windows-powershell.yml','.github/workflows/public-release.yml','.github/workflows/repository-governance.yml','.github/workflows/release-policy.yml')
 foreach ($relative in $workflowFiles) {
     $src = Read-Utf8 (Require-File $relative)
@@ -138,5 +149,5 @@ $doc = Read-Utf8 (Require-File 'docs/REPOSITORY_GOVERNANCE.md')
 foreach ($token in @('immutable releases','release attestation','legacy mutable','release-policy','branch hygiene','LEGACY_RELEASE_BASELINE.json','provenance tag','Verify-RepositoryGovernanceOnline.ps1','source validation')) { Require-Token $doc $token 'Repository governance documentation' }
 Assert-StringSet @($contract.main_ruleset.required_rules.required_status_checks.contexts) @('source-gate','repository-governance','release-policy') 'Required status checks'
 
-Write-Host ('Repository governance source contract: PASS. revision=5; legacy=' + $legacyTags.Count + '; critical_paths=' + $criticalPaths.Count + '; pr_cancel_workflows=' + @($ci.pr_cancel_workflows).Count + '; deferred=' + @($ci.deferred_workflows).Count) -ForegroundColor Green
+Write-Host ('Repository governance source contract: PASS. revision=5; legacy=' + $legacyTags.Count + '; critical_paths=' + $criticalPaths.Count + '; pr_cancel_workflows=' + @($ci.pr_cancel_workflows).Count + '; deferred=' + @($ci.deferred_workflows).Count + '; ps_parser=' + $governancePowerShellFiles.Count) -ForegroundColor Green
 exit 0
