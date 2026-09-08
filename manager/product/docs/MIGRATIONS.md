@@ -10,6 +10,17 @@ Major namespace/history repair and customized governance convergence belong to C
 
 Moving a Hub does not require a system migration. Use Maintenance > Bind existing Hub (legacy alias `BIND_INSTANCE.cmd`) if automatic identity-based reconciliation cannot resolve the location unambiguously.
 
+## System version versus governance revision
+
+`system_version` and generic `governance_revision` are separate compatibility axes.
+
+- `system_version` is structural and advances only through the migration registry.
+- `_System/GOVERNANCE.json` records the generic-governance revision actually adopted by the Hub plus contract-specific revisions such as Workspace checkout.
+- `product/release.json` declares the governance revision expected by the running Manager.
+- Doctor reports governance compatibility independently of migration status.
+
+A Hub may therefore be structurally current while Doctor reports that Chat Manager governance reconciliation is required. Manager update/install does not mutate the Hub to clear that warning.
+
 ## Legacy Core__ namespace compatibility
 
 Pre-Keelaryn generic installations may use `Core__Manager`, `Core__Hub` and `corehub.*` schemas. These identifiers are compatibility/history aliases only. New Genesis and releases use Keelaryn names exclusively.
@@ -22,13 +33,16 @@ Local naming conventions such as arbitrary numeric prefixes are not part of the 
 
 ## Workspace governance convergence
 
-Workspace checkout governance is instance-owned once a Hub exists and may have local customization. Manager updates therefore do not silently overwrite an existing Hub's `_System/WORKSPACE.md` or `Resources/Prompts/Workspace Checkout.md`.
+Workspace checkout governance is instance-owned once a Hub exists and may have local customization. Manager updates therefore do not silently overwrite an existing Hub's `_System/WORKSPACE.md`, `_System/GOVERNANCE.json` or `Resources/Prompts/Workspace Checkout.md`.
 
-When a newer Manager ships revised Workspace governance/templates, an existing customized Hub adopts the semantic change through the normal Hub reconciliation path:
+The canonical generic governance overlay now owns the Workspace Checkout prompt as well as the `_System` governance documents. `_System/GOVERNANCE.json` declares the target `managed_paths`, `governance_revision`, `workspace_protocol` and `workspace_checkout_revision`.
+
+When a newer Manager ships revised governance, an existing Hub adopts it through the normal Hub reconciliation path:
 
 ```text
 CURRENT -> CANDIDATE -> Chat Manager -> APPROVED -> CURRENT
 ```
 
-For canonical-title synchronization, reconciliation should preserve unrelated local customization while adding the `keelaryn.workspace.v1` entity metadata/title invariant and user-facing `suggested_chat_title` behavior. A schema-version bump is not required merely because the optional informational metadata fields are added; legacy v1 checkouts remain readable.
+Reconciliation preserves unrelated user content/customization, incorporates the target governance semantics, writes the matching governance receipt only after the change is complete, advances the normal data revision, and rebuilds deterministic metadata. It never replaces the Hub with `product/starter/hub` and never advances `system_version` merely to clear governance drift.
 
+For the current Workspace contract, entity-bound `keelaryn.workspace.v1` checkouts carry `source_entity_id`, `source_entity_title` and `suggested_chat_title`; legacy v1 checkouts without those optional informational fields remain readable.
