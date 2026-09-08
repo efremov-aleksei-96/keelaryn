@@ -2,7 +2,7 @@
 
 `REPOSITORY_GOVERNANCE.json` is the machine-readable repository policy. This document is the maintainer-facing setup, audit and recovery guide.
 
-Repository governance is a control-plane boundary. It does not change Manager product bytes, Gate Framework qualification identity, personal Hub state, or historical Manager release provenance.
+Repository governance is a control-plane boundary. It does not change Manager product bytes, Gate Framework qualification identity, personal Hub state, or historical Manager release provenance. The contract covers branch hygiene, release identity, CI governance and provenance preservation explicitly.
 
 ## Main branch and merge policy
 
