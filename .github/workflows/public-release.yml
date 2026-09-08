@@ -8,6 +8,7 @@ on:
       - 'manager/**'
       - 'PUBLIC_PROVENANCE.json'
       - 'REPOSITORY_GOVERNANCE.json'
+      - 'LEGACY_RELEASE_BASELINE.json'
       - 'README.md'
       - 'GETTING_STARTED.md'
       - 'docs/USING_WITH_CHATGPT.md'
@@ -19,6 +20,7 @@ on:
       - 'manager/**'
       - 'PUBLIC_PROVENANCE.json'
       - 'REPOSITORY_GOVERNANCE.json'
+      - 'LEGACY_RELEASE_BASELINE.json'
   workflow_dispatch:
 
 permissions:
@@ -61,7 +63,7 @@ jobs:
           if ([string]$prov.source_manager_version -ne $version) { throw 'Public provenance does not bind the current Manager version.' }
           if ([string]$governance.schema -ne 'keelaryn.repository-governance.v1' -or [int]$governance.revision -lt 2) { throw 'Repository governance does not define immutable release policy r2.' }
           if (-not [bool]$governance.release_policy.immutable_releases.repository_setting_required) { throw 'Repository governance must require native GitHub immutable releases.' }
-          if (-not [bool]$governance.release_policy.immutable_releases.future_releases_must_be_immutable) { throw 'Repository governance must require future releases to be immutable.' }
+          if (-not [bool]$governance.release_policy.immutable_releases.future_releases_must_be_immutable) { throw 'Repository governance must require future immutable releases.' }
           if (-not [bool]$governance.release_policy.immutable_releases.release_attestation_required) { throw 'Repository governance must require release attestations.' }
           if (-not [bool]$governance.release_policy.immutable_releases.verify_each_asset_attestation) { throw 'Repository governance must require asset attestation verification.' }
 
@@ -175,7 +177,13 @@ jobs:
             $errTask = $p.StandardError.ReadToEndAsync()
             $p.StandardInput.Write("3`r`n0`r`n")
             $p.StandardInput.Close()
-            $p.WaitForExit()
+            if (-not $p.WaitForExit(15000)) {
+              try { $p.Kill() } catch {}
+              try { [void]$p.WaitForExit(5000) } catch {}
+              $partial = ''
+              try { $partial = $outTask.Result + $errTask.Result } catch {}
+              throw "First-run menu smoke timed out after 15 seconds: $partial"
+            }
             $startup = $outTask.Result + $errTask.Result
             if ($p.ExitCode -ne 0) { throw "First-run menu smoke failed with exit $($p.ExitCode): $startup" }
             foreach ($token in @('Welcome to Keelaryn','Create a new Hub','Connect an existing Hub','Everyday')) {

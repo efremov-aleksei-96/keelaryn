@@ -1,0 +1,76 @@
+{
+  "schema": "keelaryn.legacy-release-baseline.v1",
+  "repository": "efremov-aleksei-96/keelaryn",
+  "policy": "Historical mutable releases are read-only exceptions. Their tag targets and complete published asset sets must remain byte-identical to this baseline; they must never be recreated or rewritten.",
+  "releases": [
+    {
+      "tag": "v4.11.0",
+      "target_commit": "25cf36f87977df2549034f30b6bf1c97e3d232f7",
+      "release_id": 383499911,
+      "immutable": false,
+      "assets": [
+        {
+          "name": "Keelaryn_v4.11.0_Windows.zip",
+          "size": 165643,
+          "sha256": "c4a3412d7a6e633f892b2451576c619c6de95375b8ba13aa818deb0f7b6e4241"
+        },
+        {
+          "name": "Keelaryn__Manager_Update_v4.11.0_Built.zip",
+          "size": 169473,
+          "sha256": "0af20a64d8d655cab49f2ccacd2556f5962ab8c889daada91ef454aa831b15cd"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "size": 206,
+          "sha256": "259c1a6c46c9014e1b859b0ce7ff6e4732b583bfabad166c6fcc0f5506409516"
+        }
+      ]
+    },
+    {
+      "tag": "v4.12.0",
+      "target_commit": "576102227e749c3d0d47ae3e43fe3ba02946cfdd",
+      "release_id": 383585295,
+      "immutable": false,
+      "assets": [
+        {
+          "name": "Keelaryn_v4.12.0_Windows.zip",
+          "size": 167479,
+          "sha256": "ec516fc3876afce6dded8ba612d54ae7a06f1df8def8e2160081d726b32b1ed4"
+        },
+        {
+          "name": "Keelaryn__Manager_Update_v4.12.0_Built.zip",
+          "size": 171307,
+          "sha256": "2626259b7c99102249a67397092b9d1218e4397247bc61589005611e407d5c70"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "size": 206,
+          "sha256": "d8c4ab1b27a2c550fcb54e31eae7b27a57567521af6155a8b2f48ee759133266"
+        }
+      ]
+    },
+    {
+      "tag": "v4.13.1",
+      "target_commit": "04f075553333c6bfb49b4e8616c899a37503f0e8",
+      "release_id": 383697036,
+      "immutable": false,
+      "assets": [
+        {
+          "name": "Keelaryn_v4.13.1_Windows.zip",
+          "size": 189429,
+          "sha256": "d5a2f399ae2ce8fd755ff6730777dad416140bb0a24e6135690347ce56ec9b0f"
+        },
+        {
+          "name": "Keelaryn__Manager_Update_v4.13.1_Built.zip",
+          "size": 193566,
+          "sha256": "258cecaa691506d255d168cda57d65b09ac15326e4dcbc2fa82968786291fa8f"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "size": 206,
+          "sha256": "386b7e719c5ce05df82149ea974ed212e3489d0b0391f9bf7dfaa0b4e6c03bbe"
+        }
+      ]
+    }
+  ]
+}

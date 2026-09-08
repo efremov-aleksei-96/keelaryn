@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: keelaryn-governance-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   repository-governance:
@@ -23,12 +23,27 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify repository governance
+      - name: Verify repository governance source contract
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-RepositoryGovernance.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Repository "$env:GITHUB_REPOSITORY"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Plan repository governance admin transaction
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEELARYN_POLICY_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-RepositoryGovernanceAdmin.ps1" -Mode Plan -Repository "$env:GITHUB_REPOSITORY" -PolicyRef "$env:KEELARYN_POLICY_REF" -FreezePreservedBranches -CleanupFrozenBranches -DeleteBranchNames 'repository-governance-r5-check'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify repository governance online enforcement
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-RepositoryGovernance.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Repository "$env:GITHUB_REPOSITORY" -Online
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-RepositoryGovernanceOnline.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Repository "$env:GITHUB_REPOSITORY"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify GitHub Actions supply-chain policy
