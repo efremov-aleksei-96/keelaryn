@@ -49,19 +49,25 @@ jobs:
           $files=@($diffLines|ForEach-Object{([string]$_).Trim().Replace('\','/')}|Where-Object{$_})
           if($files.Count-eq0){throw 'Release policy found an empty PR diff.'}
 
+          $governancePath=Join-Path $env:GITHUB_WORKSPACE 'REPOSITORY_GOVERNANCE.json'
+          $governance=Get-Content -LiteralPath $governancePath -Raw -Encoding UTF8|ConvertFrom-Json
+          $criticalPatterns=@($governance.release_policy.critical_paths|ForEach-Object{([string]$_).Trim()}|Where-Object{$_})
+          if($criticalPatterns.Count-eq0){throw 'Repository governance release-critical path set is empty.'}
+          if(@($criticalPatterns|Select-Object -Unique).Count-ne$criticalPatterns.Count){throw 'Repository governance release-critical paths contain duplicates.'}
+
           function Test-ReleaseCritical([string]$Path){
-            if($Path-eq'.github/workflows/public-release.yml'){return $true}
-            if($Path.StartsWith('manager/',[System.StringComparison]::Ordinal)){return $true}
-            if($Path-eq'PUBLIC_PROVENANCE.json'){return $true}
-            if($Path-eq'REPOSITORY_GOVERNANCE.json'){return $true}
-            if($Path-eq'README.md'){return $true}
-            if($Path-eq'GETTING_STARTED.md'){return $true}
-            if($Path-eq'docs/USING_WITH_CHATGPT.md'){return $true}
-            if($Path-eq'docs/TROUBLESHOOTING.md'){return $true}
+            foreach($pattern in $criticalPatterns){
+              if($pattern.EndsWith('/**',[System.StringComparison]::Ordinal)){
+                $prefix=$pattern.Substring(0,$pattern.Length-2)
+                if($Path.StartsWith($prefix,[System.StringComparison]::Ordinal)){return $true}
+              }elseif($Path.Equals($pattern,[System.StringComparison]::Ordinal)){
+                return $true
+              }
+            }
             return $false
           }
 
-          $critical=@($files|Where-Object{Test-ReleaseCritical ([string]$_)})
+          $critical=@($files|Where-Object{Test-ReleaseCritical ([string]$_})
           if($critical.Count-eq0){
             Write-Host ('Release policy PASS: non-release PR; diff_files='+$files.Count) -ForegroundColor Green
             exit 0
