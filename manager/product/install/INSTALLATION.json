@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.manager.installation.v2",
-  "manager_version": "4.15.1",
+  "manager_version": "4.16.0",
   "layout_version": 2,
   "managed_files": [
     "compat/commands/APPLY_MIGRATIONS.cmd",
@@ -46,9 +46,11 @@
     "product/governance/hub/_System/CHAT_MANAGER.md",
     "product/governance/hub/_System/CHAT_MANAGER_LAUNCH.md",
     "product/governance/hub/_System/GLOSSARY.md",
+    "product/governance/hub/_System/GOVERNANCE.json",
     "product/governance/hub/_System/PROTOCOL.md",
     "product/governance/hub/_System/WORKSPACE.md",
     "product/governance/hub/README.md",
+    "product/governance/hub/Resources/Prompts/Workspace Checkout.md",
     "product/install/INSTALLATION.json",
     "product/manager_release.json",
     "product/migrations/2.0.0_to_2.1.0.json",
@@ -63,7 +65,6 @@
     "product/starter/hub/Records/README.md",
     "product/starter/hub/Resources/Prompts/Initialize New Hub.md",
     "product/starter/hub/Resources/Prompts/WORKER_CHAT.md",
-    "product/starter/hub/Resources/Prompts/Workspace Checkout.md",
     "product/starter/hub/Resources/README.md",
     "product/tools/audit_cleanroom.ps1",
     "product/tools/KeelarynMenu.ps1",
