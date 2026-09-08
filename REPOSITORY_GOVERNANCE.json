@@ -77,11 +77,12 @@
     "cancel_obsolete_pull_request_runs": true,
     "cancel_main_push_runs": false,
     "pr_cancel_workflows": [
+      ".github/workflows/windows-powershell.yml",
       ".github/workflows/repository-governance.yml",
       ".github/workflows/public-release.yml",
       ".github/workflows/release-policy.yml"
     ],
-    "source_validation_policy": "windows-powershell.yml is intentionally excluded in r5. Its current disposable qualification scope treats workflow-byte changes as a reason to run a version-transition Full Gate, whose runner requires candidate_version > baseline_version. Repository-only concurrency must not weaken that invariant. Redesign the scope detector separately before enabling source-workflow cancellation.",
+    "source_validation_policy": "windows-powershell.yml may cancel obsolete pull-request runs, but top-level concurrency and the scope detector itself are excluded from disposable Manager Full Gate qualification scope. The detector hashes Manager managed bytes, the disposable Full Gate runner, and the qualification-execution region beginning at 'Verify candidate public boundary and Actions policy'. Qualification-execution changes without a Manager version transition fail closed unless an explicit workflow_dispatch baseline is supplied.",
     "policy": "Obsolete PR runs may be cancelled only for workflows listed in pr_cancel_workflows. Push/main validation and publication runs are immutable evidence for a specific main SHA and must not be cancelled merely because a newer push starts."
   },
   "actions_policy": {
