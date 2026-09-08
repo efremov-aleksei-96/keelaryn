@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: Optional explicit baseline branch, tag, or commit for disposable Full Gate
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -88,4 +93,170 @@ jobs:
           name: keelaryn-manager-qualification-gate-${{ env.gate_version }}-g${{ env.qualification_gate_revision }}-${{ github.sha }}
           path: ${{ env.qualification_gate_zip }}
           if-no-files-found: error
+          retention-days: 7
+
+  disposable-full-gate:
+    if: ${{ github.event_name != 'push' }}
+    needs: source-gate
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout trusted base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'main' }}
+          path: base
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Detect disposable qualification scope
+        id: scope
+        shell: powershell
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          function FileIdentity([string]$Root,[string]$Relative) {
+              $path = Join-Path $Root $Relative
+              if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return '<missing>' }
+              return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+          $candidateRoot = Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $baseRoot = Join-Path $env:GITHUB_WORKSPACE 'base'
+          $candidateManifest = Get-Content (Join-Path $candidateRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $baseManifest = Get-Content (Join-Path $baseRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $reasons = New-Object System.Collections.ArrayList
+          if ([string]$candidateManifest.manager.gate_managed_content_sha256 -cne [string]$baseManifest.manager.gate_managed_content_sha256) {
+              [void]$reasons.Add('manager-bytes')
+          }
+          foreach ($relative in @('tools\Invoke-DisposableManagerFullGate.ps1','.github\workflows\windows-powershell.yml')) {
+              if ((FileIdentity $candidateRoot $relative) -cne (FileIdentity $baseRoot $relative)) { [void]$reasons.Add($relative.Replace('\','/')) }
+          }
+          $shouldRun = ([string]$env:EVENT_NAME -eq 'workflow_dispatch') -or $reasons.Count -gt 0
+          "should_run=$($shouldRun.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host ('Disposable Full Gate scope: '+$shouldRun+'; reasons='+($reasons -join ', '))
+
+      - name: Verify candidate public boundary and Actions policy
+        if: steps.scope.outputs.should_run == 'true'
+        shell: powershell
+        run: |
+          $candidate = Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $candidate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Verify-GitHubActionsPolicy.ps1') -RepositoryRoot $candidate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Resolve disposable baseline
+        if: steps.scope.outputs.should_run == 'true'
+        id: resolve
+        shell: powershell
+        env:
+          EXPLICIT_BASELINE_REF: ${{ github.event.inputs.baseline_ref }}
+        run: |
+          $candidateRoot = Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $baseRoot = Join-Path $env:GITHUB_WORKSPACE 'base'
+          $candidateInstall = Get-Content (Join-Path $candidateRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $baseInstall = Get-Content (Join-Path $baseRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $candidateVersion = [string]$candidateInstall.manager_version
+          $baseVersion = [string]$baseInstall.manager_version
+          if ($candidateVersion -notmatch '^\d+\.\d+\.\d+$' -or $baseVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid candidate/base Manager version.' }
+
+          $candidateManifest = Get-Content (Join-Path $candidateRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $baseManifest = Get-Content (Join-Path $baseRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $candidateFrameworkRows = @($candidateManifest.gate_framework.files | ForEach-Object { ([string]$_.path) + ':' + ([string]$_.sha256) } | Sort-Object)
+          $baseFrameworkRows = @($baseManifest.gate_framework.files | ForEach-Object { ([string]$_.path) + ':' + ([string]$_.sha256) } | Sort-Object)
+          if ([int]$candidateManifest.gate_framework.revision -ne [int]$baseManifest.gate_framework.revision -or [string]::Join('|',$candidateFrameworkRows) -cne [string]::Join('|',$baseFrameworkRows)) {
+              throw 'Disposable Manager prequalification refuses a mixed Gate Framework change. Qualify the framework separately first.'
+          }
+
+          $candidateSha = (git -C $candidateRoot rev-parse HEAD).Trim()
+          $baseSha = (git -C $baseRoot rev-parse HEAD).Trim()
+          $explicit = ([string]$env:EXPLICIT_BASELINE_REF).Trim()
+          if ($explicit) {
+              $baselineRef = $explicit
+          } elseif ([version]$candidateVersion -gt [version]$baseVersion) {
+              $baselineRef = $baseSha
+          } elseif ([version]$candidateVersion -eq [version]$baseVersion) {
+              if ([string]$candidateManifest.manager.gate_managed_content_sha256 -cne [string]$baseManifest.manager.gate_managed_content_sha256) {
+                  throw 'Manager bytes changed without a Manager version change.'
+              }
+              $provenance = Get-Content (Join-Path $baseRoot 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+              $previousVersion = ([string]$provenance.source_gate_baseline_manager_version).Trim()
+              if ($previousVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Could not infer the prior qualified Manager baseline.' }
+              $baselineRef = 'v' + $previousVersion
+          } else {
+              throw ('Candidate Manager '+$candidateVersion+' is older than trusted base '+$baseVersion+'.')
+          }
+
+          "candidate_version=$candidateVersion" >> $env:GITHUB_OUTPUT
+          "candidate_sha=$candidateSha" >> $env:GITHUB_OUTPUT
+          "base_sha=$baseSha" >> $env:GITHUB_OUTPUT
+          "baseline_ref=$baselineRef" >> $env:GITHUB_OUTPUT
+          Write-Host ('Candidate '+$candidateVersion+' @ '+$candidateSha)
+          Write-Host ('Disposable baseline ref: '+$baselineRef)
+
+      - name: Checkout disposable baseline
+        if: steps.scope.outputs.should_run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.resolve.outputs.baseline_ref }}
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify resolved baseline
+        if: steps.scope.outputs.should_run == 'true'
+        id: baseline
+        shell: powershell
+        env:
+          CANDIDATE_VERSION: ${{ steps.resolve.outputs.candidate_version }}
+        run: |
+          $baselineRoot = Join-Path $env:GITHUB_WORKSPACE 'baseline'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $baselineRoot 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $baselineRoot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $install = Get-Content (Join-Path $baselineRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $version = ([string]$install.manager_version).Trim()
+          $sha = (git -C $baselineRoot rev-parse HEAD).Trim()
+          if ([version]$env:CANDIDATE_VERSION -le [version]$version) { throw ('Candidate must be newer than resolved baseline: '+$version) }
+          "baseline_version=$version" >> $env:GITHUB_OUTPUT
+          "baseline_sha=$sha" >> $env:GITHUB_OUTPUT
+          Write-Host ('Resolved disposable baseline '+$version+' @ '+$sha)
+
+      - name: Run disposable Full Gate
+        if: steps.scope.outputs.should_run == 'true'
+        shell: powershell
+        run: |
+          $candidateRoot = Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $baseRoot = Join-Path $env:GITHUB_WORKSPACE 'base'
+          $baselineRoot = Join-Path $env:GITHUB_WORKSPACE 'baseline'
+          $workspace = Join-Path $env:RUNNER_TEMP ('keelaryn-disposable-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          $trustedRunner = Join-Path $baseRoot 'tools\Invoke-DisposableManagerFullGate.ps1'
+          if (-not (Test-Path -LiteralPath $trustedRunner -PathType Leaf)) {
+              Write-Warning 'Trusted base predates the disposable runner; using candidate runner for bootstrap qualification.'
+              $trustedRunner = Join-Path $candidateRoot 'tools\Invoke-DisposableManagerFullGate.ps1'
+          }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $trustedRunner `
+              -CandidateManagerRoot (Join-Path $candidateRoot 'manager') `
+              -BaselineManagerRoot (Join-Path $baselineRoot 'manager') `
+              -FrameworkRoot (Join-Path $baseRoot 'tests\framework\manager-gate') `
+              -WorkspaceRoot $workspace `
+              -CandidateRef '${{ steps.resolve.outputs.candidate_sha }}' `
+              -BaselineRef '${{ steps.baseline.outputs.baseline_sha }}' `
+              -GateRevision 9002
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish disposable qualification evidence
+        if: ${{ always() && steps.scope.outputs.should_run == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: keelaryn-disposable-full-gate-${{ steps.resolve.outputs.candidate_version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\keelaryn-disposable-${{ github.run_id }}-${{ github.run_attempt }}\evidence
+          if-no-files-found: warn
           retention-days: 7
