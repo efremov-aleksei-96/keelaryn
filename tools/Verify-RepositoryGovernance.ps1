@@ -143,6 +143,7 @@ Assert-StringSet (Get-WorkflowTriggerPaths $releaseSource 'pull_request') $criti
 Assert-StringSet (Get-WorkflowTriggerPaths $releaseSource 'push') $pushPaths 'Public-release push path filter'
 foreach ($token in @('release-policy:','distribution-gate','HEAD_SHA','Release-critical PR detected','Release policy PASS','check-runs?per_page=100','release_policy.critical_paths')) { Require-Token $releasePolicySource $token 'Conditional release-policy workflow' }
 Require-Token $governanceWorkflow 'Verify-RepositoryGovernance.ps1' 'Repository governance source step'
+Require-Token $governanceWorkflow 'Plan repository governance admin transaction' 'Repository governance admin Plan step'
 Require-Token $governanceWorkflow 'Verify-RepositoryGovernanceOnline.ps1' 'Repository governance online step'
 
 $doc = Read-Utf8 (Require-File 'docs/REPOSITORY_GOVERNANCE.md')
