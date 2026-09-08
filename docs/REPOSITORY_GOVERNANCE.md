@@ -1,202 +1,222 @@
 # Repository governance
 
-`REPOSITORY_GOVERNANCE.json` is the machine-readable repository policy. This document is the maintainer-facing setup and recovery guide.
+`REPOSITORY_GOVERNANCE.json` is the machine-readable repository policy. This document is the maintainer-facing setup, audit and recovery guide.
+
+Repository governance is a control-plane boundary. It does not change Manager product bytes, Gate Framework qualification identity or historical Manager release provenance.
 
 ## Why this exists
 
-Manager release qualification is fail-closed, but release engineering alone cannot stop an administrator from bypassing GitHub review and CI by writing directly to an unprotected `main` branch. Repository governance closes that control-plane gap without changing Manager product bytes.
+Manager release qualification is fail-closed, but release engineering alone cannot stop repository-level mistakes such as an unprotected `main`, a moved historical tag, an overwritten legacy release asset, or deletion of the sole ref preserving a rejected candidate. Repository Governance r5 covers those GitHub-side identities explicitly.
 
-The repository is currently maintained by one person, so the policy requires a pull request record and CI but deliberately requires **zero approving reviews**. Requiring another approval would deadlock ordinary maintenance without adding a real independent reviewer.
+The repository is maintained by one person. A pull request record and CI are mandatory, while the required approving-review count remains zero so routine maintenance does not deadlock on a nonexistent independent reviewer.
 
-## Required repository merge settings
+## Merge settings
 
-In **Settings > General > Pull Requests**:
+Required repository settings:
 
-- enable **Allow squash merging**;
-- disable **Allow merge commits**;
-- disable **Allow rebase merging**;
-- keep auto-merge disabled;
-- enable automatic deletion of head branches after pull requests are merged.
+- squash merging: enabled;
+- merge commits: disabled;
+- rebase merging: disabled;
+- auto-merge: disabled;
+- automatic deletion of ordinary merged head branches: enabled.
 
-The resulting `main` history is one reviewed/qualified commit per merged PR, while merged service branches are removed automatically.
+The durable `main` history therefore contains one squash result per merged pull request while qualification provenance is preserved separately.
 
-## Required main ruleset
+## Main ruleset
 
-The active branch ruleset is named exactly:
+The active branch ruleset is named exactly `Keelaryn main governance` and targets only the default branch / `main`.
 
-`Keelaryn main governance`
+It requires:
 
-It must remain:
-
-- Enforcement status: **Active**.
-- Target: default branch / `main` only.
-- Bypass list: **empty**.
-- Require a pull request before merging: **enabled**.
-- Required approving reviews: **0**.
-- Require code owner review: **disabled**.
-- Require approval of the most recent reviewable push: **disabled**.
-- Dismiss stale approvals: **disabled**.
-- Require conversation resolution before merging: **enabled**.
-- Allowed merge methods: **squash only**.
-- Require status checks to pass: **enabled**.
-- Require branches to be up to date before merging / strict status checks: **enabled**.
-- Required status checks, exactly:
+- no bypass actors;
+- pull requests before merge;
+- zero required approvals;
+- conversation resolution;
+- squash-only merge;
+- strict required checks:
   - `source-gate`
   - `repository-governance`
   - `release-policy`
-- Block force pushes: **enabled**.
-- Restrict deletions: **enabled**.
+- non-fast-forward updates blocked;
+- deletion blocked.
 
-### Conditional release gate
+`tools/Verify-RepositoryGovernance.ps1 -Online` verifies the effective server rules in addition to the source policy.
 
-`distribution-gate` is a real release qualification gate but its expensive public-release workflow is path-scoped. A path-scoped check cannot be listed directly as a universal branch requirement because GitHub would leave unrelated pull requests waiting for a check that never starts.
+## Conditional release gate
 
-Repository Governance r2 solves this with the globally required `release-policy` proxy:
+`distribution-gate` is intentionally path-scoped because it performs release-specific work. It cannot itself be a universal required check: unrelated pull requests would otherwise wait forever for a workflow that never starts.
 
-1. `release-policy` starts on **every** pull request to `main`.
-2. It retrieves the full PR file list using the read-only GitHub token.
-3. If no release-critical path changed, it immediately returns PASS.
-4. If a release-critical path changed, it watches the **exact PR head SHA** for `distribution-gate`.
-5. It returns PASS only when `distribution-gate` succeeds on that same head; failure, cancellation, timeout, or absence blocks merge.
+The globally required `release-policy` job therefore acts as the proxy:
 
-Release-critical paths intentionally mirror the public-release pull-request triggers: Manager source, public provenance, repository governance, the release workflow itself, and the public release/onboarding documentation that is packaged or relied on by release publication.
+1. it starts on every pull request to `main`;
+2. it reads `release_policy.critical_paths` from `REPOSITORY_GOVERNANCE.json`;
+3. non-release diffs pass immediately;
+4. release-critical diffs must receive a successful `distribution-gate` on the exact PR head SHA;
+5. failure, cancellation or timeout blocks merge.
 
-This gives the branch ruleset a cheap always-present required context while still making the expensive release gate server-enforced only where applicable.
+The public-release pull-request path filter is independently compared with the same machine-readable critical-path set by the governance verifier. This prevents the executable release classifier and workflow trigger list from drifting silently.
+
+## CI concurrency and evidence retention
+
+Repository Governance r5 distinguishes disposable PR work from durable main-SHA evidence.
+
+Obsolete runs for the same pull-request ref may be cancelled. Push runs on `main` must not be cancelled merely because a newer main commit appears. Consequently `windows-powershell.yml`, `repository-governance.yml` and `public-release.yml` use PR-only `cancel-in-progress` expressions. `release-policy.yml` is PR/manual-only and may retain ordinary cancellation behavior.
+
+This reduces iterative CI churn without weakening the evidence associated with an already-created `main` commit.
 
 ## GitHub Actions supply chain
 
-Repository Governance r2 also treats workflow dependencies as part of the repository control plane.
+All external `uses:` references are pinned to full 40-hex commit SHAs. Moving action tags are not executable references. Human-readable version comments are kept so Dependabot can update immutable SHAs safely.
 
-All external `uses:` references in `.github/workflows` must be pinned to a **full 40-hex Git commit SHA**. Moving tags such as `@v4` or `@v6` are not accepted as executable references. A same-line version comment such as `# v7.0.1` is retained so Dependabot can update both the immutable SHA and its human-readable release marker.
-
-The repository allowlist is deliberately narrow:
+The allowlist is deliberately narrow:
 
 - `actions/checkout@*`
 - `actions/upload-artifact@*`
 - `actions/download-artifact@*`
 
-Broad GitHub-owned and Marketplace verified-creator allowances are disabled. Future external actions require an explicit governance change before they can run.
+Server policy requires selected actions only, SHA pinning, read-only default workflow permissions, and no Actions approval of pull requests. `tools/Verify-GitHubActionsPolicy.ps1` validates the repository-side contract; administrator-only server settings remain an explicit admin boundary.
 
-`.github/dependabot.yml` performs weekly `github-actions` version updates so SHA pinning does not freeze dependencies indefinitely.
+Hosted runners use explicit OS families rather than moving `*-latest` labels:
 
-The server-side repository Actions policy must be:
-
-- Actions enabled;
-- `allowed_actions = selected`;
-- `sha_pinning_required = true`;
-- `github_owned_allowed = false`;
-- `verified_allowed = false`;
-- `patterns_allowed` exactly the three allowlist entries above;
-- default `GITHUB_TOKEN` permissions = **read**;
-- GitHub Actions may **not approve pull requests**.
-
-Administrator-authenticated REST endpoints used by the bootstrap are:
-
-```text
-PUT /repos/efremov-aleksei-96/keelaryn/actions/permissions
-PUT /repos/efremov-aleksei-96/keelaryn/actions/permissions/selected-actions
-PUT /repos/efremov-aleksei-96/keelaryn/actions/permissions/workflow
-```
-
-`tools/Verify-GitHubActionsPolicy.ps1` validates the repository-side source contract on Windows PowerShell 5.1. The server-side settings require repository Administration permission and are verified by the administrator bootstrap rather than by widening ordinary workflow permissions.
-
-### Runner OS families
-
-Repository Governance r3 forbids moving `*-latest` runner aliases. GitHub-hosted jobs use explicit GA OS-family labels:
-
-- `windows-2025` for Windows validation, governance, release policy, and distribution jobs;
-- `ubuntu-24.04` for the GitHub Release publication job.
-
-This pins the operating-system generation while still allowing GitHub to service and patch the hosted image within that OS family. `tools/Verify-GitHubActionsPolicy.ps1` rejects any unapproved or dynamic `runs-on` value.
+- `windows-2025`
+- `ubuntu-24.04`
 
 ## Immutable releases
 
-Repository Governance r2 requires **GitHub native immutable releases** for every future non-legacy Manager release.
+Future non-legacy Manager releases require GitHub native immutable releases plus release attestation and per-asset attestation verification.
 
-Enable the repository setting through GitHub **Settings > General > Releases > Enable release immutability**, or with an administrator-authenticated GitHub CLI:
+The publication workflow:
+
+1. gates the exact Manager release artifacts;
+2. creates a draft release;
+3. uploads the complete expected asset set;
+4. publishes the draft;
+5. requires `isImmutable=true`;
+6. verifies the release attestation;
+7. verifies each asset attestation;
+8. re-downloads assets and proves byte identity with the gated build.
+
+If a newly published release is unexpectedly mutable, publication deletes that newly-created unsafe release/tag and fails. Existing published releases are never silently rewritten.
+
+## Legacy mutable release baseline
+
+GitHub release immutability was enabled after the first public releases. Therefore these historical releases remain mutable at the platform level:
+
+- `v4.11.0`
+- `v4.12.0`
+- `v4.13.1`
+
+They are not merely listed as exceptions. `LEGACY_RELEASE_BASELINE.json` freezes for each release:
+
+- exact release ID;
+- exact lightweight tag target commit;
+- expected mutable status;
+- complete asset-name set;
+- exact asset size;
+- exact GitHub SHA-256 digest.
+
+`tools/Verify-RepositoryGovernance.ps1 -Online` compares the live GitHub release and tag to this baseline. A missing asset, extra asset, moved tag, changed size or changed SHA-256 fails governance validation.
+
+A legacy mutable release is historical evidence only. It must never be recreated or rewritten. The fact that GitHub still permits mutation is mitigated by exact baseline verification and protected release tags.
+
+## Provenance tag lifecycle
+
+Squash merging is excellent for public history but can leave rejected-candidate and qualification commits outside `main`. A development branch must therefore never be deleted merely because its product result was later squashed or superseded.
+
+Repository Governance r5 introduces an immutable provenance tag lifecycle:
 
 ```text
-gh api --method PUT repos/efremov-aleksei-96/keelaryn/immutable-releases -H "X-GitHub-Api-Version: 2026-03-10"
+preserved candidate / framework / release branch
+    -> freeze exact branch-head SHA
+    -> refs/tags/provenance/<branch-name>
+    -> verify exact tag identity
+    -> protect provenance/release tags server-side
+    -> only then delete the development branch
 ```
 
-Verify it with an administrator-authenticated token:
+Preserved-by-default branch prefixes are:
 
-```text
-gh api repos/efremov-aleksei-96/keelaryn/immutable-releases -H "X-GitHub-Api-Version: 2026-03-10"
-```
+- `candidate-manager-`
+- `framework-`
+- `gate-framework-`
+- `manager-`
+- `release-manager-`
 
-The expected response contains `"enabled": true`.
+The tag ruleset is named exactly `Keelaryn immutable provenance tags`. It targets:
 
-GitHub applies this setting only to releases published after it is enabled. Historical mutable releases are therefore represented explicitly by `release_policy.immutable_releases.legacy_mutable_tags` in `REPOSITORY_GOVERNANCE.json`.
+- `refs/tags/v*`
+- `refs/tags/provenance/**`
 
-A **legacy mutable** release is a historical exception only:
+and blocks both deletion and non-fast-forward/tag movement with an empty bypass list.
 
-- it must already exist;
-- it must never be recreated by the publisher;
-- its release assets must remain byte-identical to the gated build;
-- it is not evidence that future mutable releases are acceptable.
-
-## Publication contract for future releases
-
-For a new non-legacy release, `.github/workflows/public-release.yml` performs the following sequence:
-
-1. Build and gate the exact Manager artifacts.
-2. Create a **draft** GitHub Release and attach all release assets before publication.
-3. Publish the draft.
-4. Require GitHub to report `isImmutable=true`.
-5. Verify the GitHub **release attestation** with `gh release verify`.
-6. Verify every published local asset against the release attestation with `gh release verify-asset`.
-7. Re-download the release assets and require byte-for-byte identity with the gated build.
-
-If a newly published release is unexpectedly mutable, the workflow immediately deletes that new mutable release and its new tag and fails the publication job. An existing published non-legacy mutable release is never silently overwritten or deleted; publication fails for investigation.
-
-For a workflow retry that finds an unfinished draft, the draft is recoverable only when it targets the exact current publication commit. Expected assets may be refreshed while it is still a draft; publication occurs only after the gated asset set is complete.
-
-## Legacy 4.13.1 boundary
-
-`v4.13.1` predates native immutable-release enforcement and remains a historical mutable exception. Repository Governance r2 does not rewrite its tag, release, or assets. Re-running the release workflow against 4.13.1 succeeds only after the already-published assets are proven byte-identical to the gated artifacts.
-
-Once a release is native-immutable, it must not be added to the legacy exception list.
-
-The branch hygiene policy below governs repository refs only; it never changes release or qualification history.
+The branch name is disposable after freezing; the protected provenance tag is the long-lived snapshot identity. This keeps qualification history without accumulating mutable development branches indefinitely.
 
 ## Branch hygiene
 
-Repository Governance r4 makes branch/ref cleanup part of cycle completion rather than optional housekeeping.
+Ordinary merged service branches can be deleted once their squash result and PR record are durable. Preserved-prefix branches require the provenance flow above.
 
-Repository setting `delete_branch_on_merge` must be **enabled** so ordinary merged PR head branches are removed automatically. The machine-readable source contract requires it, while the actual server value is read back by the administrator cleanup/bootstrap because GitHub does not expose this field to the ordinary read-only Actions token.
+Cleanup rules:
 
-At the end of a coherent development or governance cycle:
+- never delete `main`;
+- never delete a branch with an open PR;
+- never delete a preserved-prefix branch unless its exact head SHA is protected by `main`, a release identity, or an exact protected provenance tag;
+- never wildcard-delete historical refs;
+- never rewrite published release history merely to reduce branch count.
 
-- delete merged service, CI, dependency, and temporary branches once their merged PR and squash commit preserve the durable result;
-- delete branches that are fully absorbed by `main` and therefore have no unique commits;
-- preserve any branch that is the sole Git ref for candidate, gate, framework, Manager-release, rejection, or qualification provenance;
-- treat prefixes `candidate-manager-`, `framework-`, `gate-framework-`, `manager-`, and `release-manager-` as protected-by-default and require explicit provenance analysis before deleting them;
-- never rewrite `main`, published tags, release assets, or historical qualification evidence merely to reduce Git history.
+`tools/Invoke-RepositoryGovernanceAdmin.ps1` implements this boundary as an explicit Plan/Apply transaction. Plan mode is the default. Apply mode can create/update the provenance tag ruleset, freeze preserved branch heads, verify the new refs and then delete only the branch refs whose exact commits have already been preserved.
 
-Squash merging intentionally leaves pre-squash service commits outside `main`. Once a service branch is proven merged and non-qualification, deleting that branch is the correct cleanup: the durable public result is the squash commit and the merged PR record. This rule must **not** be generalized to qualification branches, whose unique commit graph may itself be evidence.
+The tool also supports an explicit allowlist for non-provenance branch cleanup; it never treats that path as a bypass around preserved-branch checks.
 
-Administrator CLI setting:
+## Administrator transaction
 
-```text
-gh api --method PATCH repos/efremov-aleksei-96/keelaryn -F delete_branch_on_merge=true
+The admin tool reads policy from a named repository ref, so it can be reviewed on a governance PR before the source policy is merged.
+
+Typical pre-merge plan:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Invoke-RepositoryGovernanceAdmin.ps1 `
+  -Mode Plan `
+  -PolicyRef repository-governance-r5 `
+  -FreezePreservedBranches `
+  -CleanupFrozenBranches
 ```
 
-Current cleanup tooling uses an explicit branch allowlist plus exact branch-head and merged-PR / zero-ahead guards before deleting refs. It never performs wildcard branch deletion.
+After review, the same command with `-Mode Apply` performs the transaction. Server mutations are deliberately outside ordinary Actions jobs because those jobs retain read-only default permissions.
+
+## Bounded release smoke
+
+The first-run Generic DISTRIBUTION smoke in `.github/workflows/public-release.yml` uses a bounded process wait. If the console frontend does not terminate within the smoke timeout, CI kills the child process, performs a bounded cleanup wait and reports captured diagnostics instead of waiting for the entire job timeout.
+
+This aligns repository release smoke behavior with the Gate Framework rule against unbounded child waits.
+
+## Future provenance source identity
+
+For future Manager releases, qualification provenance must record the exact **pre-provenance product-source commit** that was qualified, in addition to gate/framework revision and tested UPDATE SHA-256.
+
+The final commit containing the provenance document is a different identity. Do not create an impossible self-reference by trying to store a commit SHA inside the same commit whose SHA depends on that file.
+
+Existing historical provenance is not rewritten merely because the future contract is stronger.
 
 ## Auditing
 
-Local/source-only audits:
+Source-only audits:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-RepositoryGovernance.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-GitHubActionsPolicy.ps1
 ```
 
-Online audit on GitHub Actions is performed by `.github/workflows/repository-governance.yml`. It checks the branch-hygiene source contract, repository merge settings where visible, protected `main`, the named active ruleset, pull-request parameters, the three strict required checks, force-push blocking, deletion protection, the immutable-release source contract, declared legacy release exceptions, action SHA pins, explicit runner OS-family labels, the explicit action allowlist, and Dependabot configuration.
+Online governance validates:
 
-`.github/workflows/release-policy.yml` independently enforces the conditional relationship between release-critical PRs and `distribution-gate` on the exact current head SHA.
+- merge policy and protected `main`;
+- exact required checks and main ruleset behavior;
+- provenance tag ruleset once activated;
+- CI concurrency source policy;
+- exact legacy mutable release baseline;
+- release-critical path synchronization;
+- bounded public-release smoke contract;
+- Actions SHA pins and runner labels.
 
-Native immutable releases, server-side GitHub Actions policy, and automatic merged-branch deletion require GitHub **Administration** visibility to verify reliably. Ordinary Actions jobs deliberately run with read-only repository permissions, so these settings are verified at administrator bootstrap/cleanup boundaries rather than by weakening workflow permissions.
+During the bootstrap PR only, absence of the new provenance tag ruleset is reported as a warning so the source policy can be reviewed first. The ruleset must be activated before the r5 source is merged; on `main` its absence is a hard failure.
 
-The policy source stays separate from Manager qualification provenance. Changing repository governance does not retroactively rewrite the provenance of already qualified Manager releases.
+Repository Governance r5 does not alter Manager product bytes or Gate Framework source bytes, and it does not retroactively change historical qualification provenance.
