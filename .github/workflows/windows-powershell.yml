@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   group: keelaryn-source-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   source-gate:
@@ -128,6 +128,22 @@ jobs:
               if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return '<missing>' }
               return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
           }
+          function TextIdentity([string]$Text) {
+              $sha = [System.Security.Cryptography.SHA256]::Create()
+              try {
+                  $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+                  return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant()
+              } finally { $sha.Dispose() }
+          }
+          function QualificationExecutionIdentity([string]$Root) {
+              $path = Join-Path $Root '.github\workflows\windows-powershell.yml'
+              if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return '<missing>' }
+              $text = [System.IO.File]::ReadAllText($path,[System.Text.Encoding]::UTF8)
+              $marker = '      - name: Verify candidate public boundary and Actions policy'
+              $index = $text.IndexOf($marker,[System.StringComparison]::Ordinal)
+              if ($index -lt 0) { throw 'Windows source workflow is missing the disposable qualification execution marker.' }
+              return TextIdentity $text.Substring($index)
+          }
           $candidateRoot = Join-Path $env:GITHUB_WORKSPACE 'candidate'
           $baseRoot = Join-Path $env:GITHUB_WORKSPACE 'base'
           $candidateManifest = Get-Content (Join-Path $candidateRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -136,8 +152,11 @@ jobs:
           if ([string]$candidateManifest.manager.gate_managed_content_sha256 -cne [string]$baseManifest.manager.gate_managed_content_sha256) {
               [void]$reasons.Add('manager-bytes')
           }
-          foreach ($relative in @('tools\Invoke-DisposableManagerFullGate.ps1','.github\workflows\windows-powershell.yml')) {
-              if ((FileIdentity $candidateRoot $relative) -cne (FileIdentity $baseRoot $relative)) { [void]$reasons.Add($relative.Replace('\','/')) }
+          if ((FileIdentity $candidateRoot 'tools\Invoke-DisposableManagerFullGate.ps1') -cne (FileIdentity $baseRoot 'tools\Invoke-DisposableManagerFullGate.ps1')) {
+              [void]$reasons.Add('tools/Invoke-DisposableManagerFullGate.ps1')
+          }
+          if ((QualificationExecutionIdentity $candidateRoot) -cne (QualificationExecutionIdentity $baseRoot)) {
+              [void]$reasons.Add('.github/workflows/windows-powershell.yml:qualification-execution')
           }
           $shouldRun = ([string]$env:EVENT_NAME -eq 'workflow_dispatch') -or $reasons.Count -gt 0
           "should_run=$($shouldRun.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
@@ -187,10 +206,7 @@ jobs:
               if ([string]$candidateManifest.manager.gate_managed_content_sha256 -cne [string]$baseManifest.manager.gate_managed_content_sha256) {
                   throw 'Manager bytes changed without a Manager version change.'
               }
-              $provenance = Get-Content (Join-Path $baseRoot 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-              $previousVersion = ([string]$provenance.source_gate_baseline_manager_version).Trim()
-              if ($previousVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Could not infer the prior qualified Manager baseline.' }
-              $baselineRef = 'v' + $previousVersion
+              throw 'Disposable qualification execution changed without a Manager version transition. Use an explicit workflow_dispatch baseline for experimental qualification or move the execution change into a new Manager/release-engineering cycle.'
           } else {
               throw ('Candidate Manager '+$candidateVersion+' is older than trusted base '+$baseVersion+'.')
           }
