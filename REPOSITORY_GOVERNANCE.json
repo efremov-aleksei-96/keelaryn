@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.repository-governance.v1",
-  "revision": 4,
+  "revision": 5,
   "repository": "efremov-aleksei-96/keelaryn",
   "default_branch": "main",
   "merge_policy": {
@@ -20,7 +20,23 @@
       "manager-",
       "release-manager-"
     ],
-    "policy": "Delete merged service/development branches and fully absorbed temporary branches after each coherent cycle. Never delete the sole Git ref that preserves candidate, gate, framework, Manager-release, or qualification provenance. Never rewrite main or published release history for cleanup."
+    "provenance_tag_prefix": "provenance/",
+    "freeze_preserved_branch_before_delete": true,
+    "policy": "Delete merged service/development branches and fully absorbed temporary branches after each coherent cycle. A preserved-prefix branch may be deleted only after its exact head is reachable from main, a release tag, or a protected provenance tag. Never delete the sole Git ref that preserves candidate, gate, framework, Manager-release, rejection, or qualification provenance. Never rewrite main or published release history for cleanup."
+  },
+  "provenance_tag_ruleset": {
+    "name": "Keelaryn immutable provenance tags",
+    "target": "tag",
+    "enforcement": "active",
+    "include_refs": [
+      "refs/tags/v*",
+      "refs/tags/provenance/**"
+    ],
+    "bypass_actors": [],
+    "required_rules": {
+      "non_fast_forward": true,
+      "deletion": true
+    }
   },
   "main_ruleset": {
     "name": "Keelaryn main governance",
@@ -57,6 +73,11 @@
     "default": "contents: read",
     "publication_exception": ".github/workflows/public-release.yml publish job: contents: write"
   },
+  "ci_concurrency": {
+    "cancel_obsolete_pull_request_runs": true,
+    "cancel_main_push_runs": false,
+    "policy": "PR validation may cancel obsolete runs for the same ref. Push/main validation and publication runs are immutable evidence for a specific main SHA and must not be cancelled merely because a newer push starts."
+  },
   "actions_policy": {
     "enabled": true,
     "allowed_actions": "selected",
@@ -91,20 +112,45 @@
       "native GitHub immutable release for every non-legacy tag",
       "valid GitHub release attestation for every non-legacy tag"
     ],
+    "future_provenance": {
+      "qualified_product_source_commit_required": true,
+      "policy": "For future Manager releases, record the exact pre-provenance product-source commit that was qualified. Never attempt to record the SHA of a commit inside that same commit; final publication identity remains a separate Git/release identity."
+    },
+    "critical_paths": [
+      ".github/workflows/public-release.yml",
+      "manager/**",
+      "PUBLIC_PROVENANCE.json",
+      "REPOSITORY_GOVERNANCE.json",
+      "LEGACY_RELEASE_BASELINE.json",
+      "README.md",
+      "GETTING_STARTED.md",
+      "docs/USING_WITH_CHATGPT.md",
+      "docs/TROUBLESHOOTING.md"
+    ],
+    "public_release_push_paths": [
+      ".github/workflows/public-release.yml",
+      "manager/**",
+      "PUBLIC_PROVENANCE.json",
+      "REPOSITORY_GOVERNANCE.json",
+      "LEGACY_RELEASE_BASELINE.json"
+    ],
     "conditional_pr_gate": {
       "required_context": "release-policy",
       "dependency_context": "distribution-gate",
-      "behavior": "Every PR gets release-policy. Non-release diffs pass immediately; release-critical diffs require distribution-gate success on the exact PR head SHA."
+      "behavior": "Every PR gets release-policy. Non-release diffs pass immediately; release-critical diffs require distribution-gate success on the exact PR head SHA. Release-critical classification is read from this policy rather than duplicated in release-policy executable logic."
     },
     "immutable_releases": {
       "repository_setting_required": true,
       "future_releases_must_be_immutable": true,
       "release_attestation_required": true,
       "verify_each_asset_attestation": true,
+      "legacy_release_baseline": "LEGACY_RELEASE_BASELINE.json",
       "legacy_mutable_tags": [
+        "v4.11.0",
+        "v4.12.0",
         "v4.13.1"
       ],
-      "legacy_policy": "Legacy mutable tags are historical exceptions only. They must already exist and remain byte-identical; the publisher must never create a new mutable legacy release."
+      "legacy_policy": "Legacy mutable tags are historical exceptions only. They must already exist, their tag targets and complete asset sets must match LEGACY_RELEASE_BASELINE.json exactly, and the publisher must never recreate or rewrite them."
     }
   }
 }
