@@ -153,6 +153,8 @@ The branch name is disposable after freezing; the protected provenance tag is th
 
 ## Branch hygiene
 
+The machine-readable branch hygiene policy is authoritative for cleanup decisions.
+
 Ordinary merged service branches can be deleted once their squash result and PR record are durable. Preserved-prefix branches require the provenance flow above.
 
 Cleanup rules:
