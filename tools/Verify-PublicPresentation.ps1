@@ -120,7 +120,7 @@ foreach($relative in $presentationDocs){
 $portfolio=[string]$textByDoc['PORTFOLIO.md']
 foreach($token in @('20 seconds','Engineering case study','What not to claim')){Require-Token $portfolio $token 'PORTFOLIO recruiter path'}
 $caseStudy=[string]$textByDoc['docs/ENGINEERING_CASE_STUDY.md']
-foreach($token in @('Transactional','rejected','67d9c2b1d96b27ba8291a61c33cd414a0afa73af','Remote qualification')){Require-Token $caseStudy $token 'Engineering case study evidence'}
+foreach($token in @('transactional','rejected','67d9c2b1d96b27ba8291a61c33cd414a0afa73af','Remote qualification')){Require-Token $caseStudy $token 'Engineering case study evidence'}
 $releaseDoc=[string]$textByDoc['docs/RELEASE_ENGINEERING.md']
 foreach($token in @('SourceGate','Hosted disposable Full Gate','Production Full Gate','Immutable GitHub Release','PUBLIC_PROVENANCE.json')){Require-Token $releaseDoc $token 'Release engineering presentation'}
 $securityDoc=[string]$textByDoc['docs/SECURITY_MODEL.md']
