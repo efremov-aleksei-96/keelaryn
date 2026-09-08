@@ -25,6 +25,17 @@ function Invoke-Gh([string[]]$Arguments){
     if($LASTEXITCODE-ne0){Fail('gh '+($Arguments-join' ')+' failed: '+($raw-join"`n"))}
     return @($raw)
 }
+function Invoke-GhCapture([string[]]$Arguments){
+    $saved=$ErrorActionPreference
+    try{
+        $ErrorActionPreference='Continue'
+        $raw=@(& gh @Arguments 2>&1)
+        $exitCode=$LASTEXITCODE
+    }finally{
+        $ErrorActionPreference=$saved
+    }
+    return [pscustomobject]@{exit_code=$exitCode;output=@($raw)}
+}
 function Get-RemoteJsonFile([string]$Path){
     $encoded=[System.Uri]::EscapeDataString($PolicyRef)
     $doc=Invoke-GhJson @('api',('repos/'+$Repository+'/contents/'+$Path+'?ref='+$encoded))
@@ -37,13 +48,13 @@ function Api-RefPath([string]$Ref){
 }
 function Get-ExistingTagSha([string]$Tag){
     $path='repos/'+$Repository+'/git/ref/tags/'+(Api-RefPath $Tag)
-    $raw=@(& gh api $path 2>&1)
-    if($LASTEXITCODE-eq0){
-        $doc=($raw-join"`n")|ConvertFrom-Json
+    $call=Invoke-GhCapture @('api',$path)
+    if([int]$call.exit_code-eq0){
+        $doc=(@($call.output)-join"`n")|ConvertFrom-Json
         if([string]$doc.object.type-ne'commit'){Fail('Expected lightweight provenance tag to point directly to commit: '+$Tag)}
         return [string]$doc.object.sha
     }
-    $text=$raw-join"`n"
+    $text=@($call.output)-join"`n"
     if($text-match'404|Not Found'){return $null}
     Fail('Failed to query tag '+$Tag+': '+$text)
 }
