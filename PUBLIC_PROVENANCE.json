@@ -1,18 +1,18 @@
 {
     "schema":  "keelaryn.public-repository-provenance.v2",
     "role":  "public_source_sync_candidate",
-    "source_manager_version":  "4.15.0",
-    "source_gate_baseline_manager_version":  "4.14.1",
-    "source_manager_installation_sha256":  "f99aea1b3c9875eb1c6ba6f9d9e20c6a142c0688f2ead0efc610dfc14710dc5b",
-    "source_manager_gate_managed_content_sha256":  "e327e4093410f1699e497bd1a7aadd91397a61a5c30f9a0f4b6aad94424c703d",
+    "source_manager_version":  "4.15.1",
+    "source_gate_baseline_manager_version":  "4.15.0",
+    "source_manager_installation_sha256":  "0cd1daa017ecf7a70b105a3837f86911b918c72cb11030070d2f868406b89687",
+    "source_manager_gate_managed_content_sha256":  "09836047a7ed9581290c4f0eefb04b0b75e64c9cff4197b7f3adc10ae2e3b58c",
     "production_validation":  {
-                                  "full_gate_pass":  true,
+                                  "full_gate_pass":  false,
                                   "gate_revision":  1,
                                   "framework_revision":  12,
-                                  "tested_update_sha256":  "3a2edfdec289608306c42b1e76cd75fc1f1e22ed530fec8fc6ca140a6574cec6",
-                                  "production_doctor_pass":  true,
-                                  "production_ux_smoke_pass":  true,
-                                  "production_managed_content_prefix":  "b2360c98591e"
+                                  "tested_update_sha256":  "",
+                                  "production_doctor_pass":  false,
+                                  "production_ux_smoke_pass":  false,
+                                  "production_managed_content_prefix":  ""
                               },
     "personal_hub_included":  false,
     "manager_runtime_state_included":  false,

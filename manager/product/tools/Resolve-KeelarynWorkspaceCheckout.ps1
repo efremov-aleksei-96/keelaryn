@@ -19,7 +19,7 @@ function Get-FrontmatterValue([string]$Text,[string]$Name){
     $front=$normalized.Substring(4,$end-4)
     $m=[regex]::Match($front,'(?m)^'+[regex]::Escape($Name)+':\s*(.+?)\s*$')
     if(-not$m.Success){return $null}
-    return ([string]$m.Groups[1].Value).Trim()
+    return ([string]$m.Groups[1].Value).Trim().Trim('"')
 }
 function Get-CanonicalH1([string]$Text,[string]$Path){
     $m=[regex]::Match($Text,'(?m)^#\s+(.+?)\s*$')
@@ -94,8 +94,10 @@ function Resolve-WorkspaceProject([string]$Root,[string]$RequestedScope,[string]
     $key=Normalize-WorkspaceKey $RequestedScope
     if(-not$key){Fail 'Scope is required.'}
     $rows=@(Get-WorkspaceProjectRows $Root)
-    $matches=@($rows|Where-Object{Test-RowKeyExact $_ $key})
-    $method='canonical_exact'
+    $requested=([string]$RequestedScope).Trim()
+    $matches=@($rows|Where-Object{[string]::Equals(([string]$_.Id).Trim(),$requested,[System.StringComparison]::Ordinal)})
+    $method='canonical_id_exact'
+    if($matches.Count-eq0){$matches=@($rows|Where-Object{Test-RowKeyExact $_ $key});$method='canonical_exact'}
     if($matches.Count-eq0-and$key.Length-ge3){$matches=@($rows|Where-Object{Test-RowKeyAlias $_ $key});$method='canonical_alias'}
     if($matches.Count-eq0){
         $routerPaths=@(Get-RouterLocatorPaths $Root $key)
@@ -168,6 +170,18 @@ function Invoke-WorkspaceResolverSelfTest{
         $modern=$legacy+"`nsource_entity_id: project.personal-bankruptcy-assessment`nsource_entity_title: Personal Bankruptcy Assessment & Preparation`nsuggested_chat_title: "+$expected
         if(-not(Test-WorkspaceCheckoutPacketText $modern)){Fail 'SelfTest: metadata-bearing workspace.v1 checkout was rejected.'}
         if(Test-WorkspaceCheckoutPacketText ($legacy+"`nsource_entity_id: project.personal-bankruptcy-assessment")){Fail 'SelfTest: incomplete entity metadata was accepted.'}
+
+        $quoted=@('---','id: "project.quoted-project"','type: "project"','status: active','updated: 2030-01-01','---','','# Quoted Project','','Fixture.')-join"`n"
+        [System.IO.File]::WriteAllText((Join-Path $projects 'Quoted Project.md'),$quoted,(New-Object System.Text.UTF8Encoding($false)))
+        $q=Resolve-WorkspaceProject $temp 'project.quoted-project' ''
+        if($q.source_entity_id-cne'project.quoted-project'-or$q.source_entity_title-cne'Quoted Project'-or$q.resolution-cne'canonical_id_exact'){Fail 'SelfTest: quoted frontmatter scalar compatibility failed.'}
+
+        $exact=@('---','id: project.foo','type: project','status: active','updated: 2030-01-01','---','','# Canonical Foo','','Fixture.')-join"`n"
+        $collision=@('---','id: project.foo-alias-collision','type: project','status: active','updated: 2030-01-01','---','','# Project Foo','','Fixture.')-join"`n"
+        [System.IO.File]::WriteAllText((Join-Path $projects 'Canonical Foo.md'),$exact,(New-Object System.Text.UTF8Encoding($false)))
+        [System.IO.File]::WriteAllText((Join-Path $projects 'Project Foo.md'),$collision,(New-Object System.Text.UTF8Encoding($false)))
+        $e=Resolve-WorkspaceProject $temp 'project.foo' ''
+        if($e.source_entity_id-cne'project.foo'-or$e.source_entity_title-cne'Canonical Foo'-or$e.resolution-cne'canonical_id_exact'){Fail 'SelfTest: exact canonical ID did not outrank normalized alias/title collision.'}
 
         $p3=@('---','id: project.bankruptcy-secondary','type: project','status: active','updated: 2030-01-01','---','','# Bankruptcy Secondary','','Fixture.')-join"`n"
         [System.IO.File]::WriteAllText((Join-Path $projects 'Bankruptcy Secondary.md'),$p3,(New-Object System.Text.UTF8Encoding($false)))

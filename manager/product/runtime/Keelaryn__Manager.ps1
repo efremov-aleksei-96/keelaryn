@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.15.0"
+$ManagerVersion = "4.15.1"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
