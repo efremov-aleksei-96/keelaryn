@@ -18,6 +18,7 @@ The Chat Manager reconciles complete CANDIDATE checkpoints against the current a
 - `artifact_id` is checkpoint-scoped and must never be reused as instance identity.
 - `revision_time_utc` is the immutable human-facing revision timestamp; preserve it across reconciliation of the same proposed revision.
 - `data_revision` remains an internal monotonic compatibility/order sequence.
+- `system_version` and generic `governance_revision` are independent compatibility axes.
 
 ## Start procedure
 
@@ -39,6 +40,20 @@ Deletions require explicit authorization and a zero-loss/provenance check approp
 
 Platform/system-version/governance changes require FULL semantic review.
 
+## Generic governance convergence
+
+When Local Manager reports missing or stale generic governance, treat the Manager-provided `product/governance/hub` set as the target generic contract, not as permission to replace the whole Hub.
+
+- Preserve all unrelated user-owned Areas/Projects/Records/Resources and local governance customization that is still semantically compatible.
+- Reconcile only the paths declared by the target `_System/GOVERNANCE.json` `managed_paths` set.
+- Do not copy `product/starter/hub` over an existing Hub.
+- Do not advance `system_version` merely to adopt a newer `governance_revision`.
+- Write the target `_System/GOVERNANCE.json` receipt only after the corresponding governance semantics have actually been incorporated.
+- Advance the normal Hub `data_revision`, preserve instance identity/lineage, and rebuild deterministic metadata before approval.
+- If local customization conflicts with the target governance contract, surface the conflict instead of silently overwriting it.
+
+A Hub whose governance revision is newer than the local Manager must not be downgraded. Update/review the Manager compatibility first.
+
 ## Output
 
 Before approval:
@@ -55,4 +70,4 @@ APPROVED artifacts use:
 - `producer_role = chat_manager`;
 - `manager_protocol = keelaryn-chat-manager-v4.0`.
 
-Genesis creates internal `data_revision: 1` (legacy sequence `r0001`) and an immutable `revision_time_utc`; it has no fabricated revision-zero baseline.
+Genesis creates internal `data_revision: 1` (legacy sequence `r0001`) and an immutable `revision_time_utc`; it has no fabricated revision-zero baseline. Genesis also receives the current generic governance receipt directly from the canonical Manager governance overlay.
