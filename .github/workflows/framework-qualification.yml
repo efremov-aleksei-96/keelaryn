@@ -1,0 +1,67 @@
+name: Gate Framework qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/framework/manager-gate/**'
+      - 'PUBLIC_FILE_MANIFEST.json'
+      - '.github/workflows/framework-qualification.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/framework/manager-gate/**'
+      - 'PUBLIC_FILE_MANIFEST.json'
+      - '.github/workflows/framework-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-framework-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  framework-gate:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Parse framework PowerShell
+        shell: powershell
+        run: |
+          $root = Join-Path $env:GITHUB_WORKSPACE 'tests\framework\manager-gate'
+          foreach ($ps in @(Get-ChildItem -LiteralPath $root -File -Recurse -Filter '*.ps1')) {
+              $tokens = $null
+              $errors = $null
+              [void][System.Management.Automation.Language.Parser]::ParseFile($ps.FullName,[ref]$tokens,[ref]$errors)
+              if (@($errors).Count -ne 0) {
+                  throw ('PowerShell parser rejected '+$ps.FullName+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))
+              }
+          }
+          Write-Host 'Gate Framework parser: PASS' -ForegroundColor Green
+
+      - name: Run Framework r13 self-test
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tests\framework\manager-gate\Test-ManagerGateFramework.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Print generated framework manifest identity
+        shell: powershell
+        run: |
+          $script = Join-Path $env:GITHUB_WORKSPACE 'tools\Build-PublicFileManifest.ps1'
+          $json = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -RepositoryRoot $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $doc = ($json -join "`n") | ConvertFrom-Json
+          Write-Host ('FRAMEWORK_MANIFEST_IDENTITY='+($doc.gate_framework | ConvertTo-Json -Depth 10 -Compress))
+
+      - name: Verify public manifest reproducibility
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-PublicFileManifest.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
