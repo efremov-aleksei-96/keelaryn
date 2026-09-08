@@ -8,7 +8,9 @@ This facility is intentionally narrower than production qualification. It reduce
 
 ## Execution model
 
-The `Windows disposable Full Gate` workflow runs on the pinned GitHub-hosted `windows-2025` runner with repository contents read-only.
+The existing `Windows source validation` workflow contains a `disposable-full-gate` job on the pinned GitHub-hosted `windows-2025` runner with repository contents read-only. Keeping the job inside an already-established workflow also lets changes to the remote-qualification infrastructure be exercised before they are merged to the default branch.
+
+The disposable job waits for the ordinary `source-gate` job to pass. On pull requests it performs a lightweight scope check and runs the expensive Full Gate only when Manager bytes or the remote-qualification implementation changed. It is skipped on ordinary `main` pushes. Manual workflow dispatch always requests disposable qualification.
 
 For a Manager candidate it:
 
@@ -31,9 +33,9 @@ The synthetic Hub contains no personal Hub data. Its Genesis input is a generic 
 
 For a normal Manager PR where the candidate version is newer than `main`, the exact PR base commit is the disposable baseline.
 
-For repository-infrastructure bootstrap where candidate and base Manager versions are byte-identical, the workflow uses the prior Manager version recorded by the trusted base `PUBLIC_PROVENANCE.json`. This permits the remote qualification infrastructure itself to be tested without inventing a new Manager version.
+For repository-infrastructure bootstrap where candidate and base Manager versions are byte-identical, the job uses the prior Manager version recorded by the trusted base `PUBLIC_PROVENANCE.json`. This permits the remote qualification infrastructure itself to be tested without inventing a new Manager version.
 
-A manual workflow dispatch may provide an explicit baseline ref. The runner still requires the candidate Manager version to be newer than the resolved baseline.
+For manual dispatch, the selected workflow branch/ref is the candidate. An optional `baseline_ref` input can select an explicit older baseline ref. The runner still requires the candidate Manager version to be newer than the resolved baseline.
 
 Changing Manager bytes without changing the Manager version is rejected.
 
@@ -41,7 +43,7 @@ Changing Manager bytes without changing the Manager version is rejected.
 
 Disposable/remote qualification uses gate revisions `>= 9000`. These revisions are reserved for CI/disposable evidence and must never be interpreted as production qualification revisions.
 
-The first workflow revision uses gate revision `9002`. Existing ordinary qualification provenance is not rewritten.
+The first implementation uses gate revision `9002`. Existing ordinary qualification provenance is not rewritten.
 
 ## Security boundary
 
@@ -59,7 +61,7 @@ The workflow:
 - validates the generated gate ZIP before extraction;
 - requires the Full Gate's production-path isolation and immutability findings to pass.
 
-For the bootstrap PR only, the trusted base does not yet contain the disposable runner script. In that single compatibility case the workflow uses the candidate copy of the runner, still with a read-only token, no secrets, a synthetic Hub, and the frozen Gate Framework from the trusted base. After this infrastructure is merged, subsequent Manager candidates use the runner implementation from their trusted base.
+For the bootstrap PR only, the trusted base does not yet contain the disposable runner script. In that single compatibility case the job uses the candidate copy of the runner, still with a read-only token, no secrets, a synthetic Hub, and the frozen Gate Framework from the trusted base. After this infrastructure is merged, subsequent Manager candidates use the runner implementation from their trusted base.
 
 ## Evidence semantics
 
@@ -76,10 +78,10 @@ A green disposable Full Gate means that the candidate survived the deep Windows/
 
 Normal Keelaryn release discipline remains unchanged. Before production approval, all applicable gates still have to pass against the required real production boundary, including the exact candidate/update identity, production Doctor, production UX smoke where required, Hub immutability, update/rollback behavior, and any other release-specific checks defined by current qualification policy.
 
-The remote workflow is therefore a prequalification accelerator: most defects can be discovered from any device before the maintainer spends a manual Windows cycle on the final candidate.
+The remote job is therefore a prequalification accelerator: most defects can be discovered from any device before the maintainer spends a manual Windows cycle on the final candidate.
 
 ## Mobile workflow
 
-From GitHub on a phone, the maintainer can review a development branch or PR and inspect the `Windows disposable Full Gate` result and its evidence artifact. Manual runs are available through the workflow dispatch interface by selecting a candidate ref and, when necessary, an explicit older baseline ref.
+From GitHub on a phone, the maintainer can review a development branch or PR and inspect the `disposable-full-gate` check and its evidence artifact. A manual run is started from the existing `Windows source validation` workflow by choosing the candidate branch/ref; `baseline_ref` is normally left empty and is available only when an explicit older baseline is required.
 
 This keeps Windows as an execution environment rather than a mandatory interactive workstation.
