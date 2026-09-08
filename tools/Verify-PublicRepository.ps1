@@ -109,7 +109,9 @@ if([string]$prov.source_manager_version-ne$version){Fail 'Public provenance Mana
 if([string]$prov.gate_framework.version-ne'2.0'){Fail 'Public provenance Gate Framework version mismatch.'}
 if([int]$prov.gate_framework.revision-ne$fr){Fail('Public provenance Gate Framework revision mismatch: marker=r'+$fr+' provenance=r'+[int]$prov.gate_framework.revision)}
 if($null-eq$prov.production_validation-or$null-eq$prov.production_validation.PSObject.Properties['tested_update_sha256']){Fail 'Public provenance is missing production_validation.tested_update_sha256.'}
-if([int]$prov.production_validation.framework_revision-ne$fr){Fail('Production-validation Framework revision mismatch: marker=r'+$fr+' provenance=r'+[int]$prov.production_validation.framework_revision)}
+$productionFrameworkRevision=[int]$prov.production_validation.framework_revision
+if($productionFrameworkRevision-lt1){Fail 'Production-validation Framework revision must be >= 1.'}
+if($productionFrameworkRevision-gt$fr){Fail('Production-validation Framework revision cannot be newer than current public Framework: production=r'+$productionFrameworkRevision+' current=r'+$fr)}
 $testedUpdate=([string]$prov.production_validation.tested_update_sha256).Trim().ToLowerInvariant()
 if([bool]$prov.production_validation.full_gate_pass){
     if($testedUpdate-notmatch'^[0-9a-f]{64}$'){Fail 'Full-Gate-qualified provenance requires a valid tested_update_sha256.'}
