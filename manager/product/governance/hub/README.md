@@ -14,8 +14,11 @@ Canonical long-term state managed through Keelaryn's checkpoint workflow.
 - Markdown under Areas, Projects, Records and Resources is canonical user-owned state.
 - `_System/INSTANCE.json` is the stable instance identity.
 - `_System/STATE.md` declares the active system/revision/protocol contract.
+- `_System/GOVERNANCE.json` records the independently versioned generic-governance receipt and Workspace checkout contract adopted by this Hub.
 - `_System/INDEX.json`, `_System/ROUTER.json`, `_System/MANIFEST.json` and `_System/VALIDATION.json` are deterministic derived metadata.
 - `_System/ARTIFACT.json` identifies the current checkpoint and its bounded lineage.
+
+`system_version` and `governance_revision` are independent. A Manager may support the installed system schema while reporting that newer generic governance is available. Existing Hubs adopt governance through Chat Manager reconciliation; Local Manager never overwrites personalized Hub governance automatically.
 
 Persistent changes follow:
 
