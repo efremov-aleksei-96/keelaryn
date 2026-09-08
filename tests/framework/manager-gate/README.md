@@ -16,14 +16,14 @@ Repository-oriented source for building Windows Manager gate archives. It belong
 
 `Build-ManagerGate.ps1` accepts either a canonical final Manager source directory or a canonical SOURCE ZIP, an explicit production baseline version, a gate revision and an output path.
 
-Example:
+Example from the repository root:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build-ManagerGate.ps1 `
-  -SourceZip D:\0\0__Core\keelaryn\tests\work\candidate\Keelaryn__Manager_SOURCE_v4.10.0.zip `
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\framework\manager-gate\Build-ManagerGate.ps1 `
+  -SourceZip .\tests\work\candidate\Keelaryn__Manager_SOURCE_v4.10.0.zip `
   -BaselineVersion 4.9.2 `
   -GateRevision 1 `
-  -OutputPath D:\0\0__Core\keelaryn\tests\manager-4.10.0.zip
+  -OutputPath .\tests\manager-4.10.0.zip
 ```
 
 The output name must remain `manager-<version>.zip` when it is issued for the Windows gate. The external user entrypoint remains `tests\UNPACK_MANAGER_GATE.cmd`.
@@ -69,7 +69,6 @@ Revision 2 fixes PowerShell top-level helper ordering in the Full Gate template 
 
 Candidate binding and manifest-set comparisons use `System.StringComparer.Ordinal`; culture-sensitive `Sort-Object` must not define cryptographic identity.
 
-
 ## Framework source revision 6
 
 Revision 6 is the first framework version prepared for independent Windows qualification.
@@ -82,7 +81,6 @@ Hardening added:
 
 Do not use the framework for a new Manager candidate until the qualification suite reports PASS on Windows PowerShell 5.1.
 
-
 ## Revision 7 hardening
 
 - child-process argument quoting follows Windows CRT escaping rules for spaces, quotes and trailing backslashes;
@@ -90,7 +88,6 @@ Do not use the framework for a new Manager candidate until the qualification sui
 - timeout cleanup waits are bounded;
 - gate child stdout is explicitly UTF-8;
 - identity-sensitive fixture/package comparisons use ordinal ordering.
-
 
 ## Revision 8 release handoff
 
@@ -104,7 +101,6 @@ Revision 8 consolidates the Windows-proven 4.10.2 Gate Revision 3 fixes and repl
 - `INSTALL_TESTED_MANAGER_UPDATE.cmd` validates the evidence/hash, installs explicitly, and runs a fresh production Doctor.
 
 The gate remains production-read-only until the user explicitly runs the generated installer after PASS.
-
 
 ## Revision 9 sort-contract guard
 
@@ -127,6 +123,7 @@ Revision 10 bounds command-log and exit-code sidecar filenames on Windows. The h
 Revision 11 preserves the revision 10 path-length hardening and corrects the Full Gate candidate-transport fixture source. Candidate fixtures use the valid non-genesis migration CURRENT already produced by the gate instead of the original Genesis CURRENT. This keeps the candidate transport regression on a normal parented lineage even when the disposable production fixture starts at Genesis.
 
 Revision 11 was independently qualified on Windows PowerShell 5.1 while testing unchanged Manager 4.12.0 g1 bytes. Gate Revision 3 passed SourceGate, CURRENT-backed Full Gate, rollback fault injection, native 4.11.0 -> 4.12.0 update, post-update Doctor, UI/archive/migration/candidate-transport/Genesis coverage, AI_CONTEXT performance control and production immutability.
+
 ## Revision 12 transient CURRENT sharing retry
 
 Revision 12 corrects a Framework-only Windows Full Gate defect discovered while qualifying unchanged Manager 4.14.0 bytes. Full Gate E4 previously opened the disposable `Keelaryn__Hub_CURRENT.zip` exactly once in `ZipArchiveMode.Update`; a transient sharing violation from another process could therefore reject an otherwise healthy candidate.
@@ -138,3 +135,21 @@ Revision 12:
 - makes `Build-ManagerGate.ps1` statically require the retry/self-test contract and reject the old direct single-attempt E4 open.
 
 The Manager 4.14.0 product bytes are unchanged. Historical r11 / gate-revision-1 qualification evidence remains historical and rejected; repeated qualification uses Framework r12 with gate revision 2.
+
+## Revision 13 hardened SOURCE ZIP boundary
+
+Revision 13 removes the builder's direct `Expand-Archive` trust boundary for `-SourceZip` and replaces it with validated, manual extraction.
+
+Before any SOURCE bytes are written to the extraction tree, r13 validates the whole archive envelope:
+
+- every entry must remain below the exact `keelaryn/` root and use relative paths only;
+- empty, `.` and `..` segments are rejected;
+- Windows reserved device names, invalid characters, trailing dots/spaces and overlong segments are rejected;
+- case-insensitive and Unicode-normalization aliases are rejected before extraction;
+- Windows reparse metadata, Unix symlink metadata and other unsafe Unix file types are rejected;
+- compressed size, total expanded size, per-entry expanded size, entry count and compression ratio are bounded;
+- extraction uses destination-containment checks, refuses pre-existing targets and verifies extracted lengths.
+
+`Test-ManagerGateFramework.ps1` is the independent r13 framework self-test. It exercises a valid SOURCE ZIP through the real builder and adversarial archives covering Zip Slip/dot segments, reserved names, case and Unicode aliases, symlink/reparse metadata, compression-ratio limits, expanded-size limits and entry-count limits.
+
+Framework r13 must pass this self-test on Windows PowerShell 5.1 before it is frozen or used to qualify a new Manager candidate.
