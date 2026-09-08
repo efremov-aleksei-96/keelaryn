@@ -51,6 +51,41 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tests\framework\manager-gate\Test-ManagerGateFramework.ps1"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Prove real Manager SourceRoot and SourceZip gate equivalence
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $root = $env:GITHUB_WORKSPACE
+          $manager = Join-Path $root 'manager'
+          $builder = Join-Path $root 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          $install = Get-Content (Join-Path $manager 'product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $provenance = Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $version = [string]$install.manager_version
+          $baseline = [string]$provenance.source_gate_baseline_manager_version
+          $temp = Join-Path $env:RUNNER_TEMP ('framework-r13-equivalence-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          $stage = Join-Path $temp 'source-stage'
+          $managerStage = Join-Path $stage 'keelaryn\manager'
+          New-Item -ItemType Directory -Force -Path $managerStage | Out-Null
+          foreach ($item in @(Get-ChildItem -LiteralPath $manager -Force)) {
+              Copy-Item -LiteralPath $item.FullName -Destination $managerStage -Recurse -Force
+          }
+          $sourceZip = Join-Path $temp 'Keelaryn__Manager_SOURCE_equivalence.zip'
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$sourceZip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+          $rootOut = Join-Path $temp 'root-input'
+          $zipOut = Join-Path $temp 'zip-input'
+          New-Item -ItemType Directory -Force -Path $rootOut,$zipOut | Out-Null
+          $rootGate = Join-Path $rootOut ('manager-'+$version+'.zip')
+          $zipGate = Join-Path $zipOut ('manager-'+$version+'.zip')
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot $manager -BaselineVersion $baseline -GateRevision 9013 -OutputPath $rootGate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceZip $sourceZip -BaselineVersion $baseline -GateRevision 9013 -OutputPath $zipGate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $rootHash = (Get-FileHash -LiteralPath $rootGate -Algorithm SHA256).Hash.ToLowerInvariant()
+          $zipHash = (Get-FileHash -LiteralPath $zipGate -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($rootHash -cne $zipHash) { throw ('SourceRoot/SourceZip gate mismatch: root='+$rootHash+' zip='+$zipHash) }
+          Write-Host ('Real Manager SourceRoot/SourceZip gate equivalence: PASS. sha256='+$rootHash) -ForegroundColor Green
+
       - name: Print generated framework manifest identity
         shell: powershell
         run: |
