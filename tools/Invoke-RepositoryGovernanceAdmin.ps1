@@ -194,7 +194,7 @@ foreach($branchName in @($DeleteBranchNames|ForEach-Object{([string]$_).Trim()}|
     $match=@($branches|Where-Object{[string]$_.name-ceq$branchName})
     if($match.Count-eq0){Write-Host ('Explicit cleanup already absent: '+$branchName) -ForegroundColor DarkGray;continue}
     if($match.Count-ne1){Fail('Explicit cleanup branch lookup is ambiguous: '+$branchName)}
-    $isPreserved=@($prefixes|Where-Object{$branchName.StartsWith([string]$_,[System.StringComparison]::Ordinal}).Count-gt0
+    $isPreserved=@($prefixes|Where-Object{$branchName.StartsWith([string]$_,[System.StringComparison]::Ordinal)}).Count-gt0
     if($isPreserved){Fail('Explicit cleanup may not bypass preserved-branch provenance flow: '+$branchName)}
     Write-Host ('Explicit delete non-provenance branch: '+$branchName+' @ '+[string]$match[0].commit.sha) -ForegroundColor Yellow
     if($Mode-eq'Apply'){
