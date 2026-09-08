@@ -22,22 +22,18 @@ Required behavior:
 - strict required checks: `source-gate`, `repository-governance`, `release-policy`;
 - non-fast-forward updates and branch deletion blocked.
 
-The durable `main` history therefore contains one squash result per merged PR while qualification provenance can be preserved separately.
-
 ## Source and online verification
 
-Repository Governance r5 separates the two trust boundaries deliberately:
+Repository Governance r5 separates two trust boundaries:
 
-- `tools/Verify-RepositoryGovernance.ps1` validates the repository source contract only;
-- `tools/Verify-RepositoryGovernanceOnline.ps1` validates effective GitHub server state and live historical release identities.
+- `tools/Verify-RepositoryGovernance.ps1` validates repository source policy;
+- `tools/Verify-RepositoryGovernanceOnline.ps1` validates effective GitHub server state and historical release identities.
 
-The `repository-governance` workflow runs both. Keeping the online audit separate prevents read-only source validation from depending on GitHub API serialization or administration permissions.
+The `repository-governance` workflow runs both. The online verifier therefore cannot silently substitute for source validation, and source validation does not depend on GitHub API representation details.
 
 ## Conditional release gate
 
-`distribution-gate` is path-scoped because it performs release-specific work. It cannot itself be a universal required check for every PR.
-
-The required `release-policy` job therefore acts as the proxy:
+`distribution-gate` is release-specific and path-scoped. The universally required `release-policy` job acts as the proxy:
 
 1. every PR to `main` gets `release-policy`;
 2. it reads `release_policy.critical_paths` from `REPOSITORY_GOVERNANCE.json`;
@@ -45,36 +41,29 @@ The required `release-policy` job therefore acts as the proxy:
 4. release-critical diffs require a successful `distribution-gate` on the exact current PR head SHA;
 5. failure, cancellation or timeout blocks merge.
 
-The public-release workflow path filters are independently compared with the same machine-readable policy so executable classification cannot drift silently.
+The public-release workflow path filters are independently compared with the same machine-readable policy so release classification cannot drift silently.
 
 ## CI concurrency
 
-Repository Governance r5 distinguishes disposable PR work from durable evidence.
+Repository Governance r5 distinguishes disposable PR work from durable main-SHA evidence.
 
-Obsolete PR runs may be cancelled only for workflows explicitly listed in `ci_concurrency.pr_cancel_workflows`:
+Obsolete pull-request runs may be cancelled for the explicitly governed workflows:
 
-- `.github/workflows/windows-powershell.yml`;
 - `.github/workflows/repository-governance.yml`;
 - `.github/workflows/public-release.yml`;
 - `.github/workflows/release-policy.yml`.
 
-Push/main validation and publication runs are evidence for a specific main SHA and are not cancelled merely because a newer main commit appears.
+For workflows governed by r5, push/main runs are not cancelled merely because a newer main commit appears.
 
-### source validation qualification scope
+### Deferred source validation concurrency
 
-`windows-powershell.yml` previously treated **any workflow byte change** as a reason to run the disposable Manager Full Gate. That was too broad: changing only top-level CI concurrency does not alter Manager bytes or disposable qualification execution, but it forced the resolver into a same-version path and exposed an invalid attempt to infer `v4.15.0` as a release baseline.
+`.github/workflows/windows-powershell.yml` is deliberately **not modified by r5**. It remains byte-identical to the already-qualified `main` baseline.
 
-r5 narrows the scope without weakening Full Gate semantics. The detector now considers only:
+The audit found that its existing top-level `cancel-in-progress: true` can cancel older main-SHA source evidence. An attempted repo-only fix also exposed that the current disposable qualification scope treats any `windows-powershell.yml` byte change as a reason to run a Manager version-transition Full Gate. With Manager still at 4.15.1, that path incorrectly reaches the historical `source_gate_baseline_manager_version` value 4.15.0, for which no release tag exists.
 
-- Manager managed-content identity;
-- `tools/Invoke-DisposableManagerFullGate.ps1` identity;
-- the workflow qualification-execution region beginning at `Verify candidate public boundary and Actions policy`.
+The Full Gate invariant `candidate_version > baseline_version` is correct and must not be weakened merely to obtain CI cancellation optimization. Therefore r5 records `windows-powershell.yml` in `ci_concurrency.deferred_workflows`, preserves its qualified bytes, and leaves the source-validation scope redesign for a separate independently qualified engineering cycle.
 
-Top-level concurrency and the detector implementation itself are exercised directly by the current workflow run and do not create a fake Manager version transition.
-
-If the qualification-execution region changes while Manager version is unchanged, PR qualification fails closed rather than inventing a baseline. An explicit `workflow_dispatch` baseline remains available for controlled experimental qualification; production/release-engineering execution changes otherwise belong in a coherent new Manager or qualification cycle.
-
-This permits `cancel-in-progress` to be conditional on `pull_request` while preserving main-SHA evidence and the disposable runner invariant that a normal Manager Full Gate represents a real version transition.
+This is an explicit known limitation, not a claim that source validation already satisfies the new concurrency policy.
 
 ## GitHub Actions supply chain
 
@@ -90,17 +79,17 @@ Hosted runners use explicit OS families (`windows-2025`, `ubuntu-24.04`) rather 
 
 The repository-side policy is checked by `tools/Verify-GitHubActionsPolicy.ps1`. Administration-only Actions settings remain an explicit admin boundary.
 
-## immutable releases
+## Immutable releases
 
 Future non-legacy Manager releases require GitHub native immutable releases plus release attestation and per-asset attestation verification.
 
-Publication is fail-closed: the workflow creates a draft, uploads the expected assets, publishes, requires native immutability, verifies the release attestation and each asset attestation, and re-downloads the assets to prove byte identity. A newly-created unexpectedly mutable release is deleted together with its new tag and publication fails.
+Publication is fail-closed: the workflow creates a draft, uploads the expected assets, publishes, requires native immutability, verifies the release attestation and each asset attestation, and re-downloads assets to prove byte identity. A newly-created unexpectedly mutable release is deleted together with its new tag and publication fails.
 
 Existing historical releases are never silently rewritten.
 
-## legacy mutable release baseline
+## Legacy mutable release baseline
 
-The following historical releases predate native repository release immutability:
+These historical releases predate native repository release immutability:
 
 - `v4.11.0`;
 - `v4.12.0`;
@@ -117,11 +106,11 @@ The following historical releases predate native repository release immutability
 
 `Verify-RepositoryGovernanceOnline.ps1` compares the live release and tag against this baseline. Missing or extra assets, moved tags, changed sizes or changed SHA-256 values fail governance validation.
 
-These releases are historical evidence only. They are not recreated or rewritten merely to conform to newer policy.
+These legacy mutable releases are historical evidence only. They are never recreated or rewritten merely to conform to newer policy.
 
-## provenance tag lifecycle
+## Provenance tag lifecycle
 
-Squash merging can leave rejected-candidate and qualification commits outside `main`. A development branch must therefore never be deleted merely because its final product result was later squashed or superseded.
+Squash merging can leave rejected-candidate and qualification commits outside `main`. A development branch must therefore never be deleted merely because its product result was later squashed or superseded.
 
 Repository Governance r5 uses this lifecycle:
 
@@ -142,9 +131,9 @@ Preserved-by-default branch prefixes are:
 - `manager-`;
 - `release-manager-`.
 
-The tag ruleset is named exactly `Keelaryn immutable provenance tags`. It covers `refs/tags/v*` and `refs/tags/provenance/**`, has an empty bypass list, and blocks deletion and non-fast-forward/tag movement.
+The provenance tag ruleset is named exactly `Keelaryn immutable provenance tags`. It covers `refs/tags/v*` and `refs/tags/provenance/**`, has an empty bypass list, and blocks deletion and non-fast-forward/tag movement.
 
-## branch hygiene
+## Branch hygiene
 
 Ordinary merged service branches may be deleted once their PR/squash result is durable. Preserved-prefix branches require the provenance flow above.
 
@@ -156,7 +145,7 @@ Rules:
 - never wildcard-delete historical refs;
 - never rewrite published release history merely to reduce branch count.
 
-`tools/Invoke-RepositoryGovernanceAdmin.ps1` implements the boundary as an explicit `Plan` / `Apply` transaction. `Plan` is the default and performs no mutation. `Apply` creates or verifies the provenance tag ruleset, freezes exact preserved branch heads, verifies the resulting refs, and only then may remove development branch refs.
+`tools/Invoke-RepositoryGovernanceAdmin.ps1` implements this boundary as an explicit `Plan` / `Apply` transaction. `Plan` is the default and performs no mutation. `Apply` creates or verifies the provenance tag ruleset, freezes exact preserved branch heads, verifies the resulting refs, and only then may remove development branch refs.
 
 ## Administrator transaction
 
@@ -172,7 +161,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Invoke-Repositor
   -CleanupFrozenBranches
 ```
 
-After the plan is reviewed, the same command with `-Mode Apply` performs the transaction. Server mutations remain outside ordinary Actions jobs because CI keeps read-only default permissions.
+After review, the same command with `-Mode Apply` performs the transaction. Server mutations remain outside ordinary Actions jobs because CI keeps read-only default permissions.
 
 The provenance tag ruleset must be active before r5 is merged. During the bootstrap PR only, the online verifier may report its absence as a warning; on `main` its absence is a hard governance failure.
 
@@ -203,4 +192,4 @@ Online enforcement:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Verify-RepositoryGovernanceOnline.ps1
 ```
 
-Repository Governance r5 remains repository-only. Manager 4.15.1 product bytes and Gate Framework r12 source bytes are not changed by this governance cycle.
+Repository Governance r5 remains repository-only. Manager 4.15.1 product bytes and Gate Framework r12 source bytes are unchanged by this governance cycle.
