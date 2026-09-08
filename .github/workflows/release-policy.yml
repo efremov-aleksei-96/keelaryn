@@ -67,7 +67,7 @@ jobs:
             return $false
           }
 
-          $critical=@($files|Where-Object{Test-ReleaseCritical ([string]$_})
+          $critical=@($files|Where-Object{Test-ReleaseCritical ([string]$_)})
           if($critical.Count-eq0){
             Write-Host ('Release policy PASS: non-release PR; diff_files='+$files.Count) -ForegroundColor Green
             exit 0
