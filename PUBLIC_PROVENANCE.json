@@ -1,18 +1,18 @@
 {
     "schema":  "keelaryn.public-repository-provenance.v2",
     "role":  "public_source_sync_candidate",
-    "source_manager_version":  "4.14.1",
-    "source_gate_baseline_manager_version":  "4.13.1",
-    "source_manager_installation_sha256":  "400d0875ccbcc755aaeed8e3f0e89f7d3fd64eb038e3e4c3c4dc0c2878f47bef",
-    "source_manager_gate_managed_content_sha256":  "4e72511f8e2868cc325b5300d9302cf873738668c7ea78213ca9bfce3f574f84",
+    "source_manager_version":  "4.15.0",
+    "source_gate_baseline_manager_version":  "4.14.1",
+    "source_manager_installation_sha256":  "f99aea1b3c9875eb1c6ba6f9d9e20c6a142c0688f2ead0efc610dfc14710dc5b",
+    "source_manager_gate_managed_content_sha256":  "e327e4093410f1699e497bd1a7aadd91397a61a5c30f9a0f4b6aad94424c703d",
     "production_validation":  {
                                   "full_gate_pass":  true,
-                                  "gate_revision":  2,
+                                  "gate_revision":  1,
                                   "framework_revision":  12,
-                                  "tested_update_sha256":  "8b7de0b76452172400cc9ec2bcdf85c6061a51dfffa56367cfc007dd1477d8b6",
+                                  "tested_update_sha256":  "3a2edfdec289608306c42b1e76cd75fc1f1e22ed530fec8fc6ca140a6574cec6",
                                   "production_doctor_pass":  true,
                                   "production_ux_smoke_pass":  true,
-                                  "production_managed_content_prefix":  "423825e4ae5d"
+                                  "production_managed_content_prefix":  "b2360c98591e"
                               },
     "personal_hub_included":  false,
     "manager_runtime_state_included":  false,
@@ -28,7 +28,7 @@
                     "file":  "LICENSE",
                     "copyright":  "Copyright (c) 2026 Keelaryn contributors"
                 },
-    "public_candidate_revision":  3,
+    "public_candidate_revision":  1,
     "git_checkout_contract":  {
                                   "manager_authoritative_tree_attribute":  "-text",
                                   "framework_authoritative_tree_attribute":  "-text",
@@ -39,8 +39,8 @@
                                              ],
     "ci_policy":  {
                       "github_actions":  "pull_request + main push + manual",
-                      "hosted_scope":  "repository verification + Hub-blind SourceGate + Generic DISTRIBUTION smoke",
-                      "full_gate":  "CURRENT-backed Windows Full Gate plus production Doctor and production UX smoke before publication",
+                      "hosted_scope":  "repository verification + Hub-blind SourceGate + hosted disposable Full Gate + Generic DISTRIBUTION smoke",
+                      "full_gate":  "CURRENT-backed Windows Full Gate plus production Doctor, production UX smoke and Hub immutability before publication",
                       "update_identity":  "when full_gate_pass=true, PR and main BuildRelease UPDATE SHA-256 must equal production_validation.tested_update_sha256; publish consumes those gated bytes"
                   },
     "known_nonsecret_hygiene_notes":  [

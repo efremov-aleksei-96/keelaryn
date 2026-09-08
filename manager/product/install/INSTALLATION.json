@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.manager.installation.v2",
-  "manager_version": "4.14.1",
+  "manager_version": "4.15.0",
   "layout_version": 2,
   "managed_files": [
     "compat/commands/APPLY_MIGRATIONS.cmd",
@@ -63,11 +63,13 @@
     "product/starter/hub/Records/README.md",
     "product/starter/hub/Resources/Prompts/Initialize New Hub.md",
     "product/starter/hub/Resources/Prompts/WORKER_CHAT.md",
+    "product/starter/hub/Resources/Prompts/Workspace Checkout.md",
     "product/starter/hub/Resources/README.md",
     "product/tools/audit_cleanroom.ps1",
     "product/tools/KeelarynMenu.ps1",
     "product/tools/Compact-KeelarynQualificationEvidence.ps1",
     "product/tools/New-KeelarynAIContext.ps1",
+    "product/tools/Resolve-KeelarynWorkspaceCheckout.ps1",
     "product/tools/Unpack-KeelarynTestArchive.ps1",
     "README_FIRST.md"
   ]

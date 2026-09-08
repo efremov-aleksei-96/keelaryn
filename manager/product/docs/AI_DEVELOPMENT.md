@@ -50,4 +50,4 @@ Task routes include `user_interface` and `repository_model` so UX/repository wor
 
 The canonical function-map runtime is `product/runtime/Keelaryn__Manager.ps1`; `product/install/INSTALLATION.json` is the canonical managed-file map. Transition root bootstrap/version/manifest files exist only inside the compatible UPDATE envelope and are not part of AI_CONTEXT managed source. Final hashing and lossless reconstruction remain fresh.
 
-The Windows performance gate retains the robust in-process ABBA methodology and the +5% regression ceiling. Gate Framework 2.0 r12 remains frozen for Manager 4.14.1 unless reusable gate-framework source itself changes.
+The Windows performance gate retains the robust in-process ABBA methodology and the +5% regression ceiling. Gate Framework 2.0 r12 remains frozen for the Manager 4.15.0 Workspace-title cycle; this cycle does not change reusable gate-framework source.

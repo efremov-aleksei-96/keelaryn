@@ -1,8 +1,15 @@
-# Keelaryn Manager 4.14.1
+# Keelaryn Manager 4.15.0
 
-Manager 4.14.1 is a focused AI_CONTEXT correctness and reproducibility cycle. It strengthens task-route dependency completeness, source-snapshot freshness and route-size observability without changing Hub schemas, native update compatibility, rollback semantics, deterministic release construction or supported user workflows.
+Manager 4.15.0 adds deterministic Workspace checkout canonical-title synchronization. Entity-bound checkouts keep `keelaryn.workspace.v1`, derive `source_entity_id` and `source_entity_title` from canonical project Markdown, surface `suggested_chat_title`, preserve legacy v1 packet readability, and provide a Chat Manager convergence path for existing customized Hubs. Gate Framework r12 remains unchanged.
 
-The immutable development baseline is Manager 4.13.1. Gate Framework 2.0 r12 is the frozen reusable framework for this corrective candidate; Framework source is unchanged from the independently Windows-qualified r12.
+The candidate baseline is the production-qualified Manager 4.14.1. Gate Framework 2.0 r12 remains the frozen reusable framework for this feature candidate; Framework source is unchanged from the independently Windows-qualified r12.
+
+
+## Workspace checkout canonical-title synchronization
+
+Workspace checkout generation now has an explicit canonical entity/title contract. For a scope resolving to exactly one project, canonical Markdown supplies the project `id` and H1. ROUTER may locate the file but cannot override the Markdown title. New entity-bound v1 packets carry `source_entity_id`, `source_entity_title`, and `suggested_chat_title`; legacy v1 packets remain accepted. Generic Genesis includes the Workspace Checkout prompt, and existing customized Hubs converge through Chat Manager rather than automatic governance overwrite.
+
+`product/tools/Resolve-KeelarynWorkspaceCheckout.ps1 -SelfTest` exercises filename/H1 divergence, shortened aliases, exact entity IDs, explicit subscope suffixes, legacy packet compatibility, ROUTER/Markdown disagreement and ambiguous alias rejection. Manager SelfTest invokes the same contract test.
 
 ## Canonical installed layout
 
@@ -78,11 +85,11 @@ AI_CONTEXT also binds the build to a stable managed-source snapshot: source hash
 
 The tests workspace contract is explicit: `framework` holds one current reusable framework source, `work` is disposable, `results` holds active/current expanded evidence plus concise qualification indexes, and `archives` holds frozen verified history. Disposable `tests/work` cleanup is explicit, dry-run first, reparse-safe and file-granular. Completed Full Gate evidence can be compacted to a per-entry SHA-256-verified archive before expanded source cleanup; temporary empty-directory locks remain a cleanup state rather than a data-integrity failure.
 
-`manager/state/history` remains protected from generic cleanup. Existing release-bundle retention already validates and archives reproducible Manager release bundles; 4.14 does not introduce a second competing release-retention policy.
+`manager/state/history` remains protected from generic cleanup. Existing release-bundle retention already validates and archives reproducible Manager release bundles; this cycle does not introduce a second competing release-retention policy.
 
 ## Update compatibility
 
-Manager 4.14.1 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators.
+Manager 4.15.0 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators.
 
 Manager-only update commands clearly distinguish "no newer valid package" from failure and do not silently process Hub updates.
 
@@ -94,4 +101,4 @@ The existing numeric main-menu contract is preserved to avoid breaking establish
 
 ## Release gate
 
-This source is not production-approved merely because it carries version 4.14.1. Production approval still requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic release/package checks, CURRENT-backed disposable 4.13.1 -> 4.14.1 native update, rollback/fault injection, migrations, Doctor, production immutability, UI regression coverage, public PR CI, exact tested/PR/post-merge/release artifact identity and gated publication.
+This source is not production-approved merely because it carries version 4.15.0. Production approval still requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic release/package checks, CURRENT-backed disposable 4.14.1 -> 4.15.0 native update, rollback/fault injection, migrations, Doctor, production immutability, UI regression coverage, public PR CI, exact tested/PR/post-merge/release artifact identity and gated publication.
