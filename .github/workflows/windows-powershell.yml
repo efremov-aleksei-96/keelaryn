@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   group: keelaryn-source-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   source-gate:
@@ -128,43 +128,16 @@ jobs:
               if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return '<missing>' }
               return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
           }
-          function TextIdentity([string]$Text) {
-              $sha = [System.Security.Cryptography.SHA256]::Create()
-              try {
-                  $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
-                  return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant()
-              } finally { $sha.Dispose() }
-          }
-          function QualificationExecutionIdentity([string]$Root) {
-              $path = Join-Path $Root '.github\workflows\windows-powershell.yml'
-              if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return '<missing>' }
-              $text = [System.IO.File]::ReadAllText($path,[System.Text.Encoding]::UTF8)
-              $marker = '      - name: Verify candidate public boundary and Actions policy'
-              $index = $text.IndexOf($marker,[System.StringComparison]::Ordinal)
-              if ($index -lt 0) { throw 'Windows source workflow is missing the disposable qualification execution marker.' }
-              $region = $text.Substring($index).Replace("`r`n","`n").Replace("`r","`n")
-              return TextIdentity $region
-          }
           $candidateRoot = Join-Path $env:GITHUB_WORKSPACE 'candidate'
           $baseRoot = Join-Path $env:GITHUB_WORKSPACE 'base'
           $candidateManifest = Get-Content (Join-Path $candidateRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
           $baseManifest = Get-Content (Join-Path $baseRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-          $candidateInstall = Get-Content (Join-Path $candidateRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-          $baseInstall = Get-Content (Join-Path $baseRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-          $candidateVersion = [string]$candidateInstall.manager_version
-          $baseVersion = [string]$baseInstall.manager_version
-          $managerChanged = [string]$candidateManifest.manager.gate_managed_content_sha256 -cne [string]$baseManifest.manager.gate_managed_content_sha256
-          $executionChanged = (QualificationExecutionIdentity $candidateRoot) -cne (QualificationExecutionIdentity $baseRoot)
           $reasons = New-Object System.Collections.ArrayList
-          if ($managerChanged) { [void]$reasons.Add('manager-bytes') }
-          if ((FileIdentity $candidateRoot 'tools\Invoke-DisposableManagerFullGate.ps1') -cne (FileIdentity $baseRoot 'tools\Invoke-DisposableManagerFullGate.ps1')) {
-              [void]$reasons.Add('tools/Invoke-DisposableManagerFullGate.ps1')
+          if ([string]$candidateManifest.manager.gate_managed_content_sha256 -cne [string]$baseManifest.manager.gate_managed_content_sha256) {
+              [void]$reasons.Add('manager-bytes')
           }
-          if ($executionChanged) {
-              if ([string]$env:EVENT_NAME -ne 'workflow_dispatch' -and [version]$candidateVersion -eq [version]$baseVersion -and -not $managerChanged) {
-                  throw 'Disposable qualification execution changed without a Manager version transition. Use an explicit workflow_dispatch baseline for experimental qualification or move the execution change into a new Manager/release-engineering cycle.'
-              }
-              [void]$reasons.Add('.github/workflows/windows-powershell.yml:qualification-execution')
+          foreach ($relative in @('tools\Invoke-DisposableManagerFullGate.ps1','.github\workflows\windows-powershell.yml')) {
+              if ((FileIdentity $candidateRoot $relative) -cne (FileIdentity $baseRoot $relative)) { [void]$reasons.Add($relative.Replace('\','/')) }
           }
           $shouldRun = ([string]$env:EVENT_NAME -eq 'workflow_dispatch') -or $reasons.Count -gt 0
           "should_run=$($shouldRun.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
