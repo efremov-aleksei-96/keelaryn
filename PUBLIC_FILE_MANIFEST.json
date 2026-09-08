@@ -2,10 +2,10 @@
     "schema":  "keelaryn.public-file-manifest.v2",
     "scope":  "authoritative_source_sets",
     "manager":  {
-                    "version":  "4.14.1",
-                    "file_count":  67,
-                    "installation_sha256":  "400d0875ccbcc755aaeed8e3f0e89f7d3fd64eb038e3e4c3c4dc0c2878f47bef",
-                    "gate_managed_content_sha256":  "4e72511f8e2868cc325b5300d9302cf873738668c7ea78213ca9bfce3f574f84",
+                    "version":  "4.15.1",
+                    "file_count":  69,
+                    "installation_sha256":  "0cd1daa017ecf7a70b105a3837f86911b918c72cb11030070d2f868406b89687",
+                    "gate_managed_content_sha256":  "09836047a7ed9581290c4f0eefb04b0b75e64c9cff4197b7f3adc10ae2e3b58c",
                     "files":  [
                                   {
                                       "path":  "KEELARYN.cmd",
@@ -14,8 +14,8 @@
                                   },
                                   {
                                       "path":  "README_FIRST.md",
-                                      "size_bytes":  5382,
-                                      "sha256":  "7f26d43636eacf8dccfbbec17fc9f4efb2b5c80e9eb2d82cf5473770cac340c5"
+                                      "size_bytes":  6915,
+                                      "sha256":  "ae643ff676f460436dc77c0cf26eb6b180b636544c187e34547c5957e739ba32"
                                   },
                                   {
                                       "path":  "compat/commands/APPLY_MIGRATIONS.cmd",
@@ -124,8 +124,8 @@
                                   },
                                   {
                                       "path":  "product/docs/AI_DEVELOPMENT.md",
-                                      "size_bytes":  6812,
-                                      "sha256":  "780f3051e483d8cbd031ea117aa6fa7013b43a3a7d7c50b340a0c60418e4e0e0"
+                                      "size_bytes":  6855,
+                                      "sha256":  "24a104b32a37518017e8b082177e341f393bb6d231dd76500fca14cd92436f47"
                                   },
                                   {
                                       "path":  "product/docs/ARCHITECTURE.md",
@@ -149,8 +149,8 @@
                                   },
                                   {
                                       "path":  "product/docs/MIGRATIONS.md",
-                                      "size_bytes":  1844,
-                                      "sha256":  "7663197536e24b1998a9d190d2925a90b9573c97ba8f000758921a0fe9b0c98d"
+                                      "size_bytes":  2726,
+                                      "sha256":  "a8a34773da9ad1f32f1a4c765a2b79b99c882ae40c944ee8b18897c7de1f1af0"
                                   },
                                   {
                                       "path":  "product/docs/OPERATIONS.md",
@@ -204,8 +204,8 @@
                                   },
                                   {
                                       "path":  "product/docs/chatgpt-projects/WORKSPACE_PROJECT_INSTRUCTIONS.md",
-                                      "size_bytes":  2130,
-                                      "sha256":  "cbef126330353aef4bea946b06c5adf3e538061a0d8bce2ba96637ca02ceeb5b"
+                                      "size_bytes":  3681,
+                                      "sha256":  "a5c8279e9747ddf8c4b702c167f927128b8bf0df2836fa6c991cf548ad7fb0b6"
                                   },
                                   {
                                       "path":  "product/governance/hub/README.md",
@@ -239,18 +239,18 @@
                                   },
                                   {
                                       "path":  "product/governance/hub/_System/WORKSPACE.md",
-                                      "size_bytes":  1787,
-                                      "sha256":  "8303fdf8683be1b33cb492cfc4262c5a66138e3ddd875a51be4dffb33178f4b4"
+                                      "size_bytes":  3649,
+                                      "sha256":  "42ba8a9e3057fb721bf183d7fcfe07fe8dff2e971fbfff50defb07e32ba4d887"
                                   },
                                   {
                                       "path":  "product/install/INSTALLATION.json",
-                                      "size_bytes":  3170,
-                                      "sha256":  "400d0875ccbcc755aaeed8e3f0e89f7d3fd64eb038e3e4c3c4dc0c2878f47bef"
+                                      "size_bytes":  3296,
+                                      "sha256":  "0cd1daa017ecf7a70b105a3837f86911b918c72cb11030070d2f868406b89687"
                                   },
                                   {
                                       "path":  "product/manager_release.json",
                                       "size_bytes":  203,
-                                      "sha256":  "a9f6d030211be14318ceb71a6dc73de7d6296ea7d51b872ca780c9e6e54e2239"
+                                      "sha256":  "8805e86526a181e34866f93de47b530e45a0752b6e57c46497f73f18abf1c1b7"
                                   },
                                   {
                                       "path":  "product/migrations/2.0.0_to_2.1.0.json",
@@ -274,8 +274,8 @@
                                   },
                                   {
                                       "path":  "product/runtime/Keelaryn__Manager.ps1",
-                                      "size_bytes":  441373,
-                                      "sha256":  "28ef59878abb91eaf1632cf702a886f6bc40dfe6e526dfff54a596a005fe5479"
+                                      "size_bytes":  442086,
+                                      "sha256":  "c42804c88675730ec72970f836c7610a2d98c2a464512e86539011e4ed431c22"
                                   },
                                   {
                                       "path":  "product/starter/hub/Areas/README.md",
@@ -308,9 +308,14 @@
                                       "sha256":  "0ae48018ddf002339af3668723e14fabc5b90d669d2bdb9dfff684d1b9c25262"
                                   },
                                   {
+                                      "path":  "product/starter/hub/Resources/Prompts/Workspace Checkout.md",
+                                      "size_bytes":  1312,
+                                      "sha256":  "2e20cbeffe1db54baee7e631875a960992d75b076726a3b7b162ee134256b80c"
+                                  },
+                                  {
                                       "path":  "product/starter/hub/Resources/README.md",
-                                      "size_bytes":  240,
-                                      "sha256":  "f96350010c0d2e7610964be3cca07b92d9807c28c1c7bba9893f7962f470e8d5"
+                                      "size_bytes":  286,
+                                      "sha256":  "ceb099ed6854621baba6b3589ec0067af072e752fae4ac8053bc80a7ccd709f5"
                                   },
                                   {
                                       "path":  "product/starter/hub/_System/GENESIS.md",
@@ -331,6 +336,11 @@
                                       "path":  "product/tools/New-KeelarynAIContext.ps1",
                                       "size_bytes":  29948,
                                       "sha256":  "ec9a8fbb84e21f5877793cb93a7b01d34f8b53ad8846157e5a8e971a37e197f2"
+                                  },
+                                  {
+                                      "path":  "product/tools/Resolve-KeelarynWorkspaceCheckout.ps1",
+                                      "size_bytes":  14213,
+                                      "sha256":  "eeebf50db2537503c62c695d95370bcdbdf3daccc9db8287278680510974a887"
                                   },
                                   {
                                       "path":  "product/tools/Unpack-KeelarynTestArchive.ps1",

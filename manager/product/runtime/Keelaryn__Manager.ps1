@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.14.1"
+$ManagerVersion = "4.15.1"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -419,11 +419,13 @@ $ManagedManagerFiles = @(
     "product/starter/hub/Records/README.md",
     "product/starter/hub/Resources/Prompts/Initialize New Hub.md",
     "product/starter/hub/Resources/Prompts/WORKER_CHAT.md",
+    "product/starter/hub/Resources/Prompts/Workspace Checkout.md",
     "product/starter/hub/Resources/README.md",
     "product/tools/audit_cleanroom.ps1",
     "product/tools/KeelarynMenu.ps1",
     'product/tools/Compact-KeelarynQualificationEvidence.ps1',
     "product/tools/New-KeelarynAIContext.ps1",
+    "product/tools/Resolve-KeelarynWorkspaceCheckout.ps1",
     "product/tools/Unpack-KeelarynTestArchive.ps1",
     "README_FIRST.md"
 )
@@ -5942,6 +5944,13 @@ function Test-GenesisPathPlannerSelfTest {
     catch { $script:GenesisPathPlannerSelfTestReason=('Unexpected error: '+$_.Exception.Message); return $false }
 }
 
+function Test-WorkspaceCheckoutContractSelfTest {
+    $tool=Join-Path $ProductRoot 'tools\Resolve-KeelarynWorkspaceCheckout.ps1'
+    if(-not(Test-Path -LiteralPath $tool -PathType Leaf)){return $false}
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $tool -SelfTest | Out-Null
+    return $LASTEXITCODE -eq 0
+}
+
 function Test-MigrationPlannerSelfTest {
     $registry=[pscustomobject]@{ migrations=@(
         [pscustomobject]@{ id='selftest-1'; from_system_version='1.0.0'; to_system_version='1.1.0'; apply_mode='manager_safe'; spec='selftest-1.json' },
@@ -6189,7 +6198,7 @@ function Test-ProductSourceSelfTest {
             if (-not (Test-Path $p -PathType Leaf)) { return $false }
         }
         $runtimeSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\runtime\Keelaryn__Manager.ps1'),[System.Text.Encoding]::UTF8)
-        foreach($token in @('function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Write-ManagerReleaseSnapshotFile $row $dst','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
+        foreach($token in @('function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Test-WorkspaceCheckoutContractSelfTest','Resolve-KeelarynWorkspaceCheckout.ps1','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Write-ManagerReleaseSnapshotFile $row $dst','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
             if(-not$runtimeSource.Contains($token)){return $false}
         }
         $aiToolSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\tools\New-KeelarynAIContext.ps1'),[System.Text.Encoding]::UTF8)
@@ -6237,6 +6246,7 @@ if ($SelfTest) {
     if (-not (Test-GenesisArtifactParserSelfTest)) { Write-Host 'Manager self-test failed: artifact v3 Genesis parser contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-MigrationPlannerSelfTest)) { Write-Host 'Manager self-test failed: migration planner contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-GenesisPathPlannerSelfTest)) { Write-Host ('Manager self-test failed: Genesis path-planning contract. '+[string]$script:GenesisPathPlannerSelfTestReason) -ForegroundColor Red; exit 1 }
+    if (-not (Test-WorkspaceCheckoutContractSelfTest)) { Write-Host 'Manager self-test failed: Workspace checkout canonical-title contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-PortablePolicySelfTest)) { Write-Host 'Manager self-test failed: portable deployment-state policy.' -ForegroundColor Red; exit 1 }
     if (-not (Test-HashHexFormattingSelfTest)) { Write-Host ('Manager self-test failed: SHA-256 hex formatting contract. '+[string]$script:HashHexFormattingSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-PortableInventorySelfTest)) { Write-Host 'Manager self-test failed: portable inventory/hash contract.' -ForegroundColor Red; exit 1 }

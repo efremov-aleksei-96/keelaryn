@@ -19,3 +19,16 @@ Historical schema/protocol identifiers are facts and must remain historical fact
 The namespace migration uses the same generic governance overlay as Genesis and preserves user-owned Areas/Projects/Records/Resources. Where customized governance or historical provenance requires semantic reconciliation, Chat Manager is required.
 
 Local naming conventions such as arbitrary numeric prefixes are not part of the product's legacy namespace and are not encoded as compatibility aliases.
+
+## Workspace governance convergence
+
+Workspace checkout governance is instance-owned once a Hub exists and may have local customization. Manager updates therefore do not silently overwrite an existing Hub's `_System/WORKSPACE.md` or `Resources/Prompts/Workspace Checkout.md`.
+
+When a newer Manager ships revised Workspace governance/templates, an existing customized Hub adopts the semantic change through the normal Hub reconciliation path:
+
+```text
+CURRENT -> CANDIDATE -> Chat Manager -> APPROVED -> CURRENT
+```
+
+For canonical-title synchronization, reconciliation should preserve unrelated local customization while adding the `keelaryn.workspace.v1` entity metadata/title invariant and user-facing `suggested_chat_title` behavior. A schema-version bump is not required merely because the optional informational metadata fields are added; legacy v1 checkouts remain readable.
+
