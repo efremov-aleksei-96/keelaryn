@@ -1,18 +1,18 @@
 {
     "schema":  "keelaryn.public-repository-provenance.v2",
     "role":  "public_source_sync_candidate",
-    "source_manager_version":  "4.15.1",
-    "source_gate_baseline_manager_version":  "4.15.0",
-    "source_manager_installation_sha256":  "0cd1daa017ecf7a70b105a3837f86911b918c72cb11030070d2f868406b89687",
-    "source_manager_gate_managed_content_sha256":  "09836047a7ed9581290c4f0eefb04b0b75e64c9cff4197b7f3adc10ae2e3b58c",
+    "source_manager_version":  "4.16.0",
+    "source_gate_baseline_manager_version":  "4.15.1",
+    "source_manager_installation_sha256":  "e158359408533ba6e4e843176f94c6925feb3856e9043f675b3e162a0043bfe8",
+    "source_manager_gate_managed_content_sha256":  "947330fb42fbe464f8530726d38e0619b283abc22f0818b3d6adb923b74e4dc3",
     "production_validation":  {
-                                  "full_gate_pass":  true,
-                                  "gate_revision":  1,
-                                  "framework_revision":  12,
-                                  "tested_update_sha256":  "68df9efc022defa2c5edca22227c161838fc9e41b79cda7e35482bb9f317fe14",
-                                  "production_doctor_pass":  true,
-                                  "production_ux_smoke_pass":  true,
-                                  "production_managed_content_prefix":  "512ac9a4136f"
+                                  "full_gate_pass":  false,
+                                  "gate_revision":  null,
+                                  "framework_revision":  13,
+                                  "tested_update_sha256":  "",
+                                  "production_doctor_pass":  false,
+                                  "production_ux_smoke_pass":  false,
+                                  "production_managed_content_prefix":  ""
                               },
     "personal_hub_included":  false,
     "manager_runtime_state_included":  false,
@@ -45,5 +45,6 @@
                   },
     "known_nonsecret_hygiene_notes":  [
                                           "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example; it is not a product default."
-                                      ]
+                                      ],
+    "qualified_product_source_commit":  ""
 }
