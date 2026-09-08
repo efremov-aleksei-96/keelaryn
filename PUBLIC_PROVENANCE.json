@@ -19,7 +19,7 @@
     "local_test_evidence_included":  false,
     "gate_framework":  {
                            "version":  "2.0",
-                           "revision":  12,
+                           "revision":  13,
                            "windows_qualified":  true,
                            "frozen_for_manager_candidate":  true
                        },
@@ -35,7 +35,7 @@
                                   "core_autocrlf_true_roundtrip_required":  true
                               },
     "known_nonsecret_source_hygiene_notes":  [
-                                                 "manager/product/docs/TESTING.md and tests/framework/manager-gate/README.md retain maintainer-local D:\\0\\0__Core examples for historical/maintainer qualification context; they are not product installation defaults."
+                                                 "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example for historical/maintainer qualification context; it is not a product installation default."
                                              ],
     "ci_policy":  {
                       "github_actions":  "pull_request + main push + manual",
@@ -44,6 +44,6 @@
                       "update_identity":  "when full_gate_pass=true, PR and main BuildRelease UPDATE SHA-256 must equal production_validation.tested_update_sha256; publish consumes those gated bytes"
                   },
     "known_nonsecret_hygiene_notes":  [
-                                          "manager/product/docs/TESTING.md and tests/framework/manager-gate/README.md retain maintainer-local D:\\0\\0__Core examples; they are not product defaults."
+                                          "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example; it is not a product default."
                                       ]
 }

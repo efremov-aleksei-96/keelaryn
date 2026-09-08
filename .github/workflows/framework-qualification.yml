@@ -1,0 +1,102 @@
+name: Gate Framework qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/framework/manager-gate/**'
+      - 'PUBLIC_FILE_MANIFEST.json'
+      - '.github/workflows/framework-qualification.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/framework/manager-gate/**'
+      - 'PUBLIC_FILE_MANIFEST.json'
+      - '.github/workflows/framework-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-framework-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  framework-gate:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Parse framework PowerShell
+        shell: powershell
+        run: |
+          $root = Join-Path $env:GITHUB_WORKSPACE 'tests\framework\manager-gate'
+          foreach ($ps in @(Get-ChildItem -LiteralPath $root -File -Recurse -Filter '*.ps1')) {
+              $tokens = $null
+              $errors = $null
+              [void][System.Management.Automation.Language.Parser]::ParseFile($ps.FullName,[ref]$tokens,[ref]$errors)
+              if (@($errors).Count -ne 0) {
+                  throw ('PowerShell parser rejected '+$ps.FullName+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))
+              }
+          }
+          Write-Host 'Gate Framework parser: PASS' -ForegroundColor Green
+
+      - name: Run Framework r13 self-test
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tests\framework\manager-gate\Test-ManagerGateFramework.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Prove real Manager SourceRoot and SourceZip gate equivalence
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $root = $env:GITHUB_WORKSPACE
+          $manager = Join-Path $root 'manager'
+          $builder = Join-Path $root 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          $install = Get-Content (Join-Path $manager 'product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $provenance = Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $version = [string]$install.manager_version
+          $baseline = [string]$provenance.source_gate_baseline_manager_version
+          $temp = Join-Path $env:RUNNER_TEMP ('framework-r13-equivalence-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          $stage = Join-Path $temp 'source-stage'
+          $managerStage = Join-Path $stage 'keelaryn\manager'
+          New-Item -ItemType Directory -Force -Path $managerStage | Out-Null
+          foreach ($item in @(Get-ChildItem -LiteralPath $manager -Force)) {
+              Copy-Item -LiteralPath $item.FullName -Destination $managerStage -Recurse -Force
+          }
+          $sourceZip = Join-Path $temp 'Keelaryn__Manager_SOURCE_equivalence.zip'
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$sourceZip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+          $rootOut = Join-Path $temp 'root-input'
+          $zipOut = Join-Path $temp 'zip-input'
+          New-Item -ItemType Directory -Force -Path $rootOut,$zipOut | Out-Null
+          $rootGate = Join-Path $rootOut ('manager-'+$version+'.zip')
+          $zipGate = Join-Path $zipOut ('manager-'+$version+'.zip')
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot $manager -BaselineVersion $baseline -GateRevision 9013 -OutputPath $rootGate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceZip $sourceZip -BaselineVersion $baseline -GateRevision 9013 -OutputPath $zipGate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $rootHash = (Get-FileHash -LiteralPath $rootGate -Algorithm SHA256).Hash.ToLowerInvariant()
+          $zipHash = (Get-FileHash -LiteralPath $zipGate -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($rootHash -cne $zipHash) { throw ('SourceRoot/SourceZip gate mismatch: root='+$rootHash+' zip='+$zipHash) }
+          Write-Host ('Real Manager SourceRoot/SourceZip gate equivalence: PASS. sha256='+$rootHash) -ForegroundColor Green
+
+      - name: Print generated framework manifest identity
+        shell: powershell
+        run: |
+          $script = Join-Path $env:GITHUB_WORKSPACE 'tools\Build-PublicFileManifest.ps1'
+          $json = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -RepositoryRoot $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $doc = ($json -join "`n") | ConvertFrom-Json
+          Write-Host ('FRAMEWORK_MANIFEST_IDENTITY='+($doc.gate_framework | ConvertTo-Json -Depth 10 -Compress))
+
+      - name: Verify public manifest reproducibility
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-PublicFileManifest.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
