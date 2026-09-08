@@ -148,14 +148,21 @@ jobs:
           $baseRoot = Join-Path $env:GITHUB_WORKSPACE 'base'
           $candidateManifest = Get-Content (Join-Path $candidateRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
           $baseManifest = Get-Content (Join-Path $baseRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $candidateInstall = Get-Content (Join-Path $candidateRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $baseInstall = Get-Content (Join-Path $baseRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $candidateVersion = [string]$candidateInstall.manager_version
+          $baseVersion = [string]$baseInstall.manager_version
+          $managerChanged = [string]$candidateManifest.manager.gate_managed_content_sha256 -cne [string]$baseManifest.manager.gate_managed_content_sha256
+          $executionChanged = (QualificationExecutionIdentity $candidateRoot) -cne (QualificationExecutionIdentity $baseRoot)
           $reasons = New-Object System.Collections.ArrayList
-          if ([string]$candidateManifest.manager.gate_managed_content_sha256 -cne [string]$baseManifest.manager.gate_managed_content_sha256) {
-              [void]$reasons.Add('manager-bytes')
-          }
+          if ($managerChanged) { [void]$reasons.Add('manager-bytes') }
           if ((FileIdentity $candidateRoot 'tools\Invoke-DisposableManagerFullGate.ps1') -cne (FileIdentity $baseRoot 'tools\Invoke-DisposableManagerFullGate.ps1')) {
               [void]$reasons.Add('tools/Invoke-DisposableManagerFullGate.ps1')
           }
-          if ((QualificationExecutionIdentity $candidateRoot) -cne (QualificationExecutionIdentity $baseRoot)) {
+          if ($executionChanged) {
+              if ([string]$env:EVENT_NAME -ne 'workflow_dispatch' -and [version]$candidateVersion -eq [version]$baseVersion -and -not $managerChanged) {
+                  throw 'Disposable qualification execution changed without a Manager version transition. Use an explicit workflow_dispatch baseline for experimental qualification or move the execution change into a new Manager/release-engineering cycle.'
+              }
               [void]$reasons.Add('.github/workflows/windows-powershell.yml:qualification-execution')
           }
           $shouldRun = ([string]$env:EVENT_NAME -eq 'workflow_dispatch') -or $reasons.Count -gt 0
@@ -206,7 +213,10 @@ jobs:
               if ([string]$candidateManifest.manager.gate_managed_content_sha256 -cne [string]$baseManifest.manager.gate_managed_content_sha256) {
                   throw 'Manager bytes changed without a Manager version change.'
               }
-              throw 'Disposable qualification execution changed without a Manager version transition. Use an explicit workflow_dispatch baseline for experimental qualification or move the execution change into a new Manager/release-engineering cycle.'
+              $provenance = Get-Content (Join-Path $baseRoot 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+              $previousVersion = ([string]$provenance.source_gate_baseline_manager_version).Trim()
+              if ($previousVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Could not infer the prior qualified Manager baseline.' }
+              $baselineRef = 'v' + $previousVersion
           } else {
               throw ('Candidate Manager '+$candidateVersion+' is older than trusted base '+$baseVersion+'.')
           }
