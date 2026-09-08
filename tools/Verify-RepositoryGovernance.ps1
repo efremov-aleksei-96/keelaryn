@@ -89,8 +89,10 @@ if (-not [bool]$tagPolicy.required_rules.non_fast_forward -or -not [bool]$tagPol
 
 $ci = $contract.ci_concurrency
 if ($null -eq $ci) { Fail 'Governance is missing ci_concurrency.' }
-if (-not [bool]$ci.cancel_obsolete_pull_request_runs) { Fail 'CI must cancel obsolete PR runs.' }
+if (-not [bool]$ci.cancel_obsolete_pull_request_runs) { Fail 'CI must allow cancellation of obsolete PR runs where explicitly safe.' }
 if ([bool]$ci.cancel_main_push_runs) { Fail 'CI must preserve main push evidence runs.' }
+Assert-StringSet @($ci.pr_cancel_workflows) @('.github/workflows/repository-governance.yml','.github/workflows/public-release.yml','.github/workflows/release-policy.yml') 'PR-cancel workflow scope'
+if ([string]::IsNullOrWhiteSpace([string]$ci.source_validation_policy)) { Fail 'Source-validation concurrency exception policy is missing.' }
 if ([string]::IsNullOrWhiteSpace([string]$ci.policy)) { Fail 'CI concurrency policy text is missing.' }
 
 $immutable = $contract.release_policy.immutable_releases
@@ -165,11 +167,13 @@ $prCancelToken = 'cancel-in-progress: $' + "{{ github.event_name == 'pull_reques
 $sourceWorkflow = Read-Utf8 (Require-File '.github/workflows/windows-powershell.yml')
 $governanceWorkflow = Read-Utf8 (Require-File '.github/workflows/repository-governance.yml')
 $releaseSource = Read-Utf8 (Require-File '.github/workflows/public-release.yml')
-Require-Token $sourceWorkflow $prCancelToken 'Windows source concurrency'
+$releasePolicySource = Read-Utf8 (Require-File '.github/workflows/release-policy.yml')
+if ($sourceWorkflow -match '(?m)^concurrency:\s*$') { Fail 'Windows source workflow must remain outside r5 PR cancellation until its disposable qualification scope is redesigned.' }
 Require-Token $governanceWorkflow $prCancelToken 'Repository governance concurrency'
 Require-Token $releaseSource $prCancelToken 'Public release concurrency'
-if ($sourceWorkflow -match '(?m)^\s*cancel-in-progress:\s*true\s*$') { Fail 'Windows source workflow unconditionally cancels evidence.' }
-if ($governanceWorkflow -match '(?m)^\s*cancel-in-progress:\s*true\s*$') { Fail 'Repository governance workflow unconditionally cancels evidence.' }
+Require-Token $releasePolicySource 'cancel-in-progress: true' 'Release-policy concurrency'
+if ($governanceWorkflow -match '(?m)^\s*cancel-in-progress:\s*true\s*$') { Fail 'Repository governance workflow unconditionally cancels main evidence.' }
+if ($releaseSource -match '(?m)^\s*cancel-in-progress:\s*true\s*$') { Fail 'Public release workflow unconditionally cancels main evidence.' }
 
 foreach ($token in @(
     'production_validation.full_gate_pass',
@@ -196,18 +200,15 @@ $publicPushPaths = Get-WorkflowTriggerPaths $releaseSource 'push'
 Assert-StringSet $publicPrPaths $criticalPaths 'Public-release pull-request path filter'
 Assert-StringSet $publicPushPaths $pushPaths 'Public-release push path filter'
 
-$releasePolicySource = Read-Utf8 (Require-File '.github/workflows/release-policy.yml')
 foreach ($token in @('release-policy:','distribution-gate','HEAD_SHA','Release-critical PR detected','Release policy PASS','check-runs?per_page=100','release_policy.critical_paths')) { Require-Token $releasePolicySource $token 'Conditional release-policy workflow' }
-
-$governanceWorkflow = Read-Utf8 (Require-File '.github/workflows/repository-governance.yml')
 Require-Token $governanceWorkflow 'Verify-RepositoryGovernance.ps1' 'Repository governance source step'
 Require-Token $governanceWorkflow 'Verify-RepositoryGovernanceOnline.ps1' 'Repository governance online step'
 
 $governanceDoc = Read-Utf8 (Require-File 'docs/REPOSITORY_GOVERNANCE.md')
-foreach ($token in @('immutable releases','release attestation','legacy mutable','release-policy','branch hygiene','LEGACY_RELEASE_BASELINE.json','provenance tag','Verify-RepositoryGovernanceOnline.ps1')) { Require-Token $governanceDoc $token 'Repository governance documentation' }
+foreach ($token in @('immutable releases','release attestation','legacy mutable','release-policy','branch hygiene','LEGACY_RELEASE_BASELINE.json','provenance tag','Verify-RepositoryGovernanceOnline.ps1','source validation')) { Require-Token $governanceDoc $token 'Repository governance documentation' }
 
 $requiredContexts = @($contract.main_ruleset.required_rules.required_status_checks.contexts)
 Assert-StringSet $requiredContexts @('source-gate','repository-governance','release-policy') 'Required status checks'
 
-Write-Host ('Repository governance source contract: PASS. revision=5; legacy=' + $legacyTags.Count + '; critical_paths=' + $criticalPaths.Count + '; online_verifier=separate') -ForegroundColor Green
+Write-Host ('Repository governance source contract: PASS. revision=5; legacy=' + $legacyTags.Count + '; critical_paths=' + $criticalPaths.Count + '; pr_cancel_workflows=' + @($ci.pr_cancel_workflows).Count + '; online_verifier=separate') -ForegroundColor Green
 exit 0
