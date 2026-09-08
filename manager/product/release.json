@@ -9,5 +9,9 @@
   "manager_protocol": "keelaryn-chat-manager-v4.0",
   "manifest_schema": "keelaryn.manifest.v1",
   "validation_schema": "keelaryn.validation.v2",
-  "portable_state_policy": "keelaryn.portable-state.v1"
+  "portable_state_policy": "keelaryn.portable-state.v1",
+  "governance_schema": "keelaryn.hub-governance.v1",
+  "governance_revision": 1,
+  "workspace_protocol": "keelaryn.workspace.v1",
+  "workspace_checkout_revision": 1
 }
