@@ -53,19 +53,28 @@ Repository Governance r5 distinguishes disposable PR work from durable evidence.
 
 Obsolete PR runs may be cancelled only for workflows explicitly listed in `ci_concurrency.pr_cancel_workflows`:
 
+- `.github/workflows/windows-powershell.yml`;
 - `.github/workflows/repository-governance.yml`;
 - `.github/workflows/public-release.yml`;
 - `.github/workflows/release-policy.yml`.
 
 Push/main validation and publication runs are evidence for a specific main SHA and are not cancelled merely because a newer main commit appears.
 
-### source validation exception
+### source validation qualification scope
 
-`.github/workflows/windows-powershell.yml` is intentionally excluded from PR cancellation in r5.
+`windows-powershell.yml` previously treated **any workflow byte change** as a reason to run the disposable Manager Full Gate. That was too broad: changing only top-level CI concurrency does not alter Manager bytes or disposable qualification execution, but it forced the resolver into a same-version path and exposed an invalid attempt to infer `v4.15.0` as a release baseline.
 
-Its current disposable qualification scope treats a change to the workflow bytes as a reason to execute the disposable Manager Full Gate. That Full Gate is intentionally a **version-transition** gate and requires `candidate_version > baseline_version`. A repository-only concurrency edit leaves Manager 4.15.1 unchanged, so weakening that version invariant or inventing a fake v4.15.0 release baseline would be incorrect.
+r5 narrows the scope without weakening Full Gate semantics. The detector now considers only:
 
-Therefore r5 preserves `windows-powershell.yml` byte-for-byte relative to the qualified `main` baseline. Redesign of its qualification-scope detector is a separate engineering change. Until that redesign is independently qualified, source validation remains uncancelled rather than weakening Full Gate semantics.
+- Manager managed-content identity;
+- `tools/Invoke-DisposableManagerFullGate.ps1` identity;
+- the workflow qualification-execution region beginning at `Verify candidate public boundary and Actions policy`.
+
+Top-level concurrency and the detector implementation itself are exercised directly by the current workflow run and do not create a fake Manager version transition.
+
+If the qualification-execution region changes while Manager version is unchanged, PR qualification fails closed rather than inventing a baseline. An explicit `workflow_dispatch` baseline remains available for controlled experimental qualification; production/release-engineering execution changes otherwise belong in a coherent new Manager or qualification cycle.
+
+This permits `cancel-in-progress` to be conditional on `pull_request` while preserving main-SHA evidence and the disposable runner invariant that a normal Manager Full Gate represents a real version transition.
 
 ## GitHub Actions supply chain
 
