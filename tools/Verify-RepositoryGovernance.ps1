@@ -91,8 +91,8 @@ $ci = $contract.ci_concurrency
 if ($null -eq $ci) { Fail 'Governance is missing ci_concurrency.' }
 if (-not [bool]$ci.cancel_obsolete_pull_request_runs) { Fail 'CI must allow cancellation of obsolete PR runs where explicitly safe.' }
 if ([bool]$ci.cancel_main_push_runs) { Fail 'CI must preserve main push evidence runs.' }
-Assert-StringSet @($ci.pr_cancel_workflows) @('.github/workflows/repository-governance.yml','.github/workflows/public-release.yml','.github/workflows/release-policy.yml') 'PR-cancel workflow scope'
-if ([string]::IsNullOrWhiteSpace([string]$ci.source_validation_policy)) { Fail 'Source-validation concurrency exception policy is missing.' }
+Assert-StringSet @($ci.pr_cancel_workflows) @('.github/workflows/windows-powershell.yml','.github/workflows/repository-governance.yml','.github/workflows/public-release.yml','.github/workflows/release-policy.yml') 'PR-cancel workflow scope'
+if ([string]::IsNullOrWhiteSpace([string]$ci.source_validation_policy)) { Fail 'Source-validation concurrency policy is missing.' }
 if ([string]::IsNullOrWhiteSpace([string]$ci.policy)) { Fail 'CI concurrency policy text is missing.' }
 
 $immutable = $contract.release_policy.immutable_releases
@@ -168,12 +168,14 @@ $sourceWorkflow = Read-Utf8 (Require-File '.github/workflows/windows-powershell.
 $governanceWorkflow = Read-Utf8 (Require-File '.github/workflows/repository-governance.yml')
 $releaseSource = Read-Utf8 (Require-File '.github/workflows/public-release.yml')
 $releasePolicySource = Read-Utf8 (Require-File '.github/workflows/release-policy.yml')
-if ($sourceWorkflow -match '(?m)^concurrency:\s*$') { Fail 'Windows source workflow must remain outside r5 PR cancellation until its disposable qualification scope is redesigned.' }
+Require-Token $sourceWorkflow $prCancelToken 'Windows source concurrency'
 Require-Token $governanceWorkflow $prCancelToken 'Repository governance concurrency'
 Require-Token $releaseSource $prCancelToken 'Public release concurrency'
 Require-Token $releasePolicySource 'cancel-in-progress: true' 'Release-policy concurrency'
+if ($sourceWorkflow -match '(?m)^\s*cancel-in-progress:\s*true\s*$') { Fail 'Windows source workflow unconditionally cancels main evidence.' }
 if ($governanceWorkflow -match '(?m)^\s*cancel-in-progress:\s*true\s*$') { Fail 'Repository governance workflow unconditionally cancels main evidence.' }
 if ($releaseSource -match '(?m)^\s*cancel-in-progress:\s*true\s*$') { Fail 'Public release workflow unconditionally cancels main evidence.' }
+foreach ($token in @('QualificationExecutionIdentity','Verify candidate public boundary and Actions policy','.github/workflows/windows-powershell.yml:qualification-execution','Disposable qualification execution changed without a Manager version transition.')) { Require-Token $sourceWorkflow $token 'Windows source semantic qualification scope' }
 
 foreach ($token in @(
     'production_validation.full_gate_pass',
