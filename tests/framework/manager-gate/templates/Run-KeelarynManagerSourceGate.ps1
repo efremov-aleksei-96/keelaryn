@@ -406,14 +406,16 @@ function Get-ZipEntryIdentityKey([string]$Name){
 
 function Get-UniqueZipEntryIndex($Archive){
     if($null-eq$Archive){throw 'ZIP archive is null.'}
+    $seen=@{}
     $index=@{}
     foreach($entry in $Archive.Entries){
         $name=$entry.FullName.Replace('\','/')
-        if($name.EndsWith('/')){continue}
         $key=Get-ZipEntryIdentityKey $name
-        if($index.ContainsKey($key)){
+        if($seen.ContainsKey($key)){
             throw('UPDATE ZIP contains duplicate Windows/Unicode-normalized entry key: '+$name)
         }
+        $seen[$key]=$true
+        if($name.EndsWith('/')){continue}
         $index[$key]=$entry
     }
     return $index

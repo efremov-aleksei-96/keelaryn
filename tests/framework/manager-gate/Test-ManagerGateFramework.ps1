@@ -61,7 +61,7 @@ function Assert-Rejected([string]$Name,[object[]]$Entries,$Limits=$null){
 }
 
 $revision=(Get-Content -LiteralPath (Join-Path $frameworkRoot 'FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
-if($revision-cne'17'){throw('Framework qualification expected revision 17, got '+$revision)}
+if($revision-cne'18'){throw('Framework qualification expected revision 18, got '+$revision)}
 
 foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filter '*.ps1')){
     $tokens=$null;$errors=$null
@@ -69,10 +69,10 @@ foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filte
     if(@($errors).Count-ne0){throw('PowerShell parser rejected framework file '+$ps.FullName+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
 }
 $builderText=[System.IO.File]::ReadAllText($builderPath,[System.Text.Encoding]::UTF8)
-if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r17 builder must not use Expand-Archive for SourceZip.'}
-foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r17 builder safety binding missing token: '+$token)}}
+if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r18 builder must not use Expand-Archive for SourceZip.'}
+foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r18 builder safety binding missing token: '+$token)}}
 
-$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r17_selftest_'+[guid]::NewGuid().ToString('N'))
+$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r18_selftest_'+[guid]::NewGuid().ToString('N'))
 try{
     New-Item -ItemType Directory -Force -Path $script:tempRoot|Out-Null
     $valid=Get-ValidEntries
@@ -271,6 +271,49 @@ try{
         if(-not$unicodeRejected){throw 'UPDATE ZIP Unicode-normalization-equivalent duplicate entry keys were accepted.'}
     }finally{$unicodeArchive.Dispose()}
 
+    $directoryDuplicateCases=@(
+        [pscustomobject]@{
+            Label='update-zip-directory-exact-duplicate-key'
+            Names=@(
+                'Keelaryn__Manager_Update/payload/legacy/',
+                'Keelaryn__Manager_Update/payload/legacy/'
+            )
+        },
+        [pscustomobject]@{
+            Label='update-zip-directory-case-duplicate-key'
+            Names=@(
+                'Keelaryn__Manager_Update/payload/Legacy/',
+                'Keelaryn__Manager_Update/payload/LEGACY/'
+            )
+        },
+        [pscustomobject]@{
+            Label='update-zip-directory-unicode-duplicate-key'
+            Names=@(
+                ('Keelaryn__Manager_Update/payload/caf'+[char]0x00E9+'/'),
+                ('Keelaryn__Manager_Update/payload/cafe'+[char]0x0301+'/')
+            )
+        }
+    )
+
+    foreach($case in $directoryDuplicateCases){
+        $zipPath=Join-Path $script:tempRoot ($case.Label+'.zip')
+        $archive=[System.IO.Compression.ZipFile]::Open($zipPath,[System.IO.Compression.ZipArchiveMode]::Create)
+        try{
+            foreach($name in @($case.Names)){
+                $null=$archive.CreateEntry([string]$name,[System.IO.Compression.CompressionLevel]::NoCompression)
+            }
+        }finally{$archive.Dispose()}
+        $archive=[System.IO.Compression.ZipFile]::OpenRead($zipPath)
+        try{
+            $rejected=$false
+            try{$null=Get-UniqueZipEntryIndex $archive}catch{
+                $rejected=$true
+                Write-Host('  PASS reject '+$case.Label+': '+$_.Exception.Message)
+            }
+            if(-not$rejected){throw('Duplicate explicit directory UPDATE ZIP keys were accepted: '+$case.Label)}
+        }finally{$archive.Dispose()}
+    }
+
     $rejectContract={
         param($Policy,[string]$Label)
         $rejected=$false
@@ -282,5 +325,5 @@ try{
     &$rejectContract ([pscustomobject]@{transition_compatibility_aliases=@([pscustomobject]@{path='legacy/a.txt';source_path='product/a.txt'},[pscustomobject]@{path='LEGACY/A.TXT';source_path='product/b.txt'})}) 'case-alias-duplicate'
     &$rejectContract ([pscustomobject]@{transition_compatibility_aliases=@([pscustomobject]@{path='../escape.txt';source_path='product/a.txt'})}) 'unsafe-path'
 
-    Write-Host 'FRAMEWORK r17 SELFTEST: PASS' -ForegroundColor Green
+    Write-Host 'FRAMEWORK r18 SELFTEST: PASS' -ForegroundColor Green
 }finally{if(Test-Path -LiteralPath $script:tempRoot){Remove-Item -LiteralPath $script:tempRoot -Recurse -Force -ErrorAction SilentlyContinue}}

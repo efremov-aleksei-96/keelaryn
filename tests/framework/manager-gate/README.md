@@ -219,3 +219,21 @@ Revision 17 preserves all r16 protections and adds updater-equivalent ZIP identi
 The Framework self-test extracts the real ZIP identity/index helpers and adds adversarial UPDATE ZIPs containing case-equivalent and Unicode-normalization-equivalent duplicate entries. Both must be rejected.
 
 Framework r17 must pass Windows parser/self-test and the real exact Manager 4.16.1 SourceGate before commit, then fresh hosted exact-head qualification and Codex review before any provenance freeze. Framework r16 remains preserved as a rejected unmerged commit/PR and is not rewritten.
+## Revision 18 directory-entry identity parity
+
+Revision 17 passed local and hosted exact-head qualification but was rejected before freeze after Codex review found that explicit ZIP directory records were skipped before duplicate-key tracking.
+
+The supported Manager updater's ZIP envelope validation applies normalized identity collision checks to every archive entry, including explicit directories, before later file-index logic omits directories.
+
+Revision 18 preserves all r17 protections and changes `Get-UniqueZipEntryIndex` so that:
+
+- every archive entry is normalized through `Get-ZipEntryIdentityKey`;
+- every entry participates in the duplicate-key seen-set;
+- explicit directory entries are excluded only from the returned lookup index after their identity has been validated;
+- file, case-equivalent and Unicode-equivalent duplicate rejection remains unchanged;
+- raw UPDATE transition-manifest duplicate rejection remains unchanged;
+- actual alias/source payload SHA-256 and size verification remains unchanged.
+
+The Framework self-test adds adversarial exact, case-equivalent and Unicode-normalization-equivalent duplicate explicit directory records. All must be rejected.
+
+Framework r18 must pass Windows parser/self-test and the real exact Manager 4.16.1 SourceGate before commit, then fresh hosted exact-head qualification and Codex review before any provenance freeze. Framework r17 remains preserved as a rejected unmerged commit/PR and is not rewritten.
