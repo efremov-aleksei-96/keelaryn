@@ -20,8 +20,8 @@
     "gate_framework":  {
                            "version":  "2.0",
                            "revision":  20,
-                           "windows_qualified":  false,
-                           "frozen_for_manager_candidate":  false
+                           "windows_qualified":  true,
+                           "frozen_for_manager_candidate":  true
                        },
     "license":  {
                     "spdx_id":  "MIT",
