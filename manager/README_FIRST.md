@@ -1,10 +1,10 @@
-# Keelaryn Manager 4.16.1
+# Keelaryn Manager 4.16.2
 
-Manager 4.16.1 is the corrective successor to rejected candidate 4.16.0. Candidate 4.16.0 moved the Workspace Checkout prompt into the governance overlay correctly, but its UPDATE transport omitted the obsolete 4.15.1 managed path required by the supported baseline validator. 4.16.1 keeps the clean final governance-owned layout while adding a transport-only compatibility alias so 4.15.1 can validate the transition package; the obsolete path is not part of the final managed set.
+Manager 4.16.2 is the corrective successor to rejected candidate 4.16.1. Manager 4.16.1 successfully preserved the 4.15.1 -> 4.16.x UPDATE transition envelope and correctly introduced explicit Hub governance compatibility, but CURRENT-backed Full Gate exposed a user-interface defect: when the updated Doctor reported the expected `governance.status` warning for an unreconciled existing Hub, the interactive frontend rendered `FAILED: Doctor (ExitCode 2)` even though Doctor itself classified the condition as a warning requiring explicit Chat Manager reconciliation.
 
-Manager 4.16.1 introduces an independent generic-governance compatibility identity for Keelaryn Hub without changing the structural Hub `system_version`. `_System/GOVERNANCE.json` records the generic `governance_revision` and Workspace checkout contract actually adopted by an instance. Doctor can therefore report a structurally current Hub whose generic governance is missing, stale, incompatible, or newer than the running Manager.
+Manager 4.16.2 preserves the 4.16.1 governance, migration, UPDATE compatibility alias and data-safety contracts. The product correction is intentionally narrow: interactive Doctor exit code 2 is rendered as `COMPLETED WITH WARNINGS`, while non-Doctor exit 2/3 action semantics remain unchanged. Raw Doctor exit code 2 remains machine-readable and continues to mean that warnings require attention.
 
-Existing Hubs are never rewritten automatically to clear governance drift. Generic governance convergence remains a semantic Hub change performed through `CURRENT -> CANDIDATE -> Chat Manager -> APPROVED -> CURRENT`, preserving unrelated personal state and compatible local customization. New Genesis Hubs receive the current governance receipt from the canonical governance overlay. Gate Framework 2.0 r13 is the frozen reusable framework for this Manager development cycle.
+Existing Hubs are never rewritten automatically to clear governance drift. Generic governance convergence remains a semantic Hub change performed through `CURRENT -> CANDIDATE -> Chat Manager -> APPROVED -> CURRENT`, preserving unrelated personal state and compatible local customization. New Genesis Hubs receive the current governance receipt from the canonical governance overlay. Gate Framework r19 is the qualification target for this corrective candidate and remains independently unqualified/unfrozen until its full Windows qualification cycle completes.
 
 ## Governance compatibility
 
@@ -98,9 +98,9 @@ The tests workspace contract is explicit: `framework` holds one current reusable
 
 ## Update compatibility
 
-Manager 4.16.1 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators. The normal production qualification transition for this candidate is Manager 4.15.1 -> 4.16.1.
+Manager 4.16.2 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators. The normal production qualification transition for this candidate is Manager 4.15.1 -> 4.16.2.
 
-Manager-only update commands continue to distinguish "no newer valid package" from failure and do not silently process Hub updates. Installing Manager 4.16.1 alone must not change the personal Hub or its governance receipt.
+Manager-only update commands continue to distinguish "no newer valid package" from failure and do not silently process Hub updates. Installing Manager 4.16.2 alone must not change the personal Hub or its governance receipt.
 
 ## User interface compatibility
 
@@ -110,4 +110,4 @@ The existing numeric main-menu contract is preserved to avoid breaking establish
 
 ## Release gate
 
-This source is not production-approved merely because it carries version 4.16.1. Production approval requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.15.1 -> 4.16.1 update and rollback/fault-injection coverage, Doctor governance-current/stale/newer cases, Genesis receipt validation, migration regression coverage, production Hub immutability, UI regression coverage, exact tested/public-source/release artifact identity, and gated publication. The consolidated Full Gate must use the independently frozen Gate Framework r13.
+This source is not production-approved merely because it carries version 4.16.2. Production approval requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.15.1 -> 4.16.2 update and rollback/fault-injection coverage, Doctor governance-current/stale/newer cases, Genesis receipt validation, migration regression coverage, production Hub immutability, UI regression coverage, exact tested/public-source/release artifact identity, and gated publication. The consolidated Full Gate must use Gate Framework r19; r19 must complete independent qualification and freeze before final Manager publication.
