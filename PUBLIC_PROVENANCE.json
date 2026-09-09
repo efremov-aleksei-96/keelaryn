@@ -19,9 +19,9 @@
     "local_test_evidence_included":  false,
     "gate_framework":  {
                            "version":  "2.0",
-                           "revision":  13,
-                           "windows_qualified":  true,
-                           "frozen_for_manager_candidate":  true
+                           "revision":  14,
+                           "windows_qualified":  false,
+                           "frozen_for_manager_candidate":  false
                        },
     "license":  {
                     "spdx_id":  "MIT",

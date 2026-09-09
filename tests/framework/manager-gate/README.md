@@ -153,3 +153,21 @@ Before any SOURCE bytes are written to the extraction tree, r13 validates the wh
 `Test-ManagerGateFramework.ps1` is the independent r13 framework self-test. It exercises a valid SOURCE ZIP through the real builder and adversarial archives covering Zip Slip/dot segments, reserved names, case and Unicode aliases, symlink/reparse metadata, compression-ratio limits, expanded-size limits and entry-count limits.
 
 Framework r13 must pass this self-test on Windows PowerShell 5.1 before it is frozen or used to qualify a new Manager candidate.
+
+## Revision 14 UPDATE transition-alias qualification
+
+Revision 14 extends SourceGate's UPDATE transport boundary for Manager releases that must preserve an obsolete path only for compatibility with a supported older updater.
+
+The canonical final managed set remains authoritative. SourceGate now reads `transition_compatibility_aliases` from `product/manager_release.json` and requires each alias to:
+
+- use a safe relative Manager path;
+- remain outside the canonical final managed set and the three root transition files;
+- map to an existing canonical final managed `source_path`;
+- be unique under Windows case-insensitive and Unicode-normalized identity;
+- appear exactly once in the UPDATE transport manifest and payload;
+- carry the exact SHA-256 and byte length of its canonical source row;
+- remain absent from SOURCE and DISTRIBUTION.
+
+The expected UPDATE transport is therefore `final managed files + three root transition files + declared transition aliases`; SourceGate no longer assumes that every valid UPDATE has exactly `final + 3` rows.
+
+`Test-ManagerGateFramework.ps1` extracts the actual `Get-UpdateTransportCompatibilityContract` function from the SourceGate template AST and tests zero aliases, one valid alias, final-path collision, missing source, case-alias duplication and unsafe traversal. Framework r14 must pass this self-test on Windows PowerShell 5.1 before it is frozen or used for the corrective Manager qualification cycle.
