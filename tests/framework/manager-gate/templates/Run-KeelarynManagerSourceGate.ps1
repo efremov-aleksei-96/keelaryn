@@ -379,10 +379,21 @@ function Get-UpdateTransportCompatibilityContract {
     }
 }
 
+function Assert-TransitionInstallationManifestMatchesUpdateTransport(
+    [string[]]$TransitionPaths,
+    [string[]]$ExpectedPackagePaths
+){
+    $actual=@($TransitionPaths)
+    $expected=@($ExpectedPackagePaths)
+    if($actual.Count-ne$expected.Count-or[string]::Join('|',$actual)-cne[string]::Join('|',$expected)){
+        throw 'Transition installation manifest is not exactly the expected UPDATE transport, including declared compatibility aliases.'
+    }
+}
+
 $finalPaths=@(Get-OrdinalUniqueStrings @($manifest.managed_files|ForEach-Object{([string]$_).Replace('\','/')}))
 $transitionPaths=@(Get-OrdinalUniqueStrings @($transitionManifest.managed_files|ForEach-Object{([string]$_).Replace('\','/')}))
 $expectedTransition=@(Get-OrdinalUniqueStrings @($finalPaths+$transitionOnly))
-if($transitionPaths.Count-ne$expectedTransition.Count-or[string]::Join('|',$transitionPaths)-cne[string]::Join('|',$expectedTransition)){throw 'Transition installation manifest is not exactly final managed files plus the three compatibility transport paths.'}
+if($transitionPaths.Count-ne$expectedTransition.Count-or[string]::Join('|',$transitionPaths)-cne[string]::Join('|',$expectedTransition)){throw 'Gate-source transition installation manifest is not exactly final managed files plus the three root transition paths.'}
 $releasePolicyPath=Join-Path $ManagerRoot 'product\manager_release.json'
 if(-not(Test-Path -LiteralPath $releasePolicyPath -PathType Leaf)){throw 'Manager release policy is missing from candidate source.'}
 $releasePolicy=(Get-Content -LiteralPath $releasePolicyPath -Raw -Encoding UTF8)|ConvertFrom-Json
@@ -735,6 +746,25 @@ try{
     $packageDeclared=@(Get-OrdinalUniqueStrings @($packageRows|ForEach-Object{([string]$_.path).Replace('\','/')}))
     if($packageDeclared.Count-ne$packageRows.Count){throw 'UPDATE transport manifest contains duplicate file paths.'}
     if($packageDeclared.Count-ne$expectedUpdateTransport.Count-or[string]::Join('|',$packageDeclared)-cne[string]::Join('|',$expectedUpdateTransport)){throw('UPDATE transport path set mismatch: declared='+$packageDeclared.Count+' expected='+$expectedUpdateTransport.Count)}
+
+    $updateTransitionManifestEntry=$index['keelaryn__manager_update/payload/_manager_manifest.json']
+    if(-not$updateTransitionManifestEntry){throw 'UPDATE transition installation manifest missing.'}
+    $updateTransitionManifestReader=New-Object System.IO.StreamReader($updateTransitionManifestEntry.Open(),[System.Text.Encoding]::UTF8,$true)
+    try{
+        $updateTransitionManifestText=$updateTransitionManifestReader.ReadToEnd()
+    }finally{
+        $updateTransitionManifestReader.Dispose()
+    }
+    try{
+        $updateTransitionManifest=$updateTransitionManifestText|ConvertFrom-Json
+    }catch{
+        throw('UPDATE transition installation manifest JSON is invalid: '+$_.Exception.Message)
+    }
+    if([string]$updateTransitionManifest.schema-ne'keelaryn.manager.installation.v1'){throw('UPDATE transition installation manifest schema mismatch: '+[string]$updateTransitionManifest.schema)}
+    if([string]$updateTransitionManifest.manager_version-ne$version){throw('UPDATE transition installation manifest manager_version mismatch: '+[string]$updateTransitionManifest.manager_version)}
+    $updateTransitionPaths=@(Get-OrdinalUniqueStrings @($updateTransitionManifest.managed_files|ForEach-Object{([string]$_).Replace('\','/')}))
+    Assert-TransitionInstallationManifestMatchesUpdateTransport -TransitionPaths $updateTransitionPaths -ExpectedPackagePaths $expectedUpdateTransport
+
     foreach($legacyRoot in $transitionOnly){if(-not$index.ContainsKey(('keelaryn__manager_update/payload/'+$legacyRoot).ToLowerInvariant())){throw('UPDATE transition payload file missing: '+$legacyRoot)}}
     foreach($alias in $updateAliases){
         $aliasPath=[string]$alias.Path;$sourcePath=[string]$alias.SourcePath

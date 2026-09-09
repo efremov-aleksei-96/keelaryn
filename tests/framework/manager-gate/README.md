@@ -171,3 +171,21 @@ The canonical final managed set remains authoritative. SourceGate now reads `tra
 The expected UPDATE transport is therefore `final managed files + three root transition files + declared transition aliases`; SourceGate no longer assumes that every valid UPDATE has exactly `final + 3` rows.
 
 `Test-ManagerGateFramework.ps1` extracts the actual `Get-UpdateTransportCompatibilityContract` function from the SourceGate template AST and tests zero aliases, one valid alias, final-path collision, missing source, case-alias duplication and unsafe traversal. Framework r14 must pass this self-test on Windows PowerShell 5.1 before it is frozen or used for the corrective Manager qualification cycle.
+## Revision 15 UPDATE-internal transition-manifest validation
+
+Revision 14 was qualified and frozen but remained unmerged after review exposed an ambiguity in transition-manifest validation. Follow-up investigation distinguished two separate manifests:
+
+- `Build-ManagerGate.ps1` synthesizes the **gate-source root** `_manager_manifest.json` used only to construct and execute `manager-<version>`; its contract remains canonical final managed files plus the three root transition paths.
+- Manager `-BuildRelease` generates a separate `_manager_manifest.json` **inside the UPDATE payload**. Supported baseline updaters validate that UPDATE-internal manifest against every UPDATE `manifest.files` path.
+
+Revision 15 keeps the r14 alias safety rules and preserves the gate-source root envelope unchanged. The new validation belongs in Gate C2 after the candidate has built its real release artifacts. SourceGate now:
+
+- derives the full expected UPDATE transport as final managed files + three root transition files + declared compatibility aliases;
+- validates UPDATE `manifest.files` against that complete transport;
+- opens `Keelaryn__Manager_Update/payload/_manager_manifest.json` from the generated UPDATE;
+- requires its schema/version identity and `managed_files` set to equal the complete expected UPDATE transport exactly;
+- rejects an UPDATE-internal transition manifest that omits a declared alias or contains an extra transport path;
+- preserves SOURCE/DISTRIBUTION exclusion and the independent canonical final managed set, so aliases remain transport-only and disappear from the installed final tree.
+- fixes repository .gitattributes precedence so generic *.json/*.md EOL rules cannot override authoritative manager/** or Framework byte preservation.
+
+The r15 Framework self-test extracts and executes the alias-contract and UPDATE transition-manifest equality helpers, including missing-alias and extra-path rejection. Qualification additionally requires a real SourceGate against the exact Manager 4.16.1 candidate and later the disposable Full Gate path exercising the supported Manager 4.15.1 -> 4.16.1 native update.
