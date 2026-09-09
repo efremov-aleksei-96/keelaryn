@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.16.2"
+$ManagerVersion = "4.16.3"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -525,7 +525,14 @@ function Rotate-Log {
         $item = Get-Item $script:LogFile
         if ($item.Length -gt 1MB) {
             $stamp = Get-Date -Format "yyyy-MM-dd_HHmmss"
-            Move-Item $script:LogFile (Join-Path $script:Logs ("manager_" + $stamp + ".log"))
+            try {
+                Move-Item $script:LogFile (Join-Path $script:Logs ("manager_" + $stamp + ".log")) -ErrorAction Stop
+            }
+            catch {
+                if (-not (Test-IsTransientFileLockException $_.Exception)) { throw }
+                # Log rotation is diagnostic maintenance, not a transaction boundary.
+                # Leave the current log in place when an external process holds a transient sharing lock.
+            }
         }
     }
 
@@ -548,7 +555,22 @@ function Write-ManagerLogLine([string]$Line,[int]$Attempts=40,[int]$DelayMs=100)
         catch {
             $isTransient=Test-IsTransientFileLockException $_.Exception
             if (-not $isTransient) { throw }
-            if ($attempt -ge $Attempts) { throw (New-FileLockDiagnosticException $script:LogFile 'Manager log write' $_.Exception) }
+            if ($attempt -ge $Attempts) {
+                $primaryLock=New-FileLockDiagnosticException $script:LogFile 'Manager log write' $_.Exception
+                $fallbackName=('manager_fallback_{0}_{1}_{2}.log' -f (Get-Date -Format 'yyyy-MM-dd_HHmmss_fff'),$PID,[guid]::NewGuid().ToString('N'))
+                $fallbackPath=Join-Path $script:Logs $fallbackName
+                try {
+                    $utf8=New-Object System.Text.UTF8Encoding($false)
+                    $fallbackText=$Line+[Environment]::NewLine+'Primary manager.log unavailable: '+$primaryLock.Message+[Environment]::NewLine
+                    [System.IO.File]::WriteAllText($fallbackPath,$fallbackText,$utf8)
+                }
+                catch {
+                    if (-not (Test-IsTransientFileLockException $_.Exception)) { throw }
+                    # Both diagnostic sinks are transiently unavailable. Do not let diagnostics
+                    # abort an otherwise safe Manager operation before its transaction boundary.
+                }
+                return
+            }
             if ($DelayMs -gt 0) { Start-Sleep -Milliseconds $DelayMs }
         }
     }
@@ -5897,6 +5919,49 @@ function Test-LegacyManagerReleaseRetentionSelfTest {
     }
 }
 
+function Test-ManagerLogResilienceSelfTest {
+    $script:ManagerLogResilienceSelfTestReason=''
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('Keelaryn_manager_log_'+[guid]::NewGuid().ToString('N'))
+    $oldLogs=$script:Logs
+    $oldLogFile=$script:LogFile
+    $lockStream=$null
+    try {
+        New-Item -ItemType Directory -Force -Path $temp|Out-Null
+        $script:Logs=$temp
+        $script:LogFile=Join-Path $temp 'manager.log'
+        $utf8=New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($script:LogFile,('x'*(1MB+1)),$utf8)
+        $lockStream=[System.IO.File]::Open($script:LogFile,[System.IO.FileMode]::Open,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
+        Rotate-Log
+        if(-not(Test-Path -LiteralPath $script:LogFile -PathType Leaf)){
+            $script:ManagerLogResilienceSelfTestReason='Transiently locked manager.log was rotated instead of being left in place.'
+            return $false
+        }
+        Write-ManagerLogLine 'manager-log-resilience-selftest' 2 0
+        $fallbacks=@(Get-ChildItem -LiteralPath $temp -File -Filter 'manager_fallback_*.log' -ErrorAction SilentlyContinue)
+        if($fallbacks.Count-ne1){
+            $script:ManagerLogResilienceSelfTestReason=('Expected one fallback log under an exclusive primary-log lock, found '+$fallbacks.Count+'.')
+            return $false
+        }
+        $fallbackText=[System.IO.File]::ReadAllText($fallbacks[0].FullName,[System.Text.Encoding]::UTF8)
+        if(-not$fallbackText.Contains('manager-log-resilience-selftest')-or-not$fallbackText.Contains('Primary manager.log unavailable:')){
+            $script:ManagerLogResilienceSelfTestReason='Fallback log did not preserve the diagnostic line and primary-lock context.'
+            return $false
+        }
+        return $true
+    }
+    catch {
+        $script:ManagerLogResilienceSelfTestReason=('Unexpected error: '+$_.Exception.Message)
+        return $false
+    }
+    finally {
+        if($lockStream){$lockStream.Dispose()}
+        $script:Logs=$oldLogs
+        $script:LogFile=$oldLogFile
+        if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue}
+    }
+}
+
 function Test-AtomicPublishSelfTest {
     $script:AtomicPublishSelfTestReason = ''
     $temp = Join-Path ([System.IO.Path]::GetTempPath()) ('Keelaryn_atomic_' + [guid]::NewGuid().ToString('N'))
@@ -6497,6 +6562,7 @@ if ($SelfTest) {
     if (-not (Test-ManagerInstallTargetSafetySelfTest)) { Write-Host ('Manager self-test failed: Manager install target safety contract. '+[string]$script:ManagerInstallTargetSafetySelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-ManagerReleaseRetentionSelfTest)) { Write-Host ('Manager self-test failed: release retention contract. '+[string]$script:ManagerReleaseRetentionSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-LegacyManagerReleaseRetentionSelfTest)) { Write-Host ('Manager self-test failed: legacy release retention contract. '+[string]$script:LegacyManagerReleaseRetentionSelfTestReason) -ForegroundColor Red; exit 1 }
+    if (-not (Test-ManagerLogResilienceSelfTest)) { Write-Host ('Manager self-test failed: diagnostic log sharing-lock resilience contract. '+[string]$script:ManagerLogResilienceSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-AtomicPublishSelfTest)) { Write-Host ('Manager self-test failed: atomic publication contract. '+[string]$script:AtomicPublishSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-TransitionRootBootstrapSelfTest)) { Write-Host ('Manager self-test failed: transition bootstrap determinism contract. '+[string]$script:TransitionRootBootstrapSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-ManagerReleaseSourceSnapshotSelfTest)) { Write-Host ('Manager self-test failed: release source snapshot contract. '+[string]$script:ManagerReleaseSourceSnapshotSelfTestReason) -ForegroundColor Red; exit 1 }
