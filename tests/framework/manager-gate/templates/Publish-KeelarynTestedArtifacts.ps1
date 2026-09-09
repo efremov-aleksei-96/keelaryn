@@ -96,6 +96,38 @@ $installerPs=@'
 param([switch]$ValidateOnly)
 $ErrorActionPreference='Stop'
 function Sha([string]$Path){return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()}
+function Get-ProductionDoctorReport([string]$ManagerRoot){
+    $receipt=Join-Path $ManagerRoot 'state\layout.json'
+    $path=if(Test-Path -LiteralPath $receipt -PathType Leaf){Join-Path $ManagerRoot 'state\logs\DOCTOR_REPORT.json'}else{Join-Path $ManagerRoot '_logs\DOCTOR_REPORT.json'}
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw('Production Doctor report missing: '+$path)}
+    return (Get-Content -LiteralPath $path -Raw -Encoding UTF8)|ConvertFrom-Json
+}
+function Test-IsPermittedTransitionDoctorWarning($Finding){
+    if($null-eq$Finding){return $false}
+    if([string]$Finding.Severity-cne'WARN'-or[string]$Finding.Code-cne'governance.status'){return $false}
+    $message=([string]$Finding.Message).Trim()
+    if($message.StartsWith('Hub governance receipt is missing.',[System.StringComparison]::Ordinal)){return $true}
+    return [regex]::IsMatch($message,'^Hub governance r[0-9]+ is older than Manager r[0-9]+\.',[System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+}
+function Assert-ProductionDoctorResult([int]$ExitCode,$Report){
+    if($null-eq$Report){throw 'Production Doctor report is missing.'}
+    $errors=[int]$Report.errors
+    $warnings=[int]$Report.warnings
+    $warningRows=@($Report.findings|Where-Object{[string]$_.Severity-ceq'WARN'})
+    if($errors-ne0){throw('Production Doctor reports errors='+$errors+'.')}
+    if($ExitCode-eq0){
+        if($warnings-ne0-or$warningRows.Count-ne0){throw 'Production Doctor exit=0 is inconsistent with warning findings.'}
+        return $false
+    }
+    if($ExitCode-ne2){throw('Production Doctor failed with non-transition exit='+$ExitCode+'.')}
+    if($warnings-lt1-or$warningRows.Count-ne$warnings){throw 'Production Doctor exit=2 warning count/report findings are inconsistent.'}
+    foreach($finding in $warningRows){
+        if(-not(Test-IsPermittedTransitionDoctorWarning $finding)){
+            throw('Production Doctor rejected non-transition warning: '+[string]$finding.Code+'; '+[string]$finding.Message)
+        }
+    }
+    return $true
+}
 $artifactsRoot=[System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
 $testedPath=Join-Path $artifactsRoot 'TESTED_RELEASE.json'
 if(-not(Test-Path -LiteralPath $testedPath -PathType Leaf)){throw('TESTED_RELEASE.json missing: '+$testedPath)}
@@ -132,7 +164,15 @@ if($current-lt$target){
     if([int]$LASTEXITCODE-ne0){throw('Production update failed. ExitCode='+[int]$LASTEXITCODE)}
 }else{Write-Host ('Manager '+$target+' is already installed. Running fresh Doctor.') -ForegroundColor DarkGray}
 & $exe -NoProfile -ExecutionPolicy Bypass -File $runtime -Doctor
-if([int]$LASTEXITCODE-ne0){throw('Production Doctor failed after tested update. ExitCode='+[int]$LASTEXITCODE)}
+$doctorExit=[int]$LASTEXITCODE
+$doctorReport=Get-ProductionDoctorReport $managerRoot
+$transitionWarning=[bool](Assert-ProductionDoctorResult $doctorExit $doctorReport)
+if($transitionWarning){
+    $messages=@($doctorReport.findings|Where-Object{[string]$_.Severity-ceq'WARN'}|ForEach-Object{[string]$_.Message})
+    Write-Host ('PRODUCTION DOCTOR: PASS WITH TRANSITION WARNINGS - '+([string]::Join(' | ',$messages))) -ForegroundColor Yellow
+}else{
+    Write-Host 'PRODUCTION DOCTOR: PASS' -ForegroundColor Green
+}
 $installed=[version][string]((Get-Content -LiteralPath $installPath -Raw -Encoding UTF8|ConvertFrom-Json).manager_version)
 if($installed-ne$target){throw('Installed Manager version mismatch after update: '+$installed+' != '+$target)}
 Write-Host ('PRODUCTION INSTALL: PASS - Manager '+$target) -ForegroundColor Green

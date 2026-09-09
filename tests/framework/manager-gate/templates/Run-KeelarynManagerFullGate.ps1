@@ -52,7 +52,7 @@ function Open-ZipReadWithSharingRetry([string]$Path,[int]$Attempts=120,[int]$Del
 $script:ZipUpdateSharingRetrySelfTestReason=''
 function Test-ZipUpdateSharingRetrySelfTest{
     $script:ZipUpdateSharingRetrySelfTestReason=''
-    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r20_zip_retry_'+[guid]::NewGuid().ToString('N'))
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r21_zip_retry_'+[guid]::NewGuid().ToString('N'))
     $zip=Join-Path $temp 'locked.zip'
     $delayedZip=Join-Path $temp 'delayed-unlock.zip'
     $ready=Join-Path $temp 'delayed-lock-ready.txt'
@@ -66,14 +66,14 @@ function Test-ZipUpdateSharingRetrySelfTest{
         $lock=[System.IO.File]::Open($zip,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None)
         $classified=$false
         try{
-            $probe=Open-ZipUpdateWithSharingRetry $zip 1 0 'framework r20 sharing classification self-test'
+            $probe=Open-ZipUpdateWithSharingRetry $zip 1 0 'framework r21 sharing classification self-test'
             if($probe){$probe.Dispose()}
         }catch{$classified=Test-IsTransientFileLockException $_.Exception}
         if(-not$classified){$script:ZipUpdateSharingRetrySelfTestReason='Real Windows sharing violation was not classified/rethrown.';return $false}
         $lock.Dispose()
         $lock=$null
 
-        $probe=Open-ZipUpdateWithSharingRetry $zip 2 10 'framework r20 unlocked self-test'
+        $probe=Open-ZipUpdateWithSharingRetry $zip 2 10 'framework r21 unlocked self-test'
         try{if($null-eq$probe){$script:ZipUpdateSharingRetrySelfTestReason='Unlocked retry returned no archive.';return $false}}
         finally{if($probe){$probe.Dispose()}}
 
@@ -106,7 +106,7 @@ function Test-ZipUpdateSharingRetrySelfTest{
             Start-Sleep -Milliseconds 50
         }
 
-        $probe=Open-ZipUpdateWithSharingRetry $delayedZip 120 100 'framework r20 delayed-unlock self-test'
+        $probe=Open-ZipUpdateWithSharingRetry $delayedZip 120 100 'framework r21 delayed-unlock self-test'
         try{if($null-eq$probe){$script:ZipUpdateSharingRetrySelfTestReason='Delayed-unlock retry returned no archive.';return $false}}
         finally{if($probe){$probe.Dispose()}}
 
@@ -976,8 +976,8 @@ exit 0
 }
 
 try{
-    if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r20 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
-    Write-Host 'Gate Framework r20 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
+    if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r21 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
+    Write-Host 'Gate Framework r21 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
     try{Start-Transcript -LiteralPath $transcriptPath -Force|Out-Null;$transcriptStarted=$true}catch{Write-Host ('WARNING: transcript unavailable: '+$_.Exception.Message) -ForegroundColor Yellow}
 
     $script:CurrentPhase='gate/candidate binding preflight'
