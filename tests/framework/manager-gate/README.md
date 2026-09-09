@@ -255,3 +255,19 @@ Revision 19 keeps Doctor qualification strict while supporting that transition c
 Framework self-test extracts the real Full Gate helper functions and verifies positive and adversarial Doctor report/exit combinations.
 
 Framework r18 provenance remains immutable historical evidence. Framework r19 requires fresh local qualification, real Manager 4.16.1 Full Gate, hosted exact-head qualification and Codex review before any r19 freeze/tag/merge.
+## Revision 20 delayed CURRENT ZIP sharing retry
+
+Framework r19 is preserved as a rejected, unqualified and unfrozen revision. Its Doctor transition-WARN correction was valid, but the real CURRENT-backed Manager 4.16.2 Full Gate failed in E4 before invoking `RepairCurrentTransport`: Framework exhausted its 20 x 250 ms attempt budget while opening the disposable CURRENT ZIP in update mode.
+
+Revision 20 retains all r19 Doctor protections and strengthens only the reusable transient file-sharing boundary:
+
+- shared ZIP access uses one bounded retry primitive for update/read modes;
+- the default retry budget is 120 attempts x 250 ms (approximately 30 seconds maximum under a persistent sharing violation);
+- E4 explicitly uses the stronger bounded retry for both the pre-repair mutation and the post-repair verification read;
+- non-sharing I/O failures still fail immediately;
+- a real delayed-unlock self-test launches a separate Windows PowerShell job that holds a ZIP with `FileShare.None`, signals readiness, delays release, and requires the retry helper to wait and eventually succeed;
+- the Framework self-test binds the delayed-unlock implementation and the E4 read/write retry calls so the protection cannot silently regress.
+
+A persistent lock beyond the bounded budget still fails qualification. Manager 4.16.2 product bytes remain unchanged at the previously SourceGate-tested commit; this is a Framework-only correction.
+
+Framework r20 must pass parser/self-test, real exact Manager 4.16.2 SourceGate, the full CURRENT-backed Windows gate, hosted exact-head qualification and Codex review before any freeze/tag/merge.

@@ -79,7 +79,7 @@ jobs:
           $provenance = Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
           $version = [string]$install.manager_version
           $baseline = [string]$provenance.source_gate_baseline_manager_version
-          $temp = Join-Path $env:RUNNER_TEMP ('framework-r19-equivalence-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          $temp = Join-Path $env:RUNNER_TEMP ('framework-r20-equivalence-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
           $stage = Join-Path $temp 'source-stage'
           $managerStage = Join-Path $stage 'keelaryn\manager'
           New-Item -ItemType Directory -Force -Path $managerStage | Out-Null
@@ -93,9 +93,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path $rootOut,$zipOut | Out-Null
           $rootGate = Join-Path $rootOut ('manager-'+$version+'.zip')
           $zipGate = Join-Path $zipOut ('manager-'+$version+'.zip')
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot $manager -BaselineVersion $baseline -GateRevision 9019 -OutputPath $rootGate
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot $manager -BaselineVersion $baseline -GateRevision 9020 -OutputPath $rootGate
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceZip $sourceZip -BaselineVersion $baseline -GateRevision 9019 -OutputPath $zipGate
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceZip $sourceZip -BaselineVersion $baseline -GateRevision 9020 -OutputPath $zipGate
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $rootHash = (Get-FileHash -LiteralPath $rootGate -Algorithm SHA256).Hash.ToLowerInvariant()
           $zipHash = (Get-FileHash -LiteralPath $zipGate -Algorithm SHA256).Hash.ToLowerInvariant()

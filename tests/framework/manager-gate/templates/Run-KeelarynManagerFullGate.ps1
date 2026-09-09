@@ -23,12 +23,15 @@ function Test-IsTransientFileLockException([System.Exception]$Exception){
     return($win32-eq32-or$win32-eq33)
 }
 
-function Open-ZipUpdateWithSharingRetry([string]$Path,[int]$Attempts=20,[int]$DelayMs=250,[string]$Purpose='ZIP update'){
-    if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){throw('ZIP update target is missing: '+$Path)}
+function Open-ZipWithSharingRetry([string]$Path,[System.IO.Compression.ZipArchiveMode]$Mode,[int]$Attempts=120,[int]$DelayMs=250,[string]$Purpose='ZIP access'){
+    if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){throw('ZIP target is missing: '+$Path)}
     if($Attempts-lt1){$Attempts=1}
     if($DelayMs-lt0){$DelayMs=0}
     for($attempt=1;$attempt-le$Attempts;$attempt++){
-        try{return [System.IO.Compression.ZipFile]::Open($Path,[System.IO.Compression.ZipArchiveMode]::Update)}
+        try{
+            if($Mode-eq[System.IO.Compression.ZipArchiveMode]::Read){return [System.IO.Compression.ZipFile]::OpenRead($Path)}
+            return [System.IO.Compression.ZipFile]::Open($Path,$Mode)
+        }
         catch{
             if(-not(Test-IsTransientFileLockException $_.Exception)){throw}
             if($attempt-ge$Attempts){throw}
@@ -38,34 +41,90 @@ function Open-ZipUpdateWithSharingRetry([string]$Path,[int]$Attempts=20,[int]$De
     throw($Purpose+' failed without returning a ZIP archive: '+$Path)
 }
 
+function Open-ZipUpdateWithSharingRetry([string]$Path,[int]$Attempts=120,[int]$DelayMs=250,[string]$Purpose='ZIP update'){
+    return Open-ZipWithSharingRetry $Path ([System.IO.Compression.ZipArchiveMode]::Update) $Attempts $DelayMs $Purpose
+}
+
+function Open-ZipReadWithSharingRetry([string]$Path,[int]$Attempts=120,[int]$DelayMs=250,[string]$Purpose='ZIP read'){
+    return Open-ZipWithSharingRetry $Path ([System.IO.Compression.ZipArchiveMode]::Read) $Attempts $DelayMs $Purpose
+}
+
 $script:ZipUpdateSharingRetrySelfTestReason=''
 function Test-ZipUpdateSharingRetrySelfTest{
     $script:ZipUpdateSharingRetrySelfTestReason=''
-    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r12_zip_retry_'+[guid]::NewGuid().ToString('N'))
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r20_zip_retry_'+[guid]::NewGuid().ToString('N'))
     $zip=Join-Path $temp 'locked.zip'
+    $delayedZip=Join-Path $temp 'delayed-unlock.zip'
+    $ready=Join-Path $temp 'delayed-lock-ready.txt'
     $lock=$null
+    $job=$null
     try{
         New-Item -ItemType Directory -Force -Path $temp|Out-Null
+
         $za=[System.IO.Compression.ZipFile]::Open($zip,[System.IO.Compression.ZipArchiveMode]::Create)
         try{$null=$za.CreateEntry('probe.txt')}finally{$za.Dispose()}
         $lock=[System.IO.File]::Open($zip,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None)
         $classified=$false
         try{
-            $probe=Open-ZipUpdateWithSharingRetry $zip 1 0 'framework r12 sharing self-test'
+            $probe=Open-ZipUpdateWithSharingRetry $zip 1 0 'framework r20 sharing classification self-test'
             if($probe){$probe.Dispose()}
         }catch{$classified=Test-IsTransientFileLockException $_.Exception}
         if(-not$classified){$script:ZipUpdateSharingRetrySelfTestReason='Real Windows sharing violation was not classified/rethrown.';return $false}
         $lock.Dispose()
         $lock=$null
-        $probe=Open-ZipUpdateWithSharingRetry $zip 2 10 'framework r12 unlocked self-test'
+
+        $probe=Open-ZipUpdateWithSharingRetry $zip 2 10 'framework r20 unlocked self-test'
         try{if($null-eq$probe){$script:ZipUpdateSharingRetrySelfTestReason='Unlocked retry returned no archive.';return $false}}
         finally{if($probe){$probe.Dispose()}}
+
+        $za=[System.IO.Compression.ZipFile]::Open($delayedZip,[System.IO.Compression.ZipArchiveMode]::Create)
+        try{$null=$za.CreateEntry('probe.txt')}finally{$za.Dispose()}
+
+        $job=Start-Job -ScriptBlock {
+            param([string]$ZipPath,[string]$ReadyPath)
+            $held=$null
+            try{
+                $held=[System.IO.File]::Open($ZipPath,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None)
+                [System.IO.File]::WriteAllText($ReadyPath,'ready')
+                Start-Sleep -Milliseconds 1500
+            }finally{
+                if($held){$held.Dispose()}
+            }
+        } -ArgumentList $delayedZip,$ready
+
+        $deadline=[DateTime]::UtcNow.AddSeconds(15)
+        while(-not(Test-Path -LiteralPath $ready -PathType Leaf)){
+            if($job.State-eq'Failed'-or$job.State-eq'Stopped'-or$job.State-eq'Completed'){
+                $details=[string]::Join(' | ',@(Receive-Job -Job $job -ErrorAction SilentlyContinue|ForEach-Object{[string]$_}))
+                $script:ZipUpdateSharingRetrySelfTestReason='Delayed-lock holder ended before ready. state='+$job.State+'; '+$details
+                return $false
+            }
+            if([DateTime]::UtcNow-ge$deadline){
+                $script:ZipUpdateSharingRetrySelfTestReason='Timed out waiting for delayed-lock holder readiness.'
+                return $false
+            }
+            Start-Sleep -Milliseconds 50
+        }
+
+        $probe=Open-ZipUpdateWithSharingRetry $delayedZip 120 100 'framework r20 delayed-unlock self-test'
+        try{if($null-eq$probe){$script:ZipUpdateSharingRetrySelfTestReason='Delayed-unlock retry returned no archive.';return $false}}
+        finally{if($probe){$probe.Dispose()}}
+
+        $null=Wait-Job -Job $job -Timeout 10
+        if($job.State-ne'Completed'){
+            $script:ZipUpdateSharingRetrySelfTestReason='Delayed-lock holder did not complete after retry. state='+$job.State
+            return $false
+        }
         return $true
     }catch{
         $script:ZipUpdateSharingRetrySelfTestReason=$_.Exception.GetType().FullName+': '+$_.Exception.Message
         return $false
     }finally{
         if($lock){$lock.Dispose()}
+        if($job){
+            if($job.State-eq'Running'){Stop-Job -Job $job -ErrorAction SilentlyContinue}
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        }
         if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue}
     }
 }
@@ -917,8 +976,8 @@ exit 0
 }
 
 try{
-    if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r12 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
-    Write-Host 'Gate Framework r12 ZIP sharing-retry self-test: PASS' -ForegroundColor DarkGray
+    if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r20 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
+    Write-Host 'Gate Framework r20 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
     try{Start-Transcript -LiteralPath $transcriptPath -Force|Out-Null;$transcriptStarted=$true}catch{Write-Host ('WARNING: transcript unavailable: '+$_.Exception.Message) -ForegroundColor Yellow}
 
     $script:CurrentPhase='gate/candidate binding preflight'
@@ -1154,10 +1213,10 @@ try{
 
     $script:CurrentPhase='CURRENT repair contract'
     Write-Host 'Full Gate E4: disposable CURRENT repair contract' -ForegroundColor Cyan
-    $za=Open-ZipUpdateWithSharingRetry $stateCurrent 20 250 'Full Gate E4 CURRENT repair ZIP update'
+    $za=Open-ZipUpdateWithSharingRetry $stateCurrent 120 250 'Full Gate E4 CURRENT repair ZIP update'
     try{$entry=$za.CreateEntry('Keelaryn__Hub/.obsidian/keelaryn-gate-local-state.txt',[System.IO.Compression.CompressionLevel]::Optimal);$writer=New-Object System.IO.StreamWriter($entry.Open(),(New-Object System.Text.UTF8Encoding($false)));try{$writer.Write('disposable gate local state')}finally{$writer.Dispose()}}finally{$za.Dispose()}
     $null=Run-Manager $mgr @('-RepairCurrentTransport') $true
-    $checkArchive=[System.IO.Compression.ZipFile]::OpenRead($stateCurrent);try{if(@($checkArchive.Entries|Where-Object{$_.FullName.Replace('\','/').StartsWith('Keelaryn__Hub/.obsidian/',[System.StringComparison]::OrdinalIgnoreCase)}).Count-ne0){throw 'RepairCurrentTransport left local deployment state in CURRENT.'}}finally{$checkArchive.Dispose()}
+    $checkArchive=Open-ZipReadWithSharingRetry $stateCurrent 120 250 'Full Gate E4 CURRENT repair verification read';try{if(@($checkArchive.Entries|Where-Object{$_.FullName.Replace('\','/').StartsWith('Keelaryn__Hub/.obsidian/',[System.StringComparison]::OrdinalIgnoreCase)}).Count-ne0){throw 'RepairCurrentTransport left local deployment state in CURRENT.'}}finally{$checkArchive.Dispose()}
     $repairDoctor=Run-DoctorForGate $mgr $false;$repairedReport=$repairDoctor.Report;if((FindingSignature $candidateReport)-cne(FindingSignature $repairedReport)){throw 'CURRENT repair changed Doctor findings.'}
     $summary.phases.current_repair=$true
 
