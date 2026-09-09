@@ -204,3 +204,18 @@ Revision 16 preserves all r15 transport-alias, UPDATE-internal manifest and chec
 The Framework self-test extracts the real SourceGate helpers and includes adversarial regression cases for a duplicated UPDATE transition-manifest path and for corrupted alias payload bytes paired with copied source metadata. Both must be rejected.
 
 Framework r16 must still pass the real exact-byte Manager 4.16.1 SourceGate before commit, then fresh hosted exact-head qualification and review before any provenance freeze. Framework r15 remains immutable historical evidence and is not rewritten.
+## Revision 17 UPDATE ZIP identity parity
+
+Revision 16 passed local and hosted exact-head qualification but was rejected before freeze after Codex review found that SourceGate's UPDATE ZIP index silently overwrote duplicate entry keys. The supported baseline updater instead normalizes every ZIP entry name with Unicode Form C, lowercases it, and rejects any duplicate key before indexing.
+
+Revision 17 preserves all r16 protections and adds updater-equivalent ZIP identity handling:
+
+- `Get-ZipEntryIdentityKey` uses `Replace('\','/').Normalize(FormC).ToLowerInvariant()`, matching the supported updater;
+- `Get-UniqueZipEntryIndex` rejects duplicate Windows/case/Unicode-equivalent UPDATE ZIP entry keys before any manifest lookup or alias hashing;
+- alias/source ZIP lookups use the same identity helper;
+- r16 raw transition-manifest duplicate rejection remains intact;
+- r16 actual alias/source payload SHA-256 and size validation remains intact.
+
+The Framework self-test extracts the real ZIP identity/index helpers and adds adversarial UPDATE ZIPs containing case-equivalent and Unicode-normalization-equivalent duplicate entries. Both must be rejected.
+
+Framework r17 must pass Windows parser/self-test and the real exact Manager 4.16.1 SourceGate before commit, then fresh hosted exact-head qualification and Codex review before any provenance freeze. Framework r16 remains preserved as a rejected unmerged commit/PR and is not rewritten.

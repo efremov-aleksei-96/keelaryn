@@ -19,7 +19,7 @@
     "local_test_evidence_included":  false,
     "gate_framework":  {
                            "version":  "2.0",
-                           "revision":  16,
+                           "revision":  17,
                            "windows_qualified":  false,
                            "frozen_for_manager_candidate":  false
                        },

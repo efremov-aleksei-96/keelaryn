@@ -399,6 +399,26 @@ function Assert-TransitionInstallationManifestMatchesUpdateTransport(
     }
 }
 
+function Get-ZipEntryIdentityKey([string]$Name){
+    if($null-eq$Name){throw 'ZIP entry name is null.'}
+    return $Name.Replace('\','/').Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+}
+
+function Get-UniqueZipEntryIndex($Archive){
+    if($null-eq$Archive){throw 'ZIP archive is null.'}
+    $index=@{}
+    foreach($entry in $Archive.Entries){
+        $name=$entry.FullName.Replace('\','/')
+        if($name.EndsWith('/')){continue}
+        $key=Get-ZipEntryIdentityKey $name
+        if($index.ContainsKey($key)){
+            throw('UPDATE ZIP contains duplicate Windows/Unicode-normalized entry key: '+$name)
+        }
+        $index[$key]=$entry
+    }
+    return $index
+}
+
 function Get-ZipEntryDigest($Entry){
     if($null-eq$Entry){throw 'ZIP entry is missing for digest validation.'}
     $stream=$null
@@ -790,8 +810,8 @@ if($distNames-contains'keelaryn/manager/DISTRIBUTION_MANIFEST.json'){throw 'DIST
 if($sourceNames-contains'keelaryn/manager/product/install/DISTRIBUTION_MANIFEST.json'){throw 'SOURCE must not contain generated distribution provenance metadata.'}
 $ua=[System.IO.Compression.ZipFile]::OpenRead($updateZip)
 try{
-    $index=@{};foreach($e in $ua.Entries){if(-not$e.FullName.EndsWith('/')){$index[$e.FullName.Replace('\','/').ToLowerInvariant()]=$e}}
-    $manifestEntry=$index['keelaryn__manager_update/manifest.json'];if(-not$manifestEntry){throw 'UPDATE manifest missing.'}
+    $index=Get-UniqueZipEntryIndex $ua
+    $manifestEntry=$index[(Get-ZipEntryIdentityKey 'Keelaryn__Manager_Update/manifest.json')];if(-not$manifestEntry){throw 'UPDATE manifest missing.'}
     $reader=New-Object System.IO.StreamReader($manifestEntry.Open(),[System.Text.Encoding]::UTF8,$true);try{$updateManifest=$reader.ReadToEnd()|ConvertFrom-Json}finally{$reader.Dispose()}
     $finalDeclared=@(Get-OrdinalUniqueStrings @($updateManifest.final_managed_files|ForEach-Object{([string]$_).Replace('\','/')}))
     if($finalDeclared.Count-ne$finalPaths.Count-or[string]::Join('|',$finalDeclared)-cne[string]::Join('|',$finalPaths)){throw 'UPDATE final_managed_files does not equal canonical final manifest.'}
@@ -825,8 +845,8 @@ try{
         $aliasRows=@($packageRows|Where-Object{([string]$_.path).Replace('\','/')-ceq$aliasPath})
         $sourceRows=@($packageRows|Where-Object{([string]$_.path).Replace('\','/')-ceq$sourcePath})
         if($aliasRows.Count-ne1-or$sourceRows.Count-ne1){throw('UPDATE transition alias/source row missing: '+$aliasPath+' -> '+$sourcePath)}
-        $aliasEntryKey=('keelaryn__manager_update/payload/'+$aliasPath).ToLowerInvariant()
-        $sourceEntryKey=('keelaryn__manager_update/payload/'+$sourcePath).ToLowerInvariant()
+        $aliasEntryKey=Get-ZipEntryIdentityKey ('Keelaryn__Manager_Update/payload/'+$aliasPath)
+        $sourceEntryKey=Get-ZipEntryIdentityKey ('Keelaryn__Manager_Update/payload/'+$sourcePath)
         if(-not$index.ContainsKey($aliasEntryKey)){throw('UPDATE transition alias payload file missing: '+$aliasPath)}
         if(-not$index.ContainsKey($sourceEntryKey)){throw('UPDATE transition source payload file missing: '+$sourcePath)}
         Assert-TransitionAliasPayloadBinding -AliasRow $aliasRows[0] -SourceRow $sourceRows[0] -AliasEntry $index[$aliasEntryKey] -SourceEntry $index[$sourceEntryKey] -AliasPath $aliasPath -SourcePath $sourcePath
