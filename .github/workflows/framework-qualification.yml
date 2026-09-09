@@ -7,6 +7,7 @@ on:
       - 'tests/framework/manager-gate/**'
       - 'PUBLIC_FILE_MANIFEST.json'
       - 'PUBLIC_PROVENANCE.json'
+      - '.gitattributes'
       - '.github/workflows/framework-qualification.yml'
   push:
     branches: [main]
@@ -14,6 +15,7 @@ on:
       - 'tests/framework/manager-gate/**'
       - 'PUBLIC_FILE_MANIFEST.json'
       - 'PUBLIC_PROVENANCE.json'
+      - '.gitattributes'
       - '.github/workflows/framework-qualification.yml'
   workflow_dispatch:
 
