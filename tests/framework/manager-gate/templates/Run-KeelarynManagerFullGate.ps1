@@ -23,12 +23,15 @@ function Test-IsTransientFileLockException([System.Exception]$Exception){
     return($win32-eq32-or$win32-eq33)
 }
 
-function Open-ZipUpdateWithSharingRetry([string]$Path,[int]$Attempts=20,[int]$DelayMs=250,[string]$Purpose='ZIP update'){
-    if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){throw('ZIP update target is missing: '+$Path)}
+function Open-ZipWithSharingRetry([string]$Path,[System.IO.Compression.ZipArchiveMode]$Mode,[int]$Attempts=120,[int]$DelayMs=250,[string]$Purpose='ZIP access'){
+    if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){throw('ZIP target is missing: '+$Path)}
     if($Attempts-lt1){$Attempts=1}
     if($DelayMs-lt0){$DelayMs=0}
     for($attempt=1;$attempt-le$Attempts;$attempt++){
-        try{return [System.IO.Compression.ZipFile]::Open($Path,[System.IO.Compression.ZipArchiveMode]::Update)}
+        try{
+            if($Mode-eq[System.IO.Compression.ZipArchiveMode]::Read){return [System.IO.Compression.ZipFile]::OpenRead($Path)}
+            return [System.IO.Compression.ZipFile]::Open($Path,$Mode)
+        }
         catch{
             if(-not(Test-IsTransientFileLockException $_.Exception)){throw}
             if($attempt-ge$Attempts){throw}
@@ -38,34 +41,90 @@ function Open-ZipUpdateWithSharingRetry([string]$Path,[int]$Attempts=20,[int]$De
     throw($Purpose+' failed without returning a ZIP archive: '+$Path)
 }
 
+function Open-ZipUpdateWithSharingRetry([string]$Path,[int]$Attempts=120,[int]$DelayMs=250,[string]$Purpose='ZIP update'){
+    return Open-ZipWithSharingRetry $Path ([System.IO.Compression.ZipArchiveMode]::Update) $Attempts $DelayMs $Purpose
+}
+
+function Open-ZipReadWithSharingRetry([string]$Path,[int]$Attempts=120,[int]$DelayMs=250,[string]$Purpose='ZIP read'){
+    return Open-ZipWithSharingRetry $Path ([System.IO.Compression.ZipArchiveMode]::Read) $Attempts $DelayMs $Purpose
+}
+
 $script:ZipUpdateSharingRetrySelfTestReason=''
 function Test-ZipUpdateSharingRetrySelfTest{
     $script:ZipUpdateSharingRetrySelfTestReason=''
-    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r12_zip_retry_'+[guid]::NewGuid().ToString('N'))
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r20_zip_retry_'+[guid]::NewGuid().ToString('N'))
     $zip=Join-Path $temp 'locked.zip'
+    $delayedZip=Join-Path $temp 'delayed-unlock.zip'
+    $ready=Join-Path $temp 'delayed-lock-ready.txt'
     $lock=$null
+    $job=$null
     try{
         New-Item -ItemType Directory -Force -Path $temp|Out-Null
+
         $za=[System.IO.Compression.ZipFile]::Open($zip,[System.IO.Compression.ZipArchiveMode]::Create)
         try{$null=$za.CreateEntry('probe.txt')}finally{$za.Dispose()}
         $lock=[System.IO.File]::Open($zip,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None)
         $classified=$false
         try{
-            $probe=Open-ZipUpdateWithSharingRetry $zip 1 0 'framework r12 sharing self-test'
+            $probe=Open-ZipUpdateWithSharingRetry $zip 1 0 'framework r20 sharing classification self-test'
             if($probe){$probe.Dispose()}
         }catch{$classified=Test-IsTransientFileLockException $_.Exception}
         if(-not$classified){$script:ZipUpdateSharingRetrySelfTestReason='Real Windows sharing violation was not classified/rethrown.';return $false}
         $lock.Dispose()
         $lock=$null
-        $probe=Open-ZipUpdateWithSharingRetry $zip 2 10 'framework r12 unlocked self-test'
+
+        $probe=Open-ZipUpdateWithSharingRetry $zip 2 10 'framework r20 unlocked self-test'
         try{if($null-eq$probe){$script:ZipUpdateSharingRetrySelfTestReason='Unlocked retry returned no archive.';return $false}}
         finally{if($probe){$probe.Dispose()}}
+
+        $za=[System.IO.Compression.ZipFile]::Open($delayedZip,[System.IO.Compression.ZipArchiveMode]::Create)
+        try{$null=$za.CreateEntry('probe.txt')}finally{$za.Dispose()}
+
+        $job=Start-Job -ScriptBlock {
+            param([string]$ZipPath,[string]$ReadyPath)
+            $held=$null
+            try{
+                $held=[System.IO.File]::Open($ZipPath,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None)
+                [System.IO.File]::WriteAllText($ReadyPath,'ready')
+                Start-Sleep -Milliseconds 1500
+            }finally{
+                if($held){$held.Dispose()}
+            }
+        } -ArgumentList $delayedZip,$ready
+
+        $deadline=[DateTime]::UtcNow.AddSeconds(15)
+        while(-not(Test-Path -LiteralPath $ready -PathType Leaf)){
+            if($job.State-eq'Failed'-or$job.State-eq'Stopped'-or$job.State-eq'Completed'){
+                $details=[string]::Join(' | ',@(Receive-Job -Job $job -ErrorAction SilentlyContinue|ForEach-Object{[string]$_}))
+                $script:ZipUpdateSharingRetrySelfTestReason='Delayed-lock holder ended before ready. state='+$job.State+'; '+$details
+                return $false
+            }
+            if([DateTime]::UtcNow-ge$deadline){
+                $script:ZipUpdateSharingRetrySelfTestReason='Timed out waiting for delayed-lock holder readiness.'
+                return $false
+            }
+            Start-Sleep -Milliseconds 50
+        }
+
+        $probe=Open-ZipUpdateWithSharingRetry $delayedZip 120 100 'framework r20 delayed-unlock self-test'
+        try{if($null-eq$probe){$script:ZipUpdateSharingRetrySelfTestReason='Delayed-unlock retry returned no archive.';return $false}}
+        finally{if($probe){$probe.Dispose()}}
+
+        $null=Wait-Job -Job $job -Timeout 10
+        if($job.State-ne'Completed'){
+            $script:ZipUpdateSharingRetrySelfTestReason='Delayed-lock holder did not complete after retry. state='+$job.State
+            return $false
+        }
         return $true
     }catch{
         $script:ZipUpdateSharingRetrySelfTestReason=$_.Exception.GetType().FullName+': '+$_.Exception.Message
         return $false
     }finally{
         if($lock){$lock.Dispose()}
+        if($job){
+            if($job.State-eq'Running'){Stop-Job -Job $job -ErrorAction SilentlyContinue}
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        }
         if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue}
     }
 }
@@ -471,6 +530,50 @@ function Get-DoctorReport([string]$ManagerRoot){
     return (Get-Content -LiteralPath $p -Raw -Encoding UTF8)|ConvertFrom-Json
 }
 
+function Test-IsPermittedTransitionDoctorWarning($Finding){
+    if($null-eq$Finding){return $false}
+    if([string]$Finding.Severity-cne'WARN'-or[string]$Finding.Code-cne'governance.status'){return $false}
+    $message=([string]$Finding.Message).Trim()
+    if($message.StartsWith('Hub governance receipt is missing.',[System.StringComparison]::Ordinal)){return $true}
+    return [regex]::IsMatch($message,'^Hub governance r[0-9]+ is older than Manager r[0-9]+\.',[System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+}
+
+function Assert-DoctorGateResult($Result,$Report){
+    if($null-eq$Result-or$null-eq$Report){throw 'Doctor gate result/report is missing.'}
+    $exitCode=[int]$Result.ExitCode
+    $errors=[int]$Report.errors
+    $warnings=[int]$Report.warnings
+    $warningRows=@($Report.findings|Where-Object{[string]$_.Severity-ceq'WARN'})
+    if($errors-ne0){throw('Doctor gate reports errors='+$errors+'.')}
+    if($exitCode-eq0){
+        if($warnings-ne0-or$warningRows.Count-ne0){throw 'Doctor exit=0 is inconsistent with warning findings.'}
+        return $false
+    }
+    if($exitCode-ne2){throw('Doctor command failed with non-transition exit='+$exitCode+'.')}
+    if($warnings-lt1-or$warningRows.Count-ne$warnings){throw 'Doctor exit=2 warning count/report findings are inconsistent.'}
+    foreach($finding in $warningRows){
+        if(-not(Test-IsPermittedTransitionDoctorWarning $finding)){
+            throw('Doctor gate rejected non-transition warning: '+[string]$finding.Code+'; '+[string]$finding.Message)
+        }
+    }
+    return $true
+}
+
+function Run-DoctorForGate([string]$ManagerRoot,[bool]$Show=$true){
+    $r=Invoke-ManagerCapture $ManagerRoot @('-Doctor')
+    if($Show){
+        if($r.StdOut){Write-Host $r.StdOut.TrimEnd([char[]]"`r`n")}
+        if($r.StdErr){Write-Host $r.StdErr.TrimEnd([char[]]"`r`n") -ForegroundColor Yellow}
+    }
+    $report=Get-DoctorReport $ManagerRoot
+    $transitionWarning=[bool](Assert-DoctorGateResult $r $report)
+    if($transitionWarning){
+        $messages=@($report.findings|Where-Object{[string]$_.Severity-ceq'WARN'}|ForEach-Object{[string]$_.Message})
+        Write-Host ('Doctor transition governance WARN accepted for disposable upgrade qualification: '+([string]::Join(' | ',$messages))) -ForegroundColor Yellow
+    }
+    return [pscustomobject]@{Result=$r;Report=$report;TransitionWarningAccepted=$transitionWarning}
+}
+
 function Normalize-DoctorFindingMessage([string]$Code,[string]$Message){
     if($Code-eq'hub.state'){
         $m=[regex]::Match($Message,'^STATE identifies Hub v(?<version>[0-9]+(?:\.[0-9]+){1,3})(?: r[0-9]+| \| revision [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2})\.$')
@@ -483,10 +586,10 @@ function Normalize-DoctorFindingMessage([string]$Code,[string]$Message){
     return $Message
 }
 
-function FindingSignature($Report){
+function FindingSignature($Report,[switch]$IgnoreGovernanceStatus){
     return [string]::Join("`n",@(
         $Report.findings|
-        Where-Object{[string]$_.Code-notlike'manager.*'}|
+        Where-Object{[string]$_.Code-notlike'manager.*'-and(-not$IgnoreGovernanceStatus-or[string]$_.Code-cne'governance.status')}|
         ForEach-Object{
             $code=[string]$_.Code
             [string]$_.Severity+'|'+$code+'|'+(Normalize-DoctorFindingMessage $code ([string]$_.Message))
@@ -873,8 +976,8 @@ exit 0
 }
 
 try{
-    if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r12 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
-    Write-Host 'Gate Framework r12 ZIP sharing-retry self-test: PASS' -ForegroundColor DarkGray
+    if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r20 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
+    Write-Host 'Gate Framework r20 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
     try{Start-Transcript -LiteralPath $transcriptPath -Force|Out-Null;$transcriptStarted=$true}catch{Write-Host ('WARNING: transcript unavailable: '+$_.Exception.Message) -ForegroundColor Yellow}
 
     $script:CurrentPhase='gate/candidate binding preflight'
@@ -1001,8 +1104,8 @@ try{
     $script:CurrentPhase='Doctor / migration compatibility'
     Write-Host 'Full Gate D3: SelfTest / Doctor / migration compatibility' -ForegroundColor Cyan
     $null=Run-Manager $mgr @('-SelfTest') $true
-    $null=Run-Manager $mgr @('-Doctor') $true
-    $candidateReport=Get-DoctorReport $mgr
+    $candidateDoctor=Run-DoctorForGate $mgr $true
+    $candidateReport=$candidateDoctor.Report
     if([int]$candidateReport.errors-ne0){throw ('Disposable Manager '+$version+' Doctor reports errors.')}
     Copy-Item -LiteralPath (Join-Path $stateRoot 'logs\DOCTOR_REPORT.json') -Destination (Join-Path $doctorRoot ('candidate_'+$version+'.json')) -Force
     $revisionPattern='\| revision [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}'
@@ -1012,7 +1115,7 @@ try{
         if(([string]$finding[0].Message)-notmatch$revisionPattern){throw('Candidate Doctor did not render immutable revision time for legacy Hub: '+$code+' -> '+[string]$finding[0].Message)}
         if(([string]$finding[0].Message)-match'\br[0-9]+\b'){throw('Candidate Doctor leaked legacy rNNNN as the primary revision display: '+$code)}
     }
-    if((FindingSignature $baselineReport)-cne(FindingSignature $candidateReport)){throw ('Stable non-Manager Doctor findings changed across '+$baseline+' -> '+$version+'.')}
+    if((FindingSignature $baselineReport -IgnoreGovernanceStatus)-cne(FindingSignature $candidateReport -IgnoreGovernanceStatus)){throw ('Stable non-Manager Doctor findings changed across '+$baseline+' -> '+$version+' after excluding separately validated governance.status.')}
     $mig=Run-Manager $mgr @('-CheckMigrations') $false
     if($mig.Text-notmatch'Migration status: up_to_date'){throw 'Disposable production-compatible Hub is not migration up_to_date.'}
     $summary.phases.doctor_migrations=$true
@@ -1110,11 +1213,11 @@ try{
 
     $script:CurrentPhase='CURRENT repair contract'
     Write-Host 'Full Gate E4: disposable CURRENT repair contract' -ForegroundColor Cyan
-    $za=Open-ZipUpdateWithSharingRetry $stateCurrent 20 250 'Full Gate E4 CURRENT repair ZIP update'
+    $za=Open-ZipUpdateWithSharingRetry $stateCurrent 120 250 'Full Gate E4 CURRENT repair ZIP update'
     try{$entry=$za.CreateEntry('Keelaryn__Hub/.obsidian/keelaryn-gate-local-state.txt',[System.IO.Compression.CompressionLevel]::Optimal);$writer=New-Object System.IO.StreamWriter($entry.Open(),(New-Object System.Text.UTF8Encoding($false)));try{$writer.Write('disposable gate local state')}finally{$writer.Dispose()}}finally{$za.Dispose()}
     $null=Run-Manager $mgr @('-RepairCurrentTransport') $true
-    $checkArchive=[System.IO.Compression.ZipFile]::OpenRead($stateCurrent);try{if(@($checkArchive.Entries|Where-Object{$_.FullName.Replace('\','/').StartsWith('Keelaryn__Hub/.obsidian/',[System.StringComparison]::OrdinalIgnoreCase)}).Count-ne0){throw 'RepairCurrentTransport left local deployment state in CURRENT.'}}finally{$checkArchive.Dispose()}
-    $null=Run-Manager $mgr @('-Doctor') $false;$repairedReport=Get-DoctorReport $mgr;if((FindingSignature $candidateReport)-cne(FindingSignature $repairedReport)){throw 'CURRENT repair changed Doctor findings.'}
+    $checkArchive=Open-ZipReadWithSharingRetry $stateCurrent 120 250 'Full Gate E4 CURRENT repair verification read';try{if(@($checkArchive.Entries|Where-Object{$_.FullName.Replace('\','/').StartsWith('Keelaryn__Hub/.obsidian/',[System.StringComparison]::OrdinalIgnoreCase)}).Count-ne0){throw 'RepairCurrentTransport left local deployment state in CURRENT.'}}finally{$checkArchive.Dispose()}
+    $repairDoctor=Run-DoctorForGate $mgr $false;$repairedReport=$repairDoctor.Report;if((FindingSignature $candidateReport)-cne(FindingSignature $repairedReport)){throw 'CURRENT repair changed Doctor findings.'}
     $summary.phases.current_repair=$true
 
     $script:CurrentPhase='AI_CONTEXT performance control'

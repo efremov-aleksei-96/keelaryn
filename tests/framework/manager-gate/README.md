@@ -237,3 +237,37 @@ Revision 18 preserves all r17 protections and changes `Get-UniqueZipEntryIndex` 
 The Framework self-test adds adversarial exact, case-equivalent and Unicode-normalization-equivalent duplicate explicit directory records. All must be rejected.
 
 Framework r18 must pass Windows parser/self-test and the real exact Manager 4.16.1 SourceGate before commit, then fresh hosted exact-head qualification and Codex review before any provenance freeze. Framework r17 remains preserved as a rejected unmerged commit/PR and is not rewritten.
+## Revision 19 Doctor transition-WARN parity
+
+Framework r18 was fully qualified, frozen, tagged and merged. During the first real Manager 4.16.1 Full Gate, native disposable update 4.15.1 -> 4.16.1 succeeded, rollback protection succeeded, and the updated Manager SelfTest succeeded. The gate then failed because Manager 4.16.1 Doctor intentionally returned exit code 2 for a missing Hub governance receipt, while Full Gate's generic `Run-Manager` helper rejected every non-zero exit before reading `DOCTOR_REPORT.json`.
+
+Manager 4.16.1 is unchanged. Its Doctor contract intentionally returns 1 for ERROR findings, 2 for WARN findings and 0 for a clean report. Governance `missing` and `stale` are deliberate transition states requiring explicit Chat Manager reconciliation; automatic Manager overwrite remains prohibited.
+
+Revision 19 keeps Doctor qualification strict while supporting that transition contract:
+
+- Doctor exit 0 is accepted only when the report has zero errors and zero warnings;
+- Doctor exit 2 is accepted only when every WARN is `governance.status` and is specifically `missing` or `stale`;
+- `newer`, `contract_mismatch`, `invalid`, unrelated WARN findings, any ERROR finding, and unexpected process exit codes remain hard failures;
+- the same targeted Doctor path is used for D3 post-update qualification and E4 post-CURRENT-repair equivalence;
+- the cross-version stable-finding comparison excludes only `governance.status`, because governance compatibility is validated separately by the strict Doctor transition contract;
+- same-candidate finding equivalence still includes governance findings.
+
+Framework self-test extracts the real Full Gate helper functions and verifies positive and adversarial Doctor report/exit combinations.
+
+Framework r18 provenance remains immutable historical evidence. Framework r19 requires fresh local qualification, real Manager 4.16.1 Full Gate, hosted exact-head qualification and Codex review before any r19 freeze/tag/merge.
+## Revision 20 delayed CURRENT ZIP sharing retry
+
+Framework r19 is preserved as a rejected, unqualified and unfrozen revision. Its Doctor transition-WARN correction was valid, but the real CURRENT-backed Manager 4.16.2 Full Gate failed in E4 before invoking `RepairCurrentTransport`: Framework exhausted its 20 x 250 ms attempt budget while opening the disposable CURRENT ZIP in update mode.
+
+Revision 20 retains all r19 Doctor protections and strengthens only the reusable transient file-sharing boundary:
+
+- shared ZIP access uses one bounded retry primitive for update/read modes;
+- the default retry budget is 120 attempts x 250 ms (approximately 30 seconds maximum under a persistent sharing violation);
+- E4 explicitly uses the stronger bounded retry for both the pre-repair mutation and the post-repair verification read;
+- non-sharing I/O failures still fail immediately;
+- a real delayed-unlock self-test launches a separate Windows PowerShell job that holds a ZIP with `FileShare.None`, signals readiness, delays release, and requires the retry helper to wait and eventually succeed;
+- the Framework self-test binds the delayed-unlock implementation and the E4 read/write retry calls so the protection cannot silently regress.
+
+A persistent lock beyond the bounded budget still fails qualification. Manager 4.16.2 product bytes remain unchanged at the previously SourceGate-tested commit; this is a Framework-only correction.
+
+Framework r20 must pass parser/self-test, real exact Manager 4.16.2 SourceGate, the full CURRENT-backed Windows gate, hosted exact-head qualification and Codex review before any freeze/tag/merge.
