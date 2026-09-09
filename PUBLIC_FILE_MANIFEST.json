@@ -2,10 +2,10 @@
     "schema":  "keelaryn.public-file-manifest.v2",
     "scope":  "authoritative_source_sets",
     "manager":  {
-                    "version":  "4.16.0",
+                    "version":  "4.16.1",
                     "file_count":  70,
-                    "installation_sha256":  "e158359408533ba6e4e843176f94c6925feb3856e9043f675b3e162a0043bfe8",
-                    "gate_managed_content_sha256":  "947330fb42fbe464f8530726d38e0619b283abc22f0818b3d6adb923b74e4dc3",
+                    "installation_sha256":  "7ed556e3421031e643629806fecbcbb70e1265dc1a12570639c673baa87b6ce8",
+                    "gate_managed_content_sha256":  "c8b260697b6a92cbbf45f2885f6a911b5a1c7e6aa0c1c0b0f2b9c67557bfb61a",
                     "files":  [
                                   {
                                       "path":  "KEELARYN.cmd",
@@ -14,8 +14,8 @@
                                   },
                                   {
                                       "path":  "README_FIRST.md",
-                                      "size_bytes":  7720,
-                                      "sha256":  "0fe5e5f6d2814cd23230bcb5407310962fb4d7a8a012b05cdd1cdfe32a69c123"
+                                      "size_bytes":  8204,
+                                      "sha256":  "bcff215149775e6a41992cddf402702002d8fe494811046b0464ff823090d115"
                                   },
                                   {
                                       "path":  "compat/commands/APPLY_MIGRATIONS.cmd",
@@ -164,8 +164,8 @@
                                   },
                                   {
                                       "path":  "product/docs/RELEASE_BUILD.md",
-                                      "size_bytes":  3650,
-                                      "sha256":  "a00a68fd2cb8563910b6ec58919f237b7e33c438ca7b3bac1a0f46510e429a2a"
+                                      "size_bytes":  4701,
+                                      "sha256":  "c314e7f2df6c7135e5e8f9c901a713b7bcf0cafb0fb2d3cc31bc64205ed0805c"
                                   },
                                   {
                                       "path":  "product/docs/REPOSITORY_MODEL.md",
@@ -255,12 +255,12 @@
                                   {
                                       "path":  "product/install/INSTALLATION.json",
                                       "size_bytes":  3353,
-                                      "sha256":  "e158359408533ba6e4e843176f94c6925feb3856e9043f675b3e162a0043bfe8"
+                                      "sha256":  "7ed556e3421031e643629806fecbcbb70e1265dc1a12570639c673baa87b6ce8"
                                   },
                                   {
                                       "path":  "product/manager_release.json",
-                                      "size_bytes":  203,
-                                      "sha256":  "66cd65a08697c055dc62927d48091a03d8dafe9e62de7fd9c6c4d6ece7e77ecf"
+                                      "size_bytes":  662,
+                                      "sha256":  "4662ed2e76bfab1c656669851aecf64711bef01ae7033a60821659d7abca61c9"
                                   },
                                   {
                                       "path":  "product/migrations/2.0.0_to_2.1.0.json",
@@ -284,8 +284,8 @@
                                   },
                                   {
                                       "path":  "product/runtime/Keelaryn__Manager.ps1",
-                                      "size_bytes":  456721,
-                                      "sha256":  "91900636e59f2c65cd2b77a305cfa3922367876a724a04894eda9fe8f2a8de3d"
+                                      "size_bytes":  460171,
+                                      "sha256":  "273a7e2e022d34508e83e6cf5f15c38e7df47651a85b69fad48a86994a15f0de"
                                   },
                                   {
                                       "path":  "product/starter/hub/Areas/README.md",

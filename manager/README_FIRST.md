@@ -1,6 +1,8 @@
-# Keelaryn Manager 4.16.0
+# Keelaryn Manager 4.16.1
 
-Manager 4.16.0 introduces an independent generic-governance compatibility identity for Keelaryn Hub without changing the structural Hub `system_version`. `_System/GOVERNANCE.json` records the generic `governance_revision` and Workspace checkout contract actually adopted by an instance. Doctor can therefore report a structurally current Hub whose generic governance is missing, stale, incompatible, or newer than the running Manager.
+Manager 4.16.1 is the corrective successor to rejected candidate 4.16.0. Candidate 4.16.0 moved the Workspace Checkout prompt into the governance overlay correctly, but its UPDATE transport omitted the obsolete 4.15.1 managed path required by the supported baseline validator. 4.16.1 keeps the clean final governance-owned layout while adding a transport-only compatibility alias so 4.15.1 can validate the transition package; the obsolete path is not part of the final managed set.
+
+Manager 4.16.1 introduces an independent generic-governance compatibility identity for Keelaryn Hub without changing the structural Hub `system_version`. `_System/GOVERNANCE.json` records the generic `governance_revision` and Workspace checkout contract actually adopted by an instance. Doctor can therefore report a structurally current Hub whose generic governance is missing, stale, incompatible, or newer than the running Manager.
 
 Existing Hubs are never rewritten automatically to clear governance drift. Generic governance convergence remains a semantic Hub change performed through `CURRENT -> CANDIDATE -> Chat Manager -> APPROVED -> CURRENT`, preserving unrelated personal state and compatible local customization. New Genesis Hubs receive the current governance receipt from the canonical governance overlay. Gate Framework 2.0 r13 is the frozen reusable framework for this Manager development cycle.
 
@@ -96,9 +98,9 @@ The tests workspace contract is explicit: `framework` holds one current reusable
 
 ## Update compatibility
 
-Manager 4.16.0 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators. The normal production qualification transition for this candidate is Manager 4.15.1 -> 4.16.0.
+Manager 4.16.1 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators. The normal production qualification transition for this candidate is Manager 4.15.1 -> 4.16.1.
 
-Manager-only update commands continue to distinguish "no newer valid package" from failure and do not silently process Hub updates. Installing Manager 4.16.0 alone must not change the personal Hub or its governance receipt.
+Manager-only update commands continue to distinguish "no newer valid package" from failure and do not silently process Hub updates. Installing Manager 4.16.1 alone must not change the personal Hub or its governance receipt.
 
 ## User interface compatibility
 
@@ -108,4 +110,4 @@ The existing numeric main-menu contract is preserved to avoid breaking establish
 
 ## Release gate
 
-This source is not production-approved merely because it carries version 4.16.0. Production approval requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.15.1 -> 4.16.0 update and rollback/fault-injection coverage, Doctor governance-current/stale/newer cases, Genesis receipt validation, migration regression coverage, production Hub immutability, UI regression coverage, exact tested/public-source/release artifact identity, and gated publication. The consolidated Full Gate must use the independently frozen Gate Framework r13.
+This source is not production-approved merely because it carries version 4.16.1. Production approval requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.15.1 -> 4.16.1 update and rollback/fault-injection coverage, Doctor governance-current/stale/newer cases, Genesis receipt validation, migration regression coverage, production Hub immutability, UI regression coverage, exact tested/public-source/release artifact identity, and gated publication. The consolidated Full Gate must use the independently frozen Gate Framework r13.

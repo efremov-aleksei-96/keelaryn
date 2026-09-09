@@ -1,10 +1,10 @@
 {
     "schema":  "keelaryn.public-repository-provenance.v2",
     "role":  "public_source_sync_candidate",
-    "source_manager_version":  "4.16.0",
+    "source_manager_version":  "4.16.1",
     "source_gate_baseline_manager_version":  "4.15.1",
-    "source_manager_installation_sha256":  "e158359408533ba6e4e843176f94c6925feb3856e9043f675b3e162a0043bfe8",
-    "source_manager_gate_managed_content_sha256":  "947330fb42fbe464f8530726d38e0619b283abc22f0818b3d6adb923b74e4dc3",
+    "source_manager_installation_sha256":  "7ed556e3421031e643629806fecbcbb70e1265dc1a12570639c673baa87b6ce8",
+    "source_manager_gate_managed_content_sha256":  "c8b260697b6a92cbbf45f2885f6a911b5a1c7e6aa0c1c0b0f2b9c67557bfb61a",
     "production_validation":  {
                                   "full_gate_pass":  false,
                                   "gate_revision":  null,

@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.16.0"
+$ManagerVersion = "4.16.1"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -2630,7 +2630,40 @@ function Get-ManagerReleasePolicy {
     if ([string]$r.schema -ne 'keelaryn.manager.release-policy.v1' -or [string]$r.manager_version -ne $ManagerVersion -or [string]$r.native_update_schema -ne 'keelaryn.manager.update.v2' -or -not $r.update_min_version) { throw 'Invalid Manager release policy.' }
     try { $floor=[version]([string]$r.update_min_version); $current=[version]$ManagerVersion } catch { throw 'Manager release policy contains an invalid version.' }
     if ($floor -gt $current) { throw 'Manager release policy update_min_version exceeds manager_version.' }
+    if ($null -eq $r.PSObject.Properties['transition_compatibility_aliases']) { throw 'Manager release policy must declare transition_compatibility_aliases.' }
+
+    $finalKeys=@{}
+    foreach($raw in @(Get-InstalledManagedPaths)){
+        $rel=([string]$raw).Replace('\','/')
+        $finalKeys[$rel.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()]=$rel
+    }
+    $aliasKeys=@{}
+    foreach($alias in @($r.transition_compatibility_aliases)){
+        if($null-eq$alias-or$null-eq$alias.PSObject.Properties['path']-or$null-eq$alias.PSObject.Properties['source_path']){throw 'Manager release transition alias must contain path/source_path.'}
+        $path=([string]$alias.path).Replace('\','/').Trim()
+        $source=([string]$alias.source_path).Replace('\','/').Trim()
+        if(-not(Test-ManagerManagedPath $path)-or-not(Test-ManagerManagedPath $source)){throw 'Manager release transition alias contains an unsafe path.'}
+        $pathKey=$path.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+        $sourceKey=$source.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+        if($pathKey-eq$sourceKey){throw('Manager release transition alias path equals source_path: '+$path)}
+        if($finalKeys.ContainsKey($pathKey)){throw('Manager release transition alias collides with final managed path: '+$path)}
+        if(-not$finalKeys.ContainsKey($sourceKey)){throw('Manager release transition alias source_path is not final managed source: '+$source)}
+        if($aliasKeys.ContainsKey($pathKey)){throw('Duplicate Manager release transition alias path: '+$path)}
+        $aliasKeys[$pathKey]=$true
+    }
     return $r
+}
+
+function Get-ManagerReleaseTransitionAliases($Policy=$null) {
+    if(-not$Policy){$Policy=Get-ManagerReleasePolicy}
+    $rows=@()
+    foreach($alias in @($Policy.transition_compatibility_aliases)){
+        $rows += [pscustomobject]@{
+            Path=([string]$alias.path).Replace('\','/').Trim()
+            SourcePath=([string]$alias.source_path).Replace('\','/').Trim()
+        }
+    }
+    return @($rows|Sort-Object Path)
 }
 
 function Get-FrontmatterValue([string]$Text, [string]$Key) {
@@ -4752,10 +4785,32 @@ function Invoke-BuildRelease {
             $entries += [ordered]@{path=$rel;sha256=[string]$row.Hash;size_bytes=[long]$row.Size}
         }
 
+        # finalEntries/finalContentHash intentionally describe only canonical installed
+        # Manager bytes. Transition aliases are UPDATE-transport compatibility only.
         $finalEntries=@($entries)
         $finalRows=@($finalEntries|ForEach-Object{([string]$_.path)+"`0"+([string]$_.sha256)}|Sort-Object)
         $finalContentHash=Get-TextHashHex([string]::Join("`n",$finalRows))
-        $transitionPaths=@($paths+@('Keelaryn__Manager.ps1','_manager_manifest.json','_manager_version.txt')|Sort-Object -Unique)
+
+        $snapshotByPath=@{}
+        foreach($row in $sourceSnapshot){
+            $key=([string]$row.Path).Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+            $snapshotByPath[$key]=$row
+        }
+        $transitionAliases=@(Get-ManagerReleaseTransitionAliases $managerPolicy)
+        $aliasPaths=@()
+        foreach($alias in $transitionAliases){
+            $aliasPath=[string]$alias.Path
+            $sourcePath=[string]$alias.SourcePath
+            $sourceKey=$sourcePath.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+            if(-not$snapshotByPath.ContainsKey($sourceKey)){throw('Transition alias source snapshot is missing: '+$sourcePath)}
+            $sourceRow=$snapshotByPath[$sourceKey]
+            $aliasDestination=Join-Path $payload $aliasPath
+            Write-ManagerReleaseSnapshotFile $sourceRow $aliasDestination
+            $entries += [ordered]@{path=$aliasPath;sha256=[string]$sourceRow.Hash;size_bytes=[long]$sourceRow.Size}
+            $aliasPaths += $aliasPath
+        }
+
+        $transitionPaths=@($paths+$aliasPaths+@('Keelaryn__Manager.ps1','_manager_manifest.json','_manager_version.txt')|Sort-Object -Unique)
         $transitionBootstrap=Get-TransitionRootBootstrapText
         $transitionManifest=(New-TransitionInstallationManifestObject $transitionPaths)|ConvertTo-Json -Depth 6
         $transitionFiles=[ordered]@{
@@ -6383,7 +6438,7 @@ function Test-ProductSourceSelfTest {
             if (-not (Test-Path $p -PathType Leaf)) { return $false }
         }
         $runtimeSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\runtime\Keelaryn__Manager.ps1'),[System.Text.Encoding]::UTF8)
-        foreach($token in @('function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Test-WorkspaceCheckoutContractSelfTest','Resolve-KeelarynWorkspaceCheckout.ps1','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Write-ManagerReleaseSnapshotFile $row $dst','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
+        foreach($token in @('function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Test-WorkspaceCheckoutContractSelfTest','Resolve-KeelarynWorkspaceCheckout.ps1','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Get-ManagerReleaseTransitionAliases $managerPolicy','Write-ManagerReleaseSnapshotFile $row $dst','Write-ManagerReleaseSnapshotFile $sourceRow $aliasDestination','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
             if(-not$runtimeSource.Contains($token)){return $false}
         }
         $aiToolSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\tools\New-KeelarynAIContext.ps1'),[System.Text.Encoding]::UTF8)
