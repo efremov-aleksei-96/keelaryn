@@ -1,8 +1,5 @@
-# Preserve exact release-qualified Manager/Framework bytes across Git checkouts.
+# Normalize generic repository text, then override authoritative byte-preserved trees last.
 * text=auto
-
-manager/** -text
-tests/framework/manager-gate/** -text
 
 *.md text eol=lf
 *.json text eol=lf
@@ -10,3 +7,7 @@ tests/framework/manager-gate/** -text
 *.yaml text eol=lf
 tools/*.ps1 text eol=lf
 LICENSE text eol=lf
+
+# Preserve exact release-qualified Manager/Framework bytes across Git checkouts.
+manager/** -text -eol
+tests/framework/manager-gate/** -text -eol

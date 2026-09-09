@@ -297,10 +297,186 @@ if(@($manifest.managed_files).Count-lt1){throw 'Canonical installation manifest 
 $transitionManifest=(Get-Content -LiteralPath $transitionManifestPath -Raw -Encoding UTF8)|ConvertFrom-Json
 if([string]$transitionManifest.schema-ne'keelaryn.manager.installation.v1'-or[string]$transitionManifest.manager_version-ne$version){throw 'Transition installation manifest schema/version mismatch.'}
 $transitionOnly=@('Keelaryn__Manager.ps1','_manager_manifest.json','_manager_version.txt')
+function Get-UpdateTransportCompatibilityContract {
+    param([string[]]$FinalPaths,[string[]]$TransitionOnly,$ReleasePolicy)
+
+    $normalize={
+        param([string]$Value,[string]$Label)
+        $path=([string]$Value).Replace('\','/').Trim()
+        if([string]::IsNullOrWhiteSpace($path)-or$path.StartsWith('/')-or$path-match'^[A-Za-z]:'){
+            throw($Label+' must be a relative Manager path: '+$path)
+        }
+        $segments=@($path.Split('/'))
+        if($segments.Count-eq0){throw($Label+' is empty.')}
+        foreach($segment in $segments){
+            if([string]::IsNullOrWhiteSpace($segment)-or$segment-eq'.'-or$segment-eq'..'){
+                throw($Label+' contains an unsafe path segment: '+$path)
+            }
+            if($segment.EndsWith('.')-or$segment.EndsWith(' ')-or$segment.IndexOfAny([char[]]'<>:"|?*')-ge0){
+                throw($Label+' contains a Windows-unsafe path segment: '+$path)
+            }
+            foreach($ch in $segment.ToCharArray()){if([int]$ch-lt32){throw($Label+' contains a control character: '+$path)}}
+        }
+        return [pscustomobject]@{
+            Path=$path
+            Key=$path.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+        }
+    }
+    $sortUnique={
+        param([string[]]$Values,[string]$Label)
+        $seen=New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
+        $items=New-Object System.Collections.ArrayList
+        foreach($value in @($Values)){
+            $v=[string]$value
+            if(-not$seen.Add($v)){throw($Label+' contains an exact duplicate path: '+$v)}
+            [void]$items.Add($v)
+        }
+        [string[]]$ordered=@($items)
+        [Array]::Sort($ordered,[System.StringComparer]::Ordinal)
+        return @($ordered)
+    }
+
+    $finalMap=@{};$finalCanonical=New-Object System.Collections.ArrayList
+    foreach($raw in @($FinalPaths)){
+        $n=&$normalize ([string]$raw) 'final managed path'
+        if($finalMap.ContainsKey($n.Key)){throw('Final managed paths collide by Windows/Unicode identity: '+$n.Path)}
+        $finalMap[$n.Key]=$n.Path;[void]$finalCanonical.Add($n.Path)
+    }
+    $transitionMap=@{};$transitionCanonical=New-Object System.Collections.ArrayList
+    foreach($raw in @($TransitionOnly)){
+        $n=&$normalize ([string]$raw) 'transition compatibility path'
+        if($finalMap.ContainsKey($n.Key)-or$transitionMap.ContainsKey($n.Key)){throw('Transition compatibility path collides with another transport path: '+$n.Path)}
+        $transitionMap[$n.Key]=$n.Path;[void]$transitionCanonical.Add($n.Path)
+    }
+
+    $aliasRows=New-Object System.Collections.ArrayList
+    $aliasMap=@{}
+    $declaredAliases=@()
+    if($null-ne$ReleasePolicy-and$null-ne$ReleasePolicy.PSObject.Properties['transition_compatibility_aliases']){
+        $declaredAliases=@($ReleasePolicy.transition_compatibility_aliases)
+    }
+    foreach($row in $declaredAliases){
+        if($null-eq$row-or$null-eq$row.PSObject.Properties['path']-or$null-eq$row.PSObject.Properties['source_path']){
+            throw 'Transition compatibility alias must declare path and source_path.'
+        }
+        $alias=&$normalize ([string]$row.path) 'transition alias path'
+        $source=&$normalize ([string]$row.source_path) 'transition alias source_path'
+        if($finalMap.ContainsKey($alias.Key)-or$transitionMap.ContainsKey($alias.Key)){throw('Transition alias collides with canonical/transition path: '+$alias.Path)}
+        if($aliasMap.ContainsKey($alias.Key)){throw('Duplicate transition alias path: '+$alias.Path)}
+        if(-not$finalMap.ContainsKey($source.Key)){throw('Transition alias source_path is not a canonical final managed path: '+$source.Path)}
+        $aliasMap[$alias.Key]=$alias.Path
+        [void]$aliasRows.Add([pscustomobject]@{
+            Path=$alias.Path
+            SourcePath=[string]$finalMap[$source.Key]
+        })
+    }
+
+    $expected=@($finalCanonical)+@($transitionCanonical)+@($aliasRows|ForEach-Object{[string]$_.Path})
+    $ordered=&$sortUnique ([string[]]$expected) 'expected UPDATE transport'
+    return [pscustomobject]@{
+        ExpectedPackagePaths=@($ordered)
+        Aliases=@($aliasRows|Sort-Object Path)
+    }
+}
+
+function Assert-TransitionInstallationManifestMatchesUpdateTransport(
+    [string[]]$TransitionPaths,
+    [string[]]$ExpectedPackagePaths
+){
+    $raw=@($TransitionPaths|ForEach-Object{[string]$_})
+    $seen=New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
+    foreach($path in $raw){
+        if(-not$seen.Add($path)){
+            throw('UPDATE transition installation manifest contains duplicate managed_files path: '+$path)
+        }
+    }
+    [string[]]$actual=@($raw)
+    [Array]::Sort($actual,[System.StringComparer]::Ordinal)
+    [string[]]$expected=@($ExpectedPackagePaths)
+    [Array]::Sort($expected,[System.StringComparer]::Ordinal)
+    if($actual.Count-ne$expected.Count-or[string]::Join('|',$actual)-cne[string]::Join('|',$expected)){
+        throw 'Transition installation manifest is not exactly the expected UPDATE transport, including declared compatibility aliases.'
+    }
+}
+
+function Get-ZipEntryIdentityKey([string]$Name){
+    if($null-eq$Name){throw 'ZIP entry name is null.'}
+    return $Name.Replace('\','/').Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+}
+
+function Get-UniqueZipEntryIndex($Archive){
+    if($null-eq$Archive){throw 'ZIP archive is null.'}
+    $seen=@{}
+    $index=@{}
+    foreach($entry in $Archive.Entries){
+        $name=$entry.FullName.Replace('\','/')
+        $key=Get-ZipEntryIdentityKey $name
+        if($seen.ContainsKey($key)){
+            throw('UPDATE ZIP contains duplicate Windows/Unicode-normalized entry key: '+$name)
+        }
+        $seen[$key]=$true
+        if($name.EndsWith('/')){continue}
+        $index[$key]=$entry
+    }
+    return $index
+}
+
+function Get-ZipEntryDigest($Entry){
+    if($null-eq$Entry){throw 'ZIP entry is missing for digest validation.'}
+    $stream=$null
+    $sha=$null
+    try{
+        $stream=$Entry.Open()
+        $sha=[System.Security.Cryptography.SHA256]::Create()
+        $bytes=$sha.ComputeHash($stream)
+        $hex=[BitConverter]::ToString($bytes).Replace('-','').ToLowerInvariant()
+        return [pscustomobject]@{Sha256=$hex;Size=[int64]$Entry.Length}
+    }finally{
+        if($stream){$stream.Dispose()}
+        if($sha){$sha.Dispose()}
+    }
+}
+
+function Assert-TransitionAliasPayloadBinding(
+    $AliasRow,
+    $SourceRow,
+    $AliasEntry,
+    $SourceEntry,
+    [string]$AliasPath,
+    [string]$SourcePath
+){
+    $declaredAliasSha=([string]$AliasRow.sha256).ToLowerInvariant()
+    $declaredSourceSha=([string]$SourceRow.sha256).ToLowerInvariant()
+    $declaredAliasSize=[int64]$AliasRow.size_bytes
+    $declaredSourceSize=[int64]$SourceRow.size_bytes
+    if($declaredAliasSha-cne$declaredSourceSha-or$declaredAliasSize-ne$declaredSourceSize){
+        throw('UPDATE transition alias manifest metadata does not bind source row: '+$AliasPath+' -> '+$SourcePath)
+    }
+
+    $aliasDigest=Get-ZipEntryDigest $AliasEntry
+    $sourceDigest=Get-ZipEntryDigest $SourceEntry
+    if($aliasDigest.Sha256-cne$declaredAliasSha-or$aliasDigest.Size-ne$declaredAliasSize){
+        throw('UPDATE transition alias payload bytes do not match alias manifest row: '+$AliasPath)
+    }
+    if($sourceDigest.Sha256-cne$declaredSourceSha-or$sourceDigest.Size-ne$declaredSourceSize){
+        throw('UPDATE transition source payload bytes do not match source manifest row: '+$SourcePath)
+    }
+    if($aliasDigest.Sha256-cne$sourceDigest.Sha256-or$aliasDigest.Size-ne$sourceDigest.Size){
+        throw('UPDATE transition alias payload bytes differ from canonical source payload: '+$AliasPath+' -> '+$SourcePath)
+    }
+}
+
 $finalPaths=@(Get-OrdinalUniqueStrings @($manifest.managed_files|ForEach-Object{([string]$_).Replace('\','/')}))
 $transitionPaths=@(Get-OrdinalUniqueStrings @($transitionManifest.managed_files|ForEach-Object{([string]$_).Replace('\','/')}))
 $expectedTransition=@(Get-OrdinalUniqueStrings @($finalPaths+$transitionOnly))
-if($transitionPaths.Count-ne$expectedTransition.Count-or[string]::Join('|',$transitionPaths)-cne[string]::Join('|',$expectedTransition)){throw 'Transition installation manifest is not exactly final managed files plus the three compatibility transport paths.'}
+if($transitionPaths.Count-ne$expectedTransition.Count-or[string]::Join('|',$transitionPaths)-cne[string]::Join('|',$expectedTransition)){throw 'Gate-source transition installation manifest is not exactly final managed files plus the three root transition paths.'}
+$releasePolicyPath=Join-Path $ManagerRoot 'product\manager_release.json'
+if(-not(Test-Path -LiteralPath $releasePolicyPath -PathType Leaf)){throw 'Manager release policy is missing from candidate source.'}
+$releasePolicy=(Get-Content -LiteralPath $releasePolicyPath -Raw -Encoding UTF8)|ConvertFrom-Json
+$updateTransportContract=Get-UpdateTransportCompatibilityContract -FinalPaths $finalPaths -TransitionOnly $transitionOnly -ReleasePolicy $releasePolicy
+$expectedUpdateTransport=@($updateTransportContract.ExpectedPackagePaths)
+$updateAliases=@($updateTransportContract.Aliases)
+
 foreach($legacyRoot in $transitionOnly){if($finalPaths-contains$legacyRoot){throw('Canonical final manifest contains transition-only root path: '+$legacyRoot)}}
 foreach($legacyRoot in $transitionOnly){if(-not(Test-Path -LiteralPath (Join-Path $ManagerRoot $legacyRoot) -PathType Leaf)){throw('Transition envelope file missing from gate source: '+$legacyRoot)}}
 $declaredInstallSha=([string]$gateSpec.candidate_installation_sha256).ToLowerInvariant();$declaredManagedSha=([string]$gateSpec.candidate_managed_content_sha256).ToLowerInvariant()
@@ -636,16 +812,51 @@ if($distNames-contains'keelaryn/manager/DISTRIBUTION_MANIFEST.json'){throw 'DIST
 if($sourceNames-contains'keelaryn/manager/product/install/DISTRIBUTION_MANIFEST.json'){throw 'SOURCE must not contain generated distribution provenance metadata.'}
 $ua=[System.IO.Compression.ZipFile]::OpenRead($updateZip)
 try{
-    $index=@{};foreach($e in $ua.Entries){if(-not$e.FullName.EndsWith('/')){$index[$e.FullName.Replace('\','/').ToLowerInvariant()]=$e}}
-    $manifestEntry=$index['keelaryn__manager_update/manifest.json'];if(-not$manifestEntry){throw 'UPDATE manifest missing.'}
+    $index=Get-UniqueZipEntryIndex $ua
+    $manifestEntry=$index[(Get-ZipEntryIdentityKey 'Keelaryn__Manager_Update/manifest.json')];if(-not$manifestEntry){throw 'UPDATE manifest missing.'}
     $reader=New-Object System.IO.StreamReader($manifestEntry.Open(),[System.Text.Encoding]::UTF8,$true);try{$updateManifest=$reader.ReadToEnd()|ConvertFrom-Json}finally{$reader.Dispose()}
     $finalDeclared=@(Get-OrdinalUniqueStrings @($updateManifest.final_managed_files|ForEach-Object{([string]$_).Replace('\','/')}))
     if($finalDeclared.Count-ne$finalPaths.Count-or[string]::Join('|',$finalDeclared)-cne[string]::Join('|',$finalPaths)){throw 'UPDATE final_managed_files does not equal canonical final manifest.'}
     if(-not([string]$updateManifest.final_content_hash-match'^[0-9a-fA-F]{64}$')){throw 'UPDATE final_content_hash missing/invalid.'}
     $packageRows=@($updateManifest.files)
-    if($packageRows.Count-ne$expectedTransition.Count){throw('UPDATE transport file count mismatch: '+$packageRows.Count)}
+    $packageDeclared=@(Get-OrdinalUniqueStrings @($packageRows|ForEach-Object{([string]$_.path).Replace('\','/')}))
+    if($packageDeclared.Count-ne$packageRows.Count){throw 'UPDATE transport manifest contains duplicate file paths.'}
+    if($packageDeclared.Count-ne$expectedUpdateTransport.Count-or[string]::Join('|',$packageDeclared)-cne[string]::Join('|',$expectedUpdateTransport)){throw('UPDATE transport path set mismatch: declared='+$packageDeclared.Count+' expected='+$expectedUpdateTransport.Count)}
+
+    $updateTransitionManifestEntry=$index['keelaryn__manager_update/payload/_manager_manifest.json']
+    if(-not$updateTransitionManifestEntry){throw 'UPDATE transition installation manifest missing.'}
+    $updateTransitionManifestReader=New-Object System.IO.StreamReader($updateTransitionManifestEntry.Open(),[System.Text.Encoding]::UTF8,$true)
+    try{
+        $updateTransitionManifestText=$updateTransitionManifestReader.ReadToEnd()
+    }finally{
+        $updateTransitionManifestReader.Dispose()
+    }
+    try{
+        $updateTransitionManifest=$updateTransitionManifestText|ConvertFrom-Json
+    }catch{
+        throw('UPDATE transition installation manifest JSON is invalid: '+$_.Exception.Message)
+    }
+    if([string]$updateTransitionManifest.schema-ne'keelaryn.manager.installation.v1'){throw('UPDATE transition installation manifest schema mismatch: '+[string]$updateTransitionManifest.schema)}
+    if([string]$updateTransitionManifest.manager_version-ne$version){throw('UPDATE transition installation manifest manager_version mismatch: '+[string]$updateTransitionManifest.manager_version)}
+    $updateTransitionPaths=@($updateTransitionManifest.managed_files|ForEach-Object{([string]$_).Replace('\','/')})
+    Assert-TransitionInstallationManifestMatchesUpdateTransport -TransitionPaths $updateTransitionPaths -ExpectedPackagePaths $expectedUpdateTransport
+
     foreach($legacyRoot in $transitionOnly){if(-not$index.ContainsKey(('keelaryn__manager_update/payload/'+$legacyRoot).ToLowerInvariant())){throw('UPDATE transition payload file missing: '+$legacyRoot)}}
+    foreach($alias in $updateAliases){
+        $aliasPath=[string]$alias.Path;$sourcePath=[string]$alias.SourcePath
+        $aliasRows=@($packageRows|Where-Object{([string]$_.path).Replace('\','/')-ceq$aliasPath})
+        $sourceRows=@($packageRows|Where-Object{([string]$_.path).Replace('\','/')-ceq$sourcePath})
+        if($aliasRows.Count-ne1-or$sourceRows.Count-ne1){throw('UPDATE transition alias/source row missing: '+$aliasPath+' -> '+$sourcePath)}
+        $aliasEntryKey=Get-ZipEntryIdentityKey ('Keelaryn__Manager_Update/payload/'+$aliasPath)
+        $sourceEntryKey=Get-ZipEntryIdentityKey ('Keelaryn__Manager_Update/payload/'+$sourcePath)
+        if(-not$index.ContainsKey($aliasEntryKey)){throw('UPDATE transition alias payload file missing: '+$aliasPath)}
+        if(-not$index.ContainsKey($sourceEntryKey)){throw('UPDATE transition source payload file missing: '+$sourcePath)}
+        Assert-TransitionAliasPayloadBinding -AliasRow $aliasRows[0] -SourceRow $sourceRows[0] -AliasEntry $index[$aliasEntryKey] -SourceEntry $index[$sourceEntryKey] -AliasPath $aliasPath -SourcePath $sourcePath
+        if($sourceNames-contains('keelaryn/manager/'+$aliasPath)){throw('SOURCE leaked UPDATE-only transition alias: '+$aliasPath)}
+        if($distNames-contains('keelaryn/manager/'+$aliasPath)){throw('DISTRIBUTION leaked UPDATE-only transition alias: '+$aliasPath)}
+    }
     if(-not$index.ContainsKey('keelaryn__manager_update/payload/product/install/installation.json')){throw 'UPDATE canonical installation manifest missing.'}
+
     $bootstrapEntry=$index['keelaryn__manager_update/payload/keelaryn__manager.ps1'];if(-not$bootstrapEntry){throw 'UPDATE transition bootstrap missing.'}
     $bootstrapReader=New-Object System.IO.StreamReader($bootstrapEntry.Open(),[System.Text.Encoding]::UTF8,$true)
     try{$bootstrapText=$bootstrapReader.ReadToEnd()}finally{$bootstrapReader.Dispose()}

@@ -153,3 +153,87 @@ Before any SOURCE bytes are written to the extraction tree, r13 validates the wh
 `Test-ManagerGateFramework.ps1` is the independent r13 framework self-test. It exercises a valid SOURCE ZIP through the real builder and adversarial archives covering Zip Slip/dot segments, reserved names, case and Unicode aliases, symlink/reparse metadata, compression-ratio limits, expanded-size limits and entry-count limits.
 
 Framework r13 must pass this self-test on Windows PowerShell 5.1 before it is frozen or used to qualify a new Manager candidate.
+
+## Revision 14 UPDATE transition-alias qualification
+
+Revision 14 extends SourceGate's UPDATE transport boundary for Manager releases that must preserve an obsolete path only for compatibility with a supported older updater.
+
+The canonical final managed set remains authoritative. SourceGate now reads `transition_compatibility_aliases` from `product/manager_release.json` and requires each alias to:
+
+- use a safe relative Manager path;
+- remain outside the canonical final managed set and the three root transition files;
+- map to an existing canonical final managed `source_path`;
+- be unique under Windows case-insensitive and Unicode-normalized identity;
+- appear exactly once in the UPDATE transport manifest and payload;
+- carry the exact SHA-256 and byte length of its canonical source row;
+- remain absent from SOURCE and DISTRIBUTION.
+
+The expected UPDATE transport is therefore `final managed files + three root transition files + declared transition aliases`; SourceGate no longer assumes that every valid UPDATE has exactly `final + 3` rows.
+
+`Test-ManagerGateFramework.ps1` extracts the actual `Get-UpdateTransportCompatibilityContract` function from the SourceGate template AST and tests zero aliases, one valid alias, final-path collision, missing source, case-alias duplication and unsafe traversal. Framework r14 must pass this self-test on Windows PowerShell 5.1 before it is frozen or used for the corrective Manager qualification cycle.
+## Revision 15 UPDATE-internal transition-manifest validation
+
+Revision 14 was qualified and frozen but remained unmerged after review exposed an ambiguity in transition-manifest validation. Follow-up investigation distinguished two separate manifests:
+
+- `Build-ManagerGate.ps1` synthesizes the **gate-source root** `_manager_manifest.json` used only to construct and execute `manager-<version>`; its contract remains canonical final managed files plus the three root transition paths.
+- Manager `-BuildRelease` generates a separate `_manager_manifest.json` **inside the UPDATE payload**. Supported baseline updaters validate that UPDATE-internal manifest against every UPDATE `manifest.files` path.
+
+Revision 15 keeps the r14 alias safety rules and preserves the gate-source root envelope unchanged. The new validation belongs in Gate C2 after the candidate has built its real release artifacts. SourceGate now:
+
+- derives the full expected UPDATE transport as final managed files + three root transition files + declared compatibility aliases;
+- validates UPDATE `manifest.files` against that complete transport;
+- opens `Keelaryn__Manager_Update/payload/_manager_manifest.json` from the generated UPDATE;
+- requires its schema/version identity and `managed_files` set to equal the complete expected UPDATE transport exactly;
+- rejects an UPDATE-internal transition manifest that omits a declared alias or contains an extra transport path;
+- preserves SOURCE/DISTRIBUTION exclusion and the independent canonical final managed set, so aliases remain transport-only and disappear from the installed final tree.
+- fixes repository .gitattributes precedence so generic *.json/*.md EOL rules cannot override authoritative manager/** or Framework byte preservation.
+
+The r15 Framework self-test extracts and executes the alias-contract and UPDATE transition-manifest equality helpers, including missing-alias and extra-path rejection. Qualification additionally requires a real SourceGate against the exact Manager 4.16.1 candidate and later the disposable Full Gate path exercising the supported Manager 4.15.1 -> 4.16.1 native update.
+## Revision 16 updater-equivalence hardening
+
+Revision 15 was exact-head qualified and frozen but rejected before merge after post-freeze Codex review identified two updater-equivalence gaps that remained in Gate C2.
+
+Revision 16 preserves all r15 transport-alias, UPDATE-internal manifest and checkout-byte protections, and additionally:
+
+- validates the raw UPDATE-internal `_manager_manifest.json.managed_files` array before normalization, rejecting duplicate paths instead of silently deduplicating them;
+- hashes the actual compatibility-alias ZIP payload entry and its canonical source payload entry;
+- requires both actual payload digests and uncompressed sizes to match their respective manifest rows;
+- requires the actual alias payload bytes to equal the actual canonical source payload bytes;
+- retains the exact UPDATE transport set, SOURCE/DISTRIBUTION exclusion and final-managed isolation.
+
+The Framework self-test extracts the real SourceGate helpers and includes adversarial regression cases for a duplicated UPDATE transition-manifest path and for corrupted alias payload bytes paired with copied source metadata. Both must be rejected.
+
+Framework r16 must still pass the real exact-byte Manager 4.16.1 SourceGate before commit, then fresh hosted exact-head qualification and review before any provenance freeze. Framework r15 remains immutable historical evidence and is not rewritten.
+## Revision 17 UPDATE ZIP identity parity
+
+Revision 16 passed local and hosted exact-head qualification but was rejected before freeze after Codex review found that SourceGate's UPDATE ZIP index silently overwrote duplicate entry keys. The supported baseline updater instead normalizes every ZIP entry name with Unicode Form C, lowercases it, and rejects any duplicate key before indexing.
+
+Revision 17 preserves all r16 protections and adds updater-equivalent ZIP identity handling:
+
+- `Get-ZipEntryIdentityKey` uses `Replace('\','/').Normalize(FormC).ToLowerInvariant()`, matching the supported updater;
+- `Get-UniqueZipEntryIndex` rejects duplicate Windows/case/Unicode-equivalent UPDATE ZIP entry keys before any manifest lookup or alias hashing;
+- alias/source ZIP lookups use the same identity helper;
+- r16 raw transition-manifest duplicate rejection remains intact;
+- r16 actual alias/source payload SHA-256 and size validation remains intact.
+
+The Framework self-test extracts the real ZIP identity/index helpers and adds adversarial UPDATE ZIPs containing case-equivalent and Unicode-normalization-equivalent duplicate entries. Both must be rejected.
+
+Framework r17 must pass Windows parser/self-test and the real exact Manager 4.16.1 SourceGate before commit, then fresh hosted exact-head qualification and Codex review before any provenance freeze. Framework r16 remains preserved as a rejected unmerged commit/PR and is not rewritten.
+## Revision 18 directory-entry identity parity
+
+Revision 17 passed local and hosted exact-head qualification but was rejected before freeze after Codex review found that explicit ZIP directory records were skipped before duplicate-key tracking.
+
+The supported Manager updater's ZIP envelope validation applies normalized identity collision checks to every archive entry, including explicit directories, before later file-index logic omits directories.
+
+Revision 18 preserves all r17 protections and changes `Get-UniqueZipEntryIndex` so that:
+
+- every archive entry is normalized through `Get-ZipEntryIdentityKey`;
+- every entry participates in the duplicate-key seen-set;
+- explicit directory entries are excluded only from the returned lookup index after their identity has been validated;
+- file, case-equivalent and Unicode-equivalent duplicate rejection remains unchanged;
+- raw UPDATE transition-manifest duplicate rejection remains unchanged;
+- actual alias/source payload SHA-256 and size verification remains unchanged.
+
+The Framework self-test adds adversarial exact, case-equivalent and Unicode-normalization-equivalent duplicate explicit directory records. All must be rejected.
+
+Framework r18 must pass Windows parser/self-test and the real exact Manager 4.16.1 SourceGate before commit, then fresh hosted exact-head qualification and Codex review before any provenance freeze. Framework r17 remains preserved as a rejected unmerged commit/PR and is not rewritten.
