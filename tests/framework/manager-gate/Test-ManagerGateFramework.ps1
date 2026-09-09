@@ -61,7 +61,7 @@ function Assert-Rejected([string]$Name,[object[]]$Entries,$Limits=$null){
 }
 
 $revision=(Get-Content -LiteralPath (Join-Path $frameworkRoot 'FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
-if($revision-cne'21'){throw('Framework qualification expected revision 21, got '+$revision)}
+if($revision-cne'22'){throw('Framework qualification expected revision 22, got '+$revision)}
 
 foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filter '*.ps1')){
     $tokens=$null;$errors=$null
@@ -69,10 +69,10 @@ foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filte
     if(@($errors).Count-ne0){throw('PowerShell parser rejected framework file '+$ps.FullName+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
 }
 $builderText=[System.IO.File]::ReadAllText($builderPath,[System.Text.Encoding]::UTF8)
-if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r21 builder must not use Expand-Archive for SourceZip.'}
-foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r21 builder safety binding missing token: '+$token)}}
+if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r22 builder must not use Expand-Archive for SourceZip.'}
+foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r22 builder safety binding missing token: '+$token)}}
 
-$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r21_selftest_'+[guid]::NewGuid().ToString('N'))
+$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r22_selftest_'+[guid]::NewGuid().ToString('N'))
 try{
     New-Item -ItemType Directory -Force -Path $script:tempRoot|Out-Null
     $valid=Get-ValidEntries
@@ -386,7 +386,22 @@ try{
         (New-DoctorFinding 'ERROR' 'hub.manifest' 'drift')
     ))
     Assert-DoctorContractRejected 'exit-zero-with-warning' 0 $missing
+    $missingSuffix=New-DoctorReportForTest @(
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance receipt is missing. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically. Unexpected suffix.')
+    )
+    Assert-DoctorContractRejected 'governance-missing-suffix' 2 $missingSuffix
 
+    $staleSuffix=New-DoctorReportForTest @(
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance r1 is older than Manager r2. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically. Unexpected suffix.')
+    )
+    Assert-DoctorContractRejected 'governance-stale-suffix' 2 $staleSuffix
+
+    $mixedWarnErrorLie=New-DoctorReportForTest @(
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance receipt is missing. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.'),
+        (New-DoctorFinding 'ERROR' 'hub.manifest' 'drift')
+    )
+    $mixedWarnErrorLie.errors=0
+    Assert-DoctorContractRejected 'mixed-warning-error-summary-lie' 2 $mixedWarnErrorLie
     $baselineSigReport=New-DoctorReportForTest @(
         (New-DoctorFinding 'OK' 'hub.state' 'same')
     )
@@ -404,13 +419,13 @@ try{
     foreach($token in @(
         'function Open-ZipWithSharingRetry',
         'function Open-ZipReadWithSharingRetry',
-        'keelaryn_framework_r21_zip_retry_',
+        'keelaryn_framework_r22_zip_retry_',
         'Start-Job -ScriptBlock',
         'Open-ZipUpdateWithSharingRetry $stateCurrent 120 250',
         'Open-ZipReadWithSharingRetry $stateCurrent 120 250',
-        'Gate Framework r21 ZIP delayed-sharing-retry self-test: PASS'
+        'Gate Framework r22 ZIP delayed-sharing-retry self-test: PASS'
     )){
-        if(-not$fullGateText.Contains($token)){throw('Framework r21 Full Gate sharing-retry binding missing token: '+$token)}
+        if(-not$fullGateText.Contains($token)){throw('Framework r22 Full Gate sharing-retry binding missing token: '+$token)}
     }
     Write-Host '  PASS delayed-unlock retry + E4 bounded read/write retry binding'
 
@@ -452,7 +467,9 @@ try{
     Assert-ProductionDoctorRejected 'unrelated-warning' 2 (New-DoctorReportForTest @((New-DoctorFinding 'WARN' 'inbox.manager_invalid' 'invalid update package')))
     Assert-ProductionDoctorRejected 'doctor-error' 1 (New-DoctorReportForTest @((New-DoctorFinding 'ERROR' 'hub.manifest' 'drift')))
     Assert-ProductionDoctorRejected 'exit-zero-with-warning' 0 $missing
-    Write-Host '  PASS embedded production installer targeted Doctor transition-WARN contract'
+    Assert-ProductionDoctorRejected 'governance-missing-suffix' 2 $missingSuffix
+    Assert-ProductionDoctorRejected 'governance-stale-suffix' 2 $staleSuffix
+    Assert-ProductionDoctorRejected 'mixed-warning-error-summary-lie' 2 $mixedWarnErrorLie    Write-Host '  PASS embedded production installer targeted Doctor transition-WARN contract'
 
-    Write-Host 'FRAMEWORK r21 SELFTEST: PASS' -ForegroundColor Green
+    Write-Host 'FRAMEWORK r22 SELFTEST: PASS' -ForegroundColor Green
 }finally{if(Test-Path -LiteralPath $script:tempRoot){Remove-Item -LiteralPath $script:tempRoot -Recurse -Force -ErrorAction SilentlyContinue}}

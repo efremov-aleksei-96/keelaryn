@@ -106,21 +106,29 @@ function Test-IsPermittedTransitionDoctorWarning($Finding){
     if($null-eq$Finding){return $false}
     if([string]$Finding.Severity-cne'WARN'-or[string]$Finding.Code-cne'governance.status'){return $false}
     $message=([string]$Finding.Message).Trim()
-    if($message.StartsWith('Hub governance receipt is missing.',[System.StringComparison]::Ordinal)){return $true}
-    return [regex]::IsMatch($message,'^Hub governance r[0-9]+ is older than Manager r[0-9]+\.',[System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    $missing='Hub governance receipt is missing. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.'
+    if([string]::Equals($message,$missing,[System.StringComparison]::Ordinal)){return $true}
+    return [regex]::IsMatch(
+        $message,
+        '^Hub governance r[0-9]+ is older than Manager r[0-9]+\. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically\.$',
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant
+    )
 }
 function Assert-ProductionDoctorResult([int]$ExitCode,$Report){
     if($null-eq$Report){throw 'Production Doctor report is missing.'}
     $errors=[int]$Report.errors
     $warnings=[int]$Report.warnings
+    $errorRows=@($Report.findings|Where-Object{[string]$_.Severity-ceq'ERROR'})
     $warningRows=@($Report.findings|Where-Object{[string]$_.Severity-ceq'WARN'})
+    if($errors-ne$errorRows.Count){throw 'Production Doctor error count/report findings are inconsistent.'}
+    if($warnings-ne$warningRows.Count){throw 'Production Doctor warning count/report findings are inconsistent.'}
     if($errors-ne0){throw('Production Doctor reports errors='+$errors+'.')}
     if($ExitCode-eq0){
-        if($warnings-ne0-or$warningRows.Count-ne0){throw 'Production Doctor exit=0 is inconsistent with warning findings.'}
+        if($warnings-ne0){throw 'Production Doctor exit=0 is inconsistent with warning findings.'}
         return $false
     }
     if($ExitCode-ne2){throw('Production Doctor failed with non-transition exit='+$ExitCode+'.')}
-    if($warnings-lt1-or$warningRows.Count-ne$warnings){throw 'Production Doctor exit=2 warning count/report findings are inconsistent.'}
+    if($warnings-lt1){throw 'Production Doctor exit=2 requires at least one warning finding.'}
     foreach($finding in $warningRows){
         if(-not(Test-IsPermittedTransitionDoctorWarning $finding)){
             throw('Production Doctor rejected non-transition warning: '+[string]$finding.Code+'; '+[string]$finding.Message)

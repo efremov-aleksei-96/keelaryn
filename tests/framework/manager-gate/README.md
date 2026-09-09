@@ -284,3 +284,16 @@ Revision 21 keeps Manager 4.16.2 product bytes unchanged and carries the already
 - Framework self-test parses the actual embedded installer PowerShell and semantically exercises healthy/missing/stale acceptance plus all unsafe rejection cases.
 
 r21 must independently pass Windows parser/self-test, exact Manager 4.16.2 SourceGate, CURRENT-backed Full Gate, hosted exact-head qualification and Codex review before freeze/tag/merge. The r20 immutable tag and historical qualification evidence are not rewritten.
+## Revision 22 strict Doctor report integrity
+
+Framework r21 passed local Windows qualification and hosted exact-head workflows but was rejected before freeze/merge after Codex review found two P2 gaps in the Doctor transition-WARN policy. First, an exit-2 report could declare `errors=0` while still containing an ERROR finding; the r21 helper trusted the summary count and inspected only WARN rows. Second, the accepted governance `missing`/`stale` messages were prefix-matched, so an unsafe extra suffix could be accepted as a permitted transition warning.
+
+Revision 22 preserves Manager 4.16.2 product bytes and all r20/r21 sharing-retry protections while tightening both Full Gate and the generated production installer:
+
+- ERROR and WARN summary counts must exactly match their corresponding finding rows;
+- any ERROR row remains a hard failure even if the summary count lies;
+- the permitted missing-governance message must match the complete canonical message exactly;
+- the permitted stale-governance message must match the complete canonical pattern through the final period;
+- adversarial regressions cover malformed missing/stale suffixes and a mixed permitted WARN + ERROR report with a falsified `errors=0` summary.
+
+Framework r21 remains immutable rejected history at its exact source head and is not frozen or merged. Framework r22 requires fresh Windows parser/self-test, exact Manager 4.16.2 SourceGate, CURRENT-backed Full Gate, hosted exact-head qualification and Codex review before freeze/tag/merge.
