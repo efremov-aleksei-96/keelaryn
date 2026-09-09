@@ -52,7 +52,7 @@ function Open-ZipReadWithSharingRetry([string]$Path,[int]$Attempts=120,[int]$Del
 $script:ZipUpdateSharingRetrySelfTestReason=''
 function Test-ZipUpdateSharingRetrySelfTest{
     $script:ZipUpdateSharingRetrySelfTestReason=''
-    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r20_zip_retry_'+[guid]::NewGuid().ToString('N'))
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r22_zip_retry_'+[guid]::NewGuid().ToString('N'))
     $zip=Join-Path $temp 'locked.zip'
     $delayedZip=Join-Path $temp 'delayed-unlock.zip'
     $ready=Join-Path $temp 'delayed-lock-ready.txt'
@@ -66,14 +66,14 @@ function Test-ZipUpdateSharingRetrySelfTest{
         $lock=[System.IO.File]::Open($zip,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None)
         $classified=$false
         try{
-            $probe=Open-ZipUpdateWithSharingRetry $zip 1 0 'framework r20 sharing classification self-test'
+            $probe=Open-ZipUpdateWithSharingRetry $zip 1 0 'framework r22 sharing classification self-test'
             if($probe){$probe.Dispose()}
         }catch{$classified=Test-IsTransientFileLockException $_.Exception}
         if(-not$classified){$script:ZipUpdateSharingRetrySelfTestReason='Real Windows sharing violation was not classified/rethrown.';return $false}
         $lock.Dispose()
         $lock=$null
 
-        $probe=Open-ZipUpdateWithSharingRetry $zip 2 10 'framework r20 unlocked self-test'
+        $probe=Open-ZipUpdateWithSharingRetry $zip 2 10 'framework r22 unlocked self-test'
         try{if($null-eq$probe){$script:ZipUpdateSharingRetrySelfTestReason='Unlocked retry returned no archive.';return $false}}
         finally{if($probe){$probe.Dispose()}}
 
@@ -106,7 +106,7 @@ function Test-ZipUpdateSharingRetrySelfTest{
             Start-Sleep -Milliseconds 50
         }
 
-        $probe=Open-ZipUpdateWithSharingRetry $delayedZip 120 100 'framework r20 delayed-unlock self-test'
+        $probe=Open-ZipUpdateWithSharingRetry $delayedZip 120 100 'framework r22 delayed-unlock self-test'
         try{if($null-eq$probe){$script:ZipUpdateSharingRetrySelfTestReason='Delayed-unlock retry returned no archive.';return $false}}
         finally{if($probe){$probe.Dispose()}}
 
@@ -534,8 +534,13 @@ function Test-IsPermittedTransitionDoctorWarning($Finding){
     if($null-eq$Finding){return $false}
     if([string]$Finding.Severity-cne'WARN'-or[string]$Finding.Code-cne'governance.status'){return $false}
     $message=([string]$Finding.Message).Trim()
-    if($message.StartsWith('Hub governance receipt is missing.',[System.StringComparison]::Ordinal)){return $true}
-    return [regex]::IsMatch($message,'^Hub governance r[0-9]+ is older than Manager r[0-9]+\.',[System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    $missing='Hub governance receipt is missing. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.'
+    if([string]::Equals($message,$missing,[System.StringComparison]::Ordinal)){return $true}
+    return [regex]::IsMatch(
+        $message,
+        '^Hub governance r[0-9]+ is older than Manager r[0-9]+\. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically\.$',
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant
+    )
 }
 
 function Assert-DoctorGateResult($Result,$Report){
@@ -543,14 +548,17 @@ function Assert-DoctorGateResult($Result,$Report){
     $exitCode=[int]$Result.ExitCode
     $errors=[int]$Report.errors
     $warnings=[int]$Report.warnings
+    $errorRows=@($Report.findings|Where-Object{[string]$_.Severity-ceq'ERROR'})
     $warningRows=@($Report.findings|Where-Object{[string]$_.Severity-ceq'WARN'})
+    if($errors-ne$errorRows.Count){throw 'Doctor error count/report findings are inconsistent.'}
+    if($warnings-ne$warningRows.Count){throw 'Doctor warning count/report findings are inconsistent.'}
     if($errors-ne0){throw('Doctor gate reports errors='+$errors+'.')}
     if($exitCode-eq0){
-        if($warnings-ne0-or$warningRows.Count-ne0){throw 'Doctor exit=0 is inconsistent with warning findings.'}
+        if($warnings-ne0){throw 'Doctor exit=0 is inconsistent with warning findings.'}
         return $false
     }
     if($exitCode-ne2){throw('Doctor command failed with non-transition exit='+$exitCode+'.')}
-    if($warnings-lt1-or$warningRows.Count-ne$warnings){throw 'Doctor exit=2 warning count/report findings are inconsistent.'}
+    if($warnings-lt1){throw 'Doctor exit=2 requires at least one warning finding.'}
     foreach($finding in $warningRows){
         if(-not(Test-IsPermittedTransitionDoctorWarning $finding)){
             throw('Doctor gate rejected non-transition warning: '+[string]$finding.Code+'; '+[string]$finding.Message)
@@ -976,8 +984,8 @@ exit 0
 }
 
 try{
-    if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r20 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
-    Write-Host 'Gate Framework r20 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
+    if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r22 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
+    Write-Host 'Gate Framework r22 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
     try{Start-Transcript -LiteralPath $transcriptPath -Force|Out-Null;$transcriptStarted=$true}catch{Write-Host ('WARNING: transcript unavailable: '+$_.Exception.Message) -ForegroundColor Yellow}
 
     $script:CurrentPhase='gate/candidate binding preflight'

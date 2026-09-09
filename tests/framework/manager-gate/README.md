@@ -271,3 +271,29 @@ Revision 20 retains all r19 Doctor protections and strengthens only the reusable
 A persistent lock beyond the bounded budget still fails qualification. Manager 4.16.2 product bytes remain unchanged at the previously SourceGate-tested commit; this is a Framework-only correction.
 
 Framework r20 must pass parser/self-test, real exact Manager 4.16.2 SourceGate, the full CURRENT-backed Windows gate, hosted exact-head qualification and Codex review before any freeze/tag/merge.
+## Revision 21 production installer Doctor transition warnings
+
+Framework r20 remains immutable historical provenance. After r20 was frozen/tagged/merged and exact Manager 4.16.2 passed the final merged-r20 CURRENT-backed Full Gate, release-tooling review found one remaining transition mismatch in the generated `Install-TestedManagerUpdate.ps1`: it treated every nonzero Doctor exit as installation failure. Existing Hubs that legitimately require explicit governance reconciliation therefore caused an otherwise successful tested Manager installation to end with a false failure when Doctor returned exit 2 for `governance.status` missing/stale.
+
+Revision 21 keeps Manager 4.16.2 product bytes unchanged and carries the already-qualified Full Gate Doctor policy into the generated production installer:
+
+- Doctor exit 0 is accepted only when the report has zero errors and zero warnings;
+- Doctor exit 2 is accepted only when every warning is exactly `governance.status` and specifically the missing or stale transition state;
+- newer governance, contract mismatch, invalid governance, unrelated warnings, Doctor errors, inconsistent warning counts and unexpected exit codes remain hard failures;
+- accepted transition warnings are surfaced explicitly as `PRODUCTION DOCTOR: PASS WITH TRANSITION WARNINGS` and still require Chat Manager reconciliation; the installer never mutates Hub governance;
+- Framework self-test parses the actual embedded installer PowerShell and semantically exercises healthy/missing/stale acceptance plus all unsafe rejection cases.
+
+r21 must independently pass Windows parser/self-test, exact Manager 4.16.2 SourceGate, CURRENT-backed Full Gate, hosted exact-head qualification and Codex review before freeze/tag/merge. The r20 immutable tag and historical qualification evidence are not rewritten.
+## Revision 22 strict Doctor report integrity
+
+Framework r21 passed local Windows qualification and hosted exact-head workflows but was rejected before freeze/merge after Codex review found two P2 gaps in the Doctor transition-WARN policy. First, an exit-2 report could declare `errors=0` while still containing an ERROR finding; the r21 helper trusted the summary count and inspected only WARN rows. Second, the accepted governance `missing`/`stale` messages were prefix-matched, so an unsafe extra suffix could be accepted as a permitted transition warning.
+
+Revision 22 preserves Manager 4.16.2 product bytes and all r20/r21 sharing-retry protections while tightening both Full Gate and the generated production installer:
+
+- ERROR and WARN summary counts must exactly match their corresponding finding rows;
+- any ERROR row remains a hard failure even if the summary count lies;
+- the permitted missing-governance message must match the complete canonical message exactly;
+- the permitted stale-governance message must match the complete canonical pattern through the final period;
+- adversarial regressions cover malformed missing/stale suffixes and a mixed permitted WARN + ERROR report with a falsified `errors=0` summary.
+
+Framework r21 remains immutable rejected history at its exact source head and is not frozen or merged. Framework r22 requires fresh Windows parser/self-test, exact Manager 4.16.2 SourceGate, CURRENT-backed Full Gate, hosted exact-head qualification and Codex review before freeze/tag/merge.
