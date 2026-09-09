@@ -30,6 +30,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact checkout identity
+        shell: powershell
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $actual = (& git rev-parse HEAD).Trim()
+          if ($actual -cne $env:EXPECTED_SHA) {
+              throw ('Framework qualification checkout mismatch: actual='+$actual+' expected='+$env:EXPECTED_SHA)
+          }
+          Write-Host ('Framework qualification exact checkout: PASS. sha='+$actual) -ForegroundColor Green
 
       - name: Parse framework PowerShell
         shell: powershell
@@ -45,7 +57,7 @@ jobs:
           }
           Write-Host 'Gate Framework parser: PASS' -ForegroundColor Green
 
-      - name: Run Framework r13 self-test
+      - name: Run Framework self-test
         shell: powershell
         run: |
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tests\framework\manager-gate\Test-ManagerGateFramework.ps1"
@@ -63,7 +75,7 @@ jobs:
           $provenance = Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8 | ConvertFrom-Json
           $version = [string]$install.manager_version
           $baseline = [string]$provenance.source_gate_baseline_manager_version
-          $temp = Join-Path $env:RUNNER_TEMP ('framework-r13-equivalence-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          $temp = Join-Path $env:RUNNER_TEMP ('framework-r14-equivalence-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
           $stage = Join-Path $temp 'source-stage'
           $managerStage = Join-Path $stage 'keelaryn\manager'
           New-Item -ItemType Directory -Force -Path $managerStage | Out-Null
@@ -77,9 +89,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path $rootOut,$zipOut | Out-Null
           $rootGate = Join-Path $rootOut ('manager-'+$version+'.zip')
           $zipGate = Join-Path $zipOut ('manager-'+$version+'.zip')
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot $manager -BaselineVersion $baseline -GateRevision 9013 -OutputPath $rootGate
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot $manager -BaselineVersion $baseline -GateRevision 9014 -OutputPath $rootGate
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceZip $sourceZip -BaselineVersion $baseline -GateRevision 9013 -OutputPath $zipGate
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceZip $sourceZip -BaselineVersion $baseline -GateRevision 9014 -OutputPath $zipGate
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $rootHash = (Get-FileHash -LiteralPath $rootGate -Algorithm SHA256).Hash.ToLowerInvariant()
           $zipHash = (Get-FileHash -LiteralPath $zipGate -Algorithm SHA256).Hash.ToLowerInvariant()
