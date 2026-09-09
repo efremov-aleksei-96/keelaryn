@@ -61,7 +61,7 @@ function Assert-Rejected([string]$Name,[object[]]$Entries,$Limits=$null){
 }
 
 $revision=(Get-Content -LiteralPath (Join-Path $frameworkRoot 'FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
-if($revision-cne'15'){throw('Framework qualification expected revision 15, got '+$revision)}
+if($revision-cne'16'){throw('Framework qualification expected revision 16, got '+$revision)}
 
 foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filter '*.ps1')){
     $tokens=$null;$errors=$null
@@ -69,10 +69,10 @@ foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filte
     if(@($errors).Count-ne0){throw('PowerShell parser rejected framework file '+$ps.FullName+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
 }
 $builderText=[System.IO.File]::ReadAllText($builderPath,[System.Text.Encoding]::UTF8)
-if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r15 builder must not use Expand-Archive for SourceZip.'}
-foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r15 builder safety binding missing token: '+$token)}}
+if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r16 builder must not use Expand-Archive for SourceZip.'}
+foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r16 builder safety binding missing token: '+$token)}}
 
-$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r15_selftest_'+[guid]::NewGuid().ToString('N'))
+$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r16_selftest_'+[guid]::NewGuid().ToString('N'))
 try{
     New-Item -ItemType Directory -Force -Path $script:tempRoot|Out-Null
     $valid=Get-ValidEntries
@@ -133,6 +133,11 @@ try{
     $manifestContractFunctions=@($ast.FindAll({param($node)$node-is[System.Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-eq'Assert-TransitionInstallationManifestMatchesUpdateTransport'},$true))
     if($manifestContractFunctions.Count-ne1){throw('Expected exactly one Assert-TransitionInstallationManifestMatchesUpdateTransport function in SourceGate template; actual='+$manifestContractFunctions.Count)}
     Invoke-Expression ([string]$manifestContractFunctions[0].Extent.Text)
+    foreach($helperName in @('Get-ZipEntryDigest','Assert-TransitionAliasPayloadBinding')){
+        $helperFunctions=@($ast.FindAll({param($node)$node-is[System.Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-eq$helperName},$true))
+        if($helperFunctions.Count-ne1){throw('Expected exactly one '+$helperName+' function in SourceGate template; actual='+$helperFunctions.Count)}
+        Invoke-Expression ([string]$helperFunctions[0].Extent.Text)
+    }
 
     $final=@('product/a.txt','product/b.txt')
     $transition=@('Keelaryn__Manager.ps1','_manager_manifest.json','_manager_version.txt')
@@ -166,6 +171,63 @@ try{
     }
     if(-not$extraTransitionRejected){throw 'UPDATE transition installation manifest with an extra path was accepted.'}
 
+    $duplicateTransition=@($validTransitionManifest)+@($validTransitionManifest[0])
+    $duplicateTransitionRejected=$false
+    try{
+        Assert-TransitionInstallationManifestMatchesUpdateTransport -TransitionPaths $duplicateTransition -ExpectedPackagePaths @($validContract.ExpectedPackagePaths)
+    }catch{
+        $duplicateTransitionRejected=$true
+        Write-Host('  PASS reject update-transition-manifest-duplicate-path: '+$_.Exception.Message)
+    }
+    if(-not$duplicateTransitionRejected){throw 'UPDATE transition installation manifest duplicate path was silently accepted.'}
+
+    $aliasZip=Join-Path $script:tempRoot 'alias-binding.zip'
+    $aliasArchive=[System.IO.Compression.ZipFile]::Open($aliasZip,[System.IO.Compression.ZipArchiveMode]::Create)
+    try{
+        $srcEntry=$aliasArchive.CreateEntry('source.txt',[System.IO.Compression.CompressionLevel]::NoCompression)
+        $writer=New-Object System.IO.StreamWriter($srcEntry.Open(),(New-Object System.Text.UTF8Encoding($false)))
+        try{$writer.Write('canonical bytes')}finally{$writer.Dispose()}
+        $aliasEntry=$aliasArchive.CreateEntry('alias.txt',[System.IO.Compression.CompressionLevel]::NoCompression)
+        $writer=New-Object System.IO.StreamWriter($aliasEntry.Open(),(New-Object System.Text.UTF8Encoding($false)))
+        try{$writer.Write('canonical bytes')}finally{$writer.Dispose()}
+    }finally{$aliasArchive.Dispose()}
+
+    $aliasArchive=[System.IO.Compression.ZipFile]::OpenRead($aliasZip)
+    try{
+        $srcEntry=@($aliasArchive.Entries|Where-Object{$_.FullName-eq'source.txt'})[0]
+        $aliasEntry=@($aliasArchive.Entries|Where-Object{$_.FullName-eq'alias.txt'})[0]
+        $srcDigest=Get-ZipEntryDigest $srcEntry
+        $row=[pscustomobject]@{sha256=$srcDigest.Sha256;size_bytes=$srcDigest.Size}
+        Assert-TransitionAliasPayloadBinding -AliasRow $row -SourceRow $row -AliasEntry $aliasEntry -SourceEntry $srcEntry -AliasPath 'legacy/a.txt' -SourcePath 'product/a.txt'
+    }finally{$aliasArchive.Dispose()}
+
+    $badAliasZip=Join-Path $script:tempRoot 'alias-binding-corrupt.zip'
+    $badArchive=[System.IO.Compression.ZipFile]::Open($badAliasZip,[System.IO.Compression.ZipArchiveMode]::Create)
+    try{
+        $srcEntry=$badArchive.CreateEntry('source.txt',[System.IO.Compression.CompressionLevel]::NoCompression)
+        $writer=New-Object System.IO.StreamWriter($srcEntry.Open(),(New-Object System.Text.UTF8Encoding($false)))
+        try{$writer.Write('canonical bytes')}finally{$writer.Dispose()}
+        $aliasEntry=$badArchive.CreateEntry('alias.txt',[System.IO.Compression.CompressionLevel]::NoCompression)
+        $writer=New-Object System.IO.StreamWriter($aliasEntry.Open(),(New-Object System.Text.UTF8Encoding($false)))
+        try{$writer.Write('corrupted bytes')}finally{$writer.Dispose()}
+    }finally{$badArchive.Dispose()}
+
+    $badArchive=[System.IO.Compression.ZipFile]::OpenRead($badAliasZip)
+    try{
+        $srcEntry=@($badArchive.Entries|Where-Object{$_.FullName-eq'source.txt'})[0]
+        $aliasEntry=@($badArchive.Entries|Where-Object{$_.FullName-eq'alias.txt'})[0]
+        $srcDigest=Get-ZipEntryDigest $srcEntry
+        $copiedRow=[pscustomobject]@{sha256=$srcDigest.Sha256;size_bytes=$srcDigest.Size}
+        $corruptRejected=$false
+        try{
+            Assert-TransitionAliasPayloadBinding -AliasRow $copiedRow -SourceRow $copiedRow -AliasEntry $aliasEntry -SourceEntry $srcEntry -AliasPath 'legacy/a.txt' -SourcePath 'product/a.txt'
+        }catch{
+            $corruptRejected=$true
+            Write-Host('  PASS reject corrupted-alias-payload-bytes: '+$_.Exception.Message)
+        }
+        if(-not$corruptRejected){throw 'Corrupted alias payload bytes were accepted from copied manifest metadata.'}
+    }finally{$badArchive.Dispose()}
+
     $rejectContract={
         param($Policy,[string]$Label)
         $rejected=$false
@@ -177,5 +239,5 @@ try{
     &$rejectContract ([pscustomobject]@{transition_compatibility_aliases=@([pscustomobject]@{path='legacy/a.txt';source_path='product/a.txt'},[pscustomobject]@{path='LEGACY/A.TXT';source_path='product/b.txt'})}) 'case-alias-duplicate'
     &$rejectContract ([pscustomobject]@{transition_compatibility_aliases=@([pscustomobject]@{path='../escape.txt';source_path='product/a.txt'})}) 'unsafe-path'
 
-    Write-Host 'FRAMEWORK r15 SELFTEST: PASS' -ForegroundColor Green
+    Write-Host 'FRAMEWORK r16 SELFTEST: PASS' -ForegroundColor Green
 }finally{if(Test-Path -LiteralPath $script:tempRoot){Remove-Item -LiteralPath $script:tempRoot -Recurse -Force -ErrorAction SilentlyContinue}}

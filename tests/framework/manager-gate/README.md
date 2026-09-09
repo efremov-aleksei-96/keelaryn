@@ -189,3 +189,18 @@ Revision 15 keeps the r14 alias safety rules and preserves the gate-source root 
 - fixes repository .gitattributes precedence so generic *.json/*.md EOL rules cannot override authoritative manager/** or Framework byte preservation.
 
 The r15 Framework self-test extracts and executes the alias-contract and UPDATE transition-manifest equality helpers, including missing-alias and extra-path rejection. Qualification additionally requires a real SourceGate against the exact Manager 4.16.1 candidate and later the disposable Full Gate path exercising the supported Manager 4.15.1 -> 4.16.1 native update.
+## Revision 16 updater-equivalence hardening
+
+Revision 15 was exact-head qualified and frozen but rejected before merge after post-freeze Codex review identified two updater-equivalence gaps that remained in Gate C2.
+
+Revision 16 preserves all r15 transport-alias, UPDATE-internal manifest and checkout-byte protections, and additionally:
+
+- validates the raw UPDATE-internal `_manager_manifest.json.managed_files` array before normalization, rejecting duplicate paths instead of silently deduplicating them;
+- hashes the actual compatibility-alias ZIP payload entry and its canonical source payload entry;
+- requires both actual payload digests and uncompressed sizes to match their respective manifest rows;
+- requires the actual alias payload bytes to equal the actual canonical source payload bytes;
+- retains the exact UPDATE transport set, SOURCE/DISTRIBUTION exclusion and final-managed isolation.
+
+The Framework self-test extracts the real SourceGate helpers and includes adversarial regression cases for a duplicated UPDATE transition-manifest path and for corrupted alias payload bytes paired with copied source metadata. Both must be rejected.
+
+Framework r16 must still pass the real exact-byte Manager 4.16.1 SourceGate before commit, then fresh hosted exact-head qualification and review before any provenance freeze. Framework r15 remains immutable historical evidence and is not rewritten.

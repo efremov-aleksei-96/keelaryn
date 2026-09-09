@@ -356,7 +356,7 @@
                 },
     "gate_framework":  {
                            "framework_version":  "2.0",
-                           "revision":  15,
+                           "revision":  16,
                            "file_count":  11,
                            "files":  [
                                          {
@@ -367,7 +367,7 @@
                                          {
                                              "path":  "FRAMEWORK_REVISION.txt",
                                              "size_bytes":  3,
-                                             "sha256":  "238903180cc104ec2c5d8b3f20c5bc61b389ec0a967df8cc208cdc7cd454174f"
+                                             "sha256":  "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017"
                                          },
                                          {
                                              "path":  "GATE_SPEC.schema.json",
@@ -376,8 +376,8 @@
                                          },
                                          {
                                              "path":  "README.md",
-                                             "size_bytes":  13552,
-                                             "sha256":  "91cb0cb62f3dd18618008a73f43bc2bc740706466e8641b86d89e455a1c84b0a"
+                                             "size_bytes":  14957,
+                                             "sha256":  "901fd96162b7f3212f1d320702871f924e0664ae26800ee90d9f28c7c79b88a6"
                                          },
                                          {
                                              "path":  "SourceZipSafety.ps1",
@@ -386,8 +386,8 @@
                                          },
                                          {
                                              "path":  "Test-ManagerGateFramework.ps1",
-                                             "size_bytes":  13731,
-                                             "sha256":  "6df3e0e38f0fac370c9c9c31016490e2179fa67764317ae7f69fc6cecfa6cff3"
+                                             "size_bytes":  17995,
+                                             "sha256":  "ffee3b13fb24e1df8ce4e7a645aae2d996835795cc008ae3e1e622b32a31f06a"
                                          },
                                          {
                                              "path":  "templates/Invoke-KeelarynGateChild.ps1",
@@ -411,8 +411,8 @@
                                          },
                                          {
                                              "path":  "templates/Run-KeelarynManagerSourceGate.ps1",
-                                             "size_bytes":  59513,
-                                             "sha256":  "50ea1efcec844d91aaff9924e16777d1cffc496a0a3c2edf099709a37a4afa13"
+                                             "size_bytes":  62078,
+                                             "sha256":  "7bdfab98e115778cdbfeef922abf8e566136089aa2a0339b418b2312425d66a8"
                                          }
                                      ]
                        },
