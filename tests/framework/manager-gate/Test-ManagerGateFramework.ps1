@@ -61,7 +61,7 @@ function Assert-Rejected([string]$Name,[object[]]$Entries,$Limits=$null){
 }
 
 $revision=(Get-Content -LiteralPath (Join-Path $frameworkRoot 'FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
-if($revision-cne'18'){throw('Framework qualification expected revision 18, got '+$revision)}
+if($revision-cne'19'){throw('Framework qualification expected revision 19, got '+$revision)}
 
 foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filter '*.ps1')){
     $tokens=$null;$errors=$null
@@ -69,60 +69,60 @@ foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filte
     if(@($errors).Count-ne0){throw('PowerShell parser rejected framework file '+$ps.FullName+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
 }
 $builderText=[System.IO.File]::ReadAllText($builderPath,[System.Text.Encoding]::UTF8)
-if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r18 builder must not use Expand-Archive for SourceZip.'}
-foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r18 builder safety binding missing token: '+$token)}}
+if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r19 builder must not use Expand-Archive for SourceZip.'}
+foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r19 builder safety binding missing token: '+$token)}}
 
-$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r18_selftest_'+[guid]::NewGuid().ToString('N'))
+$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r19_selftest_'+[guid]::NewGuid().ToString('N'))
 try{
     New-Item -ItemType Directory -Force -Path $script:tempRoot|Out-Null
     $valid=Get-ValidEntries
 
-    Write-Host '[1/12] Valid SourceZip extraction...'
+    Write-Host '[1/13] Valid SourceZip extraction...'
     $validZip=Join-Path $script:tempRoot 'valid-source.zip';New-TestZip $validZip $valid
     $validOut=Join-Path $script:tempRoot 'valid-out'
     $managerRoot=Expand-KeelarynSourceZipSafely -ZipPath $validZip -Destination $validOut -RequiredRoot 'keelaryn'
     if(-not(Test-Path -LiteralPath (Join-Path $managerRoot 'product\install\INSTALLATION.json') -PathType Leaf)){throw 'Valid SourceZip extraction lost INSTALLATION.json.'}
 
-    Write-Host '[2/12] Builder SourceZip integration...'
+    Write-Host '[2/13] Builder SourceZip integration...'
     $gateOut=Join-Path $script:tempRoot 'manager-9.9.9.zip'
     & (Join-Path $PSHOME 'powershell.exe') -NoProfile -ExecutionPolicy Bypass -File $builderPath -SourceZip $validZip -BaselineVersion '9.9.8' -GateRevision 1 -OutputPath $gateOut
     if($LASTEXITCODE-ne0-or-not(Test-Path -LiteralPath $gateOut -PathType Leaf)){throw 'Builder SourceZip integration failed.'}
 
-    Write-Host '[3/12] Zip Slip / dot-segment rejection...'
+    Write-Host '[3/13] Zip Slip / dot-segment rejection...'
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name='keelaryn/manager/../escape.txt';Text='x';Bytes=$null;Compression='Optimal';ExternalAttributes=0};Assert-Rejected 'zip-slip' $rows
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name='keelaryn/manager/./dot.txt';Text='x';Bytes=$null;Compression='Optimal';ExternalAttributes=0};Assert-Rejected 'dot-segment' $rows
 
-    Write-Host '[4/12] Windows reserved-name rejection...'
+    Write-Host '[4/13] Windows reserved-name rejection...'
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name='keelaryn/manager/CON.txt';Text='x';Bytes=$null;Compression='Optimal';ExternalAttributes=0};Assert-Rejected 'reserved-name' $rows
 
-    Write-Host '[5/12] Case-alias rejection...'
+    Write-Host '[5/13] Case-alias rejection...'
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name='keelaryn/manager/Case.txt';Text='a';Bytes=$null;Compression='Optimal';ExternalAttributes=0};$rows+=,[pscustomobject]@{Name='keelaryn/manager/case.txt';Text='b';Bytes=$null;Compression='Optimal';ExternalAttributes=0};Assert-Rejected 'case-alias' $rows
 
-    Write-Host '[6/12] Unicode-normalization alias rejection...'
+    Write-Host '[6/13] Unicode-normalization alias rejection...'
     $composed='caf'+[char]0x00E9+'.txt';$decomposed='cafe'+[char]0x0301+'.txt'
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name=('keelaryn/manager/'+$composed);Text='a';Bytes=$null;Compression='Optimal';ExternalAttributes=0};$rows+=,[pscustomobject]@{Name=('keelaryn/manager/'+$decomposed);Text='b';Bytes=$null;Compression='Optimal';ExternalAttributes=0};Assert-Rejected 'unicode-alias' $rows
 
-    Write-Host '[7/12] Symlink metadata rejection...'
+    Write-Host '[7/13] Symlink metadata rejection...'
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name='keelaryn/manager/link';Text='target';Bytes=$null;Compression='Optimal';ExternalAttributes=-1577123840};Assert-Rejected 'symlink-metadata' $rows
 
-    Write-Host '[8/12] Windows reparse metadata rejection...'
+    Write-Host '[8/13] Windows reparse metadata rejection...'
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name='keelaryn/manager/reparse';Text='x';Bytes=$null;Compression='Optimal';ExternalAttributes=1024};Assert-Rejected 'reparse-metadata' $rows
 
-    Write-Host '[9/12] Compression-ratio rejection...'
+    Write-Host '[9/13] Compression-ratio rejection...'
     $bomb=New-Object byte[] (2MB);for($i=0;$i-lt$bomb.Length;$i++){$bomb[$i]=65}
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name='keelaryn/manager/ratio-bomb.bin';Text=$null;Bytes=$bomb;Compression='Optimal';ExternalAttributes=0};Assert-Rejected 'compression-ratio' $rows
 
-    Write-Host '[10/12] Expanded-size limit rejection...'
+    Write-Host '[10/13] Expanded-size limit rejection...'
     $limits=Get-KeelarynSourceZipLimits;$limits.MaxExpandedBytes=[long]1024;$limits.MaxEntryBytes=[long]1024
     $large=New-Object byte[] 2048
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name='keelaryn/manager/large.bin';Text=$null;Bytes=$large;Compression='NoCompression';ExternalAttributes=0};Assert-Rejected 'expanded-size' $rows $limits
 
-    Write-Host '[11/12] Entry-count limit rejection...'
+    Write-Host '[11/13] Entry-count limit rejection...'
     $limits=Get-KeelarynSourceZipLimits;$limits.MaxEntries=2
     $rows=Clone-Entries $valid;$rows+=,[pscustomobject]@{Name='keelaryn/manager/third.txt';Text='x';Bytes=$null;Compression='Optimal';ExternalAttributes=0};Assert-Rejected 'entry-count' $rows $limits
 
 
-    Write-Host '[12/12] Transition UPDATE compatibility-alias contract...'
+    Write-Host '[12/13] Transition UPDATE compatibility-alias contract...'
     $sourceGateTemplate=Join-Path $frameworkRoot 'templates\Run-KeelarynManagerSourceGate.ps1'
     $tokens=$null;$errors=$null
     $ast=[System.Management.Automation.Language.Parser]::ParseFile($sourceGateTemplate,[ref]$tokens,[ref]$errors)
@@ -325,5 +325,78 @@ try{
     &$rejectContract ([pscustomobject]@{transition_compatibility_aliases=@([pscustomobject]@{path='legacy/a.txt';source_path='product/a.txt'},[pscustomobject]@{path='LEGACY/A.TXT';source_path='product/b.txt'})}) 'case-alias-duplicate'
     &$rejectContract ([pscustomobject]@{transition_compatibility_aliases=@([pscustomobject]@{path='../escape.txt';source_path='product/a.txt'})}) 'unsafe-path'
 
-    Write-Host 'FRAMEWORK r18 SELFTEST: PASS' -ForegroundColor Green
+    Write-Host '[13/13] Full Gate Doctor transition-WARN contract...'
+    $fullGateTemplate=Join-Path $frameworkRoot 'templates\Run-KeelarynManagerFullGate.ps1'
+    $tokens=$null;$errors=$null
+    $fullAst=[System.Management.Automation.Language.Parser]::ParseFile($fullGateTemplate,[ref]$tokens,[ref]$errors)
+    if(@($errors).Count-ne0){throw('FullGate template parser failure before Doctor-contract extraction: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+    foreach($helperName in @('Test-IsPermittedTransitionDoctorWarning','Assert-DoctorGateResult','Normalize-DoctorFindingMessage','FindingSignature')){
+        $helper=@($fullAst.FindAll({param($node)$node-is[System.Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-eq$helperName},$true))
+        if($helper.Count-ne1){throw('Expected exactly one '+$helperName+' function in FullGate template; actual='+$helper.Count)}
+        Invoke-Expression ([string]$helper[0].Extent.Text)
+    }
+
+    function New-DoctorFinding([string]$Severity,[string]$Code,[string]$Message){
+        return [pscustomobject]@{Severity=$Severity;Code=$Code;Message=$Message}
+    }
+    function New-DoctorReportForTest([object[]]$Findings){
+        $rows=@($Findings)
+        return [pscustomobject]@{
+            errors=@($rows|Where-Object{[string]$_.Severity-ceq'ERROR'}).Count
+            warnings=@($rows|Where-Object{[string]$_.Severity-ceq'WARN'}).Count
+            findings=$rows
+        }
+    }
+    function Assert-DoctorContractRejected([string]$Label,[int]$ExitCode,$Report){
+        $rejected=$false
+        try{[void](Assert-DoctorGateResult ([pscustomobject]@{ExitCode=$ExitCode}) $Report)}
+        catch{$rejected=$true;Write-Host('  PASS reject '+$Label+': '+$_.Exception.Message)}
+        if(-not$rejected){throw('Doctor gate contract accepted unsafe case: '+$Label)}
+    }
+
+    $healthy=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'healthy')
+    )
+    if([bool](Assert-DoctorGateResult ([pscustomobject]@{ExitCode=0}) $healthy)){throw 'Healthy Doctor was classified as transition warning.'}
+
+    $missing=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'healthy'),
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance receipt is missing. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.')
+    )
+    if(-not[bool](Assert-DoctorGateResult ([pscustomobject]@{ExitCode=2}) $missing)){throw 'Missing governance receipt transition WARN was not accepted.'}
+
+    $stale=New-DoctorReportForTest @(
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance r1 is older than Manager r2. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.')
+    )
+    if(-not[bool](Assert-DoctorGateResult ([pscustomobject]@{ExitCode=2}) $stale)){throw 'Stale governance transition WARN was not accepted.'}
+
+    Assert-DoctorContractRejected 'governance-newer' 2 (New-DoctorReportForTest @(
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance r3 is newer than Manager r2. Update/review Manager compatibility before reconciliation; Manager will not downgrade Hub governance.')
+    ))
+    Assert-DoctorContractRejected 'governance-contract-mismatch' 2 (New-DoctorReportForTest @(
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance revision matches Manager but the adopted Workspace/managed-path contract differs. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.')
+    ))
+    Assert-DoctorContractRejected 'governance-invalid' 2 (New-DoctorReportForTest @(
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance receipt is unsafe. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.')
+    ))
+    Assert-DoctorContractRejected 'unrelated-warning' 2 (New-DoctorReportForTest @(
+        (New-DoctorFinding 'WARN' 'inbox.manager_invalid' 'invalid update package')
+    ))
+    Assert-DoctorContractRejected 'doctor-error' 1 (New-DoctorReportForTest @(
+        (New-DoctorFinding 'ERROR' 'hub.manifest' 'drift')
+    ))
+    Assert-DoctorContractRejected 'exit-zero-with-warning' 0 $missing
+
+    $baselineSigReport=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'same')
+    )
+    $candidateSigReport=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'same'),
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance receipt is missing. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.')
+    )
+    if((FindingSignature $baselineSigReport)-ceq(FindingSignature $candidateSigReport)){throw 'Raw Doctor signature unexpectedly ignored governance.status.'}
+    if((FindingSignature $baselineSigReport -IgnoreGovernanceStatus)-cne(FindingSignature $candidateSigReport -IgnoreGovernanceStatus)){throw 'Governance-aware cross-version Doctor signature still differs.'}
+    Write-Host '  PASS targeted Doctor transition-WARN and cross-version signature contract'
+
+    Write-Host 'FRAMEWORK r19 SELFTEST: PASS' -ForegroundColor Green
 }finally{if(Test-Path -LiteralPath $script:tempRoot){Remove-Item -LiteralPath $script:tempRoot -Recurse -Force -ErrorAction SilentlyContinue}}

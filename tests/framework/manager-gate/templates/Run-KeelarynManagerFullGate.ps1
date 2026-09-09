@@ -471,6 +471,50 @@ function Get-DoctorReport([string]$ManagerRoot){
     return (Get-Content -LiteralPath $p -Raw -Encoding UTF8)|ConvertFrom-Json
 }
 
+function Test-IsPermittedTransitionDoctorWarning($Finding){
+    if($null-eq$Finding){return $false}
+    if([string]$Finding.Severity-cne'WARN'-or[string]$Finding.Code-cne'governance.status'){return $false}
+    $message=([string]$Finding.Message).Trim()
+    if($message.StartsWith('Hub governance receipt is missing.',[System.StringComparison]::Ordinal)){return $true}
+    return [regex]::IsMatch($message,'^Hub governance r[0-9]+ is older than Manager r[0-9]+\.',[System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+}
+
+function Assert-DoctorGateResult($Result,$Report){
+    if($null-eq$Result-or$null-eq$Report){throw 'Doctor gate result/report is missing.'}
+    $exitCode=[int]$Result.ExitCode
+    $errors=[int]$Report.errors
+    $warnings=[int]$Report.warnings
+    $warningRows=@($Report.findings|Where-Object{[string]$_.Severity-ceq'WARN'})
+    if($errors-ne0){throw('Doctor gate reports errors='+$errors+'.')}
+    if($exitCode-eq0){
+        if($warnings-ne0-or$warningRows.Count-ne0){throw 'Doctor exit=0 is inconsistent with warning findings.'}
+        return $false
+    }
+    if($exitCode-ne2){throw('Doctor command failed with non-transition exit='+$exitCode+'.')}
+    if($warnings-lt1-or$warningRows.Count-ne$warnings){throw 'Doctor exit=2 warning count/report findings are inconsistent.'}
+    foreach($finding in $warningRows){
+        if(-not(Test-IsPermittedTransitionDoctorWarning $finding)){
+            throw('Doctor gate rejected non-transition warning: '+[string]$finding.Code+'; '+[string]$finding.Message)
+        }
+    }
+    return $true
+}
+
+function Run-DoctorForGate([string]$ManagerRoot,[bool]$Show=$true){
+    $r=Invoke-ManagerCapture $ManagerRoot @('-Doctor')
+    if($Show){
+        if($r.StdOut){Write-Host $r.StdOut.TrimEnd([char[]]"`r`n")}
+        if($r.StdErr){Write-Host $r.StdErr.TrimEnd([char[]]"`r`n") -ForegroundColor Yellow}
+    }
+    $report=Get-DoctorReport $ManagerRoot
+    $transitionWarning=[bool](Assert-DoctorGateResult $r $report)
+    if($transitionWarning){
+        $messages=@($report.findings|Where-Object{[string]$_.Severity-ceq'WARN'}|ForEach-Object{[string]$_.Message})
+        Write-Host ('Doctor transition governance WARN accepted for disposable upgrade qualification: '+([string]::Join(' | ',$messages))) -ForegroundColor Yellow
+    }
+    return [pscustomobject]@{Result=$r;Report=$report;TransitionWarningAccepted=$transitionWarning}
+}
+
 function Normalize-DoctorFindingMessage([string]$Code,[string]$Message){
     if($Code-eq'hub.state'){
         $m=[regex]::Match($Message,'^STATE identifies Hub v(?<version>[0-9]+(?:\.[0-9]+){1,3})(?: r[0-9]+| \| revision [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2})\.$')
@@ -483,10 +527,10 @@ function Normalize-DoctorFindingMessage([string]$Code,[string]$Message){
     return $Message
 }
 
-function FindingSignature($Report){
+function FindingSignature($Report,[switch]$IgnoreGovernanceStatus){
     return [string]::Join("`n",@(
         $Report.findings|
-        Where-Object{[string]$_.Code-notlike'manager.*'}|
+        Where-Object{[string]$_.Code-notlike'manager.*'-and(-not$IgnoreGovernanceStatus-or[string]$_.Code-cne'governance.status')}|
         ForEach-Object{
             $code=[string]$_.Code
             [string]$_.Severity+'|'+$code+'|'+(Normalize-DoctorFindingMessage $code ([string]$_.Message))
@@ -1001,8 +1045,8 @@ try{
     $script:CurrentPhase='Doctor / migration compatibility'
     Write-Host 'Full Gate D3: SelfTest / Doctor / migration compatibility' -ForegroundColor Cyan
     $null=Run-Manager $mgr @('-SelfTest') $true
-    $null=Run-Manager $mgr @('-Doctor') $true
-    $candidateReport=Get-DoctorReport $mgr
+    $candidateDoctor=Run-DoctorForGate $mgr $true
+    $candidateReport=$candidateDoctor.Report
     if([int]$candidateReport.errors-ne0){throw ('Disposable Manager '+$version+' Doctor reports errors.')}
     Copy-Item -LiteralPath (Join-Path $stateRoot 'logs\DOCTOR_REPORT.json') -Destination (Join-Path $doctorRoot ('candidate_'+$version+'.json')) -Force
     $revisionPattern='\| revision [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}'
@@ -1012,7 +1056,7 @@ try{
         if(([string]$finding[0].Message)-notmatch$revisionPattern){throw('Candidate Doctor did not render immutable revision time for legacy Hub: '+$code+' -> '+[string]$finding[0].Message)}
         if(([string]$finding[0].Message)-match'\br[0-9]+\b'){throw('Candidate Doctor leaked legacy rNNNN as the primary revision display: '+$code)}
     }
-    if((FindingSignature $baselineReport)-cne(FindingSignature $candidateReport)){throw ('Stable non-Manager Doctor findings changed across '+$baseline+' -> '+$version+'.')}
+    if((FindingSignature $baselineReport -IgnoreGovernanceStatus)-cne(FindingSignature $candidateReport -IgnoreGovernanceStatus)){throw ('Stable non-Manager Doctor findings changed across '+$baseline+' -> '+$version+' after excluding separately validated governance.status.')}
     $mig=Run-Manager $mgr @('-CheckMigrations') $false
     if($mig.Text-notmatch'Migration status: up_to_date'){throw 'Disposable production-compatible Hub is not migration up_to_date.'}
     $summary.phases.doctor_migrations=$true
@@ -1114,7 +1158,7 @@ try{
     try{$entry=$za.CreateEntry('Keelaryn__Hub/.obsidian/keelaryn-gate-local-state.txt',[System.IO.Compression.CompressionLevel]::Optimal);$writer=New-Object System.IO.StreamWriter($entry.Open(),(New-Object System.Text.UTF8Encoding($false)));try{$writer.Write('disposable gate local state')}finally{$writer.Dispose()}}finally{$za.Dispose()}
     $null=Run-Manager $mgr @('-RepairCurrentTransport') $true
     $checkArchive=[System.IO.Compression.ZipFile]::OpenRead($stateCurrent);try{if(@($checkArchive.Entries|Where-Object{$_.FullName.Replace('\','/').StartsWith('Keelaryn__Hub/.obsidian/',[System.StringComparison]::OrdinalIgnoreCase)}).Count-ne0){throw 'RepairCurrentTransport left local deployment state in CURRENT.'}}finally{$checkArchive.Dispose()}
-    $null=Run-Manager $mgr @('-Doctor') $false;$repairedReport=Get-DoctorReport $mgr;if((FindingSignature $candidateReport)-cne(FindingSignature $repairedReport)){throw 'CURRENT repair changed Doctor findings.'}
+    $repairDoctor=Run-DoctorForGate $mgr $false;$repairedReport=$repairDoctor.Report;if((FindingSignature $candidateReport)-cne(FindingSignature $repairedReport)){throw 'CURRENT repair changed Doctor findings.'}
     $summary.phases.current_repair=$true
 
     $script:CurrentPhase='AI_CONTEXT performance control'
