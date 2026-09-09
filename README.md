@@ -6,6 +6,8 @@
 [![Latest release](https://img.shields.io/github/v/release/efremov-aleksei-96/keelaryn?label=release)](https://github.com/efremov-aleksei-96/keelaryn/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+[Русская версия ниже](#русская-версия)
+
 Keelaryn is a **Windows-first local automation and state-management platform** built around Windows PowerShell 5.1. It manages a stateful local Hub through transactional updates, integrity validation, migrations, diagnostics, deterministic release artifacts and gated qualification.
 
 The Hub is the real workload. The engineering focus of this repository is the **Manager runtime, failure handling, release system, validation model and trust boundaries** around that workload.
@@ -172,3 +174,174 @@ The public tree includes product source, generic Hub governance/starter material
 ## License
 
 Keelaryn is released under the [MIT License](LICENSE). The license covers public repository source and documentation, not uncommitted personal Hub/runtime data.
+
+---
+
+# Русская версия
+
+Keelaryn — это **локальная Windows-first платформа автоматизации и управления состоянием**, построенная вокруг Windows PowerShell 5.1. Она управляет stateful Hub через транзакционные обновления, проверку целостности, миграции, диагностику, детерминированные release-артефакты и обязательную квалификацию через gates.
+
+Hub — реальная рабочая нагрузка системы. Основной инженерный фокус этого репозитория — **Manager runtime, обработка отказов, release system, модель валидации и trust boundaries**, окружающие эту нагрузку.
+
+> Этот репозиторий намеренно не является публичной персональной базой знаний. Реальные данные Hub, учётные данные, runtime state и приватные qualification evidence исключены из публичного дерева.
+
+## Проблема
+
+Stateful локальная автоматизация становится сложной, когда код продукта и данные, принадлежащие пользователю, развиваются независимо. Полезная система должна отвечать не только на вопрос «запускается ли скрипт?»:
+
+- Как установить обновление, не повредив существующее состояние?
+- Что произойдёт, если установка завершится ошибкой посередине?
+- Может ли один и тот же исходный код дважды породить идентичные release-артефакты?
+- Как отклонить пакет до того, как он сможет выйти за допустимую границу файловой системы?
+- Как тестировать миграции, rollback и UI, не изменяя production data?
+- Как связать опубликованный артефакт именно с тем candidate, который реально прошёл qualification?
+
+Keelaryn рассматривает эти вопросы как требования к продукту, а не как задачи по уборке после релиза.
+
+## Что такое Keelaryn
+
+| Компонент | Ответственность |
+|---|---|
+| **Manager** | Windows PowerShell-приложение для lifecycle-операций: диагностики, обновлений, rollback, миграций, сборки release и валидации. |
+| **Hub** | Stateful локальная рабочая нагрузка под управлением системы. Реальный Hub принадлежит пользователю и никогда не коммитится в публичный репозиторий. |
+| **Gate Framework** | Переиспользуемый Windows qualification harness, который связывает тесты с identity candidate и проверяет disposable update/recovery paths. |
+| **Repository governance** | CI/CD, provenance, защита веток, release policy и supply-chain controls на границе source/release. |
+
+## Архитектура
+
+```mermaid
+flowchart LR
+    U[Пользователь / оператор] --> M[Manager\nPowerShell 5.1]
+    M --> H[Hub\nсостояние пользователя]
+    M --> S[Manager state\nbindings / history / rollback]
+
+    R[Управляемый product source] --> B[Детерминированный release builder]
+    B --> A[SOURCE / DISTRIBUTION / UPDATE / AI_CONTEXT]
+
+    A --> G[Gate Framework]
+    G --> D[Disposable Windows qualification]
+    D --> P[Production qualification boundary]
+    P --> C[Public provenance + immutable release]
+
+    M -. валидирует .-> H
+    G -. никогда не использует personal Hub как mutable target .-> H
+```
+
+Центральная граница системы — **product source vs instance-owned state**. `manager/product/install/INSTALLATION.json` определяет управляемый набор файлов Manager; runtime state и реальный Hub находятся вне этого source set.
+
+См. [Architecture overview](docs/ARCHITECTURE_OVERVIEW.md) для identity layers, mutation boundaries и модели release/gate.
+
+## Инженерные задачи
+
+| Задача | Реализованный подход | Доказательство |
+|---|---|---|
+| Безопасные in-place обновления Manager | staged validation, rollback snapshot, post-install checks и rollback fault injection | [Release engineering](docs/RELEASE_ENGINEERING.md) |
+| Воспроизводимые релизы | изолированные детерминированные сборки SOURCE, DISTRIBUTION, UPDATE и AI_CONTEXT | [Public file manifest](PUBLIC_FILE_MANIFEST.json) |
+| Целостность stateful-системы | identity instance/checkpoint, portable-content validation и Doctor diagnostics | [Architecture](docs/ARCHITECTURE_OVERVIEW.md) |
+| Враждебные/повреждённые filesystem inputs | защита от traversal, reserved names, case/Unicode collisions и reparse points | [Security model](docs/SECURITY_MODEL.md) |
+| Изоляция тестов | disposable Hub/update targets; production Hub никогда не является mutable qualification target | [Engineering case study](docs/ENGINEERING_CASE_STUDY.md) |
+| Windows-specific поведение | совместимость с PowerShell 5.1, filesystem semantics, диагностика file locks и retry controls | [Detailed Manager docs](manager/product/docs/) |
+| Стоимость AI context | task-routed AI_CONTEXT, связанный с точной identity управляемого runtime/source | [Engineering case study](docs/ENGINEERING_CASE_STUDY.md) |
+| Удалённая разработка | GitHub-hosted Windows disposable Full Gate с synthetic Hub и явной non-production evidence semantics | [Remote qualification](docs/REMOTE_QUALIFICATION.md) |
+| Supply-chain identity | SHA-pinned Actions, read-only token по умолчанию, required checks и immutable-release policy | [Repository governance](docs/REPOSITORY_GOVERNANCE.md) |
+
+## Pipeline релиза и квалификации
+
+```mermaid
+flowchart LR
+    X[Manager candidate] --> SG[SourceGate\nstatic + SelfTest + deterministic build]
+    SG --> DG[Disposable Full Gate\nsynthetic Hub on Windows]
+    DG --> FG[Production Full Gate\nreal production boundary read-only]
+    FG --> E[Exact tested UPDATE\nDoctor / UX / Hub immutability]
+    E --> PR[Public-source PR]
+    PR --> CI[source-gate + repository-governance + release-policy]
+    CI --> REL[Immutable GitHub Release]
+```
+
+Disposable qualification намеренно классифицируется как **prequalification**, а не production approval. Финальная release evidence всё равно требует применимых проверок на реальной production boundary.
+
+## Доказательства
+
+Текущие identity намеренно **не дублируются в описательном тексте**. Они доступны из machine-readable или immutable источников:
+
+- [Latest GitHub Release](https://github.com/efremov-aleksei-96/keelaryn/releases/latest) — опубликованные install/update assets и immutability релиза.
+- [`PUBLIC_PROVENANCE.json`](PUBLIC_PROVENANCE.json) — текущая identity Manager, Framework и факты production qualification.
+- [`PUBLIC_FILE_MANIFEST.json`](PUBLIC_FILE_MANIFEST.json) — детерминированные хэши authoritative source sets Manager и Gate Framework.
+- [`REPOSITORY_GOVERNANCE.json`](REPOSITORY_GOVERNANCE.json) — required checks, merge policy, Actions supply-chain policy и release policy.
+- [`tests/framework/manager-gate/`](tests/framework/manager-gate/) — переиспользуемый исходный код Windows gate.
+- [Remote qualification](docs/REMOTE_QUALIFICATION.md) — semantics synthetic/disposable evidence и security boundary.
+
+## Интересные failure modes и выводы
+
+Проект намеренно сохраняет отрицательные инженерные уроки, а не показывает только успешные релизы:
+
+- изолированные build roots обнаружили release nondeterminism, который rebuild в том же каталоге мог скрыть;
+- выданный AI_CONTEXT candidate был отклонён и исправлен в новой версии Manager, а не тихо заменён новыми bytes;
+- update qualification включает injected failure и проверку rollback, а не только happy path;
+- ZIP/filesystem validation рассматривает Windows path rules, traversal, collisions и reparse points как часть input contract;
+- test infrastructure сама является trust boundary, поэтому переиспользуемые изменения Gate Framework квалифицируются отдельно от Manager product changes.
+
+Подробные истории и подтверждающая история репозитория находятся в [Engineering case study](docs/ENGINEERING_CASE_STUDY.md).
+
+## Модель надёжности и безопасности
+
+Keelaryn рассчитан на доверенного локального оператора, а не на роль sandbox для произвольного враждебного кода. Система работает fail-closed на границах, где ошибка может повредить локальное состояние или сделать release evidence недействительным:
+
+- точная identity managed files;
+- свежая валидация на transaction/commit boundaries;
+- rollback snapshots и post-update validation;
+- проверки package/ZIP paths и filesystem safety;
+- read-only production paths во время qualification;
+- явная provenance для identity candidate, gate и release;
+- personal Hub/runtime/private evidence исключаются из публичных артефактов.
+
+См. [Security model](docs/SECURITY_MODEL.md).
+
+## Технологии
+
+- Windows PowerShell 5.1 и .NET Framework APIs
+- интеграция с Windows filesystem/process и диагностика Restart Manager
+- JSON manifests и явные schemas
+- SHA-256 content identity
+- ZIP packaging и defensive extraction/inspection
+- Git и GitHub Actions на pinned OS-family runners
+- детерминированная сборка релизов и artifact roundtrip validation
+- Mermaid/Markdown-документация архитектуры и operational flows
+
+## Как изучить репозиторий
+
+**20 секунд:** прочитайте эту страницу и архитектурную диаграмму выше.
+
+**Около 1 минуты:** откройте [Architecture overview](docs/ARCHITECTURE_OVERVIEW.md) и [Engineering case study](docs/ENGINEERING_CASE_STUDY.md).
+
+**Около 3–5 минут:** изучите [Release engineering](docs/RELEASE_ENGINEERING.md), [Security model](docs/SECURITY_MODEL.md), [`PUBLIC_PROVENANCE.json`](PUBLIC_PROVENANCE.json) и [последний релиз](https://github.com/efremov-aleksei-96/keelaryn/releases/latest).
+
+Для интерпретации проекта с точки зрения собеседования см. [Portfolio notes](PORTFOLIO.md).
+
+## Попробовать на Windows
+
+Используйте упакованный release, а не source ZIP репозитория:
+
+1. Откройте [Releases](https://github.com/efremov-aleksei-96/keelaryn/releases/latest).
+2. Скачайте `Keelaryn_v<version>_Windows.zip`.
+3. Распакуйте его в обычный каталог с правом записи.
+4. Запустите `Keelaryn.cmd` внутри распакованного каталога `keelaryn`.
+5. На чистой установке создайте или подключите Hub и запустите **Doctor**.
+
+Требования: Windows 10/11 или Windows Server с **Windows PowerShell 5.1**.
+
+Полный onboarding path описан в [Getting Started](GETTING_STARTED.md).
+
+## Граница публичного репозитория
+
+Публичное дерево включает product source, generic Hub governance/starter material и переиспользуемые qualification tools. Оно исключает:
+
+- runtime data `manager/state/**`;
+- реальный personal `hub/**`;
+- приватные `tests/work/**` и `tests/results/**` evidence;
+- CURRENT/CANDIDATE/APPROVED transports и сгенерированные release ZIPs;
+- bindings, credentials, private keys и recovery material.
+
+## Лицензия
+
+Keelaryn распространяется под [MIT License](LICENSE). Лицензия распространяется на публичный исходный код и документацию репозитория, но не на незафиксированные personal Hub/runtime data.
