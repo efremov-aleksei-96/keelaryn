@@ -41,13 +41,18 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run disposable development validation
+      - name: Prepare development evidence path
         shell: powershell
         run: |
           $out = Join-Path $env:RUNNER_TEMP ('keelaryn-development-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory $out
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "KEELARYN_DEVELOPMENT_ROOT=$out" >> $env:GITHUB_ENV
           "KEELARYN_DEVELOPMENT_EVIDENCE=$out\evidence" >> $env:GITHUB_ENV
+
+      - name: Run disposable development validation
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$env:KEELARYN_DEVELOPMENT_ROOT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload compact development evidence
         if: always()

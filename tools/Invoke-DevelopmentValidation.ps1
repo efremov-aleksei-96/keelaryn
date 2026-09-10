@@ -96,12 +96,13 @@ foreach($copy in @($buildA,$buildB)){
 }
 
 $expected=@(
-    'Keelaryn__Manager_SOURCE_v'+$version+'.zip',
-    'Keelaryn__Manager_Distribution_v'+$version+'.zip',
-    'Keelaryn__Manager_Update_v'+$version+'_Built.zip',
-    'Keelaryn__Manager_AI_CONTEXT_v'+$version+'.zip',
-    'Keelaryn__Manager_RELEASE_v'+$version+'.json'
+    [string]::Concat('Keelaryn__Manager_SOURCE_v',$version,'.zip')
+    [string]::Concat('Keelaryn__Manager_Distribution_v',$version,'.zip')
+    [string]::Concat('Keelaryn__Manager_Update_v',$version,'_Built.zip')
+    [string]::Concat('Keelaryn__Manager_AI_CONTEXT_v',$version,'.zip')
+    [string]::Concat('Keelaryn__Manager_RELEASE_v',$version,'.json')
 )
+if($expected.Count-ne 5){Fail('Expected artifact-name set count mismatch: '+$expected.Count)}
 $artifacts=New-Object System.Collections.ArrayList
 foreach($name in $expected){
     $a=Find-One $buildA $name
