@@ -6,29 +6,46 @@ on:
       - 'maintenance/materialize-4.17.1-compat-shadow'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
+  materialize:
     runs-on: windows-2025
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
-          persist-credentials: false
-      - name: Verify exact runtime base and inspect writers
+          persist-credentials: true
+
+      - name: Materialize exact correction
         shell: powershell
         run: |
+          $runtime=Join-Path $env:GITHUB_WORKSPACE 'manager/product/runtime/Keelaryn__Manager.ps1'
           $expected='bef9490032f121fe1d7457586b561bb876265dd9'
           $actual=(git rev-parse 'HEAD:manager/product/runtime/Keelaryn__Manager.ps1').Trim()
-          if($actual -ne $expected){throw "Runtime blob moved: $actual"}
-          $path=Join-Path $env:GITHUB_WORKSPACE 'manager/product/runtime/Keelaryn__Manager.ps1'
-          Write-Host '=== CurrentZip references ==='
-          Select-String -LiteralPath $path -Pattern '\$CurrentZip' | ForEach-Object { Write-Host ("{0}: {1}" -f $_.LineNumber,$_.Line.Trim()) }
-          Write-Host '=== Multi-Hub / repair functions ==='
-          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          $source=[IO.File]::ReadAllText($runtime,[Text.Encoding]::UTF8)
+          if($actual -ne $expected -and -not $source.Contains('function Invoke-ReconcileActiveCompatibilityShadow')){throw "Unexpected runtime base: $actual"}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Materialize-Manager4171CompatibilityShadow.ps1" -RuntimePath $runtime
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+
+      - name: Verify and publish maintenance materialization
+        shell: powershell
+        run: |
+          $runtime='manager/product/runtime/Keelaryn__Manager.ps1'
+          $changed=@(git status --porcelain)
+          if($changed.Count -eq 0){Write-Host 'No materialization changes to publish.'; exit 0}
+          if($changed.Count -ne 1 -or -not ([string]$changed[0]).EndsWith($runtime.Replace('/','\')) -and -not ([string]$changed[0]).EndsWith($runtime)){throw ('Unexpected materializer changes: '+($changed -join ' | '))}
+          git diff --check
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $text=[IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE $runtime),[Text.Encoding]::UTF8)
           $tokens=$null;$errors=$null
-          $ast=[Management.Automation.Language.Parser]::ParseInput($text,[ref]$tokens,[ref]$errors)
+          [void][Management.Automation.Language.Parser]::ParseInput($text,[ref]$tokens,[ref]$errors)
           if(@($errors).Count){throw (@($errors).Message -join '; ')}
-          $ast.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and ($n.Name -match 'Instance|CurrentTransport|Doctor|HubPackage')},$true) | Sort-Object {$_.Extent.StartOffset} | ForEach-Object { Write-Host ("{0}: {1}" -f $_.Extent.StartLineNumber,$_.Name) }
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- $runtime
+          git commit -m 'Manager 4.17.1: preserve active downgrade compatibility shadow'
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          git push origin HEAD:maintenance/materialize-4.17.1-compat-shadow
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
