@@ -6,6 +6,7 @@ on:
       - 'dev/**'
     paths:
       - 'manager/**'
+      - 'tests/manager/**'
       - 'tools/Invoke-DevelopmentValidation.ps1'
       - 'tools/Verify-DevelopmentGovernance.ps1'
       - 'DEVELOPMENT_GOVERNANCE.json'
@@ -54,11 +55,19 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$env:KEELARYN_DEVELOPMENT_ROOT"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Run multi-Hub downgrade compatibility regression
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tests\manager\Invoke-MultiHubDowngradeCompatibility.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$env:KEELARYN_DEVELOPMENT_ROOT\multihub-downgrade" -EvidencePath "$env:KEELARYN_DEVELOPMENT_EVIDENCE\MULTIHUB_DOWNGRADE_COMPATIBILITY.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Upload compact development evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: keelaryn-development-${{ github.sha }}-${{ github.run_attempt }}
-          path: ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
+          path: |
+            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
+            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MULTIHUB_DOWNGRADE_COMPATIBILITY.json
           if-no-files-found: warn
           retention-days: 3
