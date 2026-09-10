@@ -138,7 +138,14 @@ function Invoke-DoctorAssert([string]$Runtime,[string]$ManagerRoot,[string]$Expe
     $result=Invoke-Manager $Runtime @('-Doctor') @(0,2)
     $report=Read-Json (Join-Path $ManagerRoot 'state\logs\DOCTOR_REPORT.json')
     if([int]$report.errors-ne0){Fail('Doctor reported errors under Manager '+[string]$report.manager_version+'.')}
-    if(([string]$report.instance_id).ToLowerInvariant()-ne$ExpectedId){Fail('Doctor resolved the wrong active instance under Manager '+[string]$report.manager_version+'.')}
+    if($null-ne$report.PSObject.Properties['instance_id']){
+        if(([string]$report.instance_id).ToLowerInvariant()-ne$ExpectedId){Fail('Doctor resolved the wrong active instance under Manager '+[string]$report.manager_version+'.')}
+    }else{
+        # 4.16.3 predates the report-level instance_id field. Its resolved identity is
+        # still proven by the same binding document that Doctor reports as binding.resolve.
+        $legacyBinding=Read-Json (Join-Path $ManagerRoot 'state\binding.json')
+        if(([string]$legacyBinding.instance_id).ToLowerInvariant()-ne$ExpectedId){Fail('Legacy Doctor binding resolved the wrong active instance.')}
+    }
     if($RequireCompatibilityFinding){
         $rows=@($report.findings|Where-Object{[string]$_.Code-eq'compatibility.shadow'})
         if($rows.Count-ne1-or[string]$rows[0].Severity-ne'OK'){Fail('Doctor did not prove compatibility.shadow=OK.')}
