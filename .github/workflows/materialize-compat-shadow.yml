@@ -1,0 +1,34 @@
+name: Materialize 4.17.1 compatibility shadow
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-4.17.1-compat-shadow'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact runtime base and inspect writers
+        shell: powershell
+        run: |
+          $expected='bef9490032f121fe1d7457586b561bb876265dd9'
+          $actual=(git rev-parse 'HEAD:manager/product/runtime/Keelaryn__Manager.ps1').Trim()
+          if($actual -ne $expected){throw "Runtime blob moved: $actual"}
+          $path=Join-Path $env:GITHUB_WORKSPACE 'manager/product/runtime/Keelaryn__Manager.ps1'
+          Write-Host '=== CurrentZip references ==='
+          Select-String -LiteralPath $path -Pattern '\$CurrentZip' | ForEach-Object { Write-Host ("{0}: {1}" -f $_.LineNumber,$_.Line.Trim()) }
+          Write-Host '=== Multi-Hub / repair functions ==='
+          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          $tokens=$null;$errors=$null
+          $ast=[Management.Automation.Language.Parser]::ParseInput($text,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw (@($errors).Message -join '; ')}
+          $ast.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and ($n.Name -match 'Instance|CurrentTransport|Doctor|HubPackage')},$true) | Sort-Object {$_.Extent.StartOffset} | ForEach-Object { Write-Host ("{0}: {1}" -f $_.Extent.StartLineNumber,$_.Name) }
