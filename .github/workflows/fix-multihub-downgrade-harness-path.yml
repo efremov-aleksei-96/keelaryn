@@ -1,0 +1,46 @@
+name: Fix multi-Hub downgrade harness path
+
+on:
+  push:
+    branches:
+      - 'maintenance/fix-multihub-downgrade-harness-path'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Correct Beta fixture path
+        shell: powershell
+        run: |
+          $path=Join-Path $env:GITHUB_WORKSPACE 'tests\manager\Invoke-MultiHubDowngradeCompatibility.ps1'
+          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          $old='$beta=Join-Path $layout ''hub-beta'''
+          $new='$hubsRoot=Join-Path $layout ''hubs'';New-Item -ItemType Directory -Force -Path $hubsRoot|Out-Null' + "`r`n" + '$beta=Join-Path $hubsRoot ''beta'''
+          $matches=([regex]::Matches($text,[regex]::Escape($old))).Count
+          if($matches -eq 0 -and $text.Contains("$beta=Join-Path $hubsRoot 'beta'")){Write-Host 'Harness path already corrected.';exit 0}
+          if($matches -ne 1){throw "Unexpected Beta fixture marker count: $matches"}
+          $text=$text.Replace($old,$new)
+          [IO.File]::WriteAllText($path,$text,(New-Object Text.UTF8Encoding($false)))
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw (@($errors).Message -join '; ')}
+          git diff --check
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $changed=@(git status --porcelain)
+          if($changed.Count-ne1-or(-not([string]$changed[0]).Contains('tests/manager/Invoke-MultiHubDowngradeCompatibility.ps1'))){throw('Unexpected changed files: '+($changed-join' | '))}
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- tests/manager/Invoke-MultiHubDowngradeCompatibility.ps1
+          git commit -m 'tests: use canonical registered Hub fixture path'
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          git push origin HEAD:maintenance/fix-multihub-downgrade-harness-path
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
