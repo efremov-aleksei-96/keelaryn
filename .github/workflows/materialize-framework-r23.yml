@@ -56,10 +56,10 @@ jobs:
           $selfPath=Join-Path $framework 'Test-ManagerGateFramework.ps1'
           $self=[IO.File]::ReadAllText($selfPath,[Text.Encoding]::UTF8)
           $selfEol=Eol $self
-          $self=Replace-ExactlyOnce $self "$revision-cne'22'" "$revision-cne'23'" 'SelfTest revision predicate'
+          $self=Replace-ExactlyOnce $self '$revision-cne''22''' '$revision-cne''23''' 'SelfTest revision predicate'
           $self=$self.Replace('revision 22','revision 23').Replace('r22','r23')
-          $oldHelpers="foreach($helperName in @('Test-IsPermittedTransitionDoctorWarning','Assert-DoctorGateResult','Normalize-DoctorFindingMessage','FindingSignature')){"
-          $newHelpers="foreach($helperName in @('Test-IsPermittedTransitionDoctorWarning','Assert-DoctorGateResult','Normalize-DoctorFindingMessage','FindingSignature','Get-StableDoctorFindingRows','Get-DoctorFindingCompatibilitySignature','Assert-StableDoctorFindingCompatibility')){"
+          $oldHelpers='foreach($helperName in @(''Test-IsPermittedTransitionDoctorWarning'',''Assert-DoctorGateResult'',''Normalize-DoctorFindingMessage'',''FindingSignature'')){'
+          $newHelpers='foreach($helperName in @(''Test-IsPermittedTransitionDoctorWarning'',''Assert-DoctorGateResult'',''Normalize-DoctorFindingMessage'',''FindingSignature'',''Get-StableDoctorFindingRows'',''Get-DoctorFindingCompatibilitySignature'',''Assert-StableDoctorFindingCompatibility'')){'
           $self=Replace-ExactlyOnce $self $oldHelpers $newHelpers 'SelfTest Doctor helper extraction'
           $sigMarker="    Write-Host '  PASS targeted Doctor transition-WARN and cross-version signature contract'"
           $testBlock=(Decode $env:TESTS_B64).Replace("`n",$selfEol)
