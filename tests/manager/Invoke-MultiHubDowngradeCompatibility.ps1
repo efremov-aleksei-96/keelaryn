@@ -195,7 +195,8 @@ Write-Host '[4/10] Initialize registry, create Beta, switch active Hub, and prov
 $null=Invoke-Manager $runtime @('-InitializeInstanceRegistry','-RegisterInstanceName','Alpha')
 $alphaShadow=Assert-Shadow $manager $alphaId $alpha
 $alphaCurrentGood=Join-Path $work 'alpha-current-good.zip';Copy-Item -LiteralPath $alphaShadow.Per -Destination $alphaCurrentGood -Force
-$beta=Join-Path $layout 'hub-beta'
+$hubsRoot=Join-Path $layout 'hubs';New-Item -ItemType Directory -Force -Path $hubsRoot|Out-Null
+$beta=Join-Path $hubsRoot 'beta'
 $null=Invoke-Manager $runtime @('-GenesisInstancePath',$beta,'-GenesisInstanceName','Beta','-GenesisConfigPath',$config,'-GenesisConfirmed')
 $betaId=Get-InstanceId $beta;$betaDigest=Get-TreeDigest $beta
 $null=Invoke-Manager $runtime @('-SwitchInstanceId',$betaId)
