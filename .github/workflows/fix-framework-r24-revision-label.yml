@@ -1,4 +1,4 @@
-name: Fix Framework r24 revision label
+name: Align Framework r24 self-test PASS label
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  fix-r24-label:
+  align-r24-selftest-label:
     runs-on: windows-2025
     timeout-minutes: 10
     steps:
@@ -19,17 +19,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Fix exact r24 scratch label and refresh manifest
+      - name: Align exact self-test PASS label and refresh manifest
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           $root=$env:GITHUB_WORKSPACE
-          $path=Join-Path $root 'tests\framework\manager-gate\templates\Run-KeelarynManagerFullGate.ps1'
+          $path=Join-Path $root 'tests\framework\manager-gate\Test-ManagerGateFramework.ps1'
           $utf8=New-Object System.Text.UTF8Encoding($false)
           $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
-          $old='keelaryn_framework_r23_zip_retry_'
-          $new='keelaryn_framework_r24_zip_retry_'
-          if(([regex]::Matches($text,[regex]::Escape($old))).Count-ne1){throw 'Expected exactly one r23 scratch label in r24 Full Gate.'}
+          $old='FRAMEWORK r23 SELFTEST: PASS'
+          $new='FRAMEWORK r24 SELFTEST: PASS'
+          if(([regex]::Matches($text,[regex]::Escape($old))).Count-ne1){throw 'Expected exactly one stale r23 final self-test label.'}
           $text=$text.Replace($old,$new)
           [IO.File]::WriteAllText($path,$text,$utf8)
 
@@ -37,13 +37,13 @@ jobs:
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
 
           $changed=@(& git diff --name-only)
-          $expected=@('PUBLIC_FILE_MANIFEST.json','tests/framework/manager-gate/templates/Run-KeelarynManagerFullGate.ps1')
+          $expected=@('PUBLIC_FILE_MANIFEST.json','tests/framework/manager-gate/Test-ManagerGateFramework.ps1')
           foreach($p in $expected){if($changed-notcontains$p){throw('Expected change missing: '+$p)}}
           if($changed.Count-ne$expected.Count){throw('Unexpected changes: '+([string]::Join(', ',$changed)))}
           if(@($changed|Where-Object{$_-like'manager/*'}).Count-ne0){throw 'Manager source changed.'}
 
           git config user.name 'Aleksei Efremov'
           git config user.email 'efremov.aleksei.96@gmail.com'
-          git add -- PUBLIC_FILE_MANIFEST.json tests/framework/manager-gate/templates/Run-KeelarynManagerFullGate.ps1
-          git commit -m 'Gate Framework r24: align sharing-retry revision label'
+          git add -- PUBLIC_FILE_MANIFEST.json tests/framework/manager-gate/Test-ManagerGateFramework.ps1
+          git commit -m 'Gate Framework r24: align self-test PASS label'
           git push origin HEAD:dev/framework-r24
