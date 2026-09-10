@@ -1,4 +1,4 @@
-name: Publish materialized Framework r24
+name: Publish Framework r24 non-workflow source
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  publish-r24:
+  publish-r24-source:
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Publish exact Framework r24 source commit
+      - name: Publish exact non-workflow Framework r24 source bytes
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
@@ -56,11 +56,6 @@ jobs:
           $test=$test.Replace($needle,$needle+[string]::Join("`n",$insertLines)+"`n")
           [IO.File]::WriteAllText($testPath,$test.Replace("`n","`r`n"),$utf8)
 
-          $qualPath=Join-Path $root '.github\workflows\framework-qualification.yml'
-          $qual=[IO.File]::ReadAllText($qualPath,[Text.Encoding]::UTF8)
-          if(([regex]::Matches($qual,'framework-r23-equivalence')).Count-ne1-or([regex]::Matches($qual,'9023')).Count-ne2){throw 'Unexpected r23 qualification workflow identity.'}
-          [IO.File]::WriteAllText($qualPath,$qual.Replace('framework-r23-equivalence','framework-r24-equivalence').Replace('9023','9024'),$utf8)
-
           $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
           $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
           if([int]$prov.gate_framework.revision-ne23-or-not[bool]$prov.gate_framework.windows_qualified-or-not[bool]$prov.gate_framework.frozen_for_manager_candidate){throw 'Unexpected r23 provenance base.'}
@@ -78,19 +73,18 @@ jobs:
           )
           [IO.File]::WriteAllText($readmePath,($readme+[string]::Join("`r`n",$sectionLines)+"`r`n"),$utf8)
 
-          Remove-Item -LiteralPath (Join-Path $root '.github\workflows\bootstrap-framework-r24.yml') -Force
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
 
           $changed=@(& git diff --name-only)
           if(@($changed|Where-Object{$_-like'manager/*'}).Count-ne0){throw 'Framework r24 patch changed Manager source.'}
-          $required=@('.github/workflows/bootstrap-framework-r24.yml','.github/workflows/framework-qualification.yml','PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json','tests/framework/manager-gate/FRAMEWORK_REVISION.txt','tests/framework/manager-gate/README.md','tests/framework/manager-gate/Test-ManagerGateFramework.ps1','tests/framework/manager-gate/templates/Run-KeelarynManagerFullGate.ps1')
+          $required=@('PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json','tests/framework/manager-gate/FRAMEWORK_REVISION.txt','tests/framework/manager-gate/README.md','tests/framework/manager-gate/Test-ManagerGateFramework.ps1','tests/framework/manager-gate/templates/Run-KeelarynManagerFullGate.ps1')
           foreach($p in $required){if($changed-notcontains$p){throw('Expected changed path missing: '+$p)}}
           if($changed.Count-ne$required.Count){throw('Unexpected changed files: '+([string]::Join(', ',$changed)))}
 
           git config user.name 'Aleksei Efremov'
           git config user.email 'efremov.aleksei.96@gmail.com'
-          git add --all
+          git add -- $required
           git commit -m 'Gate Framework r24: bind baseline Doctor transition warnings'
           git push origin HEAD:dev/framework-r24
-          Write-Host ('FRAMEWORK R24 DEV COMMIT PUBLISHED. manager_tree='+$managerTree) -ForegroundColor Green
+          Write-Host ('FRAMEWORK R24 NON-WORKFLOW SOURCE PUBLISHED. manager_tree='+$managerTree) -ForegroundColor Green
