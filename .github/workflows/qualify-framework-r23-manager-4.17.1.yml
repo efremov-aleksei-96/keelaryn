@@ -1,0 +1,88 @@
+name: Qualify Framework r23 with frozen Manager 4.17.1 g1
+
+on:
+  push:
+    branches:
+      - 'maintenance/qualify-framework-r23-manager-4.17.1'
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-integration:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout frozen Manager 4.17.1 g1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: d8d28b23286b9ec8d46f34f54c8d57a0e27f255e
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout production-qualified Manager 4.16.3 baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 872ad3d21fb29062a7de2185353c039d5fb3b0a6
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact Framework r23 source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ba2659c6f00c22d2008262eef785647ad583d31c
+          path: framework
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout trusted disposable harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 6c21794b9d0a783d31699ecb3573a149dc04fc1f
+          path: harness
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact qualification identities
+        shell: powershell
+        run: |
+          $candidate=(git -C candidate rev-parse HEAD).Trim()
+          $baseline=(git -C baseline rev-parse HEAD).Trim()
+          $framework=(git -C framework rev-parse HEAD).Trim()
+          $harness=(git -C harness rev-parse HEAD).Trim()
+          if($candidate-cne'd8d28b23286b9ec8d46f34f54c8d57a0e27f255e'){throw('Candidate identity mismatch: '+$candidate)}
+          if($baseline-cne'872ad3d21fb29062a7de2185353c039d5fb3b0a6'){throw('Baseline identity mismatch: '+$baseline)}
+          if($framework-cne'ba2659c6f00c22d2008262eef785647ad583d31c'){throw('Framework identity mismatch: '+$framework)}
+          if($harness-cne'6c21794b9d0a783d31699ecb3573a149dc04fc1f'){throw('Harness identity mismatch: '+$harness)}
+          $managerTree=(git -C candidate rev-parse 'HEAD:manager').Trim()
+          if($managerTree-cne'8d00a22a29eec7fa5a7560fca5425a80dd4bcb93'){throw('Frozen g1 Manager subtree mismatch: '+$managerTree)}
+          $frameworkRevision=(Get-Content -LiteralPath 'framework\tests\framework\manager-gate\FRAMEWORK_REVISION.txt' -Raw -Encoding UTF8).Trim()
+          if($frameworkRevision-cne'23'){throw('Framework revision mismatch: '+$frameworkRevision)}
+          Write-Host ('IDENTITIES: PASS; manager_tree='+$managerTree+'; framework=r'+$frameworkRevision) -ForegroundColor Green
+
+      - name: Run disposable 4.16.3 to 4.17.1 Full Gate under r23
+        shell: powershell
+        run: |
+          $workspace=Join-Path $env:RUNNER_TEMP ('keelaryn-r23-integration-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\harness\tools\Invoke-DisposableManagerFullGate.ps1' `
+            -CandidateManagerRoot '.\candidate\manager' `
+            -BaselineManagerRoot '.\baseline\manager' `
+            -FrameworkRoot '.\framework\tests\framework\manager-gate' `
+            -WorkspaceRoot $workspace `
+            -CandidateRef 'd8d28b23286b9ec8d46f34f54c8d57a0e27f255e' `
+            -BaselineRef 'v4.16.3@872ad3d21fb29062a7de2185353c039d5fb3b0a6' `
+            -GateRevision 9023
+          $exit=$LASTEXITCODE
+          "EVIDENCE_ROOT=$workspace\evidence" >> $env:GITHUB_ENV
+          if($exit-ne0){exit $exit}
+
+      - name: Upload disposable qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: framework-r23-manager-4.17.1-g1-disposable-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE_ROOT }}
+          if-no-files-found: warn
+          retention-days: 7
