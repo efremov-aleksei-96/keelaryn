@@ -52,7 +52,7 @@ function Open-ZipReadWithSharingRetry([string]$Path,[int]$Attempts=120,[int]$Del
 $script:ZipUpdateSharingRetrySelfTestReason=''
 function Test-ZipUpdateSharingRetrySelfTest{
     $script:ZipUpdateSharingRetrySelfTestReason=''
-    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r23_zip_retry_'+[guid]::NewGuid().ToString('N'))
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r24_zip_retry_'+[guid]::NewGuid().ToString('N'))
     $zip=Join-Path $temp 'locked.zip'
     $delayedZip=Join-Path $temp 'delayed-unlock.zip'
     $ready=Join-Path $temp 'delayed-lock-ready.txt'
@@ -1034,7 +1034,7 @@ exit 0
 
 try{
     if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r22 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
-    Write-Host 'Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
+    Write-Host 'Gate Framework r24 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
     try{Start-Transcript -LiteralPath $transcriptPath -Force|Out-Null;$transcriptStarted=$true}catch{Write-Host ('WARNING: transcript unavailable: '+$_.Exception.Message) -ForegroundColor Yellow}
 
     $script:CurrentPhase='gate/candidate binding preflight'
@@ -1109,8 +1109,8 @@ try{
     $bindingPath=Join-Path $stateRoot 'binding.json';if(-not(Test-Path -LiteralPath $bindingPath -PathType Leaf)){throw 'Disposable binding was not persisted.'}
     $bindingHashBefore=Sha $bindingPath
     $null=Run-Manager $mgr @('-SelfTest') $true
-    $null=Run-Manager $mgr @('-Doctor') $true
-    $baselineReport=Get-DoctorReport $mgr
+    $baselineDoctor=Run-DoctorForGate $mgr $true
+    $baselineReport=$baselineDoctor.Report
     Copy-Item -LiteralPath (Join-Path $stateRoot 'logs\DOCTOR_REPORT.json') -Destination (Join-Path $doctorRoot ('baseline_'+$baseline+'.json')) -Force
     $baselinePerfMgr=Join-Path $runtime ('baseline_perf_manager_'+$baseline);$null=Copy-ManagedTree $mgr $baselinePerfMgr
     $baselineDigest=ManagedDigest $mgr

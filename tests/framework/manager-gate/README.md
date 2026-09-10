@@ -313,3 +313,11 @@ Revision 23 changes only the reusable cross-version Doctor comparison contract:
 - same-candidate post-repair finding equality remains exact, so CURRENT repair cannot silently change Doctor semantics.
 
 The self-test includes the real Manager 4.17.1 `instances.registry` additive-OK shape plus adversarial removal, semantic-change, duplicate-code and new-non-OK cases. Manager 4.17.1 g1 product bytes remain unchanged; the failed r22 qualification evidence remains historical. Framework r23 requires independent Windows qualification and provenance freeze before it may be used for a new Manager gate revision.
+
+## Revision 24 baseline Doctor transition-WARN call-site binding
+
+Framework r23 remains immutable qualified provenance. Real CURRENT-backed Manager 4.17.1 g2 qualification exposed a Framework-only defect before any candidate update: the disposable 4.16.3 baseline Doctor returned the canonical missing-governance transition warning with exit 2, but Full Gate D still invoked that baseline through generic `Run-Manager`, which rejects every nonzero exit. The strict `Run-DoctorForGate` policy already existed and was used for candidate/post-repair Doctor checks, so r23 tested the policy helper without proving the baseline call-site actually used it.
+
+Revision 24 changes no Manager product bytes and does not broaden the accepted warning set. It routes the Full Gate D baseline Doctor through `Run-DoctorForGate` and binds `$baselineReport` to that validated result. The existing strict policy still accepts only the canonical missing/stale governance transition WARN shapes and rejects unrelated warnings, malformed messages, ERROR findings, inconsistent counts and non-transition exit codes. Framework self-test now asserts the baseline call-site binding directly and rejects reintroduction of the unsafe generic baseline Doctor invocation.
+
+Framework r24 requires fresh Windows parser/self-test, SourceRoot/SourceZip equivalence, hosted Framework qualification, exact Manager 4.17.1 qualification and a new real CURRENT-backed Manager gate revision before freeze/tag/merge and production publication.
