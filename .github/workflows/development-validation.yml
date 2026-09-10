@@ -1,0 +1,64 @@
+name: Development validation
+
+on:
+  push:
+    branches:
+      - 'dev/**'
+    paths:
+      - 'manager/**'
+      - 'tools/Invoke-DevelopmentValidation.ps1'
+      - 'tools/Verify-DevelopmentGovernance.ps1'
+      - 'DEVELOPMENT_GOVERNANCE.json'
+      - '.github/workflows/development-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-development-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  development-validation:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify development governance
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-DevelopmentGovernance.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify GitHub Actions supply-chain policy
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Prepare development evidence path
+        shell: powershell
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP ('keelaryn-development-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          "KEELARYN_DEVELOPMENT_ROOT=$out" >> $env:GITHUB_ENV
+          "KEELARYN_DEVELOPMENT_EVIDENCE=$out\evidence" >> $env:GITHUB_ENV
+
+      - name: Run disposable development validation
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$env:KEELARYN_DEVELOPMENT_ROOT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload compact development evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: keelaryn-development-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
+          if-no-files-found: warn
+          retention-days: 3
