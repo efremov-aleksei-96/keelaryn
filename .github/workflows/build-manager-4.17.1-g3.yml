@@ -1,0 +1,138 @@
+name: Build exact Manager 4.17.1 g3 gate
+
+on:
+  push:
+    branches:
+      - 'maintenance/build-manager-4.17.1-g3'
+
+permissions:
+  contents: read
+
+jobs:
+  build-g3:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact frozen Manager candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 6d89a0beec0d4da4c0a8b809c1ac42543ca6952d
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact frozen Framework r24 source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 9f91d63e40bde3e312696b0352ef7acb96537301
+          path: framework
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact frozen candidate and Framework identities
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $framework=Join-Path $env:GITHUB_WORKSPACE 'framework'
+          $candidateHead=(git -C $candidate rev-parse HEAD).Trim()
+          if($candidateHead-cne'6d89a0beec0d4da4c0a8b809c1ac42543ca6952d'){throw('Candidate checkout mismatch: '+$candidateHead)}
+          $managerTree=(git -C $candidate rev-parse 'HEAD:manager').Trim()
+          if($managerTree-cne'8d00a22a29eec7fa5a7560fca5425a80dd4bcb93'){throw('Frozen g1 Manager tree mismatch: '+$managerTree)}
+          $candidateProv=Get-Content -LiteralPath (Join-Path $candidate 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$candidateProv.source_manager_version-cne'4.17.1'-or[string]$candidateProv.source_gate_baseline_manager_version-cne'4.16.3'){throw 'Candidate/baseline provenance mismatch.'}
+          if([bool]$candidateProv.production_validation.full_gate_pass-or$null-ne$candidateProv.production_validation.gate_revision){throw 'Manager 4.17.1 candidate must still be production-unqualified before g3 execution.'}
+          if([string]$candidateProv.source_manager_installation_sha256-cne'a60ffbf4510fc63aff5fd0e8e86688cf62ebfbf2320fc75e553fc2bf3cf19b17'){throw 'INSTALLATION identity mismatch.'}
+          if([string]$candidateProv.source_manager_gate_managed_content_sha256-cne'5c03abf09d07338fa39b1a629e5ae5f07822461a6956ccd14a93f50945aad318'){throw 'Managed-content identity mismatch.'}
+
+          $frameworkHead=(git -C $framework rev-parse HEAD).Trim()
+          if($frameworkHead-cne'9f91d63e40bde3e312696b0352ef7acb96537301'){throw('Framework checkout mismatch: '+$frameworkHead)}
+          $frameworkRevision=(Get-Content -LiteralPath (Join-Path $framework 'tests\framework\manager-gate\FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
+          if($frameworkRevision-cne'24'){throw('Framework revision marker mismatch: '+$frameworkRevision)}
+          $frameworkProv=Get-Content -LiteralPath (Join-Path $framework 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([int]$frameworkProv.gate_framework.revision-ne24-or-not[bool]$frameworkProv.gate_framework.windows_qualified-or-not[bool]$frameworkProv.gate_framework.frozen_for_manager_candidate){throw 'Framework r24 is not qualified/frozen.'}
+          $frameworkManagerTree=(git -C $framework rev-parse 'HEAD:manager').Trim()
+          $mainBaseManagerTree=(git -C $framework rev-parse 'bbeafa3251558289444b0e707fc2433fa132238d:manager').Trim()
+          if($frameworkManagerTree-cne$mainBaseManagerTree){throw 'Frozen Framework r24 unexpectedly changes main Manager tree.'}
+          Write-Host ('IDENTITY PASS: candidate='+$candidateHead+' manager_tree='+$managerTree+' framework='+$frameworkHead+' r'+$frameworkRevision) -ForegroundColor Green
+
+      - name: Build deterministic ordinary g3 twice and verify GATE_SPEC
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $framework=Join-Path $env:GITHUB_WORKSPACE 'framework'
+          $builder=Join-Path $framework 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          $out=Join-Path $env:RUNNER_TEMP ('manager-4.17.1-g3-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          $outA=Join-Path $out 'build-a'
+          $outB=Join-Path $out 'build-b'
+          $finalOut=Join-Path $out 'publish'
+          New-Item -ItemType Directory -Force -Path $outA,$outB,$finalOut|Out-Null
+          $a=Join-Path $outA 'manager-4.17.1.zip'
+          $b=Join-Path $outB 'manager-4.17.1.zip'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $candidate 'manager') -BaselineVersion '4.16.3' -GateRevision 3 -OutputPath $a -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $candidate 'manager') -BaselineVersion '4.16.3' -GateRevision 3 -OutputPath $b -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $shaA=(Get-FileHash -LiteralPath $a -Algorithm SHA256).Hash.ToLowerInvariant()
+          $shaB=(Get-FileHash -LiteralPath $b -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($shaA-cne$shaB){throw('Non-deterministic g3 gate: '+$shaA+' != '+$shaB)}
+
+          $extract=Join-Path $out 'inspect'
+          Expand-Archive -LiteralPath $a -DestinationPath $extract -Force
+          $gateRoot=Join-Path $extract 'manager-4.17.1'
+          if(-not(Test-Path -LiteralPath $gateRoot -PathType Container)){throw 'Gate ZIP root is not manager-4.17.1.'}
+          $spec=Get-Content -LiteralPath (Join-Path $gateRoot 'gate\GATE_SPEC.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$spec.schema-cne'keelaryn.manager-gate-spec.v1'){throw 'Unexpected GATE_SPEC schema.'}
+          if([string]$spec.candidate_version-cne'4.17.1'-or[string]$spec.baseline_manager_version-cne'4.16.3'){throw 'GATE_SPEC version identity mismatch.'}
+          if([int]$spec.gate_revision-ne3-or[int]$spec.framework_revision-ne24){throw 'GATE_SPEC gate/framework identity mismatch.'}
+          if([string]$spec.candidate_installation_sha256-cne'a60ffbf4510fc63aff5fd0e8e86688cf62ebfbf2320fc75e553fc2bf3cf19b17'){throw 'GATE_SPEC INSTALLATION SHA mismatch.'}
+          if([string]$spec.candidate_managed_content_sha256-cne'5c03abf09d07338fa39b1a629e5ae5f07822461a6956ccd14a93f50945aad318'){throw 'GATE_SPEC managed-content SHA mismatch.'}
+          $frameworkMarker=(Get-Content -LiteralPath (Join-Path $gateRoot 'gate\FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
+          $gateMarker=(Get-Content -LiteralPath (Join-Path $gateRoot 'gate\GATE_REVISION.txt') -Raw -Encoding UTF8).Trim()
+          if($frameworkMarker-cne'24'-or$gateMarker-cne'3'){throw 'Gate marker identity mismatch.'}
+          $runner=Join-Path $gateRoot 'RUN_4171_FULL_GATE.cmd'
+          if(-not(Test-Path -LiteralPath $runner -PathType Leaf)){throw 'Expected RUN_4171_FULL_GATE.cmd is missing.'}
+
+          $final=Join-Path $finalOut 'manager-4.17.1.zip'
+          Copy-Item -LiteralPath $a -Destination $final -Force
+          $identity=[ordered]@{
+            schema='keelaryn.manager-gate-build-evidence.v1'
+            classification='build_only_not_production_qualified'
+            candidate_version='4.17.1'
+            candidate_source_commit='6d89a0beec0d4da4c0a8b809c1ac42543ca6952d'
+            candidate_provenance_tag='provenance/candidate-manager-4.17.1-g1'
+            manager_tree_sha='8d00a22a29eec7fa5a7560fca5425a80dd4bcb93'
+            baseline_version='4.16.3'
+            gate_revision=3
+            framework_revision=24
+            framework_frozen_commit='9f91d63e40bde3e312696b0352ef7acb96537301'
+            framework_provenance_tag='provenance/framework-r24'
+            framework_merge_commit='7309c898ddcbe72893f4099bac4f53508b0201f2'
+            managed_content_sha256='5c03abf09d07338fa39b1a629e5ae5f07822461a6956ccd14a93f50945aad318'
+            installation_sha256='a60ffbf4510fc63aff5fd0e8e86688cf62ebfbf2320fc75e553fc2bf3cf19b17'
+            gate_zip_sha256=$shaA
+            deterministic_second_sha256=$shaB
+            exact_pair_prequalification_run=34523195273
+            exact_pair_prequalification_gate_revision=9025
+            exact_pair_evidence_artifact_sha256='c98f24f13575c6a33b1b86f63c4362ad446bfd1f259500b11be0c32079973e13'
+            production_qualified=$false
+          }
+          $json=(($identity|ConvertTo-Json -Depth 8).Replace("`r`n","`n")+"`n")
+          [IO.File]::WriteAllText((Join-Path $finalOut 'G3_BUILD_IDENTITY.json'),$json,(New-Object System.Text.UTF8Encoding($false)))
+          "G3_OUTPUT=$finalOut" >> $env:GITHUB_ENV
+          "G3_SHA256=$shaA" >> $env:GITHUB_ENV
+          Write-Host ('G3 BUILD PASS: manager-4.17.1.zip sha256='+$shaA+'; framework=r24; gate=g3') -ForegroundColor Green
+          Write-Host 'Classification: build-only; real CURRENT-backed production qualification is still pending.' -ForegroundColor Yellow
+
+      - name: Upload exact ordinary g3 gate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.1-g3-r24-candidate-g1
+          path: |
+            ${{ env.G3_OUTPUT }}\manager-4.17.1.zip
+            ${{ env.G3_OUTPUT }}\G3_BUILD_IDENTITY.json
+          if-no-files-found: error
+          retention-days: 7
