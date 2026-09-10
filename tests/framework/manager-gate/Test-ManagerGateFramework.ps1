@@ -61,7 +61,7 @@ function Assert-Rejected([string]$Name,[object[]]$Entries,$Limits=$null){
 }
 
 $revision=(Get-Content -LiteralPath (Join-Path $frameworkRoot 'FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
-if($revision-cne'23'){throw('Framework qualification expected revision 23, got '+$revision)}
+if($revision-cne'24'){throw('Framework qualification expected revision 24, got '+$revision)}
 
 foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filter '*.ps1')){
     $tokens=$null;$errors=$null
@@ -69,10 +69,10 @@ foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filte
     if(@($errors).Count-ne0){throw('PowerShell parser rejected framework file '+$ps.FullName+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
 }
 $builderText=[System.IO.File]::ReadAllText($builderPath,[System.Text.Encoding]::UTF8)
-if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r23 builder must not use Expand-Archive for SourceZip.'}
-foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r23 builder safety binding missing token: '+$token)}}
+if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r24 builder must not use Expand-Archive for SourceZip.'}
+foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r24 builder safety binding missing token: '+$token)}}
 
-$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r23_selftest_'+[guid]::NewGuid().ToString('N'))
+$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r24_selftest_'+[guid]::NewGuid().ToString('N'))
 try{
     New-Item -ItemType Directory -Force -Path $script:tempRoot|Out-Null
     $valid=Get-ValidEntries
@@ -330,6 +330,10 @@ try{
     $tokens=$null;$errors=$null
     $fullAst=[System.Management.Automation.Language.Parser]::ParseFile($fullGateTemplate,[ref]$tokens,[ref]$errors)
     if(@($errors).Count-ne0){throw('FullGate template parser failure before Doctor-contract extraction: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+    $fullGateText=[System.IO.File]::ReadAllText($fullGateTemplate,[System.Text.Encoding]::UTF8)
+    if(-not$fullGateText.Contains('$baselineDoctor=Run-DoctorForGate $mgr $true')){throw 'Framework r24 Full Gate baseline Doctor is not routed through Run-DoctorForGate.'}
+    if(-not$fullGateText.Contains('$baselineReport=$baselineDoctor.Report')){throw 'Framework r24 Full Gate baseline report is not bound to the validated Doctor result.'}
+    if($fullGateText.Contains('$null=Run-Manager $mgr @(''-Doctor'') $true')){throw 'Framework r24 Full Gate still contains the unsafe generic baseline Doctor call-site.'}
     foreach($helperName in @('Test-IsPermittedTransitionDoctorWarning','Assert-DoctorGateResult','Normalize-DoctorFindingMessage','FindingSignature','Get-StableDoctorFindingRows','Get-DoctorFindingCompatibilitySignature','Assert-StableDoctorFindingCompatibility')){
         $helper=@($fullAst.FindAll({param($node)$node-is[System.Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-eq$helperName},$true))
         if($helper.Count-ne1){throw('Expected exactly one '+$helperName+' function in FullGate template; actual='+$helper.Count)}
@@ -463,13 +467,13 @@ try{
     foreach($token in @(
         'function Open-ZipWithSharingRetry',
         'function Open-ZipReadWithSharingRetry',
-        'keelaryn_framework_r23_zip_retry_',
+        'keelaryn_framework_r24_zip_retry_',
         'Start-Job -ScriptBlock',
         'Open-ZipUpdateWithSharingRetry $stateCurrent 120 250',
         'Open-ZipReadWithSharingRetry $stateCurrent 120 250',
-        'Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS'
+        'Gate Framework r24 ZIP delayed-sharing-retry self-test: PASS'
     )){
-        if(-not$fullGateText.Contains($token)){throw('Framework r23 Full Gate sharing-retry binding missing token: '+$token)}
+        if(-not$fullGateText.Contains($token)){throw('Framework r24 Full Gate sharing-retry binding missing token: '+$token)}
     }
     Write-Host '  PASS delayed-unlock retry + E4 bounded read/write retry binding'
 
