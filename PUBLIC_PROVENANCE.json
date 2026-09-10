@@ -1,18 +1,18 @@
 {
     "schema":  "keelaryn.public-repository-provenance.v2",
     "role":  "public_source_sync_candidate",
-    "source_manager_version":  "4.15.1",
-    "source_gate_baseline_manager_version":  "4.15.0",
-    "source_manager_installation_sha256":  "0cd1daa017ecf7a70b105a3837f86911b918c72cb11030070d2f868406b89687",
-    "source_manager_gate_managed_content_sha256":  "09836047a7ed9581290c4f0eefb04b0b75e64c9cff4197b7f3adc10ae2e3b58c",
+    "source_manager_version":  "4.16.3",
+    "source_gate_baseline_manager_version":  "4.15.1",
+    "source_manager_installation_sha256":  "a6a26559951a11ae322739b42713504d5a8d3d0f838d2414f205a872d79c5902",
+    "source_manager_gate_managed_content_sha256":  "498ed12732bed23bb153daeea176437a639d68f8d5f2cd2a63ab7a45910c892a",
     "production_validation":  {
                                   "full_gate_pass":  true,
-                                  "gate_revision":  1,
-                                  "framework_revision":  12,
-                                  "tested_update_sha256":  "68df9efc022defa2c5edca22227c161838fc9e41b79cda7e35482bb9f317fe14",
+                                  "gate_revision":  2,
+                                  "framework_revision":  22,
+                                  "tested_update_sha256":  "14dff87e3aeb86c62cb9ae0f7edd8270cc780987a8fa37e9a6b331f8bd259f71",
                                   "production_doctor_pass":  true,
                                   "production_ux_smoke_pass":  true,
-                                  "production_managed_content_prefix":  "512ac9a4136f"
+                                  "production_managed_content_prefix":  "3a7b5cfa7e1e"
                               },
     "personal_hub_included":  false,
     "manager_runtime_state_included":  false,
@@ -28,7 +28,7 @@
                     "file":  "LICENSE",
                     "copyright":  "Copyright (c) 2026 Keelaryn contributors"
                 },
-    "public_candidate_revision":  1,
+    "public_candidate_revision":  2,
     "git_checkout_contract":  {
                                   "manager_authoritative_tree_attribute":  "-text",
                                   "framework_authoritative_tree_attribute":  "-text",

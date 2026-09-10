@@ -10,6 +10,14 @@ UPDATE uses `keelaryn.manager.update.v2`: release/system identifiers, compatibil
 
 The three transition-only compatibility files in UPDATE (`Keelaryn__Manager.ps1`, `_manager_manifest.json`, `_manager_version.txt`) are generated deterministically. The transition bootstrap must retain literal `$PSScriptRoot`, `$PSHOME`, `$runtime` and `@args` references and must never capture an absolute build-workspace path. SelfTest and SourceGate both enforce this contract.
 
+### UPDATE transition compatibility aliases
+
+`product/manager_release.json` may declare bounded `transition_compatibility_aliases` when a supported older Manager requires an obsolete managed path to remain present in the UPDATE transport envelope. Each alias maps an obsolete transport path to bytes from one current final managed `source_path`.
+
+Aliases are UPDATE-only compatibility material. They are excluded from SOURCE, DISTRIBUTION, `final_managed_files`, and the final installed content hash. During installation the receiving Manager uses `final_managed_files` as the canonical target set, so an alias can satisfy an older package validator without restoring the obsolete path into the final Manager tree. Alias paths must be safe, unique, absent from the final managed set, and backed by an existing final managed source path.
+
+Retain an alias only while `update_min_version` still permits a Manager version whose validator requires that historical path. Removing an alias is therefore a compatibility-floor decision, not ordinary cleanup.
+
 ## Release retention
 
 Retention runs only after the newly published bundle has passed post-publication hash validation. `state/releases/` keeps the current complete Manager release plus the nearest previous valid release. Older complete valid bundles are copied and revalidated under `state/history/manager_releases/v<version>/`, then removed from `state/releases/`; up to three validated older release bundles are retained there. Archive pruning considers only complete bundles that pass manifest/hash validation.

@@ -1003,6 +1003,7 @@ function Invoke-MenuAction([string]$Name,[string]$ActionPath,[string]$Label) {
         'failed' {Write-UiHost ('FAILED: '+$Label+' (ExitCode '+$rc+')') -ForegroundColor Red}
         default {
             if($rc-eq0){Write-UiHost 'COMPLETED' -ForegroundColor Green}
+            elseif($Name-eq'Doctor'-and$rc-eq2){Write-UiHost 'COMPLETED WITH WARNINGS' -ForegroundColor Yellow}
             elseif($rc-eq2-or$rc-eq3){Write-UiHost ('FAILED: '+$Label+' (ExitCode '+$rc+')') -ForegroundColor Yellow}
             else{Write-UiHost ('FAILED: '+$Label+' (ExitCode '+$rc+')') -ForegroundColor Red}
         }
@@ -1437,7 +1438,7 @@ function Test-FrontendSelf {
             return $false
         }
         $frontendSource=[System.IO.File]::ReadAllText($script:FrontendScriptPath,[System.Text.Encoding]::UTF8)
-        foreach($uiToken in @('function Invoke-MenuAction','function Invoke-FullGate','function Invoke-GenesisUi','function Show-FirstRunWizard','function Resolve-StartupDisposition','function Refresh-FrontendOperationalPaths','function Show-ChatGPTMenu','function Ensure-ChatGPTExchangeLayout','function Invoke-LegacyExchangeMigration','function Invoke-CleanTestsWork','function Invoke-QualificationCompactor','Show-SetupCompletion','GenesisConfigPath','GenesisConfirmed','-NonInteractive','[Enter] Back','product\runtime\Keelaryn__Manager.ps1')){
+        foreach($uiToken in @('function Invoke-MenuAction','function Invoke-FullGate','function Invoke-GenesisUi','function Show-FirstRunWizard','function Resolve-StartupDisposition','function Refresh-FrontendOperationalPaths','function Show-ChatGPTMenu','function Ensure-ChatGPTExchangeLayout','function Invoke-LegacyExchangeMigration','function Invoke-CleanTestsWork','function Invoke-QualificationCompactor','Show-SetupCompletion','GenesisConfigPath','GenesisConfirmed','-NonInteractive','[Enter] Back','COMPLETED WITH WARNINGS','elseif($Name-eq''Doctor''-and$rc-eq2)','product\runtime\Keelaryn__Manager.ps1')){
             if(-not$frontendSource.Contains($uiToken)){
                 $script:FrontendSelfTestReason='Visible action-output contract missing token: '+$uiToken
                 return $false

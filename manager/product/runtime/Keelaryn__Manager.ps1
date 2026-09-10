@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.15.1"
+$ManagerVersion = "4.16.3"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -402,6 +402,7 @@ $ManagedManagerFiles = @(
     "product/governance/hub/_System/CHAT_MANAGER.md",
     "product/governance/hub/_System/CHAT_MANAGER_LAUNCH.md",
     "product/governance/hub/_System/GLOSSARY.md",
+    "product/governance/hub/_System/GOVERNANCE.json",
     "product/governance/hub/_System/PROTOCOL.md",
     "product/governance/hub/_System/WORKSPACE.md",
     "product/governance/hub/README.md",
@@ -419,7 +420,7 @@ $ManagedManagerFiles = @(
     "product/starter/hub/Records/README.md",
     "product/starter/hub/Resources/Prompts/Initialize New Hub.md",
     "product/starter/hub/Resources/Prompts/WORKER_CHAT.md",
-    "product/starter/hub/Resources/Prompts/Workspace Checkout.md",
+    "product/governance/hub/Resources/Prompts/Workspace Checkout.md",
     "product/starter/hub/Resources/README.md",
     "product/tools/audit_cleanroom.ps1",
     "product/tools/KeelarynMenu.ps1",
@@ -524,7 +525,14 @@ function Rotate-Log {
         $item = Get-Item $script:LogFile
         if ($item.Length -gt 1MB) {
             $stamp = Get-Date -Format "yyyy-MM-dd_HHmmss"
-            Move-Item $script:LogFile (Join-Path $script:Logs ("manager_" + $stamp + ".log"))
+            try {
+                Move-Item $script:LogFile (Join-Path $script:Logs ("manager_" + $stamp + ".log")) -ErrorAction Stop
+            }
+            catch {
+                if (-not (Test-IsTransientFileLockException $_.Exception)) { throw }
+                # Log rotation is diagnostic maintenance, not a transaction boundary.
+                # Leave the current log in place when an external process holds a transient sharing lock.
+            }
         }
     }
 
@@ -547,7 +555,22 @@ function Write-ManagerLogLine([string]$Line,[int]$Attempts=40,[int]$DelayMs=100)
         catch {
             $isTransient=Test-IsTransientFileLockException $_.Exception
             if (-not $isTransient) { throw }
-            if ($attempt -ge $Attempts) { throw (New-FileLockDiagnosticException $script:LogFile 'Manager log write' $_.Exception) }
+            if ($attempt -ge $Attempts) {
+                $primaryLock=New-FileLockDiagnosticException $script:LogFile 'Manager log write' $_.Exception
+                $fallbackName=('manager_fallback_{0}_{1}_{2}.log' -f (Get-Date -Format 'yyyy-MM-dd_HHmmss_fff'),$PID,[guid]::NewGuid().ToString('N'))
+                $fallbackPath=Join-Path $script:Logs $fallbackName
+                try {
+                    $utf8=New-Object System.Text.UTF8Encoding($false)
+                    $fallbackText=$Line+[Environment]::NewLine+'Primary manager.log unavailable: '+$primaryLock.Message+[Environment]::NewLine
+                    [System.IO.File]::WriteAllText($fallbackPath,$fallbackText,$utf8)
+                }
+                catch {
+                    if (-not (Test-IsTransientFileLockException $_.Exception)) { throw }
+                    # Both diagnostic sinks are transiently unavailable. Do not let diagnostics
+                    # abort an otherwise safe Manager operation before its transaction boundary.
+                }
+                return
+            }
             if ($DelayMs -gt 0) { Start-Sleep -Milliseconds $DelayMs }
         }
     }
@@ -2513,7 +2536,114 @@ function Cleanup-History {
 }
 
 function Get-ProductRelease {
-    if(-not(Test-Path $ProductReleaseFile -PathType Leaf)){throw("Product release metadata is missing: "+$ProductReleaseFile)};$r=Read-KeelarynJsonFile $ProductReleaseFile;if([string]$r.schema-ne'keelaryn.system-release.v1' -or -not$r.release_id -or -not$r.system_version -or -not$r.manager_protocol -or -not$r.manager_min_version){throw 'Invalid product release metadata.'};$sv=([string]$r.system_version).Trim();if([string]$r.release_id-ne('keelaryn-system-'+$sv)){throw 'Product release_id does not match system_version.'};try{$null=[version]$sv;$min=[version]([string]$r.manager_min_version);$cur=[version]$ManagerVersion}catch{throw 'Product release contains an invalid version.'};if($min-gt$cur){throw 'Product release manager_min_version exceeds running Manager.'};if([string]$r.artifact_schema-ne'keelaryn.artifact.v3' -or [string]$r.instance_schema-ne'keelaryn.instance.v1' -or [string]$r.manifest_schema-ne'keelaryn.manifest.v1' -or [string]$r.validation_schema-ne'keelaryn.validation.v2'){throw 'Product release schema surfaces are inconsistent.'};return $r
+    if (-not (Test-Path -LiteralPath $ProductReleaseFile -PathType Leaf)) { throw ("Product release metadata is missing: "+$ProductReleaseFile) }
+    $r=Read-KeelarynJsonFile $ProductReleaseFile
+    if ([string]$r.schema -ne 'keelaryn.system-release.v1' -or -not $r.release_id -or -not $r.system_version -or -not $r.manager_protocol -or -not $r.manager_min_version) { throw 'Invalid product release metadata.' }
+    $sv=([string]$r.system_version).Trim()
+    if ([string]$r.release_id -ne ('keelaryn-system-'+$sv)) { throw 'Product release_id does not match system_version.' }
+    try { $null=[version]$sv; $min=[version]([string]$r.manager_min_version); $cur=[version]$ManagerVersion } catch { throw 'Product release contains an invalid version.' }
+    if ($min -gt $cur) { throw 'Product release manager_min_version exceeds running Manager.' }
+    if ([string]$r.artifact_schema -ne 'keelaryn.artifact.v3' -or [string]$r.instance_schema -ne 'keelaryn.instance.v1' -or [string]$r.manifest_schema -ne 'keelaryn.manifest.v1' -or [string]$r.validation_schema -ne 'keelaryn.validation.v2') { throw 'Product release schema surfaces are inconsistent.' }
+    if ([string]$r.governance_schema -ne 'keelaryn.hub-governance.v1' -or [string]$r.workspace_protocol -ne 'keelaryn.workspace.v1') { throw 'Product release governance schema/protocol surfaces are inconsistent.' }
+    [int]$governanceRevision=0; [int]$workspaceCheckoutRevision=0
+    if (-not [int]::TryParse(([string]$r.governance_revision),[ref]$governanceRevision) -or $governanceRevision -lt 1) { throw 'Product release governance_revision must be a positive integer.' }
+    if (-not [int]::TryParse(([string]$r.workspace_checkout_revision),[ref]$workspaceCheckoutRevision) -or $workspaceCheckoutRevision -lt 1) { throw 'Product release workspace_checkout_revision must be a positive integer.' }
+    return $r
+}
+
+function Get-HubGovernanceCompatibility {
+    param([string]$HubPath,$Release=$null,$ExpectedReceipt=$null)
+    if ([string]::IsNullOrWhiteSpace($HubPath)) { throw 'Hub governance compatibility requires a Hub path.' }
+    if (-not $Release) { $Release=Get-ProductRelease }
+
+    $expectedSchema=([string]$Release.governance_schema).Trim()
+    $expectedWorkspaceProtocol=([string]$Release.workspace_protocol).Trim()
+    [int]$expectedRevision=0; [int]$expectedWorkspaceCheckoutRevision=0
+    if ($expectedSchema -ne 'keelaryn.hub-governance.v1' -or $expectedWorkspaceProtocol -ne 'keelaryn.workspace.v1') { throw 'Manager product governance contract is unsupported.' }
+    if (-not [int]::TryParse(([string]$Release.governance_revision),[ref]$expectedRevision) -or $expectedRevision -lt 1) { throw 'Manager product governance revision is invalid.' }
+    if (-not [int]::TryParse(([string]$Release.workspace_checkout_revision),[ref]$expectedWorkspaceCheckoutRevision) -or $expectedWorkspaceCheckoutRevision -lt 1) { throw 'Manager product Workspace checkout revision is invalid.' }
+
+    if (-not $ExpectedReceipt) {
+        $targetPath=Join-Path $ProductRoot 'governance\hub\_System\GOVERNANCE.json'
+        if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) { throw ('Manager product governance receipt is missing: '+$targetPath) }
+        $targetItem=Get-Item -LiteralPath $targetPath -Force -ErrorAction Stop
+        if (($targetItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -or $targetItem.Length -gt 1MB) { throw 'Manager product governance receipt is unsafe.' }
+        $ExpectedReceipt=Read-KeelarynJsonFile $targetPath
+    }
+
+    $normalizePaths={
+        param($Values,[string]$Label)
+        $seen=@{}; $out=New-Object System.Collections.ArrayList
+        foreach($raw in @($Values)){
+            $p=([string]$raw).Replace('\','/').Trim('/')
+            if ([string]::IsNullOrWhiteSpace($p) -or [System.IO.Path]::IsPathRooted($p)) { throw ($Label+' contains an invalid relative path.') }
+            foreach($segment in @($p.Split('/'))){if([string]::IsNullOrWhiteSpace($segment)-or$segment-eq'.'-or$segment-eq'..'){throw ($Label+' contains an unsafe path segment: '+$p)}}
+            $key=$p.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+            if($seen.ContainsKey($key)){throw ($Label+' contains a duplicate path: '+$p)}
+            $seen[$key]=$true; [void]$out.Add($key)
+        }
+        if($out.Count-eq0){throw ($Label+' must not be empty.')}
+        return @($out|Sort-Object)
+    }
+
+    if ([string]$ExpectedReceipt.schema -ne $expectedSchema) { throw 'Manager product governance receipt schema disagrees with release metadata.' }
+    [int]$targetRevision=0; [int]$targetWorkspaceCheckoutRevision=0
+    if (-not [int]::TryParse(([string]$ExpectedReceipt.governance_revision),[ref]$targetRevision) -or $targetRevision -ne $expectedRevision) { throw 'Manager product governance receipt revision disagrees with release metadata.' }
+    if ([string]$ExpectedReceipt.workspace_protocol -ne $expectedWorkspaceProtocol) { throw 'Manager product governance receipt Workspace protocol disagrees with release metadata.' }
+    if (-not [int]::TryParse(([string]$ExpectedReceipt.workspace_checkout_revision),[ref]$targetWorkspaceCheckoutRevision) -or $targetWorkspaceCheckoutRevision -ne $expectedWorkspaceCheckoutRevision) { throw 'Manager product governance receipt Workspace checkout revision disagrees with release metadata.' }
+    if ([string]$ExpectedReceipt.reconciliation_role -ne 'chat_manager') { throw 'Manager product governance receipt reconciliation_role must be chat_manager.' }
+    if ($null -eq $ExpectedReceipt.PSObject.Properties['automatic_manager_overwrite'] -or -not ($ExpectedReceipt.automatic_manager_overwrite -is [bool]) -or [bool]$ExpectedReceipt.automatic_manager_overwrite) { throw 'Manager product governance receipt must prohibit automatic Manager overwrite.' }
+    $expectedPaths=@(& $normalizePaths $ExpectedReceipt.managed_paths 'Manager governance managed_paths')
+
+    $receiptPath=Join-Path $HubPath '_System\GOVERNANCE.json'
+    $baseResult=[ordered]@{
+        ExpectedRevision=$expectedRevision; ActualRevision=$null
+        ExpectedWorkspaceProtocol=$expectedWorkspaceProtocol; ActualWorkspaceProtocol=$null
+        ExpectedWorkspaceCheckoutRevision=$expectedWorkspaceCheckoutRevision; ActualWorkspaceCheckoutRevision=$null
+        ReceiptPath=$receiptPath
+    }
+    $makeResult={
+        param([string]$Status,[string]$Reason)
+        return [pscustomobject][ordered]@{
+            Status=$Status; Reason=$Reason
+            ExpectedRevision=$baseResult.ExpectedRevision; ActualRevision=$baseResult.ActualRevision
+            ExpectedWorkspaceProtocol=$baseResult.ExpectedWorkspaceProtocol; ActualWorkspaceProtocol=$baseResult.ActualWorkspaceProtocol
+            ExpectedWorkspaceCheckoutRevision=$baseResult.ExpectedWorkspaceCheckoutRevision; ActualWorkspaceCheckoutRevision=$baseResult.ActualWorkspaceCheckoutRevision
+            ReceiptPath=$baseResult.ReceiptPath
+        }
+    }
+    if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+        return & $makeResult 'missing' 'Hub governance receipt is missing.'
+    }
+
+    try {
+        $item=Get-Item -LiteralPath $receiptPath -Force -ErrorAction Stop
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -or $item.Length -gt 1MB) { throw 'Hub governance receipt is unsafe.' }
+        $actual=Read-KeelarynJsonFile $receiptPath
+        if ([string]$actual.schema -ne $expectedSchema) { throw ('Unsupported Hub governance schema: '+[string]$actual.schema) }
+        [int]$actualRevision=0; [int]$actualCheckoutRevision=0
+        if (-not [int]::TryParse(([string]$actual.governance_revision),[ref]$actualRevision) -or $actualRevision -lt 1) { throw 'Hub governance_revision must be a positive integer.' }
+        if (-not [int]::TryParse(([string]$actual.workspace_checkout_revision),[ref]$actualCheckoutRevision) -or $actualCheckoutRevision -lt 1) { throw 'Hub workspace_checkout_revision must be a positive integer.' }
+        $actualProtocol=([string]$actual.workspace_protocol).Trim()
+        if ([string]$actual.reconciliation_role -ne 'chat_manager') { throw 'Hub governance reconciliation_role must be chat_manager.' }
+        if ($null -eq $actual.PSObject.Properties['automatic_manager_overwrite'] -or -not ($actual.automatic_manager_overwrite -is [bool]) -or [bool]$actual.automatic_manager_overwrite) { throw 'Hub governance receipt does not prohibit automatic Manager overwrite.' }
+        $actualPaths=@(& $normalizePaths $actual.managed_paths 'Hub governance managed_paths')
+
+        $baseResult.ActualRevision=$actualRevision
+        $baseResult.ActualWorkspaceProtocol=$actualProtocol
+        $baseResult.ActualWorkspaceCheckoutRevision=$actualCheckoutRevision
+        if ($actualRevision -lt $expectedRevision) { return & $makeResult 'stale' ('Hub governance r'+$actualRevision+' is older than Manager r'+$expectedRevision+'.') }
+        if ($actualRevision -gt $expectedRevision) { return & $makeResult 'newer' ('Hub governance r'+$actualRevision+' is newer than Manager r'+$expectedRevision+'.') }
+
+        $pathsMatch=([string]::Join("`n",$actualPaths) -ceq [string]::Join("`n",$expectedPaths))
+        if ($actualProtocol -cne $expectedWorkspaceProtocol -or $actualCheckoutRevision -ne $expectedWorkspaceCheckoutRevision -or -not $pathsMatch) {
+            return & $makeResult 'contract_mismatch' 'Hub governance revision matches Manager but the adopted Workspace/managed-path contract differs.'
+        }
+        return & $makeResult 'current' ('Hub governance r'+$actualRevision+' matches Manager generic governance contract.')
+    }
+    catch {
+        return & $makeResult 'invalid' $_.Exception.Message
+    }
 }
 
 function Get-ManagerReleasePolicy {
@@ -2522,7 +2652,40 @@ function Get-ManagerReleasePolicy {
     if ([string]$r.schema -ne 'keelaryn.manager.release-policy.v1' -or [string]$r.manager_version -ne $ManagerVersion -or [string]$r.native_update_schema -ne 'keelaryn.manager.update.v2' -or -not $r.update_min_version) { throw 'Invalid Manager release policy.' }
     try { $floor=[version]([string]$r.update_min_version); $current=[version]$ManagerVersion } catch { throw 'Manager release policy contains an invalid version.' }
     if ($floor -gt $current) { throw 'Manager release policy update_min_version exceeds manager_version.' }
+    if ($null -eq $r.PSObject.Properties['transition_compatibility_aliases']) { throw 'Manager release policy must declare transition_compatibility_aliases.' }
+
+    $finalKeys=@{}
+    foreach($raw in @(Get-InstalledManagedPaths)){
+        $rel=([string]$raw).Replace('\','/')
+        $finalKeys[$rel.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()]=$rel
+    }
+    $aliasKeys=@{}
+    foreach($alias in @($r.transition_compatibility_aliases)){
+        if($null-eq$alias-or$null-eq$alias.PSObject.Properties['path']-or$null-eq$alias.PSObject.Properties['source_path']){throw 'Manager release transition alias must contain path/source_path.'}
+        $path=([string]$alias.path).Replace('\','/').Trim()
+        $source=([string]$alias.source_path).Replace('\','/').Trim()
+        if(-not(Test-ManagerManagedPath $path)-or-not(Test-ManagerManagedPath $source)){throw 'Manager release transition alias contains an unsafe path.'}
+        $pathKey=$path.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+        $sourceKey=$source.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+        if($pathKey-eq$sourceKey){throw('Manager release transition alias path equals source_path: '+$path)}
+        if($finalKeys.ContainsKey($pathKey)){throw('Manager release transition alias collides with final managed path: '+$path)}
+        if(-not$finalKeys.ContainsKey($sourceKey)){throw('Manager release transition alias source_path is not final managed source: '+$source)}
+        if($aliasKeys.ContainsKey($pathKey)){throw('Duplicate Manager release transition alias path: '+$path)}
+        $aliasKeys[$pathKey]=$true
+    }
     return $r
+}
+
+function Get-ManagerReleaseTransitionAliases($Policy=$null) {
+    if(-not$Policy){$Policy=Get-ManagerReleasePolicy}
+    $rows=@()
+    foreach($alias in @($Policy.transition_compatibility_aliases)){
+        $rows += [pscustomobject]@{
+            Path=([string]$alias.path).Replace('\','/').Trim()
+            SourcePath=([string]$alias.source_path).Replace('\','/').Trim()
+        }
+    }
+    return @($rows|Sort-Object Path)
 }
 
 function Get-FrontmatterValue([string]$Text, [string]$Key) {
@@ -4096,7 +4259,7 @@ function Add-DoctorFinding([System.Collections.ArrayList]$Rows,[string]$Severity
 function Invoke-Doctor {
     $doctorWatch=[System.Diagnostics.Stopwatch]::StartNew(); $timings=[ordered]@{
         hub_state_core_ms=0.0; hub_portable_analysis_ms=0.0; hub_derived_metadata_ms=0.0; hub_manifest_diagnostic_ms=0.0
-        hub_migration_ms=0.0; hub_artifact_ms=0.0; current_baseline_ms=0.0
+        hub_migration_ms=0.0; hub_governance_ms=0.0; hub_artifact_ms=0.0; current_baseline_ms=0.0
     }
     $rows=New-Object System.Collections.ArrayList
     $phase=[System.Diagnostics.Stopwatch]::StartNew()
@@ -4164,6 +4327,23 @@ function Invoke-Doctor {
                     elseif ($plan.Status -eq 'review_required') { Add-DoctorFinding $rows 'WARN' 'migration.status' ('Migration to '+[string]$release.system_version+' requires Chat Manager reconciliation.') }
                     else { Add-DoctorFinding $rows 'WARN' 'migration.status' ('Migration planner: '+$plan.Status+' - '+$plan.Reason) }
                 } catch { Add-DoctorFinding $rows 'WARN' 'migration.status' $_.Exception.Message }
+
+                try {
+                    $detail=[System.Diagnostics.Stopwatch]::StartNew()
+                    $releaseForGovernance=Get-ProductRelease
+                    $governance=Get-HubGovernanceCompatibility $Vault $releaseForGovernance
+                    $detail.Stop(); $timings.hub_governance_ms=[math]::Round($detail.Elapsed.TotalMilliseconds,1)
+                    if ($governance.Status -eq 'current') {
+                        Add-DoctorFinding $rows 'OK' 'governance.status' ('Hub generic governance r'+$governance.ActualRevision+' is current; Workspace checkout r'+$governance.ActualWorkspaceCheckoutRevision+' on '+$governance.ActualWorkspaceProtocol+'.')
+                    }
+                    elseif ($governance.Status -eq 'newer') {
+                        Add-DoctorFinding $rows 'WARN' 'governance.status' ($governance.Reason+' Update/review Manager compatibility before reconciliation; Manager will not downgrade Hub governance.')
+                    }
+                    else {
+                        Add-DoctorFinding $rows 'WARN' 'governance.status' ($governance.Reason+' Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.')
+                    }
+                }
+                catch { Add-DoctorFinding $rows 'WARN' 'governance.status' ('Governance compatibility check failed: '+$_.Exception.Message) }
             }
 
             if ($artifact -and ((-not $coreState) -or (-not $coreState.InstanceId) -or (-not $artifact.InstanceId) -or $artifact.InstanceId -eq $coreState.InstanceId)) { Add-DoctorFinding $rows 'OK' 'hub.artifact' ('ARTIFACT '+$artifact.ArtifactId+' is readable.') }
@@ -4220,6 +4400,15 @@ function Invoke-Doctor {
     if ($errorCodes -contains 'baseline.current') { [void]$actions.Add('Installed portable content differs from CURRENT. Treat CURRENT as the persisted checkpoint until the differing paths are classified; do not install further Hub updates.') }
     if ($errorCodes -contains 'baseline.current' -or $errorCodes -contains 'hub.manifest' -or $errorCodes -contains 'hub.artifact' -or $errorCodes -contains 'baseline.identity') { [void]$actions.Add('Do not install Hub updates until canonical baseline errors are resolved.') }
     if ($warningCodes -contains 'inbox.manager_invalid') { [void]$actions.Add('Review or remove invalid Manager ZIPs from state/inbox before the next update run.') }
+    $governanceFinding=@($rows | Where-Object { $_.Code -eq 'governance.status' -and $_.Severity -eq 'WARN' } | Select-Object -First 1)
+    if ($governanceFinding.Count -gt 0) {
+        if ($governanceFinding[0].Message -match 'newer than Manager') {
+            [void]$actions.Add('Do not downgrade Hub governance. Update/review Manager compatibility before attempting governance reconciliation.')
+        }
+        else {
+            [void]$actions.Add('Reconcile generic Hub governance through Chat Manager using CURRENT -> CANDIDATE -> APPROVED -> CURRENT. Preserve unrelated Hub content and do not overwrite governance in place.')
+        }
+    }
 
     Write-Host ('Keelaryn Doctor - Manager '+$ManagerVersion) -ForegroundColor Cyan
     foreach ($r in $rows) { $color=$(if ($r.Severity -eq 'ERROR'){'Red'}elseif($r.Severity -eq 'WARN'){'Yellow'}else{'Green'}); Write-Host ('[{0}] {1}: {2}' -f $r.Severity,$r.Code,$r.Message) -ForegroundColor $color }
@@ -4618,10 +4807,32 @@ function Invoke-BuildRelease {
             $entries += [ordered]@{path=$rel;sha256=[string]$row.Hash;size_bytes=[long]$row.Size}
         }
 
+        # finalEntries/finalContentHash intentionally describe only canonical installed
+        # Manager bytes. Transition aliases are UPDATE-transport compatibility only.
         $finalEntries=@($entries)
         $finalRows=@($finalEntries|ForEach-Object{([string]$_.path)+"`0"+([string]$_.sha256)}|Sort-Object)
         $finalContentHash=Get-TextHashHex([string]::Join("`n",$finalRows))
-        $transitionPaths=@($paths+@('Keelaryn__Manager.ps1','_manager_manifest.json','_manager_version.txt')|Sort-Object -Unique)
+
+        $snapshotByPath=@{}
+        foreach($row in $sourceSnapshot){
+            $key=([string]$row.Path).Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+            $snapshotByPath[$key]=$row
+        }
+        $transitionAliases=@(Get-ManagerReleaseTransitionAliases $managerPolicy)
+        $aliasPaths=@()
+        foreach($alias in $transitionAliases){
+            $aliasPath=[string]$alias.Path
+            $sourcePath=[string]$alias.SourcePath
+            $sourceKey=$sourcePath.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+            if(-not$snapshotByPath.ContainsKey($sourceKey)){throw('Transition alias source snapshot is missing: '+$sourcePath)}
+            $sourceRow=$snapshotByPath[$sourceKey]
+            $aliasDestination=Join-Path $payload $aliasPath
+            Write-ManagerReleaseSnapshotFile $sourceRow $aliasDestination
+            $entries += [ordered]@{path=$aliasPath;sha256=[string]$sourceRow.Hash;size_bytes=[long]$sourceRow.Size}
+            $aliasPaths += $aliasPath
+        }
+
+        $transitionPaths=@($paths+$aliasPaths+@('Keelaryn__Manager.ps1','_manager_manifest.json','_manager_version.txt')|Sort-Object -Unique)
         $transitionBootstrap=Get-TransitionRootBootstrapText
         $transitionManifest=(New-TransitionInstallationManifestObject $transitionPaths)|ConvertTo-Json -Depth 6
         $transitionFiles=[ordered]@{
@@ -5708,6 +5919,49 @@ function Test-LegacyManagerReleaseRetentionSelfTest {
     }
 }
 
+function Test-ManagerLogResilienceSelfTest {
+    $script:ManagerLogResilienceSelfTestReason=''
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('Keelaryn_manager_log_'+[guid]::NewGuid().ToString('N'))
+    $oldLogs=$script:Logs
+    $oldLogFile=$script:LogFile
+    $lockStream=$null
+    try {
+        New-Item -ItemType Directory -Force -Path $temp|Out-Null
+        $script:Logs=$temp
+        $script:LogFile=Join-Path $temp 'manager.log'
+        $utf8=New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($script:LogFile,('x'*(1MB+1)),$utf8)
+        $lockStream=[System.IO.File]::Open($script:LogFile,[System.IO.FileMode]::Open,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
+        Rotate-Log
+        if(-not(Test-Path -LiteralPath $script:LogFile -PathType Leaf)){
+            $script:ManagerLogResilienceSelfTestReason='Transiently locked manager.log was rotated instead of being left in place.'
+            return $false
+        }
+        Write-ManagerLogLine 'manager-log-resilience-selftest' 2 0
+        $fallbacks=@(Get-ChildItem -LiteralPath $temp -File -Filter 'manager_fallback_*.log' -ErrorAction SilentlyContinue)
+        if($fallbacks.Count-ne1){
+            $script:ManagerLogResilienceSelfTestReason=('Expected one fallback log under an exclusive primary-log lock, found '+$fallbacks.Count+'.')
+            return $false
+        }
+        $fallbackText=[System.IO.File]::ReadAllText($fallbacks[0].FullName,[System.Text.Encoding]::UTF8)
+        if(-not$fallbackText.Contains('manager-log-resilience-selftest')-or-not$fallbackText.Contains('Primary manager.log unavailable:')){
+            $script:ManagerLogResilienceSelfTestReason='Fallback log did not preserve the diagnostic line and primary-lock context.'
+            return $false
+        }
+        return $true
+    }
+    catch {
+        $script:ManagerLogResilienceSelfTestReason=('Unexpected error: '+$_.Exception.Message)
+        return $false
+    }
+    finally {
+        if($lockStream){$lockStream.Dispose()}
+        $script:Logs=$oldLogs
+        $script:LogFile=$oldLogFile
+        if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue}
+    }
+}
+
 function Test-AtomicPublishSelfTest {
     $script:AtomicPublishSelfTestReason = ''
     $temp = Join-Path ([System.IO.Path]::GetTempPath()) ('Keelaryn_atomic_' + [guid]::NewGuid().ToString('N'))
@@ -6018,6 +6272,57 @@ function Invoke-PrepareTests {
     return 0
 }
 
+$script:HubGovernanceCompatibilitySelfTestReason=''
+function Test-HubGovernanceCompatibilitySelfTest {
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('Keelaryn_governance_compat_'+[guid]::NewGuid().ToString('N'))
+    try {
+        $system=Join-Path $temp '_System'; New-Item -ItemType Directory -Force -Path $system | Out-Null
+        $paths=@(
+            'README.md','_System/BOOTSTRAP.md','_System/CHAT_MANAGER.md','_System/CHAT_MANAGER_LAUNCH.md','_System/GLOSSARY.md',
+            '_System/GOVERNANCE.json','_System/PROTOCOL.md','_System/WORKSPACE.md','Resources/Prompts/Workspace Checkout.md'
+        )
+        $newReceipt={
+            param([int]$Revision,[int]$CheckoutRevision)
+            return [pscustomobject][ordered]@{schema='keelaryn.hub-governance.v1';governance_revision=$Revision;workspace_protocol='keelaryn.workspace.v1';workspace_checkout_revision=$CheckoutRevision;reconciliation_role='chat_manager';automatic_manager_overwrite=$false;managed_paths=@($paths)}
+        }
+        $newRelease={
+            param([int]$Revision,[int]$CheckoutRevision)
+            return [pscustomobject][ordered]@{governance_schema='keelaryn.hub-governance.v1';governance_revision=$Revision;workspace_protocol='keelaryn.workspace.v1';workspace_checkout_revision=$CheckoutRevision}
+        }
+        $writeReceipt={
+            param($Object)
+            $json=($Object|ConvertTo-Json -Depth 6).Replace("`r`n","`n")+"`n"
+            [System.IO.File]::WriteAllText((Join-Path $system 'GOVERNANCE.json'),$json,(New-Object System.Text.UTF8Encoding($false)))
+        }
+
+        $target1=& $newReceipt 1 1; $release1=& $newRelease 1 1
+        $r=Get-HubGovernanceCompatibility $temp $release1 $target1
+        if([string]$r.Status-ne'missing'){$script:HubGovernanceCompatibilitySelfTestReason='missing receipt did not classify as missing';return $false}
+
+        & $writeReceipt $target1
+        $r=Get-HubGovernanceCompatibility $temp $release1 $target1
+        if([string]$r.Status-ne'current'){$script:HubGovernanceCompatibilitySelfTestReason='matching receipt did not classify as current';return $false}
+
+        $target2=& $newReceipt 2 2; $release2=& $newRelease 2 2
+        $r=Get-HubGovernanceCompatibility $temp $release2 $target2
+        if([string]$r.Status-ne'stale'){$script:HubGovernanceCompatibilitySelfTestReason='older receipt did not classify as stale';return $false}
+
+        & $writeReceipt $target2
+        $r=Get-HubGovernanceCompatibility $temp $release1 $target1
+        if([string]$r.Status-ne'newer'){$script:HubGovernanceCompatibilitySelfTestReason='newer receipt did not classify as newer';return $false}
+
+        $mismatch=& $newReceipt 1 2; & $writeReceipt $mismatch
+        $r=Get-HubGovernanceCompatibility $temp $release1 $target1
+        if([string]$r.Status-ne'contract_mismatch'){$script:HubGovernanceCompatibilitySelfTestReason='same-revision contract drift did not classify as contract_mismatch';return $false}
+
+        $invalid=& $newReceipt 1 1; $invalid.automatic_manager_overwrite=$true; & $writeReceipt $invalid
+        $r=Get-HubGovernanceCompatibility $temp $release1 $target1
+        if([string]$r.Status-ne'invalid'){$script:HubGovernanceCompatibilitySelfTestReason='unsafe receipt did not classify as invalid';return $false}
+        return $true
+    }
+    catch { $script:HubGovernanceCompatibilitySelfTestReason=$_.Exception.Message; return $false }
+    finally { if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue} }
+}
 function Test-TestsWorkspaceSelfTest {
     $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('Keelaryn_tests_workspace_'+[guid]::NewGuid().ToString('N'))
     try{
@@ -6182,7 +6487,7 @@ function Test-ProductSourceSelfTest {
             'product/docs/OPERATIONS.md','product/docs/MIGRATIONS.md','product/docs/LAYOUT.md','product/docs/TESTING.md','product/docs/RELEASE_BUILD.md',
             'product/docs/AI_DEVELOPMENT.md','product/docs/CANDIDATE_TRANSPORT.md','product/docs/USER_INTERFACE.md','product/docs/REPOSITORY_MODEL.md',
             'product/tools/New-KeelarynAIContext.ps1','product/tools/KeelarynMenu.ps1','product/tools/Unpack-KeelarynTestArchive.ps1',
-            'product/governance/hub/_System/PROTOCOL.md','product/governance/hub/_System/CHAT_MANAGER.md'
+            'product/governance/hub/_System/GOVERNANCE.json','product/governance/hub/_System/PROTOCOL.md','product/governance/hub/_System/CHAT_MANAGER.md','product/governance/hub/Resources/Prompts/Workspace Checkout.md'
         )
         foreach ($required in $requiredPaths) {
             if ($paths -notcontains $required) { return $false }
@@ -6198,7 +6503,7 @@ function Test-ProductSourceSelfTest {
             if (-not (Test-Path $p -PathType Leaf)) { return $false }
         }
         $runtimeSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\runtime\Keelaryn__Manager.ps1'),[System.Text.Encoding]::UTF8)
-        foreach($token in @('function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Test-WorkspaceCheckoutContractSelfTest','Resolve-KeelarynWorkspaceCheckout.ps1','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Write-ManagerReleaseSnapshotFile $row $dst','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
+        foreach($token in @('function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Test-WorkspaceCheckoutContractSelfTest','Resolve-KeelarynWorkspaceCheckout.ps1','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Get-ManagerReleaseTransitionAliases $managerPolicy','Write-ManagerReleaseSnapshotFile $row $dst','Write-ManagerReleaseSnapshotFile $sourceRow $aliasDestination','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
             if(-not$runtimeSource.Contains($token)){return $false}
         }
         $aiToolSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\tools\New-KeelarynAIContext.ps1'),[System.Text.Encoding]::UTF8)
@@ -6257,6 +6562,7 @@ if ($SelfTest) {
     if (-not (Test-ManagerInstallTargetSafetySelfTest)) { Write-Host ('Manager self-test failed: Manager install target safety contract. '+[string]$script:ManagerInstallTargetSafetySelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-ManagerReleaseRetentionSelfTest)) { Write-Host ('Manager self-test failed: release retention contract. '+[string]$script:ManagerReleaseRetentionSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-LegacyManagerReleaseRetentionSelfTest)) { Write-Host ('Manager self-test failed: legacy release retention contract. '+[string]$script:LegacyManagerReleaseRetentionSelfTestReason) -ForegroundColor Red; exit 1 }
+    if (-not (Test-ManagerLogResilienceSelfTest)) { Write-Host ('Manager self-test failed: diagnostic log sharing-lock resilience contract. '+[string]$script:ManagerLogResilienceSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-AtomicPublishSelfTest)) { Write-Host ('Manager self-test failed: atomic publication contract. '+[string]$script:AtomicPublishSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-TransitionRootBootstrapSelfTest)) { Write-Host ('Manager self-test failed: transition bootstrap determinism contract. '+[string]$script:TransitionRootBootstrapSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-ManagerReleaseSourceSnapshotSelfTest)) { Write-Host ('Manager self-test failed: release source snapshot contract. '+[string]$script:ManagerReleaseSourceSnapshotSelfTestReason) -ForegroundColor Red; exit 1 }
@@ -6265,6 +6571,7 @@ if ($SelfTest) {
     if (-not (Test-AIContextToolSourceSelfTest)) { Write-Host 'Manager self-test failed: AI context generator parser contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-LegacyNamespaceTransformSelfTest)) { Write-Host 'Manager self-test failed: legacy namespace transform contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-UpdateCommandSurfaceSelfTest)) { Write-Host 'Manager self-test failed: update command surface contract.' -ForegroundColor Red; exit 1 }
+    if (-not (Test-HubGovernanceCompatibilitySelfTest)) { Write-Host ('Manager self-test failed: Hub governance compatibility contract. '+[string]$script:HubGovernanceCompatibilitySelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-TestsWorkspaceSelfTest)) { Write-Host 'Manager self-test failed: tests workspace contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-QualificationEvidenceCompactionToolSelfTest)) { Write-Host ('Manager self-test failed: qualification evidence compaction contract. '+[string]$script:QualificationEvidenceCompactionToolSelfTestReason) -ForegroundColor Red; exit 1 }
     if (-not (Test-UserInterfaceToolSourceSelfTest)) { Write-Host ('Manager self-test failed: user-interface/test-archive tool contract. '+[string]$script:UserInterfaceToolSourceSelfTestReason) -ForegroundColor Red; exit 1 }

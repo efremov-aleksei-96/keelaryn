@@ -1,7 +1,13 @@
 {
-  "schema": "keelaryn.manager.release-policy.v1",
-  "manager_version": "4.15.1",
-  "native_update_schema": "keelaryn.manager.update.v2",
-  "update_min_version": "4.7.2",
-  "self_test_required": true
+    "schema":  "keelaryn.manager.release-policy.v1",
+    "manager_version":  "4.16.3",
+    "native_update_schema":  "keelaryn.manager.update.v2",
+    "update_min_version":  "4.7.2",
+    "self_test_required":  true,
+    "transition_compatibility_aliases":  [
+                                             {
+                                                 "path":  "product/starter/hub/Resources/Prompts/Workspace Checkout.md",
+                                                 "source_path":  "product/governance/hub/Resources/Prompts/Workspace Checkout.md"
+                                             }
+                                         ]
 }

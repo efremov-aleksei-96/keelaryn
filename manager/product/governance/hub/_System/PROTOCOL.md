@@ -30,6 +30,12 @@ The `_System/` layer defines identity, governance and deterministic metadata.
 
 `artifact_id` identifies one checkpoint only. It is not an instance identifier.
 
+`system_version` identifies structural Hub compatibility and is advanced only through the explicit migration registry.
+
+`governance_revision` is independent of `system_version`. `_System/GOVERNANCE.json` records the generic governance revision and contract-specific revisions actually adopted by this Hub. A Hub can therefore be structurally current while its generic governance is older or newer than the local Manager.
+
+A governance receipt is written only when the corresponding governance set has been adopted in a complete checkpoint. Copying or editing the receipt alone does not constitute reconciliation.
+
 ## 3. Artifact flow
 
 - **CANDIDATE** — complete non-canonical proposal, normally produced by a worker.
@@ -42,7 +48,7 @@ A package from another `instance_id` must never replace the current instance.
 
 ## 4. Canonical and derived files
 
-Canonical source state is Markdown plus identity/state files that are not declared derived. The source manifest defines the portable canonical source set.
+Canonical source state is Markdown plus identity/state/governance files that are not declared derived. The source manifest defines the portable canonical source set.
 
 Derived/rebuildable files are:
 
@@ -82,16 +88,24 @@ No information is deleted, discarded or irreversibly replaced without explicit u
 
 **Worker:** performs scoped work from an approved baseline and may emit CANDIDATEs.
 
-**Chat Manager:** reconciles CANDIDATEs semantically, preserves canonical invariants, resolves conflicts or blocks approval, and emits APPROVED checkpoints.
+**Chat Manager:** reconciles CANDIDATEs semantically, preserves canonical invariants, resolves conflicts or blocks approval, applies generic-governance convergence when requested, and emits APPROVED checkpoints.
 
-**Local Keelaryn__Manager:** validates transport/lineage/integrity, installs APPROVED checkpoints transactionally, manages local identity binding/history/migrations, and builds clean product distributions. It does not invent semantic merges between conflicting user states.
+**Local Keelaryn__Manager:** validates transport/lineage/integrity, installs APPROVED checkpoints transactionally, manages local identity binding/history/migrations, reports governance compatibility, and builds clean product distributions. It does not invent semantic merges or overwrite existing Hub governance automatically.
 
-## 8. Migration
+## 8. Migration and governance convergence
 
 System migrations are explicit registry entries. `manager_safe` migrations may change only proven platform-owned paths under constrained operations. Any migration that can alter user-owned semantics, customized governance, unresolved provenance or ambiguous state requires Chat Manager reconciliation.
+
+Generic governance convergence is not a system migration. When Doctor reports stale or missing governance, use the normal checkpoint path:
+
+```text
+CURRENT -> CANDIDATE -> Chat Manager -> APPROVED -> CURRENT
+```
+
+Chat Manager preserves unrelated user-owned/customized content, reconciles the Manager-provided governance paths, writes the matching `_System/GOVERNANCE.json` receipt only after the semantic change is complete, and rebuilds deterministic metadata before approval.
 
 Historical pre-Keelaryn identifiers remain historical facts where provenance requires them; they are not mechanically renamed into fictitious Keelaryn predecessor schemas.
 
 ## 9. Detached workbench
 
-`WORKSPACE CHECKOUT` and `RETURN PACKET` are context-transfer objects, not installable artifacts. Their rules are defined by [[_System/WORKSPACE]].
+`WORKSPACE CHECKOUT` and `RETURN PACKET` are context-transfer objects, not installable artifacts. Their rules are defined by [[_System/WORKSPACE]]. The adopted Workspace protocol/revision is recorded in `_System/GOVERNANCE.json`.
