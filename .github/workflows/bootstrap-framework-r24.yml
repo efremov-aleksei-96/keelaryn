@@ -1,0 +1,116 @@
+name: Bootstrap Framework r24
+
+on:
+  push:
+    branches:
+      - 'dev/framework-r24'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-r24:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/framework-r24
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Materialize Framework r24 source
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+          $root=$env:GITHUB_WORKSPACE
+          $main='bbeafa3251558289444b0e707fc2433fa132238d'
+          $managerTree=(& git rev-parse HEAD:manager).Trim()
+          $mainManagerTree=(& git rev-parse ($main+':manager')).Trim()
+          if($managerTree-cne$mainManagerTree){throw('Framework development must not change Manager tree: '+$managerTree+' != '+$mainManagerTree)}
+
+          $revPath=Join-Path $root 'tests\framework\manager-gate\FRAMEWORK_REVISION.txt'
+          $rev=[IO.File]::ReadAllText($revPath,[Text.Encoding]::UTF8).Trim()
+          if($rev-cne'23'){throw('Expected Framework r23 base, got r'+$rev)}
+          [IO.File]::WriteAllText($revPath,"24`n",$utf8)
+
+          $fullPath=Join-Path $root 'tests\framework\manager-gate\templates\Run-KeelarynManagerFullGate.ps1'
+          $full=[IO.File]::ReadAllText($fullPath,[Text.Encoding]::UTF8)
+          $old="    `$null=Run-Manager `$mgr @('-Doctor') `$true`r`n    `$baselineReport=Get-DoctorReport `$mgr"
+          $new="    `$baselineDoctor=Run-DoctorForGate `$mgr `$true`r`n    `$baselineReport=`$baselineDoctor.Report"
+          if(-not$full.Contains($old)){
+            $old="    `$null=Run-Manager `$mgr @('-Doctor') `$true`n    `$baselineReport=Get-DoctorReport `$mgr"
+            $new="    `$baselineDoctor=Run-DoctorForGate `$mgr `$true`n    `$baselineReport=`$baselineDoctor.Report"
+          }
+          $matches=[regex]::Matches($full,[regex]::Escape($old)).Count
+          if($matches-ne1){throw('Expected exactly one baseline generic Doctor call-site, actual='+$matches)}
+          $full=$full.Replace($old,$new)
+          $full=$full.Replace('Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS','Gate Framework r24 ZIP delayed-sharing-retry self-test: PASS')
+          [IO.File]::WriteAllText($fullPath,$full,$utf8)
+
+          $testPath=Join-Path $root 'tests\framework\manager-gate\Test-ManagerGateFramework.ps1'
+          $test=[IO.File]::ReadAllText($testPath,[Text.Encoding]::UTF8)
+          $test=$test.Replace("if(`$revision-cne'23')","if(`$revision-cne'24')")
+          $test=$test.Replace('expected revision 23','expected revision 24')
+          $test=$test.Replace('Framework r23','Framework r24')
+          $test=$test.Replace('keelaryn_framework_r23','keelaryn_framework_r24')
+          $needle="    if(@(`$errors).Count-ne0){throw('FullGate template parser failure before Doctor-contract extraction: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))}`r`n"
+          if(-not$test.Contains($needle)){
+            $needle="    if(@(`$errors).Count-ne0){throw('FullGate template parser failure before Doctor-contract extraction: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))}`n"
+          }
+          if(-not$test.Contains($needle)){throw 'Could not locate Full Gate Doctor self-test insertion point.'}
+          $insert=@'
+    $fullGateText=[System.IO.File]::ReadAllText($fullGateTemplate,[System.Text.Encoding]::UTF8)
+    if(-not$fullGateText.Contains('$baselineDoctor=Run-DoctorForGate $mgr $true')){throw 'Framework r24 Full Gate baseline Doctor is not routed through Run-DoctorForGate.'}
+    if(-not$fullGateText.Contains('$baselineReport=$baselineDoctor.Report')){throw 'Framework r24 Full Gate baseline report is not bound to the validated Doctor result.'}
+    if($fullGateText.Contains('$null=Run-Manager $mgr @(''-Doctor'') $true')){throw 'Framework r24 Full Gate still contains the unsafe generic baseline Doctor call-site.'}
+'@
+          $insert=$insert.Replace("`n","`r`n")
+          $test=$test.Replace($needle,$needle+$insert)
+          [IO.File]::WriteAllText($testPath,$test,$utf8)
+
+          $qualPath=Join-Path $root '.github\workflows\framework-qualification.yml'
+          $qual=[IO.File]::ReadAllText($qualPath,[Text.Encoding]::UTF8)
+          if(([regex]::Matches($qual,'framework-r23-equivalence')).Count-ne1){throw 'Unexpected r23 equivalence label count.'}
+          if(([regex]::Matches($qual,'9023')).Count-ne2){throw 'Unexpected r23 equivalence gate revision count.'}
+          $qual=$qual.Replace('framework-r23-equivalence','framework-r24-equivalence').Replace('9023','9024')
+          [IO.File]::WriteAllText($qualPath,$qual,$utf8)
+
+          $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
+          $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+          if([int]$prov.gate_framework.revision-ne23-or-not[bool]$prov.gate_framework.windows_qualified-or-not[bool]$prov.gate_framework.frozen_for_manager_candidate){throw 'Unexpected r23 provenance base.'}
+          $prov.gate_framework.revision=24
+          $prov.gate_framework.windows_qualified=$false
+          $prov.gate_framework.frozen_for_manager_candidate=$false
+          [IO.File]::WriteAllText($provPath,(($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n")+"`n"),$utf8)
+
+          $readmePath=Join-Path $root 'tests\framework\manager-gate\README.md'
+          $readme=[IO.File]::ReadAllText($readmePath,[Text.Encoding]::UTF8).TrimEnd("`r","`n")
+          $section=@'
+
+## Revision 24 baseline Doctor transition-WARN call-site binding
+
+Framework r23 remains immutable qualified provenance. Real CURRENT-backed Manager 4.17.1 g2 qualification exposed a Framework-only defect before any candidate update: the disposable 4.16.3 baseline Doctor returned the canonical missing-governance transition warning with exit 2, but Full Gate D still invoked that baseline through generic `Run-Manager`, which rejects every nonzero exit. The strict `Run-DoctorForGate` policy already existed and was used for candidate/post-repair Doctor checks, so r23 tested the policy helper without proving the baseline call-site actually used it.
+
+Revision 24 changes no Manager product bytes and does not broaden the accepted warning set. It routes the Full Gate D baseline Doctor through `Run-DoctorForGate` and binds `$baselineReport` to that validated result. The existing strict policy still accepts only the canonical missing/stale governance transition WARN shapes and rejects unrelated warnings, malformed messages, ERROR findings, inconsistent counts and non-transition exit codes. Framework self-test now asserts the baseline call-site binding directly and rejects reintroduction of the unsafe generic baseline Doctor invocation.
+
+Framework r24 requires fresh Windows parser/self-test, SourceRoot/SourceZip equivalence, hosted Framework qualification, exact Manager 4.17.1 qualification and a new real CURRENT-backed Manager gate revision before freeze/tag/merge and production publication.
+'@
+          [IO.File]::WriteAllText($readmePath,($readme+$section.Replace("`n","`r`n")+"`r`n"),$utf8)
+
+          Remove-Item -LiteralPath (Join-Path $root '.github\workflows\bootstrap-framework-r24.yml') -Force
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $changed=@(& git diff --name-only)
+          if(@($changed|Where-Object{$_-like'manager/*'}).Count-ne0){throw('Framework r24 patch changed Manager files: '+([string]::Join(', ',@($changed|Where-Object{$_-like'manager/*'}))))}
+          $required=@('.github/workflows/framework-qualification.yml','PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json','tests/framework/manager-gate/FRAMEWORK_REVISION.txt','tests/framework/manager-gate/README.md','tests/framework/manager-gate/Test-ManagerGateFramework.ps1','tests/framework/manager-gate/templates/Run-KeelarynManagerFullGate.ps1')
+          foreach($p in $required){if($changed-notcontains$p){throw('Expected r24 changed file missing: '+$p)}}
+          if($changed.Count-ne$required.Count){throw('Unexpected r24 changed files: '+([string]::Join(', ',$changed)))}
+
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add --all
+          git commit -m 'Gate Framework r24: bind baseline Doctor transition warnings'
+          git push origin HEAD:dev/framework-r24
