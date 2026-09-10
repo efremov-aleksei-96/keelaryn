@@ -35,15 +35,14 @@ jobs:
           [IO.File]::WriteAllText($revPath,"24`n",$utf8)
 
           $fullPath=Join-Path $root 'tests\framework\manager-gate\templates\Run-KeelarynManagerFullGate.ps1'
-          $full=[IO.File]::ReadAllText($fullPath,[Text.Encoding]::UTF8)
-          $oldLf="    `$null=Run-Manager `$mgr @('-Doctor') `$true`n    `$baselineReport=Get-DoctorReport `$mgr"
-          $normalized=$full.Replace("`r`n","`n")
-          $matches=[regex]::Matches($normalized,[regex]::Escape($oldLf)).Count
+          $full=[IO.File]::ReadAllText($fullPath,[Text.Encoding]::UTF8).Replace("`r`n","`n")
+          $old="    `$null=Run-Manager `$mgr @('-Doctor') `$true`n    `$baselineReport=Get-DoctorReport `$mgr"
+          $matches=[regex]::Matches($full,[regex]::Escape($old)).Count
           if($matches-ne1){throw('Expected exactly one baseline generic Doctor call-site, actual='+$matches)}
-          $newLf="    `$baselineDoctor=Run-DoctorForGate `$mgr `$true`n    `$baselineReport=`$baselineDoctor.Report"
-          $normalized=$normalized.Replace($oldLf,$newLf)
-          $normalized=$normalized.Replace('Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS','Gate Framework r24 ZIP delayed-sharing-retry self-test: PASS')
-          [IO.File]::WriteAllText($fullPath,$normalized.Replace("`n","`r`n"),$utf8)
+          $new="    `$baselineDoctor=Run-DoctorForGate `$mgr `$true`n    `$baselineReport=`$baselineDoctor.Report"
+          $full=$full.Replace($old,$new)
+          $full=$full.Replace('Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS','Gate Framework r24 ZIP delayed-sharing-retry self-test: PASS')
+          [IO.File]::WriteAllText($fullPath,$full.Replace("`n","`r`n"),$utf8)
 
           $testPath=Join-Path $root 'tests\framework\manager-gate\Test-ManagerGateFramework.ps1'
           $test=[IO.File]::ReadAllText($testPath,[Text.Encoding]::UTF8).Replace("`r`n","`n")
@@ -53,13 +52,13 @@ jobs:
           $test=$test.Replace('keelaryn_framework_r23','keelaryn_framework_r24')
           $needle="    if(@(`$errors).Count-ne0){throw('FullGate template parser failure before Doctor-contract extraction: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))}`n"
           if(-not$test.Contains($needle)){throw 'Could not locate Full Gate Doctor self-test insertion point.'}
-          $insert=@'
-    $fullGateText=[System.IO.File]::ReadAllText($fullGateTemplate,[System.Text.Encoding]::UTF8)
-    if(-not$fullGateText.Contains('$baselineDoctor=Run-DoctorForGate $mgr $true')){throw 'Framework r24 Full Gate baseline Doctor is not routed through Run-DoctorForGate.'}
-    if(-not$fullGateText.Contains('$baselineReport=$baselineDoctor.Report')){throw 'Framework r24 Full Gate baseline report is not bound to the validated Doctor result.'}
-    if($fullGateText.Contains('$null=Run-Manager $mgr @(''-Doctor'') $true')){throw 'Framework r24 Full Gate still contains the unsafe generic baseline Doctor call-site.'}
-'@
-          $insert=$insert.Replace("`r`n","`n")
+          $insertLines=@(
+            '    $fullGateText=[System.IO.File]::ReadAllText($fullGateTemplate,[System.Text.Encoding]::UTF8)',
+            '    if(-not$fullGateText.Contains(''$baselineDoctor=Run-DoctorForGate $mgr $true'')){throw ''Framework r24 Full Gate baseline Doctor is not routed through Run-DoctorForGate.''}',
+            '    if(-not$fullGateText.Contains(''$baselineReport=$baselineDoctor.Report'')){throw ''Framework r24 Full Gate baseline report is not bound to the validated Doctor result.''}',
+            '    if($fullGateText.Contains(''$null=Run-Manager $mgr @(''''-Doctor'''') $true'')){throw ''Framework r24 Full Gate still contains the unsafe generic baseline Doctor call-site.''}'
+          )
+          $insert=([string]::Join("`n",$insertLines)+"`n")
           $test=$test.Replace($needle,$needle+$insert)
           [IO.File]::WriteAllText($testPath,$test.Replace("`n","`r`n"),$utf8)
 
@@ -80,17 +79,18 @@ jobs:
 
           $readmePath=Join-Path $root 'tests\framework\manager-gate\README.md'
           $readme=[IO.File]::ReadAllText($readmePath,[Text.Encoding]::UTF8).TrimEnd("`r","`n")
-          $section=@'
-
-## Revision 24 baseline Doctor transition-WARN call-site binding
-
-Framework r23 remains immutable qualified provenance. Real CURRENT-backed Manager 4.17.1 g2 qualification exposed a Framework-only defect before any candidate update: the disposable 4.16.3 baseline Doctor returned the canonical missing-governance transition warning with exit 2, but Full Gate D still invoked that baseline through generic `Run-Manager`, which rejects every nonzero exit. The strict `Run-DoctorForGate` policy already existed and was used for candidate/post-repair Doctor checks, so r23 tested the policy helper without proving the baseline call-site actually used it.
-
-Revision 24 changes no Manager product bytes and does not broaden the accepted warning set. It routes the Full Gate D baseline Doctor through `Run-DoctorForGate` and binds `$baselineReport` to that validated result. The existing strict policy still accepts only the canonical missing/stale governance transition WARN shapes and rejects unrelated warnings, malformed messages, ERROR findings, inconsistent counts and non-transition exit codes. Framework self-test now asserts the baseline call-site binding directly and rejects reintroduction of the unsafe generic baseline Doctor invocation.
-
-Framework r24 requires fresh Windows parser/self-test, SourceRoot/SourceZip equivalence, hosted Framework qualification, exact Manager 4.17.1 qualification and a new real CURRENT-backed Manager gate revision before freeze/tag/merge and production publication.
-'@
-          [IO.File]::WriteAllText($readmePath,($readme+$section.Replace("`n","`r`n")+"`r`n"),$utf8)
+          $sectionLines=@(
+            '',
+            '',
+            '## Revision 24 baseline Doctor transition-WARN call-site binding',
+            '',
+            'Framework r23 remains immutable qualified provenance. Real CURRENT-backed Manager 4.17.1 g2 qualification exposed a Framework-only defect before any candidate update: the disposable 4.16.3 baseline Doctor returned the canonical missing-governance transition warning with exit 2, but Full Gate D still invoked that baseline through generic `Run-Manager`, which rejects every nonzero exit. The strict `Run-DoctorForGate` policy already existed and was used for candidate/post-repair Doctor checks, so r23 tested the policy helper without proving the baseline call-site actually used it.',
+            '',
+            'Revision 24 changes no Manager product bytes and does not broaden the accepted warning set. It routes the Full Gate D baseline Doctor through `Run-DoctorForGate` and binds `$baselineReport` to that validated result. The existing strict policy still accepts only the canonical missing/stale governance transition WARN shapes and rejects unrelated warnings, malformed messages, ERROR findings, inconsistent counts and non-transition exit codes. Framework self-test now asserts the baseline call-site binding directly and rejects reintroduction of the unsafe generic baseline Doctor invocation.',
+            '',
+            'Framework r24 requires fresh Windows parser/self-test, SourceRoot/SourceZip equivalence, hosted Framework qualification, exact Manager 4.17.1 qualification and a new real CURRENT-backed Manager gate revision before freeze/tag/merge and production publication.'
+          )
+          [IO.File]::WriteAllText($readmePath,($readme+[string]::Join("`r`n",$sectionLines)+"`r`n"),$utf8)
 
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
