@@ -1,0 +1,62 @@
+name: Freeze Gate Framework r23 metadata
+
+on:
+  push:
+    branches:
+      - 'maintenance/freeze-framework-r23'
+
+permissions:
+  contents: write
+
+jobs:
+  freeze:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/framework-r23
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Freeze qualified r23 provenance and refresh manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $expectedSource='ba2659c6f00c22d2008262eef785647ad583d31c'
+          $actual=(git rev-parse HEAD).Trim()
+          if($actual-cne$expectedSource){throw('Framework r23 source head moved before freeze: '+$actual)}
+          $frameworkTree=(git rev-parse 'HEAD:tests/framework/manager-gate').Trim()
+          $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
+          $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$prov.source_manager_version-cne'4.16.3'){throw 'Framework freeze must preserve Manager 4.16.3 source provenance.'}
+          if(-not[bool]$prov.production_validation.full_gate_pass-or[int]$prov.production_validation.framework_revision-ne22){throw 'Historical Manager 4.16.3 production qualification must remain bound to r22.'}
+          if([int]$prov.gate_framework.revision-ne23){throw 'Expected Framework revision 23.'}
+          if([bool]$prov.gate_framework.windows_qualified-or[bool]$prov.gate_framework.frozen_for_manager_candidate){throw 'Framework r23 source is already marked qualified/frozen.'}
+          $prov.gate_framework.windows_qualified=$true
+          $prov.gate_framework.frozen_for_manager_candidate=$true
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+          [IO.File]::WriteAllText($provPath,(($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n")+"`n"),$utf8)
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-GitHubActionsPolicy.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git diff --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $afterFrameworkTree=(git rev-parse 'HEAD:tests/framework/manager-gate').Trim()
+          if($afterFrameworkTree-cne$frameworkTree){throw 'Framework source tree changed during metadata freeze.'}
+          $changed=@(git status --porcelain|ForEach-Object{([string]$_).Substring(3).Replace('\','/')})
+          $expected=@('PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json')
+          if($changed.Count-ne2-or@($changed|Where-Object{$expected-notcontains$_}).Count-ne0){throw('Unexpected Framework freeze changes: '+($changed-join' | '))}
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git commit -m 'Gate Framework r23: freeze qualified provenance'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/framework-r23
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
