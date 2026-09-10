@@ -1,0 +1,101 @@
+name: Build exact Manager 4.17.1 g2 gate
+
+on:
+  push:
+    branches:
+      - 'maintenance/build-manager-4.17.1-g2'
+
+permissions:
+  contents: read
+
+jobs:
+  build-g2:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 6d89a0beec0d4da4c0a8b809c1ac42543ca6952d
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact frozen candidate and Framework identities
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $head=(git rev-parse HEAD).Trim()
+          if($head-cne'6d89a0beec0d4da4c0a8b809c1ac42543ca6952d'){throw('Candidate checkout mismatch: '+$head)}
+          $managerTree=(git rev-parse 'HEAD:manager').Trim()
+          if($managerTree-cne'8d00a22a29eec7fa5a7560fca5425a80dd4bcb93'){throw('Frozen g1 Manager tree mismatch: '+$managerTree)}
+          $prov=Get-Content -LiteralPath 'PUBLIC_PROVENANCE.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$prov.source_manager_version-cne'4.17.1'-or[string]$prov.source_gate_baseline_manager_version-cne'4.16.3'){throw 'Candidate/baseline provenance mismatch.'}
+          if([int]$prov.gate_framework.revision-ne23-or-not[bool]$prov.gate_framework.windows_qualified-or-not[bool]$prov.gate_framework.frozen_for_manager_candidate){throw 'Framework r23 is not qualified/frozen in candidate provenance.'}
+          if([bool]$prov.production_validation.full_gate_pass-or$null-ne$prov.production_validation.gate_revision){throw 'Candidate must still be production-unqualified before g2 execution.'}
+          if([string]$prov.source_manager_installation_sha256-cne'a60ffbf4510fc63aff5fd0e8e86688cf62ebfbf2320fc75e553fc2bf3cf19b17'){throw 'INSTALLATION identity mismatch.'}
+          if([string]$prov.source_manager_gate_managed_content_sha256-cne'5c03abf09d07338fa39b1a629e5ae5f07822461a6956ccd14a93f50945aad318'){throw 'Managed-content identity mismatch.'}
+          $frameworkRevision=(Get-Content -LiteralPath 'tests\framework\manager-gate\FRAMEWORK_REVISION.txt' -Raw -Encoding UTF8).Trim()
+          if($frameworkRevision-cne'23'){throw('Framework revision marker mismatch: '+$frameworkRevision)}
+          Write-Host ('IDENTITY PASS: candidate='+$head+' manager_tree='+$managerTree+' framework=r'+$frameworkRevision) -ForegroundColor Green
+
+      - name: Build deterministic ordinary g2 twice and verify GATE_SPEC
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $root=$env:GITHUB_WORKSPACE
+          $builder=Join-Path $root 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          $out=Join-Path $env:RUNNER_TEMP ('manager-4.17.1-g2-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          New-Item -ItemType Directory -Force -Path $out|Out-Null
+          $a=Join-Path $out 'manager-4.17.1-a.zip'
+          $b=Join-Path $out 'manager-4.17.1-b.zip'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $root 'manager') -BaselineVersion '4.16.3' -GateRevision 2 -OutputPath $a -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $root 'manager') -BaselineVersion '4.16.3' -GateRevision 2 -OutputPath $b -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $shaA=(Get-FileHash -LiteralPath $a -Algorithm SHA256).Hash.ToLowerInvariant()
+          $shaB=(Get-FileHash -LiteralPath $b -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($shaA-cne$shaB){throw('Non-deterministic g2 gate: '+$shaA+' != '+$shaB)}
+          $extract=Join-Path $out 'inspect'
+          Expand-Archive -LiteralPath $a -DestinationPath $extract -Force
+          $gateRoot=Join-Path $extract 'manager-4.17.1'
+          $spec=Get-Content -LiteralPath (Join-Path $gateRoot 'gate\GATE_SPEC.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$spec.schema-cne'keelaryn.manager-gate-spec.v1'){throw 'Unexpected GATE_SPEC schema.'}
+          if([string]$spec.candidate_version-cne'4.17.1'-or[string]$spec.baseline_manager_version-cne'4.16.3'){throw 'GATE_SPEC version identity mismatch.'}
+          if([int]$spec.gate_revision-ne2-or[int]$spec.framework_revision-ne23){throw 'GATE_SPEC gate/framework identity mismatch.'}
+          if([string]$spec.candidate_installation_sha256-cne'a60ffbf4510fc63aff5fd0e8e86688cf62ebfbf2320fc75e553fc2bf3cf19b17'){throw 'GATE_SPEC INSTALLATION SHA mismatch.'}
+          if([string]$spec.candidate_managed_content_sha256-cne'5c03abf09d07338fa39b1a629e5ae5f07822461a6956ccd14a93f50945aad318'){throw 'GATE_SPEC managed-content SHA mismatch.'}
+          $final=Join-Path $out 'manager-4.17.1.zip'
+          Copy-Item -LiteralPath $a -Destination $final -Force
+          $identity=[ordered]@{
+            schema='keelaryn.manager-gate-build-evidence.v1'
+            classification='build_only_not_production_qualified'
+            candidate_version='4.17.1'
+            candidate_source_commit='6d89a0beec0d4da4c0a8b809c1ac42543ca6952d'
+            frozen_candidate_commit='d8d28b23286b9ec8d46f34f54c8d57a0e27f255e'
+            manager_tree_sha='8d00a22a29eec7fa5a7560fca5425a80dd4bcb93'
+            baseline_version='4.16.3'
+            gate_revision=2
+            framework_revision=23
+            managed_content_sha256='5c03abf09d07338fa39b1a629e5ae5f07822461a6956ccd14a93f50945aad318'
+            installation_sha256='a60ffbf4510fc63aff5fd0e8e86688cf62ebfbf2320fc75e553fc2bf3cf19b17'
+            gate_zip_sha256=$shaA
+            deterministic_second_sha256=$shaB
+            production_qualified=$false
+          }
+          $json=(($identity|ConvertTo-Json -Depth 8).Replace("`r`n","`n")+"`n")
+          [IO.File]::WriteAllText((Join-Path $out 'G2_BUILD_IDENTITY.json'),$json,(New-Object System.Text.UTF8Encoding($false)))
+          "G2_OUTPUT=$out" >> $env:GITHUB_ENV
+          "G2_SHA256=$shaA" >> $env:GITHUB_ENV
+          Write-Host ('G2 BUILD PASS: manager-4.17.1.zip sha256='+$shaA+'; framework=r23; gate=g2') -ForegroundColor Green
+          Write-Host 'Classification: build-only; production qualification is still pending.' -ForegroundColor Yellow
+
+      - name: Upload exact ordinary g2 gate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.1-g2-r23-candidate-g1
+          path: |
+            ${{ env.G2_OUTPUT }}\manager-4.17.1.zip
+            ${{ env.G2_OUTPUT }}\G2_BUILD_IDENTITY.json
+          if-no-files-found: error
+          retention-days: 7
