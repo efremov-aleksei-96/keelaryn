@@ -61,7 +61,7 @@ function Assert-Rejected([string]$Name,[object[]]$Entries,$Limits=$null){
 }
 
 $revision=(Get-Content -LiteralPath (Join-Path $frameworkRoot 'FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
-if($revision-cne'22'){throw('Framework qualification expected revision 22, got '+$revision)}
+if($revision-cne'23'){throw('Framework qualification expected revision 23, got '+$revision)}
 
 foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filter '*.ps1')){
     $tokens=$null;$errors=$null
@@ -69,10 +69,10 @@ foreach($ps in @(Get-ChildItem -LiteralPath $frameworkRoot -File -Recurse -Filte
     if(@($errors).Count-ne0){throw('PowerShell parser rejected framework file '+$ps.FullName+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
 }
 $builderText=[System.IO.File]::ReadAllText($builderPath,[System.Text.Encoding]::UTF8)
-if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r22 builder must not use Expand-Archive for SourceZip.'}
-foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r22 builder safety binding missing token: '+$token)}}
+if($builderText.IndexOf('Expand-Archive',[System.StringComparison]::OrdinalIgnoreCase)-ge0){throw 'Framework r23 builder must not use Expand-Archive for SourceZip.'}
+foreach($token in @('SourceZipSafety.ps1','Expand-KeelarynSourceZipSafely')){if(-not$builderText.Contains($token)){throw('Framework r23 builder safety binding missing token: '+$token)}}
 
-$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r22_selftest_'+[guid]::NewGuid().ToString('N'))
+$script:tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r23_selftest_'+[guid]::NewGuid().ToString('N'))
 try{
     New-Item -ItemType Directory -Force -Path $script:tempRoot|Out-Null
     $valid=Get-ValidEntries
@@ -330,7 +330,7 @@ try{
     $tokens=$null;$errors=$null
     $fullAst=[System.Management.Automation.Language.Parser]::ParseFile($fullGateTemplate,[ref]$tokens,[ref]$errors)
     if(@($errors).Count-ne0){throw('FullGate template parser failure before Doctor-contract extraction: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
-    foreach($helperName in @('Test-IsPermittedTransitionDoctorWarning','Assert-DoctorGateResult','Normalize-DoctorFindingMessage','FindingSignature')){
+    foreach($helperName in @('Test-IsPermittedTransitionDoctorWarning','Assert-DoctorGateResult','Normalize-DoctorFindingMessage','FindingSignature','Get-StableDoctorFindingRows','Get-DoctorFindingCompatibilitySignature','Assert-StableDoctorFindingCompatibility')){
         $helper=@($fullAst.FindAll({param($node)$node-is[System.Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-eq$helperName},$true))
         if($helper.Count-ne1){throw('Expected exactly one '+$helperName+' function in FullGate template; actual='+$helper.Count)}
         Invoke-Expression ([string]$helper[0].Extent.Text)
@@ -411,6 +411,50 @@ try{
     )
     if((FindingSignature $baselineSigReport)-ceq(FindingSignature $candidateSigReport)){throw 'Raw Doctor signature unexpectedly ignored governance.status.'}
     if((FindingSignature $baselineSigReport -IgnoreGovernanceStatus)-cne(FindingSignature $candidateSigReport -IgnoreGovernanceStatus)){throw 'Governance-aware cross-version Doctor signature still differs.'}
+    function Assert-StableDoctorCompatibilityRejected([string]$Label,$Baseline,$Candidate){
+        $rejected=$false
+        try{[void](Assert-StableDoctorFindingCompatibility $Baseline $Candidate -IgnoreGovernanceStatus)}
+        catch{$rejected=$true;Write-Host('  PASS reject doctor-compat-'+$Label+': '+$_.Exception.Message)}
+        if(-not$rejected){throw('Stable Doctor compatibility accepted unsafe case: '+$Label)}
+    }
+
+    $baselineCompat=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'same'),
+        (New-DoctorFinding 'OK' 'baseline.current' 'same-current')
+    )
+    $candidateAdditiveCompat=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'same'),
+        (New-DoctorFinding 'OK' 'baseline.current' 'same-current'),
+        (New-DoctorFinding 'OK' 'instances.registry' 'Single-instance compatibility mode; multi-Hub registry is not initialized.'),
+        (New-DoctorFinding 'WARN' 'governance.status' 'Hub governance receipt is missing. Chat Manager reconciliation required; Manager will not overwrite Hub governance automatically.')
+    )
+    [void](Assert-StableDoctorFindingCompatibility $baselineCompat $candidateAdditiveCompat -IgnoreGovernanceStatus)
+
+    $candidateRemoved=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'same')
+    )
+    Assert-StableDoctorCompatibilityRejected 'baseline-finding-removed' $baselineCompat $candidateRemoved
+
+    $candidateChanged=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'same'),
+        (New-DoctorFinding 'OK' 'baseline.current' 'changed-current')
+    )
+    Assert-StableDoctorCompatibilityRejected 'baseline-finding-changed' $baselineCompat $candidateChanged
+
+    $candidateDuplicate=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'same'),
+        (New-DoctorFinding 'OK' 'hub.state' 'same'),
+        (New-DoctorFinding 'OK' 'baseline.current' 'same-current')
+    )
+    Assert-StableDoctorCompatibilityRejected 'duplicate-candidate-code' $baselineCompat $candidateDuplicate
+
+    $candidateUnsafeAdditive=New-DoctorReportForTest @(
+        (New-DoctorFinding 'OK' 'hub.state' 'same'),
+        (New-DoctorFinding 'OK' 'baseline.current' 'same-current'),
+        (New-DoctorFinding 'WARN' 'instances.registry' 'unexpected warning')
+    )
+    Assert-StableDoctorCompatibilityRejected 'new-non-ok-finding' $baselineCompat $candidateUnsafeAdditive
+
     Write-Host '  PASS targeted Doctor transition-WARN and cross-version signature contract'
 
     Write-Host '[14/15] Full Gate transient CURRENT ZIP sharing-retry contract...'
@@ -419,13 +463,13 @@ try{
     foreach($token in @(
         'function Open-ZipWithSharingRetry',
         'function Open-ZipReadWithSharingRetry',
-        'keelaryn_framework_r22_zip_retry_',
+        'keelaryn_framework_r23_zip_retry_',
         'Start-Job -ScriptBlock',
         'Open-ZipUpdateWithSharingRetry $stateCurrent 120 250',
         'Open-ZipReadWithSharingRetry $stateCurrent 120 250',
-        'Gate Framework r22 ZIP delayed-sharing-retry self-test: PASS'
+        'Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS'
     )){
-        if(-not$fullGateText.Contains($token)){throw('Framework r22 Full Gate sharing-retry binding missing token: '+$token)}
+        if(-not$fullGateText.Contains($token)){throw('Framework r23 Full Gate sharing-retry binding missing token: '+$token)}
     }
     Write-Host '  PASS delayed-unlock retry + E4 bounded read/write retry binding'
 
@@ -471,5 +515,5 @@ try{
     Assert-ProductionDoctorRejected 'governance-stale-suffix' 2 $staleSuffix
     Assert-ProductionDoctorRejected 'mixed-warning-error-summary-lie' 2 $mixedWarnErrorLie    Write-Host '  PASS embedded production installer targeted Doctor transition-WARN contract'
 
-    Write-Host 'FRAMEWORK r22 SELFTEST: PASS' -ForegroundColor Green
+    Write-Host 'FRAMEWORK r23 SELFTEST: PASS' -ForegroundColor Green
 }finally{if(Test-Path -LiteralPath $script:tempRoot){Remove-Item -LiteralPath $script:tempRoot -Recurse -Force -ErrorAction SilentlyContinue}}
