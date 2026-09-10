@@ -1,0 +1,42 @@
+name: Fix r23 materializer CRLF diff check
+
+on:
+  push:
+    branches:
+      - 'maintenance/fix-r23-materializer-diffcheck'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: maintenance/materialize-framework-r23
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Make diff check CRLF-aware
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $path=Join-Path $env:GITHUB_WORKSPACE '.github\workflows\materialize-framework-r23.yml'
+          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          $old='          git diff --check'
+          $new='          git -c core.whitespace=cr-at-eol diff --check'
+          $count=([regex]::Matches($text,[regex]::Escape($old))).Count
+          if($count-ne1){throw('Unexpected diff-check marker count: '+$count)}
+          $text=$text.Replace($old,$new)
+          [IO.File]::WriteAllText($path,$text,(New-Object Text.UTF8Encoding($false)))
+          git diff --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- .github/workflows/materialize-framework-r23.yml
+          git commit -m 'maintenance: make r23 materializer CRLF-aware'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:maintenance/materialize-framework-r23
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
