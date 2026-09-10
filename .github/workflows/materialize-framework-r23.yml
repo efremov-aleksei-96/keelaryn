@@ -1,0 +1,125 @@
+name: Materialize Gate Framework r23
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-framework-r23'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/framework-r23
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Materialize r23 source and self-test
+        shell: powershell
+        env:
+          HELPER_B64: ZnVuY3Rpb24gR2V0LVN0YWJsZURvY3RvckZpbmRpbmdSb3dzKCRSZXBvcnQsW3N3aXRjaF0kSWdub3JlR292ZXJuYW5jZVN0YXR1cyl7CiAgICByZXR1cm4gQCgKICAgICAgICAkUmVwb3J0LmZpbmRpbmdzfAogICAgICAgIFdoZXJlLU9iamVjdHtbc3RyaW5nXSRfLkNvZGUtbm90bGlrZSdtYW5hZ2VyLionLWFuZCgtbm90JElnbm9yZUdvdmVybmFuY2VTdGF0dXMtb3Jbc3RyaW5nXSRfLkNvZGUtY25lJ2dvdmVybmFuY2Uuc3RhdHVzJyl9CiAgICApCn0KCmZ1bmN0aW9uIEdldC1Eb2N0b3JGaW5kaW5nQ29tcGF0aWJpbGl0eVNpZ25hdHVyZSgkRmluZGluZyl7CiAgICAkY29kZT1bc3RyaW5nXSRGaW5kaW5nLkNvZGUKICAgIHJldHVybiAoW3N0cmluZ10kRmluZGluZy5TZXZlcml0eSsnfCcrJGNvZGUrJ3wnKyhOb3JtYWxpemUtRG9jdG9yRmluZGluZ01lc3NhZ2UgJGNvZGUgKFtzdHJpbmddJEZpbmRpbmcuTWVzc2FnZSkpKQp9CgpmdW5jdGlvbiBBc3NlcnQtU3RhYmxlRG9jdG9yRmluZGluZ0NvbXBhdGliaWxpdHkoJEJhc2VsaW5lUmVwb3J0LCRDYW5kaWRhdGVSZXBvcnQsW3N3aXRjaF0kSWdub3JlR292ZXJuYW5jZVN0YXR1cyl7CiAgICBpZigkSWdub3JlR292ZXJuYW5jZVN0YXR1cyl7CiAgICAgICAgJGJhc2VsaW5lUm93cz1AKEdldC1TdGFibGVEb2N0b3JGaW5kaW5nUm93cyAkQmFzZWxpbmVSZXBvcnQgLUlnbm9yZUdvdmVybmFuY2VTdGF0dXMpCiAgICAgICAgJGNhbmRpZGF0ZVJvd3M9QChHZXQtU3RhYmxlRG9jdG9yRmluZGluZ1Jvd3MgJENhbmRpZGF0ZVJlcG9ydCAtSWdub3JlR292ZXJuYW5jZVN0YXR1cykKICAgIH1lbHNlewogICAgICAgICRiYXNlbGluZVJvd3M9QChHZXQtU3RhYmxlRG9jdG9yRmluZGluZ1Jvd3MgJEJhc2VsaW5lUmVwb3J0KQogICAgICAgICRjYW5kaWRhdGVSb3dzPUAoR2V0LVN0YWJsZURvY3RvckZpbmRpbmdSb3dzICRDYW5kaWRhdGVSZXBvcnQpCiAgICB9CiAgICAkYmFzZWxpbmVCeUNvZGU9QHt9CiAgICBmb3JlYWNoKCRyb3cgaW4gJGJhc2VsaW5lUm93cyl7CiAgICAgICAgJGNvZGU9KFtzdHJpbmddJHJvdy5Db2RlKS5UcmltKCkKICAgICAgICBpZigtbm90JGNvZGUpe3Rocm93ICdCYXNlbGluZSBEb2N0b3IgY29udGFpbnMgYSBzdGFibGUgZmluZGluZyB3aXRoIGFuIGVtcHR5IGNvZGUuJ30KICAgICAgICBpZigkYmFzZWxpbmVCeUNvZGUuQ29udGFpbnNLZXkoJGNvZGUpKXt0aHJvdygnQmFzZWxpbmUgRG9jdG9yIGNvbnRhaW5zIGR1cGxpY2F0ZSBzdGFibGUgZmluZGluZyBjb2RlOiAnKyRjb2RlKX0KICAgICAgICAkYmFzZWxpbmVCeUNvZGVbJGNvZGVdPSRyb3cKICAgIH0KICAgICRjYW5kaWRhdGVCeUNvZGU9QHt9CiAgICBmb3JlYWNoKCRyb3cgaW4gJGNhbmRpZGF0ZVJvd3MpewogICAgICAgICRjb2RlPShbc3RyaW5nXSRyb3cuQ29kZSkuVHJpbSgpCiAgICAgICAgaWYoLW5vdCRjb2RlKXt0aHJvdyAnQ2FuZGlkYXRlIERvY3RvciBjb250YWlucyBhIHN0YWJsZSBmaW5kaW5nIHdpdGggYW4gZW1wdHkgY29kZS4nfQogICAgICAgIGlmKCRjYW5kaWRhdGVCeUNvZGUuQ29udGFpbnNLZXkoJGNvZGUpKXt0aHJvdygnQ2FuZGlkYXRlIERvY3RvciBjb250YWlucyBkdXBsaWNhdGUgc3RhYmxlIGZpbmRpbmcgY29kZTogJyskY29kZSl9CiAgICAgICAgJGNhbmRpZGF0ZUJ5Q29kZVskY29kZV09JHJvdwogICAgfQogICAgZm9yZWFjaCgkY29kZSBpbiBAKCRiYXNlbGluZUJ5Q29kZS5LZXlzKSl7CiAgICAgICAgaWYoLW5vdCRjYW5kaWRhdGVCeUNvZGUuQ29udGFpbnNLZXkoJGNvZGUpKXt0aHJvdygnQ2FuZGlkYXRlIERvY3RvciByZW1vdmVkIHN0YWJsZSBmaW5kaW5nIHByZXNlbnQgaW4gYmFzZWxpbmU6ICcrJGNvZGUpfQogICAgICAgICRiZWZvcmU9R2V0LURvY3RvckZpbmRpbmdDb21wYXRpYmlsaXR5U2lnbmF0dXJlICRiYXNlbGluZUJ5Q29kZVskY29kZV0KICAgICAgICAkYWZ0ZXI9R2V0LURvY3RvckZpbmRpbmdDb21wYXRpYmlsaXR5U2lnbmF0dXJlICRjYW5kaWRhdGVCeUNvZGVbJGNvZGVdCiAgICAgICAgaWYoJGJlZm9yZS1jbmUkYWZ0ZXIpe3Rocm93KCdDYW5kaWRhdGUgRG9jdG9yIGNoYW5nZWQgc3RhYmxlIGZpbmRpbmcgYWNyb3NzIHZlcnNpb25zOiAnKyRjb2RlKyc7IGJhc2VsaW5lPScrJGJlZm9yZSsnOyBjYW5kaWRhdGU9JyskYWZ0ZXIpfQogICAgfQogICAgZm9yZWFjaCgkY29kZSBpbiBAKCRjYW5kaWRhdGVCeUNvZGUuS2V5cykpewogICAgICAgIGlmKC1ub3QkYmFzZWxpbmVCeUNvZGUuQ29udGFpbnNLZXkoJGNvZGUpKXsKICAgICAgICAgICAgJHJvdz0kY2FuZGlkYXRlQnlDb2RlWyRjb2RlXQogICAgICAgICAgICBpZihbc3RyaW5nXSRyb3cuU2V2ZXJpdHktY25lJ09LJyl7dGhyb3coJ0NhbmRpZGF0ZSBEb2N0b3IgaW50cm9kdWNlZCBhIG5vbi1PSyBzdGFibGUgZmluZGluZzogJyskY29kZSsnOyBzZXZlcml0eT0nK1tzdHJpbmddJHJvdy5TZXZlcml0eSl9CiAgICAgICAgfQogICAgfQogICAgcmV0dXJuICR0cnVlCn0KCg==
+          TESTS_B64: ICAgIGZ1bmN0aW9uIEFzc2VydC1TdGFibGVEb2N0b3JDb21wYXRpYmlsaXR5UmVqZWN0ZWQoW3N0cmluZ10kTGFiZWwsJEJhc2VsaW5lLCRDYW5kaWRhdGUpewogICAgICAgICRyZWplY3RlZD0kZmFsc2UKICAgICAgICB0cnl7W3ZvaWRdKEFzc2VydC1TdGFibGVEb2N0b3JGaW5kaW5nQ29tcGF0aWJpbGl0eSAkQmFzZWxpbmUgJENhbmRpZGF0ZSAtSWdub3JlR292ZXJuYW5jZVN0YXR1cyl9CiAgICAgICAgY2F0Y2h7JHJlamVjdGVkPSR0cnVlO1dyaXRlLUhvc3QoJyAgUEFTUyByZWplY3QgZG9jdG9yLWNvbXBhdC0nKyRMYWJlbCsnOiAnKyRfLkV4Y2VwdGlvbi5NZXNzYWdlKX0KICAgICAgICBpZigtbm90JHJlamVjdGVkKXt0aHJvdygnU3RhYmxlIERvY3RvciBjb21wYXRpYmlsaXR5IGFjY2VwdGVkIHVuc2FmZSBjYXNlOiAnKyRMYWJlbCl9CiAgICB9CgogICAgJGJhc2VsaW5lQ29tcGF0PU5ldy1Eb2N0b3JSZXBvcnRGb3JUZXN0IEAoCiAgICAgICAgKE5ldy1Eb2N0b3JGaW5kaW5nICdPSycgJ2h1Yi5zdGF0ZScgJ3NhbWUnKSwKICAgICAgICAoTmV3LURvY3RvckZpbmRpbmcgJ09LJyAnYmFzZWxpbmUuY3VycmVudCcgJ3NhbWUtY3VycmVudCcpCiAgICApCiAgICAkY2FuZGlkYXRlQWRkaXRpdmVDb21wYXQ9TmV3LURvY3RvclJlcG9ydEZvclRlc3QgQCgKICAgICAgICAoTmV3LURvY3RvckZpbmRpbmcgJ09LJyAnaHViLnN0YXRlJyAnc2FtZScpLAogICAgICAgIChOZXctRG9jdG9yRmluZGluZyAnT0snICdiYXNlbGluZS5jdXJyZW50JyAnc2FtZS1jdXJyZW50JyksCiAgICAgICAgKE5ldy1Eb2N0b3JGaW5kaW5nICdPSycgJ2luc3RhbmNlcy5yZWdpc3RyeScgJ1NpbmdsZS1pbnN0YW5jZSBjb21wYXRpYmlsaXR5IG1vZGU7IG11bHRpLUh1YiByZWdpc3RyeSBpcyBub3QgaW5pdGlhbGl6ZWQuJyksCiAgICAgICAgKE5ldy1Eb2N0b3JGaW5kaW5nICdXQVJOJyAnZ292ZXJuYW5jZS5zdGF0dXMnICdIdWIgZ292ZXJuYW5jZSByZWNlaXB0IGlzIG1pc3NpbmcuIENoYXQgTWFuYWdlciByZWNvbmNpbGlhdGlvbiByZXF1aXJlZDsgTWFuYWdlciB3aWxsIG5vdCBvdmVyd3JpdGUgSHViIGdvdmVybmFuY2UgYXV0b21hdGljYWxseS4nKQogICAgKQogICAgW3ZvaWRdKEFzc2VydC1TdGFibGVEb2N0b3JGaW5kaW5nQ29tcGF0aWJpbGl0eSAkYmFzZWxpbmVDb21wYXQgJGNhbmRpZGF0ZUFkZGl0aXZlQ29tcGF0IC1JZ25vcmVHb3Zlcm5hbmNlU3RhdHVzKQoKICAgICRjYW5kaWRhdGVSZW1vdmVkPU5ldy1Eb2N0b3JSZXBvcnRGb3JUZXN0IEAoCiAgICAgICAgKE5ldy1Eb2N0b3JGaW5kaW5nICdPSycgJ2h1Yi5zdGF0ZScgJ3NhbWUnKQogICAgKQogICAgQXNzZXJ0LVN0YWJsZURvY3RvckNvbXBhdGliaWxpdHlSZWplY3RlZCAnYmFzZWxpbmUtZmluZGluZy1yZW1vdmVkJyAkYmFzZWxpbmVDb21wYXQgJGNhbmRpZGF0ZVJlbW92ZWQKCiAgICAkY2FuZGlkYXRlQ2hhbmdlZD1OZXctRG9jdG9yUmVwb3J0Rm9yVGVzdCBAKAogICAgICAgIChOZXctRG9jdG9yRmluZGluZyAnT0snICdodWIuc3RhdGUnICdzYW1lJyksCiAgICAgICAgKE5ldy1Eb2N0b3JGaW5kaW5nICdPSycgJ2Jhc2VsaW5lLmN1cnJlbnQnICdjaGFuZ2VkLWN1cnJlbnQnKQogICAgKQogICAgQXNzZXJ0LVN0YWJsZURvY3RvckNvbXBhdGliaWxpdHlSZWplY3RlZCAnYmFzZWxpbmUtZmluZGluZy1jaGFuZ2VkJyAkYmFzZWxpbmVDb21wYXQgJGNhbmRpZGF0ZUNoYW5nZWQKCiAgICAkY2FuZGlkYXRlRHVwbGljYXRlPU5ldy1Eb2N0b3JSZXBvcnRGb3JUZXN0IEAoCiAgICAgICAgKE5ldy1Eb2N0b3JGaW5kaW5nICdPSycgJ2h1Yi5zdGF0ZScgJ3NhbWUnKSwKICAgICAgICAoTmV3LURvY3RvckZpbmRpbmcgJ09LJyAnaHViLnN0YXRlJyAnc2FtZScpLAogICAgICAgIChOZXctRG9jdG9yRmluZGluZyAnT0snICdiYXNlbGluZS5jdXJyZW50JyAnc2FtZS1jdXJyZW50JykKICAgICkKICAgIEFzc2VydC1TdGFibGVEb2N0b3JDb21wYXRpYmlsaXR5UmVqZWN0ZWQgJ2R1cGxpY2F0ZS1jYW5kaWRhdGUtY29kZScgJGJhc2VsaW5lQ29tcGF0ICRjYW5kaWRhdGVEdXBsaWNhdGUKCiAgICAkY2FuZGlkYXRlVW5zYWZlQWRkaXRpdmU9TmV3LURvY3RvclJlcG9ydEZvclRlc3QgQCgKICAgICAgICAoTmV3LURvY3RvckZpbmRpbmcgJ09LJyAnaHViLnN0YXRlJyAnc2FtZScpLAogICAgICAgIChOZXctRG9jdG9yRmluZGluZyAnT0snICdiYXNlbGluZS5jdXJyZW50JyAnc2FtZS1jdXJyZW50JyksCiAgICAgICAgKE5ldy1Eb2N0b3JGaW5kaW5nICdXQVJOJyAnaW5zdGFuY2VzLnJlZ2lzdHJ5JyAndW5leHBlY3RlZCB3YXJuaW5nJykKICAgICkKICAgIEFzc2VydC1TdGFibGVEb2N0b3JDb21wYXRpYmlsaXR5UmVqZWN0ZWQgJ25ldy1ub24tb2stZmluZGluZycgJGJhc2VsaW5lQ29tcGF0ICRjYW5kaWRhdGVVbnNhZmVBZGRpdGl2ZQo=
+          README_B64: CiMjIFJldmlzaW9uIDIzIGFkZGl0aXZlIERvY3RvciBmaW5kaW5nIGNvbXBhdGliaWxpdHkKCkZyYW1ld29yayByMjIgcmVtYWlucyBpbW11dGFibGUgcXVhbGlmaWVkIHByb3ZlbmFuY2UuIER1cmluZyBleGFjdCBNYW5hZ2VyIDQuMTcuMSBnMSBkaXNwb3NhYmxlIHF1YWxpZmljYXRpb24sIHRoZSBuYXRpdmUgNC4xNi4zIC0+IDQuMTcuMSB1cGRhdGUgYW5kIGNhbmRpZGF0ZSBEb2N0b3Igd2VyZSBoZWFsdGh5LCBidXQgRnVsbCBHYXRlIHJlamVjdGVkIHRoZSBjYW5kaWRhdGUgYmVjYXVzZSA0LjE3LjEgaW50ZW50aW9uYWxseSBhZGRzIHRoZSBuZXcgYGluc3RhbmNlcy5yZWdpc3RyeWAgT0sgZGlhZ25vc3RpYy4gVGhlIHIyMiBjcm9zcy12ZXJzaW9uIGNvbXBhcmlzb24gcmVxdWlyZWQgZXhhY3QgZXF1YWxpdHkgb2YgZXZlcnkgbm9uLU1hbmFnZXIgRG9jdG9yIGZpbmRpbmcsIHNvIGEgc3RyaWN0bHkgYWRkaXRpdmUgaGVhbHRoeSBkaWFnbm9zdGljIHdhcyBtaXNjbGFzc2lmaWVkIGFzIGEgY29tcGF0aWJpbGl0eSByZWdyZXNzaW9uLgoKUmV2aXNpb24gMjMgY2hhbmdlcyBvbmx5IHRoZSByZXVzYWJsZSBjcm9zcy12ZXJzaW9uIERvY3RvciBjb21wYXJpc29uIGNvbnRyYWN0OgoKLSBldmVyeSBzdGFibGUgbm9uLU1hbmFnZXIgZmluZGluZyBwcmVzZW50IGluIHRoZSBiYXNlbGluZSBtdXN0IHN0aWxsIGV4aXN0IGV4YWN0bHkgb25jZSBpbiB0aGUgY2FuZGlkYXRlOwotIGVhY2ggcHJlc2VydmVkIGZpbmRpbmcgbXVzdCBrZWVwIHRoZSBzYW1lIHNldmVyaXR5IGFuZCBub3JtYWxpemVkIHNlbWFudGljIG1lc3NhZ2U7Ci0gZHVwbGljYXRlIHN0YWJsZSBmaW5kaW5nIGNvZGVzIGFyZSByZWplY3RlZDsKLSBjYW5kaWRhdGUtb25seSBzdGFibGUgZmluZGluZ3MgYXJlIGFjY2VwdGVkIG9ubHkgd2hlbiB0aGVpciBzZXZlcml0eSBpcyBleGFjdGx5IGBPS2A7Ci0gZ292ZXJuYW5jZSB0cmFuc2l0aW9uIHdhcm5pbmdzIHJlbWFpbiBleGNsdWRlZCBvbmx5IGZyb20gdGhpcyBjcm9zcy12ZXJzaW9uIGVxdWFsaXR5IGNoZWNrIGFuZCBjb250aW51ZSB0byBiZSB2YWxpZGF0ZWQgYnkgdGhlIHN0cmljdCByMjIgRG9jdG9yIGV4aXQvcmVwb3J0IGNvbnRyYWN0OwotIHNhbWUtY2FuZGlkYXRlIHBvc3QtcmVwYWlyIGZpbmRpbmcgZXF1YWxpdHkgcmVtYWlucyBleGFjdCwgc28gQ1VSUkVOVCByZXBhaXIgY2Fubm90IHNpbGVudGx5IGNoYW5nZSBEb2N0b3Igc2VtYW50aWNzLgoKVGhlIHNlbGYtdGVzdCBpbmNsdWRlcyB0aGUgcmVhbCBNYW5hZ2VyIDQuMTcuMSBgaW5zdGFuY2VzLnJlZ2lzdHJ5YCBhZGRpdGl2ZS1PSyBzaGFwZSBwbHVzIGFkdmVyc2FyaWFsIHJlbW92YWwsIHNlbWFudGljLWNoYW5nZSwgZHVwbGljYXRlLWNvZGUgYW5kIG5ldy1ub24tT0sgY2FzZXMuIE1hbmFnZXIgNC4xNy4xIGcxIHByb2R1Y3QgYnl0ZXMgcmVtYWluIHVuY2hhbmdlZDsgdGhlIGZhaWxlZCByMjIgcXVhbGlmaWNhdGlvbiBldmlkZW5jZSByZW1haW5zIGhpc3RvcmljYWwuIEZyYW1ld29yayByMjMgcmVxdWlyZXMgaW5kZXBlbmRlbnQgV2luZG93cyBxdWFsaWZpY2F0aW9uIGFuZCBwcm92ZW5hbmNlIGZyZWV6ZSBiZWZvcmUgaXQgbWF5IGJlIHVzZWQgZm9yIGEgbmV3IE1hbmFnZXIgZ2F0ZSByZXZpc2lvbi4K
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+          function Decode([string]$Value){return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Value))}
+          function Eol([string]$Text){if($Text.Contains("`r`n")){return "`r`n"};return "`n"}
+          function Replace-ExactlyOnce([string]$Text,[string]$Old,[string]$New,[string]$Label){
+            $count=([regex]::Matches($Text,[regex]::Escape($Old))).Count
+            if($count-ne1){throw($Label+' expected exactly one marker; actual='+$count)}
+            return $Text.Replace($Old,$New)
+          }
+
+          $framework=Join-Path $root 'tests\framework\manager-gate'
+          [IO.File]::WriteAllText((Join-Path $framework 'FRAMEWORK_REVISION.txt'),"23`n",$utf8)
+
+          $fullPath=Join-Path $framework 'templates\Run-KeelarynManagerFullGate.ps1'
+          $full=[IO.File]::ReadAllText($fullPath,[Text.Encoding]::UTF8)
+          $fullEol=Eol $full
+          $helper=(Decode $env:HELPER_B64).Replace("`n",$fullEol)
+          $medianMarker='function Median([double[]]$Values){'
+          $full=Replace-ExactlyOnce $full $medianMarker ($helper+$medianMarker) 'FullGate helper insertion'
+          $oldCompare='    if((FindingSignature $baselineReport -IgnoreGovernanceStatus)-cne(FindingSignature $candidateReport -IgnoreGovernanceStatus)){throw (''Stable non-Manager Doctor findings changed across ''+$baseline+'' -> ''+$version+'' after excluding separately validated governance.status.'')}'
+          $newCompare='    [void](Assert-StableDoctorFindingCompatibility $baselineReport $candidateReport -IgnoreGovernanceStatus)'
+          $full=Replace-ExactlyOnce $full $oldCompare $newCompare 'FullGate cross-version Doctor comparison'
+          $full=$full.Replace('keelaryn_framework_r22_zip_retry_','keelaryn_framework_r23_zip_retry_')
+          $full=$full.Replace('Gate Framework r22 ZIP delayed-sharing-retry self-test: PASS','Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS')
+          [IO.File]::WriteAllText($fullPath,$full,$utf8)
+
+          $selfPath=Join-Path $framework 'Test-ManagerGateFramework.ps1'
+          $self=[IO.File]::ReadAllText($selfPath,[Text.Encoding]::UTF8)
+          $selfEol=Eol $self
+          $self=Replace-ExactlyOnce $self "$revision-cne'22'" "$revision-cne'23'" 'SelfTest revision predicate'
+          $self=$self.Replace('revision 22','revision 23').Replace('r22','r23')
+          $oldHelpers="foreach($helperName in @('Test-IsPermittedTransitionDoctorWarning','Assert-DoctorGateResult','Normalize-DoctorFindingMessage','FindingSignature')){"
+          $newHelpers="foreach($helperName in @('Test-IsPermittedTransitionDoctorWarning','Assert-DoctorGateResult','Normalize-DoctorFindingMessage','FindingSignature','Get-StableDoctorFindingRows','Get-DoctorFindingCompatibilitySignature','Assert-StableDoctorFindingCompatibility')){"
+          $self=Replace-ExactlyOnce $self $oldHelpers $newHelpers 'SelfTest Doctor helper extraction'
+          $sigMarker="    Write-Host '  PASS targeted Doctor transition-WARN and cross-version signature contract'"
+          $testBlock=(Decode $env:TESTS_B64).Replace("`n",$selfEol)
+          $self=Replace-ExactlyOnce $self $sigMarker ($testBlock+$selfEol+$sigMarker) 'SelfTest additive Doctor compatibility cases'
+          [IO.File]::WriteAllText($selfPath,$self,$utf8)
+
+          $readmePath=Join-Path $framework 'README.md'
+          $readme=[IO.File]::ReadAllText($readmePath,[Text.Encoding]::UTF8)
+          if($readme.Contains('## Revision 23 additive Doctor finding compatibility')){throw 'README already contains r23 section.'}
+          $readmeEol=Eol $readme
+          $addition=(Decode $env:README_B64).Replace("`n",$readmeEol)
+          if(-not$readme.EndsWith($readmeEol)){$readme+=$readmeEol}
+          [IO.File]::WriteAllText($readmePath,$readme+$addition,$utf8)
+
+          $wfPath=Join-Path $root '.github\workflows\framework-qualification.yml'
+          $wf=[IO.File]::ReadAllText($wfPath,[Text.Encoding]::UTF8)
+          if(([regex]::Matches($wf,[regex]::Escape('framework-r22-equivalence'))).Count-ne1){throw 'Unexpected framework-r22-equivalence marker count.'}
+          if(([regex]::Matches($wf,[regex]::Escape('9022'))).Count-ne2){throw 'Unexpected 9022 marker count.'}
+          $wf=$wf.Replace('framework-r22-equivalence','framework-r23-equivalence').Replace('9022','9023')
+          [IO.File]::WriteAllText($wfPath,$wf,$utf8)
+
+          $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
+          $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$prov.source_manager_version-ne'4.16.3'){throw 'Framework r23 must preserve production Manager 4.16.3 provenance.'}
+          if(-not[bool]$prov.production_validation.full_gate_pass-or[int]$prov.production_validation.framework_revision-ne22){throw 'Historical Manager production qualification provenance changed unexpectedly.'}
+          $prov.gate_framework.revision=23
+          $prov.gate_framework.windows_qualified=$false
+          $prov.gate_framework.frozen_for_manager_candidate=$false
+          $provJson=(($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n"
+          [IO.File]::WriteAllText($provPath,$provJson,$utf8)
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $framework 'Test-ManagerGateFramework.ps1')
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-GitHubActionsPolicy.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git diff --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $changed=@(git status --porcelain|ForEach-Object{([string]$_).Substring(3).Replace('\','/')})
+          $expected=@(
+            '.github/workflows/framework-qualification.yml',
+            'PUBLIC_FILE_MANIFEST.json',
+            'PUBLIC_PROVENANCE.json',
+            'tests/framework/manager-gate/FRAMEWORK_REVISION.txt',
+            'tests/framework/manager-gate/README.md',
+            'tests/framework/manager-gate/Test-ManagerGateFramework.ps1',
+            'tests/framework/manager-gate/templates/Run-KeelarynManagerFullGate.ps1'
+          )
+          if($changed.Count-ne$expected.Count-or@($changed|Where-Object{$expected-notcontains$_}).Count-ne0){throw('Unexpected r23 changed files: '+($changed-join' | '))}
+
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- @($expected)
+          git commit -m 'Gate Framework r23: allow additive healthy Doctor findings'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/framework-r23
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
