@@ -1,0 +1,77 @@
+name: Materialize Manager 4.17.1 candidate metadata
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-4.17.1-candidate-metadata'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Build and verify candidate metadata
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $manifestBuilder=Join-Path $root 'tools\Build-PublicFileManifest.ps1'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $manifestBuilder -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $manifestPath=Join-Path $root 'PUBLIC_FILE_MANIFEST.json'
+          $manifest=Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$manifest.manager.version-ne'4.17.1'){throw('Unexpected Manager version: '+[string]$manifest.manager.version)}
+          if([int]$manifest.gate_framework.revision-ne22){throw('Unexpected Framework revision: '+[string]$manifest.gate_framework.revision)}
+
+          $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
+          $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+          $prov.role='public_source_sync_candidate'
+          $prov.source_manager_version='4.17.1'
+          $prov.source_gate_baseline_manager_version='4.16.3'
+          $prov.source_manager_installation_sha256=[string]$manifest.manager.installation_sha256
+          $prov.source_manager_gate_managed_content_sha256=[string]$manifest.manager.gate_managed_content_sha256
+          $prov.production_validation.full_gate_pass=$false
+          $prov.production_validation.gate_revision=$null
+          $prov.production_validation.framework_revision=22
+          $prov.production_validation.tested_update_sha256=$null
+          $prov.production_validation.production_doctor_pass=$false
+          $prov.production_validation.production_ux_smoke_pass=$false
+          $prov.production_validation.production_managed_content_prefix=$null
+          $prov.gate_framework.version='2.0'
+          $prov.gate_framework.revision=22
+          $prov.gate_framework.windows_qualified=$true
+          $prov.gate_framework.frozen_for_manager_candidate=$true
+          $prov.public_candidate_revision=1
+          $json=(($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n"
+          [IO.File]::WriteAllText($provPath,$json,(New-Object Text.UTF8Encoding($false)))
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $manifestBuilder -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-GitHubActionsPolicy.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          git diff --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $changed=@(git status --porcelain|ForEach-Object{[string]$_})
+          $expected=@('PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json')
+          $actual=@($changed|Where-Object{$_ -notmatch 'materialize-4\.17\.1-candidate-metadata\.yml$'}|ForEach-Object{($_.Substring(3)).Replace('\\','/')})
+          if($actual.Count-ne2-or@($actual|Where-Object{$expected-notcontains$_}).Count-ne0){throw('Unexpected generated changes: '+($changed-join' | '))}
+
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git commit -m 'candidate: prepare Manager 4.17.1 g1 provenance'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:maintenance/materialize-4.17.1-candidate-metadata
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
