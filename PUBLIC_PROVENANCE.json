@@ -1,18 +1,18 @@
 {
     "schema":  "keelaryn.public-repository-provenance.v2",
     "role":  "public_source_sync_candidate",
-    "source_manager_version":  "4.16.3",
-    "source_gate_baseline_manager_version":  "4.15.1",
-    "source_manager_installation_sha256":  "a6a26559951a11ae322739b42713504d5a8d3d0f838d2414f205a872d79c5902",
-    "source_manager_gate_managed_content_sha256":  "498ed12732bed23bb153daeea176437a639d68f8d5f2cd2a63ab7a45910c892a",
+    "source_manager_version":  "4.17.1",
+    "source_gate_baseline_manager_version":  "4.16.3",
+    "source_manager_installation_sha256":  "a60ffbf4510fc63aff5fd0e8e86688cf62ebfbf2320fc75e553fc2bf3cf19b17",
+    "source_manager_gate_managed_content_sha256":  "5c03abf09d07338fa39b1a629e5ae5f07822461a6956ccd14a93f50945aad318",
     "production_validation":  {
-                                  "full_gate_pass":  true,
-                                  "gate_revision":  2,
+                                  "full_gate_pass":  false,
+                                  "gate_revision":  null,
                                   "framework_revision":  22,
-                                  "tested_update_sha256":  "14dff87e3aeb86c62cb9ae0f7edd8270cc780987a8fa37e9a6b331f8bd259f71",
-                                  "production_doctor_pass":  true,
-                                  "production_ux_smoke_pass":  true,
-                                  "production_managed_content_prefix":  "3a7b5cfa7e1e"
+                                  "tested_update_sha256":  null,
+                                  "production_doctor_pass":  false,
+                                  "production_ux_smoke_pass":  false,
+                                  "production_managed_content_prefix":  null
                               },
     "personal_hub_included":  false,
     "manager_runtime_state_included":  false,
@@ -28,7 +28,7 @@
                     "file":  "LICENSE",
                     "copyright":  "Copyright (c) 2026 Keelaryn contributors"
                 },
-    "public_candidate_revision":  2,
+    "public_candidate_revision":  1,
     "git_checkout_contract":  {
                                   "manager_authoritative_tree_attribute":  "-text",
                                   "framework_authoritative_tree_attribute":  "-text",
