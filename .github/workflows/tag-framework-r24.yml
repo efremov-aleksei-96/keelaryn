@@ -1,0 +1,38 @@
+name: Tag frozen Framework r24
+
+on:
+  push:
+    branches:
+      - 'maintenance/tag-framework-r24'
+
+permissions:
+  contents: write
+
+jobs:
+  tag-r24:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 9f91d63e40bde3e312696b0352ef7acb96537301
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify frozen identity and publish immutable provenance tag
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected='9f91d63e40bde3e312696b0352ef7acb96537301'
+          $actual=(& git rev-parse HEAD).Trim()
+          if($actual-cne$expected){throw('Frozen Framework r24 checkout mismatch: '+$actual)}
+          $prov=Get-Content -LiteralPath 'PUBLIC_PROVENANCE.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          if([int]$prov.gate_framework.revision-ne24-or-not[bool]$prov.gate_framework.windows_qualified-or-not[bool]$prov.gate_framework.frozen_for_manager_candidate){throw 'Framework r24 provenance is not frozen/qualified.'}
+          $managerTree=(& git rev-parse HEAD:manager).Trim()
+          $baseManagerTree=(& git rev-parse bbeafa3251558289444b0e707fc2433fa132238d:manager).Trim()
+          if($managerTree-cne$baseManagerTree){throw 'Framework r24 frozen commit changed Manager tree.'}
+          $existing=(& git ls-remote --tags origin 'refs/tags/provenance/framework-r24').Trim()
+          if($existing){throw('Framework r24 provenance tag already exists: '+$existing)}
+          git tag 'provenance/framework-r24' $expected
+          git push origin 'refs/tags/provenance/framework-r24'
+          Write-Host ('FRAMEWORK R24 TAGGED: provenance/framework-r24 -> '+$expected) -ForegroundColor Green
