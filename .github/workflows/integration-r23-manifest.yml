@@ -1,0 +1,45 @@
+name: Refresh Manager 4.17.1 r23 integration manifest
+
+on:
+  push:
+    branches:
+      - 'maintenance/integration-r23-manifest'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/integration-manager-4.17.1-r23
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Rebuild and verify public manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-GitHubActionsPolicy.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git diff --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $changed=@(git status --porcelain|ForEach-Object{([string]$_).Substring(3).Replace('\','/')})
+          if($changed.Count-ne1-or$changed[0]-cne'PUBLIC_FILE_MANIFEST.json'){throw('Unexpected manifest-refresh changes: '+($changed-join' | '))}
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- PUBLIC_FILE_MANIFEST.json
+          git commit -m 'qualification: refresh Manager 4.17.1 r23 public manifest'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/integration-manager-4.17.1-r23
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
