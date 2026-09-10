@@ -31,9 +31,8 @@ jobs:
           $managerTree=(& git rev-parse HEAD:manager).Trim()
           $baseManagerTree=(& git rev-parse bbeafa3251558289444b0e707fc2433fa132238d:manager).Trim()
           if($managerTree-cne$baseManagerTree){throw 'Framework r24 frozen commit changed Manager tree.'}
-          $existing=[string](& git ls-remote --tags origin 'refs/tags/provenance/framework-r24')
-          $existing=$existing.Trim()
-          if($existing){throw('Framework r24 provenance tag already exists: '+$existing)}
+          $existingLines=@(& git ls-remote --tags origin 'refs/tags/provenance/framework-r24')
+          if($existingLines.Count-gt0){throw('Framework r24 provenance tag already exists: '+([string]::Join(' | ',@($existingLines))))}
           git tag 'provenance/framework-r24' $expected
           git push origin 'refs/tags/provenance/framework-r24'
           if($LASTEXITCODE-ne0){throw 'Failed to publish Framework r24 provenance tag.'}
