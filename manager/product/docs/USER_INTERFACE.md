@@ -86,3 +86,15 @@ Installation info carries the detailed Manager/Hub paths, artifact ID, UTC revis
 ## Validation
 
 `RenderMain` validates non-interactive rendering. Frontend SelfTest validates the output/orchestration source contract. Windows Full Gate covers real menu paths, picker/archive replacement behavior, hidden-prompt prevention, semantic result states, migration no-op behavior, binding preview and the first-class Full Gate delegation path. Doctor remains authoritative for installation health.
+
+<!-- multi-hub-ui-v1 -->
+## Manage Hubs
+
+Maintenance â†’ Manage Hubs exposes registry initialization, list, switch, create-new, connect-existing and active-instance information.
+
+The main status view identifies the active Hub by display name and shortened `instance_id`. ChatGPT preparation and Hub package import follow the active instance; Manager update packages remain Manager-global.
+
+<!-- active-instance-exchange-resolution-v1 -->
+### Active-instance exchange resolution
+
+ChatGPT preparation resolves the active Hub instance before constructing any exchange destination path. With a valid multi-Hub registry, Workspace and Chat Manager inputs are written only under `exchange/instances/<instance_id>/chatgpt/`. If the registry exists but its active instance cannot be resolved, ChatGPT exchange actions fail closed instead of falling back to the legacy shared exchange directory.
