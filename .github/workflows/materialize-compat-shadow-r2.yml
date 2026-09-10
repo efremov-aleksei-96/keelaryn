@@ -1,0 +1,52 @@
+name: Materialize 4.17.1 compatibility shadow r2
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-4.17.1-compat-shadow-r2'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Materialize r2 correction
+        shell: powershell
+        run: |
+          $runtime=Join-Path $env:GITHUB_WORKSPACE 'manager/product/runtime/Keelaryn__Manager.ps1'
+          $expected='e68d01678ec7b093803bed7cec9ca733c588ee79'
+          $actual=(git rev-parse 'HEAD:manager/product/runtime/Keelaryn__Manager.ps1').Trim()
+          $source=[IO.File]::ReadAllText($runtime,[Text.Encoding]::UTF8)
+          if($actual -ne $expected -and -not $source.Contains('function Get-CompatibilityCheckpointIdentityFast')){throw "Unexpected runtime base: $actual"}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Materialize-Manager4171CompatibilityShadowR2.ps1" -RuntimePath $runtime
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+
+      - name: Verify and publish r2 materialization
+        shell: powershell
+        run: |
+          $runtime='manager/product/runtime/Keelaryn__Manager.ps1'
+          $changed=@(git status --porcelain)
+          if($changed.Count -eq 0){Write-Host 'No r2 materialization changes to publish.'; exit 0}
+          if($changed.Count -ne 1 -or ((-not ([string]$changed[0]).EndsWith($runtime.Replace('/','\'))) -and (-not ([string]$changed[0]).EndsWith($runtime)))){throw ('Unexpected materializer changes: '+($changed -join ' | '))}
+          git diff --check
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $text=[IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE $runtime),[Text.Encoding]::UTF8)
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseInput($text,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw (@($errors).Message -join '; ')}
+          foreach($required in @('function Get-CompatibilityCheckpointIdentityFast','Compatibility shadow does not belong to the active instance_id.')){if(-not $text.Contains($required)){throw ('Missing r2 runtime token: '+$required)}}
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- $runtime
+          git commit -m 'Manager 4.17.1: harden compatibility shadow identity proof'
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          git push origin HEAD:maintenance/materialize-4.17.1-compat-shadow-r2
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
