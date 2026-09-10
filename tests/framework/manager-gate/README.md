@@ -297,3 +297,19 @@ Revision 22 preserves Manager 4.16.2 product bytes and all r20/r21 sharing-retry
 - adversarial regressions cover malformed missing/stale suffixes and a mixed permitted WARN + ERROR report with a falsified `errors=0` summary.
 
 Framework r21 remains immutable rejected history at its exact source head and is not frozen or merged. Framework r22 requires fresh Windows parser/self-test, exact Manager 4.16.2 SourceGate, CURRENT-backed Full Gate, hosted exact-head qualification and Codex review before freeze/tag/merge.
+
+
+## Revision 23 additive Doctor finding compatibility
+
+Framework r22 remains immutable qualified provenance. During exact Manager 4.17.1 g1 disposable qualification, the native 4.16.3 -> 4.17.1 update and candidate Doctor were healthy, but Full Gate rejected the candidate because 4.17.1 intentionally adds the new `instances.registry` OK diagnostic. The r22 cross-version comparison required exact equality of every non-Manager Doctor finding, so a strictly additive healthy diagnostic was misclassified as a compatibility regression.
+
+Revision 23 changes only the reusable cross-version Doctor comparison contract:
+
+- every stable non-Manager finding present in the baseline must still exist exactly once in the candidate;
+- each preserved finding must keep the same severity and normalized semantic message;
+- duplicate stable finding codes are rejected;
+- candidate-only stable findings are accepted only when their severity is exactly `OK`;
+- governance transition warnings remain excluded only from this cross-version equality check and continue to be validated by the strict r22 Doctor exit/report contract;
+- same-candidate post-repair finding equality remains exact, so CURRENT repair cannot silently change Doctor semantics.
+
+The self-test includes the real Manager 4.17.1 `instances.registry` additive-OK shape plus adversarial removal, semantic-change, duplicate-code and new-non-OK cases. Manager 4.17.1 g1 product bytes remain unchanged; the failed r22 qualification evidence remains historical. Framework r23 requires independent Windows qualification and provenance freeze before it may be used for a new Manager gate revision.

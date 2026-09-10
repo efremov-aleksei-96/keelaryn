@@ -52,7 +52,7 @@ function Open-ZipReadWithSharingRetry([string]$Path,[int]$Attempts=120,[int]$Del
 $script:ZipUpdateSharingRetrySelfTestReason=''
 function Test-ZipUpdateSharingRetrySelfTest{
     $script:ZipUpdateSharingRetrySelfTestReason=''
-    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r22_zip_retry_'+[guid]::NewGuid().ToString('N'))
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r23_zip_retry_'+[guid]::NewGuid().ToString('N'))
     $zip=Join-Path $temp 'locked.zip'
     $delayedZip=Join-Path $temp 'delayed-unlock.zip'
     $ready=Join-Path $temp 'delayed-lock-ready.txt'
@@ -605,6 +605,55 @@ function FindingSignature($Report,[switch]$IgnoreGovernanceStatus){
     ))
 }
 
+function Get-StableDoctorFindingRows($Report,[switch]$IgnoreGovernanceStatus){
+    return @(
+        $Report.findings|
+        Where-Object{[string]$_.Code-notlike'manager.*'-and(-not$IgnoreGovernanceStatus-or[string]$_.Code-cne'governance.status')}
+    )
+}
+
+function Get-DoctorFindingCompatibilitySignature($Finding){
+    $code=[string]$Finding.Code
+    return ([string]$Finding.Severity+'|'+$code+'|'+(Normalize-DoctorFindingMessage $code ([string]$Finding.Message)))
+}
+
+function Assert-StableDoctorFindingCompatibility($BaselineReport,$CandidateReport,[switch]$IgnoreGovernanceStatus){
+    if($IgnoreGovernanceStatus){
+        $baselineRows=@(Get-StableDoctorFindingRows $BaselineReport -IgnoreGovernanceStatus)
+        $candidateRows=@(Get-StableDoctorFindingRows $CandidateReport -IgnoreGovernanceStatus)
+    }else{
+        $baselineRows=@(Get-StableDoctorFindingRows $BaselineReport)
+        $candidateRows=@(Get-StableDoctorFindingRows $CandidateReport)
+    }
+    $baselineByCode=@{}
+    foreach($row in $baselineRows){
+        $code=([string]$row.Code).Trim()
+        if(-not$code){throw 'Baseline Doctor contains a stable finding with an empty code.'}
+        if($baselineByCode.ContainsKey($code)){throw('Baseline Doctor contains duplicate stable finding code: '+$code)}
+        $baselineByCode[$code]=$row
+    }
+    $candidateByCode=@{}
+    foreach($row in $candidateRows){
+        $code=([string]$row.Code).Trim()
+        if(-not$code){throw 'Candidate Doctor contains a stable finding with an empty code.'}
+        if($candidateByCode.ContainsKey($code)){throw('Candidate Doctor contains duplicate stable finding code: '+$code)}
+        $candidateByCode[$code]=$row
+    }
+    foreach($code in @($baselineByCode.Keys)){
+        if(-not$candidateByCode.ContainsKey($code)){throw('Candidate Doctor removed stable finding present in baseline: '+$code)}
+        $before=Get-DoctorFindingCompatibilitySignature $baselineByCode[$code]
+        $after=Get-DoctorFindingCompatibilitySignature $candidateByCode[$code]
+        if($before-cne$after){throw('Candidate Doctor changed stable finding across versions: '+$code+'; baseline='+$before+'; candidate='+$after)}
+    }
+    foreach($code in @($candidateByCode.Keys)){
+        if(-not$baselineByCode.ContainsKey($code)){
+            $row=$candidateByCode[$code]
+            if([string]$row.Severity-cne'OK'){throw('Candidate Doctor introduced a non-OK stable finding: '+$code+'; severity='+[string]$row.Severity)}
+        }
+    }
+    return $true
+}
+
 function Median([double[]]$Values){
     $s=@($Values|Sort-Object)
     if($s.Count-eq0){return 0.0}
@@ -985,7 +1034,7 @@ exit 0
 
 try{
     if(-not(Test-ZipUpdateSharingRetrySelfTest)){throw('Gate Framework r22 ZIP sharing-retry self-test failed: '+$script:ZipUpdateSharingRetrySelfTestReason)}
-    Write-Host 'Gate Framework r22 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
+    Write-Host 'Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS' -ForegroundColor DarkGray
     try{Start-Transcript -LiteralPath $transcriptPath -Force|Out-Null;$transcriptStarted=$true}catch{Write-Host ('WARNING: transcript unavailable: '+$_.Exception.Message) -ForegroundColor Yellow}
 
     $script:CurrentPhase='gate/candidate binding preflight'
@@ -1123,7 +1172,7 @@ try{
         if(([string]$finding[0].Message)-notmatch$revisionPattern){throw('Candidate Doctor did not render immutable revision time for legacy Hub: '+$code+' -> '+[string]$finding[0].Message)}
         if(([string]$finding[0].Message)-match'\br[0-9]+\b'){throw('Candidate Doctor leaked legacy rNNNN as the primary revision display: '+$code)}
     }
-    if((FindingSignature $baselineReport -IgnoreGovernanceStatus)-cne(FindingSignature $candidateReport -IgnoreGovernanceStatus)){throw ('Stable non-Manager Doctor findings changed across '+$baseline+' -> '+$version+' after excluding separately validated governance.status.')}
+    [void](Assert-StableDoctorFindingCompatibility $baselineReport $candidateReport -IgnoreGovernanceStatus)
     $mig=Run-Manager $mgr @('-CheckMigrations') $false
     if($mig.Text-notmatch'Migration status: up_to_date'){throw 'Disposable production-compatible Hub is not migration up_to_date.'}
     $summary.phases.doctor_migrations=$true
