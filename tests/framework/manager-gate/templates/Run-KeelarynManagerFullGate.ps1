@@ -52,7 +52,7 @@ function Open-ZipReadWithSharingRetry([string]$Path,[int]$Attempts=120,[int]$Del
 $script:ZipUpdateSharingRetrySelfTestReason=''
 function Test-ZipUpdateSharingRetrySelfTest{
     $script:ZipUpdateSharingRetrySelfTestReason=''
-    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r23_zip_retry_'+[guid]::NewGuid().ToString('N'))
+    $temp=Join-Path ([System.IO.Path]::GetTempPath()) ('keelaryn_framework_r24_zip_retry_'+[guid]::NewGuid().ToString('N'))
     $zip=Join-Path $temp 'locked.zip'
     $delayedZip=Join-Path $temp 'delayed-unlock.zip'
     $ready=Join-Path $temp 'delayed-lock-ready.txt'
