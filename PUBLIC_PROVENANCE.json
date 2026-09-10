@@ -8,7 +8,7 @@
     "production_validation":  {
                                   "full_gate_pass":  false,
                                   "gate_revision":  null,
-                                  "framework_revision":  22,
+                                  "framework_revision":  23,
                                   "tested_update_sha256":  null,
                                   "production_doctor_pass":  false,
                                   "production_ux_smoke_pass":  false,
@@ -19,9 +19,9 @@
     "local_test_evidence_included":  false,
     "gate_framework":  {
                            "version":  "2.0",
-                           "revision":  22,
+                           "revision":  23,
                            "windows_qualified":  true,
-                           "frozen_for_manager_candidate":  true
+                           "frozen_for_manager_candidate":  false
                        },
     "license":  {
                     "spdx_id":  "MIT",
