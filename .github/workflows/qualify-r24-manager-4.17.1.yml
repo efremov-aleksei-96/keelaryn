@@ -1,0 +1,82 @@
+name: Qualify Framework r24 with Manager 4.17.1 g1
+
+on:
+  push:
+    branches:
+      - 'maintenance/qualify-r24-manager-4.17.1'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-pair-full-gate:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: bbeafa3251558289444b0e707fc2433fa132238d
+          path: base
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact Manager candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 6d89a0beec0d4da4c0a8b809c1ac42543ca6952d
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact Framework r24 source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 0cdb5e9b23f6e04c2c2006c051c03aec9304c61b
+          path: framework
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact immutable pair identities
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $base=Join-Path $env:GITHUB_WORKSPACE 'base'
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $framework=Join-Path $env:GITHUB_WORKSPACE 'framework'
+          if((git -C $base rev-parse HEAD).Trim()-cne'bbeafa3251558289444b0e707fc2433fa132238d'){throw 'Trusted base mismatch.'}
+          if((git -C $candidate rev-parse HEAD).Trim()-cne'6d89a0beec0d4da4c0a8b809c1ac42543ca6952d'){throw 'Manager candidate ref mismatch.'}
+          if((git -C $candidate rev-parse 'HEAD:manager').Trim()-cne'8d00a22a29eec7fa5a7560fca5425a80dd4bcb93'){throw 'Frozen Manager 4.17.1 g1 tree mismatch.'}
+          if((git -C $framework rev-parse HEAD).Trim()-cne'0cdb5e9b23f6e04c2c2006c051c03aec9304c61b'){throw 'Framework r24 ref mismatch.'}
+          if((Get-Content -LiteralPath (Join-Path $framework 'tests\framework\manager-gate\FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()-cne'24'){throw 'Framework revision mismatch.'}
+          $prov=Get-Content -LiteralPath (Join-Path $candidate 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$prov.source_manager_version-cne'4.17.1'-or[string]$prov.source_gate_baseline_manager_version-cne'4.16.3'){throw 'Manager candidate provenance mismatch.'}
+          Write-Host 'PAIR IDENTITY PASS: Manager 4.17.1 g1 + Framework r24' -ForegroundColor Green
+
+      - name: Run exact-pair disposable Full Gate
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $base=Join-Path $env:GITHUB_WORKSPACE 'base'
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $framework=Join-Path $env:GITHUB_WORKSPACE 'framework'
+          $workspace=Join-Path $env:RUNNER_TEMP ('keelaryn-r24-manager4171-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          $runner=Join-Path $base 'tools\Invoke-DisposableManagerFullGate.ps1'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $runner `
+            -CandidateManagerRoot (Join-Path $candidate 'manager') `
+            -BaselineManagerRoot (Join-Path $base 'manager') `
+            -FrameworkRoot (Join-Path $framework 'tests\framework\manager-gate') `
+            -WorkspaceRoot $workspace `
+            -CandidateRef '6d89a0beec0d4da4c0a8b809c1ac42543ca6952d' `
+            -BaselineRef 'bbeafa3251558289444b0e707fc2433fa132238d' `
+            -GateRevision 9025
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          "PAIR_EVIDENCE=$workspace\evidence" >> $env:GITHUB_ENV
+
+      - name: Upload exact-pair qualification evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: framework-r24-manager-4.17.1-g1-exact-pair
+          path: ${{ env.PAIR_EVIDENCE }}
+          if-no-files-found: error
+          retention-days: 7
