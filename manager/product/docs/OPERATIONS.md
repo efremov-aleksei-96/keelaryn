@@ -54,6 +54,8 @@ Run Development > Build AI_CONTEXT (legacy alias `BUILD_AI_CONTEXT.cmd`) to buil
 
 Manager retries only Windows sharing/lock violations in the operations that explicitly permit bounded retry. If the final retry is still blocked, it queries Windows Restart Manager and reports the detected lock owners with PID and application/service identity when available. This is diagnostic only: Keelaryn never terminates, shuts down or restarts the reported process automatically. The original sharing/lock IOException remains in the exception chain so error classification stays fail-closed.
 
+`manager.log` is diagnostic state, not a transaction boundary. Its primary append path keeps bounded sharing-lock retry; if an external process still holds only a transient sharing lock after that budget, Manager writes the diagnostic line to a unique `manager_fallback_*.log` when possible and continues the requested operation. A transient lock also defers log rotation rather than blocking startup. Non-transient log filesystem failures still fail hard. This relaxation applies only to diagnostic logging; Manager locks, update/rollback state, packages, CURRENT and Hub writes retain their existing fail-closed behavior.
+
 Doctor timing telemetry includes `hub_state_core_ms`, `hub_portable_analysis_ms`, `hub_derived_metadata_ms`, `hub_manifest_diagnostic_ms`, `hub_migration_ms`, `hub_artifact_ms`, and `current_baseline_ms` in addition to the existing phase totals. These values are diagnostic-only and do not relax fresh Hub/CURRENT validation.
 
 ## Development test workspace

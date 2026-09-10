@@ -1,0 +1,19 @@
+{
+  "schema": "keelaryn.hub-governance.v1",
+  "governance_revision": 1,
+  "workspace_protocol": "keelaryn.workspace.v1",
+  "workspace_checkout_revision": 1,
+  "reconciliation_role": "chat_manager",
+  "automatic_manager_overwrite": false,
+  "managed_paths": [
+    "README.md",
+    "_System/BOOTSTRAP.md",
+    "_System/CHAT_MANAGER.md",
+    "_System/CHAT_MANAGER_LAUNCH.md",
+    "_System/GLOSSARY.md",
+    "_System/GOVERNANCE.json",
+    "_System/PROTOCOL.md",
+    "_System/WORKSPACE.md",
+    "Resources/Prompts/Workspace Checkout.md"
+  ]
+}

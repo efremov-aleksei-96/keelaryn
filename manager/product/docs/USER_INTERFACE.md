@@ -18,9 +18,12 @@ Frontend operational paths are refreshed after each Manager child action, so a f
 Interactive actions preserve meaningful backend stdout/stderr, but their final human-facing status is semantic rather than a raw process exit code:
 
 - `COMPLETED`
+- `COMPLETED WITH WARNINGS`
 - `NO CHANGES REQUIRED`
 - `CANCELLED. No changes made.`
 - `FAILED`
+
+Doctor exit code 2 means the diagnostic completed and reported warnings that require attention. In the interactive frontend this is rendered as `COMPLETED WITH WARNINGS`, not as a failed Doctor run. Other actions keep their existing semantic result mapping; this Doctor-specific presentation does not convert arbitrary exit code 2/3 results into success.
 
 Raw exit codes remain machine-readable and are retained in detailed logs/contracts.
 
