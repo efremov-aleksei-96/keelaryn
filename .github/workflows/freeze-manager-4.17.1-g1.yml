@@ -1,0 +1,64 @@
+name: Freeze Manager 4.17.1 g1 candidate
+
+on:
+  push:
+    branches:
+      - 'maintenance/freeze-manager-4.17.1-g1'
+
+permissions:
+  contents: write
+
+jobs:
+  freeze:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify and publish immutable candidate provenance tag
+        shell: powershell
+        env:
+          TARGET_SHA: d8d28b23286b9ec8d46f34f54c8d57a0e27f255e
+          TAG_NAME: provenance/candidate-manager-4.17.1-g1
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          git cat-file -e ($env:TARGET_SHA+'^{commit}')
+          if($LASTEXITCODE-ne0){throw 'Target candidate commit is unavailable.'}
+          $remote=@(git ls-remote --tags origin ('refs/tags/'+$env:TAG_NAME))
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          if($remote.Count-ne0){throw('Candidate provenance tag already exists: '+$env:TAG_NAME)}
+
+          git checkout --detach $env:TARGET_SHA
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-GitHubActionsPolicy.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $prov=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $manifest=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$prov.source_manager_version-ne'4.17.1'){throw 'Candidate provenance version mismatch.'}
+          if([string]$prov.source_gate_baseline_manager_version-ne'4.16.3'){throw 'Candidate baseline mismatch.'}
+          if([bool]$prov.production_validation.full_gate_pass){throw 'Candidate freeze refuses pre-populated production Full Gate evidence.'}
+          if($null-ne$prov.production_validation.gate_revision){throw 'Candidate freeze requires null production gate_revision.'}
+          if($null-ne$prov.production_validation.tested_update_sha256){throw 'Candidate freeze requires null tested UPDATE hash.'}
+          if([bool]$prov.production_validation.production_doctor_pass-or[bool]$prov.production_validation.production_ux_smoke_pass){throw 'Candidate freeze refuses pre-populated production acceptance evidence.'}
+          if([int]$prov.production_validation.framework_revision-ne22-or[int]$prov.gate_framework.revision-ne22){throw 'Candidate freeze requires Framework r22.'}
+          if(-not[bool]$prov.gate_framework.windows_qualified-or-not[bool]$prov.gate_framework.frozen_for_manager_candidate){throw 'Framework is not qualified/frozen for Manager candidate use.'}
+          if([int]$prov.public_candidate_revision-ne1){throw 'Unexpected public candidate revision.'}
+          if([string]$prov.source_manager_installation_sha256-ne[string]$manifest.manager.installation_sha256){throw 'Candidate INSTALLATION provenance mismatch.'}
+          if([string]$prov.source_manager_gate_managed_content_sha256-ne[string]$manifest.manager.gate_managed_content_sha256){throw 'Candidate managed digest provenance mismatch.'}
+
+          $runtimeBlob=(git ls-tree $env:TARGET_SHA manager/product/runtime/Keelaryn__Manager.ps1).Split()[2]
+          if($runtimeBlob-ne'7a19ee2b7f0745e00aec250db2231624e6959557'){throw('Unexpected candidate runtime blob: '+$runtimeBlob)}
+          git tag $env:TAG_NAME $env:TARGET_SHA
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin ('refs/tags/'+$env:TAG_NAME)
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          Write-Host ('CANDIDATE FREEZE: PASS. '+$env:TAG_NAME+' -> '+$env:TARGET_SHA) -ForegroundColor Green
