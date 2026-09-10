@@ -1,4 +1,4 @@
-name: Bootstrap Framework r24
+name: Materialize Framework r24
 
 on:
   push:
@@ -6,29 +6,28 @@ on:
       - 'dev/framework-r24'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch-r24:
+  materialize-r24:
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: dev/framework-r24
-          fetch-depth: 0
-          persist-credentials: true
+          ref: bbeafa3251558289444b0e707fc2433fa132238d
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Materialize Framework r24 source
+      - name: Materialize Framework r24 source bytes
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           $utf8=New-Object System.Text.UTF8Encoding($false)
           $root=$env:GITHUB_WORKSPACE
-          $main='bbeafa3251558289444b0e707fc2433fa132238d'
+          $head=(& git rev-parse HEAD).Trim()
+          if($head-cne'bbeafa3251558289444b0e707fc2433fa132238d'){throw('Base checkout mismatch: '+$head)}
           $managerTree=(& git rev-parse HEAD:manager).Trim()
-          $mainManagerTree=(& git rev-parse ($main+':manager')).Trim()
-          if($managerTree-cne$mainManagerTree){throw('Framework development must not change Manager tree: '+$managerTree+' != '+$mainManagerTree)}
 
           $revPath=Join-Path $root 'tests\framework\manager-gate\FRAMEWORK_REVISION.txt'
           $rev=[IO.File]::ReadAllText($revPath,[Text.Encoding]::UTF8).Trim()
@@ -37,28 +36,22 @@ jobs:
 
           $fullPath=Join-Path $root 'tests\framework\manager-gate\templates\Run-KeelarynManagerFullGate.ps1'
           $full=[IO.File]::ReadAllText($fullPath,[Text.Encoding]::UTF8)
-          $old="    `$null=Run-Manager `$mgr @('-Doctor') `$true`r`n    `$baselineReport=Get-DoctorReport `$mgr"
-          $new="    `$baselineDoctor=Run-DoctorForGate `$mgr `$true`r`n    `$baselineReport=`$baselineDoctor.Report"
-          if(-not$full.Contains($old)){
-            $old="    `$null=Run-Manager `$mgr @('-Doctor') `$true`n    `$baselineReport=Get-DoctorReport `$mgr"
-            $new="    `$baselineDoctor=Run-DoctorForGate `$mgr `$true`n    `$baselineReport=`$baselineDoctor.Report"
-          }
-          $matches=[regex]::Matches($full,[regex]::Escape($old)).Count
+          $oldLf="    `$null=Run-Manager `$mgr @('-Doctor') `$true`n    `$baselineReport=Get-DoctorReport `$mgr"
+          $normalized=$full.Replace("`r`n","`n")
+          $matches=[regex]::Matches($normalized,[regex]::Escape($oldLf)).Count
           if($matches-ne1){throw('Expected exactly one baseline generic Doctor call-site, actual='+$matches)}
-          $full=$full.Replace($old,$new)
-          $full=$full.Replace('Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS','Gate Framework r24 ZIP delayed-sharing-retry self-test: PASS')
-          [IO.File]::WriteAllText($fullPath,$full,$utf8)
+          $newLf="    `$baselineDoctor=Run-DoctorForGate `$mgr `$true`n    `$baselineReport=`$baselineDoctor.Report"
+          $normalized=$normalized.Replace($oldLf,$newLf)
+          $normalized=$normalized.Replace('Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS','Gate Framework r24 ZIP delayed-sharing-retry self-test: PASS')
+          [IO.File]::WriteAllText($fullPath,$normalized.Replace("`n","`r`n"),$utf8)
 
           $testPath=Join-Path $root 'tests\framework\manager-gate\Test-ManagerGateFramework.ps1'
-          $test=[IO.File]::ReadAllText($testPath,[Text.Encoding]::UTF8)
+          $test=[IO.File]::ReadAllText($testPath,[Text.Encoding]::UTF8).Replace("`r`n","`n")
           $test=$test.Replace("if(`$revision-cne'23')","if(`$revision-cne'24')")
           $test=$test.Replace('expected revision 23','expected revision 24')
           $test=$test.Replace('Framework r23','Framework r24')
           $test=$test.Replace('keelaryn_framework_r23','keelaryn_framework_r24')
-          $needle="    if(@(`$errors).Count-ne0){throw('FullGate template parser failure before Doctor-contract extraction: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))}`r`n"
-          if(-not$test.Contains($needle)){
-            $needle="    if(@(`$errors).Count-ne0){throw('FullGate template parser failure before Doctor-contract extraction: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))}`n"
-          }
+          $needle="    if(@(`$errors).Count-ne0){throw('FullGate template parser failure before Doctor-contract extraction: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))}`n"
           if(-not$test.Contains($needle)){throw 'Could not locate Full Gate Doctor self-test insertion point.'}
           $insert=@'
     $fullGateText=[System.IO.File]::ReadAllText($fullGateTemplate,[System.Text.Encoding]::UTF8)
@@ -66,9 +59,9 @@ jobs:
     if(-not$fullGateText.Contains('$baselineReport=$baselineDoctor.Report')){throw 'Framework r24 Full Gate baseline report is not bound to the validated Doctor result.'}
     if($fullGateText.Contains('$null=Run-Manager $mgr @(''-Doctor'') $true')){throw 'Framework r24 Full Gate still contains the unsafe generic baseline Doctor call-site.'}
 '@
-          $insert=$insert.Replace("`n","`r`n")
+          $insert=$insert.Replace("`r`n","`n")
           $test=$test.Replace($needle,$needle+$insert)
-          [IO.File]::WriteAllText($testPath,$test,$utf8)
+          [IO.File]::WriteAllText($testPath,$test.Replace("`n","`r`n"),$utf8)
 
           $qualPath=Join-Path $root '.github\workflows\framework-qualification.yml'
           $qual=[IO.File]::ReadAllText($qualPath,[Text.Encoding]::UTF8)
@@ -99,18 +92,31 @@ Framework r24 requires fresh Windows parser/self-test, SourceRoot/SourceZip equi
 '@
           [IO.File]::WriteAllText($readmePath,($readme+$section.Replace("`n","`r`n")+"`r`n"),$utf8)
 
-          Remove-Item -LiteralPath (Join-Path $root '.github\workflows\bootstrap-framework-r24.yml') -Force
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
 
+          $currentManagerTree=(& git rev-parse HEAD:manager).Trim()
+          if($currentManagerTree-cne$managerTree){throw 'Manager tree changed during Framework materialization.'}
           $changed=@(& git diff --name-only)
-          if(@($changed|Where-Object{$_-like'manager/*'}).Count-ne0){throw('Framework r24 patch changed Manager files: '+([string]::Join(', ',@($changed|Where-Object{$_-like'manager/*'}))))}
           $required=@('.github/workflows/framework-qualification.yml','PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json','tests/framework/manager-gate/FRAMEWORK_REVISION.txt','tests/framework/manager-gate/README.md','tests/framework/manager-gate/Test-ManagerGateFramework.ps1','tests/framework/manager-gate/templates/Run-KeelarynManagerFullGate.ps1')
           foreach($p in $required){if($changed-notcontains$p){throw('Expected r24 changed file missing: '+$p)}}
           if($changed.Count-ne$required.Count){throw('Unexpected r24 changed files: '+([string]::Join(', ',$changed)))}
 
-          git config user.name 'Aleksei Efremov'
-          git config user.email 'efremov.aleksei.96@gmail.com'
-          git add --all
-          git commit -m 'Gate Framework r24: bind baseline Doctor transition warnings'
-          git push origin HEAD:dev/framework-r24
+          $bundle=Join-Path $env:RUNNER_TEMP 'framework-r24-materialized'
+          New-Item -ItemType Directory -Force -Path $bundle|Out-Null
+          foreach($p in $required){
+            $dst=Join-Path $bundle $p.Replace('/','\')
+            $parent=Split-Path -Parent $dst
+            if($parent){New-Item -ItemType Directory -Force -Path $parent|Out-Null}
+            Copy-Item -LiteralPath (Join-Path $root $p.Replace('/','\')) -Destination $dst -Force
+          }
+          "R24_BUNDLE=$bundle" >> $env:GITHUB_ENV
+          Write-Host ('Framework r24 materialization PASS. manager_tree='+$managerTree) -ForegroundColor Green
+
+      - name: Upload exact Framework r24 source patch
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: framework-r24-materialized
+          path: ${{ env.R24_BUNDLE }}
+          if-no-files-found: error
+          retention-days: 2
