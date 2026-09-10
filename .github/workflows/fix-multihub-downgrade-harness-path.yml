@@ -24,17 +24,16 @@ jobs:
           $path=Join-Path $env:GITHUB_WORKSPACE 'tests\manager\Invoke-MultiHubDowngradeCompatibility.ps1'
           $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
           $old='    if(([string]$report.instance_id).ToLowerInvariant()-ne$ExpectedId){Fail(''Doctor resolved the wrong active instance under Manager ''+[string]$report.manager_version+''.'')}'
-          $new=@'
-    if($null-ne$report.PSObject.Properties['instance_id']){
-        if(([string]$report.instance_id).ToLowerInvariant()-ne$ExpectedId){Fail('Doctor resolved the wrong active instance under Manager '+[string]$report.manager_version+'.')}
-    }else{
-        # 4.16.3 predates the report-level instance_id field. Its resolved identity is
-        # still proven by the same binding document that Doctor reports as binding.resolve.
-        $legacyBinding=Read-Json (Join-Path $ManagerRoot 'state\binding.json')
-        if(([string]$legacyBinding.instance_id).ToLowerInvariant()-ne$ExpectedId){Fail('Legacy Doctor binding resolved the wrong active instance.')}
-    }
-'@
-          $new=$new.TrimEnd("`r","`n")
+          $new=[string]::Join("`r`n",@(
+              '    if($null-ne$report.PSObject.Properties[''instance_id'']){',
+              '        if(([string]$report.instance_id).ToLowerInvariant()-ne$ExpectedId){Fail(''Doctor resolved the wrong active instance under Manager ''+[string]$report.manager_version+''.'')}',
+              '    }else{',
+              '        # 4.16.3 predates the report-level instance_id field. Its resolved identity is',
+              '        # still proven by the same binding document that Doctor reports as binding.resolve.',
+              '        $legacyBinding=Read-Json (Join-Path $ManagerRoot ''state\binding.json'')',
+              '        if(([string]$legacyBinding.instance_id).ToLowerInvariant()-ne$ExpectedId){Fail(''Legacy Doctor binding resolved the wrong active instance.'')}',
+              '    }'
+          ))
           $matches=([regex]::Matches($text,[regex]::Escape($old))).Count
           if($matches -eq 0 -and $text.Contains('4.16.3 predates the report-level instance_id field')){Write-Host 'Legacy Doctor harness compatibility already corrected.';exit 0}
           if($matches -ne 1){throw "Unexpected legacy Doctor assertion marker count: $matches"}
