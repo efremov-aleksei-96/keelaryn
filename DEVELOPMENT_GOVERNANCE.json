@@ -1,0 +1,48 @@
+{
+  "schema": "keelaryn.development-governance.v1",
+  "revision": 1,
+  "repository": "efremov-aleksei-96/keelaryn",
+  "development_branches": {
+    "pattern": "dev/**",
+    "qualification_state": "unqualified",
+    "push_before_qualification_allowed": true,
+    "direct_merge_to_main_forbidden": true,
+    "candidate_freeze_requires_clean_branch": true,
+    "policy": "Development branches are explicitly non-release workspaces. They may contain failing or incomplete commits and may be pushed before qualification. They must never be described as candidate, approved, production-ready, or release-qualified solely because remote development validation passes."
+  },
+  "ci": {
+    "workflow": ".github/workflows/development-validation.yml",
+    "runner": "windows-2025",
+    "token_permissions": "contents: read",
+    "cancel_obsolete_runs": true,
+    "artifact_retention_days": 3,
+    "upload_disposable_worktrees": false,
+    "publish_release_assets": false,
+    "validation": [
+      "PowerShell parser",
+      "Manager SelfTest",
+      "frontend SelfTest",
+      "deterministic BuildRelease x2"
+    ]
+  },
+  "resource_budget": {
+    "repository_target_mib": 100,
+    "repository_warning_mib": 250,
+    "tracked_file_target_mib": 1,
+    "tracked_file_warning_mib": 5,
+    "tracked_file_policy_max_mib": 50,
+    "active_branch_target": 50,
+    "development_artifact_retention_days": 3,
+    "cache_target_mib": 1024,
+    "commit_generated_release_archives": false,
+    "upload_tests_work": false,
+    "upload_duplicate_build_artifacts": false
+  },
+  "promotion": {
+    "development_validation_is_production_qualification": false,
+    "pull_request_to_main_required": true,
+    "existing_main_required_checks_remain_authoritative": true,
+    "production_release_boundary_unchanged": true,
+    "policy": "A development branch may be iterated remotely until stable. Promotion to a candidate or main requires the ordinary Keelaryn qualification/release discipline, including the existing source, disposable/full-gate, production and provenance boundaries applicable to that change."
+  }
+}
