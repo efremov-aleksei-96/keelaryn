@@ -4669,6 +4669,40 @@ function Publish-ExactManagerStateFile([string]$SourcePath,[string]$DestinationP
     }finally{if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}}
 }
 
+function Get-CompatibilityCheckpointIdentityFast([string]$ZipPath) {
+    $archive=$null
+    try{
+        if(-not(Test-Path -LiteralPath $ZipPath -PathType Leaf)){throw('CURRENT is missing: '+$ZipPath)}
+        $item=Get-Item -LiteralPath $ZipPath -Force -ErrorAction Stop
+        if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0-or[long]$item.Length-gt$MaxHubZipBytes){throw('CURRENT path is unsafe or oversized: '+$ZipPath)}
+        $archive=[System.IO.Compression.ZipFile]::OpenRead($item.FullName)
+        $root='Keelaryn__Hub/'
+        $envelope=Test-ZipEnvelopeArchive $archive ([long]$item.Length) $MaxHubZipBytes $MaxHubExpandedBytes $MaxHubEntries $root
+        if(-not$envelope.Valid){
+            $root=[string]$LegacyCoreCompat.HubZipRoot
+            $envelope=Test-ZipEnvelopeArchive $archive ([long]$item.Length) $MaxHubZipBytes $MaxHubExpandedBytes $MaxHubEntries $root
+        }
+        if(-not$envelope.Valid){throw('CURRENT ZIP envelope is invalid: '+$envelope.Reason)}
+        $stateEntry=$archive.Entries|Where-Object{$_.FullName.Replace('\','/')-eq($root+'_System/STATE.md')}|Select-Object -First 1
+        $artifactEntry=$archive.Entries|Where-Object{$_.FullName.Replace('\','/')-eq($root+'_System/ARTIFACT.json')}|Select-Object -First 1
+        if(-not$stateEntry-or-not$artifactEntry){throw 'CURRENT STATE/ARTIFACT metadata is missing.'}
+        $state=Read-StateText (Read-ZipEntryText $stateEntry)
+        $artifact=Parse-ArtifactManifestText (Read-ZipEntryText $artifactEntry)
+        if(-not$state-or-not$artifact){throw 'CURRENT STATE/ARTIFACT metadata is invalid.'}
+        $instanceId=$null
+        if($state.InstanceSchema){
+            $instanceEntry=$archive.Entries|Where-Object{$_.FullName.Replace('\','/')-eq($root+'_System/INSTANCE.json')}|Select-Object -First 1
+            if(-not$instanceEntry){throw 'CURRENT INSTANCE metadata is missing.'}
+            $instance=Parse-InstanceManifestText (Read-ZipEntryText $instanceEntry)
+            if(-not$instance-or[string]$instance.Schema-ne[string]$state.InstanceSchema){throw 'CURRENT INSTANCE metadata is invalid.'}
+            $instanceId=[string]$instance.InstanceId
+        }
+        if([string]$artifact.InstanceId-ne[string]$instanceId){throw 'CURRENT STATE/INSTANCE and ARTIFACT instance identities differ.'}
+        if([string]$artifact.VersionText-ne[string]$state.VersionText-or[int]$artifact.Revision-ne[int]$state.Revision){throw 'CURRENT STATE and ARTIFACT version/revision identities differ.'}
+        return [pscustomobject]@{InstanceId=$instanceId;ArtifactId=[string]$artifact.ArtifactId;ArtifactStatus=[string]$artifact.Status;VersionText=[string]$state.VersionText;Revision=[int]$state.Revision}
+    }finally{if($archive){$archive.Dispose()}}
+}
+
 function Get-CompatibilityShadowAssessment($Row) {
     try{
         if($null-eq$Row){throw 'Active registry row is missing.'}
@@ -4684,6 +4718,17 @@ function Get-CompatibilityShadowAssessment($Row) {
         $perHash=(Get-FileHash -LiteralPath $paths.Current -Algorithm SHA256).Hash.ToLowerInvariant()
         $legacyHash=(Get-FileHash -LiteralPath $script:LegacySingleInstanceCurrentZip -Algorithm SHA256).Hash.ToLowerInvariant()
         if($perHash-ne$legacyHash){throw('Legacy compatibility CURRENT bytes differ from active per-instance CURRENT; per='+$perHash.Substring(0,12)+' legacy='+$legacyHash.Substring(0,12)+'.')}
+
+        # Fast-path identity proof deliberately reads only archive envelope + STATE/INSTANCE/ARTIFACT.
+        # It must not invoke full portable payload/source-manifest hashing on every Manager startup.
+        $zipIdentity=Get-CompatibilityCheckpointIdentityFast $paths.Current
+        $vaultState=Read-VaultStateCoreAt ([string]$Row.vault_path)
+        $vaultArtifact=Read-VaultArtifactManifestAt ([string]$Row.vault_path)
+        if(-not$zipIdentity-or-not$vaultState-or-not$vaultArtifact){throw 'Active compatibility checkpoint identity metadata is incomplete.'}
+        if([string]$zipIdentity.ArtifactStatus-ne'approved'){throw 'Active compatibility CURRENT is not an approved checkpoint.'}
+        if([string]$zipIdentity.InstanceId-ne[string]$Row.instance_id-or[string]$vaultState.InstanceId-ne[string]$Row.instance_id-or[string]$vaultArtifact.InstanceId-ne[string]$Row.instance_id){throw 'Compatibility shadow does not belong to the active instance_id.'}
+        if([string]$zipIdentity.ArtifactId-ne[string]$vaultArtifact.ArtifactId){throw 'Compatibility shadow artifact_id differs from the installed active Hub.'}
+        if([string]$zipIdentity.VersionText-ne[string]$vaultState.VersionText-or[int]$zipIdentity.Revision-ne[int]$vaultState.Revision){throw 'Compatibility shadow version/revision differs from the installed active Hub.'}
         return [pscustomobject]@{Valid=$true;Reason='Legacy CURRENT + binding coherently shadow the active per-instance CURRENT.';FileSha256=$perHash}
     }catch{return [pscustomobject]@{Valid=$false;Reason=$_.Exception.Message;FileSha256=$null}}
 }
@@ -7356,7 +7401,7 @@ function Test-ProductSourceSelfTest {
             if (-not (Test-Path $p -PathType Leaf)) { return $false }
         }
         $runtimeSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\runtime\Keelaryn__Manager.ps1'),[System.Text.Encoding]::UTF8)
-        foreach($token in @('function Get-CompatibilityShadowAssessment','function Invoke-ReconcileActiveCompatibilityShadow','function Publish-CompatibilityShadowFromRegisteredInstance','function Invoke-GenesisRegisteredInstance','function Assert-NewRegisteredHubTargetPathSafe','function ConvertTo-ValidatedInstanceRegistryDocument','function Resolve-RegisteredInstanceContextEarly','function Assert-InvocationInstanceUnchanged','keelaryn.manager.instances.v1','keelaryn.manager.active-instance.v1','state\instances','function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Test-WorkspaceCheckoutContractSelfTest','Resolve-KeelarynWorkspaceCheckout.ps1','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','function Write-ManagerLogTextRaw','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Get-ManagerReleaseTransitionAliases $managerPolicy','Write-ManagerReleaseSnapshotFile $row $dst','Write-ManagerReleaseSnapshotFile $sourceRow $aliasDestination','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
+        foreach($token in @('function Get-CompatibilityCheckpointIdentityFast','function Get-CompatibilityShadowAssessment','function Invoke-ReconcileActiveCompatibilityShadow','function Publish-CompatibilityShadowFromRegisteredInstance','function Invoke-GenesisRegisteredInstance','function Assert-NewRegisteredHubTargetPathSafe','function ConvertTo-ValidatedInstanceRegistryDocument','function Resolve-RegisteredInstanceContextEarly','function Assert-InvocationInstanceUnchanged','keelaryn.manager.instances.v1','keelaryn.manager.active-instance.v1','state\instances','function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Test-WorkspaceCheckoutContractSelfTest','Resolve-KeelarynWorkspaceCheckout.ps1','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','function Write-ManagerLogTextRaw','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Get-ManagerReleaseTransitionAliases $managerPolicy','Write-ManagerReleaseSnapshotFile $row $dst','Write-ManagerReleaseSnapshotFile $sourceRow $aliasDestination','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
             if(-not$runtimeSource.Contains($token)){return $false}
         }
         $aiToolSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\tools\New-KeelarynAIContext.ps1'),[System.Text.Encoding]::UTF8)
