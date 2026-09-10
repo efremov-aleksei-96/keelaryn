@@ -1,0 +1,127 @@
+name: Materialize Gate Framework r23 v2
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-framework-r23-v2'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/framework-r23
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Materialize r23 source and self-test
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+          function Eol([string]$Text){if($Text.Contains("`r`n")){return "`r`n"};return "`n"}
+          function Replace-ExactlyOnce([string]$Text,[string]$Old,[string]$New,[string]$Label){
+            $count=([regex]::Matches($Text,[regex]::Escape($Old))).Count
+            if($count-ne1){throw($Label+' expected exactly one marker; actual='+$count)}
+            return $Text.Replace($Old,$New)
+          }
+          function Decode([string]$Value){return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Value))}
+          function Extract-B64([string]$Yaml,[string]$Name){
+            $m=[regex]::Match($Yaml,'(?m)^\s+'+[regex]::Escape($Name)+':\s*(?<v>[A-Za-z0-9+/=]+)\s*$')
+            if(-not$m.Success){throw('Could not extract '+$Name+' from preserved materializer workflow.')}
+            return $m.Groups['v'].Value
+          }
+
+          $sourceRef='refs/remotes/origin/maintenance/materialize-framework-r23'
+          & git fetch origin ('refs/heads/maintenance/materialize-framework-r23:'+$sourceRef) --depth=1
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $materializer=[string]::Join("`n",@(& git show ($sourceRef+':.github/workflows/materialize-framework-r23.yml')))
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $helperB64=Extract-B64 $materializer 'HELPER_B64'
+          $testsB64=Extract-B64 $materializer 'TESTS_B64'
+          $readmeB64=Extract-B64 $materializer 'README_B64'
+
+          $framework=Join-Path $root 'tests\framework\manager-gate'
+          [IO.File]::WriteAllText((Join-Path $framework 'FRAMEWORK_REVISION.txt'),"23`n",$utf8)
+
+          $fullPath=Join-Path $framework 'templates\Run-KeelarynManagerFullGate.ps1'
+          $full=[IO.File]::ReadAllText($fullPath,[Text.Encoding]::UTF8)
+          $fullEol=Eol $full
+          $helper=(Decode $helperB64).Replace("`n",$fullEol)
+          $medianMarker='function Median([double[]]$Values){'
+          $full=Replace-ExactlyOnce $full $medianMarker ($helper+$medianMarker) 'FullGate helper insertion'
+          $oldCompare='    if((FindingSignature $baselineReport -IgnoreGovernanceStatus)-cne(FindingSignature $candidateReport -IgnoreGovernanceStatus)){throw (''Stable non-Manager Doctor findings changed across ''+$baseline+'' -> ''+$version+'' after excluding separately validated governance.status.'')}'
+          $newCompare='    [void](Assert-StableDoctorFindingCompatibility $baselineReport $candidateReport -IgnoreGovernanceStatus)'
+          $full=Replace-ExactlyOnce $full $oldCompare $newCompare 'FullGate cross-version Doctor comparison'
+          $full=$full.Replace('keelaryn_framework_r22_zip_retry_','keelaryn_framework_r23_zip_retry_')
+          $full=$full.Replace('Gate Framework r22 ZIP delayed-sharing-retry self-test: PASS','Gate Framework r23 ZIP delayed-sharing-retry self-test: PASS')
+          [IO.File]::WriteAllText($fullPath,$full,$utf8)
+
+          $selfPath=Join-Path $framework 'Test-ManagerGateFramework.ps1'
+          $self=[IO.File]::ReadAllText($selfPath,[Text.Encoding]::UTF8)
+          $selfEol=Eol $self
+          $self=Replace-ExactlyOnce $self '$revision-cne''22''' '$revision-cne''23''' 'SelfTest revision predicate'
+          $self=$self.Replace('revision 22','revision 23').Replace('r22','r23')
+          $oldHelpers='foreach($helperName in @(''Test-IsPermittedTransitionDoctorWarning'',''Assert-DoctorGateResult'',''Normalize-DoctorFindingMessage'',''FindingSignature'')){'
+          $newHelpers='foreach($helperName in @(''Test-IsPermittedTransitionDoctorWarning'',''Assert-DoctorGateResult'',''Normalize-DoctorFindingMessage'',''FindingSignature'',''Get-StableDoctorFindingRows'',''Get-DoctorFindingCompatibilitySignature'',''Assert-StableDoctorFindingCompatibility'')){'
+          $self=Replace-ExactlyOnce $self $oldHelpers $newHelpers 'SelfTest Doctor helper extraction'
+          $sigMarker="    Write-Host '  PASS targeted Doctor transition-WARN and cross-version signature contract'"
+          $testBlock=(Decode $testsB64).Replace("`n",$selfEol)
+          $self=Replace-ExactlyOnce $self $sigMarker ($testBlock+$selfEol+$sigMarker) 'SelfTest additive Doctor compatibility cases'
+          [IO.File]::WriteAllText($selfPath,$self,$utf8)
+
+          $readmePath=Join-Path $framework 'README.md'
+          $readme=[IO.File]::ReadAllText($readmePath,[Text.Encoding]::UTF8)
+          if($readme.Contains('## Revision 23 additive Doctor finding compatibility')){throw 'README already contains r23 section.'}
+          $readmeEol=Eol $readme
+          $addition=(Decode $readmeB64).Replace("`n",$readmeEol)
+          if(-not$readme.EndsWith($readmeEol)){$readme+=$readmeEol}
+          [IO.File]::WriteAllText($readmePath,$readme+$addition,$utf8)
+
+          $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
+          $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$prov.source_manager_version-ne'4.16.3'){throw 'Framework r23 must preserve production Manager 4.16.3 provenance.'}
+          if(-not[bool]$prov.production_validation.full_gate_pass-or[int]$prov.production_validation.framework_revision-ne22){throw 'Historical Manager production qualification provenance changed unexpectedly.'}
+          $prov.gate_framework.revision=23
+          $prov.gate_framework.windows_qualified=$false
+          $prov.gate_framework.frozen_for_manager_candidate=$false
+          $provJson=(($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n"
+          [IO.File]::WriteAllText($provPath,$provJson,$utf8)
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $framework 'Test-ManagerGateFramework.ps1')
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-GitHubActionsPolicy.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git -c core.whitespace=cr-at-eol diff --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $changed=@(git status --porcelain|ForEach-Object{([string]$_).Substring(3).Replace('\','/')})
+          $expected=@(
+            'PUBLIC_FILE_MANIFEST.json',
+            'PUBLIC_PROVENANCE.json',
+            'tests/framework/manager-gate/FRAMEWORK_REVISION.txt',
+            'tests/framework/manager-gate/README.md',
+            'tests/framework/manager-gate/Test-ManagerGateFramework.ps1',
+            'tests/framework/manager-gate/templates/Run-KeelarynManagerFullGate.ps1'
+          )
+          if($changed.Count-ne$expected.Count-or@($changed|Where-Object{$expected-notcontains$_}).Count-ne0){throw('Unexpected r23 changed files: '+($changed-join' | '))}
+
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- @($expected)
+          git commit -m 'Gate Framework r23: allow additive healthy Doctor findings'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/framework-r23
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
