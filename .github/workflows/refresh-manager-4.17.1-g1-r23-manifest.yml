@@ -1,0 +1,60 @@
+name: Refresh Manager 4.17.1 g1 r23 manifest
+
+on:
+  push:
+    branches:
+      - 'maintenance/refresh-manager-4.17.1-g1-r23-manifest'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.1-g1-r23
+          fetch-depth: 2
+          persist-credentials: true
+
+      - name: Rebuild and verify public manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $expectedHead='8268dd34f89b1692b3d267d88a925451ac1af317'
+          $actual=(git rev-parse HEAD).Trim()
+          if($actual-cne$expectedHead){throw('Qualification line moved unexpectedly: '+$actual)}
+          $managerTree=(git rev-parse 'HEAD:manager').Trim()
+          if($managerTree-cne'8d00a22a29eec7fa5a7560fca5425a80dd4bcb93'){throw('Frozen g1 Manager tree mismatch: '+$managerTree)}
+          $parent=(git rev-parse HEAD^).Trim()
+          if($parent-cne'bbeafa3251558289444b0e707fc2433fa132238d'){throw('Unexpected qualification base: '+$parent)}
+          git diff --quiet HEAD^ HEAD -- tests/framework/manager-gate
+          if($LASTEXITCODE-ne0){throw 'Framework source changed while materializing Manager qualification line.'}
+          $prov=Get-Content -LiteralPath 'PUBLIC_PROVENANCE.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$prov.source_manager_version-cne'4.17.1'-or[string]$prov.source_gate_baseline_manager_version-cne'4.16.3'){throw 'Manager qualification provenance identity mismatch.'}
+          if([int]$prov.gate_framework.revision-ne23-or-not[bool]$prov.gate_framework.windows_qualified-or-not[bool]$prov.gate_framework.frozen_for_manager_candidate){throw 'Framework r23 is not correctly bound in Manager qualification provenance.'}
+          if([bool]$prov.production_validation.full_gate_pass-or$null-ne$prov.production_validation.gate_revision-or[int]$prov.production_validation.framework_revision-ne23){throw 'Production qualification must remain pending and bound to r23.'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-GitHubActionsPolicy.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git diff --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $afterManagerTree=(git rev-parse 'HEAD:manager').Trim()
+          if($afterManagerTree-cne$managerTree){throw 'Manager tree changed during manifest refresh.'}
+          $changed=@(git status --porcelain|ForEach-Object{([string]$_).Substring(3).Replace('\','/')})
+          if($changed.Count-ne1-or$changed[0]-cne'PUBLIC_FILE_MANIFEST.json'){throw('Unexpected manifest refresh changes: '+($changed-join' | '))}
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- PUBLIC_FILE_MANIFEST.json
+          git commit -m 'qualification: refresh Manager 4.17.1 g1 r23 public manifest'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/manager-4.17.1-g1-r23
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
