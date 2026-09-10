@@ -75,3 +75,16 @@ The menu quick-status header is not a health assertion. Use Doctor for authorita
 
 During the one-time 4.7.2 -> 4.8.7 transition, a hidden root `_logs` directory may exist briefly after the update subprocess returns. It is a compatibility handoff for the still-running 4.7.2 parent, not canonical state. The next 4.8.7 Manager invocation completes the handoff, merges any final legacy-parent log line into `state/logs/manager.log`, removes root `_logs`, and records completion in `state/layout.json`.
 
+<!-- multi-hub-operations-v1 -->
+## Multi-Hub operations
+
+Enable multi-Hub once from the existing canonical Hub. Initialization creates an instance-owned CURRENT without changing Hub portable content.
+
+Use **Manage Hubs** to list, switch, create or connect Hubs. Creating a Hub uses Genesis in a staging transaction and registers it only after Hub/CURRENT identity validation succeeds. Creation does not switch the active Hub automatically.
+
+Never copy a Hub directory to create another instance. A new Hub must receive a new Genesis `instance_id`. A connected existing Hub must already contain a consistent canonical identity.
+
+<!-- diagnostic-log-append-resilience-v1 -->
+### Diagnostic log append resilience
+
+Manager diagnostic logging uses an explicit .NET file append primitive rather than the PowerShell `Add-Content` cmdlet. Ordinary readers may coexist with the log writer; competing/exclusive write locks remain subject to bounded retry and fallback-log handling. Diagnostic sink failures must not weaken transaction locks or package/Hub validation.

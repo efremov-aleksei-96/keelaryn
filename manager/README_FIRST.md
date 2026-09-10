@@ -1,5 +1,4 @@
-# Keelaryn Manager 4.16.3
-
+# Keelaryn Manager 4.17.0
 Manager 4.16.3 is the corrective successor to rejected candidate 4.16.2. Framework r22 CURRENT-backed Full Gate exposed a runtime-resilience defect: a transient Windows sharing lock on `state/logs/manager.log` held by an external synchronization process could abort a Manager command before its operation/transaction boundary even though the blocked file was diagnostic state rather than canonical Manager or Hub state.
 
 Manager 4.16.3 preserves the 4.16.2 governance, migration, UPDATE compatibility, Doctor-warning UI and data-safety contracts. The correction is intentionally narrow: the primary `manager.log` keeps bounded sharing-lock retries; after a terminal transient sharing violation the diagnostic line is redirected to a unique `manager_fallback_*.log` when possible, and a transient failure of both diagnostic sinks does not block the requested Manager operation. Non-transient logging failures remain hard failures. Log rotation likewise skips only transient sharing locks.
