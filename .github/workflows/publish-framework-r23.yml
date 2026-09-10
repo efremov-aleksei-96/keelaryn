@@ -1,0 +1,104 @@
+name: Publish qualified Gate Framework r23 provenance
+
+on:
+  push:
+    branches:
+      - 'maintenance/publish-framework-r23'
+
+permissions:
+  contents: write
+
+jobs:
+  qualify-and-tag:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: e7ca999eb3236239b4c564ba377824ad92f6d656
+          fetch-depth: 2
+          persist-credentials: true
+
+      - name: Verify frozen exact-head identity and provenance-only freeze
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $actual=(git rev-parse HEAD).Trim()
+          if($actual-cne'e7ca999eb3236239b4c564ba377824ad92f6d656'){throw('Frozen Framework head mismatch: '+$actual)}
+          $parent=(git rev-parse HEAD^).Trim()
+          if($parent-cne'ba2659c6f00c22d2008262eef785647ad583d31c'){throw('Unexpected r23 freeze parent: '+$parent)}
+          $changed=@(git diff --name-only $parent $actual)
+          if($changed.Count-ne1-or$changed[0]-cne'PUBLIC_PROVENANCE.json'){throw('Freeze was not provenance-only: '+($changed-join' | '))}
+          $prov=Get-Content -LiteralPath 'PUBLIC_PROVENANCE.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          if([int]$prov.gate_framework.revision-ne23-or-not[bool]$prov.gate_framework.windows_qualified-or-not[bool]$prov.gate_framework.frozen_for_manager_candidate){throw 'Framework r23 provenance is not frozen/qualified.'}
+          if([int]$prov.production_validation.framework_revision-ne22){throw 'Historical Manager production qualification was rebound unexpectedly.'}
+          Write-Host 'Frozen exact-head/provenance identity: PASS' -ForegroundColor Green
+
+      - name: Parse Framework PowerShell
+        shell: powershell
+        run: |
+          $root=Join-Path $env:GITHUB_WORKSPACE 'tests\framework\manager-gate'
+          foreach($ps in @(Get-ChildItem -LiteralPath $root -File -Recurse -Filter '*.ps1')){
+            $tokens=$null;$errors=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($ps.FullName,[ref]$tokens,[ref]$errors)
+            if(@($errors).Count-ne0){throw('Parser rejected '+$ps.FullName+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          }
+          Write-Host 'Gate Framework parser: PASS' -ForegroundColor Green
+
+      - name: Run Framework self-test
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tests\framework\manager-gate\Test-ManagerGateFramework.ps1"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Prove real Manager SourceRoot and SourceZip gate equivalence
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $root=$env:GITHUB_WORKSPACE
+          $manager=Join-Path $root 'manager'
+          $builder=Join-Path $root 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          $install=Get-Content (Join-Path $manager 'product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $provenance=Get-Content (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $version=[string]$install.manager_version
+          $baseline=[string]$provenance.source_gate_baseline_manager_version
+          $temp=Join-Path $env:RUNNER_TEMP ('framework-r23-freeze-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          $stage=Join-Path $temp 'source-stage'
+          $managerStage=Join-Path $stage 'keelaryn\manager'
+          New-Item -ItemType Directory -Force -Path $managerStage|Out-Null
+          foreach($item in @(Get-ChildItem -LiteralPath $manager -Force)){Copy-Item -LiteralPath $item.FullName -Destination $managerStage -Recurse -Force}
+          $sourceZip=Join-Path $temp 'Keelaryn__Manager_SOURCE_equivalence.zip'
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$sourceZip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+          $rootOut=Join-Path $temp 'root-input';$zipOut=Join-Path $temp 'zip-input'
+          New-Item -ItemType Directory -Force -Path $rootOut,$zipOut|Out-Null
+          $rootGate=Join-Path $rootOut ('manager-'+$version+'.zip');$zipGate=Join-Path $zipOut ('manager-'+$version+'.zip')
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot $manager -BaselineVersion $baseline -GateRevision 9023 -OutputPath $rootGate
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceZip $sourceZip -BaselineVersion $baseline -GateRevision 9023 -OutputPath $zipGate
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $rootHash=(Get-FileHash -LiteralPath $rootGate -Algorithm SHA256).Hash.ToLowerInvariant();$zipHash=(Get-FileHash -LiteralPath $zipGate -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($rootHash-cne$zipHash){throw('SourceRoot/SourceZip gate mismatch: '+$rootHash+' != '+$zipHash)}
+          Write-Host ('SourceRoot/SourceZip equivalence: PASS. sha256='+$rootHash) -ForegroundColor Green
+
+      - name: Verify public repository and manifest reproducibility
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-PublicFileManifest.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Create immutable Framework r23 provenance tag
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $existing=(git ls-remote --tags origin refs/tags/provenance/framework-r23)
+          if($existing){throw('provenance/framework-r23 already exists: '+$existing)}
+          git tag provenance/framework-r23 e7ca999eb3236239b4c564ba377824ad92f6d656
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin refs/tags/provenance/framework-r23
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          Write-Host 'Framework r23 provenance tag published.' -ForegroundColor Green
