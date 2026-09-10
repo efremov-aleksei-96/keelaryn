@@ -392,7 +392,7 @@
                                          {
                                              "path":  "Test-ManagerGateFramework.ps1",
                                              "size_bytes":  36917,
-                                             "sha256":  "8f31b36e887ff42b2b7ea9a5ad692a10a63f5e6b6e0939985443931074a105a6"
+                                             "sha256":  "a2bf387b84f63db57e79bd42d250b7b9d7a91d256c5c3f2f0254279a22036b4b"
                                          },
                                          {
                                              "path":  "templates/Invoke-KeelarynGateChild.ps1",

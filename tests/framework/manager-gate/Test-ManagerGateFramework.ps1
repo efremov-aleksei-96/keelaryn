@@ -519,5 +519,5 @@ try{
     Assert-ProductionDoctorRejected 'governance-stale-suffix' 2 $staleSuffix
     Assert-ProductionDoctorRejected 'mixed-warning-error-summary-lie' 2 $mixedWarnErrorLie    Write-Host '  PASS embedded production installer targeted Doctor transition-WARN contract'
 
-    Write-Host 'FRAMEWORK r23 SELFTEST: PASS' -ForegroundColor Green
+    Write-Host 'FRAMEWORK r24 SELFTEST: PASS' -ForegroundColor Green
 }finally{if(Test-Path -LiteralPath $script:tempRoot){Remove-Item -LiteralPath $script:tempRoot -Recurse -Force -ErrorAction SilentlyContinue}}
