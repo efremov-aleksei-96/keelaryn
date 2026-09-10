@@ -46,9 +46,12 @@ jobs:
           $root=$env:GITHUB_WORKSPACE
           $builder=Join-Path $root 'tests\framework\manager-gate\Build-ManagerGate.ps1'
           $out=Join-Path $env:RUNNER_TEMP ('manager-4.17.1-g2-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
-          New-Item -ItemType Directory -Force -Path $out|Out-Null
-          $a=Join-Path $out 'manager-4.17.1-a.zip'
-          $b=Join-Path $out 'manager-4.17.1-b.zip'
+          $outA=Join-Path $out 'build-a'
+          $outB=Join-Path $out 'build-b'
+          $finalOut=Join-Path $out 'publish'
+          New-Item -ItemType Directory -Force -Path $outA,$outB,$finalOut|Out-Null
+          $a=Join-Path $outA 'manager-4.17.1.zip'
+          $b=Join-Path $outB 'manager-4.17.1.zip'
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $root 'manager') -BaselineVersion '4.16.3' -GateRevision 2 -OutputPath $a -Force
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $root 'manager') -BaselineVersion '4.16.3' -GateRevision 2 -OutputPath $b -Force
@@ -65,7 +68,7 @@ jobs:
           if([int]$spec.gate_revision-ne2-or[int]$spec.framework_revision-ne23){throw 'GATE_SPEC gate/framework identity mismatch.'}
           if([string]$spec.candidate_installation_sha256-cne'a60ffbf4510fc63aff5fd0e8e86688cf62ebfbf2320fc75e553fc2bf3cf19b17'){throw 'GATE_SPEC INSTALLATION SHA mismatch.'}
           if([string]$spec.candidate_managed_content_sha256-cne'5c03abf09d07338fa39b1a629e5ae5f07822461a6956ccd14a93f50945aad318'){throw 'GATE_SPEC managed-content SHA mismatch.'}
-          $final=Join-Path $out 'manager-4.17.1.zip'
+          $final=Join-Path $finalOut 'manager-4.17.1.zip'
           Copy-Item -LiteralPath $a -Destination $final -Force
           $identity=[ordered]@{
             schema='keelaryn.manager-gate-build-evidence.v1'
@@ -84,8 +87,8 @@ jobs:
             production_qualified=$false
           }
           $json=(($identity|ConvertTo-Json -Depth 8).Replace("`r`n","`n")+"`n")
-          [IO.File]::WriteAllText((Join-Path $out 'G2_BUILD_IDENTITY.json'),$json,(New-Object System.Text.UTF8Encoding($false)))
-          "G2_OUTPUT=$out" >> $env:GITHUB_ENV
+          [IO.File]::WriteAllText((Join-Path $finalOut 'G2_BUILD_IDENTITY.json'),$json,(New-Object System.Text.UTF8Encoding($false)))
+          "G2_OUTPUT=$finalOut" >> $env:GITHUB_ENV
           "G2_SHA256=$shaA" >> $env:GITHUB_ENV
           Write-Host ('G2 BUILD PASS: manager-4.17.1.zip sha256='+$shaA+'; framework=r23; gate=g2') -ForegroundColor Green
           Write-Host 'Classification: build-only; production qualification is still pending.' -ForegroundColor Yellow
