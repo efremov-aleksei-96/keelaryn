@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: true
 
-      - name: Freeze qualified r23 provenance and refresh manifest
+      - name: Freeze qualified r23 provenance and verify manifest stability
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
@@ -28,6 +28,7 @@ jobs:
           $actual=(git rev-parse HEAD).Trim()
           if($actual-cne$expectedSource){throw('Framework r23 source head moved before freeze: '+$actual)}
           $frameworkTree=(git rev-parse 'HEAD:tests/framework/manager-gate').Trim()
+          $manifestBefore=(Get-FileHash -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Algorithm SHA256).Hash.ToLowerInvariant()
           $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
           $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
           if([string]$prov.source_manager_version-cne'4.16.3'){throw 'Framework freeze must preserve Manager 4.16.3 source provenance.'}
@@ -50,12 +51,13 @@ jobs:
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           $afterFrameworkTree=(git rev-parse 'HEAD:tests/framework/manager-gate').Trim()
           if($afterFrameworkTree-cne$frameworkTree){throw 'Framework source tree changed during metadata freeze.'}
+          $manifestAfter=(Get-FileHash -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($manifestAfter-cne$manifestBefore){throw('PUBLIC_FILE_MANIFEST unexpectedly changed for provenance-only Framework freeze: before='+$manifestBefore+' after='+$manifestAfter)}
           $changed=@(git status --porcelain|ForEach-Object{([string]$_).Substring(3).Replace('\','/')})
-          $expected=@('PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json')
-          if($changed.Count-ne2-or@($changed|Where-Object{$expected-notcontains$_}).Count-ne0){throw('Unexpected Framework freeze changes: '+($changed-join' | '))}
+          if($changed.Count-ne1-or$changed[0]-cne'PUBLIC_PROVENANCE.json'){throw('Unexpected Framework freeze changes: '+($changed-join' | '))}
           git config user.name 'Aleksei Efremov'
           git config user.email 'efremov.aleksei.96@gmail.com'
-          git add -- PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git add -- PUBLIC_PROVENANCE.json
           git commit -m 'Gate Framework r23: freeze qualified provenance'
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           git push origin HEAD:dev/framework-r23
