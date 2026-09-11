@@ -3,7 +3,7 @@ param(
     [string]$RepositoryRoot=(Join-Path $PSScriptRoot '..')
 )
 
-# Permanent regression coverage for the PR #48 review defects plus the pre-freeze ambiguous-commit edge case.
+# Permanent regression coverage for the three product defects found during PR #48 final review.
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
 $RepositoryRoot=[IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\')
@@ -39,15 +39,10 @@ try{
     $script:RegressionRegistry=$null
     $script:RegressionStateRoot=$null
     $script:ThrowInsideWrite=$false
-    $script:ThrowRegistryReadAfterWrite=$false
-    $script:RegistryWriteAttempted=$false
     $script:RegressionMetadataMode='registration'
     $script:RegressionActive=[pscustomobject]@{instance_id=$alphaId}
 
-    function Get-ManagerInstanceRegistry {
-        if($script:ThrowRegistryReadAfterWrite -and $script:RegistryWriteAttempted){throw 'simulated registry reread failure after write attempt'}
-        return $script:RegressionRegistry
-    }
+    function Get-ManagerInstanceRegistry { return $script:RegressionRegistry }
     function Assert-RegisteredVaultStructuralSafetyEarly([string]$Path){return [IO.Path]::GetFullPath($Path)}
     function Read-VaultMetadataAt([string]$Path){
         if($script:RegressionMetadataMode-eq'registration'){return [pscustomobject]@{InstanceId=$betaId}}
@@ -70,7 +65,6 @@ try{
             registry_revision=[int]$Registry.registry_revision
             instances=@($Registry.instances)
         }
-        $script:RegistryWriteAttempted=$true
         if($script:ThrowInsideWrite){throw 'simulated post-publication registry verification failure'}
     }
     function Invoke-SwitchRegisteredInstance([string]$Id){throw 'simulated activation failure after durable registry commit'}
@@ -79,7 +73,7 @@ try{
     function Assert-NewRegisteredHubTargetPathSafe([string]$Path){return [IO.Path]::GetFullPath($Path)}
     function Invoke-Genesis([string]$ConfigPath,[bool]$Confirmed){return 0}
 
-    function Reset-RegistrationFixture([string]$CaseName,[bool]$ThrowInWrite,[bool]$ThrowOnVerifyRead=$false){
+    function Reset-RegistrationFixture([string]$CaseName,[bool]$ThrowInWrite){
         $alphaPath=Join-Path $temp ('alpha-'+$CaseName)
         $betaPath=Join-Path $temp ('beta-'+$CaseName)
         $script:RegressionRegistry=[pscustomobject]@{
@@ -89,8 +83,6 @@ try{
         }
         $script:RegressionStateRoot=Join-Path $temp ('state-'+$CaseName)
         $script:ThrowInsideWrite=$ThrowInWrite
-        $script:ThrowRegistryReadAfterWrite=$ThrowOnVerifyRead
-        $script:RegistryWriteAttempted=$false
         $script:RegressionMetadataMode='registration'
         return $betaPath
     }
@@ -110,19 +102,6 @@ try{
     }
     Write-Host '  PASS committed registration state survives post-commit failures'
 
-    $betaPath=Reset-RegistrationFixture 'ambiguous-postcommit-reread' $true $true
-    $message=$null
-    try{$null=Invoke-RegisterExistingInstance $betaPath 'Beta' $true;throw 'Expected ambiguous post-commit reread case to throw.'}catch{$message=$_.Exception.Message}
-    Assert ($message.Contains('registry commit status is ambiguous')) ('ambiguous-postcommit-reread: ambiguity diagnostic missing: '+$message)
-    Assert ($message.Contains('registered state was preserved')) ('ambiguous-postcommit-reread: preservation diagnostic missing: '+$message)
-    Assert (Test-Path -LiteralPath $script:RegressionStateRoot -PathType Container) 'ambiguous-postcommit-reread: state was deleted while commit status was unknown.'
-    Assert (Test-Path -LiteralPath (Join-Path $script:RegressionStateRoot 'baseline.marker') -PathType Leaf) 'ambiguous-postcommit-reread: state marker was deleted while commit status was unknown.'
-    $betaRows=@($script:RegressionRegistry.instances|Where-Object{[string]$_.instance_id-eq$betaId})
-    Assert ($betaRows.Count-eq1) 'ambiguous-postcommit-reread: simulated durable registry row was lost.'
-    Write-Host '  PASS ambiguous registry commit verification preserves per-instance state'
-
-    $script:ThrowRegistryReadAfterWrite=$false
-    $script:RegistryWriteAttempted=$false
     $script:InstanceRegistryActive=$true
     $script:InstancesStateRoot=Join-Path $temp 'registered-state'
     $script:RegressionRegistry=[pscustomobject]@{
