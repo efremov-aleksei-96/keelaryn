@@ -5273,7 +5273,20 @@ function Invoke-RegisterExistingInstance([string]$Path,[string]$Name,[bool]$Acti
         if($Activate){return Invoke-SwitchRegisteredInstance $id}
         return 0
     }catch{
-        if($paths-and(Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}
+        $primary=$_.Exception.Message
+        if(-not$registryCommitted){
+            try{
+                $after=Get-ManagerInstanceRegistry
+                $durable=@($after.instances|Where-Object{
+                    [string]$_.instance_id-eq$id -and
+                    (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$pathKey -and
+                    [string]$_.name-ceq$display
+                })
+                if($durable.Count-eq1){$registryCommitted=$true}
+            }catch{}
+        }
+        if(-not$registryCommitted -and $paths -and (Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}
+        if($registryCommitted){throw('Hub registration durable commit succeeded, but subsequent operation failed; registered state was preserved. '+$primary)}
         throw
     }
 }
