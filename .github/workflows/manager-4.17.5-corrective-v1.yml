@@ -35,6 +35,14 @@ jobs:
           $newF="function F([string]`$P,[string]`$N){`$t=`$null;`$e=`$null;`$a=[Management.Automation.Language.Parser]::ParseFile(`$P,[ref]`$t,[ref]`$e);if(@(`$e).Count){throw 'parse'};`$all=@(`$a.FindAll({param(`$node)`$node-is[Management.Automation.Language.FunctionDefinitionAst]},`$true));`$matches=New-Object System.Collections.ArrayList;foreach(`$row in `$all){if([string]`$row.Name-ceq[string]`$N){[void]`$matches.Add(`$row)}};`$r=@(`$matches);if(`$r.Count-ne1){throw('function '+`$N+' count='+`$r.Count)};return [string]`$r[0].Extent.Text}"
           if(-not$text.Contains($oldF)){throw '4.17.5 regression helper F patch anchor missing.'}
           $text=$text.Replace($oldF,$newF)
+          $declOld='$release=Join-Path $root ''manager\product\manager_release.json'''
+          $declNew=$declOld+"`n"+'$readme=Join-Path $root ''manager\README_FIRST.md'''
+          if(-not$text.Contains($declOld)){throw 'README version-surface declaration anchor missing.'}
+          $text=$text.Replace($declOld,$declNew)
+          $bumpOld='Replace-One $release ''"manager_version":  "4.17.4"'' ''"manager_version":  "4.17.5"'''
+          $bumpNew=$bumpOld+"`n"+'Replace-One $readme ''# Keelaryn Manager 4.17.4'' ''# Keelaryn Manager 4.17.5'''
+          if(-not$text.Contains($bumpOld)){throw 'README version-surface bump anchor missing.'}
+          $text=$text.Replace($bumpOld,$bumpNew)
           [IO.File]::WriteAllText($patch,$text,(New-Object Text.UTF8Encoding($false)))
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $patch -RepositoryRoot $env:GITHUB_WORKSPACE
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
