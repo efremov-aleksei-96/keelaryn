@@ -28,6 +28,9 @@ jobs:
           $patch=Join-Path $env:GITHUB_WORKSPACE '.github\dev\Apply-Manager4175CorrectiveV1.ps1'
           $text=[IO.File]::ReadAllText($patch,[Text.Encoding]::UTF8)
           $text=$text.Replace("& `$p=`$null`r`n",'').Replace("& `$p=`$null`n",'')
+          $text=$text.Replace('function R(','function Read-PatchText(').Replace('function W(','function Write-PatchText(')
+          $text=[regex]::Replace($text,'(?<![\w-])R (?=\$)','Read-PatchText ')
+          $text=[regex]::Replace($text,'(?<![\w-])W (?=\$)','Write-PatchText ')
           [IO.File]::WriteAllText($patch,$text,(New-Object Text.UTF8Encoding($false)))
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $patch -RepositoryRoot $env:GITHUB_WORKSPACE
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
