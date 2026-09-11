@@ -4,7 +4,7 @@
     "source_manager_version":  "4.17.5",
     "source_gate_baseline_manager_version":  "4.17.4",
     "source_manager_installation_sha256":  "ab1f0b53bce192c097f65886e3f829d6fb1c51bfba171e1b9d8129f393c8fdcf",
-    "source_manager_gate_managed_content_sha256":  "228879ace8bbb3fe133a950a89d5496514e79bb034466710fd57aa363dd79892",
+    "source_manager_gate_managed_content_sha256":  "bcd8d474b4e0c9ad85bb426b9eacdced1b55ba16650efdef520a80b984b97322",
     "production_validation":  {
                                   "full_gate_pass":  false,
                                   "gate_revision":  null,

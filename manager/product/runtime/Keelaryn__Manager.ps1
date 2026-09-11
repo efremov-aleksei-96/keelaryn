@@ -182,7 +182,7 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedInstanceId)) {
     $expectedGuid=[guid]::Empty
     if(-not[guid]::TryParse(([string]$ExpectedInstanceId).Trim(),[ref]$expectedGuid)-or$expectedGuid-eq[guid]::Empty){throw 'ExpectedInstanceId is invalid.'}
     $ExpectedInstanceId=$expectedGuid.ToString().ToLowerInvariant()
-    if(-not($UpdateHub-or$UpdateAll)){throw 'ExpectedInstanceId is valid only with -UpdateHub or -UpdateAll.'}
+    if(-not$UpdateHub){throw 'ExpectedInstanceId is valid only with -UpdateHub.'}
 }
 if (-not [string]::IsNullOrWhiteSpace($RegisterInstanceName)) {
     $RegisterInstanceName=([string]$RegisterInstanceName).Trim()
