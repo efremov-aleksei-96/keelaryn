@@ -1,0 +1,229 @@
+name: Manager 4.17.3 corrective patch
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.3'
+    paths:
+      - '.github/workflows/manager-4173-corrective-patch.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-4173-corrective-patch
+  cancel-in-progress: false
+
+jobs:
+  patch-and-validate:
+    runs-on: windows-2025
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+          ref: dev/manager-4.17.3
+
+      - name: Apply exact corrective patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+
+          function Read-Text([string]$Path){return [IO.File]::ReadAllText($Path,[Text.Encoding]::UTF8)}
+          function Write-Text([string]$Path,[string]$Text){[IO.File]::WriteAllText($Path,$Text,$utf8)}
+          function Replace-Exact([string]$Path,[string]$Old,[string]$New,[string]$Label){
+            $text=Read-Text $Path
+            $first=$text.IndexOf($Old,[StringComparison]::Ordinal)
+            if($first-lt0){throw("Patch anchor missing: $Label")}
+            if($text.IndexOf($Old,$first+$Old.Length,[StringComparison]::Ordinal)-ge0){throw("Patch anchor not unique: $Label")}
+            Write-Text $Path ($text.Substring(0,$first)+$New+$text.Substring($first+$Old.Length))
+            Write-Host ("PATCH PASS: $Label") -ForegroundColor Green
+          }
+
+          $menu=Join-Path $root 'manager\product\tools\KeelarynMenu.ps1'
+          $runtime=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $install=Join-Path $root 'manager\product\install\INSTALLATION.json'
+          $policy=Join-Path $root 'manager\product\manager_release.json'
+          $readme=Join-Path $root 'manager\README_FIRST.md'
+
+          $old=@'
+          function Ensure-ChatGPTExchangeLayout {
+              $null=Get-RequiredFrontendInstanceContext
+              Ensure-DirectorySafe $ExchangeParent 'Keelaryn exchange root'
+              Ensure-DirectorySafe $ExchangeRoot 'ChatGPT exchange root'
+              foreach($name in @(Get-ChatGPTExchangeDirectoryNames)){
+                  Ensure-DirectorySafe (Join-Path $ExchangeRoot $name) ('ChatGPT exchange '+$name)
+              }
+          }
+          '@.Trim()
+          $new=@'
+          function Ensure-ChatGPTExchangeLayout($Context=$null) {
+              $ctx=if($null-eq$Context){Get-RequiredFrontendInstanceContext}else{$Context}
+              if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail 'Multi-Hub registry exists but the supplied instance context is unresolved. ChatGPT exchange action refused.'}
+              $exchangeRoot=[string]$ctx.ExchangeRoot
+              if([string]::IsNullOrWhiteSpace($exchangeRoot)){Fail 'ChatGPT exchange context has no exchange root.'}
+              Ensure-DirectorySafe $ExchangeParent 'Keelaryn exchange root'
+              Ensure-DirectorySafe $exchangeRoot 'ChatGPT exchange root'
+              foreach($name in @(Get-ChatGPTExchangeDirectoryNames)){
+                  Ensure-DirectorySafe (Join-Path $exchangeRoot $name) ('ChatGPT exchange '+$name)
+              }
+          }
+          '@.Trim()
+          Replace-Exact $menu $old $new 'explicit-context exchange layout'
+
+          $old=@'
+          function Get-CurrentHubTransportPath {
+              $path=[string](Get-FrontendInstanceContext).CurrentZip
+              if(-not(Test-Path -LiteralPath $path -PathType Leaf)){return $null}
+              $item=Get-Item -LiteralPath $path -Force -ErrorAction Stop
+              if(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('CURRENT transport must not be a reparse point: '+$path)}
+              if($item.Length-gt1GB){Fail('CURRENT transport exceeds the 1 GiB safety limit: '+$path)}
+              return $path
+          }
+          '@.Trim()
+          $new=@'
+          function Get-CurrentHubTransportPath($Context=$null) {
+              $ctx=if($null-eq$Context){Get-RequiredFrontendInstanceContext}else{$Context}
+              if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail 'Multi-Hub registry exists but the supplied instance context is unresolved. CURRENT preparation refused.'}
+              $path=[string]$ctx.CurrentZip
+              if(-not(Test-Path -LiteralPath $path -PathType Leaf)){return $null}
+              $item=Get-Item -LiteralPath $path -Force -ErrorAction Stop
+              if(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('CURRENT transport must not be a reparse point: '+$path)}
+              if($item.Length-gt1GB){Fail('CURRENT transport exceeds the 1 GiB safety limit: '+$path)}
+              return $path
+          }
+          '@.Trim()
+          Replace-Exact $menu $old $new 'explicit-context CURRENT path'
+
+          $old=@'
+          function Copy-CurrentForChatGPT([string]$DestinationDirectory) {
+              Ensure-ChatGPTExchangeLayout
+              Ensure-DirectorySafe $DestinationDirectory 'ChatGPT CURRENT destination'
+              $source=Get-CurrentHubTransportPath
+          '@.Trim()
+          $new=@'
+          function Copy-CurrentForChatGPT($Context,[string]$DestinationName) {
+              if($null-eq$Context){Fail 'Captured instance context is required for ChatGPT CURRENT preparation.'}
+              if([string]::IsNullOrWhiteSpace($DestinationName)-or$DestinationName.Contains('\')-or$DestinationName.Contains('/')){Fail 'ChatGPT CURRENT destination name is invalid.'}
+              $exchangeRoot=[string]$Context.ExchangeRoot
+              if([string]::IsNullOrWhiteSpace($exchangeRoot)){Fail 'Captured instance context has no exchange root.'}
+              Ensure-ChatGPTExchangeLayout $Context
+              $DestinationDirectory=Join-Path $exchangeRoot $DestinationName
+              Ensure-DirectorySafe $DestinationDirectory 'ChatGPT CURRENT destination'
+              $source=Get-CurrentHubTransportPath $Context
+          '@.Trim()
+          Replace-Exact $menu $old $new 'captured-context CURRENT copy'
+
+          Replace-Exact $menu "'PrepareWorkspaceSession' { `$ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT (Join-Path ([string]`$ctx.ExchangeRoot) 'workspace-input') }" "'PrepareWorkspaceSession' { `$ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT `$ctx 'workspace-input' }" 'workspace session captured context'
+          Replace-Exact $menu "'PrepareChatManagerSession' { `$ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT (Join-Path ([string]`$ctx.ExchangeRoot) 'chat-manager-input') }" "'PrepareChatManagerSession' { `$ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT `$ctx 'chat-manager-input' }" 'Chat Manager session captured context'
+          Replace-Exact $menu "'OpenChatGPTExchange' { `$ctx=Get-RequiredFrontendInstanceContext; Ensure-ChatGPTExchangeLayout; return Open-Folder ([string]`$ctx.ExchangeRoot) }" "'OpenChatGPTExchange' { `$ctx=Get-RequiredFrontendInstanceContext; Ensure-ChatGPTExchangeLayout `$ctx; return Open-Folder ([string]`$ctx.ExchangeRoot) }" 'open exchange captured context'
+
+          $anchor='function Invoke-GenesisRegisteredInstance([string]$TargetPath,[string]$DisplayName,[string]$ConfigPath,[bool]$Confirmed) {'
+          $helper=@'
+          function Move-DirectoryFailIfDestinationExists([string]$Source,[string]$Destination) {
+              if([string]::IsNullOrWhiteSpace($Source)-or[string]::IsNullOrWhiteSpace($Destination)){throw 'Directory publication source/destination is empty.'}
+              $sourceFull=[IO.Path]::GetFullPath($Source).TrimEnd('\')
+              $destinationFull=[IO.Path]::GetFullPath($Destination).TrimEnd('\')
+              if(-not(Test-Path -LiteralPath $sourceFull -PathType Container)){throw('Directory publication source is missing: '+$sourceFull)}
+              $sourceItem=Get-Item -LiteralPath $sourceFull -Force -ErrorAction Stop
+              if(($sourceItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Directory publication source must not be a reparse point: '+$sourceFull)}
+              if(Test-Path -LiteralPath $destinationFull){throw('Directory publication destination became occupied before commit: '+$destinationFull)}
+              [IO.Directory]::Move($sourceFull,$destinationFull)
+          }
+
+          '@
+          Replace-Exact $runtime $anchor ($helper+$anchor) 'fail-if-exists directory publication helper'
+          Replace-Exact $runtime '        Move-Item -LiteralPath $Vault -Destination $target' '        Move-DirectoryFailIfDestinationExists $Vault $target' 'registered Genesis Hub publication'
+          Replace-Exact $runtime '        Move-Item -LiteralPath $txState -Destination $paths.Root' '        Move-DirectoryFailIfDestinationExists $txState $paths.Root' 'registered Genesis state publication'
+
+          Replace-Exact $install '"manager_version": "4.17.2"' '"manager_version": "4.17.3"' 'INSTALLATION version'
+          Replace-Exact $policy '"manager_version":  "4.17.2"' '"manager_version":  "4.17.3"' 'release-policy version'
+          Replace-Exact $readme '# Keelaryn Manager 4.17.2' "# Keelaryn Manager 4.17.3`r`nManager 4.17.3 is the corrective successor to the production-qualified but public-release-rejected 4.17.2. It binds ChatGPT CURRENT source/destination to one captured Hub instance and makes registered Genesis directory publication fail closed if a destination becomes occupied at the commit boundary.`r`n`r`n## 4.17.2 context" 'README version/context'
+
+          # PowerShell parser checks before executing any product code.
+          foreach($path in @($runtime,$menu,(Join-Path $root 'tools\Invoke-Manager4173ReviewRegression.ps1'))){
+              $tokens=$null;$errors=$null
+              [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+              if(@($errors).Count-ne0){throw('Parser failed: '+$path+'; '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          }
+
+          # Rebuild cryptographic public manifest after all managed product byte changes.
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $manifest=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+
+          $prov=[ordered]@{
+              schema='keelaryn.public-repository-provenance.v2'
+              role='public_source_sync_candidate'
+              source_manager_version='4.17.3'
+              source_gate_baseline_manager_version='4.17.2'
+              source_manager_installation_sha256=[string]$manifest.manager.installation_sha256
+              source_manager_gate_managed_content_sha256=[string]$manifest.manager.gate_managed_content_sha256
+              production_validation=[ordered]@{
+                  full_gate_pass=$false
+                  gate_revision=$null
+                  framework_revision=24
+                  tested_update_sha256=$null
+                  production_doctor_pass=$false
+                  production_ux_smoke_pass=$false
+                  production_managed_content_prefix=$null
+              }
+              personal_hub_included=$false
+              manager_runtime_state_included=$false
+              local_test_evidence_included=$false
+              gate_framework=[ordered]@{
+                  version='2.0';revision=24;windows_qualified=$true;frozen_for_manager_candidate=$false
+              }
+              license=[ordered]@{spdx_id='MIT';file='LICENSE';copyright='Copyright (c) 2026 Keelaryn contributors'}
+              public_candidate_revision=5
+              git_checkout_contract=[ordered]@{
+                  manager_authoritative_tree_attribute='-text';framework_authoritative_tree_attribute='-text';core_autocrlf_true_roundtrip_required=$true
+              }
+              known_nonsecret_source_hygiene_notes=@('manager/product/docs/TESTING.md retains a maintainer-local D:\0\0__Core example for historical/maintainer qualification context; it is not a product installation default.')
+              ci_policy=[ordered]@{
+                  github_actions='pull_request + main push + manual'
+                  hosted_scope='repository verification + Hub-blind SourceGate + hosted disposable Full Gate + Generic DISTRIBUTION smoke'
+                  full_gate='CURRENT-backed Windows Full Gate plus production Doctor, production UX smoke and Hub immutability before publication'
+                  update_identity='when full_gate_pass=true, PR and main BuildRelease UPDATE SHA-256 must equal production_validation.tested_update_sha256; publish consumes those gated bytes'
+              }
+              known_nonsecret_hygiene_notes=@('manager/product/docs/TESTING.md retains a maintainer-local D:\0\0__Core example; it is not a product default.')
+          }
+          Write-Text (Join-Path $root 'PUBLIC_PROVENANCE.json') ((($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n")
+
+      - name: Validate corrected product
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $runtime=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $menu=Join-Path $root 'manager\product\tools\KeelarynMenu.ps1'
+          $reg=Join-Path $root 'tools\Invoke-Manager4173ReviewRegression.ps1'
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $reg -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $runtime -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $menu -SelfTest -NoRootLauncher
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Commit validated 4.17.3 development bytes
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git status --short
+          if(-not(git status --porcelain)){throw 'Corrective patch produced no changes.'}
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add manager PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git diff --cached --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git commit -m 'Manager 4.17.3: close multi-Hub publication races'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/manager-4.17.3
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
