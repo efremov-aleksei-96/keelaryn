@@ -1,0 +1,199 @@
+name: Manager 4.17.4 bootstrap transaction fix
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.4'
+    paths:
+      - '.github/workflows/manager-4.17.4-bootstrap-transaction-fix.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-4174-bootstrap-transaction-fix
+  cancel-in-progress: false
+
+jobs:
+  patch-and-validate:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+          ref: dev/manager-4.17.4
+
+      - name: Patch bootstrap transaction semantics
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $runtime=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+          $text=[IO.File]::ReadAllText($runtime,[Text.Encoding]::UTF8)
+          $tokens=$null;$errors=$null
+          $ast=[Management.Automation.Language.Parser]::ParseInput($text,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Runtime parser failed before patch: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          $rows=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-eq'Invoke-InitializeInstanceRegistry'},$true))
+          if($rows.Count-ne1){throw('Expected one Invoke-InitializeInstanceRegistry function; actual='+$rows.Count)}
+          $node=$rows[0]
+          $replacement=@'
+          function Invoke-InitializeInstanceRegistry {
+              if(-not$CanonicalLayoutActive-or-not$StateLayoutActive){throw 'Multi-Hub registry initialization requires finalized canonical Manager layout.'}
+              if(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf){Write-Host 'Multi-Hub registry is already initialized.' -ForegroundColor Green;return 0}
+              Assert-InstanceBindingAvailable
+              $baseline=Test-CanonicalBaselineConsistent
+              if(-not$baseline.State.InstanceId){throw 'Multi-Hub registry requires canonical keelaryn.instance.v1 identity.'}
+              $id=[string]$baseline.State.InstanceId
+              $name=if($RegisterInstanceName){$RegisterInstanceName}else{'Primary'}
+              $registered=(Get-Date).ToUniversalTime().ToString('o')
+              $vaultFull=[System.IO.Path]::GetFullPath($Vault).TrimEnd('\')
+              $bootstrapRow=[pscustomobject]@{instance_id=$id;name=$name;vault_path=$vaultFull;registered_utc=$registered}
+              $paths=$null
+              $activeWriteStarted=$false
+              $registryWriteStarted=$false
+              $registryCommitted=$false
+              try{
+                  $paths=New-RegisteredInstanceStateFromVault $id $Vault
+                  # Preserve the exact pre-registry CURRENT bytes where possible. This is stronger
+                  # than relying only on deterministic reconstruction and keeps historical transport identity.
+                  if(Test-Path -LiteralPath $script:LegacySingleInstanceCurrentZip -PathType Leaf){
+                      $tmp=$paths.Current+'.legacy-copy'
+                      Copy-Item -LiteralPath $script:LegacySingleInstanceCurrentZip -Destination $tmp -Force
+                      $session=Open-HubZipInspectionSession $tmp
+                      if(-not$session){throw 'Legacy single-instance CURRENT failed validation during registry bootstrap.'}
+                      try{
+                          $state=Read-ZipState $tmp $session;$artifact=Read-ZipArtifactManifest $tmp $session;$analysis=Get-PortableVaultAnalysis $Vault;$hash=Get-ZipHashPair $tmp $session
+                          if(-not$state-or-not$artifact-or[string]$state.InstanceId-ne$id-or[string]$artifact.InstanceId-ne$id-or[string]$hash.ContentHash-ne[string]$analysis.ContentHash){throw 'Legacy CURRENT does not match the active Hub during registry bootstrap.'}
+                      }finally{Close-HubZipInspectionSession $session}
+                      Publish-CompletedFileAtomically $tmp $paths.Current
+                  }
+                  $registry=[ordered]@{
+                      schema='keelaryn.manager.instances.v1';registry_revision=1
+                      instances=@([ordered]@{instance_id=$id;name=$name;vault_path=$vaultFull;registered_utc=$registered})
+                  }
+                  $null=Publish-CompatibilityShadowFromRegisteredInstance $bootstrapRow 'multi_hub_registry_bootstrap'
+                  # Fresh validation of the exact Hub/state pair before any authoritative registry marker.
+                  $null=Assert-RegisteredInstanceBaseline $bootstrapRow
+                  $activeWriteStarted=$true
+                  Write-ManagerActiveInstance $id
+                  # instances.json is the bootstrap activation marker. Before it exists, older/single-instance Managers already see a coherent compatibility pair.
+                  $registryWriteStarted=$true
+                  Write-ManagerInstanceRegistry $registry
+                  $registryCommitted=$true
+                  $null=Resolve-RegisteredInstanceContextEarly
+                  $script:InvocationInstanceId=$id
+                  Write-Host ('Multi-Hub registry initialized. Active: '+$name+' | '+$id) -ForegroundColor Green
+                  Write-Host ('Instance CURRENT: '+$paths.Current)
+                  return 0
+              }catch{
+                  $primary=$_.Exception.Message
+                  $registryNotCommitted=$false
+                  $verificationFailure=$null
+                  if(-not$registryCommitted){
+                      if(-not$registryWriteStarted){
+                          $registryNotCommitted=$true
+                      }elseif(-not(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf)){
+                          $registryNotCommitted=$true
+                      }else{
+                          try{
+                              $after=Get-ManagerInstanceRegistry
+                              $exact=@($after.instances|Where-Object{
+                                  [string]$_.instance_id-eq$id -and
+                                  [string]$_.name-ceq$name -and
+                                  (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq(Get-KeelarynNormalizedPathKey $vaultFull)
+                              })
+                              if([int]$after.registry_revision-eq1-and@($after.instances).Count-eq1-and$exact.Count-eq1){
+                                  $registryCommitted=$true
+                              }else{
+                                  $verificationFailure=('Registry verification returned an unexpected bootstrap document: revision={0}; rows={1}; exact={2}.' -f [int]$after.registry_revision,@($after.instances).Count,$exact.Count)
+                              }
+                          }catch{
+                              $verificationFailure=$_.Exception.Message
+                          }
+                      }
+                  }
+                  if($registryCommitted){
+                      throw('Multi-Hub registry durable commit succeeded, but subsequent bootstrap verification failed; registry/active/per-instance state were preserved. '+$primary)
+                  }
+                  if($registryWriteStarted-and-not$registryNotCommitted){
+                      if([string]::IsNullOrWhiteSpace([string]$verificationFailure)){$verificationFailure='Registry verification could not establish whether the bootstrap write committed.'}
+                      throw('Multi-Hub registry commit status is ambiguous after a bootstrap write failure; registry/active/per-instance state were preserved. Primary failure: '+$primary+' Commit verification failure: '+$verificationFailure)
+                  }
+
+                  # Definitely pre-commit. Roll back only artifacts whose ownership can still be proven.
+                  $cleanupErrors=New-Object System.Collections.ArrayList
+                  if($activeWriteStarted-and(Test-Path -LiteralPath $script:ActiveInstanceFile -PathType Leaf)){
+                      try{
+                          $activeNow=Read-ActiveInstanceEarly
+                          if([string]$activeNow.instance_id-ne$id){throw 'Active marker no longer belongs to the bootstrap instance; cleanup refused.'}
+                          Remove-Item -LiteralPath $script:ActiveInstanceFile -Force -ErrorAction Stop
+                      }catch{[void]$cleanupErrors.Add('active: '+$_.Exception.Message)}
+                  }
+                  if($paths-and(Test-Path -LiteralPath $paths.Root -PathType Container)){
+                      try{
+                          $null=Assert-RegisteredInstanceBaseline $bootstrapRow
+                          Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction Stop
+                      }catch{[void]$cleanupErrors.Add('state: '+$_.Exception.Message)}
+                  }
+                  if($cleanupErrors.Count-ne0){
+                      throw('Multi-Hub registry initialization failed before registry commit and rollback cleanup could not be completed safely. Primary: '+$primary+' Cleanup: '+([string]::Join(' | ',@($cleanupErrors))))
+                  }
+                  throw('Multi-Hub registry initialization failed before registry commit; bootstrap active/state were rolled back. '+$primary)
+              }
+          }
+          '@.Trim()
+          $patched=$text.Substring(0,$node.Extent.StartOffset)+$replacement+$text.Substring($node.Extent.EndOffset)
+          [IO.File]::WriteAllText($runtime,$patched,$utf8)
+
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($runtime,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Runtime parser failed after patch: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $manifest=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
+          $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+          $prov.source_manager_installation_sha256=[string]$manifest.manager.installation_sha256
+          $prov.source_manager_gate_managed_content_sha256=[string]$manifest.manager.gate_managed_content_sha256
+          [IO.File]::WriteAllText($provPath,((($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n"),$utf8)
+
+      - name: Validate bootstrap transaction correction
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          foreach($scriptName in @('Invoke-Manager4174ReviewRegression.ps1','Invoke-Manager4174BootstrapRegression.ps1')){
+              powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root ('tools\'+$scriptName)) -RepositoryRoot $root
+              if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          }
+          $runtime=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $menu=Join-Path $root 'manager\product\tools\KeelarynMenu.ps1'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $runtime -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $menu -SelfTest -NoRootLauncher
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $sourceState=Join-Path $root 'manager\state'
+          if(Test-Path -LiteralPath $sourceState){Remove-Item -LiteralPath $sourceState -Recurse -Force}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Commit validated bootstrap correction
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git status --short
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add manager PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git -c core.whitespace=cr-at-eol diff --cached --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git commit -m 'Manager 4.17.4: preserve bootstrap commit outcomes'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/manager-4.17.4
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
