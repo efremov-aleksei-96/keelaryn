@@ -7,8 +7,11 @@ on:
     paths:
       - 'manager/**'
       - 'tools/Invoke-DevelopmentValidation.ps1'
+      - 'tools/Invoke-Manager4175ReviewRegression.ps1'
       - 'tools/Invoke-Manager4174ReviewRegression.ps1'
       - 'tools/Invoke-Manager4174BootstrapRegression.ps1'
+      - 'tools/Invoke-Manager4173ReviewRegression.ps1'
+      - 'tools/Invoke-Manager4172ReviewRegression.ps1'
       - 'tools/Verify-DevelopmentGovernance.ps1'
       - 'DEVELOPMENT_GOVERNANCE.json'
       - '.github/workflows/development-validation.yml'
@@ -65,4 +68,4 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
 
-# Manager 4.17.4 final development-validation trigger after one-shot cleanup.
+# Manager 4.17.5 regression-chain path coverage.
