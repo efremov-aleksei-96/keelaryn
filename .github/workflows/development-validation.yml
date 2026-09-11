@@ -68,4 +68,4 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
 
-# Manager 4.17.5 regression-chain path coverage.
+# Manager 4.17.5 final clean-head validation trigger after one-shot cleanup.
