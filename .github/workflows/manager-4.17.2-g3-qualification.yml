@@ -1,0 +1,158 @@
+name: One-shot Manager 4.17.2 g3 qualification
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.2'
+    paths:
+      - '.github/workflows/manager-4.17.2-g3-qualification.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  qualify:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      CANDIDATE_SHA: 8b189526f8b5e5a9b631eaa173fccdd0b11e64cc
+      CANDIDATE_TREE: 82104b974c95b327b9c870609a1f8887ee73793a
+      CANDIDATE_TAG: provenance/candidate-manager-4.17.2-g1
+      BASELINE_SHA: 5d1d602a37e8b6c82f35d7517a6701b7d9880e2b
+      BASELINE_VERSION: 4.17.1
+      BASELINE_TESTED_UPDATE_SHA: ee11b40a5e86975aa7c10d8dd0d01172dd6f71267d743035aab7d7048d62f7f9
+    steps:
+      - name: Checkout control branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Checkout exact frozen candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact production 4.17.1 source baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.BASELINE_SHA }}
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify frozen candidate and production baseline provenance
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $baseline=Join-Path $env:GITHUB_WORKSPACE 'baseline'
+          $candidateSha=(git -C $candidate rev-parse HEAD).Trim()
+          $candidateTree=(git -C $candidate rev-parse 'HEAD^{tree}').Trim()
+          $baselineSha=(git -C $baseline rev-parse HEAD).Trim()
+          if($candidateSha-cne$env:CANDIDATE_SHA){throw "Candidate SHA mismatch: $candidateSha"}
+          if($candidateTree-cne$env:CANDIDATE_TREE){throw "Candidate tree mismatch: $candidateTree"}
+          if($baselineSha-cne$env:BASELINE_SHA){throw "Baseline SHA mismatch: $baselineSha"}
+
+          $candidateInstall=Get-Content (Join-Path $candidate 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $candidateManifest=Get-Content (Join-Path $candidate 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $candidateFramework=(Get-Content (Join-Path $candidate 'tests\framework\manager-gate\FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
+          if([string]$candidateInstall.manager_version-cne'4.17.2'){throw 'Candidate Manager version mismatch.'}
+          if([string]$candidateManifest.manager.gate_managed_content_sha256-cne'e0a3ae9641979556fa9aa2060a6c7c5cdaa23f52c040fc24ea43122e862dd102'){throw 'Candidate managed digest mismatch.'}
+          if($candidateFramework-cne'24'){throw "Candidate Framework revision mismatch: $candidateFramework"}
+
+          $baselineInstall=Get-Content (Join-Path $baseline 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $baselineManifest=Get-Content (Join-Path $baseline 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $baselineProv=Get-Content (Join-Path $baseline 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$baselineInstall.manager_version-cne$env:BASELINE_VERSION){throw 'Baseline Manager version mismatch.'}
+          if(-not [bool]$baselineProv.production_validation.full_gate_pass){throw 'Baseline source is not production-qualified.'}
+          if([int]$baselineProv.production_validation.gate_revision-ne3){throw 'Baseline production gate revision mismatch.'}
+          if([int]$baselineProv.production_validation.framework_revision-ne24){throw 'Baseline production Framework revision mismatch.'}
+          if([string]$baselineProv.production_validation.tested_update_sha256-cne$env:BASELINE_TESTED_UPDATE_SHA){throw 'Baseline tested UPDATE identity mismatch.'}
+          if([string]$baselineProv.source_manager_gate_managed_content_sha256-cne[string]$baselineManifest.manager.gate_managed_content_sha256){throw 'Baseline public manifest/provenance managed digest mismatch.'}
+          Write-Host 'Frozen candidate + production 4.17.1 baseline provenance: PASS'
+
+      - name: Verify immutable candidate provenance tag
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $control=Join-Path $env:GITHUB_WORKSPACE 'control'
+          $ref='refs/tags/'+$env:CANDIDATE_TAG
+          $existing=@(git -C $control ls-remote --tags origin $ref)
+          if($LASTEXITCODE-ne0){throw 'Failed to query candidate provenance tag.'}
+          if($existing.Count-ne1){throw ('Expected exactly one immutable candidate tag row; actual='+$existing.Count)}
+          $actual=([string]$existing[0]).Split("`t")[0]
+          if($actual-cne$env:CANDIDATE_SHA){throw "Candidate tag collision: $actual"}
+          Write-Host 'Candidate provenance tag points to exact frozen SHA.'
+
+      - name: Build and run ordinary SourceGate g3
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $root=Join-Path $env:RUNNER_TEMP ('keelaryn-manager-4.17.2-g3-'+$env:GITHUB_RUN_ID)
+          New-Item -ItemType Directory -Force -Path $root|Out-Null
+          $gateZip=Join-Path $root 'manager-4.17.2.zip'
+          $builder=Join-Path $candidate 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $candidate 'manager') -BaselineVersion $env:BASELINE_VERSION -GateRevision 3 -OutputPath $gateZip -Force
+          if($LASTEXITCODE-ne0){throw "Gate build failed: exit=$LASTEXITCODE"}
+
+          $keelarynRoot=Join-Path $root 'keelaryn'
+          $work=Join-Path $keelarynRoot 'tests\work'
+          New-Item -ItemType Directory -Force -Path $work|Out-Null
+          Expand-Archive -LiteralPath $gateZip -DestinationPath $work -Force
+          $gateRoot=Join-Path $work 'manager-4.17.2'
+          $expectedGateRoot=Join-Path $keelarynRoot 'tests\work\manager-4.17.2'
+          if([IO.Path]::GetFullPath($gateRoot)-cne[IO.Path]::GetFullPath($expectedGateRoot)){throw 'Qualification harness failed to construct canonical gate path.'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $gateRoot 'gate\Run-KeelarynManagerSourceGate.ps1') -ManagerRoot $gateRoot
+          if($LASTEXITCODE-ne0){throw "SourceGate g3 failed: exit=$LASTEXITCODE"}
+          "ORDINARY_GATE_ROOT=$root" >> $env:GITHUB_ENV
+          "ORDINARY_GATE_WORK=$work" >> $env:GITHUB_ENV
+          "ORDINARY_GATE_ZIP=$gateZip" >> $env:GITHUB_ENV
+          Write-Host 'ORDINARY SOURCE GATE g3: PASS'
+
+      - name: Run exact-candidate disposable Full Gate over production 4.17.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $baseline=Join-Path $env:GITHUB_WORKSPACE 'baseline'
+          $workspace=Join-Path $env:RUNNER_TEMP ('keelaryn-manager-4.17.2-disposable-g9003-'+$env:GITHUB_RUN_ID)
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Invoke-DisposableManagerFullGate.ps1') -CandidateManagerRoot (Join-Path $candidate 'manager') -BaselineManagerRoot (Join-Path $baseline 'manager') -FrameworkRoot (Join-Path $candidate 'tests\framework\manager-gate') -WorkspaceRoot $workspace -CandidateRef $env:CANDIDATE_SHA -BaselineRef $env:BASELINE_SHA -GateRevision 9003
+          if($LASTEXITCODE-ne0){throw "Disposable Full Gate failed: exit=$LASTEXITCODE"}
+          "DISPOSABLE_GATE_ROOT=$workspace" >> $env:GITHUB_ENV
+          Write-Host 'DISPOSABLE FULL GATE g9003 over production 4.17.1: PASS'
+
+      - name: Upload compact qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.2-g3-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.ORDINARY_GATE_ZIP }}
+            ${{ env.ORDINARY_GATE_WORK }}\manager-4.17.2\gate\results\**
+            ${{ env.DISPOSABLE_GATE_ROOT }}\evidence\**
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Remove one-shot workflow after successful qualification
+        if: success()
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $control=Join-Path $env:GITHUB_WORKSPACE 'control'
+          $workflow='.github/workflows/manager-4.17.2-g3-qualification.yml'
+          git -C $control pull --ff-only origin dev/manager-4.17.2
+          if($LASTEXITCODE-ne0){throw 'Failed to synchronize control checkout before cleanup.'}
+          git -C $control rm -- $workflow
+          if($LASTEXITCODE-ne0){throw 'Failed to stage one-shot workflow removal.'}
+          git -C $control config user.name 'keelaryn-qualification-bot'
+          git -C $control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C $control commit -m 'Qualification: remove one-shot Manager 4.17.2 g3 workflow'
+          if($LASTEXITCODE-ne0){throw 'Failed to commit one-shot workflow removal.'}
+          git -C $control push origin 'HEAD:refs/heads/dev/manager-4.17.2'
+          if($LASTEXITCODE-ne0){throw 'Failed to push one-shot workflow removal.'}
