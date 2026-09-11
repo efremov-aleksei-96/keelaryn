@@ -8,7 +8,7 @@ param(
         'MigrateInstanceIdentity','MigrateLegacyNamespace','MigrateLayout','FinalizeLayout','FinalizeFilesystemLayout',
         'PrepareWorkspaceSession','PrepareChatManagerSession','OpenChatGPTExchange','OpenChatGPTGuide','ImportLegacyExchange',
         'StorageReport','CleanTestsWork','CompactQualificationEvidence',
-        'OpenInbox','OpenLogs','OpenReleases','OpenTestsWork','OpenTestsResults','OpenCompatCommands','OpenKeelarynRoot',
+        'OpenInbox','OpenHubInbox','OpenLogs','OpenReleases','OpenTestsWork','OpenTestsResults','OpenCompatCommands','OpenKeelarynRoot',
         'EnsureRootLauncher','RenderMain'
     )]
     [string]$Action='Menu',
@@ -807,7 +807,13 @@ function Import-Package([string]$PackagePath) {
     }
 
     $destinationInbox=$Inbox
-    if($mode-eq'hub'){$ctx=Get-FrontendInstanceContext;$destinationInbox=[string]$ctx.HubInbox;if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail('Multi-Hub registry is unresolved; Hub package import refused.')}}
+    $hubExpectedInstanceId=$null
+    if($mode-eq'hub'){
+        $ctx=Get-FrontendInstanceContext
+        $destinationInbox=[string]$ctx.HubInbox
+        if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail('Multi-Hub registry is unresolved; Hub package import refused.')}
+        if($ctx.RegistryActive){$hubExpectedInstanceId=[string]$ctx.InstanceId}
+    }
     Ensure-DirectorySafe $destinationInbox $(if($mode-eq'hub'){'Active Hub inbox'}else{'Manager inbox'})
     $dest=Join-Path $destinationInbox $name
     if(Test-Path -LiteralPath $dest){
@@ -833,7 +839,9 @@ function Import-Package([string]$PackagePath) {
     if($mode-eq'manager'){
         return Invoke-Manager @('-UpdateManager')
     }
-    return Invoke-Manager @('-UpdateHub')
+    $hubArgs=@('-UpdateHub')
+    if($hubExpectedInstanceId){$hubArgs+=@('-ExpectedInstanceId',$hubExpectedInstanceId)}
+    return Invoke-Manager $hubArgs
 }
 
 function Get-TestArchivePlan([string]$ArchivePath) {
@@ -1067,6 +1075,7 @@ function Invoke-Action([string]$Name,[string]$ActionPath) {
         'FinalizeLayout' { return Invoke-Manager @('-FinalizeLayout') }
         'FinalizeFilesystemLayout' { return Invoke-Manager @('-FinalizeFilesystemLayout') }
         'OpenInbox' { Ensure-DirectorySafe $Inbox 'Manager inbox'; return Open-Folder $Inbox }
+        'OpenHubInbox' { $ctx=Get-FrontendInstanceContext;if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail('Multi-Hub registry is unresolved; active Hub inbox cannot be opened.')};$hubInbox=[string]$ctx.HubInbox;Ensure-DirectorySafe $hubInbox 'Active Hub inbox';return Open-Folder $hubInbox }
         'OpenLogs' { Ensure-DirectorySafe $Logs 'Manager logs'; return Open-Folder $Logs }
         'OpenReleases' { Ensure-DirectorySafe $Releases 'Manager releases'; return Open-Folder $Releases }
         'OpenTestsWork' { Ensure-DirectorySafe (Join-Path $TestsRoot 'work') 'Tests work'; return Open-Folder (Join-Path $TestsRoot 'work') }
@@ -1338,6 +1347,7 @@ function Show-DevelopmentMenu {
         Write-UiHost 'Hub candidate transport' -ForegroundColor DarkCyan
         Write-UiHost '  [6] Export transport for Hub CANDIDATE'
         Write-UiHost '  [7] Restore Hub CANDIDATE transport'
+        Write-UiHost '  [I] Open active Hub inbox'
         Write-UiHost 'Results' -ForegroundColor DarkCyan
         Write-UiHost '  [8] Open test workspace'
         Write-UiHost '  [9] Open test results'
@@ -1352,6 +1362,7 @@ function Show-DevelopmentMenu {
             '^5$' {$null=Invoke-MenuAction 'BuildDistribution' $null 'Build distribution';Pause-Menu}
             '^6$' {$null=Invoke-MenuAction 'BuildCandidateTransport' $null 'Export Hub CANDIDATE transport';Pause-Menu}
             '^7$' {$null=Invoke-MenuAction 'RestoreCandidateTransport' $null 'Restore Hub CANDIDATE transport';Pause-Menu}
+            '^(?i)i$' {$null=Invoke-MenuAction 'OpenHubInbox' $null 'Open active Hub inbox'}
             '^8$' {$null=Invoke-MenuAction 'OpenTestsWork' $null 'Open test workspace'}
             '^9$' {$null=Invoke-MenuAction 'OpenTestsResults' $null 'Open test results'}
             '^(?i)r$' {$null=Invoke-MenuAction 'OpenReleases' $null 'Open releases'}

@@ -31,14 +31,15 @@ param(
     [string]$RegisterInstancePath,
     [string]$RegisterInstanceName,
     [string]$GenesisInstancePath,
-    [string]$GenesisInstanceName
+    [string]$GenesisInstanceName,
+    [string]$ExpectedInstanceId
 )
 
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.17.4"
+$ManagerVersion = "4.17.5"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -177,6 +178,12 @@ if ($Genesis -and -not [string]::IsNullOrWhiteSpace($GenesisInstancePath)) { thr
 if (-not [string]::IsNullOrWhiteSpace($BindInstancePath)) { $BindInstancePath=[System.IO.Path]::GetFullPath($BindInstancePath) }
 if (-not [string]::IsNullOrWhiteSpace($RegisterInstancePath)) { $RegisterInstancePath=[System.IO.Path]::GetFullPath($RegisterInstancePath) }
 if (-not [string]::IsNullOrWhiteSpace($SwitchInstanceId)) { $SwitchInstanceId=([string]$SwitchInstanceId).Trim().ToLowerInvariant() }
+if (-not [string]::IsNullOrWhiteSpace($ExpectedInstanceId)) {
+    $expectedGuid=[guid]::Empty
+    if(-not[guid]::TryParse(([string]$ExpectedInstanceId).Trim(),[ref]$expectedGuid)-or$expectedGuid-eq[guid]::Empty){throw 'ExpectedInstanceId is invalid.'}
+    $ExpectedInstanceId=$expectedGuid.ToString().ToLowerInvariant()
+    if(-not($UpdateHub-or$UpdateAll)){throw 'ExpectedInstanceId is valid only with -UpdateHub or -UpdateAll.'}
+}
 if (-not [string]::IsNullOrWhiteSpace($RegisterInstanceName)) {
     $RegisterInstanceName=([string]$RegisterInstanceName).Trim()
     if ($RegisterInstanceName.Length -gt 64 -or $RegisterInstanceName -match '[\x00-\x1F]') { throw 'Instance display name is invalid.' }
@@ -410,8 +417,14 @@ function Set-InstanceScopedOperationalPathsEarly([string]$InstanceId) {
 
 function Resolve-RegisteredInstanceContextEarly {
     $registry=Read-InstanceRegistryEarly
-    if(-not$registry){return $false}
+    if(-not$registry){
+        if($ExpectedInstanceId){throw 'ExpectedInstanceId requires an initialized multi-Hub registry.'}
+        return $false
+    }
     $active=Read-ActiveInstanceEarly
+    if($ExpectedInstanceId-and[string]$active.instance_id-ne[string]$ExpectedInstanceId){
+        throw ('Active Hub changed before this Manager invocation bound its expected instance. Expected='+$ExpectedInstanceId+'; active='+[string]$active.instance_id+'. Retry the operation.')
+    }
     $matches=@($registry.instances|Where-Object{[string]$_.instance_id-eq[string]$active.instance_id})
     if($matches.Count-ne1){throw 'active_instance.json does not identify exactly one registered instance.'}
     $row=$matches[0]
@@ -3464,7 +3477,7 @@ function Assert-NewRegisteredHubTargetPathSafe([string]$Path) {
     $full=[System.IO.Path]::GetFullPath($Path).TrimEnd('\')
     $hubsRoot=[System.IO.Path]::GetFullPath((Join-Path $LayoutRoot 'hubs')).TrimEnd('\')
     $parent=[System.IO.Path]::GetFullPath((Split-Path -Parent $full)).TrimEnd('\')
-    if($parent-cne$hubsRoot){throw('New registered Hub must be a direct child of '+$hubsRoot+'.')}
+    if(-not $parent.Equals($hubsRoot,[StringComparison]::OrdinalIgnoreCase)){throw('New registered Hub must be a direct child of '+$hubsRoot+'.')}
     $leaf=Split-Path $full -Leaf
     if(-not$leaf-or$leaf.Length-gt64-or$leaf.EndsWith(' ')-or$leaf.EndsWith('.')-or$leaf-match'[<>:"/\\|?*\x00-\x1F]'){throw 'New Hub directory name is not Win32-safe.'}
     if(Test-IsWindowsReservedPathSegment $leaf){throw('New Hub directory name is Windows-reserved: '+$leaf)}

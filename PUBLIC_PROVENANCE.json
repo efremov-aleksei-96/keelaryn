@@ -1,18 +1,18 @@
-{
+﻿{
     "schema":  "keelaryn.public-repository-provenance.v2",
     "role":  "public_source_sync_candidate",
-    "source_manager_version":  "4.17.4",
-    "source_gate_baseline_manager_version":  "4.17.2",
-    "source_manager_installation_sha256":  "b5c9a6468bef6388cfe541f2520454d19f7b2493eddf6dc36b97f2eceee47a94",
-    "source_manager_gate_managed_content_sha256":  "84c76c4f9e8a9703dc0c36f9b8c80deb5738d73f1448f3f2e063fe066166507e",
+    "source_manager_version":  "4.17.5",
+    "source_gate_baseline_manager_version":  "4.17.4",
+    "source_manager_installation_sha256":  "ab1f0b53bce192c097f65886e3f829d6fb1c51bfba171e1b9d8129f393c8fdcf",
+    "source_manager_gate_managed_content_sha256":  "ccfc4c48a68422483f23f277543b5dceb19e69160416d727d47dc4814a73b10a",
     "production_validation":  {
-                                  "full_gate_pass":  true,
-                                  "gate_revision":  1,
+                                  "full_gate_pass":  false,
+                                  "gate_revision":  null,
                                   "framework_revision":  24,
-                                  "tested_update_sha256":  "a9912a108f39b0dae104c4170b406df939e0454fa561712bcbc11527574f2153",
-                                  "production_doctor_pass":  true,
-                                  "production_ux_smoke_pass":  true,
-                                  "production_managed_content_prefix":  "26aed38a1403"
+                                  "tested_update_sha256":  null,
+                                  "production_doctor_pass":  false,
+                                  "production_ux_smoke_pass":  false,
+                                  "production_managed_content_prefix":  null
                               },
     "personal_hub_included":  false,
     "manager_runtime_state_included":  false,
@@ -21,22 +21,21 @@
                            "version":  "2.0",
                            "revision":  24,
                            "windows_qualified":  true,
-                           "frozen_for_manager_candidate":  true
+                           "frozen_for_manager_candidate":  false
                        },
     "license":  {
                     "spdx_id":  "MIT",
                     "file":  "LICENSE",
                     "copyright":  "Copyright (c) 2026 Keelaryn contributors"
                 },
-    "public_candidate_revision":  7,
+    "public_candidate_revision":  8,
     "git_checkout_contract":  {
                                   "manager_authoritative_tree_attribute":  "-text",
                                   "framework_authoritative_tree_attribute":  "-text",
                                   "core_autocrlf_true_roundtrip_required":  true
                               },
     "known_nonsecret_source_hygiene_notes":  [
-                                                 "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example for historical/maintainer qualification context; it is not a product installation default.",
-                                                 "Frozen Manager 4.17.4 candidate product/source tree is f121acabf044d2098f457f7b6848a05bb784f8ce at candidate commit 4d77bd5935f7bcc8ed53dd32d593469b9d1a8fc0; post-qualification provenance commits modify metadata only and do not alter Manager product bytes."
+                                                 "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example for historical/maintainer qualification context; it is not a product installation default."
                                              ],
     "ci_policy":  {
                       "github_actions":  "pull_request + main push + manual",

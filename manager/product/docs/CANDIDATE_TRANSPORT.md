@@ -4,7 +4,7 @@
 
 ## Build fallback transport
 
-Place one or more validated `Keelaryn__Hub_CANDIDATE_*.zip` files in Manager `state/inbox`, keep the matching canonical `state/baseline/Keelaryn__Hub_CURRENT.zip` in place, and run Development > Build CANDIDATE transport (compatibility command `compat/commands/BUILD_CANDIDATE_TRANSPORT.cmd`).
+Place one or more validated `Keelaryn__Hub_CANDIDATE_*.zip` files in the **active Hub inbox**, then run Development > Build CANDIDATE transport (compatibility command `compat/commands/BUILD_CANDIDATE_TRANSPORT.cmd`). Use Development > Open active Hub inbox to open the authoritative ingress. In single-instance compatibility mode this is Manager `state/inbox` with `state/baseline/Keelaryn__Hub_CURRENT.zip`; after multi-Hub initialization it is `state/instances/<instance_id>/inbox` with the matching `state/instances/<instance_id>/baseline/Keelaryn__Hub_CURRENT.zip`.
 
 For every CANDIDATE, Manager writes `Keelaryn__Hub_CANDIDATE_TRANSPORT_<artifact-id>.json` beside it. Schema `keelaryn.hub.candidate-transport.v1` contains a deterministic Base64 delta from the exact CURRENT reconstruction baseline to the complete portable CANDIDATE tree.
 
@@ -20,7 +20,7 @@ Binary and text files use Base64 uniformly so UTF-8 BOMs, arbitrary binary data 
 
 ## Restore fallback transport
 
-If the original CANDIDATE ZIP is unavailable, place its transport JSON in `state/inbox` with the exact CURRENT used as `reconstruction_base`, then run Development > Restore CANDIDATE transport (compatibility command `compat/commands/RESTORE_CANDIDATE_TRANSPORT.cmd`).
+If the original CANDIDATE ZIP is unavailable, place its transport JSON in the **active Hub inbox** (Development > Open active Hub inbox) with the exact instance-bound CURRENT used as `reconstruction_base`, then run Development > Restore CANDIDATE transport (compatibility command `compat/commands/RESTORE_CANDIDATE_TRANSPORT.cmd`). In multi-Hub mode the active Hub inbox is `state/instances/<instance_id>/inbox`, not global `state/inbox`.
 
 Manager validates the JSON schema, path safety, operation uniqueness, Base64 bytes, per-file hashes, CURRENT reconstruction identity and all resulting Hub identities. It reconstructs a complete portable ZIP named `Keelaryn__Hub_CANDIDATE_RECONSTRUCTED_<artifact-id>.zip` and validates STATE, derived metadata, MANIFEST, ARTIFACT, payload/content hashes before publication.
 
