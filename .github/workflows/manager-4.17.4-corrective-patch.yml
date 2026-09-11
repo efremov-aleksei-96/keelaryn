@@ -1,0 +1,236 @@
+name: Manager 4.17.4 corrective patch
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.4'
+    paths:
+      - '.github/workflows/manager-4.17.4-corrective-patch.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-4174-corrective-patch
+  cancel-in-progress: false
+
+jobs:
+  patch-and-validate:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+          ref: dev/manager-4.17.4
+
+      - name: Apply exact 4.17.4 transaction patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+          function Replace-ExactText([string]$Path,[string]$Old,[string]$New,[string]$Label){
+            $text=[IO.File]::ReadAllText($Path,[Text.Encoding]::UTF8)
+            $first=$text.IndexOf($Old,[StringComparison]::Ordinal)
+            if($first-lt0){throw("Patch anchor missing: $Label")}
+            if($text.IndexOf($Old,$first+$Old.Length,[StringComparison]::Ordinal)-ge0){throw("Patch anchor not unique: $Label")}
+            [IO.File]::WriteAllText($Path,$text.Substring(0,$first)+$New+$text.Substring($first+$Old.Length),$utf8)
+            Write-Host ("PATCH PASS: $Label") -ForegroundColor Green
+          }
+
+          $runtime=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $install=Join-Path $root 'manager\product\install\INSTALLATION.json'
+          $policy=Join-Path $root 'manager\product\manager_release.json'
+          $readme=Join-Path $root 'manager\README_FIRST.md'
+
+          Replace-ExactText $runtime '        Move-Item -LiteralPath $staging -Destination $paths.Root' '        Move-DirectoryFailIfDestinationExists $staging $paths.Root' 'per-instance state fail-if-exists publication'
+
+          $old=@'
+          $paths=New-RegisteredInstanceStateFromVault $id $full
+          $newRows=@($registry.instances)+@([pscustomobject]@{instance_id=$id;name=$display;vault_path=$full;registered_utc=(Get-Date).ToUniversalTime().ToString('o')})
+          $registryWriteStarted=$true
+          '@.Trim()
+          $new=@'
+          $paths=New-RegisteredInstanceStateFromVault $id $full
+          $candidateRow=[pscustomobject]@{instance_id=$id;name=$display;vault_path=$full;registered_utc=(Get-Date).ToUniversalTime().ToString('o')}
+          # Fresh validation at the registry commit boundary: staged validation is not enough
+          # because the Hub or published per-instance state can change independently.
+          $null=Assert-RegisteredInstanceBaseline $candidateRow
+          $newRows=@($registry.instances)+@($candidateRow)
+          $registryWriteStarted=$true
+          '@.Trim()
+          Replace-ExactText $runtime $old $new 'existing-Hub registration commit-boundary validation'
+
+          Replace-ExactText $runtime @'
+              $registryCommitted=$false
+              $instanceId=$null
+          '@.Trim() @'
+              $registryCommitted=$false
+              $registryWriteStarted=$false
+              $instanceId=$null
+          '@.Trim() 'registered Genesis registry write tracking'
+
+          $old=@'
+          $newRows=@($registry.instances)+@([pscustomobject]@{
+              instance_id=$instanceId
+              name=$name
+              vault_path=$target
+              registered_utc=(Get-Date).ToUniversalTime().ToString('o')
+          })
+          Write-ManagerInstanceRegistry ([ordered]@{
+          '@.Trim()
+          $new=@'
+          $candidateRow=[pscustomobject]@{
+              instance_id=$instanceId
+              name=$name
+              vault_path=$target
+              registered_utc=(Get-Date).ToUniversalTime().ToString('o')
+          }
+          # Revalidate the exact published Hub/state pair immediately before instances.json
+          # becomes authoritative.
+          $null=Assert-RegisteredInstanceBaseline $candidateRow
+          $newRows=@($registry.instances)+@($candidateRow)
+          $registryWriteStarted=$true
+          Write-ManagerInstanceRegistry ([ordered]@{
+          '@.Trim()
+          Replace-ExactText $runtime $old $new 'registered Genesis commit-boundary validation'
+
+          $old=@'
+          catch{
+              if(-not$registryCommitted){
+                  if($publishedState-and$instanceId){
+                      try{$paths=Get-InstanceStatePaths $instanceId;if(Test-Path -LiteralPath $paths.Root){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction Stop}}catch{}
+                  }
+                  if($publishedVault-and(Test-Path -LiteralPath $target)){
+                      try{Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop}catch{}
+                  }
+              }
+              throw
+          }
+          '@.Trim()
+          $new=@'
+          catch{
+              $primary=$_.Exception.Message
+              $verificationFailure=$null
+              $registryNotCommitted=$false
+              if(-not$registryCommitted){
+                  if(-not$registryWriteStarted){
+                      $registryNotCommitted=$true
+                  }else{
+                      try{
+                          $after=Get-ManagerInstanceRegistry
+                          $targetKey=Get-KeelarynNormalizedPathKey $target
+                          $durable=@($after.instances|Where-Object{
+                              [string]$_.instance_id-eq$instanceId -and
+                              (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$targetKey -and
+                              [string]$_.name-ceq$name
+                          })
+                          $identityOrPath=@($after.instances|Where-Object{
+                              [string]$_.instance_id-eq$instanceId -or
+                              (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$targetKey
+                          })
+                          if($durable.Count-eq1 -and $identityOrPath.Count-eq1){
+                              $registryCommitted=$true
+                          }elseif($durable.Count-eq0 -and $identityOrPath.Count-eq0){
+                              $registryNotCommitted=$true
+                          }else{
+                              $verificationFailure=('Registry verification returned ambiguous matching rows: exact={0}; identity_or_path={1}.' -f $durable.Count,$identityOrPath.Count)
+                          }
+                      }catch{
+                          $verificationFailure=$_.Exception.Message
+                      }
+                  }
+              }
+              if($registryNotCommitted){
+                  $cleanupErrors=New-Object System.Collections.ArrayList
+                  if($publishedState-and$instanceId){
+                      try{$paths=Get-InstanceStatePaths $instanceId;if(Test-Path -LiteralPath $paths.Root){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction Stop}}catch{[void]$cleanupErrors.Add('state: '+$_.Exception.Message)}
+                  }
+                  if($publishedVault-and(Test-Path -LiteralPath $target)){
+                      try{Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop}catch{[void]$cleanupErrors.Add('vault: '+$_.Exception.Message)}
+                  }
+                  if($cleanupErrors.Count-ne0){throw('Registered Genesis failed before registry commit and rollback cleanup was incomplete. Primary: '+$primary+' Cleanup: '+([string]::Join(' | ',@($cleanupErrors))))}
+                  throw('Registered Genesis failed before registry commit; published Hub/state were rolled back. '+$primary)
+              }
+              if($registryCommitted){throw('Registered Genesis durable registry commit succeeded, but subsequent operation failed; published Hub/state were preserved. '+$primary)}
+              if($registryWriteStarted){
+                  if([string]::IsNullOrWhiteSpace([string]$verificationFailure)){$verificationFailure='Registry verification could not establish whether the write committed.'}
+                  throw('Registered Genesis registry commit status is ambiguous after a write failure; published Hub/state were preserved. Primary failure: '+$primary+' Commit verification failure: '+$verificationFailure)
+              }
+              throw
+          }
+          '@.Trim()
+          Replace-ExactText $runtime $old $new 'registered Genesis durable/ambiguous commit handling'
+
+          Replace-ExactText $runtime '$ManagerVersion = "4.17.3"' '$ManagerVersion = "4.17.4"' 'runtime version'
+          Replace-ExactText $install '"manager_version": "4.17.3"' '"manager_version": "4.17.4"' 'INSTALLATION version'
+          Replace-ExactText $policy '"manager_version":  "4.17.3"' '"manager_version":  "4.17.4"' 'release-policy version'
+          Replace-ExactText $readme '# Keelaryn Manager 4.17.3' "# Keelaryn Manager 4.17.4`r`nManager 4.17.4 is the corrective successor to rejected candidate 4.17.3. It generalizes fail-if-exists directory publication to per-instance state creation, performs fresh published-baseline validation immediately before registry commits, and preserves/report durable or ambiguous registered-Genesis commit outcomes without destructive rollback.`r`n`r`n## 4.17.3 context" 'README version/context'
+
+          foreach($path in @($runtime,(Join-Path $root 'manager\product\tools\KeelarynMenu.ps1'),(Join-Path $root 'tools\Invoke-Manager4174ReviewRegression.ps1'))){
+              $tokens=$null;$errors=$null
+              [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+              if(@($errors).Count-ne0){throw('Parser failed: '+$path+'; '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          }
+
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $manifest=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $prov=[ordered]@{
+              schema='keelaryn.public-repository-provenance.v2'
+              role='public_source_sync_candidate'
+              source_manager_version='4.17.4'
+              source_gate_baseline_manager_version='4.17.2'
+              source_manager_installation_sha256=[string]$manifest.manager.installation_sha256
+              source_manager_gate_managed_content_sha256=[string]$manifest.manager.gate_managed_content_sha256
+              production_validation=[ordered]@{full_gate_pass=$false;gate_revision=$null;framework_revision=24;tested_update_sha256=$null;production_doctor_pass=$false;production_ux_smoke_pass=$false;production_managed_content_prefix=$null}
+              personal_hub_included=$false
+              manager_runtime_state_included=$false
+              local_test_evidence_included=$false
+              gate_framework=[ordered]@{version='2.0';revision=24;windows_qualified=$true;frozen_for_manager_candidate=$false}
+              license=[ordered]@{spdx_id='MIT';file='LICENSE';copyright='Copyright (c) 2026 Keelaryn contributors'}
+              public_candidate_revision=6
+              git_checkout_contract=[ordered]@{manager_authoritative_tree_attribute='-text';framework_authoritative_tree_attribute='-text';core_autocrlf_true_roundtrip_required=$true}
+              known_nonsecret_source_hygiene_notes=@('manager/product/docs/TESTING.md retains a maintainer-local D:\0\0__Core example for historical/maintainer qualification context; it is not a product installation default.')
+              ci_policy=[ordered]@{github_actions='pull_request + main push + manual';hosted_scope='repository verification + Hub-blind SourceGate + hosted disposable Full Gate + Generic DISTRIBUTION smoke';full_gate='CURRENT-backed Windows Full Gate plus production Doctor, production UX smoke and Hub immutability before publication';update_identity='when full_gate_pass=true, PR and main BuildRelease UPDATE SHA-256 must equal production_validation.tested_update_sha256; publish consumes those gated bytes'}
+              known_nonsecret_hygiene_notes=@('manager/product/docs/TESTING.md retains a maintainer-local D:\0\0__Core example; it is not a product default.')
+          }
+          [IO.File]::WriteAllText((Join-Path $root 'PUBLIC_PROVENANCE.json'),((($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n"),$utf8)
+
+      - name: Validate corrected product
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $runtime=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $menu=Join-Path $root 'manager\product\tools\KeelarynMenu.ps1'
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Invoke-Manager4174ReviewRegression.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $runtime -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $menu -SelfTest -NoRootLauncher
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $sourceState=Join-Path $root 'manager\state'
+          if(Test-Path -LiteralPath $sourceState){Remove-Item -LiteralPath $sourceState -Recurse -Force}
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Commit validated 4.17.4 development bytes
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git status --short
+          if(-not(git status --porcelain)){throw 'Corrective patch produced no changes.'}
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add manager PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git -c core.whitespace=cr-at-eol diff --cached --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git commit -m 'Manager 4.17.4: harden multi-Hub publication commit boundaries'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/manager-4.17.4
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
