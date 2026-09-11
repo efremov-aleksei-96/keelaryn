@@ -1,0 +1,50 @@
+name: Finalize Manager 4.17.1 public manifest
+
+on:
+  push:
+    branches:
+      - 'maintenance/finalize-manager-4.17.1-manifest'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-manifest:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: release/manager-4.17.1
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Verify release identities and refresh public manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $head=(& git rev-parse HEAD).Trim()
+          if($head-cne'ed4ee814f3dbc8be8b13d7e4fb00f4c98791ddf8'){throw('Release branch head mismatch: '+$head)}
+          $managerTree=(& git rev-parse 'HEAD:manager').Trim()
+          if($managerTree-cne'8d00a22a29eec7fa5a7560fca5425a80dd4bcb93'){throw('Frozen Manager tree mismatch: '+$managerTree)}
+          $frameworkRevision=(Get-Content -LiteralPath (Join-Path $root 'tests\framework\manager-gate\FRAMEWORK_REVISION.txt') -Raw -Encoding UTF8).Trim()
+          if($frameworkRevision-cne'24'){throw('Framework revision mismatch: '+$frameworkRevision)}
+          $prov=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$prov.source_manager_version-cne'4.17.1'){throw 'Provenance Manager version mismatch.'}
+          if([string]$prov.source_gate_baseline_manager_version-cne'4.16.3'){throw 'Provenance baseline mismatch.'}
+          if(-not[bool]$prov.production_validation.full_gate_pass-or[int]$prov.production_validation.gate_revision-ne3-or[int]$prov.production_validation.framework_revision-ne24){throw 'Production qualification provenance mismatch.'}
+          if([string]$prov.production_validation.tested_update_sha256-cne'ee11b40a5e86975aa7c10d8dd0d01172dd6f71267d743035aab7d7048d62f7f9'){throw 'Tested UPDATE provenance mismatch.'}
+          if(-not[bool]$prov.production_validation.production_doctor_pass-or-not[bool]$prov.production_validation.production_ux_smoke_pass){throw 'Production acceptance flags are incomplete.'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $changed=@(& git diff --name-only)
+          if($changed.Count-ne1-or$changed[0]-cne'PUBLIC_FILE_MANIFEST.json'){throw('Unexpected changed files: '+([string]::Join(', ',$changed)))}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- PUBLIC_FILE_MANIFEST.json
+          git commit -m 'Release 4.17.1: refresh public manifest'
+          git push origin HEAD:release/manager-4.17.1
+          Write-Host 'RELEASE MANIFEST FINALIZATION: PASS' -ForegroundColor Green
