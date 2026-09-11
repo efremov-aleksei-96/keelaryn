@@ -4,7 +4,7 @@
     "source_manager_version":  "4.17.2",
     "source_gate_baseline_manager_version":  "4.16.3",
     "source_manager_installation_sha256":  "0f8f7e7938b3bc414091a1b98915431d050d05547b333ebdbf2f1ebe39a86f83",
-    "source_manager_gate_managed_content_sha256":  "74fcd1674c752eb0722aa2f345d2e795191d1c00c04bb022e267b8b272c0f134",
+    "source_manager_gate_managed_content_sha256":  "8dc62699f135f0a624317bb65bec6cb0563224f0a0485e139d0b4171a10f9517",
     "production_validation":  {
                                   "full_gate_pass":  false,
                                   "gate_revision":  null,
@@ -28,7 +28,7 @@
                     "file":  "LICENSE",
                     "copyright":  "Copyright (c) 2026 Keelaryn contributors"
                 },
-    "public_candidate_revision":  1,
+    "public_candidate_revision":  2,
     "git_checkout_contract":  {
                                   "manager_authoritative_tree_attribute":  "-text",
                                   "framework_authoritative_tree_attribute":  "-text",

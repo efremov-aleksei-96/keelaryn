@@ -5,7 +5,7 @@
                     "version":  "4.17.2",
                     "file_count":  70,
                     "installation_sha256":  "0f8f7e7938b3bc414091a1b98915431d050d05547b333ebdbf2f1ebe39a86f83",
-                    "gate_managed_content_sha256":  "74fcd1674c752eb0722aa2f345d2e795191d1c00c04bb022e267b8b272c0f134",
+                    "gate_managed_content_sha256":  "8dc62699f135f0a624317bb65bec6cb0563224f0a0485e139d0b4171a10f9517",
                     "files":  [
                                   {
                                       "path":  "KEELARYN.cmd",
@@ -284,8 +284,8 @@
                                   },
                                   {
                                       "path":  "product/runtime/Keelaryn__Manager.ps1",
-                                      "size_bytes":  525229,
-                                      "sha256":  "ae203983713720ddddc917dc264d6da978f565e638b5a8d637d562420d3e075c"
+                                      "size_bytes":  525927,
+                                      "sha256":  "de94d78859fd030896f6929f34948a6445e1820b50033ea98fa6130e5a1977e8"
                                   },
                                   {
                                       "path":  "product/starter/hub/Areas/README.md",
