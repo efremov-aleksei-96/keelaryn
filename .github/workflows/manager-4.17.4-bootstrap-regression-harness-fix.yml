@@ -1,0 +1,50 @@
+name: Manager 4.17.4 bootstrap regression harness fix
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.4'
+    paths:
+      - '.github/workflows/manager-4.17.4-bootstrap-regression-harness-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix-harness:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+          ref: dev/manager-4.17.4
+
+      - name: Correct bootstrap regression diagnostic expectation
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $path=Join-Path $env:GITHUB_WORKSPACE 'tools\Invoke-Manager4174BootstrapRegression.ps1'
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          $old="Assert (`$message.Contains('durable registry commit succeeded'))"
+          $new="Assert (`$message.Contains('registry durable commit succeeded'))"
+          $first=$text.IndexOf($old,[StringComparison]::Ordinal)
+          if($first-lt0){throw 'Expected regression assertion not found.'}
+          if($text.IndexOf($old,$first+$old.Length,[StringComparison]::Ordinal)-ge0){throw 'Regression assertion is not unique.'}
+          $text=$text.Substring(0,$first)+$new+$text.Substring($first+$old.Length)
+          [IO.File]::WriteAllText($path,$text,$utf8)
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Regression parser failed: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'tools/Invoke-Manager4174BootstrapRegression.ps1'
+          git -c core.whitespace=cr-at-eol diff --cached --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git commit -m 'Test: correct Manager 4.17.4 bootstrap diagnostic assertion'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/manager-4.17.4
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
