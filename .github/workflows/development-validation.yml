@@ -7,7 +7,7 @@ on:
     paths:
       - 'manager/**'
       - 'tools/Invoke-DevelopmentValidation.ps1'
-      - 'tools/Invoke-Manager4173ReviewRegression.ps1'
+      - 'tools/Invoke-Manager4174ReviewRegression.ps1'
       - 'tools/Verify-DevelopmentGovernance.ps1'
       - 'DEVELOPMENT_GOVERNANCE.json'
       - '.github/workflows/development-validation.yml'
