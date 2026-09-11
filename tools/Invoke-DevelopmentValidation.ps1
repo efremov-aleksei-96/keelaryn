@@ -73,9 +73,9 @@ if($psFiles.Count-eq 0){Fail 'No Manager PowerShell files found.'}
 foreach($file in $psFiles){Parse-File $file.FullName}
 Write-Host ('Parser: PASS. files='+$psFiles.Count) -ForegroundColor Green
 
-Write-Host '[2/5] Run Manager 4.17.2 review regressions...'
-$reviewRegression=Join-Path $RepositoryRoot 'tools\Invoke-Manager4172ReviewRegression.ps1'
-if(-not(Test-Path -LiteralPath $reviewRegression -PathType Leaf)){Fail 'Manager 4.17.2 review regression tool is missing.'}
+Write-Host '[2/5] Run Manager 4.17.3 review regressions...'
+$reviewRegression=Join-Path $RepositoryRoot 'tools\Invoke-Manager4173ReviewRegression.ps1'
+if(-not(Test-Path -LiteralPath $reviewRegression -PathType Leaf)){Fail 'Manager 4.17.3 review regression tool is missing.'}
 Parse-File $reviewRegression
 Invoke-Child $reviewRegression @('-RepositoryRoot',$RepositoryRoot)
 Write-Host 'Review regressions: PASS' -ForegroundColor Green
