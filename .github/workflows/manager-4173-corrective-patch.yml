@@ -172,6 +172,6 @@ jobs:
           if(-not(git status --porcelain)){throw 'Corrective patch produced no changes.'}
           git config user.name 'github-actions[bot]';git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add manager PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
-          git diff --cached --check;if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git -c core.whitespace=cr-at-eol diff --cached --check;if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           git commit -m 'Manager 4.17.3: close multi-Hub publication races';if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           git push origin HEAD:dev/manager-4.17.3;if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
