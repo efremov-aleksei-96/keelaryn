@@ -38,7 +38,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.17.2"
+$ManagerVersion = "4.17.3"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -3492,6 +3492,16 @@ function Test-NewRegisteredHubTargetPlannerSelfTest {
     }catch{return $false}
 }
 
+function Move-DirectoryFailIfDestinationExists([string]$Source,[string]$Destination) {
+    if([string]::IsNullOrWhiteSpace($Source)-or[string]::IsNullOrWhiteSpace($Destination)){throw 'Directory publication source/destination is empty.'}
+    $sourceFull=[IO.Path]::GetFullPath($Source).TrimEnd('\')
+    $destinationFull=[IO.Path]::GetFullPath($Destination).TrimEnd('\')
+    if(-not(Test-Path -LiteralPath $sourceFull -PathType Container)){throw('Directory publication source is missing: '+$sourceFull)}
+    $sourceItem=Get-Item -LiteralPath $sourceFull -Force -ErrorAction Stop
+    if(($sourceItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Directory publication source must not be a reparse point: '+$sourceFull)}
+    if(Test-Path -LiteralPath $destinationFull){throw('Directory publication destination became occupied before commit: '+$destinationFull)}
+    [IO.Directory]::Move($sourceFull,$destinationFull)
+}
 function Invoke-GenesisRegisteredInstance([string]$TargetPath,[string]$DisplayName,[string]$ConfigPath,[bool]$Confirmed) {
     if(-not$script:InstanceRegistryActive){throw 'Multi-Hub registry is not active; initialize it from the existing Hub first.'}
     Assert-InvocationInstanceUnchanged
@@ -3559,9 +3569,9 @@ function Invoke-GenesisRegisteredInstance([string]$TargetPath,[string]$DisplayNa
         if(($hubsRootItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){throw('Canonical hubs root became unsafe before commit: '+$hubsRoot)}
         New-Item -ItemType Directory -Force -Path $script:InstancesStateRoot|Out-Null
 
-        Move-Item -LiteralPath $Vault -Destination $target
+        Move-DirectoryFailIfDestinationExists $Vault $target
         $publishedVault=$true
-        Move-Item -LiteralPath $txState -Destination $paths.Root
+        Move-DirectoryFailIfDestinationExists $txState $paths.Root
         $publishedState=$true
 
         $newRows=@($registry.instances)+@([pscustomobject]@{

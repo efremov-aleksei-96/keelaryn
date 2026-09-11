@@ -221,17 +221,22 @@ function Get-ChatGPTExchangeDirectoryNames {
     return @('workspace-input','workspace-checkouts','chat-returns','chat-manager-input','chat-manager-results','development')
 }
 
-function Ensure-ChatGPTExchangeLayout {
-    $null=Get-RequiredFrontendInstanceContext
+function Ensure-ChatGPTExchangeLayout($Context=$null) {
+    $ctx=if($null-eq$Context){Get-RequiredFrontendInstanceContext}else{$Context}
+    if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail 'Multi-Hub registry exists but the supplied instance context is unresolved. ChatGPT exchange action refused.'}
+    $exchangeRoot=[string]$ctx.ExchangeRoot
+    if([string]::IsNullOrWhiteSpace($exchangeRoot)){Fail 'ChatGPT exchange context has no exchange root.'}
     Ensure-DirectorySafe $ExchangeParent 'Keelaryn exchange root'
-    Ensure-DirectorySafe $ExchangeRoot 'ChatGPT exchange root'
+    Ensure-DirectorySafe $exchangeRoot 'ChatGPT exchange root'
     foreach($name in @(Get-ChatGPTExchangeDirectoryNames)){
-        Ensure-DirectorySafe (Join-Path $ExchangeRoot $name) ('ChatGPT exchange '+$name)
+        Ensure-DirectorySafe (Join-Path $exchangeRoot $name) ('ChatGPT exchange '+$name)
     }
 }
 
-function Get-CurrentHubTransportPath {
-    $path=[string](Get-FrontendInstanceContext).CurrentZip
+function Get-CurrentHubTransportPath($Context=$null) {
+    $ctx=if($null-eq$Context){Get-RequiredFrontendInstanceContext}else{$Context}
+    if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail 'Multi-Hub registry exists but the supplied instance context is unresolved. CURRENT preparation refused.'}
+    $path=[string]$ctx.CurrentZip
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){return $null}
     $item=Get-Item -LiteralPath $path -Force -ErrorAction Stop
     if(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('CURRENT transport must not be a reparse point: '+$path)}
@@ -239,10 +244,15 @@ function Get-CurrentHubTransportPath {
     return $path
 }
 
-function Copy-CurrentForChatGPT([string]$DestinationDirectory) {
-    Ensure-ChatGPTExchangeLayout
+function Copy-CurrentForChatGPT($Context,[string]$DestinationName) {
+    if($null-eq$Context){Fail 'Captured instance context is required for ChatGPT CURRENT preparation.'}
+    if([string]::IsNullOrWhiteSpace($DestinationName)-or$DestinationName.Contains('\')-or$DestinationName.Contains('/')){Fail 'ChatGPT CURRENT destination name is invalid.'}
+    $exchangeRoot=[string]$Context.ExchangeRoot
+    if([string]::IsNullOrWhiteSpace($exchangeRoot)){Fail 'Captured instance context has no exchange root.'}
+    Ensure-ChatGPTExchangeLayout $Context
+    $DestinationDirectory=Join-Path $exchangeRoot $DestinationName
     Ensure-DirectorySafe $DestinationDirectory 'ChatGPT CURRENT destination'
-    $source=Get-CurrentHubTransportPath
+    $source=Get-CurrentHubTransportPath $Context
     if([string]::IsNullOrWhiteSpace($source)){
         Write-UiHost 'No Manager CURRENT transport is available. Run Doctor and explicit CURRENT repair first.' -ForegroundColor Yellow
         Set-ActionSemantic 'failed'
@@ -1034,9 +1044,9 @@ function Invoke-Action([string]$Name,[string]$ActionPath) {
         'BuildDistribution' { return Invoke-Manager @('-BuildDistribution') }
         'BuildCandidateTransport' { $q=Get-QuickStatus;if($q.HubCandidate-eq0){Write-UiHost 'No Hub CANDIDATE is available. Nothing to build.';Set-ActionSemantic 'no_changes';return 0};return Invoke-Manager @('-BuildCandidateTransport') }
         'RestoreCandidateTransport' { $hubInbox=[string](Get-FrontendInstanceContext).HubInbox;$count=if(Test-Path -LiteralPath $hubInbox -PathType Container){@(Get-ChildItem -LiteralPath $hubInbox -File -Filter 'Keelaryn__Hub_CANDIDATE_TRANSPORT_*.json' -ErrorAction SilentlyContinue).Count}else{0};if($count-eq0){Write-UiHost 'No Hub CANDIDATE transport is available. Nothing to restore.';Set-ActionSemantic 'no_changes';return 0};return Invoke-Manager @('-RestoreCandidateTransport') }
-        'PrepareWorkspaceSession' { $ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT (Join-Path ([string]$ctx.ExchangeRoot) 'workspace-input') }
-        'PrepareChatManagerSession' { $ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT (Join-Path ([string]$ctx.ExchangeRoot) 'chat-manager-input') }
-        'OpenChatGPTExchange' { $ctx=Get-RequiredFrontendInstanceContext; Ensure-ChatGPTExchangeLayout; return Open-Folder ([string]$ctx.ExchangeRoot) }
+        'PrepareWorkspaceSession' { $ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT $ctx 'workspace-input' }
+        'PrepareChatManagerSession' { $ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT $ctx 'chat-manager-input' }
+        'OpenChatGPTExchange' { $ctx=Get-RequiredFrontendInstanceContext; Ensure-ChatGPTExchangeLayout $ctx; return Open-Folder ([string]$ctx.ExchangeRoot) }
         'OpenChatGPTGuide' { return Open-ChatGPTGuide }
         'ImportLegacyExchange' { return Invoke-LegacyExchangeMigration -Apply:$ConfirmChanges }
         'StorageReport' { return Show-StorageReport }

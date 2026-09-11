@@ -1,4 +1,7 @@
-# Keelaryn Manager 4.17.2
+# Keelaryn Manager 4.17.3
+Manager 4.17.3 is the corrective successor to the production-qualified but public-release-rejected 4.17.2. It binds ChatGPT CURRENT source/destination to one captured Hub instance and makes registered Genesis directory publication fail closed if a destination becomes occupied at the commit boundary.
+
+## 4.17.2 context
 Manager 4.17.2 is the corrective successor to rejected public-release candidate 4.17.1. Final review after successful 4.17.1 g3 and production acceptance found three edge-case defects in newly introduced multi-Hub paths: committed registration state could be deleted after a later activation failure, frontend registry metadata could supply a non-GUID path segment, and interactive registered Genesis cancellation was misclassified as failed staging.
 
 4.17.2 preserves the qualified 4.17.1 product architecture and Framework r24 contracts while correcting those transaction/path/cancellation boundaries. Existing Hub bytes are not migrated or rewritten by this Manager-only correction.
