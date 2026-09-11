@@ -3,6 +3,7 @@ param(
     [string]$RepositoryRoot=(Join-Path $PSScriptRoot '..')
 )
 
+# Permanent regression coverage for the three product defects found during PR #48 final review.
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
 $RepositoryRoot=[IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\')
