@@ -5,7 +5,7 @@
                     "version":  "4.17.5",
                     "file_count":  70,
                     "installation_sha256":  "ab1f0b53bce192c097f65886e3f829d6fb1c51bfba171e1b9d8129f393c8fdcf",
-                    "gate_managed_content_sha256":  "ccfc4c48a68422483f23f277543b5dceb19e69160416d727d47dc4814a73b10a",
+                    "gate_managed_content_sha256":  "228879ace8bbb3fe133a950a89d5496514e79bb034466710fd57aa363dd79892",
                     "files":  [
                                   {
                                       "path":  "KEELARYN.cmd",
@@ -14,8 +14,8 @@
                                   },
                                   {
                                       "path":  "README_FIRST.md",
-                                      "size_bytes":  9646,
-                                      "sha256":  "d5927234946a37be3eae88f910d4b30cb1eacf5cbd15f5d0e4be9923682d152e"
+                                      "size_bytes":  10084,
+                                      "sha256":  "6c6bb1a30b56cbf3fdb871ed4de1cbfb77a6aa3e88d6dc175a3382ce7ec5ed5a"
                                   },
                                   {
                                       "path":  "compat/commands/APPLY_MIGRATIONS.cmd",

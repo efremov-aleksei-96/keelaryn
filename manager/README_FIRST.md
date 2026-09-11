@@ -1,4 +1,7 @@
 # Keelaryn Manager 4.17.5
+Manager 4.17.5 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.4. It aligns multi-Hub CANDIDATE ingress with the active instance, binds Hub APPROVED import/update to the captured instance identity, and makes registered Genesis parent-path validation explicitly case-insensitive on Windows while preserving the existing transaction-safety and Framework r24 contracts.
+
+## 4.17.4 context
 Manager 4.17.4 is the corrective successor to rejected candidate 4.17.3. It generalizes fail-if-exists directory publication to per-instance state creation, performs fresh published-baseline validation immediately before registry commits, and preserves/reports durable or ambiguous registered-Genesis commit outcomes without destructive rollback.
 
 ## 4.17.3 context
