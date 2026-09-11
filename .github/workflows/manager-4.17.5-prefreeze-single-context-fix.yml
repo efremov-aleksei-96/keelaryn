@@ -48,7 +48,7 @@ jobs:
 
           $regText=[IO.File]::ReadAllText($regression,[Text.Encoding]::UTF8)
           $assertAnchor="Assert `$rt.Contains('[string]`$ExpectedInstanceId') 'missing ExpectedInstanceId';"
-          $assertExtra="Assert `$rt.Contains('[switch]`$ExpectedSingleInstance') 'missing ExpectedSingleInstance';Assert `$mt.Contains(\"'-ExpectedSingleInstance'\") 'frontend single-instance context token missing';"
+          $assertExtra="Assert `$rt.Contains('[switch]`$ExpectedSingleInstance') 'missing ExpectedSingleInstance';Assert `$mt.Contains('-ExpectedSingleInstance') 'frontend single-instance context token missing';"
           if(([regex]::Matches($regText,[regex]::Escape($assertAnchor))).Count-ne1){throw 'Regression structural anchor missing or non-unique.'}
           $regText=$regText.Replace($assertAnchor,$assertAnchor+$assertExtra)
           $behaviorAnchor="Invoke-Expression (F `$runtimePath 'Resolve-RegisteredInstanceContextEarly');`$ExpectedInstanceId='11111111-1111-1111-1111-111111111111';"
