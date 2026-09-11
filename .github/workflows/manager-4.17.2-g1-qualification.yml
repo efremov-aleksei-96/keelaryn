@@ -1,4 +1,4 @@
-name: One-shot Manager 4.17.2 g1 qualification
+name: One-shot Manager 4.17.2 g2 qualification
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           if($framework-cne'24'){throw "Framework revision mismatch: $framework"}
           Write-Host 'Frozen candidate identity: PASS'
 
-      - name: Publish immutable candidate provenance tag
+      - name: Verify immutable candidate provenance tag
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
@@ -72,38 +72,37 @@ jobs:
           $ref='refs/tags/'+$env:CANDIDATE_TAG
           $existing=@(git -C $control ls-remote --tags origin $ref)
           if($LASTEXITCODE-ne0){throw 'Failed to query candidate provenance tag.'}
-          if($existing.Count-gt0){
-            $actual=([string]$existing[0]).Split("`t")[0]
-            if($actual-cne$env:CANDIDATE_SHA){throw "Candidate tag collision: $actual"}
-            Write-Host 'Candidate provenance tag already points to exact frozen SHA.'
-          }else{
-            git -C $control tag $env:CANDIDATE_TAG $env:CANDIDATE_SHA
-            if($LASTEXITCODE-ne0){throw 'Failed to create candidate tag locally.'}
-            git -C $control push origin $ref
-            if($LASTEXITCODE-ne0){throw 'Failed to publish candidate provenance tag.'}
-            Write-Host ('Published '+$env:CANDIDATE_TAG+' -> '+$env:CANDIDATE_SHA)
-          }
+          if($existing.Count-ne1){throw ('Expected exactly one immutable candidate tag row; actual='+$existing.Count)}
+          $actual=([string]$existing[0]).Split("`t")[0]
+          if($actual-cne$env:CANDIDATE_SHA){throw "Candidate tag collision: $actual"}
+          Write-Host 'Candidate provenance tag points to exact frozen SHA.'
 
-      - name: Build and run ordinary SourceGate g1
+      - name: Build and run ordinary SourceGate g2
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
-          $root=Join-Path $env:RUNNER_TEMP ('keelaryn-manager-4.17.2-g1-'+$env:GITHUB_RUN_ID)
+          $root=Join-Path $env:RUNNER_TEMP ('keelaryn-manager-4.17.2-g2-'+$env:GITHUB_RUN_ID)
           New-Item -ItemType Directory -Force -Path $root|Out-Null
           $gateZip=Join-Path $root 'manager-4.17.2.zip'
           $builder=Join-Path $candidate 'tests\framework\manager-gate\Build-ManagerGate.ps1'
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $candidate 'manager') -BaselineVersion 4.16.3 -GateRevision 1 -OutputPath $gateZip -Force
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $candidate 'manager') -BaselineVersion 4.16.3 -GateRevision 2 -OutputPath $gateZip -Force
           if($LASTEXITCODE-ne0){throw "Gate build failed: exit=$LASTEXITCODE"}
-          $unpack=Join-Path $root 'unpacked'
-          New-Item -ItemType Directory -Force -Path $unpack|Out-Null
-          Expand-Archive -LiteralPath $gateZip -DestinationPath $unpack -Force
-          $gateRoot=Join-Path $unpack 'manager-4.17.2'
+
+          # SourceGate intentionally requires the canonical keelaryn\tests\work\manager-<version> layout.
+          $keelarynRoot=Join-Path $root 'keelaryn'
+          $work=Join-Path $keelarynRoot 'tests\work'
+          New-Item -ItemType Directory -Force -Path $work|Out-Null
+          Expand-Archive -LiteralPath $gateZip -DestinationPath $work -Force
+          $gateRoot=Join-Path $work 'manager-4.17.2'
+          $expectedGateRoot=Join-Path $keelarynRoot 'tests\work\manager-4.17.2'
+          if([IO.Path]::GetFullPath($gateRoot)-cne[IO.Path]::GetFullPath($expectedGateRoot)){throw 'Qualification harness failed to construct canonical gate path.'}
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $gateRoot 'gate\Run-KeelarynManagerSourceGate.ps1') -ManagerRoot $gateRoot
-          if($LASTEXITCODE-ne0){throw "SourceGate g1 failed: exit=$LASTEXITCODE"}
+          if($LASTEXITCODE-ne0){throw "SourceGate g2 failed: exit=$LASTEXITCODE"}
           "ORDINARY_GATE_ROOT=$root" >> $env:GITHUB_ENV
+          "ORDINARY_GATE_WORK=$work" >> $env:GITHUB_ENV
           "ORDINARY_GATE_ZIP=$gateZip" >> $env:GITHUB_ENV
-          Write-Host 'ORDINARY SOURCE GATE g1: PASS'
+          Write-Host 'ORDINARY SOURCE GATE g2: PASS'
 
       - name: Run exact-candidate disposable Full Gate
         shell: powershell
@@ -121,10 +120,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: manager-4.17.2-g1-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          name: manager-4.17.2-g2-qualification-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ env.ORDINARY_GATE_ZIP }}
-            ${{ env.ORDINARY_GATE_ROOT }}\unpacked\manager-4.17.2\gate\results\**
+            ${{ env.ORDINARY_GATE_WORK }}\manager-4.17.2\gate\results\**
             ${{ env.DISPOSABLE_GATE_ROOT }}\evidence\**
           if-no-files-found: warn
           retention-days: 7
@@ -136,11 +135,13 @@ jobs:
           $ErrorActionPreference='Stop'
           $control=Join-Path $env:GITHUB_WORKSPACE 'control'
           $workflow='.github/workflows/manager-4.17.2-g1-qualification.yml'
+          git -C $control pull --ff-only origin dev/manager-4.17.2
+          if($LASTEXITCODE-ne0){throw 'Failed to synchronize control checkout before cleanup.'}
           git -C $control rm -- $workflow
           if($LASTEXITCODE-ne0){throw 'Failed to stage one-shot workflow removal.'}
           git -C $control config user.name 'keelaryn-qualification-bot'
           git -C $control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git -C $control commit -m 'Qualification: remove one-shot Manager 4.17.2 g1 workflow'
+          git -C $control commit -m 'Qualification: remove one-shot Manager 4.17.2 g2 workflow'
           if($LASTEXITCODE-ne0){throw 'Failed to commit one-shot workflow removal.'}
           git -C $control push origin 'HEAD:refs/heads/dev/manager-4.17.2'
           if($LASTEXITCODE-ne0){throw 'Failed to push one-shot workflow removal.'}
