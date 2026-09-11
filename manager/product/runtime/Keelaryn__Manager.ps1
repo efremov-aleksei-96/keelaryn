@@ -5200,7 +5200,12 @@ function Invoke-InitializeInstanceRegistry {
     $id=[string]$baseline.State.InstanceId
     $name=if($RegisterInstanceName){$RegisterInstanceName}else{'Primary'}
     $registered=(Get-Date).ToUniversalTime().ToString('o')
+    $vaultFull=[System.IO.Path]::GetFullPath($Vault).TrimEnd('\')
+    $bootstrapRow=[pscustomobject]@{instance_id=$id;name=$name;vault_path=$vaultFull;registered_utc=$registered}
     $paths=$null
+    $activeWriteStarted=$false
+    $registryWriteStarted=$false
+    $registryCommitted=$false
     try{
         $paths=New-RegisteredInstanceStateFromVault $id $Vault
         # Preserve the exact pre-registry CURRENT bytes where possible. This is stronger
@@ -5218,24 +5223,76 @@ function Invoke-InitializeInstanceRegistry {
         }
         $registry=[ordered]@{
             schema='keelaryn.manager.instances.v1';registry_revision=1
-            instances=@([ordered]@{instance_id=$id;name=$name;vault_path=[System.IO.Path]::GetFullPath($Vault).TrimEnd('\');registered_utc=$registered})
+            instances=@([ordered]@{instance_id=$id;name=$name;vault_path=$vaultFull;registered_utc=$registered})
         }
-        $bootstrapRow=[pscustomobject]@{instance_id=$id;name=$name;vault_path=[System.IO.Path]::GetFullPath($Vault).TrimEnd('\');registered_utc=$registered}
         $null=Publish-CompatibilityShadowFromRegisteredInstance $bootstrapRow 'multi_hub_registry_bootstrap'
+        # Fresh validation of the exact Hub/state pair before any authoritative registry marker.
         $null=Assert-RegisteredInstanceBaseline $bootstrapRow
+        $activeWriteStarted=$true
         Write-ManagerActiveInstance $id
         # instances.json is the bootstrap activation marker. Before it exists, older/single-instance Managers already see a coherent compatibility pair.
+        $registryWriteStarted=$true
         Write-ManagerInstanceRegistry $registry
+        $registryCommitted=$true
         $null=Resolve-RegisteredInstanceContextEarly
         $script:InvocationInstanceId=$id
         Write-Host ('Multi-Hub registry initialized. Active: '+$name+' | '+$id) -ForegroundColor Green
         Write-Host ('Instance CURRENT: '+$paths.Current)
         return 0
     }catch{
-        if(Test-Path -LiteralPath $script:InstanceRegistryFile){Remove-Item -LiteralPath $script:InstanceRegistryFile -Force -ErrorAction SilentlyContinue}
-        if(Test-Path -LiteralPath $script:ActiveInstanceFile){Remove-Item -LiteralPath $script:ActiveInstanceFile -Force -ErrorAction SilentlyContinue}
-        if($paths-and(Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}
-        throw
+        $primary=$_.Exception.Message
+        $registryNotCommitted=$false
+        $verificationFailure=$null
+        if(-not$registryCommitted){
+            if(-not$registryWriteStarted){
+                $registryNotCommitted=$true
+            }elseif(-not(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf)){
+                $registryNotCommitted=$true
+            }else{
+                try{
+                    $after=Get-ManagerInstanceRegistry
+                    $exact=@($after.instances|Where-Object{
+                        [string]$_.instance_id-eq$id -and
+                        [string]$_.name-ceq$name -and
+                        (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq(Get-KeelarynNormalizedPathKey $vaultFull)
+                    })
+                    if([int]$after.registry_revision-eq1-and@($after.instances).Count-eq1-and$exact.Count-eq1){
+                        $registryCommitted=$true
+                    }else{
+                        $verificationFailure=('Registry verification returned an unexpected bootstrap document: revision={0}; rows={1}; exact={2}.' -f [int]$after.registry_revision,@($after.instances).Count,$exact.Count)
+                    }
+                }catch{
+                    $verificationFailure=$_.Exception.Message
+                }
+            }
+        }
+        if($registryCommitted){
+            throw('Multi-Hub registry durable commit succeeded, but subsequent bootstrap verification failed; registry/active/per-instance state were preserved. '+$primary)
+        }
+        if($registryWriteStarted-and-not$registryNotCommitted){
+            if([string]::IsNullOrWhiteSpace([string]$verificationFailure)){$verificationFailure='Registry verification could not establish whether the bootstrap write committed.'}
+            throw('Multi-Hub registry commit status is ambiguous after a bootstrap write failure; registry/active/per-instance state were preserved. Primary failure: '+$primary+' Commit verification failure: '+$verificationFailure)
+        }
+
+        # Definitely pre-commit. Roll back only artifacts whose ownership can still be proven.
+        $cleanupErrors=New-Object System.Collections.ArrayList
+        if($activeWriteStarted-and(Test-Path -LiteralPath $script:ActiveInstanceFile -PathType Leaf)){
+            try{
+                $activeNow=Read-ActiveInstanceEarly
+                if([string]$activeNow.instance_id-ne$id){throw 'Active marker no longer belongs to the bootstrap instance; cleanup refused.'}
+                Remove-Item -LiteralPath $script:ActiveInstanceFile -Force -ErrorAction Stop
+            }catch{[void]$cleanupErrors.Add('active: '+$_.Exception.Message)}
+        }
+        if($paths-and(Test-Path -LiteralPath $paths.Root -PathType Container)){
+            try{
+                $null=Assert-RegisteredInstanceBaseline $bootstrapRow
+                Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction Stop
+            }catch{[void]$cleanupErrors.Add('state: '+$_.Exception.Message)}
+        }
+        if($cleanupErrors.Count-ne0){
+            throw('Multi-Hub registry initialization failed before registry commit and rollback cleanup could not be completed safely. Primary: '+$primary+' Cleanup: '+([string]::Join(' | ',@($cleanupErrors))))
+        }
+        throw('Multi-Hub registry initialization failed before registry commit; bootstrap active/state were rolled back. '+$primary)
     }
 }
 
