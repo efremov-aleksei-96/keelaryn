@@ -72,7 +72,7 @@ jobs:
           git config user.name 'keelaryn-development-bot'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- manager tools/Invoke-DevelopmentValidation.ps1 tools/Invoke-Manager4175ReviewRegression.ps1 PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
-          git diff --cached --check --ignore-space-at-eol
+          git -c core.whitespace=cr-at-eol diff --cached --check
           if($LASTEXITCODE-ne0){throw 'Staged diff whitespace validation failed.'}
           if(git diff --cached --quiet){throw 'Corrective workflow produced no staged changes.'}
           git commit -m 'Manager 4.17.5: bind multi-Hub ingress and updates'
