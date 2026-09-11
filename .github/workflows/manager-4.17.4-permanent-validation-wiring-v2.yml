@@ -1,0 +1,79 @@
+name: Manager 4.17.4 permanent validation wiring v2
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.4'
+    paths:
+      - '.github/workflows/manager-4.17.4-permanent-validation-wiring-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  wire-validation:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+          ref: dev/manager-4.17.4
+
+      - name: Wire bootstrap regression into permanent development validation
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+
+          $dev=Join-Path $root 'tools\Invoke-DevelopmentValidation.ps1'
+          $text=[IO.File]::ReadAllText($dev,[Text.Encoding]::UTF8)
+          $startMarker="Write-Host '[2/5] Run Manager 4.17.4 review regressions...'"
+          $endMarker="Write-Host 'Review regressions: PASS' -ForegroundColor Green"
+          $start=$text.IndexOf($startMarker,[StringComparison]::Ordinal)
+          if($start-lt0){throw 'Development validation start marker missing.'}
+          if($text.IndexOf($startMarker,$start+$startMarker.Length,[StringComparison]::Ordinal)-ge0){throw 'Development validation start marker is not unique.'}
+          $endStart=$text.IndexOf($endMarker,$start,[StringComparison]::Ordinal)
+          if($endStart-lt0){throw 'Development validation end marker missing.'}
+          $end=$endStart+$endMarker.Length
+          $newline=if($text.Contains("`r`n")){"`r`n"}else{"`n"}
+          $new=@(
+            "Write-Host '[2/5] Run Manager 4.17.4 review/bootstrap regressions...'",
+            "foreach(`$regressionName in @('Invoke-Manager4174ReviewRegression.ps1','Invoke-Manager4174BootstrapRegression.ps1')){",
+            "    `$regression=Join-Path `$RepositoryRoot ('tools\'+`$regressionName)",
+            "    if(-not(Test-Path -LiteralPath `$regression -PathType Leaf)){Fail('Manager 4.17.4 regression tool is missing: '+`$regressionName)}",
+            "    Parse-File `$regression",
+            "    Invoke-Child `$regression @('-RepositoryRoot',`$RepositoryRoot)",
+            "}",
+            "Write-Host 'Review/bootstrap regressions: PASS' -ForegroundColor Green"
+          ) -join $newline
+          $text=$text.Substring(0,$start)+$new+$text.Substring($end)
+          [IO.File]::WriteAllText($dev,$text,$utf8)
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($dev,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Development validation parser failed: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+
+          $workflow=Join-Path $root '.github\workflows\development-validation.yml'
+          $yaml=[IO.File]::ReadAllText($workflow,[Text.Encoding]::UTF8)
+          $anchor="      - 'tools/Invoke-Manager4174ReviewRegression.ps1'"
+          if($yaml.IndexOf("      - 'tools/Invoke-Manager4174BootstrapRegression.ps1'",[StringComparison]::Ordinal)-lt0){
+            $first=$yaml.IndexOf($anchor,[StringComparison]::Ordinal)
+            if($first-lt0){throw 'Development workflow regression path anchor missing.'}
+            if($yaml.IndexOf($anchor,$first+$anchor.Length,[StringComparison]::Ordinal)-ge0){throw 'Development workflow regression path anchor is not unique.'}
+            $yamlNewline=if($yaml.Contains("`r`n")){"`r`n"}else{"`n"}
+            $replacement=$anchor+$yamlNewline+"      - 'tools/Invoke-Manager4174BootstrapRegression.ps1'"
+            $yaml=$yaml.Substring(0,$first)+$replacement+$yaml.Substring($first+$anchor.Length)
+            [IO.File]::WriteAllText($workflow,$yaml,$utf8)
+          }
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'tools/Invoke-DevelopmentValidation.ps1' '.github/workflows/development-validation.yml'
+          git -c core.whitespace=cr-at-eol diff --cached --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git commit -m 'Development: make Manager 4.17.4 bootstrap regression permanent'
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git push origin HEAD:dev/manager-4.17.4
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
