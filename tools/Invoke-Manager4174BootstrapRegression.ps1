@@ -90,7 +90,7 @@ try{
     Reset-Case 'success' $true $false
     $message=$null
     try{$null=Invoke-InitializeInstanceRegistry;throw 'Expected post-commit resolve failure.'}catch{$message=$_.Exception.Message}
-    Assert ($message.Contains('durable registry commit succeeded')) ('Post-commit bootstrap diagnostic missing: '+$message)
+    Assert ($message.Contains('registry durable commit succeeded')) ('Post-commit bootstrap diagnostic missing: '+$message)
     Assert (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) 'Post-commit failure deleted durable instances.json.'
     Assert (Test-Path -LiteralPath $script:ActiveInstanceFile -PathType Leaf) 'Post-commit failure deleted active_instance.json.'
     Assert ($script:StateRootForCase-and(Test-Path -LiteralPath $script:StateRootForCase -PathType Container)) 'Post-commit failure deleted per-instance state.'
