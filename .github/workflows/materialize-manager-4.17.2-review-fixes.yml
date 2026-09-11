@@ -1,0 +1,237 @@
+name: Materialize Manager 4.17.2 review fixes
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-manager-4.17.2-review-fixes'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-4172:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.2
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Apply exact 4.17.2 corrective patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+          $head=(& git rev-parse HEAD).Trim()
+          if($head-cne'5d1d602a37e8b6c82f35d7517a6701b7d9880e2b'){throw('Unexpected dev base: '+$head)}
+          if((& git rev-parse 'HEAD:manager').Trim()-cne'8d00a22a29eec7fa5a7560fca5425a80dd4bcb93'){throw '4.17.1 Manager tree identity mismatch.'}
+
+          function Replace-ExactlyOnce([string]$Text,[string]$Old,[string]$New,[string]$Label){
+            $count=[regex]::Matches($Text,[regex]::Escape($Old)).Count
+            if($count-ne1){throw($Label+' expected exactly one match; actual='+$count)}
+            return $Text.Replace($Old,$New)
+          }
+
+          $runtimePath=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $runtimeHash=(Get-FileHash -LiteralPath $runtimePath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($runtimeHash-cne'd2eba0c733830a72be68b81ebc5b46d798db47193ec082bcbaa8797d629e5f94'){throw('Unexpected 4.17.1 runtime SHA: '+$runtimeHash)}
+          $runtime=[IO.File]::ReadAllText($runtimePath,[Text.Encoding]::UTF8)
+          $nl=if($runtime.Contains("`r`n")){"`r`n"}else{"`n"}
+          $runtime=Replace-ExactlyOnce $runtime '$ManagerVersion = "4.17.1"' '$ManagerVersion = "4.17.2"' 'runtime version'
+
+          $old="    `$paths=`$null${nl}    try{"
+          $new="    `$paths=`$null${nl}    `$registryCommitted=`$false${nl}    try{"
+          $runtime=Replace-ExactlyOnce $runtime $old $new 'registration transaction flag'
+
+          $old="        Write-ManagerInstanceRegistry ([ordered]@{schema='keelaryn.manager.instances.v1';registry_revision=([int]`$registry.registry_revision+1);instances=@(`$newRows)})${nl}        Write-Host ('Registered Hub: '+`$display+' | '+`$id) -ForegroundColor Green"
+          $new="        Write-ManagerInstanceRegistry ([ordered]@{schema='keelaryn.manager.instances.v1';registry_revision=([int]`$registry.registry_revision+1);instances=@(`$newRows)})${nl}        `$registryCommitted=`$true${nl}        Write-Host ('Registered Hub: '+`$display+' | '+`$id) -ForegroundColor Green"
+          $runtime=Replace-ExactlyOnce $runtime $old $new 'registration durable commit marker'
+
+          $oldLines=@(
+            '    }catch{',
+            '        if($paths-and(Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}',
+            '        throw',
+            '    }'
+          )
+          $old=[string]::Join($nl,$oldLines)
+          $newLines=@(
+            '    }catch{',
+            '        $primary=$_.Exception.Message',
+            '        if(-not$registryCommitted){',
+            '            try{',
+            '                $after=Get-ManagerInstanceRegistry',
+            '                $durable=@($after.instances|Where-Object{',
+            '                    [string]$_.instance_id-eq$id -and',
+            '                    (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$pathKey -and',
+            '                    [string]$_.name-ceq$display',
+            '                })',
+            '                if($durable.Count-eq1){$registryCommitted=$true}',
+            '            }catch{}',
+            '        }',
+            '        if(-not$registryCommitted -and $paths -and (Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}',
+            '        if($registryCommitted){throw(''Hub registration durable commit succeeded, but subsequent operation failed; registered state was preserved. ''+$primary)}',
+            '        throw',
+            '    }'
+          )
+          $new=[string]::Join($nl,$newLines)
+          $runtime=Replace-ExactlyOnce $runtime $old $new 'registration committed-state cleanup contract'
+
+          $old="        `$rc=Invoke-Genesis `$ConfigPath `$Confirmed${nl}        if(`$rc-ne0){throw('Nested Genesis failed with ExitCode '+`$rc+'.')}${nl}        `$state=Read-VaultMetadataAt `$Vault"
+          $genesisLines=@(
+            '        $rc=Invoke-Genesis $ConfigPath $Confirmed',
+            '        if($rc-ne0){throw(''Nested Genesis failed with ExitCode ''+$rc+''.'')}',
+            '        $vaultReady=Test-Path -LiteralPath $Vault -PathType Container',
+            '        $currentReady=Test-Path -LiteralPath $CurrentZip -PathType Leaf',
+            '        if(-not$vaultReady -and -not$currentReady){',
+            '            if([string]::IsNullOrWhiteSpace($ConfigPath)-and-not$Confirmed){',
+            '                Write-Host ''Registered Genesis cancelled; no Hub was created.'' -ForegroundColor DarkGray',
+            '                return 0',
+            '            }',
+            '            throw ''Nested non-interactive Genesis returned success without staged Hub/CURRENT.''',
+            '        }',
+            '        if(-not$vaultReady -or -not$currentReady){throw ''Nested Genesis returned success with partial staged Hub/CURRENT state.''}',
+            '        $state=Read-VaultMetadataAt $Vault'
+          )
+          $new=[string]::Join($nl,$genesisLines)
+          $runtime=Replace-ExactlyOnce $runtime $old $new 'registered Genesis cancellation contract'
+          [IO.File]::WriteAllText($runtimePath,$runtime,$utf8)
+
+          $menuPath=Join-Path $root 'manager\product\tools\KeelarynMenu.ps1'
+          $menuHash=(Get-FileHash -LiteralPath $menuPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($menuHash-cne'5ceaaecacf501a9cc010fd7e36d360c04707ad31219c34d2c1da10202ca7f7a4'){throw('Unexpected 4.17.1 frontend SHA: '+$menuHash)}
+          $menu=[IO.File]::ReadAllText($menuPath,[Text.Encoding]::UTF8)
+          $mnl=if($menu.Contains("`r`n")){"`r`n"}else{"`n"}
+          $marker='function Get-FrontendInstanceContext {'
+          $helperLines=@(
+            'function ConvertTo-CanonicalFrontendInstanceId($Value) {',
+            '    $raw=([string]$Value).Trim()',
+            '    $g=[guid]::Empty',
+            '    if(-not[guid]::TryParse($raw,[ref]$g)-or$g-eq[guid]::Empty){throw ''invalid instance_id''}',
+            '    return $g.ToString().ToLowerInvariant()',
+            '}',
+            ''
+          )
+          $helper=[string]::Join($mnl,$helperLines)
+          $menu=Replace-ExactlyOnce $menu $marker ($helper+$marker) 'frontend instance-id helper insertion'
+          $old="        `$id=([string]`$active.instance_id).Trim().ToLowerInvariant()${mnl}        `$rows=@(`$registry.instances|Where-Object{([string]`$_.instance_id).Trim().ToLowerInvariant()-eq`$id})"
+          $rowLines=@(
+            '        $id=ConvertTo-CanonicalFrontendInstanceId $active.instance_id',
+            '        $rows=@()',
+            '        foreach($candidate in @($registry.instances)){',
+            '            $candidateId=ConvertTo-CanonicalFrontendInstanceId $candidate.instance_id',
+            '            if($candidateId-eq$id){$rows+=@($candidate)}',
+            '        }'
+          )
+          $new=[string]::Join($mnl,$rowLines)
+          $menu=Replace-ExactlyOnce $menu $old $new 'frontend validated instance-id path binding'
+          $old="        `$v=Read-ManagerVersion${mnl}        `$parsed=[version]'0.0'${mnl}        if(-not[version]::TryParse(`$v,[ref]`$parsed)){"
+          $selfLines=@(
+            '        $v=Read-ManagerVersion',
+            '        $parsed=[version]''0.0''',
+            '        if(-not[version]::TryParse($v,[ref]$parsed)){'
+          )
+          $new=[string]::Join($mnl,$selfLines)
+          $menu=Replace-ExactlyOnce $menu $old $new 'frontend selftest anchor'
+          $anchor="        if(-not[version]::TryParse(`$v,[ref]`$parsed)){${mnl}            `$script:FrontendSelfTestReason='Manager version is not parseable: '+`$v${mnl}            return `$false${mnl}        }"
+          $testLines=@(
+            '        if(-not[version]::TryParse($v,[ref]$parsed)){',
+            '            $script:FrontendSelfTestReason=''Manager version is not parseable: ''+$v',
+            '            return $false',
+            '        }',
+            '        $guidVector=''11111111-1111-1111-1111-111111111111''',
+            '        if((ConvertTo-CanonicalFrontendInstanceId $guidVector)-cne$guidVector){',
+            '            $script:FrontendSelfTestReason=''Frontend instance-id canonicalization failed.''',
+            '            return $false',
+            '        }',
+            '        $blocked=$false',
+            '        try{$null=ConvertTo-CanonicalFrontendInstanceId ''..\..\outside''}catch{$blocked=$true}',
+            '        if(-not$blocked){',
+            '            $script:FrontendSelfTestReason=''Frontend accepted a non-GUID instance_id path segment.''',
+            '            return $false',
+            '        }'
+          )
+          $replacement=[string]::Join($mnl,$testLines)
+          $menu=Replace-ExactlyOnce $menu $anchor $replacement 'frontend instance-id selftest'
+          [IO.File]::WriteAllText($menuPath,$menu,$utf8)
+
+          $installPath=Join-Path $root 'manager\product\install\INSTALLATION.json'
+          $install=[IO.File]::ReadAllText($installPath,[Text.Encoding]::UTF8)
+          $install=Replace-ExactlyOnce $install '"manager_version": "4.17.1"' '"manager_version": "4.17.2"' 'INSTALLATION version'
+          [IO.File]::WriteAllText($installPath,$install,$utf8)
+
+          $policyPath=Join-Path $root 'manager\product\manager_release.json'
+          $policy=[IO.File]::ReadAllText($policyPath,[Text.Encoding]::UTF8)
+          $policy=Replace-ExactlyOnce $policy '"manager_version":  "4.17.1"' '"manager_version":  "4.17.2"' 'manager release version'
+          [IO.File]::WriteAllText($policyPath,$policy,$utf8)
+
+          $readmePath=Join-Path $root 'manager\README_FIRST.md'
+          $readme=[IO.File]::ReadAllText($readmePath,[Text.Encoding]::UTF8)
+          $rnl=if($readme.Contains("`r`n")){"`r`n"}else{"`n"}
+          $readme=Replace-ExactlyOnce $readme '# Keelaryn Manager 4.17.1' '# Keelaryn Manager 4.17.2' 'README version'
+          $first='Manager 4.16.3 is the corrective successor to rejected candidate 4.16.2.'
+          $intro=@(
+            'Manager 4.17.2 is the corrective successor to rejected public-release candidate 4.17.1. Final review after successful 4.17.1 g3 and production acceptance found three edge-case defects in newly introduced multi-Hub paths: committed registration state could be deleted after a later activation failure, frontend registry metadata could supply a non-GUID path segment, and interactive registered Genesis cancellation was misclassified as failed staging.',
+            '',
+            '4.17.2 preserves the qualified 4.17.1 product architecture and Framework r24 contracts while correcting those transaction/path/cancellation boundaries. Existing Hub bytes are not migrated or rewritten by this Manager-only correction.',
+            '',
+            '## Earlier release context',
+            '',
+            $first
+          )
+          $readme=Replace-ExactlyOnce $readme $first ([string]::Join($rnl,$intro)) 'README corrective summary'
+          [IO.File]::WriteAllText($readmePath,$readme,$utf8)
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $manifest=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$manifest.manager.version-cne'4.17.2'){throw 'Generated public manifest did not resolve Manager 4.17.2.'}
+
+          $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
+          $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+          $prov.source_manager_version='4.17.2'
+          $prov.source_gate_baseline_manager_version='4.16.3'
+          $prov.source_manager_installation_sha256=[string]$manifest.manager.installation_sha256
+          $prov.source_manager_gate_managed_content_sha256=[string]$manifest.manager.gate_managed_content_sha256
+          $prov.production_validation.full_gate_pass=$false
+          $prov.production_validation.gate_revision=$null
+          $prov.production_validation.framework_revision=24
+          $prov.production_validation.tested_update_sha256=$null
+          $prov.production_validation.production_doctor_pass=$false
+          $prov.production_validation.production_ux_smoke_pass=$false
+          $prov.production_validation.production_managed_content_prefix=$null
+          $prov.gate_framework.revision=24
+          $prov.gate_framework.windows_qualified=$true
+          $prov.gate_framework.frozen_for_manager_candidate=$true
+          $prov.public_candidate_revision=1
+          [IO.File]::WriteAllText($provPath,(($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n")+"`n"),$utf8)
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $tokens=$null;$errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile($runtimePath,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Runtime parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          [void][System.Management.Automation.Language.Parser]::ParseFile($menuPath,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Frontend parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $runtimePath -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $menuPath -SelfTest -NoRootLauncher
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $changed=@(& git diff --name-only)
+          $expected=@(
+            'PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json','manager/README_FIRST.md',
+            'manager/product/install/INSTALLATION.json','manager/product/manager_release.json',
+            'manager/product/runtime/Keelaryn__Manager.ps1','manager/product/tools/KeelarynMenu.ps1'
+          )
+          foreach($p in $expected){if($changed-notcontains$p){throw('Expected corrective change missing: '+$p)}}
+          if($changed.Count-ne$expected.Count){throw('Unexpected corrective files: '+([string]::Join(', ',$changed)))}
+
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add --all
+          git commit -m 'Manager 4.17.2: fix multi-Hub review defects'
+          git push origin HEAD:dev/manager-4.17.2
+          Write-Host 'MANAGER 4.17.2 MATERIALIZATION: PASS' -ForegroundColor Green
