@@ -64,6 +64,11 @@ try{
         [IO.File]::WriteAllText((Join-Path $script:RegressionStateRoot 'baseline.marker'),'preserve')
         return [pscustomobject]@{Root=$script:RegressionStateRoot}
     }
+    # 4.17.4 adds a fresh published-baseline check before the registry commit.
+    # The legacy 4.17.2 scenarios isolate registry-write outcome semantics, so this
+    # dependency is a controlled success stub here; 4.17.4 has separate behavioral
+    # coverage for the real commit-boundary validation and publication race.
+    function Assert-RegisteredInstanceBaseline($Row){return $true}
     function Write-ManagerInstanceRegistry($Registry){
         $script:RegressionRegistry=[pscustomobject]@{
             schema='keelaryn.manager.instances.v1'
