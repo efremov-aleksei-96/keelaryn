@@ -1,0 +1,88 @@
+name: Materialize Manager 4.17.2 P1 cleanup fix
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-manager-4.17.2-p1-cleanup-fix'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-p1:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.2
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Fix committed registration cleanup boundary
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $expected='4f4a60234fa0e77fa42976f7bfcd464631fc6e1f'
+          $head=(& git rev-parse HEAD).Trim()
+          if($head-cne$expected){throw('Unexpected dev HEAD: '+$head)}
+          $path=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          $tokens=$null;$errors=$null
+          $ast=[Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Pre-patch parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          $fn=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-eq'Invoke-RegisterExistingInstance'},$true))
+          if($fn.Count-ne1){throw('Expected one Invoke-RegisterExistingInstance; actual='+$fn.Count)}
+          $start=$fn[0].Extent.StartOffset;$end=$fn[0].Extent.EndOffset
+          $segment=$text.Substring($start,$end-$start)
+          $nl=if($segment.Contains("`r`n")){"`r`n"}else{"`n"}
+          $old=[string]::Join($nl,@(
+            '    }catch{',
+            '        if($paths-and(Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}',
+            '        throw',
+            '    }'
+          ))
+          $new=[string]::Join($nl,@(
+            '    }catch{',
+            '        $primary=$_.Exception.Message',
+            '        if(-not$registryCommitted){',
+            '            try{',
+            '                $after=Get-ManagerInstanceRegistry',
+            '                $durable=@($after.instances|Where-Object{',
+            '                    [string]$_.instance_id-eq$id -and',
+            '                    (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$pathKey -and',
+            '                    [string]$_.name-ceq$display',
+            '                })',
+            '                if($durable.Count-eq1){$registryCommitted=$true}',
+            '            }catch{}',
+            '        }',
+            '        if(-not$registryCommitted -and $paths -and (Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}',
+            '        if($registryCommitted){throw(''Hub registration durable commit succeeded, but subsequent operation failed; registered state was preserved. ''+$primary)}',
+            '        throw',
+            '    }'
+          ))
+          $count=[regex]::Matches($segment,[regex]::Escape($old)).Count
+          if($count-ne1){throw('Scoped cleanup contract expected one match; actual='+$count)}
+          $segment=$segment.Replace($old,$new)
+          $patched=$text.Substring(0,$start)+$segment+$text.Substring($end)
+          $utf8=New-Object Text.UTF8Encoding($false)
+          [IO.File]::WriteAllText($path,$patched,$utf8)
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Post-patch parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          $after=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          if(-not$after.Contains('if(-not$registryCommitted -and $paths -and (Test-Path -LiteralPath $paths.Root))')){throw 'Committed-state cleanup guard missing.'}
+          if(-not$after.Contains('Hub registration durable commit succeeded, but subsequent operation failed; registered state was preserved.')){throw 'Durable-commit diagnostic missing.'}
+          $changed=@(& git diff --name-only)
+          if($changed.Count-ne1-or$changed[0]-cne'manager/product/runtime/Keelaryn__Manager.ps1'){throw('Unexpected changed files: '+($changed-join', '))}
+          git diff --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $path -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- manager/product/runtime/Keelaryn__Manager.ps1
+          git commit -m 'Manager 4.17.2: preserve committed registration state'
+          git push origin HEAD:dev/manager-4.17.2
+          Write-Host 'MANAGER 4.17.2 P1 CLEANUP FIX: PASS' -ForegroundColor Green
