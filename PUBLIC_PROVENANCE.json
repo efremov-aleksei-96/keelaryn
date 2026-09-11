@@ -35,7 +35,8 @@
                                   "core_autocrlf_true_roundtrip_required":  true
                               },
     "known_nonsecret_source_hygiene_notes":  [
-                                                 "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example for historical/maintainer qualification context; it is not a product installation default."
+                                                 "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example for historical/maintainer qualification context; it is not a product installation default.",
+                                                 "Frozen Manager 4.17.4 candidate product/source tree is f121acabf044d2098f457f7b6848a05bb784f8ce at candidate commit 4d77bd5935f7bcc8ed53dd32d593469b9d1a8fc0; post-qualification provenance commits modify metadata only and do not alter Manager product bytes."
                                              ],
     "ci_policy":  {
                       "github_actions":  "pull_request + main push + manual",
