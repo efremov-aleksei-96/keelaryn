@@ -24,14 +24,21 @@ param(
     [switch]$RestoreCandidateTransport,
     [switch]$InitializePresentation,
     [switch]$FinalizeFilesystemLayout,
-    [string]$BindInstancePath
+    [string]$BindInstancePath,
+    [switch]$InitializeInstanceRegistry,
+    [switch]$ListInstances,
+    [string]$SwitchInstanceId,
+    [string]$RegisterInstancePath,
+    [string]$RegisterInstanceName,
+    [string]$GenesisInstancePath,
+    [string]$GenesisInstanceName
 )
 
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.16.3"
+$ManagerVersion = "4.17.1"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -122,7 +129,7 @@ function Complete-PendingFilesystemLogHandoff {
             $legacyLogItem=Get-Item -LiteralPath $legacyLog -Force -ErrorAction Stop
             if(($legacyLogItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)-ne0){throw('Pending legacy manager.log must not be a reparse point: '+$legacyLog)}
             $lines=@(Get-Content -LiteralPath $legacyLog -Encoding UTF8 -ErrorAction Stop)
-            if($lines.Count-ne0){Add-Content -LiteralPath (Join-Path $stateLogs 'manager.log') -Value $lines -Encoding UTF8}
+            if($lines.Count-ne0){Write-ManagerLogTextRaw (Join-Path $stateLogs 'manager.log') (($lines -join [Environment]::NewLine)+[Environment]::NewLine)}
         }
         Remove-Item -LiteralPath $legacyLogs -Recurse -Force -ErrorAction Stop
     }
@@ -147,13 +154,42 @@ function Initialize-FreshManagerStateLayoutIfEligible {
 
 Initialize-FreshManagerStateLayoutIfEligible
 
+$script:InstanceRegistryFile=Join-Path $StateRoot 'instances.json'
+$script:ActiveInstanceFile=Join-Path $StateRoot 'active_instance.json'
+$script:InstancesStateRoot=Join-Path $StateRoot 'instances'
+$script:InstanceRegistryActive=$false
+$script:ActiveInstanceId=$null
+$script:ActiveInstanceName=$null
+$script:InstanceStateRoot=$null
+$script:HubInbox=$script:Inbox
+$script:InvocationInstanceId=$null
+$script:LegacySingleInstanceCurrentZip=$script:PreferredCurrentZip
+
 $UpdateModeCount = ([int][bool]$UpdateManager) + ([int][bool]$UpdateHub) + ([int][bool]$UpdateAll)
 if ($UpdateModeCount -gt 1) { throw 'Choose only one update mode: -UpdateManager, -UpdateHub, or -UpdateAll.' }
-$PrimaryModeCount = ([int][bool]$OpenOnly)+([int][bool]$UpdateManager)+([int][bool]$UpdateHub)+([int][bool]$UpdateAll)+([int][bool]$SelfTest)+([int][bool]$Genesis)+([int][bool]$BuildDistribution)+([int][bool]$InstanceInfo)+([int][bool]$CheckMigrations)+([int][bool]$AdoptInstanceIdentity)+([int][bool]$ApplyMigrations)+([int][bool]$MigrateLegacyNamespace)+([int][bool]$MigrateLayout)+([int][bool]$FinalizeLayout)+([int][bool]$Doctor)+([int][bool]$BuildRelease)+([int][bool]$BuildAIContext)+([int][bool]$RepairCurrentTransport)+([int][bool]$PrepareTests)+([int][bool]$BuildCandidateTransport)+([int][bool]$RestoreCandidateTransport)+([int][bool]$InitializePresentation)+([int][bool]$FinalizeFilesystemLayout)+([int][bool](-not [string]::IsNullOrWhiteSpace($BindInstancePath)))
+$PrimaryModeCount = ([int][bool]$OpenOnly)+([int][bool]$UpdateManager)+([int][bool]$UpdateHub)+([int][bool]$UpdateAll)+([int][bool]$SelfTest)+([int][bool]$Genesis)+([int][bool]$BuildDistribution)+([int][bool]$InstanceInfo)+([int][bool]$CheckMigrations)+([int][bool]$AdoptInstanceIdentity)+([int][bool]$ApplyMigrations)+([int][bool]$MigrateLegacyNamespace)+([int][bool]$MigrateLayout)+([int][bool]$FinalizeLayout)+([int][bool]$Doctor)+([int][bool]$BuildRelease)+([int][bool]$BuildAIContext)+([int][bool]$RepairCurrentTransport)+([int][bool]$PrepareTests)+([int][bool]$BuildCandidateTransport)+([int][bool]$RestoreCandidateTransport)+([int][bool]$InitializePresentation)+([int][bool]$FinalizeFilesystemLayout)+([int][bool](-not [string]::IsNullOrWhiteSpace($BindInstancePath)))+([int][bool]$InitializeInstanceRegistry)+([int][bool]$ListInstances)+([int][bool](-not [string]::IsNullOrWhiteSpace($SwitchInstanceId)))+([int][bool](-not [string]::IsNullOrWhiteSpace($RegisterInstancePath)))+([int][bool](-not [string]::IsNullOrWhiteSpace($GenesisInstancePath)))
 if ($PrimaryModeCount -gt 1) { throw 'Choose exactly one Keelaryn Manager action per invocation.' }
-if ((-not [string]::IsNullOrWhiteSpace($GenesisConfigPath) -or $GenesisConfirmed) -and -not $Genesis) { throw 'GenesisConfigPath/GenesisConfirmed are valid only with -Genesis.' }
+$IsGenesisAction=[bool]($Genesis -or -not [string]::IsNullOrWhiteSpace($GenesisInstancePath))
+if ((-not [string]::IsNullOrWhiteSpace($GenesisConfigPath) -or $GenesisConfirmed) -and -not $IsGenesisAction) { throw 'GenesisConfigPath/GenesisConfirmed require -Genesis or -GenesisInstancePath.' }
 if (-not [string]::IsNullOrWhiteSpace($GenesisConfigPath) -and -not $GenesisConfirmed) { throw 'Non-interactive Genesis requires explicit -GenesisConfirmed.' }
 if ($GenesisConfirmed -and [string]::IsNullOrWhiteSpace($GenesisConfigPath)) { throw 'GenesisConfirmed requires -GenesisConfigPath.' }
+if ($Genesis -and -not [string]::IsNullOrWhiteSpace($GenesisInstancePath)) { throw 'Choose either legacy/default -Genesis or registered -GenesisInstancePath, not both.' }
+if (-not [string]::IsNullOrWhiteSpace($BindInstancePath)) { $BindInstancePath=[System.IO.Path]::GetFullPath($BindInstancePath) }
+if (-not [string]::IsNullOrWhiteSpace($RegisterInstancePath)) { $RegisterInstancePath=[System.IO.Path]::GetFullPath($RegisterInstancePath) }
+if (-not [string]::IsNullOrWhiteSpace($SwitchInstanceId)) { $SwitchInstanceId=([string]$SwitchInstanceId).Trim().ToLowerInvariant() }
+if (-not [string]::IsNullOrWhiteSpace($RegisterInstanceName)) {
+    $RegisterInstanceName=([string]$RegisterInstanceName).Trim()
+    if ($RegisterInstanceName.Length -gt 64 -or $RegisterInstanceName -match '[\x00-\x1F]') { throw 'Instance display name is invalid.' }
+}
+if (-not [string]::IsNullOrWhiteSpace($GenesisInstancePath)) { $GenesisInstancePath=[System.IO.Path]::GetFullPath($GenesisInstancePath).TrimEnd('\') }
+if (-not [string]::IsNullOrWhiteSpace($GenesisInstanceName)) {
+    $GenesisInstanceName=([string]$GenesisInstanceName).Trim()
+    if (-not $GenesisInstanceName -or $GenesisInstanceName.Length -gt 64 -or $GenesisInstanceName -match '[\x00-\x1F]') { throw 'Genesis instance display name is invalid.' }
+}
+if ($RegisterInstanceName -and -not ($InitializeInstanceRegistry -or $RegisterInstancePath -or $BindInstancePath)) {
+    throw 'RegisterInstanceName is valid only with registry initialization/registration/binding.'
+}
+if ($GenesisInstanceName -and -not $GenesisInstancePath) { throw 'GenesisInstanceName requires -GenesisInstancePath.' }
 $WantsManagerUpdate = [bool]($UpdateManager -or $UpdateAll)
 $WantsHubUpdate = [bool]($UpdateHub -or $UpdateAll)
 
@@ -216,8 +252,26 @@ function Set-ManagerMutablePresentationHidden([string]$Path) {
 function Write-ManagerBindingDocument([string]$Path,$Object) {
     $json=$Object|ConvertTo-Json -Depth 5
     $encoding=New-Object System.Text.UTF8Encoding($false)
-    Invoke-WithExistingHiddenFileWritable $Path { [System.IO.File]::WriteAllText($Path,$json,$encoding) }|Out-Null
-    Set-ManagerMutablePresentationHidden $Path
+    $parent=Split-Path -Parent $Path
+    if($parent -and -not (Test-Path -LiteralPath $parent -PathType Container)){New-Item -ItemType Directory -Force -Path $parent|Out-Null}
+    $tmp=$Path+'.tmp.'+[guid]::NewGuid().ToString('N')
+    $backup=$Path+'.replace-backup.'+[guid]::NewGuid().ToString('N')
+    try{
+        [System.IO.File]::WriteAllText($tmp,$json,$encoding)
+        if(Test-Path -LiteralPath $Path -PathType Leaf){
+            Invoke-WithExistingHiddenFileWritable $Path { [System.IO.File]::Replace($tmp,$Path,$backup,$true) }|Out-Null
+            if(Test-Path -LiteralPath $backup){Remove-Item -LiteralPath $backup -Force}
+        }else{
+            [System.IO.File]::Move($tmp,$Path)
+        }
+        Set-ManagerMutablePresentationHidden $Path
+    }catch{
+        if((-not(Test-Path -LiteralPath $Path -PathType Leaf))-and(Test-Path -LiteralPath $backup -PathType Leaf)){Move-Item -LiteralPath $backup -Destination $Path -Force}
+        throw
+    }finally{
+        if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}
+        if(Test-Path -LiteralPath $backup){Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue}
+    }
 }
 $Vault = $DefaultVault
 $script:BindingResolutionError = $null
@@ -262,7 +316,118 @@ $GetSiblingCandidates = {
     })
 }
 
-$SkipHubBindingResolution = (-not $BindInstancePath) -and ($SelfTest -or $BuildDistribution -or $BuildRelease -or $BuildAIContext -or $UpdateManager -or $BuildCandidateTransport -or $RestoreCandidateTransport -or $FinalizeFilesystemLayout)
+function Get-KeelarynNormalizedPathKey([string]$Path) {
+    return [System.IO.Path]::GetFullPath($Path).TrimEnd('\').Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+}
+
+function Test-KeelarynPathOverlap([string]$A,[string]$B) {
+    $aKey=Get-KeelarynNormalizedPathKey $A
+    $bKey=Get-KeelarynNormalizedPathKey $B
+    if ($aKey -eq $bKey) { return $true }
+    return $aKey.StartsWith($bKey+'\',[System.StringComparison]::Ordinal) -or $bKey.StartsWith($aKey+'\',[System.StringComparison]::Ordinal)
+}
+
+function ConvertTo-ValidatedInstanceRegistryDocument($Document) {
+    if ($null -eq $Document -or [string]$Document.schema -ne 'keelaryn.manager.instances.v1') { throw 'Unsupported Manager instance registry schema.' }
+    [int]$revision=0
+    if (-not [int]::TryParse(([string]$Document.registry_revision),[ref]$revision) -or $revision -lt 1) { throw 'Instance registry revision is invalid.' }
+    $rows=@($Document.instances)
+    if ($rows.Count -lt 1 -or $rows.Count -gt 64) { throw 'Instance registry must contain 1..64 instances.' }
+    $ids=@{};$paths=@{};$names=@{}
+    $normalized=New-Object System.Collections.ArrayList
+    foreach($row in $rows){
+        if($null-eq$row){throw 'Instance registry contains a null row.'}
+        $id=([string]$row.instance_id).Trim().ToLowerInvariant()
+        $g=[guid]::Empty
+        if(-not[guid]::TryParse($id,[ref]$g)-or$g-eq[guid]::Empty){throw('Instance registry contains invalid instance_id: '+$id)}
+        $name=([string]$row.name).Trim()
+        if(-not$name-or$name.Length-gt64-or$name-match'[\x00-\x1F]'){throw('Instance registry contains invalid name for '+$id)}
+        $rawPath=([string]$row.vault_path).Trim()
+        if(-not$rawPath-or-not[System.IO.Path]::IsPathRooted($rawPath)){throw('Instance registry path must be absolute for '+$id)}
+        $path=[System.IO.Path]::GetFullPath($rawPath).TrimEnd('\')
+        $idKey=$id
+        $pathKey=Get-KeelarynNormalizedPathKey $path
+        $nameKey=$name.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+        if($ids.ContainsKey($idKey)){throw('Duplicate registered instance_id: '+$id)}
+        if($paths.ContainsKey($pathKey)){throw('Duplicate registered Hub path: '+$path)}
+        if($names.ContainsKey($nameKey)){throw('Duplicate registered instance name: '+$name)}
+        $ids[$idKey]=$true;$paths[$pathKey]=$true;$names[$nameKey]=$true
+        [void]$normalized.Add([pscustomobject]@{
+            instance_id=$id
+            name=$name
+            vault_path=$path
+            registered_utc=([string]$row.registered_utc).Trim()
+        })
+    }
+    for($i=0;$i-lt$normalized.Count;$i++){
+        for($j=$i+1;$j-lt$normalized.Count;$j++){
+            if(Test-KeelarynPathOverlap ([string]$normalized[$i].vault_path) ([string]$normalized[$j].vault_path)){
+                throw('Registered Hub paths overlap: '+[string]$normalized[$i].vault_path+' <-> '+[string]$normalized[$j].vault_path)
+            }
+        }
+    }
+    return [pscustomobject]@{schema='keelaryn.manager.instances.v1';registry_revision=$revision;instances=@($normalized)}
+}
+
+function Read-InstanceRegistryEarly {
+    if(-not(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf)){return $null}
+    if(-not$StateLayoutActive){throw 'Multi-Hub registry requires finalized Manager state layout.'}
+    $item=Get-Item -LiteralPath $script:InstanceRegistryFile -Force -ErrorAction Stop
+    if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0-or$item.Length-gt1MB){throw 'Manager instance registry is unsafe.'}
+    try{$doc=Get-Content -LiteralPath $script:InstanceRegistryFile -Raw -Encoding UTF8|ConvertFrom-Json}catch{throw('Manager instance registry JSON is invalid: '+$_.Exception.Message)}
+    return ConvertTo-ValidatedInstanceRegistryDocument $doc
+}
+
+function Read-ActiveInstanceEarly {
+    if(-not(Test-Path -LiteralPath $script:ActiveInstanceFile -PathType Leaf)){throw 'Multi-Hub registry exists but active_instance.json is missing.'}
+    $item=Get-Item -LiteralPath $script:ActiveInstanceFile -Force -ErrorAction Stop
+    if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0-or$item.Length-gt64KB){throw 'Active instance metadata is unsafe.'}
+    try{$doc=Get-Content -LiteralPath $script:ActiveInstanceFile -Raw -Encoding UTF8|ConvertFrom-Json}catch{throw('Active instance JSON is invalid: '+$_.Exception.Message)}
+    if([string]$doc.schema-ne'keelaryn.manager.active-instance.v1'){throw 'Unsupported active instance schema.'}
+    $id=([string]$doc.instance_id).Trim().ToLowerInvariant();$g=[guid]::Empty
+    if(-not[guid]::TryParse($id,[ref]$g)-or$g-eq[guid]::Empty){throw 'Active instance_id is invalid.'}
+    return [pscustomobject]@{instance_id=$id;selected_utc=([string]$doc.selected_utc).Trim()}
+}
+
+function Assert-RegisteredVaultStructuralSafetyEarly([string]$Path) {
+    $full=[System.IO.Path]::GetFullPath($Path).TrimEnd('\')
+    $item=Get-Item -LiteralPath $full -Force -ErrorAction Stop
+    if(-not$item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){throw('Registered Hub root is unsafe: '+$full)}
+    if(Test-KeelarynPathOverlap $full $Root){throw('Registered Hub overlaps Manager root: '+$full)}
+    if($CanonicalLayoutActive-and(Test-KeelarynPathOverlap $full $CanonicalTestsPath)){throw('Registered Hub overlaps tests root: '+$full)}
+    return $full
+}
+
+function Set-InstanceScopedOperationalPathsEarly([string]$InstanceId) {
+    $id=([string]$InstanceId).Trim().ToLowerInvariant()
+    $state=Join-Path $script:InstancesStateRoot $id
+    $script:InstanceStateRoot=$state
+    $script:HubInbox=Join-Path $state 'inbox'
+    $script:CurrentZip=Join-Path $state 'baseline\Keelaryn__Hub_CURRENT.zip'
+    $script:Checkpoints=Join-Path $state 'history\checkpoints'
+    $script:Rollback=Join-Path $state 'history\rollback'
+}
+
+function Resolve-RegisteredInstanceContextEarly {
+    $registry=Read-InstanceRegistryEarly
+    if(-not$registry){return $false}
+    $active=Read-ActiveInstanceEarly
+    $matches=@($registry.instances|Where-Object{[string]$_.instance_id-eq[string]$active.instance_id})
+    if($matches.Count-ne1){throw 'active_instance.json does not identify exactly one registered instance.'}
+    $row=$matches[0]
+    $path=Assert-RegisteredVaultStructuralSafetyEarly ([string]$row.vault_path)
+    if(-not(& $TestHubCandidate $path)){throw('Registered active Hub is not a valid Keelaryn Hub: '+$path)}
+    $actualId=& $ReadBoundInstanceId $path
+    if(-not$actualId-or$actualId-ne[string]$row.instance_id){throw('Registered active Hub instance_id mismatch at '+$path)}
+    $script:InstanceRegistryActive=$true
+    $script:ActiveInstanceId=[string]$row.instance_id
+    $script:ActiveInstanceName=[string]$row.name
+    $script:InvocationInstanceId=[string]$row.instance_id
+    $script:Vault=$path
+    Set-InstanceScopedOperationalPathsEarly ([string]$row.instance_id)
+    return $true
+}
+$SkipHubBindingResolution = (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) -or ((-not $BindInstancePath) -and ($SelfTest -or $BuildDistribution -or $BuildRelease -or $BuildAIContext -or $UpdateManager -or $BuildCandidateTransport -or $RestoreCandidateTransport -or $FinalizeFilesystemLayout -or $ListInstances -or $RegisterInstancePath -or $SwitchInstanceId -or $GenesisInstancePath))
 if (-not $SkipHubBindingResolution) {
 try {
     if ($BindInstancePath) {
@@ -340,8 +505,25 @@ catch {
 }
 }
 
+if (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) {
+    try {
+        $null=Resolve-RegisteredInstanceContextEarly
+    }
+    catch {
+        $allowRegistryUnresolved=$Doctor-or$SelfTest-or$BuildDistribution-or$BuildRelease-or$BuildAIContext-or$UpdateManager-or$InitializeInstanceRegistry-or$ListInstances-or$FinalizeFilesystemLayout
+        if($allowRegistryUnresolved){
+            $script:BindingResolutionError='Multi-Hub registry: '+$_.Exception.Message
+            $script:InstanceRegistryActive=$false
+            $script:Vault=$DefaultVault
+            $script:HubInbox=$script:Inbox
+        }else{throw('Invalid Keelaryn multi-Hub registry: '+$_.Exception.Message)}
+    }
+}
+
 $LegacyCurrentZip = Join-Path $Root ([string]$LegacyCoreCompat.CurrentZipName)
-$CurrentZip = if ($StateLayoutActive) { $PreferredCurrentZip } elseif ((Test-Path $PreferredCurrentZip -PathType Leaf) -or -not (Test-Path $LegacyCurrentZip -PathType Leaf)) { $PreferredCurrentZip } else { $LegacyCurrentZip }
+if (-not $script:InstanceRegistryActive) {
+    $CurrentZip = if ($StateLayoutActive) { $PreferredCurrentZip } elseif ((Test-Path $PreferredCurrentZip -PathType Leaf) -or -not (Test-Path $LegacyCurrentZip -PathType Leaf)) { $PreferredCurrentZip } else { $LegacyCurrentZip }
+}
 $ProductReleaseFile = Join-Path $ProductRoot "release.json"
 $ManagerReleasePolicyFile = Join-Path $ProductRoot "manager_release.json"
 $InstalledManagerManifest = $CanonicalInstallationManifest
@@ -462,7 +644,8 @@ $CompatibilityCommandSpecs = [ordered]@{
 $script:ManagerMutex = $null
 $script:ManagerMutexHeld = $false
 
-New-Item -ItemType Directory -Force -Path $Inbox, $History, $Checkpoints, $Rollback, $ManagerUpdates, $Logs, $Releases, $WorkRoot | Out-Null
+$instanceBaselineParent=if($CurrentZip){Split-Path -Parent $CurrentZip}else{Split-Path -Parent $PreferredCurrentZip}
+New-Item -ItemType Directory -Force -Path $Inbox, $History, $Checkpoints, $Rollback, $ManagerUpdates, $Logs, $Releases, $WorkRoot, $HubInbox, $instanceBaselineParent | Out-Null
 # BEGIN Keelaryn archive/metadata hardening
 $script:KeelarynMaxJsonMetadataBytes = 4MB
 $script:KeelarynMaxMarkdownMetadataBytes = 16MB
@@ -520,6 +703,32 @@ function Read-KeelarynJsonFile {
     return (Read-KeelarynJsonFileText $LiteralPath) | ConvertFrom-Json
 }
 
+function Write-ManagerLogTextRaw([string]$Path,[string]$Text) {
+    if ([string]::IsNullOrEmpty($Path)) { throw 'Manager log path is empty.' }
+    if ($null -eq $Text) { $Text='' }
+    $parent=Split-Path -Parent $Path
+    if($parent-and-not(Test-Path -LiteralPath $parent -PathType Container)){New-Item -ItemType Directory -Force -Path $parent|Out-Null}
+    $utf8=New-Object System.Text.UTF8Encoding($false)
+    $bytes=$utf8.GetBytes([string]$Text)
+    $stream=$null
+    try{
+        # Serialize Manager writers by denying concurrent write sharing while allowing
+        # normal readers. A true external sharing violation remains an IOException and
+        # is handled by the existing retry/fallback policy in Write-ManagerLogLine.
+        $stream=New-Object System.IO.FileStream(
+            $Path,
+            [System.IO.FileMode]::OpenOrCreate,
+            [System.IO.FileAccess]::Write,
+            [System.IO.FileShare]::Read
+        )
+        [void]$stream.Seek(0,[System.IO.SeekOrigin]::End)
+        if($bytes.Length-gt0){$stream.Write($bytes,0,$bytes.Length)}
+        $stream.Flush()
+    }
+    finally{
+        if($stream){$stream.Dispose()}
+    }
+}
 function Rotate-Log {
     if (Test-Path $script:LogFile) {
         $item = Get-Item $script:LogFile
@@ -549,7 +758,7 @@ function Write-ManagerLogLine([string]$Line,[int]$Attempts=40,[int]$DelayMs=100)
     if ($DelayMs -lt 0) { $DelayMs=0 }
     for ($attempt=1; $attempt -le $Attempts; $attempt++) {
         try {
-            Add-Content -LiteralPath $script:LogFile -Value $Line -Encoding UTF8
+            Write-ManagerLogTextRaw $script:LogFile ($Line+[Environment]::NewLine)
             return
         }
         catch {
@@ -1662,9 +1871,9 @@ function New-CandidateTransportDocument([string]$BaseZip,[string]$CandidateZip) 
 }
 
 function Assert-CandidateTransportInboxOutputPath([string]$DestinationPath) {
-    if (-not (Test-Path -LiteralPath $Inbox -PathType Container)) { New-Item -ItemType Directory -Path $Inbox -Force | Out-Null }
-    $inboxItem=Get-Item -LiteralPath $Inbox -Force
-    if (-not $inboxItem.PSIsContainer -or ($inboxItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('Manager state/inbox is unsafe for candidate transport: '+$Inbox) }
+    if (-not (Test-Path -LiteralPath $HubInbox -PathType Container)) { New-Item -ItemType Directory -Path $HubInbox -Force | Out-Null }
+    $inboxItem=Get-Item -LiteralPath $HubInbox -Force
+    if (-not $inboxItem.PSIsContainer -or ($inboxItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('Manager state/inbox is unsafe for candidate transport: '+$HubInbox) }
     $dest=[System.IO.Path]::GetFullPath($DestinationPath)
     if ([System.IO.Path]::GetFullPath((Split-Path -Parent $dest)).TrimEnd([char]92) -cne $inboxItem.FullName.TrimEnd([char]92)) { throw ('Candidate transport output must remain directly inside Manager state/inbox: '+$dest) }
     $existing=Get-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
@@ -1837,11 +2046,11 @@ function Restore-CandidateTransportDocument([string]$TransportPath,[string]$Base
 
 function Invoke-BuildCandidateTransport {
     if(-not(Test-Path -LiteralPath $CurrentZip -PathType Leaf)){throw 'Keelaryn__Hub_CURRENT.zip is required to build candidate transport.'}
-    $candidates=@(Get-ChildItem -LiteralPath $Inbox -File -Filter '*.zip' -ErrorAction SilentlyContinue | Where-Object { (-not $_.Name.StartsWith('Keelaryn__Hub_CANDIDATE_RECONSTRUCTED_',[System.StringComparison]::OrdinalIgnoreCase)) -and ($_.Name.StartsWith('Keelaryn__Hub_CANDIDATE_',[System.StringComparison]::OrdinalIgnoreCase) -or $_.Name.StartsWith([string]$LegacyCoreCompat.CandidatePrefix,[System.StringComparison]::OrdinalIgnoreCase)) } | Sort-Object Name)
+    $candidates=@(Get-ChildItem -LiteralPath $HubInbox -File -Filter '*.zip' -ErrorAction SilentlyContinue | Where-Object { (-not $_.Name.StartsWith('Keelaryn__Hub_CANDIDATE_RECONSTRUCTED_',[System.StringComparison]::OrdinalIgnoreCase)) -and ($_.Name.StartsWith('Keelaryn__Hub_CANDIDATE_',[System.StringComparison]::OrdinalIgnoreCase) -or $_.Name.StartsWith([string]$LegacyCoreCompat.CandidatePrefix,[System.StringComparison]::OrdinalIgnoreCase)) } | Sort-Object Name)
     if($candidates.Count-eq0){Write-Host 'No Hub CANDIDATE is available. Nothing to build.' -ForegroundColor DarkGray;return 0}
     $built=0
     foreach($file in $candidates){
-        $doc=New-CandidateTransportDocument $CurrentZip $file.FullName;$artifactId=[string]$doc.candidate.artifact_id;$name='Keelaryn__Hub_CANDIDATE_TRANSPORT_'+$artifactId+'.json';$dest=Join-Path $Inbox $name
+        $doc=New-CandidateTransportDocument $CurrentZip $file.FullName;$artifactId=[string]$doc.candidate.artifact_id;$name='Keelaryn__Hub_CANDIDATE_TRANSPORT_'+$artifactId+'.json';$dest=Join-Path $HubInbox $name
         $null=Write-CandidateTransportJsonAtomic $doc $dest;$built++;Write-Host('Candidate transport: '+$dest)-ForegroundColor Green
     }
     Write-Host('Candidate transport build complete: '+$built+' file(s).')-ForegroundColor Green;return 0
@@ -1849,10 +2058,10 @@ function Invoke-BuildCandidateTransport {
 
 function Invoke-RestoreCandidateTransport {
     if(-not(Test-Path -LiteralPath $CurrentZip -PathType Leaf)){throw 'Keelaryn__Hub_CURRENT.zip is required to restore candidate transport.'}
-    $files=@(Get-ChildItem -LiteralPath $Inbox -File -Filter 'Keelaryn__Hub_CANDIDATE_TRANSPORT_*.json' -ErrorAction SilentlyContinue|Sort-Object Name)
+    $files=@(Get-ChildItem -LiteralPath $HubInbox -File -Filter 'Keelaryn__Hub_CANDIDATE_TRANSPORT_*.json' -ErrorAction SilentlyContinue|Sort-Object Name)
     if($files.Count-eq0){Write-Host 'No Hub CANDIDATE transport is available. Nothing to restore.' -ForegroundColor DarkGray;return 0}
     $restored=0
-    foreach($file in $files){$doc=Read-CandidateTransportDocument $file.FullName;$dest=Join-Path $Inbox ([string]$doc.reconstruction.zip_name);$out=Restore-CandidateTransportDocument $file.FullName $CurrentZip $dest;$restored++;Write-Host('Reconstructed CANDIDATE ZIP: '+$out)-ForegroundColor Green}
+    foreach($file in $files){$doc=Read-CandidateTransportDocument $file.FullName;$dest=Join-Path $HubInbox ([string]$doc.reconstruction.zip_name);$out=Restore-CandidateTransportDocument $file.FullName $CurrentZip $dest;$restored++;Write-Host('Reconstructed CANDIDATE ZIP: '+$out)-ForegroundColor Green}
     Write-Host('Candidate transport restore complete: '+$restored+' file(s).')-ForegroundColor Green;return 0
 }
 
@@ -1893,8 +2102,8 @@ function Get-VaultPayloadHash{return (Get-VaultHashPairAt $Vault).PayloadHash}
 
 function Get-ValidHubPackages {
     $valid=@()
-    if (-not (Test-Path $Inbox)) { return @($valid) }
-    $files=@(Get-ChildItem $Inbox -Filter '*.zip' -File -ErrorAction SilentlyContinue | Where-Object {
+    if (-not (Test-Path $HubInbox)) { return @($valid) }
+    $files=@(Get-ChildItem $HubInbox -Filter '*.zip' -File -ErrorAction SilentlyContinue | Where-Object {
         $_.Name.StartsWith('Keelaryn__Hub',[System.StringComparison]::OrdinalIgnoreCase) -or
         $_.Name.StartsWith([string]$LegacyCoreCompat.HubDirectory,[System.StringComparison]::OrdinalIgnoreCase)
     } | Sort-Object FullName -Unique)
@@ -3149,6 +3358,10 @@ function Sanitize-CurrentCheckpointTransportIfNeeded {
             throw
         }
         Log 'Repacked Keelaryn__Hub_CURRENT.zip without local deployment state; canonical payload identity unchanged.'
+        if($script:InstanceRegistryActive){
+            try{$null=Publish-CompatibilityShadowFromRegisteredInstance (Get-ManagerActiveInstance) 'current_transport_sanitized'}
+            catch{throw('CURRENT sanitation durable commit succeeded, but compatibility shadow synchronization failed: '+$_.Exception.Message)}
+        }
     }
     finally { if (Test-Path $temp) { Remove-Item $temp -Force -ErrorAction SilentlyContinue } }
 }
@@ -3245,6 +3458,143 @@ function Read-GenesisInputConfig([string]$ConfigPath) {
     return [pscustomobject]@{Language=$language;Purpose=$purpose;Timezone=$timezone;Areas=@($areas|Select-Object -Unique);Projects=@($projects|Select-Object -Unique)}
 }
 
+function Assert-NewRegisteredHubTargetPathSafe([string]$Path) {
+    if(-not(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf)){throw 'Multi-Hub registry must be initialized before creating a second Hub.'}
+    if([string]::IsNullOrWhiteSpace($Path)){throw 'New Hub path is empty.'}
+    $full=[System.IO.Path]::GetFullPath($Path).TrimEnd('\')
+    $hubsRoot=[System.IO.Path]::GetFullPath((Join-Path $LayoutRoot 'hubs')).TrimEnd('\')
+    $parent=[System.IO.Path]::GetFullPath((Split-Path -Parent $full)).TrimEnd('\')
+    if($parent-cne$hubsRoot){throw('New registered Hub must be a direct child of '+$hubsRoot+'.')}
+    $leaf=Split-Path $full -Leaf
+    if(-not$leaf-or$leaf.Length-gt64-or$leaf.EndsWith(' ')-or$leaf.EndsWith('.')-or$leaf-match'[<>:"/\\|?*\x00-\x1F]'){throw 'New Hub directory name is not Win32-safe.'}
+    if(Test-IsWindowsReservedPathSegment $leaf){throw('New Hub directory name is Windows-reserved: '+$leaf)}
+    if(Test-Path -LiteralPath $full){throw('New Hub target already exists: '+$full)}
+    if(Test-KeelarynPathOverlap $full $Root){throw('New Hub target overlaps Manager root: '+$full)}
+    if(Test-KeelarynPathOverlap $full $CanonicalTestsPath){throw('New Hub target overlaps tests root: '+$full)}
+    $registry=Get-ManagerInstanceRegistry
+    foreach($row in @($registry.instances)){
+        if(Test-KeelarynPathOverlap $full ([string]$row.vault_path)){throw('New Hub target overlaps registered Hub '+[string]$row.name+': '+[string]$row.vault_path)}
+    }
+    if(Test-Path -LiteralPath $hubsRoot){
+        $rootItem=Get-Item -LiteralPath $hubsRoot -Force -ErrorAction Stop
+        if(-not$rootItem.PSIsContainer-or($rootItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){throw('Canonical hubs root is unsafe: '+$hubsRoot)}
+    }
+    return $full
+}
+
+function Test-NewRegisteredHubTargetPlannerSelfTest {
+    try{
+        $ok=$false
+        try{$null=Assert-NewRegisteredHubTargetPathSafe (Join-Path $CanonicalTestsPath 'forbidden')}catch{$ok=$true}
+        if(-not$ok){return $false}
+        if(-not(Test-IsWindowsReservedPathSegment 'CON')){return $false}
+        return $true
+    }catch{return $false}
+}
+
+function Invoke-GenesisRegisteredInstance([string]$TargetPath,[string]$DisplayName,[string]$ConfigPath,[bool]$Confirmed) {
+    if(-not$script:InstanceRegistryActive){throw 'Multi-Hub registry is not active; initialize it from the existing Hub first.'}
+    Assert-InvocationInstanceUnchanged
+    $registry=Get-ManagerInstanceRegistry
+    $activeBefore=Read-ActiveInstanceEarly
+    $target=Assert-NewRegisteredHubTargetPathSafe $TargetPath
+    $name=([string]$DisplayName).Trim()
+    if(-not$name){$name=Split-Path $target -Leaf}
+    if(-not$name-or$name.Length-gt64-or$name-match'[\x00-\x1F]'){throw 'New Hub display name is invalid.'}
+    $nameKey=$name.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()
+    if(@($registry.instances|Where-Object{([string]$_.name).Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()-eq$nameKey}).Count-ne0){
+        throw('Instance display name is already registered: '+$name)
+    }
+
+    $managerWorkRoot=$WorkRoot
+    $tx=Join-Path $managerWorkRoot ('instance_genesis_'+[guid]::NewGuid().ToString('N'))
+    $txVault=Join-Path $tx 'vault'
+    $txState=Join-Path $tx 'instance-state'
+    $txWork=Join-Path $tx 'work'
+    $CurrentZip=Join-Path $txState 'baseline\Keelaryn__Hub_CURRENT.zip'
+    $Checkpoints=Join-Path $txState 'history\checkpoints'
+    $Rollback=Join-Path $txState 'history\rollback'
+    $HubInbox=Join-Path $txState 'inbox'
+    $WorkRoot=$txWork
+    $Vault=$txVault
+    $publishedVault=$false
+    $publishedState=$false
+    $registryCommitted=$false
+    $instanceId=$null
+    try{
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $CurrentZip),$Checkpoints,$Rollback,$HubInbox,$WorkRoot|Out-Null
+        $rc=Invoke-Genesis $ConfigPath $Confirmed
+        if($rc-ne0){throw('Nested Genesis failed with ExitCode '+$rc+'.')}
+        $state=Read-VaultMetadataAt $Vault
+        $artifact=Read-VaultArtifactManifestAt $Vault
+        if(-not$state-or-not$artifact-or-not$state.InstanceId-or[string]$artifact.InstanceId-ne[string]$state.InstanceId){throw 'Staged registered Genesis identity is invalid.'}
+        $instanceId=[string]$state.InstanceId
+        if(@($registry.instances|Where-Object{[string]$_.instance_id-eq$instanceId}).Count-ne0){throw('Generated Genesis instance_id unexpectedly collides with registry: '+$instanceId)}
+        $paths=Get-InstanceStatePaths $instanceId
+        if(Test-Path -LiteralPath $paths.Root){throw('Generated instance state destination already exists: '+$paths.Root)}
+        $session=Open-HubZipInspectionSession $CurrentZip
+        if(-not$session){throw 'Staged registered Genesis CURRENT is invalid.'}
+        try{
+            $zs=Read-ZipState $CurrentZip $session
+            $za=Read-ZipArtifactManifest $CurrentZip $session
+            $analysis=Get-PortableVaultAnalysis $Vault
+            $zh=Get-ZipHashPair $CurrentZip $session
+            if(-not$zs-or-not$za-or[string]$zs.InstanceId-ne$instanceId-or[string]$za.InstanceId-ne$instanceId){throw 'Staged registered Genesis CURRENT identity mismatch.'}
+            if([string]$analysis.ContentHash-ne[string]$zh.ContentHash-or[string]$analysis.PayloadHash-ne[string]$zh.PayloadHash){throw 'Staged registered Genesis Hub/CURRENT content mismatch.'}
+        }finally{Close-HubZipInspectionSession $session}
+
+        $hubsRoot=Split-Path -Parent $target
+        if(-not(Test-Path -LiteralPath $hubsRoot -PathType Container)){New-Item -ItemType Directory -Path $hubsRoot|Out-Null}
+        $hubsRootItem=Get-Item -LiteralPath $hubsRoot -Force -ErrorAction Stop
+        if(($hubsRootItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){throw('Canonical hubs root became unsafe before commit: '+$hubsRoot)}
+        New-Item -ItemType Directory -Force -Path $script:InstancesStateRoot|Out-Null
+
+        Move-Item -LiteralPath $Vault -Destination $target
+        $publishedVault=$true
+        Move-Item -LiteralPath $txState -Destination $paths.Root
+        $publishedState=$true
+
+        $newRows=@($registry.instances)+@([pscustomobject]@{
+            instance_id=$instanceId
+            name=$name
+            vault_path=$target
+            registered_utc=(Get-Date).ToUniversalTime().ToString('o')
+        })
+        Write-ManagerInstanceRegistry ([ordered]@{
+            schema='keelaryn.manager.instances.v1'
+            registry_revision=([int]$registry.registry_revision+1)
+            instances=@($newRows)
+        })
+        $registryCommitted=$true
+
+        $committed=Get-ManagerInstanceRegistry
+        $row=@($committed.instances|Where-Object{[string]$_.instance_id-eq$instanceId})
+        if($row.Count-ne1-or[string]$row[0].vault_path-cne$target-or[string]$row[0].name-cne$name){throw 'Registered Genesis commit verification failed.'}
+        $null=Assert-RegisteredInstanceBaseline $row[0]
+        $activeAfter=Read-ActiveInstanceEarly
+        if([string]$activeAfter.instance_id-ne[string]$activeBefore.instance_id){throw 'Registered Genesis unexpectedly changed the active Hub.'}
+
+        Write-Host ('New Hub created and registered: '+$name) -ForegroundColor Green
+        Write-Host ('instance_id: '+$instanceId)
+        Write-Host ('path: '+$target)
+        Write-Host 'Active Hub was not changed.' -ForegroundColor DarkGray
+        return 0
+    }
+    catch{
+        if(-not$registryCommitted){
+            if($publishedState-and$instanceId){
+                try{$paths=Get-InstanceStatePaths $instanceId;if(Test-Path -LiteralPath $paths.Root){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction Stop}}catch{}
+            }
+            if($publishedVault-and(Test-Path -LiteralPath $target)){
+                try{Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop}catch{}
+            }
+        }
+        throw
+    }
+    finally{
+        if(Test-Path -LiteralPath $tx){Remove-Item -LiteralPath $tx -Recurse -Force -ErrorAction SilentlyContinue}
+    }
+}
 function Invoke-Genesis([string]$ConfigPath,[bool]$Confirmed=$false) {
     Write-Host 'Keelaryn__Hub Genesis' -ForegroundColor Cyan
     Write-Host ('Target Hub: '+$Vault)
@@ -3331,7 +3681,7 @@ function Invoke-Genesis([string]$ConfigPath,[bool]$Confirmed=$false) {
         if (-not $art -or -not $art.Genesis -or $art.InstanceId -ne $instanceId) { throw 'Generated Genesis ARTIFACT failed validation.' }
         if ((Get-VaultPayloadHashAt $hub) -ne $art.PayloadHash) { throw 'Generated Genesis payload hash mismatch.' }
 
-        $zip = $PreferredCurrentZip
+        $zip = $CurrentZip
         Write-PortableHubZip $hub $zip 'Keelaryn__Hub'
         Set-ManagerMutablePresentationHidden $zip
         $zipState = Read-ZipState $zip
@@ -3400,8 +3750,8 @@ function Show-InstanceInfo {
     }
     Write-Host ('  Last Doctor: '+$doctorStatus+$(if($doctorGenerated){' | '+$doctorGenerated}else{''}))
     $managerUpdates=@(Get-ChildItem -LiteralPath $Inbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|Where-Object{$_.Name-match'(?i)^Keelaryn__Manager_Update_'}).Count
-    $hubApproved=@(Get-ChildItem -LiteralPath $Inbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_APPROVED_'}).Count
-    $hubCandidates=@(Get-ChildItem -LiteralPath $Inbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_CANDIDATE_'}).Count
+    $hubApproved=@(Get-ChildItem -LiteralPath $HubInbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_APPROVED_'}).Count
+    $hubCandidates=@(Get-ChildItem -LiteralPath $HubInbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_CANDIDATE_'}).Count
     Write-Host ('  Pending updates: Manager='+$managerUpdates+' | Hub APPROVED='+$hubApproved)
     Write-Host ('  Hub CANDIDATE inputs: '+$hubCandidates) -ForegroundColor DarkGray
     Write-Host ''
@@ -4234,6 +4584,198 @@ function Test-LegacyNamespaceTransformSelfTest {
     return $x -eq 'Keelaryn__Hub Keelaryn__Manager corehub.index.v1 corehub.artifact.v2 chat-manager-v2.6 project.keelaryn-engine'
 }
 
+function Get-CompatibilityBindingAssessment($Row) {
+    try{
+        if($null-eq$Row){throw 'Active registry row is missing.'}
+        if(-not(Test-Path -LiteralPath $BindingFile -PathType Leaf)){throw 'Compatibility binding is missing.'}
+        $item=Get-Item -LiteralPath $BindingFile -Force -ErrorAction Stop
+        if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0-or$item.Length-gt4MB){throw 'Compatibility binding is unsafe.'}
+        $binding=Read-KeelarynJsonFile $BindingFile
+        if([string]$binding.schema-ne'keelaryn.manager.instance-binding.v2'){throw 'Compatibility binding schema is not v2.'}
+        $id=([string]$binding.instance_id).Trim().ToLowerInvariant()
+        if($id-ne[string]$Row.instance_id){throw('Compatibility binding instance_id differs from active registry instance: '+$id)}
+        $stored=([string]$binding.vault_path).Trim()
+        if(-not$stored-or-not[System.IO.Path]::IsPathRooted($stored)){throw 'Compatibility binding vault_path is missing or not absolute.'}
+        $expected=[System.IO.Path]::GetFullPath([string]$Row.vault_path).TrimEnd('\')
+        if((Get-KeelarynNormalizedPathKey $stored)-ne(Get-KeelarynNormalizedPathKey $expected)){throw('Compatibility binding vault_path differs from active registry path: '+$stored)}
+        $leaf=([string]$binding.vault_directory_name).Trim()
+        if($leaf-ne[System.IO.Path]::GetFileName($expected)){throw 'Compatibility binding vault_directory_name differs from the active registry path.'}
+        return [pscustomobject]@{Valid=$true;Reason='Compatibility binding identifies the active registry instance.'}
+    }catch{return [pscustomobject]@{Valid=$false;Reason=$_.Exception.Message}}
+}
+
+function Get-RegisteredVaultCheckpointIdentity($Row) {
+    $path=Assert-RegisteredVaultStructuralSafetyEarly ([string]$Row.vault_path)
+    if(-not(& $TestHubCandidate $path)){throw('Registered active Hub is invalid: '+$path)}
+    $state=Read-VaultStateCoreAt $path
+    $artifact=Read-VaultArtifactManifestAt $path
+    if(-not$state-or-not$artifact){throw 'Registered active Hub identity metadata is incomplete.'}
+    if([string]$state.InstanceId-ne[string]$Row.instance_id-or[string]$artifact.InstanceId-ne[string]$Row.instance_id){throw 'Registered active Hub instance identity mismatch.'}
+    $analysis=Get-PortableVaultAnalysis $path
+    if([string]$artifact.PayloadHash-ne[string]$analysis.PayloadHash){throw 'Registered active Hub ARTIFACT payload hash differs from portable payload.'}
+    return [pscustomobject]@{
+        InstanceId=[string]$Row.instance_id
+        ArtifactId=[string]$artifact.ArtifactId
+        VersionText=[string]$state.VersionText
+        Revision=[int]$state.Revision
+        ContentHash=[string]$analysis.ContentHash
+        PayloadHash=[string]$analysis.PayloadHash
+    }
+}
+
+function Get-CurrentCompatibilityAssessment([string]$ZipPath,$Row,$VaultIdentity) {
+    $session=$null
+    try{
+        if(-not(Test-Path -LiteralPath $ZipPath -PathType Leaf)){throw('CURRENT is missing: '+$ZipPath)}
+        $item=Get-Item -LiteralPath $ZipPath -Force -ErrorAction Stop
+        if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){throw('CURRENT path is unsafe: '+$ZipPath)}
+        $session=Open-HubZipInspectionSession $ZipPath
+        if(-not$session){throw('CURRENT ZIP is invalid: '+$ZipPath)}
+        if($session.ContainsLocalDeploymentState){throw('CURRENT ZIP contains local deployment state: '+$ZipPath)}
+        $state=Read-ZipState $ZipPath $session
+        $artifact=Read-ZipArtifactManifest $ZipPath $session
+        if(-not$state-or-not$artifact){throw('CURRENT metadata validation failed: '+$ZipPath)}
+        if([string]$artifact.Status-ne'approved'){throw('CURRENT ARTIFACT is not approved: '+$ZipPath)}
+        if([string]$state.InstanceId-ne[string]$Row.instance_id-or[string]$artifact.InstanceId-ne[string]$Row.instance_id){throw('CURRENT belongs to another instance_id: '+$ZipPath)}
+        if([string]$artifact.ArtifactId-ne[string]$VaultIdentity.ArtifactId){throw('CURRENT artifact_id differs from installed active Hub: '+$ZipPath)}
+        if([string]$state.VersionText-ne[string]$VaultIdentity.VersionText-or[int]$state.Revision-ne[int]$VaultIdentity.Revision){throw('CURRENT version/revision differs from installed active Hub: '+$ZipPath)}
+        $hash=Get-ZipHashPair $ZipPath $session
+        if([string]$hash.ContentHash-ne[string]$VaultIdentity.ContentHash-or[string]$hash.PayloadHash-ne[string]$VaultIdentity.PayloadHash){throw('CURRENT portable content differs from installed active Hub: '+$ZipPath)}
+        return [pscustomobject]@{Valid=$true;Reason='CURRENT exactly represents the installed active Hub.';FileSha256=(Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()}
+    }catch{return [pscustomobject]@{Valid=$false;Reason=$_.Exception.Message;FileSha256=$null}}
+    finally{if($session){Close-HubZipInspectionSession $session}}
+}
+
+function Publish-ExactManagerStateFile([string]$SourcePath,[string]$DestinationPath,[string]$Purpose) {
+    $source=[System.IO.Path]::GetFullPath($SourcePath)
+    $destination=[System.IO.Path]::GetFullPath($DestinationPath)
+    if($source-eq$destination){return (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()}
+    $item=Get-Item -LiteralPath $source -Force -ErrorAction Stop
+    if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){throw($Purpose+': source is unsafe: '+$source)}
+    $parent=Split-Path -Parent $destination
+    if(-not(Test-Path -LiteralPath $parent -PathType Container)){New-Item -ItemType Directory -Force -Path $parent|Out-Null}
+    $tmp=$destination+'.tmp.'+[guid]::NewGuid().ToString('N')
+    try{
+        $before=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+        Copy-Item -LiteralPath $source -Destination $tmp -Force
+        $copied=(Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash.ToLowerInvariant()
+        $after=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+        if($before-ne$copied-or$before-ne$after){throw($Purpose+': source changed while compatibility bytes were staged.')}
+        Publish-CompletedFileAtomically $tmp $destination
+        $published=(Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+        if($published-ne$before){throw($Purpose+': published bytes failed SHA-256 verification.')}
+        Set-ManagerMutablePresentationHidden $destination
+        return $before
+    }finally{if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}}
+}
+
+function Get-CompatibilityCheckpointIdentityFast([string]$ZipPath) {
+    $archive=$null
+    try{
+        if(-not(Test-Path -LiteralPath $ZipPath -PathType Leaf)){throw('CURRENT is missing: '+$ZipPath)}
+        $item=Get-Item -LiteralPath $ZipPath -Force -ErrorAction Stop
+        if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0-or[long]$item.Length-gt$MaxHubZipBytes){throw('CURRENT path is unsafe or oversized: '+$ZipPath)}
+        $archive=[System.IO.Compression.ZipFile]::OpenRead($item.FullName)
+        $root='Keelaryn__Hub/'
+        $envelope=Test-ZipEnvelopeArchive $archive ([long]$item.Length) $MaxHubZipBytes $MaxHubExpandedBytes $MaxHubEntries $root
+        if(-not$envelope.Valid){
+            $root=[string]$LegacyCoreCompat.HubZipRoot
+            $envelope=Test-ZipEnvelopeArchive $archive ([long]$item.Length) $MaxHubZipBytes $MaxHubExpandedBytes $MaxHubEntries $root
+        }
+        if(-not$envelope.Valid){throw('CURRENT ZIP envelope is invalid: '+$envelope.Reason)}
+        $stateEntry=$archive.Entries|Where-Object{$_.FullName.Replace('\','/')-eq($root+'_System/STATE.md')}|Select-Object -First 1
+        $artifactEntry=$archive.Entries|Where-Object{$_.FullName.Replace('\','/')-eq($root+'_System/ARTIFACT.json')}|Select-Object -First 1
+        if(-not$stateEntry-or-not$artifactEntry){throw 'CURRENT STATE/ARTIFACT metadata is missing.'}
+        $state=Read-StateText (Read-ZipEntryText $stateEntry)
+        $artifact=Parse-ArtifactManifestText (Read-ZipEntryText $artifactEntry)
+        if(-not$state-or-not$artifact){throw 'CURRENT STATE/ARTIFACT metadata is invalid.'}
+        $instanceId=$null
+        if($state.InstanceSchema){
+            $instanceEntry=$archive.Entries|Where-Object{$_.FullName.Replace('\','/')-eq($root+'_System/INSTANCE.json')}|Select-Object -First 1
+            if(-not$instanceEntry){throw 'CURRENT INSTANCE metadata is missing.'}
+            $instance=Parse-InstanceManifestText (Read-ZipEntryText $instanceEntry)
+            if(-not$instance-or[string]$instance.Schema-ne[string]$state.InstanceSchema){throw 'CURRENT INSTANCE metadata is invalid.'}
+            $instanceId=[string]$instance.InstanceId
+        }
+        if([string]$artifact.InstanceId-ne[string]$instanceId){throw 'CURRENT STATE/INSTANCE and ARTIFACT instance identities differ.'}
+        if([string]$artifact.VersionText-ne[string]$state.VersionText-or[int]$artifact.Revision-ne[int]$state.Revision){throw 'CURRENT STATE and ARTIFACT version/revision identities differ.'}
+        return [pscustomobject]@{InstanceId=$instanceId;ArtifactId=[string]$artifact.ArtifactId;ArtifactStatus=[string]$artifact.Status;VersionText=[string]$state.VersionText;Revision=[int]$state.Revision}
+    }finally{if($archive){$archive.Dispose()}}
+}
+
+function Get-CompatibilityShadowAssessment($Row) {
+    try{
+        if($null-eq$Row){throw 'Active registry row is missing.'}
+        $paths=Get-InstanceStatePaths ([string]$Row.instance_id)
+        if(-not(Test-Path -LiteralPath $paths.Current -PathType Leaf)){throw('Active per-instance CURRENT is missing: '+$paths.Current)}
+        if(-not(Test-Path -LiteralPath $script:LegacySingleInstanceCurrentZip -PathType Leaf)){throw('Legacy compatibility CURRENT is missing: '+$script:LegacySingleInstanceCurrentZip)}
+        foreach($path in @($paths.Current,$script:LegacySingleInstanceCurrentZip)){
+            $item=Get-Item -LiteralPath $path -Force -ErrorAction Stop
+            if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){throw('Compatibility CURRENT path is unsafe: '+$path)}
+        }
+        $binding=Get-CompatibilityBindingAssessment $Row
+        if(-not$binding.Valid){throw $binding.Reason}
+        $perHash=(Get-FileHash -LiteralPath $paths.Current -Algorithm SHA256).Hash.ToLowerInvariant()
+        $legacyHash=(Get-FileHash -LiteralPath $script:LegacySingleInstanceCurrentZip -Algorithm SHA256).Hash.ToLowerInvariant()
+        if($perHash-ne$legacyHash){throw('Legacy compatibility CURRENT bytes differ from active per-instance CURRENT; per='+$perHash.Substring(0,12)+' legacy='+$legacyHash.Substring(0,12)+'.')}
+
+        # Fast-path identity proof deliberately reads only archive envelope + STATE/INSTANCE/ARTIFACT.
+        # It must not invoke full portable payload/source-manifest hashing on every Manager startup.
+        $zipIdentity=Get-CompatibilityCheckpointIdentityFast $paths.Current
+        $vaultState=Read-VaultStateCoreAt ([string]$Row.vault_path)
+        $vaultArtifact=Read-VaultArtifactManifestAt ([string]$Row.vault_path)
+        if(-not$zipIdentity-or-not$vaultState-or-not$vaultArtifact){throw 'Active compatibility checkpoint identity metadata is incomplete.'}
+        if([string]$zipIdentity.ArtifactStatus-ne'approved'){throw 'Active compatibility CURRENT is not an approved checkpoint.'}
+        if([string]$zipIdentity.InstanceId-ne[string]$Row.instance_id-or[string]$vaultState.InstanceId-ne[string]$Row.instance_id-or[string]$vaultArtifact.InstanceId-ne[string]$Row.instance_id){throw 'Compatibility shadow does not belong to the active instance_id.'}
+        if([string]$zipIdentity.ArtifactId-ne[string]$vaultArtifact.ArtifactId){throw 'Compatibility shadow artifact_id differs from the installed active Hub.'}
+        if([string]$zipIdentity.VersionText-ne[string]$vaultState.VersionText-or[int]$zipIdentity.Revision-ne[int]$vaultState.Revision){throw 'Compatibility shadow version/revision differs from the installed active Hub.'}
+        return [pscustomobject]@{Valid=$true;Reason='Legacy CURRENT + binding coherently shadow the active per-instance CURRENT.';FileSha256=$perHash}
+    }catch{return [pscustomobject]@{Valid=$false;Reason=$_.Exception.Message;FileSha256=$null}}
+}
+
+function Publish-CompatibilityShadowFromRegisteredInstance($Row,[string]$Source) {
+    if($null-eq$Row){throw 'Cannot publish compatibility shadow without a registry row.'}
+    $null=Assert-RegisteredInstanceBaseline $Row
+    $paths=Get-InstanceStatePaths ([string]$Row.instance_id)
+    $null=Publish-ExactManagerStateFile $paths.Current $script:LegacySingleInstanceCurrentZip 'Compatibility CURRENT publication'
+    & $WriteBindingV2 ([string]$Row.vault_path) ([string]$Row.instance_id) $Source
+    $check=Get-CompatibilityShadowAssessment $Row
+    if(-not$check.Valid){throw('Compatibility shadow post-publication verification failed: '+$check.Reason)}
+    return $check
+}
+
+function Invoke-ReconcileActiveCompatibilityShadow {
+    if(-not$script:InstanceRegistryActive){return 'single-instance'}
+    $row=Get-ManagerActiveInstance
+    $fast=Get-CompatibilityShadowAssessment $row
+    if($fast.Valid){return 'coherent'}
+
+    $identity=Get-RegisteredVaultCheckpointIdentity $row
+    $paths=Get-InstanceStatePaths ([string]$row.instance_id)
+    $per=Get-CurrentCompatibilityAssessment $paths.Current $row $identity
+    $legacy=Get-CurrentCompatibilityAssessment $script:LegacySingleInstanceCurrentZip $row $identity
+
+    if($per.Valid){
+        $null=Publish-ExactManagerStateFile $paths.Current $script:LegacySingleInstanceCurrentZip 'Compatibility shadow reconciliation'
+        & $WriteBindingV2 ([string]$row.vault_path) ([string]$row.instance_id) 'multi_hub_shadow_reconciled_from_instance'
+        $check=Get-CompatibilityShadowAssessment $row
+        if(-not$check.Valid){throw('Compatibility shadow reconciliation verification failed: '+$check.Reason)}
+        Log ('Reconciled legacy compatibility shadow from authoritative active per-instance CURRENT; instance_id='+[string]$row.instance_id)
+        return 'repaired_from_instance'
+    }
+
+    if($legacy.Valid){
+        $null=Publish-ExactManagerStateFile $script:LegacySingleInstanceCurrentZip $paths.Current 'Per-instance CURRENT safe adoption'
+        $null=Assert-RegisteredInstanceBaseline $row
+        & $WriteBindingV2 ([string]$row.vault_path) ([string]$row.instance_id) 'multi_hub_shadow_adopted_to_instance'
+        $check=Get-CompatibilityShadowAssessment $row
+        if(-not$check.Valid){throw('Safe legacy CURRENT adoption verification failed: '+$check.Reason)}
+        Log ('Safely adopted legacy compatibility CURRENT into stale active per-instance CURRENT; instance_id='+[string]$row.instance_id)
+        return 'adopted_legacy_to_instance'
+    }
+
+    throw('Ambiguous multi-Hub compatibility shadow; refusing reconciliation. Active instance_id='+[string]$row.instance_id+'; per-instance CURRENT: '+$per.Reason+'; legacy CURRENT: '+$legacy.Reason)
+}
 function Assert-InstanceBindingAvailable {
     if ($script:BindingResolutionError) { throw ('Keelaryn instance binding is unresolved: '+$script:BindingResolutionError+'. Run Keelaryn > Doctor and bind the Hub from Maintenance before Hub operations.') }
     if (-not (& $TestHubCandidate $Vault)) { throw ('No valid Keelaryn__Hub instance is bound at: '+$Vault) }
@@ -4278,6 +4820,28 @@ function Invoke-Doctor {
         Add-DoctorFinding $rows 'OK' 'binding.resolve' ('Vault='+$Vault+$(if ($id) { '; instance_id='+$id } else { '; legacy/no canonical instance_id' }))
     }
     else { Add-DoctorFinding $rows 'WARN' 'binding.vault' ('No valid Hub instance resolved. Expected/default path: '+$Vault) }
+
+    if (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) {
+        try {
+            $instanceRegistry=Get-ManagerInstanceRegistry
+            $activeInstance=Get-ManagerActiveInstance
+            foreach($registered in @($instanceRegistry.instances)){
+                $registeredPath=Assert-RegisteredVaultStructuralSafetyEarly ([string]$registered.vault_path)
+                if(-not(& $TestHubCandidate $registeredPath)){throw('Registered Hub is unavailable/invalid: '+$registeredPath)}
+                $registeredId=& $ReadBoundInstanceId $registeredPath
+                if(-not$registeredId-or$registeredId-ne[string]$registered.instance_id){throw('Registered Hub identity mismatch: '+$registeredPath)}
+                $null=Assert-RegisteredInstanceBaseline $registered
+            }
+            Add-DoctorFinding $rows 'OK' 'instances.registry' ('Multi-Hub registry valid; instances='+@($instanceRegistry.instances).Count+'.')
+            Add-DoctorFinding $rows 'OK' 'instances.active' ('Active='+[string]$activeInstance.name+'; instance_id='+[string]$activeInstance.instance_id+'.')
+            $shadow=Get-CompatibilityShadowAssessment $activeInstance
+            if($shadow.Valid){Add-DoctorFinding $rows 'OK' 'compatibility.shadow' ('Legacy downgrade compatibility shadow matches active instance; zip='+$shadow.FileSha256.Substring(0,12)+'.')}
+            else{Add-DoctorFinding $rows 'ERROR' 'compatibility.shadow' $shadow.Reason}
+        } catch { Add-DoctorFinding $rows 'ERROR' 'instances.registry' $_.Exception.Message }
+    }
+    else {
+        Add-DoctorFinding $rows 'OK' 'instances.registry' 'Single-instance compatibility mode; multi-Hub registry is not initialized.'
+    }
 
     $phase=[System.Diagnostics.Stopwatch]::StartNew()
     if (& $TestHubCandidate $Vault) {
@@ -4375,7 +4939,9 @@ function Invoke-Doctor {
         $invalidManager=0; $validManager=0; $hubPackages=0
         foreach ($file in @(Get-ChildItem $Inbox -Filter '*.zip' -File -ErrorAction SilentlyContinue)) {
             if ($file.Name.StartsWith('Keelaryn__Manager',[System.StringComparison]::OrdinalIgnoreCase)) { if (Read-ManagerUpdatePackage $file.FullName) { $validManager++ } else { $invalidManager++ } }
-            elseif ($file.Name.StartsWith('Keelaryn__Hub',[System.StringComparison]::OrdinalIgnoreCase) -or $file.Name.StartsWith([string]$LegacyCoreCompat.HubDirectory,[System.StringComparison]::OrdinalIgnoreCase)) { $hubPackages++ }
+        }
+        foreach ($file in @(Get-ChildItem $HubInbox -Filter '*.zip' -File -ErrorAction SilentlyContinue)) {
+            if ($file.Name.StartsWith('Keelaryn__Hub',[System.StringComparison]::OrdinalIgnoreCase) -or $file.Name.StartsWith([string]$LegacyCoreCompat.HubDirectory,[System.StringComparison]::OrdinalIgnoreCase)) { $hubPackages++ }
         }
         if ($invalidManager -gt 0) { Add-DoctorFinding $rows 'WARN' 'inbox.manager_invalid' ($invalidManager.ToString()+' unrecognized/invalid Manager ZIP(s) remain in inbox.') }
         else { Add-DoctorFinding $rows 'OK' 'inbox.manager' ($validManager.ToString()+' valid Manager update ZIP(s) in inbox.') }
@@ -4415,14 +4981,321 @@ function Invoke-Doctor {
     if ($actions.Count -gt 0) { Write-Host 'Recommended actions:' -ForegroundColor Cyan; foreach ($a in $actions) { Write-Host ('- '+$a) } }
 
     $doctorWatch.Stop(); $timings.total_ms=[math]::Round($doctorWatch.Elapsed.TotalMilliseconds,1)
-    $report=[ordered]@{schema='keelaryn.manager.doctor-report.v1';generated=(Get-Date).ToUniversalTime().ToString('o');manager_version=$ManagerVersion;manager_root=$Root;vault=$Vault;errors=$errors;warnings=$warnings;timings_ms=$timings;findings=@($rows);recommended_actions=@($actions)}
+    $report=[ordered]@{
+        schema='keelaryn.manager.doctor-report.v1';generated=(Get-Date).ToUniversalTime().ToString('o');manager_version=$ManagerVersion;manager_root=$Root;vault=$Vault
+        instance_id=$(if($script:InstanceRegistryActive){$script:ActiveInstanceId}else{& $ReadBoundInstanceId $Vault})
+        instance_name=$(if($script:InstanceRegistryActive){$script:ActiveInstanceName}else{$null})
+        instance_count=$(if(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf){try{@((Get-ManagerInstanceRegistry).instances).Count}catch{0}}else{1})
+        errors=$errors;warnings=$warnings;timings_ms=$timings;findings=@($rows);recommended_actions=@($actions)
+    }
     $path=Join-Path $Logs 'DOCTOR_REPORT.json'; $report|ConvertTo-Json -Depth 8|Set-Content $path -Encoding UTF8
     Write-Host ('Report: '+$path)
     if ($errors -gt 0) { return 1 }; if ($warnings -gt 0) { return 2 }; return 0
 }
 
+function Write-KeelarynJsonAtomically([string]$Path,$Object) {
+    $parent=Split-Path -Parent $Path
+    if($parent-and-not(Test-Path -LiteralPath $parent -PathType Container)){New-Item -ItemType Directory -Force -Path $parent|Out-Null}
+    $tmp=$Path+'.tmp.'+[guid]::NewGuid().ToString('N')
+    $json=(($Object|ConvertTo-Json -Depth 12).Replace("`r`n","`n")+"`n")
+    try{
+        [System.IO.File]::WriteAllText($tmp,$json,(New-Object System.Text.UTF8Encoding($false)))
+        Publish-CompletedFileAtomically $tmp $Path
+    }finally{if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}}
+}
+
+function Get-ManagerInstanceRegistry {
+    $r=Read-InstanceRegistryEarly
+    if(-not$r){throw 'Multi-Hub registry is not initialized.'}
+    return $r
+}
+
+function Get-ManagerActiveInstance {
+    $r=Get-ManagerInstanceRegistry
+    $a=Read-ActiveInstanceEarly
+    $matches=@($r.instances|Where-Object{[string]$_.instance_id-eq[string]$a.instance_id})
+    if($matches.Count-ne1){throw 'Active instance selection does not resolve to exactly one registry row.'}
+    return $matches[0]
+}
+
+function Write-ManagerInstanceRegistry($Registry) {
+    $validated=ConvertTo-ValidatedInstanceRegistryDocument $Registry
+    $doc=[ordered]@{
+        schema='keelaryn.manager.instances.v1'
+        registry_revision=[int]$validated.registry_revision
+        updated_utc=(Get-Date).ToUniversalTime().ToString('o')
+        instances=@($validated.instances|ForEach-Object{
+            [ordered]@{
+                instance_id=[string]$_.instance_id
+                name=[string]$_.name
+                vault_path=[string]$_.vault_path
+                registered_utc=[string]$_.registered_utc
+            }
+        })
+    }
+    Write-KeelarynJsonAtomically $script:InstanceRegistryFile $doc
+}
+
+function Write-ManagerActiveInstance([string]$InstanceId) {
+    $id=([string]$InstanceId).Trim().ToLowerInvariant()
+    $g=[guid]::Empty
+    if(-not[guid]::TryParse($id,[ref]$g)-or$g-eq[guid]::Empty){throw 'Cannot activate invalid instance_id.'}
+    Write-KeelarynJsonAtomically $script:ActiveInstanceFile ([ordered]@{
+        schema='keelaryn.manager.active-instance.v1'
+        instance_id=$id
+        selected_utc=(Get-Date).ToUniversalTime().ToString('o')
+    })
+}
+
+function Get-InstanceStatePaths([string]$InstanceId) {
+    $id=([string]$InstanceId).Trim().ToLowerInvariant()
+    $root=Join-Path $script:InstancesStateRoot $id
+    return [pscustomobject]@{
+        Root=$root
+        Inbox=Join-Path $root 'inbox'
+        Current=Join-Path $root 'baseline\Keelaryn__Hub_CURRENT.zip'
+        Checkpoints=Join-Path $root 'history\checkpoints'
+        Rollback=Join-Path $root 'history\rollback'
+    }
+}
+
+function Assert-RegisteredInstanceBaseline($Row) {
+    $path=Assert-RegisteredVaultStructuralSafetyEarly ([string]$Row.vault_path)
+    if(-not(& $TestHubCandidate $path)){throw('Registered Hub is invalid: '+$path)}
+    $actualId=& $ReadBoundInstanceId $path
+    if(-not$actualId-or$actualId-ne[string]$Row.instance_id){throw('Registered Hub identity mismatch: '+$path)}
+    $paths=Get-InstanceStatePaths ([string]$Row.instance_id)
+    if(-not(Test-Path -LiteralPath $paths.Current -PathType Leaf)){throw('Registered instance CURRENT is missing: '+$paths.Current)}
+    $analysis=Get-PortableVaultAnalysis $path
+    $session=Open-HubZipInspectionSession $paths.Current
+    if(-not$session){throw('Registered instance CURRENT is invalid: '+$paths.Current)}
+    try{
+        $zs=Read-ZipState $paths.Current $session
+        $za=Read-ZipArtifactManifest $paths.Current $session
+        $va=Read-VaultArtifactManifestAt $path
+        if(-not$zs-or-not$za-or-not$va){throw 'Registered instance baseline metadata is incomplete.'}
+        if([string]$zs.InstanceId-ne[string]$Row.instance_id-or[string]$za.InstanceId-ne[string]$Row.instance_id){throw 'Registered instance CURRENT belongs to another instance_id.'}
+        if([string]$za.ArtifactId-ne[string]$va.ArtifactId){throw 'Registered Hub/CURRENT artifact_id mismatch.'}
+        $hash=Get-ZipHashPair $paths.Current $session
+        if([string]$hash.ContentHash-ne[string]$analysis.ContentHash-or[string]$hash.PayloadHash-ne[string]$analysis.PayloadHash){throw 'Registered Hub portable content differs from its instance CURRENT.'}
+    }finally{Close-HubZipInspectionSession $session}
+    return $true
+}
+
+function Assert-InvocationInstanceUnchanged {
+    if(-not$script:InstanceRegistryActive){return}
+    $active=Read-ActiveInstanceEarly
+    if(-not$script:InvocationInstanceId-or[string]$active.instance_id-ne[string]$script:InvocationInstanceId){
+        throw 'Active Hub changed after this Manager invocation resolved its instance context. Retry the operation.'
+    }
+}
+
+function New-RegisteredInstanceStateFromVault([string]$InstanceId,[string]$VaultPath) {
+    $paths=Get-InstanceStatePaths $InstanceId
+    if(Test-Path -LiteralPath $paths.Root){throw('Instance state already exists: '+$paths.Root)}
+    if(-not(Test-Path -LiteralPath $script:InstancesStateRoot -PathType Container)){New-Item -ItemType Directory -Force -Path $script:InstancesStateRoot|Out-Null}
+    $staging=Join-Path $script:InstancesStateRoot ('.staging-'+$InstanceId+'-'+[guid]::NewGuid().ToString('N'))
+    try{
+        New-Item -ItemType Directory -Force -Path (Join-Path $staging 'baseline'),(Join-Path $staging 'inbox'),(Join-Path $staging 'history\checkpoints'),(Join-Path $staging 'history\rollback')|Out-Null
+        $current=Join-Path $staging 'baseline\Keelaryn__Hub_CURRENT.zip'
+        Write-PortableHubZip $VaultPath $current 'Keelaryn__Hub'
+        $session=Open-HubZipInspectionSession $current
+        if(-not$session){throw 'Generated per-instance CURRENT failed ZIP validation.'}
+        try{
+            $state=Read-ZipState $current $session
+            $artifact=Read-ZipArtifactManifest $current $session
+            if(-not$state-or-not$artifact-or[string]$state.InstanceId-ne$InstanceId-or[string]$artifact.InstanceId-ne$InstanceId){throw 'Generated per-instance CURRENT identity mismatch.'}
+            $analysis=Get-PortableVaultAnalysis $VaultPath
+            $hash=Get-ZipHashPair $current $session
+            if([string]$analysis.ContentHash-ne[string]$hash.ContentHash-or[string]$analysis.PayloadHash-ne[string]$hash.PayloadHash){throw 'Generated per-instance CURRENT differs from source Hub.'}
+        }finally{Close-HubZipInspectionSession $session}
+        Move-Item -LiteralPath $staging -Destination $paths.Root
+        return $paths
+    }finally{if(Test-Path -LiteralPath $staging){Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue}}
+}
+
+function Invoke-InitializeInstanceRegistry {
+    if(-not$CanonicalLayoutActive-or-not$StateLayoutActive){throw 'Multi-Hub registry initialization requires finalized canonical Manager layout.'}
+    if(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf){Write-Host 'Multi-Hub registry is already initialized.' -ForegroundColor Green;return 0}
+    Assert-InstanceBindingAvailable
+    $baseline=Test-CanonicalBaselineConsistent
+    if(-not$baseline.State.InstanceId){throw 'Multi-Hub registry requires canonical keelaryn.instance.v1 identity.'}
+    $id=[string]$baseline.State.InstanceId
+    $name=if($RegisterInstanceName){$RegisterInstanceName}else{'Primary'}
+    $registered=(Get-Date).ToUniversalTime().ToString('o')
+    $paths=$null
+    try{
+        $paths=New-RegisteredInstanceStateFromVault $id $Vault
+        # Preserve the exact pre-registry CURRENT bytes where possible. This is stronger
+        # than relying only on deterministic reconstruction and keeps historical transport identity.
+        if(Test-Path -LiteralPath $script:LegacySingleInstanceCurrentZip -PathType Leaf){
+            $tmp=$paths.Current+'.legacy-copy'
+            Copy-Item -LiteralPath $script:LegacySingleInstanceCurrentZip -Destination $tmp -Force
+            $session=Open-HubZipInspectionSession $tmp
+            if(-not$session){throw 'Legacy single-instance CURRENT failed validation during registry bootstrap.'}
+            try{
+                $state=Read-ZipState $tmp $session;$artifact=Read-ZipArtifactManifest $tmp $session;$analysis=Get-PortableVaultAnalysis $Vault;$hash=Get-ZipHashPair $tmp $session
+                if(-not$state-or-not$artifact-or[string]$state.InstanceId-ne$id-or[string]$artifact.InstanceId-ne$id-or[string]$hash.ContentHash-ne[string]$analysis.ContentHash){throw 'Legacy CURRENT does not match the active Hub during registry bootstrap.'}
+            }finally{Close-HubZipInspectionSession $session}
+            Publish-CompletedFileAtomically $tmp $paths.Current
+        }
+        $registry=[ordered]@{
+            schema='keelaryn.manager.instances.v1';registry_revision=1
+            instances=@([ordered]@{instance_id=$id;name=$name;vault_path=[System.IO.Path]::GetFullPath($Vault).TrimEnd('\');registered_utc=$registered})
+        }
+        $bootstrapRow=[pscustomobject]@{instance_id=$id;name=$name;vault_path=[System.IO.Path]::GetFullPath($Vault).TrimEnd('\');registered_utc=$registered}
+        $null=Publish-CompatibilityShadowFromRegisteredInstance $bootstrapRow 'multi_hub_registry_bootstrap'
+        $null=Assert-RegisteredInstanceBaseline $bootstrapRow
+        Write-ManagerActiveInstance $id
+        # instances.json is the bootstrap activation marker. Before it exists, older/single-instance Managers already see a coherent compatibility pair.
+        Write-ManagerInstanceRegistry $registry
+        $null=Resolve-RegisteredInstanceContextEarly
+        $script:InvocationInstanceId=$id
+        Write-Host ('Multi-Hub registry initialized. Active: '+$name+' | '+$id) -ForegroundColor Green
+        Write-Host ('Instance CURRENT: '+$paths.Current)
+        return 0
+    }catch{
+        if(Test-Path -LiteralPath $script:InstanceRegistryFile){Remove-Item -LiteralPath $script:InstanceRegistryFile -Force -ErrorAction SilentlyContinue}
+        if(Test-Path -LiteralPath $script:ActiveInstanceFile){Remove-Item -LiteralPath $script:ActiveInstanceFile -Force -ErrorAction SilentlyContinue}
+        if($paths-and(Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}
+        throw
+    }
+}
+
+function Invoke-ListInstances {
+    if(-not(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf)){
+        Write-Host 'Multi-Hub registry: not initialized (single-instance compatibility mode).'
+        return 0
+    }
+    $registry=Get-ManagerInstanceRegistry
+    $active=Read-ActiveInstanceEarly
+    Write-Host ('Registered Hubs: '+@($registry.instances).Count) -ForegroundColor Cyan
+    foreach($row in @($registry.instances|Sort-Object name,instance_id)){
+        $mark=if([string]$row.instance_id-eq[string]$active.instance_id){'*'}else{' '}
+        Write-Host ('{0} {1} | {2} | {3}' -f $mark,[string]$row.name,[string]$row.instance_id,[string]$row.vault_path)
+    }
+    return 0
+}
+
+function Invoke-SwitchRegisteredInstance([string]$InstanceId) {
+    $registry=Get-ManagerInstanceRegistry
+    $id=([string]$InstanceId).Trim().ToLowerInvariant()
+    $matches=@($registry.instances|Where-Object{[string]$_.instance_id-eq$id})
+    if($matches.Count-ne1){throw('Unknown registered instance_id: '+$id)}
+    $row=$matches[0]
+    $previous=Get-ManagerActiveInstance
+    if([string]$previous.instance_id-eq$id){
+        $null=Publish-CompatibilityShadowFromRegisteredInstance $row 'multi_hub_switch_same_instance'
+        Write-Host ('Active Hub is already: '+[string]$row.name) -ForegroundColor Green
+        return 0
+    }
+
+    $committed=$false
+    try{
+        $null=Assert-RegisteredInstanceBaseline $row
+        $null=Publish-CompatibilityShadowFromRegisteredInstance $row 'multi_hub_switch_prepare'
+        # Fresh transaction-boundary validation immediately before the commit marker.
+        $null=Assert-RegisteredInstanceBaseline $row
+        Write-ManagerActiveInstance $id
+        $committed=$true
+    }catch{
+        $primary=$_.Exception.Message
+        if(-not$committed){
+            try{
+                $activeNow=Read-ActiveInstanceEarly
+                if([string]$activeNow.instance_id-eq[string]$previous.instance_id){$null=Publish-CompatibilityShadowFromRegisteredInstance $previous 'multi_hub_switch_rollback'}
+                elseif([string]$activeNow.instance_id-eq$id){$committed=$true}
+            }catch{
+                throw('Active Hub switch failed before confirmed commit and compatibility rollback also failed. Primary: '+$primary+' Rollback: '+$_.Exception.Message)
+            }
+        }
+        if(-not$committed){throw('Active Hub switch failed before commit; previous active instance remains selected. '+$primary)}
+    }
+
+    try{
+        $null=Resolve-RegisteredInstanceContextEarly
+        $script:InvocationInstanceId=$id
+        $check=Get-CompatibilityShadowAssessment $row
+        if(-not$check.Valid){throw $check.Reason}
+    }catch{
+        throw('Active Hub switch durable commit succeeded, but post-commit verification failed: '+$_.Exception.Message)
+    }
+    Write-Host ('Active Hub switched to: '+[string]$row.name) -ForegroundColor Green
+    Write-Host ('instance_id: '+$id)
+    Write-Host ('path: '+[string]$row.vault_path)
+    return 0
+}
+
+function Invoke-RegisterExistingInstance([string]$Path,[string]$Name,[bool]$Activate=$false) {
+    if(-not(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf)){throw 'Initialize the multi-Hub registry before registering another Hub.'}
+    $registry=Get-ManagerInstanceRegistry
+    $full=Assert-RegisteredVaultStructuralSafetyEarly $Path
+    if(-not(& $TestHubCandidate $full)){throw('Registration target is not a valid Keelaryn Hub: '+$full)}
+    $state=Read-VaultMetadataAt $full
+    $artifact=Read-VaultArtifactManifestAt $full
+    if(-not$state-or-not$artifact-or-not$state.InstanceId-or[string]$artifact.InstanceId-ne[string]$state.InstanceId){throw 'Registration target lacks a consistent canonical instance identity.'}
+    $id=[string]$state.InstanceId
+    $display=if($Name){$Name}else{Split-Path $full -Leaf}
+    if(-not$display){$display='Hub-'+$id.Substring(0,8)}
+    $pathKey=Get-KeelarynNormalizedPathKey $full
+    $sameId=@($registry.instances|Where-Object{[string]$_.instance_id-eq$id})
+    $samePath=@($registry.instances|Where-Object{(Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$pathKey})
+    if($sameId.Count-gt0-or$samePath.Count-gt0){
+        if($sameId.Count-eq1-and$samePath.Count-eq1-and[string]$sameId[0].instance_id-eq[string]$samePath[0].instance_id){
+            if($Activate){return Invoke-SwitchRegisteredInstance $id}
+            Write-Host 'Hub is already registered.' -ForegroundColor Green
+            return 0
+        }
+        throw 'Registration conflicts with an existing instance_id or Hub path.'
+    }
+    foreach($row in @($registry.instances)){
+        if(Test-KeelarynPathOverlap $full ([string]$row.vault_path)){throw('Hub path overlaps registered Hub '+[string]$row.name+': '+[string]$row.vault_path)}
+        if(([string]$row.name).Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()-eq$display.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()){throw('Instance display name is already registered: '+$display)}
+    }
+    $paths=$null
+    try{
+        $paths=New-RegisteredInstanceStateFromVault $id $full
+        $newRows=@($registry.instances)+@([pscustomobject]@{instance_id=$id;name=$display;vault_path=$full;registered_utc=(Get-Date).ToUniversalTime().ToString('o')})
+        Write-ManagerInstanceRegistry ([ordered]@{schema='keelaryn.manager.instances.v1';registry_revision=([int]$registry.registry_revision+1);instances=@($newRows)})
+        Write-Host ('Registered Hub: '+$display+' | '+$id) -ForegroundColor Green
+        if($Activate){return Invoke-SwitchRegisteredInstance $id}
+        return 0
+    }catch{
+        if($paths-and(Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}
+        throw
+    }
+}
+
+function Test-InstanceRegistryContractSelfTest {
+    try{
+        $a='11111111-1111-1111-1111-111111111111'
+        $b='22222222-2222-2222-2222-222222222222'
+        $doc=[pscustomobject]@{schema='keelaryn.manager.instances.v1';registry_revision=1;instances=@(
+            [pscustomobject]@{instance_id=$a;name='Alpha';vault_path='C:\Keelaryn\hub-a';registered_utc='2026-01-01T00:00:00Z'},
+            [pscustomobject]@{instance_id=$b;name='Beta';vault_path='C:\Keelaryn\hub-b';registered_utc='2026-01-01T00:00:00Z'}
+        )}
+        $valid=ConvertTo-ValidatedInstanceRegistryDocument $doc
+        if(@($valid.instances).Count-ne2){return $false}
+        $dup=[pscustomobject]@{schema='keelaryn.manager.instances.v1';registry_revision=1;instances=@(
+            [pscustomobject]@{instance_id=$a;name='Alpha';vault_path='C:\Keelaryn\hub-a';registered_utc='x'},
+            [pscustomobject]@{instance_id=$a;name='Beta';vault_path='C:\Keelaryn\hub-b';registered_utc='x'}
+        )}
+        $blocked=$false;try{$null=ConvertTo-ValidatedInstanceRegistryDocument $dup}catch{$blocked=$true}
+        if(-not$blocked){return $false}
+        $overlap=[pscustomobject]@{schema='keelaryn.manager.instances.v1';registry_revision=1;instances=@(
+            [pscustomobject]@{instance_id=$a;name='Alpha';vault_path='C:\Keelaryn\hubs';registered_utc='x'},
+            [pscustomobject]@{instance_id=$b;name='Beta';vault_path='C:\Keelaryn\hubs\beta';registered_utc='x'}
+        )}
+        $blocked=$false;try{$null=ConvertTo-ValidatedInstanceRegistryDocument $overlap}catch{$blocked=$true}
+        if(-not$blocked){return $false}
+        return $true
+    }catch{return $false}
+}
 function Invoke-BindInstance {
     if (-not $BindInstancePath) { throw 'BindInstancePath is required.' }
+    if (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) {
+        return Invoke-RegisterExistingInstance $BindInstancePath $RegisterInstanceName $true
+    }
     if (-not (& $TestHubCandidate $Vault)) { throw ('Bind target is not a valid Hub: '+$Vault) }
     $id=& $ReadBoundInstanceId $Vault
     & $WriteBindingV2 $Vault $id 'explicit_bind_command'
@@ -5125,8 +5998,8 @@ function Archive-CurrentCheckpoint($OldState) {
 
 function Remove-AcceptedCandidatePackages($ApprovedArtifact) {
     $accepted=@($ApprovedArtifact.AcceptedCandidates)
-    if ($accepted.Count -eq 0 -or -not (Test-Path $Inbox)) { return @() }
-    $warnings=@(); $candidateFiles=@(Get-ChildItem $Inbox -Filter '*.zip' -File -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith('Keelaryn__Hub_CANDIDATE_',[System.StringComparison]::OrdinalIgnoreCase) -or $_.Name.StartsWith([string]$LegacyCoreCompat.CandidatePrefix,[System.StringComparison]::OrdinalIgnoreCase) } | Sort-Object FullName -Unique)
+    if ($accepted.Count -eq 0 -or -not (Test-Path $HubInbox)) { return @() }
+    $warnings=@(); $candidateFiles=@(Get-ChildItem $HubInbox -Filter '*.zip' -File -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith('Keelaryn__Hub_CANDIDATE_',[System.StringComparison]::OrdinalIgnoreCase) -or $_.Name.StartsWith([string]$LegacyCoreCompat.CandidatePrefix,[System.StringComparison]::OrdinalIgnoreCase) } | Sort-Object FullName -Unique)
     foreach ($acceptedRow in $accepted) {
         foreach ($file in $candidateFiles) {
             if (-not (Test-Path $file.FullName -PathType Leaf)) { continue }
@@ -5196,6 +6069,12 @@ function Install-HubPackage($Package,$ExpectedCurrent=$null) {
             if (Test-Path $Vault) { Remove-Item $Vault -Recurse -Force -ErrorAction SilentlyContinue }
             if ($backupCreated -and (Test-Path $backup)) { Move-Item -Path $backup -Destination $Vault }
             throw
+        }
+
+        # Hub + per-instance CURRENT are durably coherent here. Shadow synchronization is post-commit and must never roll that transaction back.
+        if($script:InstanceRegistryActive){
+            try{$null=Publish-CompatibilityShadowFromRegisteredInstance (Get-ManagerActiveInstance) 'hub_update_post_commit'}
+            catch{throw('Hub update durable commit succeeded, but compatibility shadow synchronization failed: '+$_.Exception.Message)}
         }
 
         try { Remove-Item $Package.File.FullName -Force -ErrorAction SilentlyContinue } catch {}
@@ -5930,7 +6809,26 @@ function Test-ManagerLogResilienceSelfTest {
         $script:Logs=$temp
         $script:LogFile=Join-Path $temp 'manager.log'
         $utf8=New-Object System.Text.UTF8Encoding($false)
-        [System.IO.File]::WriteAllText($script:LogFile,('x'*(1MB+1)),$utf8)
+                for($appendIndex=0;$appendIndex-lt128;$appendIndex++){
+            Write-ManagerLogLine ('manager-log-normal-append-selftest-'+$appendIndex.ToString('D3')) 4 0
+        }
+        $normalLines=@([System.IO.File]::ReadAllLines($script:LogFile,[System.Text.Encoding]::UTF8))
+        if($normalLines.Count-ne128){
+            $script:ManagerLogResilienceSelfTestReason=('Normal raw append count mismatch: '+$normalLines.Count+' != 128.')
+            return $false
+        }
+        for($appendIndex=0;$appendIndex-lt128;$appendIndex++){
+            $expected='manager-log-normal-append-selftest-'+$appendIndex.ToString('D3')
+            if([string]$normalLines[$appendIndex]-cne$expected){
+                $script:ManagerLogResilienceSelfTestReason=('Normal raw append order/content mismatch at '+$appendIndex+'.')
+                return $false
+            }
+        }
+        if(@(Get-ChildItem -LiteralPath $temp -File -Filter 'manager_fallback_*.log' -ErrorAction SilentlyContinue).Count-ne0){
+            $script:ManagerLogResilienceSelfTestReason='Normal raw append unexpectedly created a fallback log.'
+            return $false
+        }
+[System.IO.File]::WriteAllText($script:LogFile,('x'*(1MB+1)),$utf8)
         $lockStream=[System.IO.File]::Open($script:LogFile,[System.IO.FileMode]::Open,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
         Rotate-Log
         if(-not(Test-Path -LiteralPath $script:LogFile -PathType Leaf)){
@@ -6503,7 +7401,7 @@ function Test-ProductSourceSelfTest {
             if (-not (Test-Path $p -PathType Leaf)) { return $false }
         }
         $runtimeSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\runtime\Keelaryn__Manager.ps1'),[System.Text.Encoding]::UTF8)
-        foreach($token in @('function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Test-WorkspaceCheckoutContractSelfTest','Resolve-KeelarynWorkspaceCheckout.ps1','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Get-ManagerReleaseTransitionAliases $managerPolicy','Write-ManagerReleaseSnapshotFile $row $dst','Write-ManagerReleaseSnapshotFile $sourceRow $aliasDestination','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
+        foreach($token in @('function Get-CompatibilityCheckpointIdentityFast','function Get-CompatibilityShadowAssessment','function Invoke-ReconcileActiveCompatibilityShadow','function Publish-CompatibilityShadowFromRegisteredInstance','function Invoke-GenesisRegisteredInstance','function Assert-NewRegisteredHubTargetPathSafe','function ConvertTo-ValidatedInstanceRegistryDocument','function Resolve-RegisteredInstanceContextEarly','function Assert-InvocationInstanceUnchanged','keelaryn.manager.instances.v1','keelaryn.manager.active-instance.v1','state\instances','function Invoke-WithExistingHiddenFileWritable','function Set-ManagerMutablePresentationHidden','function Write-ManagerBindingDocument','function Get-InstalledManagedFileItem','function Get-TransitionRootBootstrapText','function Test-TransitionRootBootstrapSelfTest','function Test-WorkspaceCheckoutContractSelfTest','Resolve-KeelarynWorkspaceCheckout.ps1','function Convert-ManagerReleaseBytesToText','function Get-ManagerReleaseSourceSnapshot','function Write-ManagerReleaseSnapshotFile','function Invoke-FinalizeFilesystemLayout','function Set-ManagerOperationalPaths','function Assert-ManagerOperationalPathsReady','function Complete-PendingFilesystemLogHandoff','function Write-ManagerLogTextRaw','legacy_log_handoff_pending','KEELARYN_FILESYSTEM_HANDOFF_ACTIVE','Restarting Manager after filesystem finalization to activate canonical state paths...','return (Restart-UpdatedManager)','Filesystem finalization failed; previous Manager restored.','product\install\INSTALLATION.json','state\baseline\Keelaryn__Hub_CURRENT.zip','Get-InstalledManagedFileItem $rel','Get-ManagerReleaseSourceSnapshot $paths','Get-ManagerReleaseTransitionAliases $managerPolicy','Write-ManagerReleaseSnapshotFile $row $dst','Write-ManagerReleaseSnapshotFile $sourceRow $aliasDestination','Test-ZipEnvelopeArchive $archive ([long]$file.Length)','ValidPackages=@($valid)','Archive-RedundantManagerInboxPackages -ValidatedPackages @($managerDecision.ValidPackages)','Validated Manager package changed before archive cleanup; left untouched:','Release build: PASS','AI_CONTEXT build: PASS','Invoke-WithExistingHiddenFileWritable $CurrentZip','Invoke-WithExistingHiddenFileWritable $dest','product\runtime\Keelaryn__Manager.ps1')){
             if(-not$runtimeSource.Contains($token)){return $false}
         }
         $aiToolSource=[System.IO.File]::ReadAllText((Join-Path $Root 'product\tools\New-KeelarynAIContext.ps1'),[System.Text.Encoding]::UTF8)
@@ -6551,6 +7449,8 @@ if ($SelfTest) {
     if (-not (Test-GenesisArtifactParserSelfTest)) { Write-Host 'Manager self-test failed: artifact v3 Genesis parser contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-MigrationPlannerSelfTest)) { Write-Host 'Manager self-test failed: migration planner contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-GenesisPathPlannerSelfTest)) { Write-Host ('Manager self-test failed: Genesis path-planning contract. '+[string]$script:GenesisPathPlannerSelfTestReason) -ForegroundColor Red; exit 1 }
+    if (-not (Test-InstanceRegistryContractSelfTest)) { Write-Host 'Manager self-test failed: multi-Hub instance registry contract.' -ForegroundColor Red; exit 1 }
+    if (-not (Test-NewRegisteredHubTargetPlannerSelfTest)) { Write-Host 'Manager self-test failed: multi-Hub Genesis target planner.' -ForegroundColor Red; exit 1 }
     if (-not (Test-WorkspaceCheckoutContractSelfTest)) { Write-Host 'Manager self-test failed: Workspace checkout canonical-title contract.' -ForegroundColor Red; exit 1 }
     if (-not (Test-PortablePolicySelfTest)) { Write-Host 'Manager self-test failed: portable deployment-state policy.' -ForegroundColor Red; exit 1 }
     if (-not (Test-HashHexFormattingSelfTest)) { Write-Host ('Manager self-test failed: SHA-256 hex formatting contract. '+[string]$script:HashHexFormattingSelfTestReason) -ForegroundColor Red; exit 1 }
@@ -6582,6 +7482,12 @@ if ($SelfTest) {
 }
 
 # Update commands never perform transport repair implicitly. Use the Maintenance repair action explicitly.
+# Multi-Hub compatibility shadow reconciliation is Manager-state recovery, not a Hub transport repair.
+if($script:InstanceRegistryActive -and -not$Doctor){
+    Acquire-ManagerLock
+    try{$null=Invoke-ReconcileActiveCompatibilityShadow}
+    finally{Release-ManagerLock}
+}
 
 Log ("Start. ManagerRoot={0}; Vault={1}; OpenOnly={2}; UpdateManager={3}; UpdateHub={4}; UpdateAll={5}; Genesis={6}; BuildDistribution={7}; InstanceInfo={8}; CheckMigrations={9}; AdoptInstanceIdentity={10}; ApplyMigrations={11}; MigrateLegacyNamespace={12}; MigrateLayout={13}; FinalizeLayout={14}; Doctor={15}; BuildRelease={16}; BuildAIContext={17}; RepairCurrentTransport={18}; PrepareTests={19}; BuildCandidateTransport={20}; RestoreCandidateTransport={21}; InitializePresentation={22}; FinalizeFilesystemLayout={23}; BindInstance={24}" -f $Root,$Vault,$OpenOnly,$UpdateManager,$UpdateHub,$UpdateAll,$Genesis,$BuildDistribution,$InstanceInfo,$CheckMigrations,$AdoptInstanceIdentity,$ApplyMigrations,$MigrateLegacyNamespace,$MigrateLayout,$FinalizeLayout,$Doctor,$BuildRelease,$BuildAIContext,$RepairCurrentTransport,$PrepareTests,$BuildCandidateTransport,$RestoreCandidateTransport,$InitializePresentation,$FinalizeFilesystemLayout,[bool]$BindInstancePath)
 $exitCode=0
@@ -6589,23 +7495,33 @@ try {
     if ($InitializePresentation) { $exitCode=Initialize-ManagerPresentationState }
     elseif ($FinalizeFilesystemLayout) { Acquire-ManagerLock; $exitCode=Invoke-FinalizeFilesystemLayout }
     elseif ($Doctor) { $exitCode=Invoke-Doctor }
+    elseif ($ListInstances) { $exitCode=Invoke-ListInstances }
+    elseif ($InitializeInstanceRegistry) { Acquire-ManagerLock; $exitCode=Invoke-InitializeInstanceRegistry }
+    elseif ($SwitchInstanceId) { Acquire-ManagerLock; $exitCode=Invoke-SwitchRegisteredInstance $SwitchInstanceId }
+    elseif ($RegisterInstancePath) { Acquire-ManagerLock; $exitCode=Invoke-RegisterExistingInstance $RegisterInstancePath $RegisterInstanceName $false }
+    elseif ($GenesisInstancePath) { Acquire-ManagerLock; Assert-InvocationInstanceUnchanged; $exitCode=Invoke-GenesisRegisteredInstance $GenesisInstancePath $GenesisInstanceName $GenesisConfigPath $GenesisConfirmed }
     elseif ($BindInstancePath) { Acquire-ManagerLock; $exitCode=Invoke-BindInstance }
     elseif ($BuildRelease) { Acquire-ManagerLock; $exitCode=Invoke-BuildRelease }
     elseif ($BuildAIContext) { Acquire-ManagerLock; $exitCode=Invoke-BuildAIContext }
     elseif ($BuildDistribution) { Acquire-ManagerLock; $exitCode=Invoke-BuildDistribution }
-    elseif ($RepairCurrentTransport) { Acquire-ManagerLock; $exitCode=Invoke-RepairCurrentTransport }
+    elseif ($RepairCurrentTransport) { Acquire-ManagerLock; Assert-InvocationInstanceUnchanged; $exitCode=Invoke-RepairCurrentTransport }
     elseif ($PrepareTests) { Acquire-ManagerLock; $exitCode=Invoke-PrepareTests }
-    elseif ($BuildCandidateTransport) { Acquire-ManagerLock; $exitCode=Invoke-BuildCandidateTransport }
-    elseif ($RestoreCandidateTransport) { Acquire-ManagerLock; $exitCode=Invoke-RestoreCandidateTransport }
+    elseif ($BuildCandidateTransport) { Acquire-ManagerLock; Assert-InvocationInstanceUnchanged; $exitCode=Invoke-BuildCandidateTransport }
+    elseif ($RestoreCandidateTransport) { Acquire-ManagerLock; Assert-InvocationInstanceUnchanged; $exitCode=Invoke-RestoreCandidateTransport }
     elseif ($Genesis) { if ($script:BindingResolutionError) { throw ('Genesis refused while an unresolved prior binding exists: '+$script:BindingResolutionError+'. Rebind or remove the stale runtime binding first.') }; Acquire-ManagerLock; $exitCode=Invoke-Genesis $GenesisConfigPath ([bool]$GenesisConfirmed) }
     elseif ($InstanceInfo) { Assert-InstanceBindingAvailable; $exitCode=Show-InstanceInfo }
     elseif ($CheckMigrations) { Assert-InstanceBindingAvailable; $exitCode=Invoke-CheckMigrations }
-    elseif ($AdoptInstanceIdentity) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; $exitCode=Invoke-AdoptInstanceIdentity }
-    elseif ($ApplyMigrations) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; $exitCode=Invoke-ApplyMigrations }
-    elseif ($MigrateLegacyNamespace) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; $exitCode=Invoke-MigrateLegacyNamespace }
-    elseif ($MigrateLayout) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; $exitCode=Invoke-MigrateLayout }
-    elseif ($FinalizeLayout) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; $exitCode=Invoke-FinalizeLayout }
-    elseif ($UpdateManager -or $UpdateHub -or $UpdateAll) { Acquire-ManagerLock; $exitCode=Invoke-Update; Log ("Explicit update action complete. ExitCode="+$exitCode) }
+    elseif ($AdoptInstanceIdentity) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; Assert-InvocationInstanceUnchanged; $exitCode=Invoke-AdoptInstanceIdentity }
+    elseif ($ApplyMigrations) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; Assert-InvocationInstanceUnchanged; $exitCode=Invoke-ApplyMigrations }
+    elseif ($MigrateLegacyNamespace) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; Assert-InvocationInstanceUnchanged; $exitCode=Invoke-MigrateLegacyNamespace }
+    elseif ($MigrateLayout) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; Assert-InvocationInstanceUnchanged; $exitCode=Invoke-MigrateLayout }
+    elseif ($FinalizeLayout) { Assert-InstanceBindingAvailable; Acquire-ManagerLock; Assert-InvocationInstanceUnchanged; $exitCode=Invoke-FinalizeLayout }
+    elseif ($UpdateManager -or $UpdateHub -or $UpdateAll) {
+        Acquire-ManagerLock
+        if($UpdateHub-or$UpdateAll){Assert-InvocationInstanceUnchanged}
+        $exitCode=Invoke-Update
+        Log ("Explicit update action complete. ExitCode="+$exitCode)
+    }
     else { Assert-InstanceBindingAvailable; Open-Vault; Log 'Open-only action complete.'; $exitCode=0 }
 }
 catch {
