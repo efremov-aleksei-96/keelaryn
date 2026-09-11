@@ -5264,9 +5264,11 @@ function Invoke-RegisterExistingInstance([string]$Path,[string]$Name,[bool]$Acti
     }
     $paths=$null
     $registryCommitted=$false
+    $registryWriteStarted=$false
     try{
         $paths=New-RegisteredInstanceStateFromVault $id $full
         $newRows=@($registry.instances)+@([pscustomobject]@{instance_id=$id;name=$display;vault_path=$full;registered_utc=(Get-Date).ToUniversalTime().ToString('o')})
+        $registryWriteStarted=$true
         Write-ManagerInstanceRegistry ([ordered]@{schema='keelaryn.manager.instances.v1';registry_revision=([int]$registry.registry_revision+1);instances=@($newRows)})
         $registryCommitted=$true
         Write-Host ('Registered Hub: '+$display+' | '+$id) -ForegroundColor Green
@@ -5274,19 +5276,41 @@ function Invoke-RegisterExistingInstance([string]$Path,[string]$Name,[bool]$Acti
         return 0
     }catch{
         $primary=$_.Exception.Message
+        $verificationFailure=$null
+        $registryNotCommitted=$false
         if(-not$registryCommitted){
-            try{
-                $after=Get-ManagerInstanceRegistry
-                $durable=@($after.instances|Where-Object{
-                    [string]$_.instance_id-eq$id -and
-                    (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$pathKey -and
-                    [string]$_.name-ceq$display
-                })
-                if($durable.Count-eq1){$registryCommitted=$true}
-            }catch{}
+            if(-not$registryWriteStarted){
+                $registryNotCommitted=$true
+            }else{
+                try{
+                    $after=Get-ManagerInstanceRegistry
+                    $durable=@($after.instances|Where-Object{
+                        [string]$_.instance_id-eq$id -and
+                        (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$pathKey -and
+                        [string]$_.name-ceq$display
+                    })
+                    $identityOrPath=@($after.instances|Where-Object{
+                        [string]$_.instance_id-eq$id -or
+                        (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$pathKey
+                    })
+                    if($durable.Count-eq1 -and $identityOrPath.Count-eq1){
+                        $registryCommitted=$true
+                    }elseif($durable.Count-eq0 -and $identityOrPath.Count-eq0){
+                        $registryNotCommitted=$true
+                    }else{
+                        $verificationFailure=('Registry verification returned ambiguous matching rows: exact={0}; identity_or_path={1}.' -f $durable.Count,$identityOrPath.Count)
+                    }
+                }catch{
+                    $verificationFailure=$_.Exception.Message
+                }
+            }
         }
-        if(-not$registryCommitted -and $paths -and (Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}
+        if($registryNotCommitted -and $paths -and (Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}
         if($registryCommitted){throw('Hub registration durable commit succeeded, but subsequent operation failed; registered state was preserved. '+$primary)}
+        if($registryWriteStarted -and -not$registryNotCommitted){
+            if([string]::IsNullOrWhiteSpace([string]$verificationFailure)){$verificationFailure='Registry verification could not establish whether the write committed.'}
+            throw('Hub registration registry commit status is ambiguous after a write failure; registered state was preserved. Primary failure: '+$primary+' Commit verification failure: '+$verificationFailure)
+        }
         throw
     }
 }
