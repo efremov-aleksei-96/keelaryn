@@ -31,6 +31,10 @@ jobs:
           $text=$text.Replace('function R(','function Read-PatchText(').Replace('function W(','function Write-PatchText(')
           $text=[regex]::Replace($text,'(?<![\w-])R (?=\$)','Read-PatchText ')
           $text=[regex]::Replace($text,'(?<![\w-])W (?=\$)','Write-PatchText ')
+          $oldF="function F([string]`$P,[string]`$N){`$t=`$null;`$e=`$null;`$a=[Management.Automation.Language.Parser]::ParseFile(`$P,[ref]`$t,[ref]`$e);if(@(`$e).Count){throw 'parse'};`$r=@(`$a.FindAll({param(`$n)`$n-is[Management.Automation.Language.FunctionDefinitionAst]-and`$n.Name-eq`$N},`$true));if(`$r.Count-ne1){throw('function '+`$N+' count='+`$r.Count)};return [string]`$r[0].Extent.Text}"
+          $newF="function F([string]`$P,[string]`$N){`$t=`$null;`$e=`$null;`$a=[Management.Automation.Language.Parser]::ParseFile(`$P,[ref]`$t,[ref]`$e);if(@(`$e).Count){throw 'parse'};`$all=@(`$a.FindAll({param(`$node)`$node-is[Management.Automation.Language.FunctionDefinitionAst]},`$true));`$matches=New-Object System.Collections.ArrayList;foreach(`$row in `$all){if([string]`$row.Name-ceq[string]`$N){[void]`$matches.Add(`$row)}};`$r=@(`$matches);if(`$r.Count-ne1){throw('function '+`$N+' count='+`$r.Count)};return [string]`$r[0].Extent.Text}"
+          if(-not$text.Contains($oldF)){throw '4.17.5 regression helper F patch anchor missing.'}
+          $text=$text.Replace($oldF,$newF)
           [IO.File]::WriteAllText($patch,$text,(New-Object Text.UTF8Encoding($false)))
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $patch -RepositoryRoot $env:GITHUB_WORKSPACE
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
