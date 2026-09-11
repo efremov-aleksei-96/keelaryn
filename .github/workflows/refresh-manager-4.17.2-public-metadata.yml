@@ -1,0 +1,75 @@
+name: Refresh Manager 4.17.2 public metadata
+
+on:
+  push:
+    branches:
+      - 'maintenance/refresh-manager-4.17.2-public-metadata'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-public-metadata:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.2
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Refresh exact public manifest and provenance
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $expected='9f30b23099bc865e59e64fa2edb5c8abb08ef6cf'
+          $head=(& git rev-parse HEAD).Trim()
+          if($head-cne$expected){throw('Unexpected dev HEAD: '+$head)}
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $manifestPath=Join-Path $root 'PUBLIC_FILE_MANIFEST.json'
+          $manifest=Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$manifest.manager.version-cne'4.17.2'){throw 'Manifest did not resolve Manager 4.17.2.'}
+          if([int]$manifest.gate_framework.revision-ne24){throw 'Manifest framework revision is not r24.'}
+
+          $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
+          $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+          $prov.source_manager_version='4.17.2'
+          $prov.source_manager_installation_sha256=[string]$manifest.manager.installation_sha256
+          $prov.source_manager_gate_managed_content_sha256=[string]$manifest.manager.gate_managed_content_sha256
+          $prov.production_validation.full_gate_pass=$false
+          $prov.production_validation.gate_revision=$null
+          $prov.production_validation.framework_revision=24
+          $prov.production_validation.tested_update_sha256=$null
+          $prov.production_validation.production_doctor_pass=$false
+          $prov.production_validation.production_ux_smoke_pass=$false
+          $prov.production_validation.production_managed_content_prefix=$null
+          $prov.gate_framework.revision=24
+          $prov.gate_framework.windows_qualified=$true
+          $prov.gate_framework.frozen_for_manager_candidate=$true
+          $prov.public_candidate_revision=2
+          $utf8=New-Object Text.UTF8Encoding($false)
+          [IO.File]::WriteAllText($provPath,(($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n")+"`n"),$utf8)
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $changed=@(& git diff --name-only)
+          $expectedChanged=@('PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json')
+          foreach($p in $expectedChanged){if($changed-notcontains$p){throw('Expected metadata change missing: '+$p)}}
+          if($changed.Count-ne$expectedChanged.Count){throw('Unexpected changed files: '+($changed-join', '))}
+          git diff --check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add -- PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git commit -m 'Manager 4.17.2: refresh public source provenance'
+          git push origin HEAD:dev/manager-4.17.2
+          Write-Host ('MANAGER 4.17.2 PUBLIC METADATA REFRESH: PASS managed='+[string]$manifest.manager.gate_managed_content_sha256) -ForegroundColor Green
