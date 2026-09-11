@@ -35,6 +35,7 @@ jobs:
             [IO.File]::WriteAllText($p,$t.Substring(0,$i)+$n+$t.Substring($i+$o.Length),$utf8)
             Write-Host ('PATCH PASS: '+$label) -ForegroundColor Green
           }
+          Remove-Item Alias:R -Force -ErrorAction SilentlyContinue
           $menu=Join-Path $root 'manager\product\tools\KeelarynMenu.ps1'
           $runtime=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
           $install=Join-Path $root 'manager\product\install\INSTALLATION.json'
@@ -160,7 +161,6 @@ jobs:
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Invoke-Manager4173ReviewRegression.ps1') -RepositoryRoot $root;if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $runtime -SelfTest;if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $menu -SelfTest -NoRootLauncher;if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
-          # Source SelfTests may initialize disposable local runtime state in a source checkout; remove it before source-set verification.
           $sourceState=Join-Path $root 'manager\state';if(Test-Path -LiteralPath $sourceState){Remove-Item -LiteralPath $sourceState -Recurse -Force}
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check;if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $root;if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
