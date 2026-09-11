@@ -808,11 +808,12 @@ function Import-Package([string]$PackagePath) {
 
     $destinationInbox=$Inbox
     $hubExpectedInstanceId=$null
+    $hubExpectedSingleInstance=$false
     if($mode-eq'hub'){
         $ctx=Get-FrontendInstanceContext
         $destinationInbox=[string]$ctx.HubInbox
         if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail('Multi-Hub registry is unresolved; Hub package import refused.')}
-        if($ctx.RegistryActive){$hubExpectedInstanceId=[string]$ctx.InstanceId}
+        if($ctx.RegistryActive){$hubExpectedInstanceId=[string]$ctx.InstanceId}else{$hubExpectedSingleInstance=$true}
     }
     Ensure-DirectorySafe $destinationInbox $(if($mode-eq'hub'){'Active Hub inbox'}else{'Manager inbox'})
     $dest=Join-Path $destinationInbox $name
@@ -841,6 +842,7 @@ function Import-Package([string]$PackagePath) {
     }
     $hubArgs=@('-UpdateHub')
     if($hubExpectedInstanceId){$hubArgs+=@('-ExpectedInstanceId',$hubExpectedInstanceId)}
+    elseif($hubExpectedSingleInstance){$hubArgs+=@('-ExpectedSingleInstance')}
     return Invoke-Manager $hubArgs
 }
 

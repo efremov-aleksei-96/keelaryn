@@ -32,7 +32,8 @@ param(
     [string]$RegisterInstanceName,
     [string]$GenesisInstancePath,
     [string]$GenesisInstanceName,
-    [string]$ExpectedInstanceId
+    [string]$ExpectedInstanceId,
+    [switch]$ExpectedSingleInstance
 )
 
 $ErrorActionPreference = "Stop"
@@ -178,6 +179,8 @@ if ($Genesis -and -not [string]::IsNullOrWhiteSpace($GenesisInstancePath)) { thr
 if (-not [string]::IsNullOrWhiteSpace($BindInstancePath)) { $BindInstancePath=[System.IO.Path]::GetFullPath($BindInstancePath) }
 if (-not [string]::IsNullOrWhiteSpace($RegisterInstancePath)) { $RegisterInstancePath=[System.IO.Path]::GetFullPath($RegisterInstancePath) }
 if (-not [string]::IsNullOrWhiteSpace($SwitchInstanceId)) { $SwitchInstanceId=([string]$SwitchInstanceId).Trim().ToLowerInvariant() }
+if($ExpectedSingleInstance-and-not$UpdateHub){throw 'ExpectedSingleInstance is valid only with -UpdateHub.'}
+if($ExpectedSingleInstance-and-not[string]::IsNullOrWhiteSpace($ExpectedInstanceId)){throw 'ExpectedSingleInstance and ExpectedInstanceId are mutually exclusive.'}
 if (-not [string]::IsNullOrWhiteSpace($ExpectedInstanceId)) {
     $expectedGuid=[guid]::Empty
     if(-not[guid]::TryParse(([string]$ExpectedInstanceId).Trim(),[ref]$expectedGuid)-or$expectedGuid-eq[guid]::Empty){throw 'ExpectedInstanceId is invalid.'}
@@ -417,6 +420,7 @@ function Set-InstanceScopedOperationalPathsEarly([string]$InstanceId) {
 
 function Resolve-RegisteredInstanceContextEarly {
     $registry=Read-InstanceRegistryEarly
+    if($registry-and$ExpectedSingleInstance){throw 'Multi-Hub registry appeared after this invocation captured single-instance Hub context. Retry the operation.'}
     if(-not$registry){
         if($ExpectedInstanceId){throw 'ExpectedInstanceId requires an initialized multi-Hub registry.'}
         return $false
