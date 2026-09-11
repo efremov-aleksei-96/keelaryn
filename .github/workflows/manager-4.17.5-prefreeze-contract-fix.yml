@@ -38,9 +38,7 @@ jobs:
 
           $regText=[IO.File]::ReadAllText($regression,[Text.Encoding]::UTF8)
           $anchor="Assert `$rt.Contains('[string]`$ExpectedInstanceId') 'missing ExpectedInstanceId';"
-          $extra=@'
-Assert $rt.Contains("if(-not$UpdateHub){throw 'ExpectedInstanceId is valid only with -UpdateHub.'}") 'ExpectedInstanceId must be restricted to UpdateHub';
-'@.Trim()
+          $extra="Assert `$rt.Contains('ExpectedInstanceId is valid only with -UpdateHub.') 'ExpectedInstanceId UpdateHub-only guard missing';Assert (-not `$rt.Contains('-UpdateHub or -UpdateAll')) 'ExpectedInstanceId must not allow UpdateAll';"
           if(([regex]::Matches($regText,[regex]::Escape($anchor))).Count-ne1){throw '4.17.5 regression contract anchor is missing or non-unique.'}
           [IO.File]::WriteAllText($regression,$regText.Replace($anchor,$anchor+$extra),$utf8)
 
