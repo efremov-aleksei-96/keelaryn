@@ -158,6 +158,12 @@ function Refresh-FrontendOperationalPaths {
 }
 Refresh-FrontendOperationalPaths
 
+function ConvertTo-CanonicalFrontendInstanceId($Value) {
+    $raw=([string]$Value).Trim()
+    $g=[guid]::Empty
+    if(-not[guid]::TryParse($raw,[ref]$g)-or$g-eq[guid]::Empty){throw 'invalid instance_id'}
+    return $g.ToString().ToLowerInvariant()
+}
 function Get-FrontendInstanceContext {
     $legacyCurrent=if($StateLayoutActive){Join-Path $StateRoot 'baseline\Keelaryn__Hub_CURRENT.zip'}else{Join-Path $ManagerRoot 'Keelaryn__Hub_CURRENT.zip'}
     $legacy=[pscustomobject]@{
@@ -176,8 +182,12 @@ function Get-FrontendInstanceContext {
         $registry=Get-Content -LiteralPath $registryPath -Raw -Encoding UTF8|ConvertFrom-Json
         $active=Get-Content -LiteralPath $activePath -Raw -Encoding UTF8|ConvertFrom-Json
         if([string]$registry.schema-ne'keelaryn.manager.instances.v1'-or[string]$active.schema-ne'keelaryn.manager.active-instance.v1'){throw 'unsupported registry schema'}
-        $id=([string]$active.instance_id).Trim().ToLowerInvariant()
-        $rows=@($registry.instances|Where-Object{([string]$_.instance_id).Trim().ToLowerInvariant()-eq$id})
+        $id=ConvertTo-CanonicalFrontendInstanceId $active.instance_id
+        $rows=@()
+        foreach($candidate in @($registry.instances)){
+            $candidateId=ConvertTo-CanonicalFrontendInstanceId $candidate.instance_id
+            if($candidateId-eq$id){$rows+=@($candidate)}
+        }
         if($rows.Count-ne1){throw 'active instance does not resolve'}
         $row=$rows[0]
         $state=Join-Path $StateRoot ('instances\'+$id)
@@ -1539,6 +1549,17 @@ function Test-FrontendSelf {
         $parsed=[version]'0.0'
         if(-not[version]::TryParse($v,[ref]$parsed)){
             $script:FrontendSelfTestReason='Manager version is not parseable: '+$v
+            return $false
+        }
+        $guidVector='11111111-1111-1111-1111-111111111111'
+        if((ConvertTo-CanonicalFrontendInstanceId $guidVector)-cne$guidVector){
+            $script:FrontendSelfTestReason='Frontend instance-id canonicalization failed.'
+            return $false
+        }
+        $blocked=$false
+        try{$null=ConvertTo-CanonicalFrontendInstanceId '..\..\outside'}catch{$blocked=$true}
+        if(-not$blocked){
+            $script:FrontendSelfTestReason='Frontend accepted a non-GUID instance_id path segment.'
             return $false
         }
         $empty=[System.IO.Path]::GetTempFileName()

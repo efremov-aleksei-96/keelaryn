@@ -1,4 +1,10 @@
-# Keelaryn Manager 4.17.1
+# Keelaryn Manager 4.17.2
+Manager 4.17.2 is the corrective successor to rejected public-release candidate 4.17.1. Final review after successful 4.17.1 g3 and production acceptance found three edge-case defects in newly introduced multi-Hub paths: committed registration state could be deleted after a later activation failure, frontend registry metadata could supply a non-GUID path segment, and interactive registered Genesis cancellation was misclassified as failed staging.
+
+4.17.2 preserves the qualified 4.17.1 product architecture and Framework r24 contracts while correcting those transaction/path/cancellation boundaries. Existing Hub bytes are not migrated or rewritten by this Manager-only correction.
+
+## Earlier release context
+
 Manager 4.16.3 is the corrective successor to rejected candidate 4.16.2. Framework r22 CURRENT-backed Full Gate exposed a runtime-resilience defect: a transient Windows sharing lock on `state/logs/manager.log` held by an external synchronization process could abort a Manager command before its operation/transaction boundary even though the blocked file was diagnostic state rather than canonical Manager or Hub state.
 
 Manager 4.16.3 preserves the 4.16.2 governance, migration, UPDATE compatibility, Doctor-warning UI and data-safety contracts. The correction is intentionally narrow: the primary `manager.log` keeps bounded sharing-lock retries; after a terminal transient sharing violation the diagnostic line is redirected to a unique `manager_fallback_*.log` when possible, and a transient failure of both diagnostic sinks does not block the requested Manager operation. Non-transient logging failures remain hard failures. Log rotation likewise skips only transient sharing locks.

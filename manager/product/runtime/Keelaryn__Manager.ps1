@@ -38,7 +38,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.17.1"
+$ManagerVersion = "4.17.2"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -3525,6 +3525,16 @@ function Invoke-GenesisRegisteredInstance([string]$TargetPath,[string]$DisplayNa
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $CurrentZip),$Checkpoints,$Rollback,$HubInbox,$WorkRoot|Out-Null
         $rc=Invoke-Genesis $ConfigPath $Confirmed
         if($rc-ne0){throw('Nested Genesis failed with ExitCode '+$rc+'.')}
+        $vaultReady=Test-Path -LiteralPath $Vault -PathType Container
+        $currentReady=Test-Path -LiteralPath $CurrentZip -PathType Leaf
+        if(-not$vaultReady -and -not$currentReady){
+            if([string]::IsNullOrWhiteSpace($ConfigPath)-and-not$Confirmed){
+                Write-Host 'Registered Genesis cancelled; no Hub was created.' -ForegroundColor DarkGray
+                return 0
+            }
+            throw 'Nested non-interactive Genesis returned success without staged Hub/CURRENT.'
+        }
+        if(-not$vaultReady -or -not$currentReady){throw 'Nested Genesis returned success with partial staged Hub/CURRENT state.'}
         $state=Read-VaultMetadataAt $Vault
         $artifact=Read-VaultArtifactManifestAt $Vault
         if(-not$state-or-not$artifact-or-not$state.InstanceId-or[string]$artifact.InstanceId-ne[string]$state.InstanceId){throw 'Staged registered Genesis identity is invalid.'}
@@ -5253,10 +5263,12 @@ function Invoke-RegisterExistingInstance([string]$Path,[string]$Name,[bool]$Acti
         if(([string]$row.name).Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()-eq$display.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()){throw('Instance display name is already registered: '+$display)}
     }
     $paths=$null
+    $registryCommitted=$false
     try{
         $paths=New-RegisteredInstanceStateFromVault $id $full
         $newRows=@($registry.instances)+@([pscustomobject]@{instance_id=$id;name=$display;vault_path=$full;registered_utc=(Get-Date).ToUniversalTime().ToString('o')})
         Write-ManagerInstanceRegistry ([ordered]@{schema='keelaryn.manager.instances.v1';registry_revision=([int]$registry.registry_revision+1);instances=@($newRows)})
+        $registryCommitted=$true
         Write-Host ('Registered Hub: '+$display+' | '+$id) -ForegroundColor Green
         if($Activate){return Invoke-SwitchRegisteredInstance $id}
         return 0
