@@ -67,20 +67,27 @@ $version=([string]$install.manager_version).Trim()
 if($version-notmatch '^\d+\.\d+\.\d+$'){Fail('Invalid Manager version: '+$version)}
 
 Write-Host ('Keelaryn development validation - Manager '+$version)
-Write-Host '[1/4] Parse Manager PowerShell source...'
+Write-Host '[1/5] Parse Manager PowerShell source...'
 $psFiles=@(Get-ChildItem -LiteralPath $manager -File -Recurse -Force -Filter '*.ps1')
 if($psFiles.Count-eq 0){Fail 'No Manager PowerShell files found.'}
 foreach($file in $psFiles){Parse-File $file.FullName}
 Write-Host ('Parser: PASS. files='+$psFiles.Count) -ForegroundColor Green
 
-Write-Host '[2/4] Run Manager and frontend SelfTests from source...'
+Write-Host '[2/5] Run Manager 4.17.2 review regressions...'
+$reviewRegression=Join-Path $RepositoryRoot 'tools\Invoke-Manager4172ReviewRegression.ps1'
+if(-not(Test-Path -LiteralPath $reviewRegression -PathType Leaf)){Fail 'Manager 4.17.2 review regression tool is missing.'}
+Parse-File $reviewRegression
+Invoke-Child $reviewRegression @('-RepositoryRoot',$RepositoryRoot)
+Write-Host 'Review regressions: PASS' -ForegroundColor Green
+
+Write-Host '[3/5] Run Manager and frontend SelfTests from source...'
 $runtime=Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1'
 $menu=Join-Path $manager 'product\tools\KeelarynMenu.ps1'
 Invoke-Child $runtime @('-SelfTest')
 Invoke-Child $menu @('-SelfTest','-NoRootLauncher')
 Write-Host 'SelfTests: PASS' -ForegroundColor Green
 
-Write-Host '[3/4] Run deterministic BuildRelease x2 in isolated disposable Manager roots...'
+Write-Host '[4/5] Run deterministic BuildRelease x2 in isolated disposable Manager roots...'
 if(Test-Path -LiteralPath $OutputDirectory){Remove-Item -LiteralPath $OutputDirectory -Recurse -Force}
 [void][System.IO.Directory]::CreateDirectory($OutputDirectory)
 $buildA=Join-Path $OutputDirectory 'build-a\manager'
@@ -113,7 +120,7 @@ foreach($name in $expected){
 }
 Write-Host 'Deterministic BuildRelease x2: PASS' -ForegroundColor Green
 
-Write-Host '[4/4] Write compact development evidence...'
+Write-Host '[5/5] Write compact development evidence...'
 $report=[ordered]@{
     schema='keelaryn.manager-development-validation.v1'
     classification='development_only'
@@ -121,6 +128,7 @@ $report=[ordered]@{
     source_sha=$env:GITHUB_SHA
     runner=$env:RUNNER_NAME
     parser_files=$psFiles.Count
+    review_regressions_pass=$true
     manager_selftest_pass=$true
     frontend_selftest_pass=$true
     deterministic_build_release_pass=$true
