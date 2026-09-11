@@ -139,18 +139,17 @@ jobs:
           Replace-Exact $runtime '        Move-Item -LiteralPath $Vault -Destination $target' '        Move-DirectoryFailIfDestinationExists $Vault $target' 'registered Genesis Hub publication'
           Replace-Exact $runtime '        Move-Item -LiteralPath $txState -Destination $paths.Root' '        Move-DirectoryFailIfDestinationExists $txState $paths.Root' 'registered Genesis state publication'
 
+          Replace-Exact $runtime '$ManagerVersion = "4.17.2"' '$ManagerVersion = "4.17.3"' 'runtime version'
           Replace-Exact $install '"manager_version": "4.17.2"' '"manager_version": "4.17.3"' 'INSTALLATION version'
           Replace-Exact $policy '"manager_version":  "4.17.2"' '"manager_version":  "4.17.3"' 'release-policy version'
           Replace-Exact $readme '# Keelaryn Manager 4.17.2' "# Keelaryn Manager 4.17.3`r`nManager 4.17.3 is the corrective successor to the production-qualified but public-release-rejected 4.17.2. It binds ChatGPT CURRENT source/destination to one captured Hub instance and makes registered Genesis directory publication fail closed if a destination becomes occupied at the commit boundary.`r`n`r`n## 4.17.2 context" 'README version/context'
 
-          # PowerShell parser checks before executing any product code.
           foreach($path in @($runtime,$menu,(Join-Path $root 'tools\Invoke-Manager4173ReviewRegression.ps1'))){
               $tokens=$null;$errors=$null
               [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
               if(@($errors).Count-ne0){throw('Parser failed: '+$path+'; '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
           }
 
-          # Rebuild cryptographic public manifest after all managed product byte changes.
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           $manifest=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
@@ -174,14 +173,10 @@ jobs:
               personal_hub_included=$false
               manager_runtime_state_included=$false
               local_test_evidence_included=$false
-              gate_framework=[ordered]@{
-                  version='2.0';revision=24;windows_qualified=$true;frozen_for_manager_candidate=$false
-              }
+              gate_framework=[ordered]@{version='2.0';revision=24;windows_qualified=$true;frozen_for_manager_candidate=$false}
               license=[ordered]@{spdx_id='MIT';file='LICENSE';copyright='Copyright (c) 2026 Keelaryn contributors'}
               public_candidate_revision=5
-              git_checkout_contract=[ordered]@{
-                  manager_authoritative_tree_attribute='-text';framework_authoritative_tree_attribute='-text';core_autocrlf_true_roundtrip_required=$true
-              }
+              git_checkout_contract=[ordered]@{manager_authoritative_tree_attribute='-text';framework_authoritative_tree_attribute='-text';core_autocrlf_true_roundtrip_required=$true}
               known_nonsecret_source_hygiene_notes=@('manager/product/docs/TESTING.md retains a maintainer-local D:\0\0__Core example for historical/maintainer qualification context; it is not a product installation default.')
               ci_policy=[ordered]@{
                   github_actions='pull_request + main push + manual'
