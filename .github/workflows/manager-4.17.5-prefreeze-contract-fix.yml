@@ -1,0 +1,88 @@
+name: One-shot Manager 4.17.5 pre-freeze contract fix
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.5'
+    paths:
+      - '.github/workflows/manager-4.17.5-prefreeze-contract-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-validate-publish:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout authoritative development branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Materialize narrow UpdateHub contract correction
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+          $runtime=Join-Path $root 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $regression=Join-Path $root 'tools\Invoke-Manager4175ReviewRegression.ps1'
+
+          $runtimeText=[IO.File]::ReadAllText($runtime,[Text.Encoding]::UTF8)
+          $old="    if(-not(`$UpdateHub-or`$UpdateAll)){throw 'ExpectedInstanceId is valid only with -UpdateHub or -UpdateAll.'}"
+          $new="    if(-not`$UpdateHub){throw 'ExpectedInstanceId is valid only with -UpdateHub.'}"
+          if(([regex]::Matches($runtimeText,[regex]::Escape($old))).Count-ne1){throw 'ExpectedInstanceId UpdateAll guard anchor is missing or non-unique.'}
+          [IO.File]::WriteAllText($runtime,$runtimeText.Replace($old,$new),$utf8)
+
+          $regText=[IO.File]::ReadAllText($regression,[Text.Encoding]::UTF8)
+          $anchor="Assert `$rt.Contains('[string]`$ExpectedInstanceId') 'missing ExpectedInstanceId';"
+          $extra="Assert `$rt.Contains(\"if(-not`$UpdateHub){throw 'ExpectedInstanceId is valid only with -UpdateHub.'}\") 'ExpectedInstanceId must be restricted to UpdateHub';"
+          if(([regex]::Matches($regText,[regex]::Escape($anchor))).Count-ne1){throw '4.17.5 regression contract anchor is missing or non-unique.'}
+          [IO.File]::WriteAllText($regression,$regText.Replace($anchor,$anchor+$extra),$utf8)
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tools\Build-PublicFileManifest.ps1" -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $manifest=Get-Content (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $provPath=Join-Path $root 'PUBLIC_PROVENANCE.json'
+          $prov=Get-Content $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+          $prov.source_manager_installation_sha256=[string]$manifest.manager.installation_sha256
+          $prov.source_manager_gate_managed_content_sha256=[string]$manifest.manager.gate_managed_content_sha256
+          $json=(($prov|ConvertTo-Json -Depth 40).Replace("`r`n","`n"))+"`n"
+          [IO.File]::WriteAllText($provPath,$json,$utf8)
+
+      - name: Validate corrected development tree
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:GITHUB_WORKSPACE
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tools\Build-PublicFileManifest.ps1" -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tools\Verify-PublicPresentation.ps1" -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tools\Invoke-Manager4175ReviewRegression.ps1" -RepositoryRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\manager\product\runtime\Keelaryn__Manager.ps1" -SelfTest
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\manager\product\tools\KeelarynMenu.ps1" -SelfTest -NoRootLauncher
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $out=Join-Path $env:RUNNER_TEMP ('keelaryn-4175-prefreeze-'+$env:GITHUB_RUN_ID)
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$root\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot $root -OutputDirectory $out
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          Write-Host 'MANAGER 4.17.5 PREFREEZE CONTRACT CORRECTION: PASS' -ForegroundColor Green
+
+      - name: Publish corrected tree and remove one-shot workflow
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name 'keelaryn-development-bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -- '.github/workflows/manager-4.17.5-prefreeze-contract-fix.yml'
+          git add -- manager/product/runtime/Keelaryn__Manager.ps1 tools/Invoke-Manager4175ReviewRegression.ps1 PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git -c core.whitespace=cr-at-eol diff --cached --check
+          if($LASTEXITCODE-ne0){throw 'Corrected diff whitespace validation failed.'}
+          if(git diff --cached --quiet){throw 'Pre-freeze correction produced no staged changes.'}
+          git commit -m 'Manager 4.17.5: restrict expected instance guard to Hub updates'
+          git push origin HEAD:dev/manager-4.17.5
+          Write-Host 'Corrected Manager 4.17.5 tree pushed; one-shot workflow removed.' -ForegroundColor Green
