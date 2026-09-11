@@ -1,5 +1,4 @@
 name: Development validation
-# Transient validation trigger after Manager 4.17.2 P1 repair.
 
 on:
   push:
