@@ -1,4 +1,7 @@
-# Keelaryn Manager 4.17.3
+# Keelaryn Manager 4.17.4
+Manager 4.17.4 is the corrective successor to rejected candidate 4.17.3. It generalizes fail-if-exists directory publication to per-instance state creation, performs fresh published-baseline validation immediately before registry commits, and preserves/reports durable or ambiguous registered-Genesis commit outcomes without destructive rollback.
+
+## 4.17.3 context
 Manager 4.17.3 is the corrective successor to the production-qualified but public-release-rejected 4.17.2. It binds ChatGPT CURRENT source/destination to one captured Hub instance and makes registered Genesis directory publication fail closed if a destination becomes occupied at the commit boundary.
 
 ## 4.17.2 context

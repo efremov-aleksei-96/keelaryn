@@ -38,7 +38,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.17.3"
+$ManagerVersion = "4.17.4"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -3530,7 +3530,9 @@ function Invoke-GenesisRegisteredInstance([string]$TargetPath,[string]$DisplayNa
     $publishedVault=$false
     $publishedState=$false
     $registryCommitted=$false
+    $registryWriteStarted=$false
     $instanceId=$null
+    $candidateRow=$null
     try{
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $CurrentZip),$Checkpoints,$Rollback,$HubInbox,$WorkRoot|Out-Null
         $rc=Invoke-Genesis $ConfigPath $Confirmed
@@ -3574,12 +3576,16 @@ function Invoke-GenesisRegisteredInstance([string]$TargetPath,[string]$DisplayNa
         Move-DirectoryFailIfDestinationExists $txState $paths.Root
         $publishedState=$true
 
-        $newRows=@($registry.instances)+@([pscustomobject]@{
+        $candidateRow=[pscustomobject]@{
             instance_id=$instanceId
             name=$name
             vault_path=$target
             registered_utc=(Get-Date).ToUniversalTime().ToString('o')
-        })
+        }
+        # Validate the exact published Hub/state pair immediately before registry commit.
+        $null=Assert-RegisteredInstanceBaseline $candidateRow
+        $newRows=@($registry.instances)+@($candidateRow)
+        $registryWriteStarted=$true
         Write-ManagerInstanceRegistry ([ordered]@{
             schema='keelaryn.manager.instances.v1'
             registry_revision=([int]$registry.registry_revision+1)
@@ -3601,13 +3607,64 @@ function Invoke-GenesisRegisteredInstance([string]$TargetPath,[string]$DisplayNa
         return 0
     }
     catch{
+        $primary=$_.Exception.Message
+        $verificationFailure=$null
+        $registryNotCommitted=$false
         if(-not$registryCommitted){
-            if($publishedState-and$instanceId){
-                try{$paths=Get-InstanceStatePaths $instanceId;if(Test-Path -LiteralPath $paths.Root){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction Stop}}catch{}
+            if(-not$registryWriteStarted){
+                $registryNotCommitted=$true
+            }else{
+                try{
+                    $after=Get-ManagerInstanceRegistry
+                    $targetKey=Get-KeelarynNormalizedPathKey $target
+                    $durable=@($after.instances|Where-Object{
+                        [string]$_.instance_id-eq$instanceId -and
+                        (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$targetKey -and
+                        [string]$_.name-ceq$name
+                    })
+                    $identityOrPath=@($after.instances|Where-Object{
+                        [string]$_.instance_id-eq$instanceId -or
+                        (Get-KeelarynNormalizedPathKey ([string]$_.vault_path))-eq$targetKey
+                    })
+                    if($durable.Count-eq1 -and $identityOrPath.Count-eq1){
+                        $registryCommitted=$true
+                    }elseif($durable.Count-eq0 -and $identityOrPath.Count-eq0){
+                        $registryNotCommitted=$true
+                    }else{
+                        $verificationFailure=('Registry verification returned ambiguous matching rows: exact={0}; identity_or_path={1}.' -f $durable.Count,$identityOrPath.Count)
+                    }
+                }catch{
+                    $verificationFailure=$_.Exception.Message
+                }
             }
-            if($publishedVault-and(Test-Path -LiteralPath $target)){
-                try{Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop}catch{}
+        }
+        if($registryNotCommitted){
+            $cleanupErrors=New-Object System.Collections.ArrayList
+            if($publishedState-and$publishedVault-and$candidateRow){
+                try{
+                    # Prove the published pair still belongs to this generated instance before deletion.
+                    $null=Assert-RegisteredInstanceBaseline $candidateRow
+                    if(Test-Path -LiteralPath $paths.Root){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction Stop}
+                    if(Test-Path -LiteralPath $target){Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop}
+                    $publishedState=$false;$publishedVault=$false
+                }catch{[void]$cleanupErrors.Add('published pair: '+$_.Exception.Message)}
+            }elseif($publishedVault-and-not$publishedState){
+                try{
+                    $actualId=& $ReadBoundInstanceId $target
+                    if(-not$instanceId-or$actualId-ne$instanceId){throw 'Published Hub ownership could not be proven.'}
+                    Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop
+                    $publishedVault=$false
+                }catch{[void]$cleanupErrors.Add('vault: '+$_.Exception.Message)}
+            }elseif($publishedState){
+                [void]$cleanupErrors.Add('state: published state exists without a published Hub; ownership cleanup refused.')
             }
+            if($cleanupErrors.Count-ne0){throw('Registered Genesis failed before registry commit and rollback cleanup could not be completed safely. Primary: '+$primary+' Cleanup: '+([string]::Join(' | ',@($cleanupErrors))))}
+            throw('Registered Genesis failed before registry commit; published Hub/state were rolled back. '+$primary)
+        }
+        if($registryCommitted){throw('Registered Genesis durable registry commit succeeded, but subsequent operation failed; published Hub/state were preserved. '+$primary)}
+        if($registryWriteStarted){
+            if([string]::IsNullOrWhiteSpace([string]$verificationFailure)){$verificationFailure='Registry verification could not establish whether the write committed.'}
+            throw('Registered Genesis registry commit status is ambiguous after a write failure; published Hub/state were preserved. Primary failure: '+$primary+' Commit verification failure: '+$verificationFailure)
         }
         throw
     }
@@ -5129,7 +5186,7 @@ function New-RegisteredInstanceStateFromVault([string]$InstanceId,[string]$Vault
             $hash=Get-ZipHashPair $current $session
             if([string]$analysis.ContentHash-ne[string]$hash.ContentHash-or[string]$analysis.PayloadHash-ne[string]$hash.PayloadHash){throw 'Generated per-instance CURRENT differs from source Hub.'}
         }finally{Close-HubZipInspectionSession $session}
-        Move-Item -LiteralPath $staging -Destination $paths.Root
+        Move-DirectoryFailIfDestinationExists $staging $paths.Root
         return $paths
     }finally{if(Test-Path -LiteralPath $staging){Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue}}
 }
@@ -5272,12 +5329,16 @@ function Invoke-RegisterExistingInstance([string]$Path,[string]$Name,[bool]$Acti
         if(Test-KeelarynPathOverlap $full ([string]$row.vault_path)){throw('Hub path overlaps registered Hub '+[string]$row.name+': '+[string]$row.vault_path)}
         if(([string]$row.name).Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()-eq$display.Normalize([System.Text.NormalizationForm]::FormC).ToLowerInvariant()){throw('Instance display name is already registered: '+$display)}
     }
+    $candidateRow=[pscustomobject]@{instance_id=$id;name=$display;vault_path=$full;registered_utc=(Get-Date).ToUniversalTime().ToString('o')}
     $paths=$null
     $registryCommitted=$false
     $registryWriteStarted=$false
     try{
         $paths=New-RegisteredInstanceStateFromVault $id $full
-        $newRows=@($registry.instances)+@([pscustomobject]@{instance_id=$id;name=$display;vault_path=$full;registered_utc=(Get-Date).ToUniversalTime().ToString('o')})
+        # The generated state and source Hub can change after staging validation. Revalidate
+        # the exact published pair immediately before instances.json becomes authoritative.
+        $null=Assert-RegisteredInstanceBaseline $candidateRow
+        $newRows=@($registry.instances)+@($candidateRow)
         $registryWriteStarted=$true
         Write-ManagerInstanceRegistry ([ordered]@{schema='keelaryn.manager.instances.v1';registry_revision=([int]$registry.registry_revision+1);instances=@($newRows)})
         $registryCommitted=$true
@@ -5315,7 +5376,15 @@ function Invoke-RegisterExistingInstance([string]$Path,[string]$Name,[bool]$Acti
                 }
             }
         }
-        if($registryNotCommitted -and $paths -and (Test-Path -LiteralPath $paths.Root)){Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction SilentlyContinue}
+        if($registryNotCommitted -and $paths -and (Test-Path -LiteralPath $paths.Root)){
+            try{
+                # Delete only state that still proves it belongs to this exact Hub/instance.
+                $null=Assert-RegisteredInstanceBaseline $candidateRow
+                Remove-Item -LiteralPath $paths.Root -Recurse -Force -ErrorAction Stop
+            }catch{
+                throw('Hub registration failed before registry commit and per-instance state rollback could not be completed safely. Primary: '+$primary+' Rollback: '+$_.Exception.Message)
+            }
+        }
         if($registryCommitted){throw('Hub registration durable commit succeeded, but subsequent operation failed; registered state was preserved. '+$primary)}
         if($registryWriteStarted -and -not$registryNotCommitted){
             if([string]::IsNullOrWhiteSpace([string]$verificationFailure)){$verificationFailure='Registry verification could not establish whether the write committed.'}

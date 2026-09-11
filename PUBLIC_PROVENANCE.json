@@ -1,10 +1,10 @@
 {
     "schema":  "keelaryn.public-repository-provenance.v2",
     "role":  "public_source_sync_candidate",
-    "source_manager_version":  "4.17.3",
+    "source_manager_version":  "4.17.4",
     "source_gate_baseline_manager_version":  "4.17.2",
-    "source_manager_installation_sha256":  "357326924efa9e1745ba22805ac8a5fe73fec7b6697803c9254e09b18a76f98d",
-    "source_manager_gate_managed_content_sha256":  "0ac0bf9c4aaad4f1c700886160005d44a3ae28a9d5972152e59c8b4c381c24ec",
+    "source_manager_installation_sha256":  "b5c9a6468bef6388cfe541f2520454d19f7b2493eddf6dc36b97f2eceee47a94",
+    "source_manager_gate_managed_content_sha256":  "2bd675a54590b70f0f810251188b55e8d726f14f43b5494f795db622c1d4afe8",
     "production_validation":  {
                                   "full_gate_pass":  false,
                                   "gate_revision":  null,
@@ -28,7 +28,7 @@
                     "file":  "LICENSE",
                     "copyright":  "Copyright (c) 2026 Keelaryn contributors"
                 },
-    "public_candidate_revision":  5,
+    "public_candidate_revision":  6,
     "git_checkout_contract":  {
                                   "manager_authoritative_tree_attribute":  "-text",
                                   "framework_authoritative_tree_attribute":  "-text",
