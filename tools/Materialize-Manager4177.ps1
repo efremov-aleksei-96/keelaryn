@@ -46,9 +46,7 @@ $rt=ReplaceOnce $rt $anchor ($helpers+$anchor) 'runtime corrective helpers'
 $oldInit="    if(Test-Path -LiteralPath `$script:InstanceRegistryFile -PathType Leaf){Write-Host 'Multi-Hub registry is already initialized.' -ForegroundColor Green;return 0}"
 $newInit="    if(Test-ExistingInstanceRegistryForInitialization){Write-Host 'Multi-Hub registry is already initialized and valid.' -ForegroundColor Green;return 0}"
 $rt=ReplaceOnce $rt $oldInit $newInit 'validated existing registry initialization'
-$oldUpdate='function Invoke-Update {'+$nl+'    Ensure-DesktopShortcut'
-$newUpdate='function Invoke-Update {'+$nl+'    Assert-UpdateAllContextSafe'+$nl+'    Ensure-DesktopShortcut'
-$rt=ReplaceOnce $rt $oldUpdate $newUpdate 'UpdateAll pre-side-effect guard'
+$rt=ReplaceOnce $rt 'function Invoke-Update {' ('function Invoke-Update {'+$nl+'    Assert-UpdateAllContextSafe') 'UpdateAll pre-side-effect guard'
 WriteText $runtime $rt
 
 $installText=ReadText $install
