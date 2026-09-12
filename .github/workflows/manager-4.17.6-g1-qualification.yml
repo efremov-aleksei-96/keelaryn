@@ -82,7 +82,8 @@ jobs:
       - name: Run exact ordinary SourceGate g1
         shell: powershell
         run: |
-          $work=Join-Path $env:RUNNER_TEMP 'g1-source-work'
+          $keelaryn=Join-Path $env:RUNNER_TEMP 'keelaryn'
+          $work=Join-Path $keelaryn 'tests\work'
           New-Item -ItemType Directory -Force -Path $work|Out-Null
           Expand-Archive -LiteralPath $env:G1_GATE -DestinationPath $work -Force
           $root=Join-Path $work 'manager-4.17.6'
