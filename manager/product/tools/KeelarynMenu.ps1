@@ -1040,9 +1040,9 @@ function Invoke-Action([string]$Name,[string]$ActionPath) {
         'Status' { $null=Show-QuickStatus -DetailedWorkspace; return 0 }
         'OpenHub' { return Invoke-Manager @('-OpenOnly') }
         'Doctor' { return Invoke-Manager @('-Doctor') }
-        'UpdateAll' { $q=Get-QuickStatus;if(($q.ManagerUpdates+$q.HubApproved)-eq0){Write-UiHost 'Manager: no pending update.';Write-UiHost 'Hub: no APPROVED update.';Set-ActionSemantic 'no_changes';return 0};return Invoke-Manager @('-UpdateAll') }
+        'UpdateAll' { $q=Get-QuickStatus;if(($q.ManagerUpdates+$q.HubApproved)-eq0){Write-UiHost 'Manager: no pending update.';Write-UiHost 'Hub: no APPROVED update.';Set-ActionSemantic 'no_changes';return 0};$ctx=Get-FrontendInstanceContext;$args=@('-UpdateAll');if($ctx.RegistryActive){if(-not$ctx.InstanceId){Fail 'Multi-Hub registry exists but the active instance cannot be resolved. Update refused.'};$args+=@('-ExpectedInstanceId',[string]$ctx.InstanceId)}else{$args+=@('-ExpectedSingleInstance')};return Invoke-Manager $args }
         'UpdateManager' { return Invoke-Manager @('-UpdateManager') }
-        'UpdateHub' { return Invoke-Manager @('-UpdateHub') }
+        'UpdateHub' { $ctx=Get-FrontendInstanceContext;$args=@('-UpdateHub');if($ctx.RegistryActive){if(-not$ctx.InstanceId){Fail 'Multi-Hub registry exists but the active instance cannot be resolved. Update refused.'};$args+=@('-ExpectedInstanceId',[string]$ctx.InstanceId)}else{$args+=@('-ExpectedSingleInstance')};return Invoke-Manager $args }
         'InstanceInfo' { return Invoke-Manager @('-InstanceInfo') }
         'ImportPackage' { return Import-Package $ActionPath }
         'PrepareTests' { return Invoke-Manager @('-PrepareTests') }

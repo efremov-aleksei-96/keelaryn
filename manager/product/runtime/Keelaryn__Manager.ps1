@@ -179,13 +179,13 @@ if ($Genesis -and -not [string]::IsNullOrWhiteSpace($GenesisInstancePath)) { thr
 if (-not [string]::IsNullOrWhiteSpace($BindInstancePath)) { $BindInstancePath=[System.IO.Path]::GetFullPath($BindInstancePath) }
 if (-not [string]::IsNullOrWhiteSpace($RegisterInstancePath)) { $RegisterInstancePath=[System.IO.Path]::GetFullPath($RegisterInstancePath) }
 if (-not [string]::IsNullOrWhiteSpace($SwitchInstanceId)) { $SwitchInstanceId=([string]$SwitchInstanceId).Trim().ToLowerInvariant() }
-if($ExpectedSingleInstance-and-not$UpdateHub){throw 'ExpectedSingleInstance is valid only with -UpdateHub.'}
+if($ExpectedSingleInstance-and-not($UpdateHub-or$UpdateAll)){throw 'ExpectedSingleInstance is valid only with -UpdateHub or -UpdateAll.'}
 if($ExpectedSingleInstance-and-not[string]::IsNullOrWhiteSpace($ExpectedInstanceId)){throw 'ExpectedSingleInstance and ExpectedInstanceId are mutually exclusive.'}
 if (-not [string]::IsNullOrWhiteSpace($ExpectedInstanceId)) {
     $expectedGuid=[guid]::Empty
     if(-not[guid]::TryParse(([string]$ExpectedInstanceId).Trim(),[ref]$expectedGuid)-or$expectedGuid-eq[guid]::Empty){throw 'ExpectedInstanceId is invalid.'}
     $ExpectedInstanceId=$expectedGuid.ToString().ToLowerInvariant()
-    if(-not$UpdateHub){throw 'ExpectedInstanceId is valid only with -UpdateHub.'}
+    if(-not($UpdateHub-or$UpdateAll)){throw 'ExpectedInstanceId is valid only with -UpdateHub or -UpdateAll.'}
 }
 if (-not [string]::IsNullOrWhiteSpace($RegisterInstanceName)) {
     $RegisterInstanceName=([string]$RegisterInstanceName).Trim()
@@ -5177,12 +5177,11 @@ function Assert-RegisteredInstanceBaseline($Row) {
 }
 
 function Assert-InvocationInstanceUnchanged {
-    if($ExpectedSingleInstance){
+    if($ExpectedSingleInstance-or-not$script:InstanceRegistryActive){
         $freshRegistry=Read-InstanceRegistryEarly
         if($freshRegistry){throw 'Multi-Hub registry appeared after this invocation captured single-instance Hub context. Retry the operation.'}
         return
     }
-    if(-not$script:InstanceRegistryActive){return}
     $active=Read-ActiveInstanceEarly
     if(-not$script:InvocationInstanceId-or[string]$active.instance_id-ne[string]$script:InvocationInstanceId){
         throw 'Active Hub changed after this Manager invocation resolved its instance context. Retry the operation.'
@@ -6428,7 +6427,12 @@ function Restart-UpdatedManager {
     try {
         if($setHandoff){$env:KEELARYN_FILESYSTEM_HANDOFF_ACTIVE='1'}
         if ($UpdateAll) {
-            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -UpdateAll | Out-Host
+            $contextArgs=@()
+            if(-not[string]::IsNullOrWhiteSpace([string]$ExpectedInstanceId)){$contextArgs=@('-ExpectedInstanceId',[string]$ExpectedInstanceId)}
+            elseif($ExpectedSingleInstance){$contextArgs=@('-ExpectedSingleInstance')}
+            elseif($script:InstanceRegistryActive-and-not[string]::IsNullOrWhiteSpace([string]$script:InvocationInstanceId)){$contextArgs=@('-ExpectedInstanceId',[string]$script:InvocationInstanceId)}
+            else{$contextArgs=@('-ExpectedSingleInstance')}
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -UpdateAll @contextArgs | Out-Host
         }
         elseif ($UpdateManager) {
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -UpdateManager | Out-Host

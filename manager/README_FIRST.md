@@ -1,5 +1,5 @@
 # Keelaryn Manager 4.17.6
-Manager 4.17.6 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.5. It revalidates captured single-instance Hub context after acquiring the Manager mutation lock and makes active per-instance Hub inbox discovery independent of global Manager inbox existence, while preserving the qualified 4.17.5 architecture and Framework r24 contracts.
+Manager 4.17.6 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.5. It revalidates captured single-instance Hub context after acquiring the Manager mutation lock, keeps active per-instance Hub inbox discovery independent of global Manager inbox existence, and preserves the captured Hub expectation across UpdateHub/UpdateAll including Manager self-update restart, while preserving the qualified 4.17.5 architecture and Framework r24 contracts.
 
 ## 4.17.5 context
 Manager 4.17.5 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.4. It aligns multi-Hub CANDIDATE ingress with the active instance, binds Hub APPROVED import/update to the captured instance identity, and makes registered Genesis parent-path validation explicitly case-insensitive on Windows while preserving the existing transaction-safety and Framework r24 contracts.
