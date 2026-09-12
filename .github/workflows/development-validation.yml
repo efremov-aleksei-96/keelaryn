@@ -69,4 +69,4 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
 
-# Manager 4.17.6 clean-head validation wiring.
+# Manager 4.17.6 final clean-head validation after update-context hardening.
