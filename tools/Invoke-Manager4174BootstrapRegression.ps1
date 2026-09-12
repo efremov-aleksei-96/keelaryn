@@ -20,6 +20,10 @@ function Get-FunctionText([string]$Path,[string]$Name){
     return [string]$rows[0].Extent.Text
 }
 
+$optionalRegistryValidationHelper=$null
+try{$optionalRegistryValidationHelper=Get-FunctionText $runtimePath 'Test-ExistingInstanceRegistryForInitialization'}
+catch{if($_.Exception.Message-notmatch 'actual=0'){throw}}
+if($optionalRegistryValidationHelper){Invoke-Expression $optionalRegistryValidationHelper}
 Invoke-Expression (Get-FunctionText $runtimePath 'Invoke-InitializeInstanceRegistry')
 
 $temp=Join-Path ([IO.Path]::GetTempPath()) ('keelaryn_4174_bootstrap_regression_'+[guid]::NewGuid().ToString('N'))
