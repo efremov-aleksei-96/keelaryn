@@ -1,4 +1,7 @@
-# Keelaryn Manager 4.17.6
+# Keelaryn Manager 4.17.7
+Manager 4.17.7 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.6. It fails closed when a legacy UpdateAll restart reaches an active multi-Hub registry without a captured Hub-context token, and validates an already-present multi-Hub registry plus active selection before reporting registry initialization success. It preserves the qualified 4.17.6 transaction-safety architecture and Framework r24 contracts.
+
+## 4.17.6 context
 Manager 4.17.6 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.5. It revalidates captured single-instance Hub context after acquiring the Manager mutation lock, keeps active per-instance Hub inbox discovery independent of global Manager inbox existence, and preserves the captured Hub expectation across UpdateHub/UpdateAll including Manager self-update restart, while preserving the qualified 4.17.5 architecture and Framework r24 contracts.
 
 ## 4.17.5 context
@@ -115,9 +118,9 @@ The tests workspace contract is explicit: `framework` holds one current reusable
 
 ## Update compatibility
 
-Manager 4.17.6 preserves the native update compatibility floor in `product/manager_release.json` and the established UPDATE transition envelope. The normal production qualification transition for this corrective candidate is production-installed Manager 4.17.5 -> 4.17.6.
+Manager 4.17.7 preserves the native update compatibility floor in `product/manager_release.json` and the established UPDATE transition envelope. The normal production qualification transition for this corrective candidate is production-installed Manager 4.17.6 -> 4.17.7.
 
-Manager-only update commands continue to distinguish "no newer valid package" from failure and do not silently process Hub updates. Installing Manager 4.17.6 alone must not change canonical Hub content.
+Manager-only update commands continue to distinguish "no newer valid package" from failure and do not silently process Hub updates. Installing Manager 4.17.7 alone must not change canonical Hub content.
 
 ## User interface compatibility
 
@@ -127,4 +130,4 @@ The existing numeric main-menu contract is preserved to avoid breaking establish
 
 ## Release gate
 
-This source is not production-approved merely because it carries version 4.17.6. Production approval requires the applicable Windows PowerShell parser/static checks, inherited and 4.17.6 regressions, Manager/frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.17.5 -> 4.17.6 update and rollback/fault-injection coverage, Doctor/migration/UI/Genesis coverage, production Hub immutability, exact tested/public-source/release UPDATE identity, real CURRENT-backed Full Gate and gated publication. The consolidated gate uses qualified Gate Framework r24.
+This source is not production-approved merely because it carries version 4.17.7. Production approval requires the applicable Windows PowerShell parser/static checks, inherited and 4.17.7 regressions, Manager/frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.17.6 -> 4.17.7 update and rollback/fault-injection coverage, Doctor/migration/UI/Genesis coverage, production Hub immutability, exact tested/public-source/release UPDATE identity, real CURRENT-backed Full Gate and gated publication. The consolidated gate uses qualified Gate Framework r24.

@@ -40,7 +40,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.17.6"
+$ManagerVersion = "4.17.7"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -5176,6 +5176,24 @@ function Assert-RegisteredInstanceBaseline($Row) {
     return $true
 }
 
+function Assert-UpdateAllContextSafe {
+    if(-not$UpdateAll){return}
+    if($ExpectedSingleInstance-or-not[string]::IsNullOrWhiteSpace([string]$ExpectedInstanceId)){return}
+    if($script:InstanceRegistryActive){
+        throw 'UpdateAll reached a multi-Hub Manager without a captured Hub context token. The Manager update may already be installed; retry Update all under the current Manager so it can bind the active Hub explicitly.'
+    }
+}
+
+function Test-ExistingInstanceRegistryForInitialization {
+    if(-not(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf)){return $false}
+    try{
+        $null=Resolve-RegisteredInstanceContextEarly
+        if(-not$script:InstanceRegistryActive-or[string]::IsNullOrWhiteSpace([string]$script:ActiveInstanceId)){throw 'Registry resolution did not produce an active registered instance.'}
+        return $true
+    }catch{
+        throw ('Existing multi-Hub registry is invalid: '+$_.Exception.Message)
+    }
+}
 function Assert-InvocationInstanceUnchanged {
     if($ExpectedSingleInstance-or-not$script:InstanceRegistryActive){
         $freshRegistry=Read-InstanceRegistryEarly
@@ -5214,7 +5232,7 @@ function New-RegisteredInstanceStateFromVault([string]$InstanceId,[string]$Vault
 
 function Invoke-InitializeInstanceRegistry {
     if(-not$CanonicalLayoutActive-or-not$StateLayoutActive){throw 'Multi-Hub registry initialization requires finalized canonical Manager layout.'}
-    if(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf){Write-Host 'Multi-Hub registry is already initialized.' -ForegroundColor Green;return 0}
+    if(Test-ExistingInstanceRegistryForInitialization){Write-Host 'Multi-Hub registry is already initialized and valid.' -ForegroundColor Green;return 0}
     Assert-InstanceBindingAvailable
     $baseline=Test-CanonicalBaselineConsistent
     if(-not$baseline.State.InstanceId){throw 'Multi-Hub registry requires canonical keelaryn.instance.v1 identity.'}
@@ -6446,6 +6464,7 @@ function Restart-UpdatedManager {
 }
 
 function Invoke-Update {
+    Assert-UpdateAllContextSafe
     Ensure-DesktopShortcut
     $attention=$false; $attentionLines=@()
 

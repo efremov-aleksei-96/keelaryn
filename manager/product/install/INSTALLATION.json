@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.manager.installation.v2",
-  "manager_version": "4.17.6",
+  "manager_version": "4.17.7",
   "layout_version": 2,
   "managed_files": [
     "compat/commands/APPLY_MIGRATIONS.cmd",
