@@ -80,3 +80,5 @@ jobs:
           git push origin HEAD:dev/manager-4.17.6
           if($LASTEXITCODE-ne0){throw 'product push failed'}
           Write-Host 'MANAGER 4.17.6 UPDATE-CONTEXT PRODUCT PUBLISHED AFTER PASS' -ForegroundColor Green
+
+# rerun after materializer alias correction
