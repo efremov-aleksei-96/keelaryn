@@ -73,14 +73,14 @@ if($psFiles.Count-eq 0){Fail 'No Manager PowerShell files found.'}
 foreach($file in $psFiles){Parse-File $file.FullName}
 Write-Host ('Parser: PASS. files='+$psFiles.Count) -ForegroundColor Green
 
-Write-Host '[2/5] Run Manager 4.17.6 regression chain...'
-foreach($regressionName in @('Invoke-Manager4176ReviewRegression.ps1')){
+Write-Host '[2/5] Run Manager 4.17.7 regression chain...'
+foreach($regressionName in @('Invoke-Manager4177ReviewRegression.ps1')){
     $regression=Join-Path $RepositoryRoot ('tools\'+$regressionName)
-    if(-not(Test-Path -LiteralPath $regression -PathType Leaf)){Fail('Manager 4.17.6 regression tool is missing: '+$regressionName)}
+    if(-not(Test-Path -LiteralPath $regression -PathType Leaf)){Fail('Manager 4.17.7 regression tool is missing: '+$regressionName)}
     Parse-File $regression
     Invoke-Child $regression @('-RepositoryRoot',$RepositoryRoot)
 }
-Write-Host 'Manager 4.17.6 regression chain: PASS' -ForegroundColor Green
+Write-Host 'Manager 4.17.7 regression chain: PASS' -ForegroundColor Green
 
 Write-Host '[3/5] Run Manager and frontend SelfTests from source...'
 $runtime=Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1'
