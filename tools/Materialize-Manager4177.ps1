@@ -50,11 +50,11 @@ $rt=ReplaceOnce $rt 'function Invoke-Update {' ('function Invoke-Update {'+$nl+'
 WriteText $runtime $rt
 
 $installText=ReadText $install
-$installText=[regex]::Replace($installText,'("manager_version"\s*:\s*")4\.17\.6("\s*)','$14.17.7$2',1)
+$installText=[regex]::Replace($installText,'("manager_version"\s*:\s*")4\.17\.6("\s*)','${1}4.17.7${2}',1)
 if($installText-notmatch '"manager_version"\s*:\s*"4\.17\.7"'){throw 'INSTALLATION version bump failed.'}
 WriteText $install $installText
 $policyText=ReadText $policy
-$policyText=[regex]::Replace($policyText,'("manager_version"\s*:\s*")4\.17\.6("\s*)','$14.17.7$2',1)
+$policyText=[regex]::Replace($policyText,'("manager_version"\s*:\s*")4\.17\.6("\s*)','${1}4.17.7${2}',1)
 if($policyText-notmatch '"manager_version"\s*:\s*"4\.17\.7"'){throw 'release-policy version bump failed.'}
 WriteText $policy $policyText
 
