@@ -7,6 +7,7 @@ on:
     paths:
       - 'manager/**'
       - 'tools/Invoke-DevelopmentValidation.ps1'
+      - 'tools/Invoke-Manager4177ReviewRegression.ps1'
       - 'tools/Invoke-Manager4176ReviewRegression.ps1'
       - 'tools/Invoke-Manager4175ReviewRegression.ps1'
       - 'tools/Invoke-Manager4174ReviewRegression.ps1'
@@ -69,4 +70,4 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
 
-# Manager 4.17.6 final clean-head validation after update-context hardening.
+# Manager 4.17.7 clean-head development validation with permanent corrective regressions.
