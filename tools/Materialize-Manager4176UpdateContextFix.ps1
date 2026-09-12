@@ -3,10 +3,10 @@ param([string]$RepositoryRoot=(Join-Path $PSScriptRoot '..'))
 $ErrorActionPreference='Stop';Set-StrictMode -Version 2.0
 $RepositoryRoot=[IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\')
 $Utf8NoBom=New-Object Text.UTF8Encoding($false)
-function R([string]$p){[IO.File]::ReadAllText($p,[Text.Encoding]::UTF8)}
-function W([string]$p,[string]$t){[IO.File]::WriteAllText($p,$t,$Utf8NoBom)}
+function ReadText([string]$p){[IO.File]::ReadAllText($p,[Text.Encoding]::UTF8)}
+function WriteText([string]$p,[string]$t){[IO.File]::WriteAllText($p,$t,$Utf8NoBom)}
 function ReplaceOnce([string]$t,[string]$o,[string]$n,[string]$label){$i=$t.IndexOf($o,[StringComparison]::Ordinal);if($i-lt0){throw('Missing anchor: '+$label)};if($t.IndexOf($o,$i+$o.Length,[StringComparison]::Ordinal)-ge0){throw('Non-unique anchor: '+$label)};return $t.Substring(0,$i)+$n+$t.Substring($i+$o.Length)}
-function ReplaceFunction([string]$p,[string]$name,[string]$replacement){$t=R $p;$tok=$null;$err=$null;$ast=[Management.Automation.Language.Parser]::ParseInput($t,[ref]$tok,[ref]$err);if(@($err).Count){throw('Parser failed: '+$p)};$rows=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]},$true)|Where-Object{$_.Name-ceq$name});if($rows.Count-ne1){throw('function '+$name+' count='+$rows.Count)};$r=$rows[0];W $p ($t.Substring(0,$r.Extent.StartOffset)+$replacement+$t.Substring($r.Extent.EndOffset))}
+function ReplaceFunction([string]$p,[string]$name,[string]$replacement){$t=ReadText $p;$tok=$null;$err=$null;$ast=[Management.Automation.Language.Parser]::ParseInput($t,[ref]$tok,[ref]$err);if(@($err).Count){throw('Parser failed: '+$p)};$rows=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]},$true)|Where-Object{$_.Name-ceq$name});if($rows.Count-ne1){throw('function '+$name+' count='+$rows.Count)};$r=$rows[0];WriteText $p ($t.Substring(0,$r.Extent.StartOffset)+$replacement+$t.Substring($r.Extent.EndOffset))}
 
 $runtime=Join-Path $RepositoryRoot 'manager\product\runtime\Keelaryn__Manager.ps1'
 $menu=Join-Path $RepositoryRoot 'manager\product\tools\KeelarynMenu.ps1'
@@ -16,11 +16,11 @@ $manifestTool=Join-Path $RepositoryRoot 'tools\Build-PublicFileManifest.ps1'
 $manifestPath=Join-Path $RepositoryRoot 'PUBLIC_FILE_MANIFEST.json'
 $provPath=Join-Path $RepositoryRoot 'PUBLIC_PROVENANCE.json'
 
-$rt=R $runtime
+$rt=ReadText $runtime
 $rt=ReplaceOnce $rt "if(`$ExpectedSingleInstance-and-not`$UpdateHub){throw 'ExpectedSingleInstance is valid only with -UpdateHub.'}" "if(`$ExpectedSingleInstance-and-not(`$UpdateHub-or`$UpdateAll)){throw 'ExpectedSingleInstance is valid only with -UpdateHub or -UpdateAll.'}" 'ExpectedSingleInstance update-mode guard'
 $rt=ReplaceOnce $rt "if(-not`$UpdateHub){throw 'ExpectedInstanceId is valid only with -UpdateHub.'}" "if(-not(`$UpdateHub-or`$UpdateAll)){throw 'ExpectedInstanceId is valid only with -UpdateHub or -UpdateAll.'}" 'ExpectedInstanceId update-mode guard'
-W $runtime $rt
-$nl=if((R $runtime).Contains("`r`n")){"`r`n"}else{"`n"}
+WriteText $runtime $rt
+$nl=if((ReadText $runtime).Contains("`r`n")){"`r`n"}else{"`n"}
 $newAssert=@(
 'function Assert-InvocationInstanceUnchanged {'
 '    if($ExpectedSingleInstance-or-not$script:InstanceRegistryActive){'
@@ -66,25 +66,25 @@ $newRestart=@(
 )-join$nl
 ReplaceFunction $runtime 'Restart-UpdatedManager' $newRestart
 
-$mt=R $menu
+$mt=ReadText $menu
 $oldAll="        'UpdateAll' { `$q=Get-QuickStatus;if((`$q.ManagerUpdates+`$q.HubApproved)-eq0){Write-UiHost 'Manager: no pending update.';Write-UiHost 'Hub: no APPROVED update.';Set-ActionSemantic 'no_changes';return 0};return Invoke-Manager @('-UpdateAll') }"
 $newAll="        'UpdateAll' { `$q=Get-QuickStatus;if((`$q.ManagerUpdates+`$q.HubApproved)-eq0){Write-UiHost 'Manager: no pending update.';Write-UiHost 'Hub: no APPROVED update.';Set-ActionSemantic 'no_changes';return 0};`$ctx=Get-FrontendInstanceContext;`$args=@('-UpdateAll');if(`$ctx.RegistryActive){if(-not`$ctx.InstanceId){Fail 'Multi-Hub registry exists but the active instance cannot be resolved. Update refused.'};`$args+=@('-ExpectedInstanceId',[string]`$ctx.InstanceId)}else{`$args+=@('-ExpectedSingleInstance')};return Invoke-Manager `$args }"
 $oldHub="        'UpdateHub' { return Invoke-Manager @('-UpdateHub') }"
 $newHub="        'UpdateHub' { `$ctx=Get-FrontendInstanceContext;`$args=@('-UpdateHub');if(`$ctx.RegistryActive){if(-not`$ctx.InstanceId){Fail 'Multi-Hub registry exists but the active instance cannot be resolved. Update refused.'};`$args+=@('-ExpectedInstanceId',[string]`$ctx.InstanceId)}else{`$args+=@('-ExpectedSingleInstance')};return Invoke-Manager `$args }"
 $mt=ReplaceOnce $mt $oldAll $newAll 'frontend UpdateAll case'
 $mt=ReplaceOnce $mt $oldHub $newHub 'frontend UpdateHub case'
-W $menu $mt
+WriteText $menu $mt
 
-$rd=R $readme
+$rd=ReadText $readme
 $rd=ReplaceOnce $rd 'It revalidates captured single-instance Hub context after acquiring the Manager mutation lock and makes active per-instance Hub inbox discovery independent of global Manager inbox existence, while preserving the qualified 4.17.5 architecture and Framework r24 contracts.' 'It revalidates captured single-instance Hub context after acquiring the Manager mutation lock, keeps active per-instance Hub inbox discovery independent of global Manager inbox existence, and preserves the captured Hub expectation across UpdateHub/UpdateAll including Manager self-update restart, while preserving the qualified 4.17.5 architecture and Framework r24 contracts.' 'README 4.17.6 summary'
-W $readme $rd
+WriteText $readme $rd
 
 # Adapt the inherited 4.17.5 regression only in the disposable working tree: its
 # old prohibition on UpdateAll is intentionally superseded by 4.17.6. This file
 # is restored before product publication and updated permanently after PASS.
-$lr=R $legacyRegression
+$lr=ReadText $legacyRegression
 $lr=ReplaceOnce $lr "Assert `$rt.Contains('ExpectedInstanceId is valid only with -UpdateHub.') 'ExpectedInstanceId UpdateHub-only guard missing';Assert (-not `$rt.Contains('-UpdateHub or -UpdateAll')) 'ExpectedInstanceId must not allow UpdateAll';" "Assert `$rt.Contains('ExpectedInstanceId is valid only with -UpdateHub or -UpdateAll.') 'ExpectedInstanceId Hub-capable update guard missing';" 'legacy regression superseded UpdateAll assertion'
-W $legacyRegression $lr
+WriteText $legacyRegression $lr
 
 & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $manifestTool -RepositoryRoot $RepositoryRoot -Write
 if($LASTEXITCODE-ne0){throw 'PUBLIC_FILE_MANIFEST generation failed.'}
@@ -97,5 +97,5 @@ $prov.source_gate_baseline_manager_version='4.17.5'
 $prov.production_validation.full_gate_pass=$false;$prov.production_validation.gate_revision=$null;$prov.production_validation.tested_update_sha256=$null;$prov.production_validation.production_doctor_pass=$false;$prov.production_validation.production_ux_smoke_pass=$false;$prov.production_validation.production_managed_content_prefix=$null
 $prov.gate_framework.frozen_for_manager_candidate=$false
 $prov.public_candidate_revision=10
-W $provPath ((($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n")
+WriteText $provPath ((($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n")
 Write-Host ('MANAGER 4.17.6 UPDATE-CONTEXT FIX MATERIALIZED: managed='+[string]$mf.manager.gate_managed_content_sha256+' install='+[string]$mf.manager.installation_sha256) -ForegroundColor Green
