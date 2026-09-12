@@ -76,4 +76,4 @@ jobs:
           if($LASTEXITCODE-ne0){throw 'product push failed'}
           Write-Host 'MANAGER 4.17.7 CORRECTED PRODUCT PUBLISHED AFTER PASS' -ForegroundColor Green
 
-# rerun after line-ending-agnostic materializer anchor correction
+# rerun after JSON capture-group replacement correction
