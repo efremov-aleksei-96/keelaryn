@@ -6,13 +6,13 @@
     "source_manager_installation_sha256":  "46e1e1612174ae3d76c0b6980141e4adee82410c175eeb85a0b7a1b59c7285a7",
     "source_manager_gate_managed_content_sha256":  "8fca306b7a3422eb383d3517cc2dc360982e30b6c6553debc8a0b4b7f83fcb33",
     "production_validation":  {
-                                  "full_gate_pass":  false,
-                                  "gate_revision":  null,
+                                  "full_gate_pass":  true,
+                                  "gate_revision":  1,
                                   "framework_revision":  24,
-                                  "tested_update_sha256":  null,
-                                  "production_doctor_pass":  false,
-                                  "production_ux_smoke_pass":  false,
-                                  "production_managed_content_prefix":  null
+                                  "tested_update_sha256":  "6102287a383b852c9441ac0b71672eb17c7e90bb7f9226f9d1ec84bf76b7bb72",
+                                  "production_doctor_pass":  true,
+                                  "production_ux_smoke_pass":  true,
+                                  "production_managed_content_prefix":  "2e91bdf08483"
                               },
     "personal_hub_included":  false,
     "manager_runtime_state_included":  false,
