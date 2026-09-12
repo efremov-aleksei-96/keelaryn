@@ -1,4 +1,7 @@
-# Keelaryn Manager 4.17.5
+# Keelaryn Manager 4.17.6
+Manager 4.17.6 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.5. It revalidates captured single-instance Hub context after acquiring the Manager mutation lock and makes active per-instance Hub inbox discovery independent of global Manager inbox existence, while preserving the qualified 4.17.5 architecture and Framework r24 contracts.
+
+## 4.17.5 context
 Manager 4.17.5 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.4. It aligns multi-Hub CANDIDATE ingress with the active instance, binds Hub APPROVED import/update to the captured instance identity, and makes registered Genesis parent-path validation explicitly case-insensitive on Windows while preserving the existing transaction-safety and Framework r24 contracts.
 
 ## 4.17.4 context
@@ -112,9 +115,9 @@ The tests workspace contract is explicit: `framework` holds one current reusable
 
 ## Update compatibility
 
-Manager 4.16.3 preserves the native update compatibility floor in `product/manager_release.json`. UPDATE artifacts retain the established transition envelope used by supported older Manager validators. The normal production qualification transition for this candidate is Manager 4.15.1 -> 4.16.3.
+Manager 4.17.6 preserves the native update compatibility floor in `product/manager_release.json` and the established UPDATE transition envelope. The normal production qualification transition for this corrective candidate is production-installed Manager 4.17.5 -> 4.17.6.
 
-Manager-only update commands continue to distinguish "no newer valid package" from failure and do not silently process Hub updates. Installing Manager 4.16.3 alone must not change the personal Hub or its governance receipt.
+Manager-only update commands continue to distinguish "no newer valid package" from failure and do not silently process Hub updates. Installing Manager 4.17.6 alone must not change canonical Hub content.
 
 ## User interface compatibility
 
@@ -124,4 +127,4 @@ The existing numeric main-menu contract is preserved to avoid breaking establish
 
 ## Release gate
 
-This source is not production-approved merely because it carries version 4.16.3. Production approval requires the applicable Windows PowerShell 5.1 parser/static checks, Manager and frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.15.1 -> 4.16.3 update and rollback/fault-injection coverage, Doctor governance-current/stale/newer cases, Genesis receipt validation, migration regression coverage, production Hub immutability, UI regression coverage, exact tested/public-source/release artifact identity, and gated publication. The consolidated Full Gate must use exact Gate Framework r22 and r22 must complete independent qualification/freeze before final Manager publication.
+This source is not production-approved merely because it carries version 4.17.6. Production approval requires the applicable Windows PowerShell parser/static checks, inherited and 4.17.6 regressions, Manager/frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.17.5 -> 4.17.6 update and rollback/fault-injection coverage, Doctor/migration/UI/Genesis coverage, production Hub immutability, exact tested/public-source/release UPDATE identity, real CURRENT-backed Full Gate and gated publication. The consolidated gate uses qualified Gate Framework r24.

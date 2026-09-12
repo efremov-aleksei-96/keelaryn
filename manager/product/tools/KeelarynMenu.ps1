@@ -647,12 +647,11 @@ function Get-QuickStatus {
     if(Test-Path -LiteralPath $Inbox -PathType Container){
         $managerUpdates=@(Get-ChildItem -LiteralPath $Inbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
             Where-Object{$_.Name-match'(?i)^Keelaryn__Manager_Update_'}).Count
-        $hubApproved=if(Test-Path -LiteralPath $activeHubInbox -PathType Container){@(Get-ChildItem -LiteralPath $activeHubInbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
-            Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_APPROVED_'}).Count}else{0}
-        $hubCandidate=if(Test-Path -LiteralPath $activeHubInbox -PathType Container){@(Get-ChildItem -LiteralPath $activeHubInbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
-            Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_CANDIDATE_'}).Count}else{0}
     }
-
+    $hubApproved=if(Test-Path -LiteralPath $activeHubInbox -PathType Container){@(Get-ChildItem -LiteralPath $activeHubInbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
+        Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_APPROVED_'}).Count}else{0}
+    $hubCandidate=if(Test-Path -LiteralPath $activeHubInbox -PathType Container){@(Get-ChildItem -LiteralPath $activeHubInbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
+        Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_CANDIDATE_'}).Count}else{0}
     $rootExtras=@()
     if(Test-Path -LiteralPath $LayoutRoot -PathType Container){
         $allowed=@('manager','hub','hubs','tests','exchange','Inputs_outputs','Keelaryn.cmd')

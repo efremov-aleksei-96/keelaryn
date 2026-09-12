@@ -40,7 +40,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.17.5"
+$ManagerVersion = "4.17.6"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -5177,6 +5177,11 @@ function Assert-RegisteredInstanceBaseline($Row) {
 }
 
 function Assert-InvocationInstanceUnchanged {
+    if($ExpectedSingleInstance){
+        $freshRegistry=Read-InstanceRegistryEarly
+        if($freshRegistry){throw 'Multi-Hub registry appeared after this invocation captured single-instance Hub context. Retry the operation.'}
+        return
+    }
     if(-not$script:InstanceRegistryActive){return}
     $active=Read-ActiveInstanceEarly
     if(-not$script:InvocationInstanceId-or[string]$active.instance_id-ne[string]$script:InvocationInstanceId){
