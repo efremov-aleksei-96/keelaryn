@@ -1,0 +1,47 @@
+name: Manager 4.17.9 production post-install acceptance validation
+
+on:
+  push:
+    branches:
+      - 'maintenance/manager-4.17.9-production-acceptance'
+    paths:
+      - 'tools/Invoke-Manager4179ProductionPostInstallAcceptance.ps1'
+      - '.github/workflows/manager-4.17.9-production-postinstall-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Parse and verify production acceptance contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $path=Join-Path $env:GITHUB_WORKSPACE 'tools\Invoke-Manager4179ProductionPostInstallAcceptance.ps1'
+          $tokens=$null;$errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Parser errors: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          $text=Get-Content -LiteralPath $path -Raw -Encoding UTF8
+          $required=@(
+            "`$expectedVersion = '4.17.9'",
+            "`$expectedUpdateSha256 = 'e440aa1b25990d3dd9ce88f27d21f048fed02e7d8414149dfd59873de0bb566a'",
+            "@('-SelfTest')",
+            "@('-SelfTest','-NoRootLauncher')",
+            "@('-Action','RenderMain','-NoRootLauncher')",
+            "@('-Action','InstanceInfo','-NoRootLauncher')",
+            "@('-Doctor')",
+            'Production Hub immutable during acceptance',
+            'Multi-Hub registry remains intentionally inactive'
+          )
+          foreach($needle in $required){if(-not$text.Contains($needle)){throw('Missing acceptance contract: '+$needle)}}
+          foreach($forbidden in @('-UpdateManager','-UpdateHub','-UpdateAll','-InitializeInstanceRegistry','-SwitchInstanceId','-RegisterInstancePath','INSTALL_TESTED_MANAGER_UPDATE.cmd')){
+            if($text.Contains($forbidden)){throw('Production acceptance must remain read-only; forbidden token: '+$forbidden)}
+          }
+          Write-Host 'MANAGER 4.17.9 PRODUCTION ACCEPTANCE SCRIPT VALIDATION: PASS' -ForegroundColor Green
