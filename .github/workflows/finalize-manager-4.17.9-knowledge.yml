@@ -27,7 +27,7 @@ jobs:
       - name: Verify exact closure source identity
         shell: powershell
         run: |
-          $expectedParent='96731f633df2a153ca7fc7687dc1bd68054f9baf'
+          $expectedParent='5dbcb404cc0a65c537328696fa6b1174dfdad8d8'
           $parent=(git rev-parse HEAD^).Trim()
           if($parent -cne $expectedParent){throw('Unexpected closure workflow parent: '+$parent+' expected='+$expectedParent)}
           $changed=@(git diff --name-only HEAD^ HEAD)
@@ -42,7 +42,7 @@ jobs:
       - name: Parse closure transformer
         shell: powershell
         run: |
-          $path=Join-Path $env:GITHUB_WORKSPACE 'tools\Finalize-Manager4179KnowledgeClosure.ps1'
+          $path=Join-Path $env:GITHUB_WORKSPACE 'tools\Finalize-Manager4179KnowledgeClosureV2.ps1'
           $tokens=$null;$errors=$null
           [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
           if(@($errors).Count){throw('Closure transformer parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
@@ -50,19 +50,20 @@ jobs:
       - name: Materialize evidence-backed knowledge closure locally
         shell: powershell
         run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Finalize-Manager4179KnowledgeClosure.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -QualificationRunId "$env:GITHUB_RUN_ID"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Finalize-Manager4179KnowledgeClosureV2.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -QualificationRunId "$env:GITHUB_RUN_ID"
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           Remove-Item -LiteralPath "$env:GITHUB_WORKSPACE\tools\Finalize-Manager4179KnowledgeClosure.ps1" -Force
+          Remove-Item -LiteralPath "$env:GITHUB_WORKSPACE\tools\Finalize-Manager4179KnowledgeClosureV2.ps1" -Force
           Remove-Item -LiteralPath "$env:GITHUB_WORKSPACE\.github\workflows\finalize-manager-4.17.9-knowledge.yml" -Force
           $allowed=@(
             '.github/workflows/finalize-manager-4.17.9-knowledge.yml',
             'MANAGER_DEVELOPMENT_STATE.json',
-            'MANAGER_ENGINEERING_ROADMAP.md',
             'tests/knowledge/audits/pre-4.17.9-multi-hub.json',
             'tests/knowledge/defects/manager-4.17.9-audit.json',
             'tests/knowledge/defects/manager-4.17.x.json',
             'tests/knowledge/risk-map.json',
             'tools/Finalize-Manager4179KnowledgeClosure.ps1',
+            'tools/Finalize-Manager4179KnowledgeClosureV2.ps1',
             'tools/Test-ManagerEngineeringKnowledge.ps1'
           )
           $changed=@(git status --porcelain|ForEach-Object{$_.Substring(3).Replace('\','/')})
@@ -70,7 +71,6 @@ jobs:
           if($unexpected.Count){throw('Unexpected closure mutation path(s): '+([string]::Join(', ',@($unexpected))))}
           foreach($required in @(
             'MANAGER_DEVELOPMENT_STATE.json',
-            'MANAGER_ENGINEERING_ROADMAP.md',
             'tests/knowledge/audits/pre-4.17.9-multi-hub.json',
             'tests/knowledge/defects/manager-4.17.9-audit.json',
             'tests/knowledge/defects/manager-4.17.x.json',
