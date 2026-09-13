@@ -1,0 +1,53 @@
+name: Diagnose Manager 4.17.11 Doctor report sharing lock
+
+on:
+  push:
+    branches:
+      - 'maintenance/diagnose-manager-4.17.11-doctor-report-lock'
+    paths:
+      - '.github/workflows/diagnose-manager-4.17.11-doctor-report-lock.yml'
+      - 'tools/Diagnose-DoctorReportSharingLock.ps1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnose-manager-4.17.11-doctor-report-lock
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout diagnostic harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: harness
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact frozen 4.17.11 g1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 88e3dcba0af75264c4b53e8ec24d770c215677a0
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact production-qualified 4.17.10 baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 694bea57a3d3add8bb612b9006f84dbadcd17787
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Reproduce Doctor report sharing lock
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\harness\tools\Diagnose-DoctorReportSharingLock.ps1" `
+            -CandidateRepositoryRoot "$env:GITHUB_WORKSPACE\candidate" `
+            -BaselineRepositoryRoot "$env:GITHUB_WORKSPACE\baseline"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
