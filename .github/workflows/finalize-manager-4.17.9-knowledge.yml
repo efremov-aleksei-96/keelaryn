@@ -27,7 +27,7 @@ jobs:
       - name: Verify exact closure source identity
         shell: powershell
         run: |
-          $expectedParent='5dbcb404cc0a65c537328696fa6b1174dfdad8d8'
+          $expectedParent='4b7bbc811e4cb403771209f99ac74b5694b0d636'
           $parent=(git rev-parse HEAD^).Trim()
           if($parent -cne $expectedParent){throw('Unexpected closure workflow parent: '+$parent+' expected='+$expectedParent)}
           $changed=@(git diff --name-only HEAD^ HEAD)
@@ -50,6 +50,14 @@ jobs:
       - name: Materialize evidence-backed knowledge closure locally
         shell: powershell
         run: |
+          $riskTool=Join-Path $env:GITHUB_WORKSPACE 'tools\Build-ManagerRiskContext.ps1'
+          $riskText=[IO.File]::ReadAllText($riskTool,[Text.Encoding]::UTF8)
+          $needle="return''"
+          $count=([regex]::Matches($riskText,[regex]::Escape($needle))).Count
+          if($count-ne3){throw('Expected exactly 3 compact empty-return forms in risk context tool; actual='+$count)}
+          $riskText=$riskText.Replace($needle,"return ''")
+          [IO.File]::WriteAllText($riskTool,$riskText,(New-Object Text.UTF8Encoding($false)))
+
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Finalize-Manager4179KnowledgeClosureV2.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -QualificationRunId "$env:GITHUB_RUN_ID"
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           Remove-Item -LiteralPath "$env:GITHUB_WORKSPACE\tools\Finalize-Manager4179KnowledgeClosure.ps1" -Force
@@ -62,6 +70,7 @@ jobs:
             'tests/knowledge/defects/manager-4.17.9-audit.json',
             'tests/knowledge/defects/manager-4.17.x.json',
             'tests/knowledge/risk-map.json',
+            'tools/Build-ManagerRiskContext.ps1',
             'tools/Finalize-Manager4179KnowledgeClosure.ps1',
             'tools/Finalize-Manager4179KnowledgeClosureV2.ps1',
             'tools/Test-ManagerEngineeringKnowledge.ps1'
@@ -75,6 +84,7 @@ jobs:
             'tests/knowledge/defects/manager-4.17.9-audit.json',
             'tests/knowledge/defects/manager-4.17.x.json',
             'tests/knowledge/risk-map.json',
+            'tools/Build-ManagerRiskContext.ps1',
             'tools/Test-ManagerEngineeringKnowledge.ps1'
           )){if($changed-notcontains$required){throw('Required closure path missing: '+$required)}}
           git config user.name 'github-actions[bot]'
