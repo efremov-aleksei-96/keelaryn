@@ -4,13 +4,20 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
 $RepositoryRoot=[IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\')
 function Assert([bool]$Condition,[string]$Message){if(-not$Condition){throw $Message}}
-function Get-FunctionText([string]$Path,[string]$Name){
+function Get-FunctionAst([string]$Path,[string]$Name){
     $tokens=$null;$errors=$null
     $ast=[Management.Automation.Language.Parser]::ParseFile($Path,[ref]$tokens,[ref]$errors)
     if(@($errors).Count){throw('Parser failed for '+$Path)}
     $rows=@($ast.FindAll({param($node)$node-is[Management.Automation.Language.FunctionDefinitionAst]},$true)|Where-Object{$_.Name-ceq$Name})
     if($rows.Count-ne1){throw('function '+$Name+' count='+$rows.Count)}
-    return [string]$rows[0].Extent.Text
+    return $rows[0]
+}
+function Get-FunctionText([string]$Path,[string]$Name){return [string](Get-FunctionAst $Path $Name).Extent.Text}
+function Get-FunctionCommandAsts($FunctionAst,[string]$CommandName){
+    return @($FunctionAst.Body.FindAll({param($node)
+        if($node-isnot[Management.Automation.Language.CommandAst]){return $false}
+        return [string]::Equals([string]$node.GetCommandName(),$CommandName,[StringComparison]::OrdinalIgnoreCase)
+    },$true))
 }
 $p=Join-Path $PSHOME 'powershell.exe'
 & $p -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepositoryRoot 'tools\Invoke-Manager4177ReviewRegression.ps1') -RepositoryRoot $RepositoryRoot
@@ -54,12 +61,24 @@ $ok=$true
 try{$null=Assert-RegisteredInstanceActivationEligible $row}catch{$ok=$false}
 Assert $ok 'Registration activation guard rejected an APPROVED coherent checkpoint.'
 Assert ($script:baselineCalls-eq1) 'Approved registration did not retain full baseline validation.'
-$register=Get-FunctionText $runtimePath 'Invoke-RegisterExistingInstance'
-$stageIndex=$register.IndexOf('New-RegisteredInstanceStateFromVault',[StringComparison]::Ordinal)
-$guardIndex=$register.IndexOf('Assert-RegisteredInstanceActivationEligible',[StringComparison]::Ordinal)
-$commitIndex=$register.IndexOf('Write-ManagerInstanceRegistry',[StringComparison]::Ordinal)
-Assert ($stageIndex-ge0-and$guardIndex-gt$stageIndex-and$commitIndex-gt$guardIndex) 'Activation eligibility is not revalidated after staging and before registry commit.'
-Assert (-not$register.Contains('Assert-RegisteredInstanceBaseline $candidateRow')) 'Registration still bypasses the stronger activation-eligibility helper.'
+
+# Verify the actual transaction commands rather than broad string absence. An earlier
+# baseline check is useful defense-in-depth; after staging, however, the fresh validation
+# immediately preceding the registry commit must be the stronger activation-eligibility guard.
+$registerAst=Get-FunctionAst $runtimePath 'Invoke-RegisterExistingInstance'
+$stages=@(Get-FunctionCommandAsts $registerAst 'New-RegisteredInstanceStateFromVault')
+$guards=@(Get-FunctionCommandAsts $registerAst 'Assert-RegisteredInstanceActivationEligible')
+$commits=@(Get-FunctionCommandAsts $registerAst 'Write-ManagerInstanceRegistry')
+$directBaselines=@(Get-FunctionCommandAsts $registerAst 'Assert-RegisteredInstanceBaseline')
+Assert ($stages.Count-eq1) ('Registration staging command count mismatch: '+$stages.Count)
+Assert ($guards.Count-eq1) ('Registration activation-guard command count mismatch: '+$guards.Count)
+Assert ($commits.Count-eq1) ('Registration registry-commit command count mismatch: '+$commits.Count)
+$stageOffset=[int]$stages[0].Extent.StartOffset
+$guardOffset=[int]$guards[0].Extent.StartOffset
+$commitOffset=[int]$commits[0].Extent.StartOffset
+Assert ($stageOffset-lt$guardOffset-and$guardOffset-lt$commitOffset) 'Activation eligibility is not revalidated after staging and before registry commit.'
+$weakBetween=@($directBaselines|Where-Object{[int]$_.Extent.StartOffset-gt$stageOffset-and[int]$_.Extent.StartOffset-lt$commitOffset})
+Assert ($weakBetween.Count-eq0) 'Registration still uses a weaker direct baseline validation at the final commit boundary.'
 Write-Host '  PASS existing-Hub registration rejects non-APPROVED activation baselines before commit'
 
 Write-Host 'MANAGER 4.17.8 REVIEW REGRESSION: PASS' -ForegroundColor Green
