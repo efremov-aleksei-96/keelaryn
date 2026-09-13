@@ -55,9 +55,16 @@ jobs:
           $new3=@'
               '        elseif ([string]$spec.pause -eq ''error'') { $lines += ''if not "%RC%"=="0" pause'' }',
           '@.Trim()
+          $old4=@'
+          Replace-Once $runtime '$null=Assert-RegisteredInstanceBaseline $candidateRow' '$null=Assert-RegisteredInstanceActivationEligible $candidateRow'
+          '@.Trim()
+          $new4=@'
+          Replace-Once $runtime ('$null=Assert-RegisteredInstanceBaseline $candidateRow'+(Get-Nl (Read-Text $runtime))+'        $newRows=@($registry.instances)+@($candidateRow)') ('$null=Assert-RegisteredInstanceActivationEligible $candidateRow'+(Get-Nl (Read-Text $runtime))+'        $newRows=@($registry.instances)+@($candidateRow)')
+          '@.Trim()
           Replace-OneLine $old1 $new1
           Replace-OneLine $old2 $new2
           Replace-OneLine $old3 $new3
+          Replace-OneLine $old4 $new4
           [IO.File]::WriteAllText($temp,$raw,(New-Object Text.UTF8Encoding($false)))
           $tokens=$null;$errors=$null
           [void][Management.Automation.Language.Parser]::ParseFile($temp,[ref]$tokens,[ref]$errors)
