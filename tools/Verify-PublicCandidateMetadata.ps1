@@ -69,6 +69,12 @@ if($lifecycle-ceq'unqualified_development'-and$successor-ceq$version){
 
 if([int]$provenance.public_candidate_revision-lt1){Fail 'PUBLIC_PROVENANCE public_candidate_revision must be >= 1.'}
 
+$releaseInstructions=Join-Path $RepositoryRoot 'tools\Verify-ManagerReleaseInstructions.ps1'
+if(-not(Test-Path -LiteralPath $releaseInstructions -PathType Leaf)){Fail 'Manager release-instruction identity verifier is missing.'}
+$powershell=Join-Path $PSHOME 'powershell.exe'
+& $powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $releaseInstructions -RepositoryRoot $RepositoryRoot
+if($LASTEXITCODE-ne0){Fail('Manager release-instruction identity verifier failed with exit '+$LASTEXITCODE)}
+
 Write-Host ('Public candidate metadata consistency: PASS. Manager '+$version+'; baseline='+$baselineVersion+'; framework=r'+$frameworkRevision) -ForegroundColor Green
 Write-Host ('  installation='+$manifestInstall)
 Write-Host ('  managed='+$manifestManaged)
