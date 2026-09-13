@@ -89,3 +89,5 @@ jobs:
           git add -A
           git commit -m 'Manager 4.17.8: close alias and registration activation gaps'
           git push origin HEAD:dev/manager-4.17.8
+
+# retrigger after scoped registration-anchor repair
