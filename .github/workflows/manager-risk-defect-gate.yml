@@ -52,6 +52,23 @@ jobs:
           if ($headResolved -cne '${{ github.sha }}'.ToLowerInvariant()) {
             throw "Dispatched checkout identity mismatch: requested head=$headResolved checkout=${{ github.sha }}"
           }
+          if ($baseResolved -ceq $headResolved) {
+            throw 'Risk qualification range must be non-empty: base_commit equals head_commit.'
+          }
+          & git merge-base --is-ancestor $baseResolved $headResolved
+          $ancestorExit = [int]$LASTEXITCODE
+          if ($ancestorExit -eq 1) {
+            throw "Risk qualification base must be a proper ancestor of head: base=$baseResolved head=$headResolved"
+          }
+          if ($ancestorExit -ne 0) {
+            throw "git merge-base --is-ancestor failed with exit $ancestorExit for base=$baseResolved head=$headResolved"
+          }
+          $countText = (& git rev-list --count "$baseResolved..$headResolved").Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'git rev-list --count failed while validating the risk qualification range.' }
+          $count = 0
+          if (-not [int]::TryParse($countText,[ref]$count) -or $count -lt 1) {
+            throw "Risk qualification range must contain at least one commit: base=$baseResolved head=$headResolved count=$countText"
+          }
           $out = Join-Path $env:RUNNER_TEMP ('keelaryn-manager-risk-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
           "KEELARYN_RISK_BASE=$baseResolved" >> $env:GITHUB_ENV
           "KEELARYN_RISK_HEAD=$headResolved" >> $env:GITHUB_ENV
