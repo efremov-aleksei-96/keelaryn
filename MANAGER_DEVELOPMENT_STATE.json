@@ -63,7 +63,7 @@
   },
   "qualification": {
     "risk_defect_gate": {
-      "status": "required_pass_before_freeze",
+      "status": "expected_fail_while_open_release_blockers_exist",
       "observed_status": "historical_pass_before_postfreeze_finding",
       "base_commit": "7183f563e644b85f7131db2707816730b5dffb6b",
       "closure_run_id": "34753054865",
