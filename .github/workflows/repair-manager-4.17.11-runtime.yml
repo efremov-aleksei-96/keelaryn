@@ -50,7 +50,10 @@ jobs:
             return $input.Substring(0,$first)+$new+$input.Substring($first+$old.Length)
           }
 
-          $text=Replace-One $text '$ManagerVersion = "4.17.10"'.Replace('\"','"') '$ManagerVersion = "4.17.11"'.Replace('\"','"') 'Manager version marker'
+          $q=[char]34
+          $oldVersion='$ManagerVersion = '+$q+'4.17.10'+$q
+          $newVersion='$ManagerVersion = '+$q+'4.17.11'+$q
+          $text=Replace-One $text $oldVersion $newVersion 'Manager version marker'
           $old='    $pendingCandidates=@(Get-ChildItem -LiteralPath $Inbox -File -Filter ''*.zip'' -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith(''Keelaryn__Hub_CANDIDATE_'',[System.StringComparison]::OrdinalIgnoreCase) -or $_.Name.StartsWith([string]$LegacyCoreCompat.CandidatePrefix,[System.StringComparison]::OrdinalIgnoreCase) }).Count'
           $new='    $pendingCandidates=@(Get-ChildItem -LiteralPath $HubInbox -File -Filter ''*.zip'' -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith(''Keelaryn__Hub_CANDIDATE_'',[System.StringComparison]::OrdinalIgnoreCase) -or $_.Name.StartsWith([string]$LegacyCoreCompat.CandidatePrefix,[System.StringComparison]::OrdinalIgnoreCase) }).Count'
           $text=Replace-One $text $old $new 'Invoke-Update pending CANDIDATE inventory'
