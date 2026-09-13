@@ -6,7 +6,7 @@
       "id": "MGR-DEF-0023",
       "title": "Registry-mode Doctor records global-inbox findings before its result accumulator exists",
       "severity": "P1",
-      "status": "open",
+      "status": "fixed",
       "release_blocker": true,
       "detected_in": "4.17.9",
       "detected_stage": "final_public_review",
@@ -26,14 +26,14 @@
       "related_defects": [
         "MGR-DEF-0021"
       ],
-      "permanent_regressions": [],
-      "planned_regressions": [
+      "permanent_regressions": [
         "tools/Invoke-Manager41710ReviewRegression.ps1"
       ],
-      "fixed_in": null,
+      "planned_regressions": [],
+      "fixed_in": "4.17.10",
       "evidence": [
         {
-          "type": "candidate_commit",
+          "type": "rejected_candidate_commit",
           "id": "cb036051586d567502ce31ca8f1192a39bd69ddf"
         },
         {
@@ -45,8 +45,16 @@
           "id": "4.17.9-single-instance-pass"
         },
         {
-          "type": "final_review_finding",
-          "id": "Invoke-Doctor:$rows-before-initialization"
+          "type": "fix_commit",
+          "id": "93dde4f475c24e04c768c61c53fd297eabbed34b"
+        },
+        {
+          "type": "development_validation_run",
+          "id": "34760555917"
+        },
+        {
+          "type": "runtime_regression_evidence",
+          "id": "Genesis->InitializeInstanceRegistry->Doctor:[OK] inbox.hub_global + [OK] instances.registry"
         }
       ]
     }
