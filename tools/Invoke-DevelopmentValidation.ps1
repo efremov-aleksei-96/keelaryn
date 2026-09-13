@@ -149,14 +149,14 @@ if($riskPolicy-ceq'expected_fail_while_open_release_blockers_exist'){
 }else{Fail('Unsupported development-state risk gate policy: '+$riskPolicy)}
 Copy-Item -LiteralPath $riskGateEvidence -Destination (Join-Path $evidence 'RISK_DEFECT_GATE_POLICY_CHECK.json') -Force
 
-Write-Host '[4/7] Run Manager 4.17.8 regression chain...'
-foreach($regressionName in @('Invoke-Manager4178ReviewRegression.ps1')){
+Write-Host '[4/7] Run Manager 4.17.10 regression chain...'
+foreach($regressionName in @('Invoke-Manager41710ReviewRegression.ps1')){
     $regression=Join-Path $RepositoryRoot ('tools\'+$regressionName)
-    if(-not(Test-Path -LiteralPath $regression -PathType Leaf)){Fail('Manager 4.17.8 regression tool is missing: '+$regressionName)}
+    if(-not(Test-Path -LiteralPath $regression -PathType Leaf)){Fail('Manager 4.17.10 regression tool is missing: '+$regressionName)}
     Parse-File $regression
     Invoke-Child $regression @('-RepositoryRoot',$RepositoryRoot)
 }
-Write-Host 'Manager 4.17.8 regression chain: PASS' -ForegroundColor Green
+Write-Host 'Manager 4.17.10 regression chain: PASS' -ForegroundColor Green
 
 Write-Host '[5/7] Run Manager and frontend SelfTests from source...'
 $runtime=Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1'

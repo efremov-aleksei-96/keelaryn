@@ -58,7 +58,7 @@ A lower-numbered roadmap item is not automatically more important than a later i
 - **Priority:** P0
 - **Status:** ACTIVE
 - **Goal:** make registry activation, switching, binding/rebinding, pending input reachability and commit-boundary validation safe under broken/partial states.
-- **Required properties:** target-driven recovery; identity-preserving rebind; no silent stranded Hub inputs; commit predicate at least as strong as resulting state; durable/post-commit outcomes explicit.
+- **Required properties:** target-driven recovery; identity-preserving rebind; no silent stranded Hub inputs; commit predicate at least as strong as resulting state; durable/post-commit outcomes explicit; Doctor/diagnostic branches that depend on registry state execute end-to-end in real disposable state, not only through AST/static assertions.
 - **Dependency:** R-001 and R-002 sufficiently operational to preserve context and enforce regressions.
 - **Exit:** permanent convergence regression suite + development validation + Risk/Defect Gate PASS before candidate freeze.
 
@@ -165,6 +165,7 @@ A lower-numbered roadmap item is not automatically more important than a later i
 - **Status:** PLANNED
 - **Goal:** when CI/gate/qualification diagnosis reveals a reusable defect class, invariant gap, tooling weakness or future architecture idea, produce a durable repository-resident intake instead of relying on chat history to remember it.
 - **Design direction:** compact machine-readable finding with classification, affected subsystem, recurrence risk, candidate invariant/root-cause/roadmap links and evidence reference; human/Chat Manager reconciliation decides whether it becomes a defect, invariant, regression or roadmap item.
+- **Execution-process lesson:** remote Manager development should operate from one explicit atomic goal, reuse already-discovered tool/schema knowledge, and emit progress only on evidence-bearing state transitions (commit, run result, blocker). Repeated tool rediscovery or status-only loops are reusable process findings, not progress.
 - **Safety:** intake automation may not close blockers, mutate product bytes, weaken thresholds or publish personal Hub data; failed/rejected evidence remains preserved.
 - **Dependency:** R-001/R-002 and evidence-backed lifecycle semantics from R-013.
 - **Exit:** CI can emit deterministic reusable finding records and a later session can reconcile them without reconstructing the originating chat/log narrative.
