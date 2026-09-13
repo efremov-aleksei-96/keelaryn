@@ -1,0 +1,204 @@
+name: Sync Manager 4.17.11 development metadata
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.11'
+    paths:
+      - '.github/workflows/sync-manager-4.17.11-development-metadata.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keelaryn-sync-manager-4.17.11-development-metadata
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - name: Verify exact successor source identity
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $expectedParent='cf1d8a2a2268c71f382fc2da39002cbdb18cf719'
+          $parent=(git rev-parse HEAD^).Trim()
+          if($parent -cne $expectedParent){throw('Unexpected metadata-sync parent: '+$parent+' expected='+$expectedParent)}
+          $changed=@(git diff --name-only HEAD^ HEAD)
+          if($changed.Count-ne1 -or [string]$changed[0] -cne '.github/workflows/sync-manager-4.17.11-development-metadata.yml'){throw('Unexpected metadata-sync bootstrap diff: '+([string]::Join(', ',@($changed))))}
+          $install=Get-Content 'manager/product/install/INSTALLATION.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$install.manager_version-cne'4.17.11'){throw('Expected Manager 4.17.11 product; observed '+[string]$install.manager_version)}
+
+      - name: Write successor development state
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $state=[ordered]@{
+            schema='keelaryn.manager-development-state.v1'
+            repository='efremov-aleksei-96/keelaryn'
+            lifecycle_state='unqualified_development'
+            authoritative_branch='dev/manager-4.17.11'
+            head_resolution=[ordered]@{mode='resolve_branch_ref_live';note='Resolve dev/manager-4.17.11 live. Production Manager 4.17.10 remains installed in single-instance compatibility mode; frozen 4.17.10 g3 and PR #59 rejection evidence remain immutable history.'}
+            lineage=[ordered]@{
+              production_manager_version='4.17.10'
+              previous_production_manager_version='4.17.9'
+              production_candidate_commit='af128f0f10752ff1500155707b56260aac296569'
+              production_candidate_tree='6bc3352441371f12f363fcc8caf4897f49cb840c'
+              production_managed_digest='2df8ff820d1f4c31fe8c8b537ff81ec4a3e67516325ca73f4470c561c9497cfa'
+              production_installation_sha256='3d4e1102b6852e1c1502d265e913bbe8c640ce7e881b4051a9b4e5cc6e7fab25'
+              framework_revision='r24'
+              successor_manager_version='4.17.11'
+            }
+            materialization=[ordered]@{
+              manager_version='4.17.11'
+              initial_product_commit='704369e39705804c5d8677b73c6756934924c4fe'
+              runtime_repair_commit='cf1d8a2a2268c71f382fc2da39002cbdb18cf719'
+              initial_materialization_run_id='34767983657'
+              runtime_repair_run_id='34768685362'
+              status='development_materialized_runtime_repaired_preclosure'
+              runtime_delta_from_4_17_10='+2/-2 lines after exact-base repair'
+              candidate_issued=$false
+            }
+            qualification=[ordered]@{
+              risk_defect_gate=[ordered]@{
+                status='expected_fail_while_open_release_blockers_exist'
+                observed_status='pending_successor_closure_validation'
+                last_required_pass_head='af4e26133cfb2dada0a56f6e8d7dd5c6f69b1efe'
+                last_required_pass_run_id='34762448272'
+              }
+              predecessor_4_17_10=[ordered]@{
+                status='frozen_production_qualified_public_release_rejected'
+                candidate='g3'
+                commit='af128f0f10752ff1500155707b56260aac296569'
+                pull_request=59
+                tested_update_sha256='c3d005861f1c2b4e39e6a7bf826cbb4ff81460fd89a595592d1960a711277a6f'
+                release_blockers=@('MGR-DEF-0024','MGR-DEF-0025')
+              }
+              manager_4_17_11=[ordered]@{
+                status='unqualified_development'
+                product_runtime_repair='pass_minimal_delta'
+                review_closure='pending'
+                development_validation='pending'
+                candidate_issued=$false
+              }
+            }
+            production_policy=[ordered]@{
+              production_manager='4.17.10_keep_installed_single_instance_compatibility_mode'
+              production_rollback='not_required'
+              multi_hub='disabled_until_Manager_4_17_11_is_fully_qualified_and_installed'
+              production_hub_mutation_from_manager_development='forbidden'
+              candidate_4_17_10_g3='immutable_production_installed_public_release_rejected_do_not_modify'
+            }
+            open_release_blockers=@('MGR-DEF-0024','MGR-DEF-0025')
+            knowledge=[ordered]@{
+              roadmap='MANAGER_ENGINEERING_ROADMAP.md'
+              hub_relay_research='HUB_RELAY_RESEARCH.md'
+              knowledge_root='tests/knowledge'
+              current_risk_audits=@('MHA-4179-001','MHA-41710-001')
+              strict_pre_freeze_gate='tools/Invoke-ManagerRiskDefectGate.ps1'
+              risk_context_regression='tools/Invoke-ManagerRiskContextRegression.ps1'
+              manager_4_17_11_review_regression='tools/Invoke-Manager41711ReviewRegression.ps1'
+              release_instruction_identity_guard='tools/Verify-ManagerReleaseInstructions.ps1'
+              public_manifest_reproducibility='tools/Build-PublicFileManifest.ps1 -Check'
+              public_candidate_metadata_verifier='tools/Verify-PublicCandidateMetadata.ps1'
+              public_repository_verifier='tools/Verify-PublicRepository.ps1'
+            }
+            next_exact_goal=[ordered]@{
+              id='MANAGER-41711-CLOSURE-001'
+              description='Execute the registry-active CANDIDATE-only UpdateHub regression and release-instruction identity guard on exact 4.17.11 source; close MGR-DEF-0024/MGR-DEF-0025 only after that evidence passes, integrate both controls into canonical Development Validation, remove one-shot materialization/diagnostic/repair tooling, then require strict exact-head PASS before any candidate freeze.'
+              product_changes_permitted_on_frozen_4_17_10_g3=$false
+            }
+            bootstrap=[ordered]@{
+              ordinary_new_chat_instruction='Continue Manager 4.17.11 development from repository-resident state.'
+              required_first_actions=@(
+                'Resolve dev/manager-4.17.11 live; remote branch is authoritative.',
+                'Treat production Manager 4.17.10 as installed and accepted only in single-instance compatibility mode; do not activate multi-Hub.',
+                'Keep MGR-DEF-0024/MGR-DEF-0025 open until permanent executable/identity controls pass.',
+                'Do not freeze 4.17.11 before exact-head Development Validation and strict Risk/Defect Gate PASS.'
+              )
+            }
+          }
+          $json=(($state|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n"
+          [IO.File]::WriteAllText((Join-Path $env:GITHUB_WORKSPACE 'MANAGER_DEVELOPMENT_STATE.json'),$json,(New-Object Text.UTF8Encoding($false)))
+
+      - name: Rebuild public manifest and successor provenance
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-PublicFileManifest.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $manifest=Get-Content 'PUBLIC_FILE_MANIFEST.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$manifest.manager.version-cne'4.17.11'){throw 'Generated manifest does not identify Manager 4.17.11.'}
+
+          $old=Get-Content 'PUBLIC_PROVENANCE.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          $prov=[ordered]@{
+            schema='keelaryn.public-repository-provenance.v2'
+            role='public_source_sync_candidate'
+            source_manager_version='4.17.11'
+            source_gate_baseline_manager_version='4.17.10'
+            source_manager_installation_sha256=([string]$manifest.manager.installation_sha256).ToLowerInvariant()
+            source_manager_gate_managed_content_sha256=([string]$manifest.manager.gate_managed_content_sha256).ToLowerInvariant()
+            production_validation=[ordered]@{
+              full_gate_pass=$false
+              gate_revision=0
+              framework_revision=24
+              tested_update_sha256=$null
+              production_doctor_pass=$false
+              production_ux_smoke_pass=$false
+              production_managed_content_prefix=$null
+            }
+            predecessor_publication_rejection=[ordered]@{
+              manager_version='4.17.10'
+              status='rejected_post_freeze_public_review'
+              pull_request=59
+              frozen_candidate_commit='af128f0f10752ff1500155707b56260aac296569'
+              frozen_candidate_changed=$false
+              release_blockers=@('MGR-DEF-0024','MGR-DEF-0025')
+            }
+            personal_hub_included=$false
+            manager_runtime_state_included=$false
+            local_test_evidence_included=$false
+            gate_framework=[ordered]@{version='2.0';revision=24;windows_qualified=$true;frozen_for_manager_candidate=$false}
+            license=[ordered]@{spdx_id='MIT';file='LICENSE';copyright='Copyright (c) 2026 Keelaryn contributors'}
+            public_candidate_revision=18
+            git_checkout_contract=$old.git_checkout_contract
+            known_nonsecret_source_hygiene_notes=$old.known_nonsecret_source_hygiene_notes
+            ci_policy=$old.ci_policy
+            known_nonsecret_hygiene_notes=$old.known_nonsecret_hygiene_notes
+          }
+          $json=(($prov|ConvertTo-Json -Depth 30).Replace("`r`n","`n"))+"`n"
+          [IO.File]::WriteAllText((Join-Path $env:GITHUB_WORKSPACE 'PUBLIC_PROVENANCE.json'),$json,(New-Object Text.UTF8Encoding($false)))
+
+      - name: Validate synchronized successor metadata
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-PublicFileManifest.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-ManagerReleaseInstructions.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicCandidateMetadata.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEngineeringKnowledge.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Commit atomic successor metadata
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected=@('MANAGER_DEVELOPMENT_STATE.json','PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json')
+          $changed=@(git status --porcelain|ForEach-Object{$_.Substring(3).Replace('\','/')}|Sort-Object)
+          $wanted=@($expected|Sort-Object)
+          if([string]::Join("`n",$changed)-cne[string]::Join("`n",$wanted)){throw('Unexpected metadata-sync paths: '+([string]::Join(', ',$changed)))}
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- MANAGER_DEVELOPMENT_STATE.json PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json
+          git commit -m 'Manager 4.17.11: establish unqualified successor metadata'
+          git push origin HEAD:dev/manager-4.17.11
