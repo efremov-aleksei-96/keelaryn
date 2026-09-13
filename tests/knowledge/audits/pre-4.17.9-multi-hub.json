@@ -1,0 +1,58 @@
+{
+  "schema":"keelaryn.manager-risk-audit.v1",
+  "audit_id":"MHA-4179-001",
+  "title":"Pre-4.17.9 multi-Hub convergence audit",
+  "source_manager_version":"4.17.8",
+  "source_candidate_commit":"88577ad1022c751cc7fc259a13c9c7a1ff025532",
+  "source_provenance_head":"7183f563e644b85f7131db2707816730b5dffb6b",
+  "product_bytes_changed":false,
+  "production_multi_hub_must_remain_inactive":true,
+  "confirmed_open_defects":["MGR-DEF-0017","MGR-DEF-0018","MGR-DEF-0019","MGR-DEF-0020","MGR-DEF-0021","MGR-DEF-0022"],
+  "convergence_clusters":[
+    {"id":"recovery","invariants":["MH-RECOVERY-001","MH-SWITCH-001","MH-REBIND-001","MH-REGISTRY-001"],"defects":["MGR-DEF-0014","MGR-DEF-0017","MGR-DEF-0019","MGR-DEF-0022"]},
+    {"id":"commit_boundary","invariants":["MH-COMMIT-001","MH-POSTCOMMIT-001","MH-DOWNGRADE-001"],"defects":["MGR-DEF-0001","MGR-DEF-0005","MGR-DEF-0006","MGR-DEF-0011","MGR-DEF-0016","MGR-DEF-0018","MGR-DEF-0020","MGR-DEF-0022"]},
+    {"id":"pending_state_reachability","invariants":["MH-INBOX-001","MH-REACHABILITY-001","MH-LIFECYCLE-001"],"defects":["MGR-DEF-0007","MGR-DEF-0012","MGR-DEF-0018","MGR-DEF-0021"]},
+    {"id":"context_compatibility","invariants":["MH-CONTEXT-001","MH-COMPAT-001","MH-ISOLATION-001"],"defects":["MGR-DEF-0004","MGR-DEF-0009","MGR-DEF-0011","MGR-DEF-0013","MGR-DEF-0015","MGR-DEF-0020"]}
+  ],
+  "required_pre_product_tests":[
+    {"id":"A01","state":"REGISTRY_ACTIVE_METADATA_INVALID","operation":"ListInstances","expected":"Registry rows remain inspectable; invalid active metadata is reported without requiring a Hub to validate."},
+    {"id":"A02","state":"REGISTRY_ACTIVE_METADATA_INVALID","operation":"SwitchInstance","expected":"A requested healthy registered target can repair active selection without reading a valid previous active selection."},
+    {"id":"A03","state":"REGISTRY_ACTIVE_HUB_MISSING","operation":"SwitchInstance","expected":"Requested healthy target can become active without validating or restoring the missing old Hub."},
+    {"id":"A04","state":"REGISTRY_ACTIVE_HUB_CORRUPT","operation":"SwitchInstance","expected":"Requested healthy target can become active without validating or restoring the corrupt old Hub."},
+    {"id":"A05","state":"REGISTRY_ACTIVE_HUB_MISSING","operation":"BindInstance","expected":"A moved Hub with the same immutable instance_id can be rebound to its new valid path and activated."},
+    {"id":"A06","state":"REGISTRY_HEALTHY","operation":"BindInstance","expected":"Same instance_id plus a new safe path is an explicit rebind transaction; a different instance using an occupied identity/path still fails closed."},
+    {"id":"A07","state":"SINGLE_PENDING_GLOBAL","operation":"InitializeRegistry","expected":"APPROVED/CANDIDATE/candidate-transport inputs are migrated safely, explicitly rejected, or block activation before registry commit; none become unreachable."},
+    {"id":"A08","state":"REGISTRY_PENDING_GLOBAL","operation":"Doctor","expected":"Hub-owned objects in the legacy global inbox are surfaced as stranded/misrouted state."},
+    {"id":"A09","state":"REGISTRY_PENDING_GLOBAL","operation":"UpdateHub","expected":"Operation cannot silently ignore global Hub-owned inputs while consuming only the instance inbox."},
+    {"id":"A10","state":"REGISTRY_PENDING_GLOBAL","operation":"BuildCandidateTransport","expected":"Candidate workflow cannot silently ignore stranded global Hub inputs."},
+    {"id":"A11","state":"REGISTRY_PENDING_GLOBAL","operation":"RestoreCandidateTransport","expected":"Candidate workflow cannot silently ignore stranded global candidate-transport inputs."},
+    {"id":"A12","state":"REGISTRY_HEALTHY","operation":"SwitchInstance","fault":"Target CURRENT changes after compatibility-shadow preparation but before active commit","expected":"Fresh activation-eligibility validation fails before authoritative active selection commit."},
+    {"id":"A13","state":"SINGLE_HEALTHY","operation":"InitializeRegistry","fault":"Bootstrap CURRENT changes after staging/shadow preparation but before registry commit","expected":"Fresh activation-eligibility validation fails before active/registry authoritative commit."},
+    {"id":"A14","state":"REGISTRY_ACTIVE_HUB_MISSING","operation":"SwitchInstance","fault":"Active marker write fails after target compatibility-shadow preparation","expected":"Outcome distinguishes definite pre-commit failure from ambiguous/durable commit and does not rely on successful restoration of the already-broken previous Hub."},
+    {"id":"A15","state":"REGISTRY_INACTIVE_HUB_MISSING","operation":"Doctor","expected":"Inactive missing vault is diagnosed while the healthy active instance remains usable."},
+    {"id":"A16","state":"REGISTRY_INACTIVE_HUB_CORRUPT","operation":"Doctor","expected":"Inactive corrupt/baseline-mismatched vault is diagnosed while the healthy active instance remains usable."},
+    {"id":"A17","state":"UPDATE_RESTART","operation":"UpdateAll","expected":"Captured Hub intent survives supported self-update restart, or tokenless legacy handoff fails closed without retargeting."},
+    {"id":"A18","state":"REGISTRY_CURRENT_NONAPPROVED","operation":"RegisterInstance","expected":"Non-approved CURRENT is rejected before durable registry commit."},
+    {"id":"A19","state":"REGISTRY_CURRENT_NONAPPROVED","operation":"BindInstance","expected":"Non-approved rebind target is rejected before registry/active mutation."},
+    {"id":"A20","state":"REGISTRY_CURRENT_MISMATCH","operation":"SwitchInstance","expected":"Cross-instance/mismatched target fails closed before active selection mutation."}
+  ],
+  "implementation_constraints":[
+    "Do not bulk-move unknown global inbox files into the active instance inbox.",
+    "Classify Manager-global versus Hub-owned inputs before migration or rejection.",
+    "Validate instance binding for Hub-owned artifacts before any ownership transition.",
+    "Handle destination collisions fail-closed.",
+    "Do not delete the only reachable pending input before the registry commit is proven durable and post-commit cleanup is safe.",
+    "Recovery switch/rebind must be target-driven and must not require the old active Hub to be healthy.",
+    "Rebind preserves instance_id and changes registered vault_path only after exact target validation.",
+    "The final pre-commit predicate must be at least as strong as the predicate required for the resulting active state.",
+    "Doctor and ListInstances remain usable as diagnostics when active selection or an active/inactive vault is broken.",
+    "All tests use sanitized/disposable Hubs; no personal Hub bytes enter fixtures, evidence or knowledge."
+  ],
+  "freeze_criteria":[
+    "All confirmed open release blockers are fixed or explicitly reclassified with evidence.",
+    "Every fixed blocker has permanent executable regression coverage.",
+    "Required audit scenarios applicable to changed surfaces are executable and passing.",
+    "Manager Risk/Defect Gate passes for exact qualified base -> candidate head.",
+    "Development validation passes on the exact candidate-prep head before freeze."
+  ]
+}
