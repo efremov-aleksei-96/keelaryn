@@ -8,12 +8,12 @@
     "note": "Resolve dev/manager-4.17.11 live for operational metadata. Frozen Manager 4.17.11 g1 remains immutable at commit 88e3dcba0af75264c4b53e8ec24d770c215677a0 / tree 7d23ab245699d63c264958f9132d29fe85d43de7; post-freeze commits are qualification/provenance metadata only."
   },
   "lineage": {
-    "production_manager_version": "4.17.11",
-    "previous_production_manager_version": "4.17.10",
-    "production_candidate_commit": "88e3dcba0af75264c4b53e8ec24d770c215677a0",
-    "production_candidate_tree": "7d23ab245699d63c264958f9132d29fe85d43de7",
-    "production_managed_digest": "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
-    "production_installation_sha256": "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
+    "production_manager_version": "4.17.10",
+    "previous_production_manager_version": "4.17.9",
+    "production_candidate_commit": "af128f0f10752ff1500155707b56260aac296569",
+    "production_candidate_tree": "6bc3352441371f12f363fcc8caf4897f49cb840c",
+    "production_managed_digest": "2df8ff820d1f4c31fe8c8b537ff81ec4a3e67516325ca73f4470c561c9497cfa",
+    "production_installation_sha256": "3d4e1102b6852e1c1502d265e913bbe8c640ce7e881b4051a9b4e5cc6e7fab25",
     "framework_revision": "r24",
     "successor_manager_version": "4.17.11"
   },
