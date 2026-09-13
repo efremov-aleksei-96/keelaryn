@@ -59,7 +59,10 @@ jobs:
           Replace-Once $runtime '$null=Assert-RegisteredInstanceBaseline $candidateRow' '$null=Assert-RegisteredInstanceActivationEligible $candidateRow'
           '@.Trim()
           $new4=@'
-          Replace-Once $runtime ('$null=Assert-RegisteredInstanceBaseline $candidateRow'+(Get-Nl (Read-Text $runtime))+'        $newRows=@($registry.instances)+@($candidateRow)') ('$null=Assert-RegisteredInstanceActivationEligible $candidateRow'+(Get-Nl (Read-Text $runtime))+'        $newRows=@($registry.instances)+@($candidateRow)')
+          $registrationAnchor=@('# The generated state and source Hub can change after staging validation. Revalidate','# the exact published pair immediately before instances.json becomes authoritative.','$null=Assert-RegisteredInstanceBaseline $candidateRow','$newRows=@($registry.instances)+@($candidateRow)')
+          $registrationReplacement=@('# The generated state and source Hub can change after staging validation. Revalidate','# the exact published pair immediately before instances.json becomes authoritative.','$null=Assert-RegisteredInstanceActivationEligible $candidateRow','$newRows=@($registry.instances)+@($candidateRow)')
+          $registrationNl=Get-Nl (Read-Text $runtime)
+          Replace-Once $runtime ([string]::Join($registrationNl,$registrationAnchor)) ([string]::Join($registrationNl,$registrationReplacement))
           '@.Trim()
           Replace-OneLine $old1 $new1
           Replace-OneLine $old2 $new2
@@ -90,4 +93,4 @@ jobs:
           git commit -m 'Manager 4.17.8: close alias and registration activation gaps'
           git push origin HEAD:dev/manager-4.17.8
 
-# retrigger after scoped registration-anchor repair
+# unique registration transaction anchor
