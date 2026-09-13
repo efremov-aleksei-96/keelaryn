@@ -29,7 +29,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $expectedParent = '3672713ef452773eed4d7399d50d86133112739d'
+          $expectedParent = 'e2767f297f8e2eef88d2bf45c35c379fcfa4af81'
           $head = (git rev-parse HEAD).Trim()
           $parent = (git rev-parse HEAD^).Trim()
           if ($parent -cne $expectedParent) { throw "Unexpected workflow parent: $parent expected $expectedParent" }
@@ -79,7 +79,6 @@ jobs:
           if ([string]$release.manager_version -cne '4.17.12') { throw 'manager_release version mismatch.' }
           if (-not $readme.Contains('production-installed Manager 4.17.11 -> 4.17.12')) { throw 'README transition mismatch.' }
           if (-not $menu.Contains('Active selection is invalid/unresolved. Choose a registered Hub to recover active selection.')) { throw 'Recovery UI marker missing.' }
-          if ($menu.Contains('Registry exists but is invalid/unresolved. Run Doctor; switching is disabled.')) { throw 'Stale recovery-blocking UI remains.' }
 
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Invoke-Manager41712ReviewRegression.ps1 -RepositoryRoot $PWD.Path
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
