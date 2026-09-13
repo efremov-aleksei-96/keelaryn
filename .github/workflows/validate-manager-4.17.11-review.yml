@@ -49,3 +49,5 @@ jobs:
         run: |
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-Manager41711ReviewRegression.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+# Exact-head closure evidence must pass before MGR-DEF-0024/MGR-DEF-0025 may be closed.
