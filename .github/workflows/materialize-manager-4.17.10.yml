@@ -1,4 +1,4 @@
-name: Materialize Manager 4.17.10
+name: Manager 4.17.10 closure integration cleanup
 
 on:
   push:
@@ -6,17 +6,16 @@ on:
       - 'dev/manager-4.17.10'
     paths:
       - '.github/workflows/materialize-manager-4.17.10.yml'
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: keelaryn-materialize-manager-4.17.10
+  group: keelaryn-manager-4.17.10-closure-cleanup
   cancel-in-progress: false
 
 jobs:
-  materialize:
+  cleanup:
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -24,67 +23,100 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Verify exact one-shot source identity
+      - name: Verify exact closure-cleanup publication identity
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $expectedParent='0c7d662a5a90fcd5c4018ceb3a66138c4f476962'
+          $expectedParent='5524370201153a66f7279674bf7bd1500b782ce6'
           $parent=(git rev-parse HEAD^).Trim()
-          if($parent -cne $expectedParent){throw('Unexpected materialization parent: '+$parent+' expected='+$expectedParent)}
+          if($parent -cne $expectedParent){throw('Unexpected cleanup parent: '+$parent+' expected='+$expectedParent)}
           $changed=@(git diff --name-only HEAD^ HEAD)
-          if($changed.Count-ne1 -or [string]$changed[0] -cne '.github/workflows/materialize-manager-4.17.10.yml'){throw('Unexpected validator-fix diff: '+([string]::Join(', ',@($changed))))}
-          $runtime=(Get-Content -LiteralPath 'manager/product/runtime/Keelaryn__Manager.ps1' -Raw -Encoding UTF8)
-          if($runtime -notmatch '(?m)^\$ManagerVersion = "4\.17\.9"$'){throw 'Expected 4.17.9 runtime base marker is absent.'}
+          if($changed.Count-ne1 -or [string]$changed[0] -cne '.github/workflows/materialize-manager-4.17.10.yml'){throw('Unexpected cleanup-publication diff: '+([string]::Join(', ',@($changed))))}
 
-      - name: Parse materializer
+      - name: Integrate permanent regression and roadmap lessons
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $p='tools\Apply-Manager41710DoctorOrderingFix.ps1'
-          $tokens=$null;$errors=$null
-          [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $env:GITHUB_WORKSPACE $p),[ref]$tokens,[ref]$errors)
-          if(@($errors).Count){throw([string]::Join(' | ',@($errors|ForEach-Object{$_.Message})))}
+          $utf8=New-Object Text.UTF8Encoding($false)
 
-      - name: Materialize product
-        shell: powershell
-        run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Apply-Manager41710DoctorOrderingFix.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
-          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $runner='tools\Invoke-DevelopmentValidation.ps1'
+          $text=[IO.File]::ReadAllText($runner)
+          $old=@"
+Write-Host '[4/7] Run Manager 4.17.8 regression chain...'
+foreach(`$regressionName in @('Invoke-Manager4178ReviewRegression.ps1')){
+    `$regression=Join-Path `$RepositoryRoot ('tools\'+`$regressionName)
+    if(-not(Test-Path -LiteralPath `$regression -PathType Leaf)){Fail('Manager 4.17.8 regression tool is missing: '+`$regressionName)}
+    Parse-File `$regression
+    Invoke-Child `$regression @('-RepositoryRoot',`$RepositoryRoot)
+}
+Write-Host 'Manager 4.17.8 regression chain: PASS' -ForegroundColor Green
+"@
+          $new=@"
+Write-Host '[4/7] Run Manager 4.17.10 regression chain...'
+foreach(`$regressionName in @('Invoke-Manager41710ReviewRegression.ps1')){
+    `$regression=Join-Path `$RepositoryRoot ('tools\'+`$regressionName)
+    if(-not(Test-Path -LiteralPath `$regression -PathType Leaf)){Fail('Manager 4.17.10 regression tool is missing: '+`$regressionName)}
+    Parse-File `$regression
+    Invoke-Child `$regression @('-RepositoryRoot',`$RepositoryRoot)
+}
+Write-Host 'Manager 4.17.10 regression chain: PASS' -ForegroundColor Green
+"@
+          if(([regex]::Matches($text,[regex]::Escape($old))).Count-ne1){throw 'DevelopmentValidation 4.17.8 regression block is not uniquely replaceable.'}
+          $text=$text.Replace($old,$new)
+          [IO.File]::WriteAllText($runner,$text,$utf8)
 
-      - name: Validate exact product diff and runtime parser
+          $roadmap='MANAGER_ENGINEERING_ROADMAP.md'
+          $text=[IO.File]::ReadAllText($roadmap)
+          $oldR3='- **Required properties:** target-driven recovery; identity-preserving rebind; no silent stranded Hub inputs; commit predicate at least as strong as resulting state; durable/post-commit outcomes explicit.'
+          $newR3='- **Required properties:** target-driven recovery; identity-preserving rebind; no silent stranded Hub inputs; commit predicate at least as strong as resulting state; durable/post-commit outcomes explicit; Doctor/diagnostic branches that depend on registry state execute end-to-end in real disposable state, not only through AST/static assertions.'
+          if(([regex]::Matches($text,[regex]::Escape($oldR3))).Count-ne1){throw 'Roadmap R-003 required-properties line is not uniquely replaceable.'}
+          $text=$text.Replace($oldR3,$newR3)
+          $oldR15='- **Design direction:** compact machine-readable finding with classification, affected subsystem, recurrence risk, candidate invariant/root-cause/roadmap links and evidence reference; human/Chat Manager reconciliation decides whether it becomes a defect, invariant, regression or roadmap item.'
+          $newR15=$oldR15+"`r`n- **Execution-process lesson:** remote Manager development should operate from one explicit atomic goal, reuse already-discovered tool/schema knowledge, and emit progress only on evidence-bearing state transitions (commit, run result, blocker). Repeated tool rediscovery or status-only loops are reusable process findings, not progress."
+          if(([regex]::Matches($text,[regex]::Escape($oldR15))).Count-ne1){throw 'Roadmap R-015 design line is not uniquely replaceable.'}
+          $text=$text.Replace($oldR15,$newR15)
+          [IO.File]::WriteAllText($roadmap,$text,$utf8)
+
+          foreach($path in @(
+            'tools\Apply-Manager41710DoctorOrderingFix.ps1',
+            '.github\workflows\manager-4.17.10-review-regression.yml',
+            '.github\workflows\materialize-manager-4.17.10.yml'
+          )){
+            if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw('Expected one-shot file missing: '+$path)}
+            git rm -- $path
+            if($LASTEXITCODE-ne0){throw('git rm failed: '+$path)}
+          }
+
+      - name: Validate exact cleanup diff
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           $expected=@(
-            'manager/README_FIRST.md',
-            'manager/product/install/INSTALLATION.json',
-            'manager/product/manager_release.json',
-            'manager/product/runtime/Keelaryn__Manager.ps1'
-          )
-          $changed=@(git status --porcelain | ForEach-Object{$_.Substring(3).Replace('\','/')} | Sort-Object)
-          $wanted=@($expected|Sort-Object)
-          if([string]::Join("`n",$changed)-cne[string]::Join("`n",$wanted)){throw('Unexpected product diff: '+([string]::Join(', ',@($changed))))}
-          $runtime=Join-Path $env:GITHUB_WORKSPACE 'manager\product\runtime\Keelaryn__Manager.ps1'
+            '.github/workflows/manager-4.17.10-review-regression.yml',
+            '.github/workflows/materialize-manager-4.17.10.yml',
+            'MANAGER_ENGINEERING_ROADMAP.md',
+            'tools/Apply-Manager41710DoctorOrderingFix.ps1',
+            'tools/Invoke-DevelopmentValidation.ps1'
+          )|Sort-Object
+          $actual=@(git status --porcelain | ForEach-Object{$_.Substring(3).Replace('\','/')} | Sort-Object)
+          if([string]::Join("`n",$actual)-cne[string]::Join("`n",$expected)){throw('Unexpected closure cleanup diff: '+([string]::Join(', ',@($actual))))}
           $tokens=$null;$errors=$null
-          [void][Management.Automation.Language.Parser]::ParseFile($runtime,[ref]$tokens,[ref]$errors)
-          if(@($errors).Count){throw('Runtime parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
-          $text=Get-Content -LiteralPath $runtime -Raw -Encoding UTF8
-          $doctor=[regex]::Match($text,'(?s)function Invoke-Doctor \{.*?(?=\r?\nfunction )').Value
-          if(-not$doctor){throw 'Invoke-Doctor body not found after materialization.'}
-          if($doctor -notmatch '^function Invoke-Doctor \{\r?\n    \$rows=New-Object System\.Collections\.ArrayList\r?\n'){throw 'Doctor accumulator is not initialized at function entry.'}
-          if(([regex]::Matches($doctor,'(?m)^\s*\$rows=New-Object System\.Collections\.ArrayList\r?$')).Count-ne1){throw 'Doctor must contain exactly one rows initializer.'}
-          # Managed Manager files historically contain CRLF/mixed-EOL text. Validate parser and
-          # exact changed paths instead of using git diff --check on those authoritative bytes.
-          Write-Host 'Manager 4.17.10 product materialization validation: PASS' -ForegroundColor Green
+          [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $env:GITHUB_WORKSPACE 'tools\Invoke-DevelopmentValidation.ps1'),[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw('DevelopmentValidation parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          $runner=Get-Content -LiteralPath 'tools\Invoke-DevelopmentValidation.ps1' -Raw -Encoding UTF8
+          if(-not$runner.Contains('Invoke-Manager41710ReviewRegression.ps1')){throw 'Permanent 4.17.10 regression is not integrated into DevelopmentValidation.'}
+          $roadmap=Get-Content -LiteralPath 'MANAGER_ENGINEERING_ROADMAP.md' -Raw -Encoding UTF8
+          foreach($needle in @('execute end-to-end in real disposable state','Repeated tool rediscovery or status-only loops are reusable process findings')){if(-not$roadmap.Contains($needle)){throw('Roadmap lesson missing: '+$needle)}}
+          Write-Host 'Manager 4.17.10 closure integration cleanup validation: PASS' -ForegroundColor Green
 
-      - name: Commit exact product materialization
+      - name: Commit closure integration cleanup
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- manager/README_FIRST.md manager/product/install/INSTALLATION.json manager/product/manager_release.json manager/product/runtime/Keelaryn__Manager.ps1
+          git add -- MANAGER_ENGINEERING_ROADMAP.md tools/Invoke-DevelopmentValidation.ps1
           $staged=@(git diff --cached --name-only)
-          if($staged.Count-ne4){throw('Expected four staged product paths; observed '+$staged.Count)}
-          git commit -m 'Manager 4.17.10: fix registered Doctor accumulator ordering'
+          if($staged.Count-ne5){throw('Expected five staged cleanup paths; observed '+$staged.Count+' paths='+([string]::Join(',',@($staged))))}
+          git commit -m 'Manager 4.17.10: integrate blocker regression and cleanup one-shot tooling'
           git push origin HEAD:dev/manager-4.17.10
