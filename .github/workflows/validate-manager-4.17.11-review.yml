@@ -1,0 +1,51 @@
+name: Validate Manager 4.17.11 review closure
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.11'
+    paths:
+      - '.github/workflows/validate-manager-4.17.11-review.yml'
+      - 'tools/Invoke-Manager41711ReviewRegression.ps1'
+      - 'tools/Verify-ManagerReleaseInstructions.ps1'
+      - 'manager/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-manager-4.17.11-review-closure
+  cancel-in-progress: true
+
+jobs:
+  review-closure:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Parse new review controls
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($relative in @('tools\Invoke-Manager41711ReviewRegression.ps1','tools\Verify-ManagerReleaseInstructions.ps1')){
+            $path=Join-Path $env:GITHUB_WORKSPACE $relative
+            $tokens=$null;$errors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+            if(@($errors).Count){throw($relative+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          }
+
+      - name: Verify managed release instructions
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-ManagerReleaseInstructions.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Execute registry CANDIDATE outcome regression
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-Manager41711ReviewRegression.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
