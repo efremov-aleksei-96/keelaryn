@@ -83,7 +83,9 @@ function Show-HubManagementMenu {
 '@
 $text=Replace-SinglelineExactlyOnce $text $registryPattern $registryReplacement 'frontend registry enumeration independence'
 
-$unresolvedPattern="(?s)        if\(-not\$ctx\.InstanceId\)\{\r?\n            Write-UiHost 'Registry exists but is invalid/unresolved\. Run Doctor; switching is disabled\.' -ForegroundColor Red\r?\n            Write-UiHost '  \[0\] Back'\r?\n            if\(\(Read-UiInput 'Select'\)\.Trim\(\)-eq'0'\)\{return\}\r?\n            continue\r?\n        \}"
+$unresolvedPattern=@'
+(?s)        if\(-not\$ctx\.InstanceId\)\{\r?\n            Write-UiHost 'Registry exists but is invalid/unresolved\. Run Doctor; switching is disabled\.' -ForegroundColor Red\r?\n            Write-UiHost '  \[0\] Back'\r?\n            if\(\(Read-UiInput 'Select'\)\.Trim\(\)-eq'0'\)\{return\}\r?\n            continue\r?\n        \}
+'@
 $unresolvedReplacement=@'
         if(-not$ctx.InstanceId){
             $rows=@()
