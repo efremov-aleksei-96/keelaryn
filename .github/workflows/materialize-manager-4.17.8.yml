@@ -59,8 +59,8 @@ jobs:
           Replace-Once $runtime '$null=Assert-RegisteredInstanceBaseline $candidateRow' '$null=Assert-RegisteredInstanceActivationEligible $candidateRow'
           '@.Trim()
           $new4=@'
-          $registrationAnchor=@('# The generated state and source Hub can change after staging validation. Revalidate','# the exact published pair immediately before instances.json becomes authoritative.','$null=Assert-RegisteredInstanceBaseline $candidateRow','$newRows=@($registry.instances)+@($candidateRow)')
-          $registrationReplacement=@('# The generated state and source Hub can change after staging validation. Revalidate','# the exact published pair immediately before instances.json becomes authoritative.','$null=Assert-RegisteredInstanceActivationEligible $candidateRow','$newRows=@($registry.instances)+@($candidateRow)')
+          $registrationAnchor=@('        # The generated state and source Hub can change after staging validation. Revalidate','        # the exact published pair immediately before instances.json becomes authoritative.','        $null=Assert-RegisteredInstanceBaseline $candidateRow','        $newRows=@($registry.instances)+@($candidateRow)')
+          $registrationReplacement=@('        # The generated state and source Hub can change after staging validation. Revalidate','        # the exact published pair immediately before instances.json becomes authoritative.','        $null=Assert-RegisteredInstanceActivationEligible $candidateRow','        $newRows=@($registry.instances)+@($candidateRow)')
           $registrationNl=Get-Nl (Read-Text $runtime)
           Replace-Once $runtime ([string]::Join($registrationNl,$registrationAnchor)) ([string]::Join($registrationNl,$registrationReplacement))
           '@.Trim()
@@ -93,4 +93,4 @@ jobs:
           git commit -m 'Manager 4.17.8: close alias and registration activation gaps'
           git push origin HEAD:dev/manager-4.17.8
 
-# unique registration transaction anchor
+# exact registration transaction anchor with source indentation preserved
