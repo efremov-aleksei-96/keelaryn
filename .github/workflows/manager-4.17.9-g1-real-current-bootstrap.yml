@@ -36,8 +36,8 @@ jobs:
             "`$artifactName = 'manager-4.17.9-g1-hosted-qualification'",
             "`$expectedGateSha256 = 'f0f62c19b52cc75cd75a0a6d7cff9495614ebc08a9a2ec4492cc075199d5fcba'",
             "`$expectedBaseline = '4.17.8'",
-            "tests\\UNPACK_MANAGER_GATE.cmd",
-            'gh run download',
+            'tests\UNPACK_MANAGER_GATE.cmd',
+            'run download $runId --repo $repo --name $artifactName --dir $downloadRoot',
             'does not install Manager 4.17.9'
           )
           foreach($needle in $required){if(-not $text.Contains($needle)){throw('Missing required bootstrap contract: '+$needle)}}
