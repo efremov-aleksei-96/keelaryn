@@ -1,11 +1,11 @@
 {
   "schema": "keelaryn.manager-development-state.v1",
   "repository": "efremov-aleksei-96/keelaryn",
-  "lifecycle_state": "qualified_release",
+  "lifecycle_state": "candidate_frozen",
   "authoritative_branch": "dev/manager-4.17.10",
   "head_resolution": {
     "mode": "resolve_branch_ref_live",
-    "note": "Resolve dev/manager-4.17.10 live for operational metadata. Frozen Manager 4.17.10 g3 remains immutable; g1 and g2 remain rejected immutable history."
+    "note": "Resolve dev/manager-4.17.10 live for rejected-release operational state. Frozen Manager 4.17.10 g3 remains immutable and production-installed; public release PR #59 is rejected."
   },
   "lineage": {
     "production_manager_version": "4.17.10",
@@ -15,54 +15,40 @@
     "production_managed_digest": "2df8ff820d1f4c31fe8c8b537ff81ec4a3e67516325ca73f4470c561c9497cfa",
     "production_installation_sha256": "3d4e1102b6852e1c1502d265e913bbe8c640ce7e881b4051a9b4e5cc6e7fab25",
     "framework_revision": "r24",
-    "successor_manager_version": "4.17.10"
+    "successor_manager_version": "4.17.11"
   },
   "materialization": {
     "manager_version": "4.17.10",
     "product_commit": "93dde4f475c24e04c768c61c53fd297eabbed34b",
     "materialization_run_id": "34760251487",
     "materialization_status": "pass",
-    "fix": "Invoke-Doctor initializes its finding accumulator before every registry-specific Add-DoctorFinding path.",
     "candidate_issued": true
-  },
-  "knowledge_closure": {
-    "status": "blocker_fixed_and_runtime_regression_integrated",
-    "fixed_release_blockers": ["MGR-DEF-0023"],
-    "permanent_regression": "tools/Invoke-Manager41710ReviewRegression.ps1",
-    "runtime_regression_run_id": "34760555917",
-    "runtime_regression_status": "pass",
-    "runtime_path_proven": "disposable Genesis -> InitializeInstanceRegistry -> Doctor -> registry diagnostics",
-    "open_release_blockers": 0
   },
   "qualification": {
     "risk_defect_gate": {
-      "status": "required_pass_before_freeze",
-      "observed_status": "pass",
-      "validated_head": "af4e26133cfb2dada0a56f6e8d7dd5c6f69b1efe",
-      "run_id": "34762448272"
+      "status": "expected_fail_while_open_release_blockers_exist",
+      "observed_status": "pending_rejection_state_validation",
+      "last_required_pass_head": "af4e26133cfb2dada0a56f6e8d7dd5c6f69b1efe",
+      "last_required_pass_run_id": "34762448272"
     },
     "candidate_4_17_10_g1": {
       "status": "frozen_rejected_prequalification_stale_public_manifest",
       "commit": "57deae0e1bbd5ff58494358ba7a06c016018e9e0",
-      "immutable": true,
-      "product_bytes_changed_after_freeze": false
+      "immutable": true
     },
     "candidate_4_17_10_g2": {
       "status": "frozen_rejected_prequalification_stale_public_provenance",
       "commit": "739e612ff77b218da2eedbbbd7d9dec87fcf21ad",
       "qualification_run_id": "34762222214",
-      "immutable": true,
-      "product_bytes_changed_after_freeze": false
+      "immutable": true
     },
     "candidate_4_17_10_g3": {
       "manager_version": "4.17.10",
       "candidate_revision": "g3",
-      "status": "frozen_production_qualified_public_release_ready",
+      "status": "frozen_production_qualified_public_release_rejected",
       "commit": "af128f0f10752ff1500155707b56260aac296569",
       "tree": "6bc3352441371f12f363fcc8caf4897f49cb840c",
-      "parent": "af4e26133cfb2dada0a56f6e8d7dd5c6f69b1efe",
       "immutable": true,
-      "freeze_diff_files": 0,
       "product_bytes_changed_after_freeze": false,
       "installation_sha256": "3d4e1102b6852e1c1502d265e913bbe8c640ce7e881b4051a9b4e5cc6e7fab25",
       "managed_content_sha256": "2df8ff820d1f4c31fe8c8b537ff81ec4a3e67516325ca73f4470c561c9497cfa",
@@ -80,11 +66,8 @@
       },
       "real_current_qualification": {
         "status": "pass",
-        "ordinary_gate_revision": 3,
         "full_gate_phases": 14,
-        "full_gate_pass": true,
-        "production_manager_hub_immutability": "pass",
-        "evidence_source": "validated workstation Full Gate output reviewed after hosted qualification"
+        "production_manager_hub_immutability": "pass"
       },
       "deterministic_tested_update": {
         "sha256": "c3d005861f1c2b4e39e6a7bf826cbb4ff81460fd89a595592d1960a711277a6f",
@@ -111,18 +94,26 @@
         "multi_hub_registry_active": false,
         "personal_hub_fingerprint_published": false
       },
-      "final_public_review": {
-        "status": "pass",
-        "open_blockers": 0,
+      "public_release_review": {
+        "status": "reject",
+        "pull_request": 59,
+        "pull_request_merged": false,
+        "release_blockers": ["MGR-DEF-0024", "MGR-DEF-0025"],
+        "runtime_review_thread": "4000023592",
+        "documentation_review_thread": "4000023589",
         "post_freeze_product_drift": false,
-        "decision": "public_release_ready"
+        "frozen_candidate_changed": false,
+        "successor_manager_version": "4.17.11"
       }
     },
-    "post_freeze_repository_validation": {
-      "documentation_head": "44a1bc4e5a65972b28457c9972a3a8d7193b4c2e",
-      "development_validation_run_id": "34765050493",
-      "status": "pass",
-      "product_bytes_changed": false
+    "release_pr_59": {
+      "status": "closed_rejected_not_merged",
+      "head": "694bea57a3d3add8bb612b9006f84dbadcd17787",
+      "pr_checks": "pass_before_rejection",
+      "windows_public_release_update_identity": "pass",
+      "windows_source_validation_source_gate": "pass",
+      "windows_source_validation_disposable_full_gate": "pass",
+      "rejection_stage": "automated_pr_review_after_all_qualification_evidence"
     }
   },
   "historical_candidate_4_17_9": {
@@ -132,40 +123,38 @@
     "successor": "4.17.10"
   },
   "production_policy": {
-    "production_manager": "4.17.10_installed_and_accepted",
+    "production_manager": "4.17.10_keep_installed_single_instance_compatibility_mode",
     "production_rollback": "not_required",
-    "multi_hub": "inactive_until_public_release_is_merged_and_activation_is_explicitly_requested",
+    "multi_hub": "disabled_until_Manager_4_17_11_is_fully_qualified_and_installed",
     "production_hub_mutation_from_manager_development": "forbidden",
-    "candidate_4_17_10_g1": "immutable_rejected_do_not_reuse",
-    "candidate_4_17_10_g2": "immutable_rejected_do_not_reuse",
-    "candidate_4_17_10_g3": "immutable_production_qualified"
+    "candidate_4_17_10_g3": "immutable_production_installed_public_release_rejected_do_not_modify"
   },
-  "open_release_blockers": [],
+  "open_release_blockers": ["MGR-DEF-0024", "MGR-DEF-0025"],
   "knowledge": {
     "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
     "hub_relay_research": "HUB_RELAY_RESEARCH.md",
     "knowledge_root": "tests/knowledge",
-    "current_risk_audits": ["MHA-4179-001"],
+    "current_risk_audits": ["MHA-4179-001", "MHA-41710-001"],
     "strict_pre_freeze_gate": "tools/Invoke-ManagerRiskDefectGate.ps1",
     "risk_context_regression": "tools/Invoke-ManagerRiskContextRegression.ps1",
     "manager_4_17_10_review_regression": "tools/Invoke-Manager41710ReviewRegression.ps1",
+    "planned_manager_4_17_11_review_regression": "tools/Invoke-Manager41711ReviewRegression.ps1",
     "public_manifest_reproducibility": "tools/Build-PublicFileManifest.ps1 -Check",
     "public_candidate_metadata_verifier": "tools/Verify-PublicCandidateMetadata.ps1",
     "public_repository_verifier": "tools/Verify-PublicRepository.ps1"
   },
   "next_exact_goal": {
-    "id": "MANAGER-41710-PUBLIC-RELEASE-001",
-    "description": "Validate this qualification-only metadata head, open the Manager 4.17.10 public release PR against main, require PR/main BuildRelease UPDATE SHA-256 to equal the exact production-tested UPDATE, review the complete diff, and merge only if no product or provenance drift is introduced. Multi-Hub remains inactive until after public release and a separate explicit activation decision.",
+    "id": "MANAGER-41711-POSTFREEZE-REVIEW-001",
+    "description": "Create dev/manager-4.17.11 from this rejected 4.17.10 provenance state. Fix MGR-DEF-0024 by using the captured instance Hub inbox for CANDIDATE-only UpdateHub outcome reporting; fix MGR-DEF-0025 by binding managed release instructions to the actual 4.17.10 -> 4.17.11 successor qualification path. Add executable registry-active CANDIDATE-only regression and a release-document identity guard before closing either blocker.",
     "product_changes_permitted_on_frozen_4_17_10_g3": false
   },
   "bootstrap": {
-    "ordinary_new_chat_instruction": "Continue Manager 4.17.10 public release from dev/manager-4.17.10 using repository-resident state.",
+    "ordinary_new_chat_instruction": "Continue Manager development from rejected 4.17.10 public release using repository-resident state.",
     "required_first_actions": [
-      "Resolve dev/manager-4.17.10 live; do not substitute an older local checkout.",
-      "Treat frozen g3 af128f0f10752ff1500155707b56260aac296569 as immutable production-qualified candidate source.",
-      "Production Manager 4.17.10 is installed and post-install accepted; rollback is not required.",
-      "Keep multi-Hub registry inactive until public release is merged and activation is separately approved.",
-      "Public release must preserve exact tested UPDATE identity c3d005861f1c2b4e39e6a7bf826cbb4ff81460fd89a595592d1960a711277a6f."
+      "Resolve dev/manager-4.17.10 live and preserve frozen g3 af128f0f10752ff1500155707b56260aac296569 unchanged.",
+      "Treat production Manager 4.17.10 as installed and accepted only in single-instance compatibility mode; rollback is not currently required.",
+      "Do not activate multi-Hub on Manager 4.17.10.",
+      "Start successor dev/manager-4.17.11 and keep MGR-DEF-0024/MGR-DEF-0025 open until permanent regressions pass."
     ]
   }
 }
