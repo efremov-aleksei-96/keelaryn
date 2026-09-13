@@ -170,6 +170,23 @@ A lower-numbered roadmap item is not automatically more important than a later i
 - **Dependency:** R-001/R-002 and evidence-backed lifecycle semantics from R-013.
 - **Exit:** CI can emit deterministic reusable finding records and a later session can reconcile them without reconstructing the originating chat/log narrative.
 
+### R-016 — Keelaryn Hub Relay / mechanical handoff elimination
+
+- **Priority:** P1
+- **Status:** NEXT
+- **Goal:** eliminate manual transport of Hub `CURRENT`, scoped `CHECKOUT`, `RETURN`, `CANDIDATE` and `APPROVED` artifacts between Workspace, domain chats, Chat Manager and the local Manager while preserving all existing governance, provenance, ancestry, validation and multi-Hub guarantees.
+- **Research baseline:** `HUB_RELAY_RESEARCH.md` is the durable full design input. It defines Google Drive as a private relay/transport layer only, never canonical authority; exact artifact identity and ancestry outrank filenames, Drive timestamps, folder ordering or “latest file” selection.
+- **Phase 1:** ChatGPT-side Drive Relay. Workspace, Keelaryn — Chats and Chat Manager discover and publish immutable/revision-addressed artifacts through private Drive, with explicit relay state/inboxes, stale handling, rejected/archive states, replay protection, conflict detection and fail-closed ambiguity. No Manager product change is required for this phase unless research proves otherwise.
+- **Phase 2:** Local Relay helper over Google Drive Desktop or an equivalent synced filesystem. Prefer a minimal external helper that validates an identity envelope, moves exact `APPROVED` artifacts into the standard Manager inbox and publishes Manager-produced `CURRENT`; it must not install or mutate Hub state itself and must not bypass the existing Manager validation/install path.
+- **Phase 3:** optional native Manager Relay UX only after Phase 1/2 stabilize. Preserve manual inbox compatibility; Relay remains optional rather than a mandatory storage backend.
+- **Trust boundary:** Chat Manager remains authority for reconciliation/`APPROVED`; local Manager remains authority for validation, install, Doctor and next `CURRENT`; GitHub remains Manager/framework source only; personal Hub artifacts remain private relay data and never become public repository material.
+- **Identity requirements:** at minimum `instance_id`, system/data version or revision, artifact ID, role/status, producer role, base artifact ID, payload/content SHA-256, ancestry/expected predecessor and downgrade/replay state. Missing or ambiguous identity in multi-Hub mode fails closed.
+- **Concurrency/recovery:** explicitly cover stale CURRENT/RETURN rebase, sibling candidates, Drive conflict copies, partial sync/stable-file publication, rejected artifacts, already-installed APPROVED, rollback/downgrade and simultaneous pending returns. Never merge multiple returns automatically without overlap/shared-area/ancestry/conflict/order analysis.
+- **Security/privacy:** no public links or automatic sharing expansion; relay metadata must expose only the minimum routing/provenance data; Hub secrets excluded from canonical Hub must remain excluded from relay metadata/logs.
+- **Implementation rule:** do not write Drive-specific Manager code first. Research current Manager/Hub inbox/install/CURRENT-generation paths, minimize regression surface, design the relay schema/contract, threat-model stale/concurrent/multi-Hub/replay cases, define phased implementation and permanent regressions, then implement.
+- **Dependency:** R-003 multi-Hub invariants; R-004 artifact protocol; R-005 local bridge/helper; R-006 approval pipeline; R-008 offline/reconnect semantics; R-009 security model. Phase 1 may begin as research/prototype before native Manager integration.
+- **Exit:** healthy-path Hub maintenance no longer requires the user to manually download/re-upload ZIP/MD files between ChatGPT roles or copy APPROVED into the local inbox; human actions remain only where semantic decisions or governance approval are genuinely required, and all negative/stale/concurrent cases fail closed under permanent regression coverage.
+
 ## Roadmap maintenance policy
 
 The roadmap is a mandatory sink for **meaningful reusable ideas** discovered during implementation, review, testing, CI diagnosis, qualification, production acceptance or architecture discussion. Do not rely on chat history to preserve them.
