@@ -1,0 +1,136 @@
+name: Finalize Manager 4.17.9 knowledge closure
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.9'
+    paths:
+      - '.github/workflows/finalize-manager-4.17.9-knowledge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keelaryn-finalize-manager-4.17.9-knowledge
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact closure source identity
+        shell: powershell
+        run: |
+          $expectedParent='96731f633df2a153ca7fc7687dc1bd68054f9baf'
+          $parent=(git rev-parse HEAD^).Trim()
+          if($parent -cne $expectedParent){throw('Unexpected closure workflow parent: '+$parent+' expected='+$expectedParent)}
+          $changed=@(git diff --name-only HEAD^ HEAD)
+          if($changed.Count-ne1 -or [string]$changed[0] -cne '.github/workflows/finalize-manager-4.17.9-knowledge.yml'){
+            throw('Unexpected workflow publication diff: '+([string]::Join(', ',@($changed))))
+          }
+          $manifest=Get-Content -LiteralPath 'PUBLIC_FILE_MANIFEST.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$manifest.manager.version -cne '4.17.9'){throw('Unexpected Manager version: '+[string]$manifest.manager.version)}
+          if([string]$manifest.manager.installation_sha256 -cne '6072f033cca7f51b56c58ed8332410972246744c80f6c4c7d47a340e7709d357'){throw 'Unexpected Manager 4.17.9 installation identity.'}
+          if([string]$manifest.manager.gate_managed_content_sha256 -cne 'cbffc5af41738afcbff038d1a2ca4f68e2495957f4ebe75afacc215a79190e56'){throw 'Unexpected Manager 4.17.9 managed identity.'}
+
+      - name: Parse closure transformer
+        shell: powershell
+        run: |
+          $path=Join-Path $env:GITHUB_WORKSPACE 'tools\Finalize-Manager4179KnowledgeClosure.ps1'
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw('Closure transformer parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+
+      - name: Materialize evidence-backed knowledge closure locally
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Finalize-Manager4179KnowledgeClosure.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -QualificationRunId "$env:GITHUB_RUN_ID"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          Remove-Item -LiteralPath "$env:GITHUB_WORKSPACE\tools\Finalize-Manager4179KnowledgeClosure.ps1" -Force
+          Remove-Item -LiteralPath "$env:GITHUB_WORKSPACE\.github\workflows\finalize-manager-4.17.9-knowledge.yml" -Force
+          $allowed=@(
+            '.github/workflows/finalize-manager-4.17.9-knowledge.yml',
+            'MANAGER_DEVELOPMENT_STATE.json',
+            'MANAGER_ENGINEERING_ROADMAP.md',
+            'tests/knowledge/audits/pre-4.17.9-multi-hub.json',
+            'tests/knowledge/defects/manager-4.17.9-audit.json',
+            'tests/knowledge/defects/manager-4.17.x.json',
+            'tests/knowledge/risk-map.json',
+            'tools/Finalize-Manager4179KnowledgeClosure.ps1',
+            'tools/Test-ManagerEngineeringKnowledge.ps1'
+          )
+          $changed=@(git status --porcelain|ForEach-Object{$_.Substring(3).Replace('\','/')})
+          $unexpected=@($changed|Where-Object{$allowed-notcontains$_})
+          if($unexpected.Count){throw('Unexpected closure mutation path(s): '+([string]::Join(', ',@($unexpected))))}
+          foreach($required in @(
+            'MANAGER_DEVELOPMENT_STATE.json',
+            'MANAGER_ENGINEERING_ROADMAP.md',
+            'tests/knowledge/audits/pre-4.17.9-multi-hub.json',
+            'tests/knowledge/defects/manager-4.17.9-audit.json',
+            'tests/knowledge/defects/manager-4.17.x.json',
+            'tests/knowledge/risk-map.json',
+            'tools/Test-ManagerEngineeringKnowledge.ps1'
+          )){if($changed-notcontains$required){throw('Required closure path missing: '+$required)}}
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Manager 4.17.9: close convergence blockers with permanent evidence'
+          "KEELARYN_CLOSURE_HEAD=$((git rev-parse HEAD).Trim())" >> $env:GITHUB_ENV
+          $evidence=Join-Path $env:RUNNER_TEMP ('keelaryn-4179-closure-'+$env:GITHUB_RUN_ID)
+          [void][IO.Directory]::CreateDirectory($evidence)
+          "KEELARYN_CLOSURE_EVIDENCE=$evidence" >> $env:GITHUB_ENV
+
+      - name: Validate engineering knowledge lifecycle
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEngineeringKnowledge.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Run strict pre-freeze Risk Defect Gate from production provenance
+        shell: powershell
+        run: |
+          $out=Join-Path $env:KEELARYN_CLOSURE_EVIDENCE 'risk-gate'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit '7183f563e644b85f7131db2707816730b5dffb6b' -HeadCommit "$env:KEELARYN_CLOSURE_HEAD" -OutputDirectory "$out"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $report=Get-Content -LiteralPath (Join-Path $out 'RISK_DEFECT_GATE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if(-not[bool]$report.pass -or -not[bool]$report.candidate_freeze_permitted){throw 'Strict gate did not permit candidate freeze.'}
+          if(@($report.global_open_release_blockers).Count-ne0){throw 'Strict gate still reports open release blockers.'}
+
+      - name: Run exact closure-head development validation
+        shell: powershell
+        run: |
+          $out=Join-Path $env:KEELARYN_CLOSURE_EVIDENCE 'development'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$out"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-Manager4179ConvergenceRegression.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Verify exact closure head and publish
+        shell: powershell
+        run: |
+          $head=(git rev-parse HEAD).Trim()
+          if($head -cne $env:KEELARYN_CLOSURE_HEAD){throw('Closure HEAD changed during validation: '+$head+' expected='+$env:KEELARYN_CLOSURE_HEAD)}
+          if((git status --porcelain).Count-ne0){throw 'Closure worktree changed during validation.'}
+          $manifest=Get-Content -LiteralPath 'PUBLIC_FILE_MANIFEST.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$manifest.manager.installation_sha256 -cne '6072f033cca7f51b56c58ed8332410972246744c80f6c4c7d47a340e7709d357'){throw 'Closure changed Manager installation bytes.'}
+          if([string]$manifest.manager.gate_managed_content_sha256 -cne 'cbffc5af41738afcbff038d1a2ca4f68e2495957f4ebe75afacc215a79190e56'){throw 'Closure changed Manager managed bytes.'}
+          git push origin HEAD:dev/manager-4.17.9
+
+      - name: Upload compact closure evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: keelaryn-4179-knowledge-closure-${{ env.KEELARYN_CLOSURE_HEAD }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.KEELARYN_CLOSURE_EVIDENCE }}\risk-gate\RISK_DEFECT_GATE.json
+            ${{ env.KEELARYN_CLOSURE_EVIDENCE }}\risk-gate\MANAGER_RISK_CONTEXT.json
+            ${{ env.KEELARYN_CLOSURE_EVIDENCE }}\risk-gate\MANAGER_RISK_CONTEXT.md
+            ${{ env.KEELARYN_CLOSURE_EVIDENCE }}\development\evidence\DEVELOPMENT_VALIDATION.json
+            ${{ env.KEELARYN_CLOSURE_EVIDENCE }}\development\evidence\RISK_DEFECT_GATE_POLICY_CHECK.json
+          if-no-files-found: error
+          retention-days: 3
