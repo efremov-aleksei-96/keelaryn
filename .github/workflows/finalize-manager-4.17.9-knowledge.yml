@@ -27,7 +27,7 @@ jobs:
       - name: Verify exact closure source identity
         shell: powershell
         run: |
-          $expectedParent='70556a079c8ff0265b141cdec8a3e2eed0f9f919'
+          $expectedParent='024acf87cf7bc4b59fa28a0ebda0a7bc081b6cf9'
           $parent=(git rev-parse HEAD^).Trim()
           if($parent -cne $expectedParent){throw('Unexpected closure workflow parent: '+$parent+' expected='+$expectedParent)}
           $changed=@(git diff --name-only HEAD^ HEAD)
@@ -52,10 +52,37 @@ jobs:
         run: |
           $riskTool=Join-Path $env:GITHUB_WORKSPACE 'tools\Build-ManagerRiskContext.ps1'
           $riskText=[IO.File]::ReadAllText($riskTool,[Text.Encoding]::UTF8)
-          $needle="return''"
-          $count=([regex]::Matches($riskText,[regex]::Escape($needle))).Count
-          if($count-ne3){throw('Expected exactly 3 compact empty-return forms in risk context tool; actual='+$count)}
-          $riskText=$riskText.Replace($needle,"return ''")
+
+          $emptyNeedle="return''"
+          $emptyCount=([regex]::Matches($riskText,[regex]::Escape($emptyNeedle))).Count
+          if($emptyCount-ne3){throw('Expected exactly 3 compact empty-return forms in risk context tool; actual='+$emptyCount)}
+          $riskText=$riskText.Replace($emptyNeedle,"return ''")
+
+          $oldSignature='function Add-RangeSymbols([string]$Commit,[string]$Path,$Ranges,$Set){'
+          $newSignature='function Add-RangeSymbols([string]$Commit,[string]$Path,$Ranges,$Set,[switch]$AllowParseFailure){'
+          if(([regex]::Matches($riskText,[regex]::Escape($oldSignature))).Count-ne1){throw 'Unexpected Add-RangeSymbols signature shape.'}
+          $riskText=$riskText.Replace($oldSignature,$newSignature)
+
+          $oldParse="        if(@(`$errors).Count-ne0){Fail('Could not parse '+`$Path+' at '+`$Commit+' for risk-symbol mapping: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))}"
+          $newParse=@"
+        if(@(`$errors).Count-ne0){
+            if(`$AllowParseFailure){[void]`$Set.Add('__HISTORICAL_PARSE_FALLBACK__');return}
+            Fail('Could not parse '+`$Path+' at '+`$Commit+' for risk-symbol mapping: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))
+        }
+"@.TrimEnd("`r","`n")
+          if(([regex]::Matches($riskText,[regex]::Escape($oldParse))).Count-ne1){throw 'Unexpected risk-context parse failure branch shape.'}
+          $riskText=$riskText.Replace($oldParse,$newParse)
+
+          $oldCalls='$symbols=New-StringSet;Add-RangeSymbols $Head $Path $newRanges $symbols;Add-RangeSymbols $Base $Path $oldRanges $symbols'
+          $newCalls='$symbols=New-StringSet;Add-RangeSymbols $Head $Path $newRanges $symbols;Add-RangeSymbols $Base $Path $oldRanges $symbols -AllowParseFailure'
+          if(([regex]::Matches($riskText,[regex]::Escape($oldCalls))).Count-ne1){throw 'Unexpected Add-RangeSymbols call shape.'}
+          $riskText=$riskText.Replace($oldCalls,$newCalls)
+
+          $oldMatch='        if(Intersects @($change.symbols) $surfaceSymbols){$surfaceMatch=$true;break}'
+          $newMatch="        if(@(`$change.symbols)-contains'__HISTORICAL_PARSE_FALLBACK__'){`$surfaceMatch=`$true;break}`n        if(Intersects @(`$change.symbols) `$surfaceSymbols){`$surfaceMatch=`$true;break}"
+          if(([regex]::Matches($riskText,[regex]::Escape($oldMatch))).Count-ne1){throw 'Unexpected risk surface symbol matching shape.'}
+          $riskText=$riskText.Replace($oldMatch,$newMatch)
+
           [IO.File]::WriteAllText($riskTool,$riskText,(New-Object Text.UTF8Encoding($false)))
 
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Finalize-Manager4179KnowledgeClosureV2.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -QualificationRunId "$env:GITHUB_RUN_ID"
