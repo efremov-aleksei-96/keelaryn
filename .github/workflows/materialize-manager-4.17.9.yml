@@ -27,7 +27,7 @@ jobs:
       - name: Verify exact one-shot source identity
         shell: powershell
         run: |
-          $expectedParent='532a3bd08563ee62a43537ba78f81efb015ed222'
+          $expectedParent='7ce4575f3568aaa2211323af2d39989920f3b843'
           $parent=(git rev-parse HEAD^).Trim()
           if ($parent -cne $expectedParent) { throw ('Unexpected materialization parent: '+$parent+' expected='+$expectedParent) }
           $changed=@(git diff --name-only HEAD^ HEAD)
