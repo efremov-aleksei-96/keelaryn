@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 100
     steps:
       - name: Checkout exact frozen candidate
-        uses: actions/checkout@3d3c42e5aac5ba805825825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: 88577ad1022c751cc7fc259a13c9c7a1ff025532
           path: candidate
@@ -24,7 +24,7 @@ jobs:
           persist-credentials: false
 
       - name: Checkout exact production 4.17.7 provenance baseline
-        uses: actions/checkout@3d3c42e5aac5ba805825825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: 2d02951200767b04830f1395c2c8c818371459f8
           path: baseline
