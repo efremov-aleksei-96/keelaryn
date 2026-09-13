@@ -40,6 +40,11 @@
       "id": "RC-PUBLISH-001",
       "title": "Filesystem publication semantics are non-atomic or destination-sensitive",
       "description": "Directory/file publication can change semantics if the destination appears or changes between planning and publication instead of failing atomically on ambiguity."
+    },
+    {
+      "id": "RC-RANGE-001",
+      "title": "Qualification range identity is not validated",
+      "description": "A diff-driven qualification or risk-selection gate trusts caller-supplied base/head identities without proving a non-empty proper-ancestor range, allowing an empty, reversed or unrelated range to suppress required coverage."
     }
   ]
 }
