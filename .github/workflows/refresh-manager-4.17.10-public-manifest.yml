@@ -1,0 +1,79 @@
+name: Refresh Manager 4.17.10 public manifest
+
+on:
+  push:
+    branches:
+      - 'maintenance/refresh-manager-4.17.10-public-manifest'
+    paths:
+      - '.github/workflows/refresh-manager-4.17.10-public-manifest.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-manager-4.17.10-public-manifest
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Checkout authoritative dev head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.10
+          path: source
+          fetch-depth: 2
+
+      - name: Verify exact source identity
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:GITHUB_WORKSPACE 'source'
+          $head=(git -C $root rev-parse HEAD).Trim()
+          if($head -cne '2bee97938391d933267dec23939fb4250033b7f0'){throw('Unexpected dev head: '+$head)}
+          $old=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          if([string]$old.manager.version -cne '4.17.9'){throw('Expected stale 4.17.9 public manifest before repair; observed '+[string]$old.manager.version)}
+
+      - name: Regenerate canonical public manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:GITHUB_WORKSPACE 'source'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Write
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $root -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Validate exact metadata-only diff
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:GITHUB_WORKSPACE 'source'
+          $changed=@(git -C $root status --porcelain | ForEach-Object{$_.Substring(3).Replace('\','/')} | Sort-Object)
+          if($changed.Count-ne1 -or [string]$changed[0] -cne 'PUBLIC_FILE_MANIFEST.json'){throw('Unexpected diff: '+([string]::Join(', ',@($changed))))}
+          $m=Get-Content -LiteralPath (Join-Path $root 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          if([string]$m.manager.version -cne '4.17.10'){throw 'Regenerated manifest version mismatch.'}
+          if([int]$m.manager.file_count-ne70){throw 'Regenerated manifest managed file count mismatch.'}
+          if([int]$m.gate_framework.revision-ne24){throw 'Regenerated manifest Framework revision mismatch.'}
+          $install=Join-Path $root 'manager\product\install\INSTALLATION.json'
+          $installSha=(Get-FileHash -LiteralPath $install -Algorithm SHA256).Hash.ToLowerInvariant()
+          if([string]$m.manager.installation_sha256 -cne $installSha){throw 'Regenerated manifest installation SHA mismatch.'}
+          Write-Host ('Manager 4.17.10 installation SHA-256: '+[string]$m.manager.installation_sha256)
+          Write-Host ('Manager 4.17.10 managed digest: '+[string]$m.manager.gate_managed_content_sha256)
+          Write-Host 'PUBLIC MANIFEST REPAIR VALIDATION: PASS' -ForegroundColor Green
+
+      - name: Revalidate remote boundary and publish metadata-only repair
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:GITHUB_WORKSPACE 'source'
+          $remoteLine=(git -C $root ls-remote origin refs/heads/dev/manager-4.17.10)
+          $remoteSha=([string]$remoteLine -split "`t")[0]
+          if($remoteSha -cne '2bee97938391d933267dec23939fb4250033b7f0'){throw('Remote dev head advanced; refusing publication. observed='+$remoteSha)}
+          git -C $root config user.name 'github-actions[bot]'
+          git -C $root config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C $root add -- PUBLIC_FILE_MANIFEST.json
+          git -C $root commit -m 'Manager 4.17.10: refresh public source manifest'
+          git -C $root push origin HEAD:dev/manager-4.17.10
