@@ -1,78 +1,89 @@
 {
-    "schema":  "keelaryn.manager-development-state.v1",
-    "repository":  "efremov-aleksei-96/keelaryn",
-    "lifecycle_state":  "unqualified_development",
-    "authoritative_branch":  "dev/manager-4.17.9",
-    "head_resolution":  {
-                            "mode":  "resolve_branch_ref_live",
-                            "note":  "Do not store the containing commit as authoritative_head: that would be self-referential. Resolve the current authoritative branch ref from GitHub before every development action."
-                        },
-    "lineage":  {
-                    "production_manager_version":  "4.17.8",
-                    "production_provenance_head":  "7183f563e644b85f7131db2707816730b5dffb6b",
-                    "knowledge_bootstrap_head":  "d66b5fee2a9ff531c15dc8ab1d1abbb4655c7ee2",
-                    "frozen_candidate_commit":  "88577ad1022c751cc7fc259a13c9c7a1ff025532",
-                    "frozen_candidate_tree":  "a8017d41d4b3a248da15924fbda23d157669588c",
-                    "frozen_candidate_managed_digest":  "09f405fa6e628d1cfbd45da533f86eb35865b506c017dcc764e476db54c93758",
-                    "framework_revision":  "r24",
-                    "planned_successor_manager_version":  "4.17.9"
-                },
-    "product_bytes_changed_from_production_provenance":  true,
-    "production_policy":  {
-                              "multi_hub":  "inactive_until_successor_qualified",
-                              "production_hub_mutation_from_manager_development":  "forbidden"
-                          },
-    "open_release_blockers":  [
-                                  "MGR-DEF-0017",
-                                  "MGR-DEF-0018",
-                                  "MGR-DEF-0019",
-                                  "MGR-DEF-0020",
-                                  "MGR-DEF-0021",
-                                  "MGR-DEF-0022"
-                              ],
-    "knowledge":  {
-                      "roadmap":  "MANAGER_ENGINEERING_ROADMAP.md",
-                      "knowledge_root":  "tests/knowledge",
-                      "current_risk_audits":  [
-                                                  "MHA-4179-001"
-                                              ],
-                      "strict_pre_freeze_gate":  "tools/Invoke-ManagerRiskDefectGate.ps1"
-                  },
-    "qualification":  {
-                          "development_validation":  {
-                                                         "status":  "current_head_requires_validation",
-                                                         "last_known_pass_commit":  "d66b5fee2a9ff531c15dc8ab1d1abbb4655c7ee2",
-                                                         "last_known_pass_run_id":  "34749457265",
-                                                         "note":  "Manager 4.17.9 convergence product bytes are now under active development; exact product head requires fresh hosted validation before blockers can be cleared."
-                                                     },
-                          "risk_defect_gate":  {
-                                                   "status":  "expected_fail_while_open_release_blockers_exist",
-                                                   "last_policy_check_run_id":  "34749457265",
-                                                   "note":  "The strict gate must fail closed until release blockers are resolved with permanent executable coverage."
-                                               },
-                          "source_gate":  {
-                                              "status":  "not_applicable_before_candidate_freeze"
-                                          },
-                          "full_gate":  {
-                                            "status":  "not_applicable_before_candidate_freeze"
-                                        },
-                          "production_acceptance":  {
-                                                        "status":  "not_applicable_before_candidate_freeze"
-                                                    }
-                      },
-    "next_exact_goal":  {
-                            "id":  "MANAGER-4179-CONVERGENCE-001",
-                            "description":  "Validate the 4.17.9 convergence product changes against permanent A01-A20 executable coverage; diagnose/fix any hosted failures without weakening invariants; only after exact-head PASS mark blockers fixed and require strict Risk/Defect Gate PASS.",
-                            "product_changes_permitted":  true
-                        },
-    "bootstrap":  {
-                      "ordinary_new_chat_instruction":  "Continue Manager development from the repository-resident state.",
-                      "required_first_actions":  [
-                                                     "Read MANAGER_DEVELOPMENT_STATE.json from the authoritative repository branch available to the session.",
-                                                     "Resolve authoritative_branch HEAD live from GitHub and treat the remote branch as authoritative.",
-                                                     "Read MANAGER_ENGINEERING_ROADMAP.md only for deferred priorities and architectural intent.",
-                                                     "Load task-specific risk context / knowledge instead of full history where possible.",
-                                                     "Do not require a human to reconstruct current state from previous chat messages."
-                                                 ]
-                  }
+  "schema": "keelaryn.manager-development-state.v1",
+  "repository": "efremov-aleksei-96/keelaryn",
+  "lifecycle_state": "unqualified_development",
+  "authoritative_branch": "dev/manager-4.17.9",
+  "head_resolution": {
+    "mode": "resolve_branch_ref_live",
+    "note": "Do not store the containing commit as authoritative_head: that would be self-referential. Resolve the current authoritative branch ref from GitHub before every development action."
+  },
+  "lineage": {
+    "production_manager_version": "4.17.8",
+    "production_provenance_head": "7183f563e644b85f7131db2707816730b5dffb6b",
+    "knowledge_bootstrap_head": "d66b5fee2a9ff531c15dc8ab1d1abbb4655c7ee2",
+    "frozen_candidate_commit": "88577ad1022c751cc7fc259a13c9c7a1ff025532",
+    "frozen_candidate_tree": "a8017d41d4b3a248da15924fbda23d157669588c",
+    "frozen_candidate_managed_digest": "09f405fa6e628d1cfbd45da533f86eb35865b506c017dcc764e476db54c93758",
+    "framework_revision": "r24",
+    "planned_successor_manager_version": "4.17.9"
+  },
+  "product_bytes_changed_from_production_provenance": true,
+  "materialization": {
+    "manager_version": "4.17.9",
+    "product_commit": "bdcf5372dda6ed0e3216b41b9568574b998ec460",
+    "prepublication_convergence_run_id": "34750606708",
+    "prepublication_convergence_status": "pass",
+    "installation_sha256": "6072f033cca7f51b56c58ed8332410972246744c80f6c4c7d47a340e7709d357",
+    "managed_content_sha256": "cbffc5af41738afcbff038d1a2ca4f68e2495957f4ebe75afacc215a79190e56",
+    "temporary_materializer_removed": true,
+    "note": "The product commit passed the permanent 4.17.9 convergence regression before publication. Full exact-head Development Validation remains required before blocker closure."
+  },
+  "production_policy": {
+    "multi_hub": "inactive_until_successor_qualified",
+    "production_hub_mutation_from_manager_development": "forbidden"
+  },
+  "open_release_blockers": [
+    "MGR-DEF-0017",
+    "MGR-DEF-0018",
+    "MGR-DEF-0019",
+    "MGR-DEF-0020",
+    "MGR-DEF-0021",
+    "MGR-DEF-0022"
+  ],
+  "knowledge": {
+    "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
+    "knowledge_root": "tests/knowledge",
+    "current_risk_audits": [
+      "MHA-4179-001"
+    ],
+    "strict_pre_freeze_gate": "tools/Invoke-ManagerRiskDefectGate.ps1"
+  },
+  "qualification": {
+    "development_validation": {
+      "status": "exact_head_validation_requested_after_materialization",
+      "last_known_pass_commit": "d66b5fee2a9ff531c15dc8ab1d1abbb4655c7ee2",
+      "last_known_pass_run_id": "34749457265",
+      "materialized_product_commit": "bdcf5372dda6ed0e3216b41b9568574b998ec460",
+      "note": "A connector-authored state commit intentionally triggers hosted Development Validation because a GITHUB_TOKEN bot push does not recursively trigger push workflows."
+    },
+    "risk_defect_gate": {
+      "status": "expected_fail_while_open_release_blockers_exist",
+      "last_policy_check_run_id": "34749457265",
+      "note": "The strict gate must fail closed until release blockers are resolved with permanent executable coverage."
+    },
+    "source_gate": {
+      "status": "not_applicable_before_candidate_freeze"
+    },
+    "full_gate": {
+      "status": "not_applicable_before_candidate_freeze"
+    },
+    "production_acceptance": {
+      "status": "not_applicable_before_candidate_freeze"
+    }
+  },
+  "next_exact_goal": {
+    "id": "MANAGER-4179-CONVERGENCE-001",
+    "description": "Require exact-head hosted Development Validation PASS for the materialized 4.17.9 convergence product; diagnose/fix any hosted failures without weakening invariants; only after PASS mark blockers fixed and require strict Risk/Defect Gate PASS.",
+    "product_changes_permitted": true
+  },
+  "bootstrap": {
+    "ordinary_new_chat_instruction": "Continue Manager development from the repository-resident state.",
+    "required_first_actions": [
+      "Read MANAGER_DEVELOPMENT_STATE.json from the authoritative repository branch available to the session.",
+      "Resolve authoritative_branch HEAD live from GitHub and treat the remote branch as authoritative.",
+      "Read MANAGER_ENGINEERING_ROADMAP.md only for deferred priorities and architectural intent.",
+      "Load task-specific risk context / knowledge instead of full history where possible.",
+      "Do not require a human to reconstruct current state from previous chat messages."
+    ]
+  }
 }
