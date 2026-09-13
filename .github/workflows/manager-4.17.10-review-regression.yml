@@ -1,0 +1,40 @@
+name: Manager 4.17.10 review regression
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.10'
+    paths:
+      - 'tools/Invoke-Manager41710ReviewRegression.ps1'
+      - '.github/workflows/manager-4.17.10-review-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-4.17.10-review-regression
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact development head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Parse permanent regression
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $path=Join-Path $env:GITHUB_WORKSPACE 'tools\Invoke-Manager41710ReviewRegression.ps1'
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw('Regression parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+      - name: Execute real registry-active Doctor regression
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-Manager41710ReviewRegression.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
