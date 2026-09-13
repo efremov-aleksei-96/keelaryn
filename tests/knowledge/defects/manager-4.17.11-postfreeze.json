@@ -1,0 +1,58 @@
+{
+  "schema": "keelaryn.manager-defects.v1",
+  "scope": "Post-freeze public-release review findings for Manager 4.17.11",
+  "defects": [
+    {
+      "id": "MGR-DEF-0026",
+      "title": "Manage Hubs disables target-driven recovery switching when active selection is unresolved",
+      "severity": "P2",
+      "status": "open",
+      "release_blocker": true,
+      "detected_in": "4.17.11",
+      "detected_stage": "public_release_pr_review",
+      "defect_class": "recovery reachability / frontend gating",
+      "affected_surfaces": ["S-FRONTEND-INSTANCE-CONTEXT"],
+      "preconditions": "The multi-Hub registry is structurally valid and contains at least one healthy registered target, while active_instance.json is missing, corrupt, or names an instance that does not resolve.",
+      "bad_behavior": "The interactive Manage Hubs path reports that switching is disabled and exposes only Back, even though the runtime switch operation is intentionally target-driven and can recover by validating a healthy requested registered target without requiring the broken previous active selection.",
+      "root_cause": "The frontend uses successful resolution of the current active selection as a prerequisite for entering the switch UI, coupling recovery reachability to the state that recovery is intended to replace.",
+      "root_cause_classes": ["RC-RECOVERY-001"],
+      "violated_invariants": ["MH-RECOVERY-001"],
+      "related_defects": [],
+      "permanent_regressions": [],
+      "planned_regressions": ["tools/Invoke-Manager41712ReviewRegression.ps1"],
+      "fixed_in": "",
+      "evidence": [
+        {"type":"public_release_pr","id":"60"},
+        {"type":"pr_review_thread","id":"4000443460"},
+        {"type":"source_symbol","id":"Show-HubManagementMenu"},
+        {"type":"runtime_source_symbol","id":"Invoke-SwitchRegisteredInstance"}
+      ]
+    },
+    {
+      "id": "MGR-DEF-0027",
+      "title": "Risk context accepts empty or non-ancestor base/head ranges and can false-pass pre-freeze selection",
+      "severity": "P1",
+      "status": "open",
+      "release_blocker": true,
+      "detected_in": "4.17.11",
+      "detected_stage": "public_release_pr_review",
+      "defect_class": "qualification range identity / fail-open risk selection",
+      "affected_surfaces": ["S-CI-DEVELOPMENT"],
+      "preconditions": "The manually dispatched Risk Defect Gate receives a base/head pair that resolves as commits but is equal, reversed, or unrelated rather than a non-empty proper-ancestor range.",
+      "bad_behavior": "The workflow and Build-ManagerRiskContext resolve both commits without proving ancestry. In the base=head case the diff is empty, no risk surfaces or regressions are selected, and the gate can report PASS/freeze permission when no global release blocker is otherwise open.",
+      "root_cause": "Diff-driven qualification trusted caller-supplied commit identities without an explicit fail-closed proper-ancestor and non-empty-range precondition.",
+      "root_cause_classes": ["RC-RANGE-001"],
+      "violated_invariants": ["MH-RISK-RANGE-001"],
+      "related_defects": [],
+      "permanent_regressions": [],
+      "planned_regressions": ["tools/Invoke-ManagerRiskContextRegression.ps1"],
+      "fixed_in": "",
+      "evidence": [
+        {"type":"public_release_pr","id":"60"},
+        {"type":"pr_review_thread","id":"4000443459"},
+        {"type":"workflow","id":".github/workflows/manager-risk-defect-gate.yml"},
+        {"type":"source_path","id":"tools/Build-ManagerRiskContext.ps1"}
+      ]
+    }
+  ]
+}
