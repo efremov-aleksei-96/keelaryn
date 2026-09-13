@@ -5,7 +5,7 @@
   "authoritative_branch": "dev/manager-4.17.11",
   "head_resolution": {
     "mode": "resolve_branch_ref_live",
-    "note": "Resolve dev/manager-4.17.11 live for operational metadata. Frozen Manager 4.17.11 g1 remains immutable at commit 88e3dcba0af75264c4b53e8ec24d770c215677a0 / tree 7d23ab245699d63c264958f9132d29fe85d43de7; post-freeze commits are qualification/provenance metadata only."
+    "note": "Resolve dev/manager-4.17.11 live only for rejected-line provenance. Frozen Manager 4.17.11 g1 remains immutable at commit 88e3dcba0af75264c4b53e8ec24d770c215677a0 / tree 7d23ab245699d63c264958f9132d29fe85d43de7. PR #60 was closed without merge after two post-freeze release blockers were confirmed."
   },
   "lineage": {
     "production_manager_version": "4.17.10",
@@ -29,16 +29,17 @@
   },
   "qualification": {
     "risk_defect_gate": {
-      "status": "required_pass_before_freeze",
-      "observed_status": "pass",
+      "status": "expected_fail_while_open_release_blockers_exist",
+      "observed_status": "post_freeze_review_open_blockers",
       "validated_candidate_commit": "88e3dcba0af75264c4b53e8ec24d770c215677a0",
       "hosted_qualification_run_id": "34770214698",
-      "candidate_freeze_permitted": true
+      "candidate_freeze_permitted": false,
+      "open_release_blockers": ["MGR-DEF-0026", "MGR-DEF-0027"]
     },
     "candidate_4_17_11_g1": {
       "manager_version": "4.17.11",
       "candidate_revision": "g1",
-      "status": "frozen_production_qualified_public_release_ready",
+      "status": "frozen_production_qualified_public_release_rejected",
       "commit": "88e3dcba0af75264c4b53e8ec24d770c215677a0",
       "tree": "7d23ab245699d63c264958f9132d29fe85d43de7",
       "parent": "e1024937320cf60ba0257e7c61c0f0124cd379d3",
@@ -56,7 +57,7 @@
         "ordinary_gate_revision": 1,
         "ordinary_gate_sha256": "d09ac45cdbd25dfacd17d451c62e15e3f38fc8c1c045bb9216069ad70368e534",
         "source_gate": "pass",
-        "strict_risk_defect_gate": "pass",
+        "strict_risk_defect_gate": "pass_before_post_freeze_findings",
         "release_instruction_identity": "pass",
         "manager_41711_review_regression": "pass",
         "disposable_gate_revision": 9001,
@@ -107,19 +108,25 @@
         "personal_hub_fingerprint_published": false
       },
       "final_public_review": {
-        "status": "pass",
-        "open_blockers": 0,
+        "status": "failed",
+        "pull_request": 60,
+        "open_blockers": 2,
+        "release_blockers": ["MGR-DEF-0026", "MGR-DEF-0027"],
         "post_freeze_product_drift": false,
         "environment_only_failure_reclassified": true,
         "erroneous_product_defect_record_removed": true,
-        "decision": "public_release_ready"
+        "decision": "public_release_rejected"
       }
     },
     "post_freeze_repository_validation": {
       "reclassification_head": "10efafdd1bbb109c6ed3e3c2c7a306825fe34bd1",
       "reclassification_tree": "7d23ab245699d63c264958f9132d29fe85d43de7",
       "development_validation_run_id": "34772495719",
-      "status": "pass",
+      "final_release_metadata_head": "29de2125cf0d092b9f7a326dbbbaff0f84ee45f9",
+      "final_release_metadata_validation_run_id": "34773670010",
+      "public_release_pr": 60,
+      "public_release_pr_state": "closed_unmerged",
+      "status": "release_rejected_after_green_gates",
       "product_bytes_changed": false
     },
     "predecessor_4_17_10": {
@@ -132,13 +139,13 @@
     }
   },
   "production_policy": {
-    "production_manager": "4.17.11_installed_and_accepted",
-    "production_rollback": "not_required",
-    "multi_hub": "inactive_until_public_release_is_merged_and_activation_is_explicitly_requested",
+    "production_manager": "4.17.11_installed_and_accepted_public_release_rejected",
+    "production_rollback": "not_required_while_multi_hub_inactive",
+    "multi_hub": "disabled_until_Manager_4_17_12_is_fully_qualified_installed_public_released_and_activation_is_explicitly_requested",
     "production_hub_mutation_from_manager_development": "forbidden",
-    "candidate_4_17_11_g1": "immutable_production_qualified"
+    "candidate_4_17_11_g1": "immutable_production_installed_public_release_rejected_do_not_modify"
   },
-  "open_release_blockers": [],
+  "open_release_blockers": ["MGR-DEF-0026", "MGR-DEF-0027"],
   "knowledge": {
     "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
     "hub_relay_research": "HUB_RELAY_RESEARCH.md",
@@ -153,19 +160,18 @@
     "public_repository_verifier": "tools/Verify-PublicRepository.ps1"
   },
   "next_exact_goal": {
-    "id": "MANAGER-41711-PUBLIC-RELEASE-001",
-    "description": "Update qualification-only public provenance, require exact-head Development Validation, open the Manager 4.17.11 public release PR against main, require PR/main BuildRelease UPDATE SHA-256 to equal the exact production-tested UPDATE, review the complete diff, and merge only if no product or provenance drift is introduced. Multi-Hub remains inactive until after public release and a separate explicit activation decision.",
+    "id": "MANAGER-41712-SUCCESSOR-001",
+    "description": "Create dev/manager-4.17.12 from the exact rejected 4.17.11 line, fix MGR-DEF-0026 with target-driven frontend recovery switching and permanent regression coverage, harden diff-driven risk qualification for MGR-DEF-0027 to require a non-empty proper-ancestor range with permanent regression coverage, then require exact-head Development Validation and strict Risk/Defect Gate PASS before any 4.17.12 candidate freeze.",
     "product_changes_permitted_on_frozen_4_17_11_g1": false
   },
   "bootstrap": {
-    "ordinary_new_chat_instruction": "Continue Manager 4.17.11 public release from dev/manager-4.17.11 using repository-resident state.",
+    "ordinary_new_chat_instruction": "Continue Manager 4.17.12 successor development from the rejected Manager 4.17.11 line.",
     "required_first_actions": [
-      "Resolve dev/manager-4.17.11 live; do not substitute an older local checkout.",
-      "Treat frozen g1 88e3dcba0af75264c4b53e8ec24d770c215677a0 / tree 7d23ab245699d63c264958f9132d29fe85d43de7 as immutable production-qualified candidate source.",
-      "Production Manager 4.17.11 is installed and post-install accepted; rollback is not required.",
-      "Preserve the first frozen-g1 Full Gate FAIL as environment-only evidence; do not reinterpret it as a product defect.",
-      "Keep multi-Hub registry inactive until public release is merged and activation is separately approved.",
-      "Public release must preserve exact tested UPDATE identity f2bc027eca62c35b6b1244b8389cda0d87296ce0b04ee2a5bb3b569fcc5c19ed."
+      "Preserve Manager 4.17.11 g1 commit 88e3dcba0af75264c4b53e8ec24d770c215677a0 / tree 7d23ab245699d63c264958f9132d29fe85d43de7 as immutable production-installed rejected evidence.",
+      "Treat PR #60 as closed without merge because MGR-DEF-0026 and MGR-DEF-0027 were confirmed after green release gates.",
+      "Production Manager 4.17.11 remains installed and post-install accepted; rollback is not required while multi-Hub remains inactive.",
+      "Preserve the first frozen-g1 Full Gate FAIL as environment-only evidence; it is unrelated to the PR #60 blockers.",
+      "Do not activate multi-Hub before the 4.17.12 successor is fully qualified, installed, publicly released, and activation is separately approved."
     ]
   }
 }
