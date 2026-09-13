@@ -38,6 +38,12 @@ function Invoke-Child([string]$Script,[string[]]$Arguments){
     foreach($line in @($output)){Write-Host ([string]$line)}
     if($code-ne 0){Fail('Child command failed. exit='+$code+' script='+$Script+' args='+($Arguments-join' ')+' output='+([string]::Join(' | ',@($output))))}
 }
+function Invoke-GitOne([string[]]$Arguments){
+    $old=$ErrorActionPreference
+    try{$ErrorActionPreference='Continue';$out=@(& git.exe -C $RepositoryRoot @Arguments 2>&1);$code=[int]$LASTEXITCODE}finally{$ErrorActionPreference=$old}
+    if($code-ne0-or$out.Count-ne1){Fail('git '+($Arguments-join' ')+' failed: '+([string]::Join(' | ',@($out))))}
+    return ([string]$out[0]).Trim().ToLowerInvariant()
+}
 function Copy-Managed([string]$Source,[string]$Destination){
     $install=Get-Content -LiteralPath (Join-Path $Source 'product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
     if(Test-Path -LiteralPath $Destination){Remove-Item -LiteralPath $Destination -Recurse -Force}
@@ -66,14 +72,47 @@ if([string]$install.schema-cne 'keelaryn.manager.installation.v2'){Fail('Unsuppo
 $version=([string]$install.manager_version).Trim()
 if($version-notmatch '^\d+\.\d+\.\d+$'){Fail('Invalid Manager version: '+$version)}
 
+if(Test-Path -LiteralPath $OutputDirectory){Remove-Item -LiteralPath $OutputDirectory -Recurse -Force}
+[void][System.IO.Directory]::CreateDirectory($OutputDirectory)
+$evidence=Join-Path $OutputDirectory 'evidence'
+[void][System.IO.Directory]::CreateDirectory($evidence)
+
 Write-Host ('Keelaryn development validation - Manager '+$version)
-Write-Host '[1/5] Parse Manager PowerShell source...'
+Write-Host '[1/6] Parse Manager and development/risk PowerShell source...'
 $psFiles=@(Get-ChildItem -LiteralPath $manager -File -Recurse -Force -Filter '*.ps1')
 if($psFiles.Count-eq 0){Fail 'No Manager PowerShell files found.'}
 foreach($file in $psFiles){Parse-File $file.FullName}
-Write-Host ('Parser: PASS. files='+$psFiles.Count) -ForegroundColor Green
+$knowledgeTools=@(
+    'tools\Test-ManagerEngineeringKnowledge.ps1',
+    'tools\Build-ManagerRiskContext.ps1',
+    'tools\Invoke-ManagerRiskDefectGate.ps1'
+)
+foreach($relative in $knowledgeTools){
+    $path=Join-Path $RepositoryRoot $relative
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){Fail('Engineering knowledge tool is missing: '+$relative)}
+    Parse-File $path
+}
+Write-Host ('Parser: PASS. Manager files='+$psFiles.Count+'; knowledge tools='+$knowledgeTools.Count) -ForegroundColor Green
 
-Write-Host '[2/5] Run Manager 4.17.8 regression chain...'
+Write-Host '[2/6] Validate engineering knowledge and reproducible task risk context...'
+$knowledgeTool=Join-Path $RepositoryRoot 'tools\Test-ManagerEngineeringKnowledge.ps1'
+Invoke-Child $knowledgeTool @('-RepositoryRoot',$RepositoryRoot)
+$head=Invoke-GitOne @('rev-parse','--verify','HEAD^{commit}')
+$base=Invoke-GitOne @('rev-parse','--verify','HEAD^^{commit}')
+$riskTool=Join-Path $RepositoryRoot 'tools\Build-ManagerRiskContext.ps1'
+$riskA=Join-Path $OutputDirectory 'risk-a\MANAGER_RISK_CONTEXT.md'
+$riskB=Join-Path $OutputDirectory 'risk-b\MANAGER_RISK_CONTEXT.md'
+Invoke-Child $riskTool @('-RepositoryRoot',$RepositoryRoot,'-BaseCommit',$base,'-HeadCommit',$head,'-OutputPath',$riskA)
+Invoke-Child $riskTool @('-RepositoryRoot',$RepositoryRoot,'-BaseCommit',$base,'-HeadCommit',$head,'-OutputPath',$riskB)
+$riskAJson=[IO.Path]::ChangeExtension($riskA,'.json')
+$riskBJson=[IO.Path]::ChangeExtension($riskB,'.json')
+if((Sha $riskA)-cne(Sha $riskB)){Fail 'MANAGER_RISK_CONTEXT.md is not deterministic for the exact same base/head.'}
+if((Sha $riskAJson)-cne(Sha $riskBJson)){Fail 'MANAGER_RISK_CONTEXT.json is not deterministic for the exact same base/head.'}
+Copy-Item -LiteralPath $riskA -Destination (Join-Path $evidence 'MANAGER_RISK_CONTEXT.md') -Force
+Copy-Item -LiteralPath $riskAJson -Destination (Join-Path $evidence 'MANAGER_RISK_CONTEXT.json') -Force
+Write-Host 'Engineering knowledge + risk context reproducibility: PASS' -ForegroundColor Green
+
+Write-Host '[3/6] Run Manager 4.17.8 regression chain...'
 foreach($regressionName in @('Invoke-Manager4178ReviewRegression.ps1')){
     $regression=Join-Path $RepositoryRoot ('tools\'+$regressionName)
     if(-not(Test-Path -LiteralPath $regression -PathType Leaf)){Fail('Manager 4.17.8 regression tool is missing: '+$regressionName)}
@@ -82,16 +121,14 @@ foreach($regressionName in @('Invoke-Manager4178ReviewRegression.ps1')){
 }
 Write-Host 'Manager 4.17.8 regression chain: PASS' -ForegroundColor Green
 
-Write-Host '[3/5] Run Manager and frontend SelfTests from source...'
+Write-Host '[4/6] Run Manager and frontend SelfTests from source...'
 $runtime=Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1'
 $menu=Join-Path $manager 'product\tools\KeelarynMenu.ps1'
 Invoke-Child $runtime @('-SelfTest')
 Invoke-Child $menu @('-SelfTest','-NoRootLauncher')
 Write-Host 'SelfTests: PASS' -ForegroundColor Green
 
-Write-Host '[4/5] Run deterministic BuildRelease x2 in isolated disposable Manager roots...'
-if(Test-Path -LiteralPath $OutputDirectory){Remove-Item -LiteralPath $OutputDirectory -Recurse -Force}
-[void][System.IO.Directory]::CreateDirectory($OutputDirectory)
+Write-Host '[5/6] Run deterministic BuildRelease x2 in isolated disposable Manager roots...'
 $buildA=Join-Path $OutputDirectory 'build-a\manager'
 $buildB=Join-Path $OutputDirectory 'build-b\manager'
 Copy-Managed $manager $buildA
@@ -122,14 +159,18 @@ foreach($name in $expected){
 }
 Write-Host 'Deterministic BuildRelease x2: PASS' -ForegroundColor Green
 
-Write-Host '[5/5] Write compact development evidence...'
+Write-Host '[6/6] Write compact development evidence...'
 $report=[ordered]@{
-    schema='keelaryn.manager-development-validation.v1'
+    schema='keelaryn.manager-development-validation.v2'
     classification='development_only'
     manager_version=$version
     source_sha=$env:GITHUB_SHA
+    risk_base_commit=$base
+    risk_head_commit=$head
     runner=$env:RUNNER_NAME
     parser_files=$psFiles.Count
+    engineering_knowledge_pass=$true
+    risk_context_reproducible=$true
     review_regressions_pass=$true
     manager_selftest_pass=$true
     frontend_selftest_pass=$true
@@ -140,15 +181,15 @@ $report=[ordered]@{
     production_hub_used=$false
     completed_utc=[DateTime]::UtcNow.ToString('o')
 }
-$evidence=Join-Path $OutputDirectory 'evidence'
-[void][System.IO.Directory]::CreateDirectory($evidence)
 $reportPath=Join-Path $evidence 'DEVELOPMENT_VALIDATION.json'
 Write-Json $reportPath $report
 
 Remove-Item -LiteralPath (Join-Path $OutputDirectory 'build-a') -Recurse -Force
 Remove-Item -LiteralPath (Join-Path $OutputDirectory 'build-b') -Recurse -Force
+Remove-Item -LiteralPath (Join-Path $OutputDirectory 'risk-a') -Recurse -Force
+Remove-Item -LiteralPath (Join-Path $OutputDirectory 'risk-b') -Recurse -Force
 
 Write-Host ''
 Write-Host 'KEELARYN DEVELOPMENT VALIDATION: PASS' -ForegroundColor Green
-Write-Host ('Evidence: '+$reportPath)
+Write-Host ('Evidence: '+$evidence)
 Write-Host 'Classification: development_only; production_qualified=false'
