@@ -5,17 +5,17 @@
   "authoritative_branch": "dev/manager-4.17.9",
   "head_resolution": {
     "mode": "resolve_branch_ref_live",
-    "note": "Operational development state lives on dev/manager-4.17.9, but the issued candidate is immutable on its provenance branch. Resolve both refs live before acting."
+    "note": "Manager 4.17.9 g1 is immutable and production-qualified, but its public release is rejected. Resolve the branch/ref live and preserve this history while successor development proceeds."
   },
   "lineage": {
-    "production_manager_version": "4.17.8",
-    "production_provenance_head": "7183f563e644b85f7131db2707816730b5dffb6b",
-    "production_candidate_commit": "88577ad1022c751cc7fc259a13c9c7a1ff025532",
-    "production_candidate_tree": "a8017d41d4b3a248da15924fbda23d157669588c",
-    "production_managed_digest": "09f405fa6e628d1cfbd45da533f86eb35865b506c017dcc764e476db54c93758",
+    "production_manager_version": "4.17.9",
+    "production_provenance_head": "88d01c78520a365bd504aca3e5c879320fb5da29",
+    "production_candidate_commit": "cb036051586d567502ce31ca8f1192a39bd69ddf",
+    "production_candidate_tree": "dd9f3858ede2a1ced94a77026a36fbbb046da1ba",
+    "production_managed_digest": "cbffc5af41738afcbff038d1a2ca4f68e2495957f4ebe75afacc215a79190e56",
     "knowledge_bootstrap_head": "d66b5fee2a9ff531c15dc8ab1d1abbb4655c7ee2",
     "framework_revision": "r24",
-    "successor_manager_version": "4.17.9"
+    "successor_manager_version": "4.17.10"
   },
   "materialization": {
     "manager_version": "4.17.9",
@@ -25,18 +25,17 @@
     "installation_sha256": "6072f033cca7f51b56c58ed8332410972246744c80f6c4c7d47a340e7709d357",
     "managed_content_sha256": "cbffc5af41738afcbff038d1a2ca4f68e2495957f4ebe75afacc215a79190e56",
     "temporary_materializer_removed": true,
-    "note": "Manager 4.17.9 product bytes were materialized once and remained unchanged through knowledge closure, tooling hardening, exact-head development validation, candidate freeze, hosted qualification, real-current qualification and production acceptance."
+    "note": "Manager 4.17.9 product bytes are frozen and must not be changed. Production installation remains valid in single-instance compatibility mode."
   },
   "knowledge_closure": {
-    "status": "published_pass",
+    "status": "reopened_by_postfreeze_finding",
     "closure_commit": "00239eb609f84eb1ad5110ff0abffda236769aff",
     "qualification_run_id": "34753054865",
     "qualification_artifact_id": "10316067855",
     "qualification_artifact_sha256": "a3102a2bb380e3da5f92b7816e53e9d7bccffaccd6de2c68d213a50d91c65af3",
     "fixed_release_blockers": ["MGR-DEF-0017","MGR-DEF-0018","MGR-DEF-0019","MGR-DEF-0020","MGR-DEF-0021","MGR-DEF-0022"],
-    "open_release_blockers_after_closure": 0,
-    "strict_gate_from_production_provenance": "pass",
-    "exact_closure_head_development_validation": "pass"
+    "open_release_blockers_after_final_review": 1,
+    "new_open_release_blockers": ["MGR-DEF-0023"]
   },
   "pre_freeze_tooling_hardening": {
     "risk_context_historical_parse_policy": "current_head_parse_failure_is_fatal; historical_base_parse_failure_uses_explicit_conservative_path_level_fallback",
@@ -51,7 +50,7 @@
   "candidate": {
     "manager_version": "4.17.9",
     "candidate_revision": "g1",
-    "status": "frozen_production_qualified_pending_public_release_review",
+    "status": "frozen_production_qualified_public_release_rejected",
     "commit": "cb036051586d567502ce31ca8f1192a39bd69ddf",
     "tree": "dd9f3858ede2a1ced94a77026a36fbbb046da1ba",
     "validated_development_parent": "04b59748ca39ea7dc786ef7df722d1426fdc74ac",
@@ -60,19 +59,18 @@
     "managed_content_sha256": "cbffc5af41738afcbff038d1a2ca4f68e2495957f4ebe75afacc215a79190e56",
     "installation_sha256": "6072f033cca7f51b56c58ed8332410972246744c80f6c4c7d47a340e7709d357",
     "product_bytes_mutable": false,
-    "product_change_policy": "Any Manager product-byte change requires a successor Manager version/candidate; g1 is immutable."
+    "product_change_policy": "Any Manager product-byte fix for MGR-DEF-0023 requires successor Manager 4.17.10 or later; 4.17.9 g1 remains immutable."
   },
   "qualification": {
     "risk_defect_gate": {
       "status": "required_pass_before_freeze",
-      "observed_status": "pass",
+      "observed_status": "historical_pass_before_postfreeze_finding",
       "base_commit": "7183f563e644b85f7131db2707816730b5dffb6b",
       "closure_run_id": "34753054865",
-      "exact_head_run_id": "34753434645",
-      "open_release_blockers": 0
+      "exact_head_run_id": "34753434645"
     },
     "development_validation": {
-      "status": "pass",
+      "status": "historical_pass",
       "validated_commit": "04b59748ca39ea7dc786ef7df722d1426fdc74ac",
       "run_id": "34753434645",
       "artifact_id": "10316478367",
@@ -96,23 +94,13 @@
     },
     "real_current_bootstrap": {
       "status": "workstation_full_gate_pass",
-      "maintenance_branch": "maintenance/qualify-manager-4.17.9-g1",
-      "script_path": "tools/Invoke-Manager4179RealCurrentQualificationBootstrap.ps1",
-      "script_introduction_commit": "c63207dcc03e61b2d02193a29a19f9561ffbf54c",
-      "validated_maintenance_head": "9a8d9ccd6b6f3d3b3143402864c3d7460f104367",
       "validation_run_id": "34754442944",
-      "downloads_hosted_run_id": "34753663749",
-      "downloads_artifact_name": "manager-4.17.9-g1-hosted-qualification",
       "expected_gate_sha256": "f0f62c19b52cc75cd75a0a6d7cff9495614ebc08a9a2ec4492cc075199d5fcba",
-      "expected_production_baseline": "4.17.8",
-      "entrypoint": "D:\\0\\0__Core\\keelaryn\\tests\\UNPACK_MANAGER_GATE.cmd",
-      "install_included": false,
       "source_gate": "pass",
       "full_gate": "pass",
       "production_immutability": "pass",
       "current_backed_baseline": "pass",
-      "personal_hub_mutated": false,
-      "workstation_evidence_source": "maintainer-provided complete console output from the validated launcher"
+      "personal_hub_mutated": false
     },
     "production_acceptance": {
       "status": "pass",
@@ -122,32 +110,39 @@
       "tested_update_identity_check": "pass",
       "installer_validation": "pass",
       "production_install": "pass",
-      "production_doctor": "pass",
-      "production_ux_smoke": "pass",
-      "production_main_render": "pass",
-      "production_installation_info": "pass",
-      "production_hub_immutability": "pass",
+      "production_doctor": "pass_single_instance_compatibility_mode",
+      "production_ux_smoke": "pass_single_instance_compatibility_mode",
+      "production_hub_immutability": "pass_during_postinstall_acceptance",
       "production_managed_content_prefix": "4b11b397a6e3",
       "post_install_acceptance_script_commit": "cd52ba93c1720113b7df2662159348a13beb0eb0",
       "post_install_acceptance_validation_run_id": "34756026441",
       "post_install_acceptance_validation": "pass",
-      "multi_hub_registry_active": false,
-      "note": "Production Manager 4.17.9 is installed and production-qualified. Public release/main merge remains gated by final post-qualification review."
+      "multi_hub_registry_active": false
+    },
+    "final_public_review": {
+      "status": "reject",
+      "blockers": ["MGR-DEF-0023"],
+      "finding": "Invoke-Doctor performs registry-specific Add-DoctorFinding calls before $rows is initialized; the catch path repeats the same invalid call. Registry-mode Doctor therefore aborts while single-instance Doctor remains healthy.",
+      "frozen_candidate_changed": false,
+      "post_freeze_product_drift": false,
+      "production_rollback_required": false
     }
   },
   "historical_non_product_failures": [
     {"run_id":"34753609023","classification":"qualification_harness","cause":"candidate checkout used fetch-depth 1 while immutable-freeze preflight required HEAD^","candidate_bytes_changed":false},
     {"run_id":"34754337800","classification":"bootstrap_validation_harness","cause":"static assertion expected two backslashes instead of the one-backslash PowerShell path literal","candidate_bytes_changed":false},
     {"run_id":"34754409006","classification":"bootstrap_validation_harness","cause":"validation recursively counted both issued g1 and nested disposable g9001 gate instead of preferring the artifact-root issued gate like the bootstrap does","candidate_bytes_changed":false},
-    {"run_id":"34754507678","classification":"state_schema_integration","cause":"post-freeze operational state used a descriptive lifecycle_state outside the canonical allowed enum; detailed phase belongs in candidate.status and qualification fields while lifecycle_state remains candidate_frozen","candidate_bytes_changed":false},
-    {"run_id":"34754565146","classification":"state_contract_integration","cause":"risk_defect_gate.status was populated with observed result pass instead of preserving the canonical required_pass_before_freeze policy marker; observed result is now stored separately","candidate_bytes_changed":false}
+    {"run_id":"34754507678","classification":"state_schema_integration","cause":"post-freeze operational state used a descriptive lifecycle_state outside the canonical allowed enum","candidate_bytes_changed":false},
+    {"run_id":"34754565146","classification":"state_contract_integration","cause":"risk_defect_gate.status temporarily stored observed result instead of policy marker","candidate_bytes_changed":false}
   ],
   "production_policy": {
-    "multi_hub": "inactive_until_final_public_release_review_passes",
+    "multi_hub": "disabled_until_successor_closes_MGR-DEF-0023_and_is_fully_qualified",
+    "production_manager_4_17_9": "keep_installed_single_instance_compatibility_mode",
+    "production_rollback": "not_required",
     "production_hub_mutation_from_manager_development": "forbidden",
     "candidate_g1_product_bytes": "immutable"
   },
-  "open_release_blockers": [],
+  "open_release_blockers": ["MGR-DEF-0023"],
   "knowledge": {
     "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
     "knowledge_root": "tests/knowledge",
@@ -156,18 +151,18 @@
     "risk_context_regression": "tools/Invoke-ManagerRiskContextRegression.ps1"
   },
   "next_exact_goal": {
-    "id": "MANAGER-4179-PUBLIC-RELEASE-REVIEW-001",
-    "description": "Perform final post-qualification review of frozen Manager 4.17.9 g1, its public provenance and the full main diff. Confirm no unresolved product/security/data-safety blockers and no post-freeze product drift before opening/merging the public release PR. Keep production multi-Hub inactive until review passes.",
+    "id": "MANAGER-41710-DOCTOR-REGISTRY-001",
+    "description": "Create successor dev/manager-4.17.10 from the production-qualified 4.17.9 provenance state. Fix MGR-DEF-0023 by initializing Doctor findings before every registry-specific Add-DoctorFinding path, add a permanent registry-active Doctor regression that executes the real diagnostic path, then run GitHub-first development validation before any new candidate freeze.",
     "product_changes_permitted_on_frozen_g1": false
   },
   "bootstrap": {
-    "ordinary_new_chat_instruction": "Continue Manager 4.17.9 public-release review from repository-resident state; do not reconstruct state from chat history.",
+    "ordinary_new_chat_instruction": "Continue successor Manager 4.17.10 development from repository-resident state; Manager 4.17.9 remains production-installed but public-release-rejected.",
     "required_first_actions": [
-      "Read MANAGER_DEVELOPMENT_STATE.json from dev/manager-4.17.9.",
-      "Resolve dev/manager-4.17.9 and provenance/candidate-manager-4.17.9-g1 refs live from GitHub.",
-      "Treat candidate cb036051586d567502ce31ca8f1192a39bd69ddf / tree dd9f3858ede2a1ced94a77026a36fbbb046da1ba as immutable.",
-      "Treat production Manager 4.17.9 as installed and production-qualified, but keep multi-Hub inactive until final public-release review passes.",
-      "Do not regenerate qualified product bytes; public provenance must point to exact tested UPDATE e440aa1b25990d3dd9ce88f27d21f048fed02e7d8414149dfd59873de0bb566a."
+      "Read MANAGER_DEVELOPMENT_STATE.json and MGR-DEF-0023 from dev/manager-4.17.9.",
+      "Treat Manager 4.17.9 candidate cb036051586d567502ce31ca8f1192a39bd69ddf as immutable.",
+      "Keep production multi-Hub registry inactive.",
+      "Do not roll back production 4.17.9 solely for MGR-DEF-0023 because single-instance production Doctor/UX are healthy and the failing path requires registry activation.",
+      "Fix the blocker only in successor Manager 4.17.10 with real registry-active Doctor execution coverage."
     ]
   }
 }
