@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   validate-bootstrap:
@@ -42,4 +43,20 @@ jobs:
           )
           foreach($needle in $required){if(-not $text.Contains($needle)){throw('Missing required bootstrap contract: '+$needle)}}
           if($text.Contains('INSTALL_TESTED_MANAGER_UPDATE.cmd')){throw 'Bootstrap must not install production Manager.'}
-          Write-Host 'MANAGER 4.17.9 REAL-CURRENT BOOTSTRAP VALIDATION: PASS' -ForegroundColor Green
+          Write-Host 'MANAGER 4.17.9 REAL-CURRENT BOOTSTRAP STATIC VALIDATION: PASS' -ForegroundColor Green
+
+      - name: Prove exact hosted qualification gate retrieval
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'real-current-bootstrap-artifact'
+          New-Item -ItemType Directory -Force -Path $out|Out-Null
+          gh run download 34753663749 --repo efremov-aleksei-96/keelaryn --name manager-4.17.9-g1-hosted-qualification --dir $out
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $matches=@(Get-ChildItem -LiteralPath $out -Filter 'manager-4.17.9.zip' -File -Recurse)
+          if($matches.Count-ne1){throw('Expected one manager-4.17.9.zip; observed '+$matches.Count)}
+          $sha=(Get-FileHash -LiteralPath $matches[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sha-cne'f0f62c19b52cc75cd75a0a6d7cff9495614ebc08a9a2ec4492cc075199d5fcba'){throw('Gate SHA mismatch: '+$sha)}
+          Write-Host ('EXACT HOSTED GATE RETRIEVAL: PASS '+$sha) -ForegroundColor Green
