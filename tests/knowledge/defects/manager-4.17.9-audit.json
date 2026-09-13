@@ -1,0 +1,66 @@
+{
+  "schema":"keelaryn.manager-defects.v1",
+  "scope":"Pre-4.17.9 multi-Hub convergence audit findings discovered before successor product changes",
+  "defects":[
+    {
+      "id":"MGR-DEF-0019",
+      "title":"Valid registry with invalid active-selection metadata has no target-driven recovery path",
+      "severity":"P1","status":"open","release_blocker":true,"detected_in":"4.17.8","detected_stage":"pre_4.17.9_convergence_audit",
+      "defect_class":"recovery reachability / active-selection metadata",
+      "affected_surfaces":["S-RUNTIME-REGISTRY-RESOLUTION"],
+      "preconditions":"instances.json is structurally valid, but active_instance metadata is missing, malformed or names no registered row; at least one healthy registered target exists.",
+      "bad_behavior":"Early resolution fails before dispatch; ListInstances also attempts to read active selection; SwitchInstance subsequently reads previous active selection before validating the requested target. A healthy registered Hub therefore cannot reliably be listed/selected to repair active metadata.",
+      "root_cause":"Recovery and diagnostic paths are coupled to successful resolution of active-selection metadata instead of separating valid registry rows from the broken selection being repaired.",
+      "root_cause_classes":["RC-RECOVERY-001","RC-OUTCOME-001"],
+      "violated_invariants":["MH-RECOVERY-001","MH-REGISTRY-001","MH-SWITCH-001"],
+      "related_defects":["MGR-DEF-0014","MGR-DEF-0017"],
+      "permanent_regressions":[],"planned_regressions":["tools/Invoke-Manager4179ConvergenceRegression.ps1"],"fixed_in":null,
+      "evidence":[{"type":"candidate_commit","id":"88577ad1022c751cc7fc259a13c9c7a1ff025532"},{"type":"source_symbol","id":"Resolve-RegisteredInstanceContextEarly"},{"type":"source_symbol","id":"Invoke-ListInstances"},{"type":"source_symbol","id":"Invoke-SwitchRegisteredInstance"}]
+    },
+    {
+      "id":"MGR-DEF-0020",
+      "title":"Registry activation commits use baseline coherence instead of fresh full activation eligibility",
+      "severity":"P2","status":"open","release_blocker":true,"detected_in":"4.17.8","detected_stage":"pre_4.17.9_convergence_audit",
+      "defect_class":"transaction commit boundary / activation eligibility TOCTOU",
+      "affected_surfaces":["S-RUNTIME-REGISTRY-TRANSACTION"],
+      "preconditions":"A switch or registry bootstrap publishes/validates compatibility state, then the exact per-instance CURRENT changes before the authoritative active/registry write while remaining structurally coherent but no longer fully activation-eligible.",
+      "bad_behavior":"The final pre-commit guard calls Assert-RegisteredInstanceBaseline, which proves Hub/CURRENT identity/content coherence but does not enforce the stronger approved/activation-eligible contract. Durable selection can therefore be written after the stronger validation has become stale; inconsistency may be detected only post-commit.",
+      "root_cause":"The strongest activation predicate exists but is not the predicate freshly re-run at the authoritative commit boundary.",
+      "root_cause_classes":["RC-COMMIT-001","RC-CONTEXT-001"],
+      "violated_invariants":["MH-COMMIT-001","MH-REGISTRY-001","MH-DOWNGRADE-001"],
+      "related_defects":["MGR-DEF-0006","MGR-DEF-0011","MGR-DEF-0016"],
+      "permanent_regressions":[],"planned_regressions":["tools/Invoke-Manager4179ConvergenceRegression.ps1"],"fixed_in":null,
+      "evidence":[{"type":"candidate_commit","id":"88577ad1022c751cc7fc259a13c9c7a1ff025532"},{"type":"source_symbol","id":"Assert-RegisteredInstanceActivationEligible"},{"type":"source_symbol","id":"Invoke-InitializeInstanceRegistry"},{"type":"source_symbol","id":"Invoke-SwitchRegisteredInstance"}]
+    },
+    {
+      "id":"MGR-DEF-0021",
+      "title":"Registry-active global Hub inputs are silently outside normal Hub discovery",
+      "severity":"P2","status":"open","release_blocker":true,"detected_in":"4.17.8","detected_stage":"pre_4.17.9_convergence_audit",
+      "defect_class":"steady-state global/per-instance pending-state reachability",
+      "affected_surfaces":["S-RUNTIME-INBOX","S-RUNTIME-CANDIDATE-TRANSPORT","S-FRONTEND-HUB-INGRESS"],
+      "preconditions":"Multi-Hub registry is active and a Hub APPROVED/CANDIDATE/candidate-transport input remains or later appears in the global Manager inbox through legacy/manual/compatibility ingress.",
+      "bad_behavior":"Registered Hub workflows scan the active instance inbox and can leave the global Hub-owned input invisible indefinitely; normal operation can proceed without surfacing that stranded input.",
+      "root_cause":"Ownership moved to per-instance inboxes without a steady-state detector/reconciler for Hub-owned objects that appear in the legacy global ingress after activation.",
+      "root_cause_classes":["RC-REACHABILITY-001","RC-COMPAT-001"],
+      "violated_invariants":["MH-REACHABILITY-001","MH-LIFECYCLE-001","MH-INBOX-001"],
+      "related_defects":["MGR-DEF-0007","MGR-DEF-0012","MGR-DEF-0018"],
+      "permanent_regressions":[],"planned_regressions":["tools/Invoke-Manager4179ConvergenceRegression.ps1"],"fixed_in":null,
+      "evidence":[{"type":"candidate_commit","id":"88577ad1022c751cc7fc259a13c9c7a1ff025532"},{"type":"source_symbol","id":"Get-ValidHubPackages"},{"type":"source_symbol","id":"Invoke-BuildCandidateTransport"},{"type":"source_symbol","id":"Invoke-RestoreCandidateTransport"}]
+    },
+    {
+      "id":"MGR-DEF-0022",
+      "title":"BindInstance cannot rebind a moved registered Hub with the same immutable instance_id",
+      "severity":"P1","status":"open","release_blocker":true,"detected_in":"4.17.8","detected_stage":"pre_4.17.9_convergence_audit",
+      "defect_class":"recovery rebind / stale vault path",
+      "affected_surfaces":["S-RUNTIME-REGISTRY-RESOLUTION","S-RUNTIME-REGISTRY-TRANSACTION"],
+      "preconditions":"A registered Hub moves from its recorded vault_path to a new path while preserving its immutable instance_id; the old path is stale/missing and the user invokes BindInstancePath for the new path.",
+      "bad_behavior":"Registry-mode Bind delegates to registration. Registration sees same instance_id at a different path and treats it as a conflict instead of an explicit rebind, so stale vault_path cannot be repaired through the advertised bind recovery operation.",
+      "root_cause":"Registration duplicate/conflict semantics and rebind recovery semantics are conflated; no transaction exists for changing only the registered path of the same identity.",
+      "root_cause_classes":["RC-RECOVERY-001","RC-COMMIT-001"],
+      "violated_invariants":["MH-REBIND-001","MH-RECOVERY-001","MH-IDENTITY-001","MH-COMMIT-001"],
+      "related_defects":["MGR-DEF-0017","MGR-DEF-0019"],
+      "permanent_regressions":[],"planned_regressions":["tools/Invoke-Manager4179ConvergenceRegression.ps1"],"fixed_in":null,
+      "evidence":[{"type":"candidate_commit","id":"88577ad1022c751cc7fc259a13c9c7a1ff025532"},{"type":"source_symbol","id":"Invoke-BindInstance"},{"type":"source_symbol","id":"Invoke-RegisterExistingInstance"}]
+    }
+  ]
+}
