@@ -87,10 +87,20 @@ try{
     Assert (-not$stateText.Contains('Move-Item -LiteralPath $staging -Destination $paths.Root')) 'Per-instance state publication still uses container-nesting Move-Item semantics.'
 
     # Source transaction contract: published Hub/state must be freshly validated before
-    # instances.json becomes authoritative, not only after the commit.
+    # instances.json becomes authoritative, not only after the commit. 4.17.8 strengthens
+    # registration with an activation-eligibility helper that itself retains the original
+    # published-baseline validation before adding APPROVED-checkpoint validation.
+    $activationHelper=$null
+    try{$activationHelper=Get-FunctionText $runtimePath 'Assert-RegisteredInstanceActivationEligible'}catch{$activationHelper=$null}
+    if($activationHelper){
+        Assert ($activationHelper.Contains('Assert-RegisteredInstanceBaseline $Row')) 'Activation-eligibility helper does not retain published-baseline validation.'
+    }
     foreach($name in @('Invoke-RegisterExistingInstance','Invoke-GenesisRegisteredInstance')){
         $text=Get-FunctionText $runtimePath $name
         $validate=$text.IndexOf('Assert-RegisteredInstanceBaseline $candidateRow',[StringComparison]::Ordinal)
+        if($validate-lt0-and$name-eq'Invoke-RegisterExistingInstance'-and$activationHelper){
+            $validate=$text.IndexOf('Assert-RegisteredInstanceActivationEligible $candidateRow',[StringComparison]::Ordinal)
+        }
         $commit=$text.IndexOf('Write-ManagerInstanceRegistry',[StringComparison]::Ordinal)
         Assert ($validate-ge0) ($name+' lacks fresh published-baseline validation before registry commit.')
         Assert ($commit-gt$validate) ($name+' validates the published baseline only after registry commit.')
