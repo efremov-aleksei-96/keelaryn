@@ -18,16 +18,29 @@ function Assert-ExistingCoveragePath([string]$RelativePath,[string]$Owner){
     $path=Join-Path $RepositoryRoot ($RelativePath.Replace('/','\'))
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){Fail($Owner+' references missing permanent coverage: '+$RelativePath)}
 }
+function Read-AllDefectRecords {
+    $dir=Join-Path $RepositoryRoot 'tests\knowledge\defects'
+    if(-not(Test-Path -LiteralPath $dir -PathType Container)){Fail 'Knowledge defect directory is missing.'}
+    $files=@(Get-ChildItem -LiteralPath $dir -File -Filter '*.json'|Sort-Object Name)
+    if($files.Count-eq0){Fail 'Knowledge defect directory contains no canonical defect files.'}
+    $records=New-Object System.Collections.ArrayList
+    foreach($file in $files){
+        try{$doc=Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8|ConvertFrom-Json}catch{Fail('Invalid JSON '+$file.FullName+': '+$_.Exception.Message)}
+        if([string]$doc.schema-cne'keelaryn.manager-defects.v1'){Fail('Unexpected defect schema in '+$file.Name+'.')}
+        foreach($row in @($doc.defects)){[void]$records.Add($row)}
+    }
+    return [pscustomobject]@{Files=@($files);Records=@($records)}
+}
 
 $roots=Read-Json 'tests/knowledge/root-causes.json'
 $invariantsDoc=Read-Json 'tests/knowledge/invariants/multi-hub.json'
-$defectsDoc=Read-Json 'tests/knowledge/defects/manager-4.17.x.json'
+$defectSet=Read-AllDefectRecords
+$allDefects=@($defectSet.Records)
 $machine=Read-Json 'tests/knowledge/state-machines/multi-hub.json'
 $risk=Read-Json 'tests/knowledge/risk-map.json'
 
 if([string]$roots.schema-cne'keelaryn.manager-engineering-root-causes.v1'){Fail 'Unexpected root-cause schema.'}
 if([string]$invariantsDoc.schema-cne'keelaryn.manager-invariants.v1'){Fail 'Unexpected invariant schema.'}
-if([string]$defectsDoc.schema-cne'keelaryn.manager-defects.v1'){Fail 'Unexpected defect schema.'}
 if([string]$machine.schema-cne'keelaryn.manager-state-machine.v1'){Fail 'Unexpected state-machine schema.'}
 if([string]$risk.schema-cne'keelaryn.manager-risk-map.v1'){Fail 'Unexpected risk-map schema.'}
 
@@ -91,7 +104,7 @@ foreach($iid in @($invariantIds)){if(-not$coveredInvariantIds.Contains($iid)){Fa
 
 $defectIds=New-IdSet
 $defectById=@{}
-foreach($d in @($defectsDoc.defects)){
+foreach($d in $allDefects){
     $id=[string]$d.id
     Add-Unique $defectIds $id 'defect'
     if($id-notmatch'^MGR-DEF-\d{4}$'){Fail('Defect id is not canonical: '+$id)}
@@ -113,19 +126,20 @@ foreach($d in @($defectsDoc.defects)){
     }
     $defectById[$id]=$d
 }
-foreach($d in @($defectsDoc.defects)){foreach($other in @($d.related_defects)){Assert-Ref $defectIds ([string]$other) 'defect' ([string]$d.id)}}
+foreach($d in $allDefects){foreach($other in @($d.related_defects)){Assert-Ref $defectIds ([string]$other) 'defect' ([string]$d.id)}}
 
 Write-Host 'Manager Engineering Knowledge: structural validation PASS' -ForegroundColor Green
 Write-Host ('  root-cause classes: '+@($roots.classes).Count)
 Write-Host ('  invariants: '+@($invariantsDoc.invariants).Count)
-Write-Host ('  defects: '+@($defectsDoc.defects).Count+' (open='+@($defectsDoc.defects|Where-Object{$_.status-eq'open'}).Count+')')
+Write-Host ('  defect files: '+@($defectSet.Files).Count)
+Write-Host ('  defects: '+$allDefects.Count+' (open='+@($allDefects|Where-Object{$_.status-eq'open'}).Count+')')
 Write-Host ('  risk surfaces: '+@($risk.surfaces).Count)
 Write-Host ('  state scenarios: '+@($machine.states).Count+'; operations='+@($machine.operations).Count+'; rules='+@($machine.rules).Count)
 
 $repeated=New-Object System.Collections.ArrayList
 foreach($inv in @($invariantsDoc.invariants)){
     $iid=[string]$inv.id
-    $violations=@($defectsDoc.defects|Where-Object{@($_.violated_invariants)-contains$iid})
+    $violations=@($allDefects|Where-Object{@($_.violated_invariants)-contains$iid})
     if($violations.Count-ge2){
         [void]$repeated.Add([pscustomobject]@{Invariant=$iid;Defects=@($violations|ForEach-Object{[string]$_.id})})
     }
