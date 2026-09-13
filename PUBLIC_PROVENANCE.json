@@ -1,60 +1,57 @@
 {
-    "schema":  "keelaryn.public-repository-provenance.v2",
-    "role":  "public_source_sync_candidate",
-    "source_manager_version":  "4.17.11",
-    "source_gate_baseline_manager_version":  "4.17.10",
-    "source_manager_installation_sha256":  "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
-    "source_manager_gate_managed_content_sha256":  "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
-    "production_validation":  {
-                                  "full_gate_pass":  false,
-                                  "gate_revision":  0,
-                                  "framework_revision":  24,
-                                  "tested_update_sha256":  null,
-                                  "production_doctor_pass":  false,
-                                  "production_ux_smoke_pass":  false,
-                                  "production_managed_content_prefix":  null
-                              },
-    "predecessor_publication_rejection":  {
-                                              "manager_version":  "4.17.10",
-                                              "status":  "rejected_post_freeze_public_review",
-                                              "pull_request":  59,
-                                              "frozen_candidate_commit":  "af128f0f10752ff1500155707b56260aac296569",
-                                              "frozen_candidate_changed":  false,
-                                              "release_blockers":  [
-                                                                       "MGR-DEF-0024",
-                                                                       "MGR-DEF-0025"
-                                                                   ]
-                                          },
-    "personal_hub_included":  false,
-    "manager_runtime_state_included":  false,
-    "local_test_evidence_included":  false,
-    "gate_framework":  {
-                           "version":  "2.0",
-                           "revision":  24,
-                           "windows_qualified":  true,
-                           "frozen_for_manager_candidate":  false
-                       },
-    "license":  {
-                    "spdx_id":  "MIT",
-                    "file":  "LICENSE",
-                    "copyright":  "Copyright (c) 2026 Keelaryn contributors"
-                },
-    "public_candidate_revision":  18,
-    "git_checkout_contract":  {
-                                  "manager_authoritative_tree_attribute":  "-text",
-                                  "framework_authoritative_tree_attribute":  "-text",
-                                  "core_autocrlf_true_roundtrip_required":  true
-                              },
-    "known_nonsecret_source_hygiene_notes":  [
-                                                 "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example for historical/maintainer qualification context; it is not a product installation default."
-                                             ],
-    "ci_policy":  {
-                      "github_actions":  "pull_request + main push + manual",
-                      "hosted_scope":  "repository verification + Hub-blind SourceGate + hosted disposable Full Gate + Generic DISTRIBUTION smoke",
-                      "full_gate":  "CURRENT-backed Windows Full Gate plus production Doctor, production UX smoke and Hub immutability before publication",
-                      "update_identity":  "when full_gate_pass=true, PR and main BuildRelease UPDATE SHA-256 must equal production_validation.tested_update_sha256; publish consumes those gated bytes"
-                  },
-    "known_nonsecret_hygiene_notes":  [
-                                          "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example; it is not a product default."
-                                      ]
+  "schema": "keelaryn.public-repository-provenance.v2",
+  "role": "public_source_sync_candidate",
+  "source_manager_version": "4.17.11",
+  "source_gate_baseline_manager_version": "4.17.10",
+  "source_manager_installation_sha256": "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
+  "source_manager_gate_managed_content_sha256": "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
+  "production_validation": {
+    "full_gate_pass": true,
+    "gate_revision": 1,
+    "framework_revision": 24,
+    "tested_update_sha256": "f2bc027eca62c35b6b1244b8389cda0d87296ce0b04ee2a5bb3b569fcc5c19ed",
+    "production_doctor_pass": true,
+    "production_ux_smoke_pass": true,
+    "production_managed_content_prefix": "db7b288b7ac2"
+  },
+  "predecessor_publication_rejection": {
+    "manager_version": "4.17.10",
+    "status": "rejected_post_freeze_public_review",
+    "pull_request": 59,
+    "frozen_candidate_commit": "af128f0f10752ff1500155707b56260aac296569",
+    "frozen_candidate_changed": false,
+    "release_blockers": ["MGR-DEF-0024", "MGR-DEF-0025"]
+  },
+  "personal_hub_included": false,
+  "manager_runtime_state_included": false,
+  "local_test_evidence_included": false,
+  "gate_framework": {
+    "version": "2.0",
+    "revision": 24,
+    "windows_qualified": true,
+    "frozen_for_manager_candidate": true
+  },
+  "license": {
+    "spdx_id": "MIT",
+    "file": "LICENSE",
+    "copyright": "Copyright (c) 2026 Keelaryn contributors"
+  },
+  "public_candidate_revision": 19,
+  "git_checkout_contract": {
+    "manager_authoritative_tree_attribute": "-text",
+    "framework_authoritative_tree_attribute": "-text",
+    "core_autocrlf_true_roundtrip_required": true
+  },
+  "known_nonsecret_source_hygiene_notes": [
+    "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example for historical/maintainer qualification context; it is not a product installation default."
+  ],
+  "ci_policy": {
+    "github_actions": "pull_request + main push + manual",
+    "hosted_scope": "repository verification + Hub-blind SourceGate + hosted disposable Full Gate + Generic DISTRIBUTION smoke",
+    "full_gate": "CURRENT-backed Windows Full Gate plus production Doctor, production UX smoke and Hub immutability before publication",
+    "update_identity": "when full_gate_pass=true, PR and main BuildRelease UPDATE SHA-256 must equal production_validation.tested_update_sha256; publish consumes those gated bytes"
+  },
+  "known_nonsecret_hygiene_notes": [
+    "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example; it is not a product default."
+  ]
 }
