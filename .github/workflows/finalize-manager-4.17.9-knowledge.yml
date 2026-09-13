@@ -27,7 +27,7 @@ jobs:
       - name: Verify exact closure source identity
         shell: powershell
         run: |
-          $expectedParent='024acf87cf7bc4b59fa28a0ebda0a7bc081b6cf9'
+          $expectedParent='b15d7984f29544d3648b6ef7d493cb6a191c8cfa'
           $parent=(git rev-parse HEAD^).Trim()
           if($parent -cne $expectedParent){throw('Unexpected closure workflow parent: '+$parent+' expected='+$expectedParent)}
           $changed=@(git diff --name-only HEAD^ HEAD)
@@ -64,12 +64,12 @@ jobs:
           $riskText=$riskText.Replace($oldSignature,$newSignature)
 
           $oldParse="        if(@(`$errors).Count-ne0){Fail('Could not parse '+`$Path+' at '+`$Commit+' for risk-symbol mapping: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))}"
-          $newParse=@"
-        if(@(`$errors).Count-ne0){
-            if(`$AllowParseFailure){[void]`$Set.Add('__HISTORICAL_PARSE_FALLBACK__');return}
-            Fail('Could not parse '+`$Path+' at '+`$Commit+' for risk-symbol mapping: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))
-        }
-"@.TrimEnd("`r","`n")
+          $newParse=@(
+            "        if(@(`$errors).Count-ne0){",
+            "            if(`$AllowParseFailure){[void]`$Set.Add('__HISTORICAL_PARSE_FALLBACK__');return}",
+            "            Fail('Could not parse '+`$Path+' at '+`$Commit+' for risk-symbol mapping: '+([string]::Join(' | ',@(`$errors|ForEach-Object{`$_.Message}))))",
+            '        }'
+          ) -join "`n"
           if(([regex]::Matches($riskText,[regex]::Escape($oldParse))).Count-ne1){throw 'Unexpected risk-context parse failure branch shape.'}
           $riskText=$riskText.Replace($oldParse,$newParse)
 
