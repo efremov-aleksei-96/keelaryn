@@ -82,15 +82,16 @@ jobs:
           $original = Join-Path $env:GITHUB_WORKSPACE 'tools\Materialize-Manager4178.ps1'
           if (Test-Path -LiteralPath $original) { Remove-Item -LiteralPath $original -Force }
 
-      - name: Commit materialized development source
+      - name: Commit materialized development source without workflow mutations
         shell: powershell
         run: |
+          git restore -- '.github/workflows/development-validation.yml' '.github/workflows/materialize-manager-4.17.8.yml' 'tools/Materialize-Manager4178.ps1'
           git status --short
-          if (-not (git status --porcelain)) { throw 'Materializer produced no repository changes.' }
+          if (-not (git status --porcelain)) { throw 'Materializer produced no publishable repository changes.' }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git commit -m 'Manager 4.17.8: close alias and registration activation gaps'
           git push origin HEAD:dev/manager-4.17.8
 
-# exact registration transaction anchor with source indentation preserved
+# split publication: product/tools first; workflow cleanup is connector-managed
