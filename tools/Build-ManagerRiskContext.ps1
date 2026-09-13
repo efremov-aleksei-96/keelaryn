@@ -53,7 +53,7 @@ function Resolve-Commit([string]$Ref){
     return $rows[0].Trim().ToLowerInvariant()
 }
 function New-StringSet(){return New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)}
-function Add-RangeSymbols([string]$Commit,[string]$Path,$Ranges,$Set){
+function Add-RangeSymbols([string]$Commit,[string]$Path,$Ranges,$Set,[switch]$AllowParseFailure){
     if(-not$Path.EndsWith('.ps1',[StringComparison]::OrdinalIgnoreCase)){return}
     $spec=('{0}:{1}' -f $Commit,$Path)
     $old=$ErrorActionPreference
@@ -64,7 +64,10 @@ function Add-RangeSymbols([string]$Commit,[string]$Path,$Ranges,$Set){
         [IO.File]::WriteAllText($temp,([string]::Join("`n",@($textRows))),$Utf8NoBom)
         $tokens=$null;$errors=$null
         $ast=[Management.Automation.Language.Parser]::ParseFile($temp,[ref]$tokens,[ref]$errors)
-        if(@($errors).Count-ne0){Fail('Could not parse '+$Path+' at '+$Commit+' for risk-symbol mapping: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+        if(@($errors).Count-ne0){
+            if($AllowParseFailure){[void]$Set.Add('__HISTORICAL_PARSE_FALLBACK__');return}
+            Fail('Could not parse '+$Path+' at '+$Commit+' for risk-symbol mapping: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))
+        }
         $functions=@($ast.FindAll({param($node)$node-is[Management.Automation.Language.FunctionDefinitionAst]},$true))
         foreach($range in @($Ranges)){
             $start=[int]$range.Start;$count=[int]$range.Count
@@ -85,7 +88,7 @@ function Get-PathChange([string]$Path,[string]$Base,[string]$Head){
             [void]$oldRanges.Add([pscustomobject]@{Start=[int]$matches[1];Count=$oldCount});[void]$newRanges.Add([pscustomobject]@{Start=[int]$matches[3];Count=$newCount})
         }
     }
-    $symbols=New-StringSet;Add-RangeSymbols $Head $Path $newRanges $symbols;Add-RangeSymbols $Base $Path $oldRanges $symbols
+    $symbols=New-StringSet;Add-RangeSymbols $Head $Path $newRanges $symbols;Add-RangeSymbols $Base $Path $oldRanges $symbols -AllowParseFailure
     return [ordered]@{path=$Path;symbols=@($symbols|Sort-Object)}
 }
 function Test-WildcardPath([string]$Path,[string]$Pattern){
@@ -95,10 +98,10 @@ function Test-WildcardPath([string]$Path,[string]$Pattern){
 function Intersects($A,$B){foreach($x in @($A)){if(@($B)-contains$x){return $true}}return $false}
 function Set-Intersects($Rows,$Set){foreach($row in @($Rows)){if($Set.Contains([string]$row)){return $true}}return $false}
 function Add-UniqueIds($Set,$Rows){foreach($row in @($Rows)){if(-not[string]::IsNullOrWhiteSpace([string]$row)){[void]$Set.Add([string]$row)}}}
-function Escape-Md([string]$Text){if($null-eq$Text){return''};return $Text.Replace('|','\|').Replace("`r",' ').Replace("`n",' ')}
+function Escape-Md([string]$Text){if($null-eq$Text){return ''};return $Text.Replace('|','\|').Replace("`r",' ').Replace("`n",' ')}
 function Get-OptionalText($Object,[string]$PropertyName){
-    if($null-eq$Object){return''}
-    if($Object.PSObject.Properties.Name -notcontains $PropertyName){return''}
+    if($null-eq$Object){return ''}
+    if($Object.PSObject.Properties.Name -notcontains $PropertyName){return ''}
     return [string]$Object.$PropertyName
 }
 function Get-WinningStateRule($Machine,[string]$State,[string]$Operation){
@@ -124,6 +127,7 @@ foreach($surface in @($risk.surfaces)){
         if(-not$pathMatch){continue}
         $surfaceSymbols=@($surface.symbols)
         if($surfaceSymbols.Count-eq0 -or -not([string]$change.path).EndsWith('.ps1',[StringComparison]::OrdinalIgnoreCase)){$surfaceMatch=$true;break}
+        if(@($change.symbols)-contains'__HISTORICAL_PARSE_FALLBACK__'){$surfaceMatch=$true;break}
         if(Intersects @($change.symbols) $surfaceSymbols){$surfaceMatch=$true;break}
     }
     if($surfaceMatch){[void]$matchedSurfaceIds.Add([string]$surface.id)}

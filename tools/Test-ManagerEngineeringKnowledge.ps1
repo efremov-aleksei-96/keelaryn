@@ -156,14 +156,34 @@ foreach($entry in @($auditSet.Documents)){
     Add-Unique $auditIds $aid 'risk-audit'
     if($aid-notmatch'^MHA-[A-Z0-9-]+$'){Fail('Risk-audit id is not canonical: '+$aid)}
     if([string]::IsNullOrWhiteSpace([string]$audit.title)){Fail($aid+' has no title.')}
-    if(@($audit.confirmed_open_defects).Count-eq0){Fail($aid+' has no confirmed open defects.')}
-    foreach($did in @($audit.confirmed_open_defects)){
+    $confirmedOpen=@($audit.confirmed_open_defects)
+    $resolvedDefects=@()
+    if($audit.PSObject.Properties.Name -contains 'resolved_defects'){$resolvedDefects=@($audit.resolved_defects)}
+    if($confirmedOpen.Count-eq0 -and $resolvedDefects.Count-eq0){Fail($aid+' has neither confirmed open nor resolved defects.')}
+    foreach($did in @($confirmedOpen)){
         Assert-Ref $defectIds ([string]$did) 'defect' $aid
         $defect=$defectById[[string]$did]
         if([string]$defect.status-cne'open' -or -not[bool]$defect.release_blocker){Fail($aid+' confirmed_open_defects must reference an open release blocker: '+[string]$did)}
         [void]$auditedOpenBlockers.Add([string]$did)
     }
-    $clusterIds=New-IdSet
+    foreach($did in @($resolvedDefects)){
+        Assert-Ref $defectIds ([string]$did) 'defect' $aid
+        $defect=$defectById[[string]$did]
+        if([string]$defect.status-cne'fixed' -or -not[bool]$defect.release_blocker){Fail($aid+' resolved_defects must reference a fixed release blocker: '+[string]$did)}
+        if(@($confirmedOpen) -contains ([string]$did)){Fail($aid+' defect cannot be both open and resolved: '+[string]$did)}
+    }
+    if($audit.PSObject.Properties.Name -contains 'resolution'){
+        $resolutionStatus=[string]$audit.resolution.status
+        if($resolutionStatus-ceq'resolved'){
+            if($confirmedOpen.Count-ne0){Fail($aid+' is resolved but still has confirmed_open_defects.')}
+            if($resolvedDefects.Count-eq0){Fail($aid+' is resolved but has no resolved_defects.')}
+            if([string]::IsNullOrWhiteSpace([string]$audit.resolution.manager_version)){Fail($aid+' resolved audit lacks manager_version.')}
+            if([string]::IsNullOrWhiteSpace([string]$audit.resolution.permanent_regression)){Fail($aid+' resolved audit lacks permanent_regression.')}
+            Assert-ExistingCoveragePath ([string]$audit.resolution.permanent_regression) $aid
+        }elseif(-not[string]::IsNullOrWhiteSpace($resolutionStatus) -and $resolutionStatus-cne'open'){
+            Fail($aid+' has unsupported resolution status: '+$resolutionStatus)
+        }
+    }    $clusterIds=New-IdSet
     foreach($cluster in @($audit.convergence_clusters)){
         $cid=[string]$cluster.id
         Add-Unique $clusterIds $cid ($aid+' cluster')
