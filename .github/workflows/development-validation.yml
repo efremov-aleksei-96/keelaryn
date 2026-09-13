@@ -78,8 +78,9 @@ jobs:
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.json
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.md
+            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\RISK_DEFECT_GATE_POLICY_CHECK.json
           if-no-files-found: warn
           retention-days: 3
 
 # Engineering knowledge integrity and compact task risk context are development checks.
-# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow.
+# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run only verifies that its observed PASS/FAIL matches repository policy state.
