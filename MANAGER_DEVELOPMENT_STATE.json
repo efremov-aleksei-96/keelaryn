@@ -1,7 +1,7 @@
 {
   "schema": "keelaryn.manager-development-state.v1",
   "repository": "efremov-aleksei-96/keelaryn",
-  "lifecycle_state": "candidate_frozen_hosted_prequalified_pending_real_current_acceptance",
+  "lifecycle_state": "candidate_frozen",
   "authoritative_branch": "dev/manager-4.17.9",
   "head_resolution": {
     "mode": "resolve_branch_ref_live",
@@ -58,7 +58,7 @@
   "candidate": {
     "manager_version": "4.17.9",
     "candidate_revision": "g1",
-    "status": "frozen",
+    "status": "frozen_hosted_prequalified_pending_real_current_acceptance",
     "commit": "cb036051586d567502ce31ca8f1192a39bd69ddf",
     "tree": "dd9f3858ede2a1ced94a77026a36fbbb046da1ba",
     "validated_development_parent": "04b59748ca39ea7dc786ef7df722d1426fdc74ac",
@@ -137,6 +137,12 @@
       "run_id": "34754409006",
       "classification": "bootstrap_validation_harness",
       "cause": "validation recursively counted both issued g1 and nested disposable g9001 gate instead of preferring the artifact-root issued gate like the bootstrap does",
+      "candidate_bytes_changed": false
+    },
+    {
+      "run_id": "34754507678",
+      "classification": "state_schema_integration",
+      "cause": "post-freeze operational state used a descriptive lifecycle_state outside the canonical allowed enum; detailed phase belongs in candidate.status and qualification fields while lifecycle_state remains candidate_frozen",
       "candidate_bytes_changed": false
     }
   ],
