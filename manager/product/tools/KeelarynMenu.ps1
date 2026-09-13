@@ -1211,11 +1211,24 @@ function Invoke-NewRegisteredHubGenesisUi {
     return 0
 }
 function Get-FrontendRegistryRows {
-    $ctx=Get-FrontendInstanceContext
-    if(-not$ctx.RegistryActive-or-not$ctx.InstanceId){return @()}
+    if(-not$StateLayoutActive){return @()}
     $registryPath=Join-Path $StateRoot 'instances.json'
-    $registry=Get-Content -LiteralPath $registryPath -Raw -Encoding UTF8|ConvertFrom-Json
-    return @($registry.instances|Sort-Object name,instance_id)
+    if(-not(Test-Path -LiteralPath $registryPath -PathType Leaf)){return @()}
+    $item=Get-Item -LiteralPath $registryPath -Force -ErrorAction Stop
+    if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0-or$item.Length-gt1MB){throw 'Manager instance registry is unsafe.'}
+    try{$registry=Get-Content -LiteralPath $registryPath -Raw -Encoding UTF8|ConvertFrom-Json}catch{throw('Manager instance registry JSON is invalid: '+$_.Exception.Message)}
+    if([string]$registry.schema-cne'keelaryn.manager.instances.v1'){throw 'Unsupported Manager instance registry schema.'}
+    $rows=New-Object System.Collections.ArrayList
+    $seen=New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
+    foreach($candidate in @($registry.instances)){
+        $id=ConvertTo-CanonicalFrontendInstanceId $candidate.instance_id
+        if(-not$seen.Add($id)){throw('Manager instance registry contains duplicate instance_id: '+$id)}
+        $name=([string]$candidate.name).Trim()
+        if(-not$name-or$name.Length-gt64-or$name-match'[\x00-\x1F]'){throw('Manager instance registry contains invalid display name for '+$id)}
+        [void]$rows.Add([pscustomobject]@{instance_id=$id;name=$name;vault_path=[string]$candidate.vault_path})
+    }
+    if($rows.Count-eq0){throw 'Manager instance registry contains no instances.'}
+    return @($rows|Sort-Object name,instance_id)
 }
 
 function Show-HubManagementMenu {
@@ -1238,9 +1251,29 @@ function Show-HubManagementMenu {
             continue
         }
         if(-not$ctx.InstanceId){
-            Write-UiHost 'Registry exists but is invalid/unresolved. Run Doctor; switching is disabled.' -ForegroundColor Red
+            $rows=@()
+            try{$rows=@(Get-FrontendRegistryRows)}catch{
+                Write-UiHost ('Registry exists but cannot be enumerated safely: '+$_.Exception.Message) -ForegroundColor Red
+                Write-UiHost 'Run Doctor; recovery switching remains fail-closed until the registry itself is valid.' -ForegroundColor Yellow
+                Write-UiHost '  [0] Back'
+                if((Read-UiInput 'Select').Trim()-eq'0'){return}
+                continue
+            }
+            Write-UiHost 'Active selection is invalid/unresolved. Choose a registered Hub to recover active selection.' -ForegroundColor Yellow
+            for($i=0;$i-lt$rows.Count;$i++){
+                Write-UiHost ('  [{0}] {1} | {2}' -f ($i+1),[string]$rows[$i].name,([string]$rows[$i].instance_id).Substring(0,8))
+            }
             Write-UiHost '  [0] Back'
-            if((Read-UiInput 'Select').Trim()-eq'0'){return}
+            $raw=(Read-UiInput 'Select recovery Hub number').Trim()
+            if($raw-eq'0'){return}
+            $n=0
+            if([int]::TryParse($raw,[ref]$n)-and$n-ge1-and$n-le$rows.Count){
+                $target=$rows[$n-1]
+                if(Confirm ('Recover active selection by switching to '+[string]$target.name+'?')){
+                    $null=Invoke-Manager @('-SwitchInstanceId',[string]$target.instance_id)
+                    Pause-Menu
+                }
+            }else{Write-UiHost 'Invalid selection.' -ForegroundColor Yellow;Pause-Menu}
             continue
         }
         Write-UiHost ('Active: '+$ctx.Name+' | '+$ctx.InstanceId) -ForegroundColor Green
