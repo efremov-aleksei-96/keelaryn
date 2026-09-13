@@ -1,0 +1,431 @@
+{
+    "schema":  "keelaryn.manager-risk-map.v1",
+    "surfaces":  [
+                     {
+                         "id":  "S-RUNTIME-REGISTRY-RESOLUTION",
+                         "subsystem":  "multi-hub.registry-resolution",
+                         "paths":  [
+                                       "manager/product/runtime/Keelaryn__Manager.ps1"
+                                   ],
+                         "symbols":  [
+                                         "__TOP_LEVEL__",
+                                         "Resolve-RegisteredInstanceContextEarly",
+                                         "Test-ExistingInstanceRegistryForInitialization",
+                                         "Invoke-ListInstances",
+                                         "Invoke-SwitchRegisteredInstance",
+                                         "Invoke-BindInstance"
+                                     ],
+                         "invariants":  [
+                                            "MH-REGISTRY-001",
+                                            "MH-SWITCH-001",
+                                            "MH-REBIND-001",
+                                            "MH-RECOVERY-001",
+                                            "MH-CONTEXT-001",
+                                            "MH-BINDING-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-RECOVERY-001",
+                                                    "RC-CONTEXT-001",
+                                                    "RC-OUTCOME-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4177ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-REGISTRY-INIT-IDEMPOTENT",
+                                                     "R-INVALID-REGISTRY-INIT",
+                                                     "R-REGISTRY-LIST",
+                                                     "R-ACTIVE-METADATA-INVALID-LIST",
+                                                     "R-REGISTRY-SWITCH",
+                                                     "R-ACTIVE-METADATA-INVALID-SWITCH",
+                                                     "R-BROKEN-ACTIVE-SWITCH-MISSING",
+                                                     "R-BROKEN-ACTIVE-SWITCH-CORRUPT",
+                                                     "R-REGISTRY-BIND",
+                                                     "R-ACTIVE-METADATA-INVALID-BIND",
+                                                     "R-BROKEN-ACTIVE-BIND-MISSING",
+                                                     "R-BROKEN-ACTIVE-BIND-CORRUPT"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-RUNTIME-REGISTRY-TRANSACTION",
+                         "subsystem":  "multi-hub.registry-transaction",
+                         "paths":  [
+                                       "manager/product/runtime/Keelaryn__Manager.ps1"
+                                   ],
+                         "symbols":  [
+                                         "New-RegisteredInstanceStateFromVault",
+                                         "Invoke-InitializeInstanceRegistry",
+                                         "Invoke-RegisterExistingInstance",
+                                         "Invoke-BindInstance",
+                                         "Write-ManagerInstanceRegistry",
+                                         "Write-ManagerActiveInstance",
+                                         "Assert-RegisteredInstanceBaseline",
+                                         "Assert-RegisteredInstanceActivationEligible",
+                                         "Publish-CompatibilityShadowFromRegisteredInstance"
+                                     ],
+                         "invariants":  [
+                                            "MH-COMMIT-001",
+                                            "MH-POSTCOMMIT-001",
+                                            "MH-PUBLISH-001",
+                                            "MH-REGISTRY-001",
+                                            "MH-REBIND-001",
+                                            "MH-DOWNGRADE-001",
+                                            "MH-INBOX-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-COMMIT-001",
+                                                    "RC-PUBLISH-001",
+                                                    "RC-OUTCOME-001",
+                                                    "RC-REACHABILITY-001",
+                                                    "RC-RECOVERY-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4174BootstrapRegression.ps1",
+                                             "tools/Invoke-Manager4178ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-SINGLE-INIT",
+                                                     "R-SINGLE-PENDING-INIT",
+                                                     "R-REGISTRY-REGISTER",
+                                                     "R-NONAPPROVED-REGISTER",
+                                                     "R-MISMATCH-REGISTER",
+                                                     "R-REGISTRY-BIND",
+                                                     "R-NONAPPROVED-BIND",
+                                                     "R-MISMATCH-BIND",
+                                                     "R-POSTCOMMIT-INIT",
+                                                     "R-POSTCOMMIT-REGISTER",
+                                                     "R-POSTCOMMIT-BIND"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-RUNTIME-UPDATE-HANDOFF",
+                         "subsystem":  "manager-update.hub-context-handoff",
+                         "paths":  [
+                                       "manager/product/runtime/Keelaryn__Manager.ps1"
+                                   ],
+                         "symbols":  [
+                                         "Assert-UpdateAllContextSafe",
+                                         "Restart-UpdatedManager",
+                                         "Assert-InvocationInstanceUnchanged"
+                                     ],
+                         "invariants":  [
+                                            "MH-CONTEXT-001",
+                                            "MH-COMPAT-001",
+                                            "MH-DOWNGRADE-001",
+                                            "MH-MANAGER-GLOBAL-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-CONTEXT-001",
+                                                    "RC-COMPAT-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4177ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4178ReviewRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-UPDATE-RESTART-ALL",
+                                                     "R-DEFAULT-UPDATE-MANAGER",
+                                                     "R-DEFAULT-UPDATE-ALL"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-RUNTIME-HUB-UPDATE",
+                         "subsystem":  "hub-update.transaction",
+                         "paths":  [
+                                       "manager/product/runtime/Keelaryn__Manager.ps1"
+                                   ],
+                         "symbols":  [
+                                         "Assert-InvocationInstanceUnchanged",
+                                         "Get-ValidHubPackages",
+                                         "Install-HubUpdate",
+                                         "Invoke-HubUpdate"
+                                     ],
+                         "invariants":  [
+                                            "MH-CONTEXT-001",
+                                            "MH-ISOLATION-001",
+                                            "MH-COMMIT-001",
+                                            "MH-LIFECYCLE-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-CONTEXT-001",
+                                                    "RC-COMMIT-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4175ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4176ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1",
+                                             "tools/Invoke-Manager41711ReviewRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-DEFAULT-UPDATE-HUB",
+                                                     "R-BROKEN-ACTIVE-UPDATE-HUB-MISSING",
+                                                     "R-BROKEN-ACTIVE-UPDATE-HUB-CORRUPT",
+                                                     "R-REGISTRY-INSTANCE-PENDING-UPDATE"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-RUNTIME-INBOX",
+                         "subsystem":  "multi-hub.inbox-routing",
+                         "paths":  [
+                                       "manager/product/runtime/Keelaryn__Manager.ps1"
+                                   ],
+                         "symbols":  [
+                                         "Set-InstanceScopedOperationalPathsEarly",
+                                         "Get-QuickStatus",
+                                         "Get-ValidHubPackages",
+                                         "Invoke-InitializeInstanceRegistry",
+                                         "Invoke-Doctor"
+                                     ],
+                         "invariants":  [
+                                            "MH-LIFECYCLE-001",
+                                            "MH-REACHABILITY-001",
+                                            "MH-INBOX-001",
+                                            "MH-MANAGER-GLOBAL-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-REACHABILITY-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4176ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1",
+                                             "tools/Invoke-Manager41711ReviewRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-SINGLE-PENDING-INIT",
+                                                     "R-REGISTRY-GLOBAL-PENDING-HUB-OPS",
+                                                     "R-REGISTRY-GLOBAL-PENDING-DOCTOR",
+                                                     "R-REGISTRY-INSTANCE-PENDING-UPDATE"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-RUNTIME-CANDIDATE-TRANSPORT",
+                         "subsystem":  "candidate-transport.instance-routing",
+                         "paths":  [
+                                       "manager/product/runtime/Keelaryn__Manager.ps1",
+                                       "manager/product/docs/CANDIDATE_TRANSPORT.md"
+                                   ],
+                         "symbols":  [
+                                         "Assert-CandidateTransportInboxOutputPath",
+                                         "Invoke-BuildCandidateTransport",
+                                         "Invoke-RestoreCandidateTransport"
+                                     ],
+                         "invariants":  [
+                                            "MH-LIFECYCLE-001",
+                                            "MH-CONTEXT-001",
+                                            "MH-BINDING-001",
+                                            "MH-REACHABILITY-001",
+                                            "MH-INBOX-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-REACHABILITY-001",
+                                                    "RC-CONTEXT-001",
+                                                    "RC-COMPAT-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4175ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-DEFAULT-BUILD-TRANSPORT",
+                                                     "R-DEFAULT-RESTORE-TRANSPORT",
+                                                     "R-REGISTRY-GLOBAL-PENDING-BUILD",
+                                                     "R-REGISTRY-GLOBAL-PENDING-RESTORE",
+                                                     "R-REGISTRY-INSTANCE-PENDING-BUILD",
+                                                     "R-REGISTRY-INSTANCE-PENDING-RESTORE"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-RUNTIME-GENESIS",
+                         "subsystem":  "multi-hub.genesis",
+                         "paths":  [
+                                       "manager/product/runtime/Keelaryn__Manager.ps1"
+                                   ],
+                         "symbols":  [
+                                         "Invoke-GenesisRegisteredInstance",
+                                         "Assert-NewRegisteredHubTargetPathSafe",
+                                         "Move-DirectoryFailIfDestinationExists"
+                                     ],
+                         "invariants":  [
+                                            "MH-PUBLISH-001",
+                                            "MH-OUTCOME-001",
+                                            "MH-COMMIT-001",
+                                            "MH-POSTCOMMIT-001",
+                                            "MH-PATH-001",
+                                            "MH-IDENTITY-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-PUBLISH-001",
+                                                    "RC-OUTCOME-001",
+                                                    "RC-COMMIT-001",
+                                                    "RC-PATH-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4172ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4173ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4175ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-REGISTRY-GENESIS",
+                                                     "R-POSTCOMMIT-GENESIS"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-FRONTEND-INSTANCE-CONTEXT",
+                         "subsystem":  "frontend.instance-context",
+                         "paths":  [
+                                       "manager/product/tools/KeelarynMenu.ps1"
+                                   ],
+                         "symbols":  [
+                                         "Get-FrontendInstanceContext",
+                                         "Invoke-Action",
+                                         "Prepare-ChatGPTCurrent"
+                                     ],
+                         "invariants":  [
+                                            "MH-IDENTITY-001",
+                                            "MH-PATH-001",
+                                            "MH-CONTEXT-001",
+                                            "MH-ISOLATION-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-PATH-001",
+                                                    "RC-CONTEXT-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4172ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4173ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4175ReviewRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-DEFAULT-UPDATE-HUB",
+                                                     "R-DEFAULT-UPDATE-ALL"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-FRONTEND-HUB-INGRESS",
+                         "subsystem":  "frontend.hub-input-ingress",
+                         "paths":  [
+                                       "manager/product/tools/KeelarynMenu.ps1",
+                                       "manager/product/docs/CANDIDATE_TRANSPORT.md"
+                                   ],
+                         "symbols":  [
+                                         "Get-FrontendInstanceContext",
+                                         "Invoke-Action",
+                                         "Open-Inbox",
+                                         "OpenInbox"
+                                     ],
+                         "invariants":  [
+                                            "MH-LIFECYCLE-001",
+                                            "MH-CONTEXT-001",
+                                            "MH-REACHABILITY-001",
+                                            "MH-COMPAT-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-REACHABILITY-001",
+                                                    "RC-CONTEXT-001",
+                                                    "RC-COMPAT-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4175ReviewRegression.ps1",
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-REGISTRY-INSTANCE-PENDING-UPDATE",
+                                                     "R-REGISTRY-INSTANCE-PENDING-BUILD",
+                                                     "R-REGISTRY-INSTANCE-PENDING-RESTORE"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-COMPAT-COMMANDS",
+                         "subsystem":  "compatibility.entry-points",
+                         "paths":  [
+                                       "manager/compat/commands/**",
+                                       "manager/product/runtime/Keelaryn__Manager.ps1"
+                                   ],
+                         "symbols":  [
+                                         "Get-GeneratedCompatibilityCommandText"
+                                     ],
+                         "invariants":  [
+                                            "MH-COMPAT-001",
+                                            "MH-CONTEXT-001",
+                                            "MH-DOWNGRADE-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-COMPAT-001",
+                                                    "RC-CONTEXT-001"
+                                                ],
+                         "regressions":  [
+                                             "tools/Invoke-Manager4178ReviewRegression.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+                                                     "R-UPDATE-RESTART-ALL",
+                                                     "R-DEFAULT-UPDATE-ALL"
+                                                 ]
+                     },
+                     {
+                         "id":  "S-CI-DEVELOPMENT",
+                         "subsystem":  "development-ci",
+                         "paths":  [
+                                       ".github/workflows/development-validation.yml",
+                                       "tools/Invoke-DevelopmentValidation.ps1",
+                                       "tools/Invoke-Manager417*Regression.ps1",
+                                       "tests/knowledge/**",
+                                       "tools/Build-ManagerRiskContext.ps1",
+                                       "tools/Test-ManagerEngineeringKnowledge.ps1",
+                                       "tools/Invoke-ManagerRiskDefectGate.ps1",
+                                       "tools/Verify-ManagerReleaseInstructions.ps1"
+                                   ],
+                         "symbols":  [
+
+                                     ],
+                         "invariants":  [
+                                            "MH-COMPAT-001"
+                                        ],
+                         "root_cause_classes":  [
+                                                    "RC-COMPAT-001"
+                                                ],
+                         "regressions":  [
+                                             ".github/workflows/development-validation.yml",
+                                             "tools/Verify-ManagerReleaseInstructions.ps1"
+                                         ],
+                         "planned_regressions":  [
+
+                                                 ],
+                         "state_machine_rules":  [
+
+                                                 ]
+                     }
+                 ]
+}

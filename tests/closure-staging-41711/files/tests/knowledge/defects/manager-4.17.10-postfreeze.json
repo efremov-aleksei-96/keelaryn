@@ -1,0 +1,122 @@
+{
+    "schema":  "keelaryn.manager-defects.v1",
+    "scope":  "Post-freeze public-release review findings for Manager 4.17.10",
+    "defects":  [
+                    {
+                        "id":  "MGR-DEF-0024",
+                        "title":  "Registry-mode UpdateHub reports pending CANDIDATE state from the global inbox instead of the active instance inbox",
+                        "severity":  "P1",
+                        "status":  "fixed",
+                        "release_blocker":  true,
+                        "detected_in":  "4.17.10",
+                        "detected_stage":  "public_release_pr_review",
+                        "defect_class":  "instance-owned pending-state reachability / completion reporting context mismatch",
+                        "affected_surfaces":  [
+                                                  "S-RUNTIME-INBOX"
+                                              ],
+                        "preconditions":  "Multi-Hub registry is active; the captured active instance inbox contains one or more Hub CANDIDATE ZIPs; no installable APPROVED Hub package is present; the Manager-global inbox does not contain those instance-owned candidates.",
+                        "bad_behavior":  "Invoke-Update performs Hub discovery through the active instance-scoped $HubInbox, but its final no-install branch counts pending CANDIDATE ZIPs from Manager-global $Inbox. A registry-active UpdateHub can therefore print the green \u0027Hub remains unchanged\u0027 result instead of surfacing pending Chat Manager work that is present in the intended instance inbox.",
+                        "root_cause":  "The update completion/reporting path retained the pre-registry global inbox variable after Hub package discovery was moved to instance-scoped routing. Existing convergence coverage proved per-instance discovery/install behavior but did not execute the CANDIDATE-only no-install outcome and assert the user-visible pending-state result.",
+                        "root_cause_classes":  [
+                                                   "RC-REACHABILITY-001"
+                                               ],
+                        "violated_invariants":  [
+                                                    "MH-LIFECYCLE-001",
+                                                    "MH-REACHABILITY-001"
+                                                ],
+                        "related_defects":  [
+                                                "MGR-DEF-0021",
+                                                "MGR-DEF-0023"
+                                            ],
+                        "permanent_regressions":  [
+                                                      "tools/Invoke-Manager41711ReviewRegression.ps1"
+                                                  ],
+                        "planned_regressions":  [
+
+                                                ],
+                        "fixed_in":  "4.17.11",
+                        "evidence":  [
+                                         {
+                                             "type":  "rejected_candidate_commit",
+                                             "id":  "af128f0f10752ff1500155707b56260aac296569"
+                                         },
+                                         {
+                                             "type":  "public_release_pr",
+                                             "id":  "59"
+                                         },
+                                         {
+                                             "type":  "pr_review_thread",
+                                             "id":  "4000023592"
+                                         },
+                                         {
+                                             "type":  "source_symbol",
+                                             "id":  "Invoke-Update"
+                                         },
+                                         {
+                                             "type":  "source_expression",
+                                             "id":  "$pendingCandidates reads $Inbox after instance-scoped Hub discovery"
+                                         },
+                                         {
+                                             "type":  "review_closure_workflow",
+                                             "id":  "34769051128",
+                                             "head":  "89d593b261b4e432fef2f62484cfbf3293ecf4cc"
+                                         }
+                                     ]
+                    },
+                    {
+                        "id":  "MGR-DEF-0025",
+                        "title":  "Managed release instructions retain stale 4.17.7 qualification identities in Manager 4.17.10",
+                        "severity":  "P2",
+                        "status":  "fixed",
+                        "release_blocker":  true,
+                        "detected_in":  "4.17.10",
+                        "detected_stage":  "public_release_pr_review",
+                        "defect_class":  "managed operator documentation / release identity drift",
+                        "affected_surfaces":  [
+                                                  "S-CI-DEVELOPMENT"
+                                              ],
+                        "preconditions":  "An operator follows the managed manager/README_FIRST.md Update compatibility or Release gate sections for Manager 4.17.10 qualification/release work.",
+                        "bad_behavior":  "Normative release instructions identify Manager 4.17.7 and transition 4.17.6 -\u003e 4.17.7, including the release-gate regression/transition description, instead of the actual Manager 4.17.9 -\u003e 4.17.10 release path. This can direct qualification toward the wrong predecessor/version boundary.",
+                        "root_cause":  "Current-version markers were updated during successive corrective releases, but version-bound normative qualification prose was not included in the release-identity consistency checks before freeze.",
+                        "root_cause_classes":  [
+                                                   "RC-COMPAT-001"
+                                               ],
+                        "violated_invariants":  [
+                                                    "MH-COMPAT-001"
+                                                ],
+                        "related_defects":  [
+
+                                            ],
+                        "permanent_regressions":  [
+                                                      "tools/Verify-ManagerReleaseInstructions.ps1"
+                                                  ],
+                        "planned_regressions":  [
+
+                                                ],
+                        "fixed_in":  "4.17.11",
+                        "evidence":  [
+                                         {
+                                             "type":  "rejected_candidate_commit",
+                                             "id":  "af128f0f10752ff1500155707b56260aac296569"
+                                         },
+                                         {
+                                             "type":  "public_release_pr",
+                                             "id":  "59"
+                                         },
+                                         {
+                                             "type":  "pr_review_thread",
+                                             "id":  "4000023589"
+                                         },
+                                         {
+                                             "type":  "managed_path",
+                                             "id":  "manager/README_FIRST.md"
+                                         },
+                                         {
+                                             "type":  "review_closure_workflow",
+                                             "id":  "34769051128",
+                                             "head":  "89d593b261b4e432fef2f62484cfbf3293ecf4cc"
+                                         }
+                                     ]
+                    }
+                ]
+}
