@@ -1,0 +1,64 @@
+name: Diagnose Manager 4.17.11 runtime materialization
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.11'
+    paths:
+      - '.github/workflows/diagnose-manager-4.17.11-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compare exact runtime semantics
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $base='9307b9ebb66dbff2a36b48957783958c66d28801'
+          $current=(git rev-parse HEAD).Trim()
+          $temp=Join-Path $env:RUNNER_TEMP 'keelaryn-41711-runtime-base'
+          if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force}
+          git worktree add --detach $temp $base | Out-Host
+          try {
+            $relative='manager\product\runtime\Keelaryn__Manager.ps1'
+            $basePath=Join-Path $temp $relative
+            $currentPath=Join-Path $env:GITHUB_WORKSPACE $relative
+            function Inspect([string]$label,[string]$path){
+              $bytes=[IO.File]::ReadAllBytes($path)
+              $sha=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+              $tokens=$null;$errors=$null
+              $ast=[Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+              if(@($errors).Count){throw($label+' parser errors: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+              $defs=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]},$true)|Where-Object{$_.Name-ceq'Invoke-RegisterExistingInstance'})
+              $crlf=0;$lf=0;$cr=0
+              for($i=0;$i-lt$bytes.Length;$i++){
+                if($bytes[$i]-eq13){if($i+1-lt$bytes.Length-and$bytes[$i+1]-eq10){$crlf++;$i++}else{$cr++}}
+                elseif($bytes[$i]-eq10){$lf++}
+              }
+              Write-Host ($label+': sha='+$sha+' bytes='+$bytes.Length+' Invoke-RegisterExistingInstance='+$defs.Count+' CRLF='+$crlf+' LF='+$lf+' CR='+$cr)
+              foreach($d in $defs){Write-Host ('  extent '+$d.Extent.StartLineNumber+'-'+$d.Extent.EndLineNumber)}
+            }
+            Inspect 'BASE_4.17.10' $basePath
+            Inspect 'CURRENT_4.17.11' $currentPath
+            Write-Host '--- git diff numstat ---'
+            git diff --numstat $base $current -- 'manager/product/runtime/Keelaryn__Manager.ps1' | Out-Host
+            Write-Host '--- git diff ignore-space-at-eol numstat ---'
+            git diff --ignore-space-at-eol --numstat $base $current -- 'manager/product/runtime/Keelaryn__Manager.ps1' | Out-Host
+            Write-Host '--- function-definition textual counts ---'
+            foreach($row in @(@('BASE',$basePath),@('CURRENT',$currentPath))){
+              $count=([regex]::Matches([IO.File]::ReadAllText($row[1]),'(?m)^function Invoke-RegisterExistingInstance')).Count
+              Write-Host ($row[0]+' text count='+$count)
+            }
+          }
+          finally { git worktree remove --force $temp | Out-Null }
