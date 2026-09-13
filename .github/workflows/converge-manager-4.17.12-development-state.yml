@@ -24,11 +24,11 @@ jobs:
           fetch-depth: 0
           ref: dev/manager-4.17.12
 
-      - name: Verify convergence identity
+      - name: Verify one-shot identity and parser
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $expectedParent = '9844ff5281da898fa7f77a33f837561e445c0aad'
+          $expectedParent = '7be22fdc4344ac886ceb3c9738103e035016619f'
           $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
           $parent = (git rev-parse HEAD^).Trim().ToLowerInvariant()
           if ($parent -cne $expectedParent) { throw "Unexpected convergence parent: $parent expected $expectedParent" }
@@ -36,249 +36,20 @@ jobs:
           if ($changed.Count -ne 1 -or $changed[0] -cne '.github/workflows/converge-manager-4.17.12-development-state.yml') {
             throw ('Convergence workflow commit is not isolated: ' + ($changed -join ', '))
           }
-          $manifest = Get-Content -LiteralPath 'PUBLIC_FILE_MANIFEST.json' -Raw | ConvertFrom-Json
-          if ([string]$manifest.manager.version -cne '4.17.12') { throw 'Expected Manager 4.17.12 public manifest.' }
-          if ([string]$manifest.manager.installation_sha256 -cne 'f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d') { throw 'Unexpected 4.17.12 INSTALLATION identity.' }
-          if ([string]$manifest.manager.gate_managed_content_sha256 -cne '64c6cc7bd71742c7dcb50dfc93761d5155095b0604fae2cd4bf20ca16f014b6b') { throw 'Unexpected 4.17.12 managed-content identity.' }
-          Write-Host "Convergence identity PASS. HEAD=$head parent=$parent"
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'tools/Converge-Manager41712DevelopmentState.ps1'),[ref]$tokens,[ref]$errors)
+          if (@($errors).Count -ne 0) { throw ('Converger parser failure: ' + (($errors | ForEach-Object Message) -join ' | ')) }
+          Write-Host "Convergence identity + parser: PASS. HEAD=$head"
 
-      - name: Materialize coherent successor metadata and risk coverage
+      - name: Build and validate coherent development state
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $utf8 = New-Object System.Text.UTF8Encoding($false)
-          function Write-Json([string]$Path,$Object) {
-            $text = (($Object | ConvertTo-Json -Depth 80).Replace("`r`n","`n")) + "`n"
-            [IO.File]::WriteAllText((Resolve-Path $Path),$text,$utf8)
-          }
-          function Set-Prop($Object,[string]$Name,$Value) {
-            if ($Object.PSObject.Properties.Name -contains $Name) { $Object.$Name = $Value }
-            else { $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value }
-          }
-          function Add-UniqueStrings($Existing,[string[]]$Values) {
-            $all = @($Existing | ForEach-Object { [string]$_ }) + @($Values)
-            return @($all | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
-          }
-
-          $manifest = Get-Content -LiteralPath 'PUBLIC_FILE_MANIFEST.json' -Raw | ConvertFrom-Json
-
-          # Close the two 4.17.11 post-freeze blockers only with named permanent regressions.
-          $defectPath = 'tests/knowledge/defects/manager-4.17.11-postfreeze.json'
-          $defects = Get-Content -LiteralPath $defectPath -Raw | ConvertFrom-Json
-          foreach ($d in @($defects.defects)) {
-            if ([string]$d.id -ceq 'MGR-DEF-0026') {
-              $d.status = 'fixed'; $d.fixed_in = '4.17.12'
-              $d.permanent_regressions = @('tools/Invoke-Manager41712ReviewRegression.ps1')
-              $d.planned_regressions = @()
-            }
-            elseif ([string]$d.id -ceq 'MGR-DEF-0027') {
-              $d.status = 'fixed'; $d.fixed_in = '4.17.12'
-              $d.permanent_regressions = @('tools/Invoke-ManagerRiskContextRegression.ps1')
-              $d.planned_regressions = @()
-            }
-          }
-          Write-Json $defectPath $defects
-
-          # Move planned coverage into the permanent risk map and map the workflow layer explicitly.
-          $riskPath = 'tests/knowledge/risk-map.json'
-          $risk = Get-Content -LiteralPath $riskPath -Raw | ConvertFrom-Json
-          foreach ($surface in @($risk.surfaces)) {
-            if ([string]$surface.id -ceq 'S-FRONTEND-INSTANCE-CONTEXT') {
-              $surface.regressions = Add-UniqueStrings $surface.regressions @('tools/Invoke-Manager41712ReviewRegression.ps1')
-              $surface.planned_regressions = @($surface.planned_regressions | Where-Object { [string]$_ -cne 'tools/Invoke-Manager41712ReviewRegression.ps1' })
-              $surface.symbols = Add-UniqueStrings $surface.symbols @('Get-FrontendRegistryRows','Show-HubManagementMenu')
-              $surface.state_machine_rules = Add-UniqueStrings $surface.state_machine_rules @('R-ACTIVE-METADATA-INVALID-SWITCH','R-BROKEN-ACTIVE-SWITCH-MISSING','R-BROKEN-ACTIVE-SWITCH-CORRUPT')
-            }
-            elseif ([string]$surface.id -ceq 'S-CI-DEVELOPMENT') {
-              $surface.paths = Add-UniqueStrings $surface.paths @('.github/workflows/manager-risk-defect-gate.yml')
-              $surface.regressions = Add-UniqueStrings $surface.regressions @('tools/Invoke-ManagerRiskContextRegression.ps1')
-              $surface.planned_regressions = @($surface.planned_regressions | Where-Object { [string]$_ -cne 'tools/Invoke-ManagerRiskContextRegression.ps1' })
-            }
-          }
-          Write-Json $riskPath $risk
-
-          # Make the workflow itself reject empty, reversed and unrelated qualification ranges.
-          $riskWorkflowPath = '.github/workflows/manager-risk-defect-gate.yml'
-          $riskWorkflow = [IO.File]::ReadAllText((Resolve-Path $riskWorkflowPath),[Text.Encoding]::UTF8)
-          $needle = @'
-          if ($headResolved -cne '${{ github.sha }}'.ToLowerInvariant()) {
-            throw "Dispatched checkout identity mismatch: requested head=$headResolved checkout=${{ github.sha }}"
-          }
-          $out = Join-Path $env:RUNNER_TEMP ('keelaryn-manager-risk-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
-'@
-          $replacement = @'
-          if ($headResolved -cne '${{ github.sha }}'.ToLowerInvariant()) {
-            throw "Dispatched checkout identity mismatch: requested head=$headResolved checkout=${{ github.sha }}"
-          }
-          if ($baseResolved -ceq $headResolved) {
-            throw 'Risk qualification range must be non-empty: base_commit equals head_commit.'
-          }
-          & git merge-base --is-ancestor $baseResolved $headResolved
-          $ancestorExit = [int]$LASTEXITCODE
-          if ($ancestorExit -eq 1) {
-            throw "Risk qualification base must be a proper ancestor of head: base=$baseResolved head=$headResolved"
-          }
-          if ($ancestorExit -ne 0) {
-            throw "git merge-base --is-ancestor failed with exit $ancestorExit for base=$baseResolved head=$headResolved"
-          }
-          $countText = (& git rev-list --count "$baseResolved..$headResolved").Trim()
-          if ($LASTEXITCODE -ne 0) { throw 'git rev-list --count failed while validating the risk qualification range.' }
-          $count = 0
-          if (-not [int]::TryParse($countText,[ref]$count) -or $count -lt 1) {
-            throw "Risk qualification range must contain at least one commit: base=$baseResolved head=$headResolved count=$countText"
-          }
-          $out = Join-Path $env:RUNNER_TEMP ('keelaryn-manager-risk-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
-'@
-          $first = $riskWorkflow.IndexOf($needle,[StringComparison]::Ordinal)
-          if ($first -lt 0 -or $riskWorkflow.IndexOf($needle,$first+$needle.Length,[StringComparison]::Ordinal) -ge 0) { throw 'Risk-workflow identity block is not uniquely patchable.' }
-          $riskWorkflow = $riskWorkflow.Substring(0,$first) + $replacement + $riskWorkflow.Substring($first+$needle.Length)
-          [IO.File]::WriteAllText((Resolve-Path $riskWorkflowPath),$riskWorkflow,$utf8)
-
-          # Ensure changes to the new permanent regression trigger Development Validation.
-          $devWorkflowPath = '.github/workflows/development-validation.yml'
-          $devWorkflow = [IO.File]::ReadAllText((Resolve-Path $devWorkflowPath),[Text.Encoding]::UTF8)
-          $anchor = "      - 'tools/Invoke-Manager41711ReviewRegression.ps1'"
-          if (-not $devWorkflow.Contains("      - 'tools/Invoke-Manager41712ReviewRegression.ps1'")) {
-            $devWorkflow = $devWorkflow.Replace($anchor,$anchor+"`r`n      - 'tools/Invoke-Manager41712ReviewRegression.ps1'")
-          }
-          $devWorkflow = $devWorkflow.Replace('permanent Manager 4.17.10 + 4.17.11 regression chain','permanent Manager 4.17.10 + 4.17.11 + 4.17.12 regression chain')
-          [IO.File]::WriteAllText((Resolve-Path $devWorkflowPath),$devWorkflow,$utf8)
-
-          # Extend permanent risk regression to pin the workflow-level fail-closed guard too.
-          $riskRegressionPath = 'tools/Invoke-ManagerRiskContextRegression.ps1'
-          $riskRegression = [IO.File]::ReadAllText((Resolve-Path $riskRegressionPath),[Text.Encoding]::UTF8)
-          $riskAnchor = "$knowledgeSource=Join-Path $RepositoryRoot 'tests\knowledge'"
-          $riskInsert = @'
-          $riskWorkflow=Join-Path $RepositoryRoot '.github\workflows\manager-risk-defect-gate.yml'
-          if(-not(Test-Path -LiteralPath $riskWorkflow -PathType Leaf)){Fail 'manager-risk-defect-gate.yml is missing.'}
-          $riskWorkflowText=[IO.File]::ReadAllText($riskWorkflow,[Text.Encoding]::UTF8)
-          foreach($token in @('Dispatched checkout identity mismatch','Risk qualification range must be non-empty','git merge-base --is-ancestor','git rev-list --count')){
-              if(-not$riskWorkflowText.Contains($token)){Fail('Risk workflow lost fail-closed range guard token: '+$token)}
-          }
-          if(-not$riskWorkflowText.Contains('Invoke-ManagerRiskDefectGate.ps1')){Fail 'Risk workflow no longer delegates to the strict gate implementation.'}
-          Write-Host '  PASS workflow exact-head and proper-ancestor range guards are wired' -ForegroundColor Green
-'@
-          if (-not $riskRegression.Contains('workflow exact-head and proper-ancestor range guards are wired')) {
-            $pos = $riskRegression.IndexOf($riskAnchor,[StringComparison]::Ordinal)
-            if ($pos -lt 0) { throw 'Risk regression insertion anchor missing.' }
-            $lineEnd = $riskRegression.IndexOf("`n",$pos,[StringComparison]::Ordinal)
-            if ($lineEnd -lt 0) { throw 'Risk regression insertion line end missing.' }
-            $riskRegression = $riskRegression.Substring(0,$lineEnd+1) + $riskInsert.Replace("          ","") + "`n" + $riskRegression.Substring($lineEnd+1)
-          }
-          [IO.File]::WriteAllText((Resolve-Path $riskRegressionPath),$riskRegression,$utf8)
-
-          # Move repository state from rejected 4.17.11 provenance to unqualified 4.17.12 successor development.
-          $statePath = 'MANAGER_DEVELOPMENT_STATE.json'
-          $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-          $state.lifecycle_state = 'unqualified_development'
-          $state.authoritative_branch = 'dev/manager-4.17.12'
-          $state.head_resolution.mode = 'resolve_branch_ref_live'
-          $state.head_resolution.note = 'Resolve dev/manager-4.17.12 live. No 4.17.12 candidate has been issued. Product materialization commit 5e9adce7d210f067dc45729bbbd569b4d8813ad2 is development-only; frozen Manager 4.17.11 g1 remains immutable historical production-installed/public-release-rejected evidence.'
-          $state.lineage.production_manager_version = '4.17.11'
-          $state.lineage.previous_production_manager_version = '4.17.10'
-          $state.lineage.production_candidate_commit = '88e3dcba0af75264c4b53e8ec24d770c215677a0'
-          $state.lineage.production_candidate_tree = '7d23ab245699d63c264958f9132d29fe85d43de7'
-          $state.lineage.production_managed_digest = 'a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b'
-          $state.lineage.production_installation_sha256 = 'cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc'
-          $state.lineage.framework_revision = 'r24'
-          $state.lineage.successor_manager_version = '4.17.12'
-          $state.materialization = [pscustomobject][ordered]@{
-            manager_version='4.17.12'
-            product_commit='5e9adce7d210f067dc45729bbbd569b4d8813ad2'
-            product_tree='d10953b8f0e643c0ea22a4bcb13b4f4c21d5fafe'
-            materialization_run_id='34776567506'
-            source_manifest_refresh_commit='9844ff5281da898fa7f77a33f837561e445c0aad'
-            installation_sha256='f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d'
-            managed_content_sha256='64c6cc7bd71742c7dcb50dfc93761d5155095b0604fae2cd4bf20ca16f014b6b'
-            status='development_materialized_permanent_regressions_pass'
-            candidate_issued=$false
-          }
-          $state.qualification.risk_defect_gate = [pscustomobject][ordered]@{
-            status='required_pass_before_freeze'
-            observed_status='not_yet_run_for_exact_4_17_12_converged_head'
-            validated_development_head=$null
-            candidate_freeze_permitted=$false
-            open_release_blockers=@()
-          }
-          Set-Prop $state.qualification 'successor_4_17_12_development' ([pscustomobject][ordered]@{
-            manager_version='4.17.12'
-            lifecycle='unqualified_development'
-            candidate_issued=$false
-            product_commit='5e9adce7d210f067dc45729bbbd569b4d8813ad2'
-            materialization_run_id='34776567506'
-            manager_41712_review_regression='pass_during_materialization'
-            risk_context_regression='pass_before_successor_metadata_convergence'
-            pre_freeze_adversarial_review='pending'
-            production_qualified=$false
-          })
-          $state.open_release_blockers = @()
-          Set-Prop $state.knowledge 'manager_4_17_12_review_regression' 'tools/Invoke-Manager41712ReviewRegression.ps1'
-          $state.next_exact_goal = [pscustomobject][ordered]@{
-            id='MANAGER-41712-PREFREEZE-CONVERGENCE-001'
-            description='Require exact-head Development Validation PASS and strict proper-ancestor Risk/Defect Gate PASS, then perform a full PR-equivalent adversarial review of the exact 4.17.12 development head and full successor diff. Fix every finding within unqualified 4.17.12 and repeat until clean before any candidate freeze.'
-            candidate_freeze_before_clean_adversarial_review=$false
-            product_changes_permitted_on_frozen_4_17_11_g1=$false
-          }
-          $state.bootstrap.ordinary_new_chat_instruction = 'Continue unqualified Manager 4.17.12 convergence development; do not issue a candidate until exact-head validation, strict risk gate and pre-freeze adversarial review are all clean.'
-          $state.bootstrap.required_first_actions = @(
-            'Preserve Manager 4.17.11 g1 commit 88e3dcba0af75264c4b53e8ec24d770c215677a0 / tree 7d23ab245699d63c264958f9132d29fe85d43de7 as immutable production-installed rejected evidence.',
-            'Treat Manager 4.17.12 as unqualified development; product materialization and permanent regression PASS do not issue or qualify a candidate.',
-            'Require a non-empty proper-ancestor risk range and exact-head identity before any freeze permission.',
-            'Perform PR-equivalent adversarial review before freeze, including recovery reachability, routing, update handoff, commit outcomes, release identity and regression reachability.',
-            'Do not activate multi-Hub before a successor is fully qualified, installed, publicly released, and activation is separately approved.'
-          )
-          Write-Json $statePath $state
-
-          # Bind public provenance to 4.17.12 development bytes without carrying 4.17.11 production qualification claims forward.
-          $provPath = 'PUBLIC_PROVENANCE.json'
-          $prov = Get-Content -LiteralPath $provPath -Raw | ConvertFrom-Json
-          $prov.source_manager_version = '4.17.12'
-          $prov.source_gate_baseline_manager_version = '4.17.11'
-          $prov.source_manager_installation_sha256 = [string]$manifest.manager.installation_sha256
-          $prov.source_manager_gate_managed_content_sha256 = [string]$manifest.manager.gate_managed_content_sha256
-          $prov.production_validation.full_gate_pass = $false
-          $prov.production_validation.gate_revision = $null
-          $prov.production_validation.framework_revision = 24
-          $prov.production_validation.tested_update_sha256 = $null
-          $prov.production_validation.production_doctor_pass = $false
-          $prov.production_validation.production_ux_smoke_pass = $false
-          $prov.production_validation.production_managed_content_prefix = $null
-          $prov.gate_framework.frozen_for_manager_candidate = $false
-          Set-Prop $prov 'development_status' 'unqualified_manager_4_17_12_no_candidate_issued'
-          Set-Prop $prov 'public_candidate_revision_note' 'Revision 20 is inherited repository metadata; no 4.17.12 candidate revision is assigned until candidate issue/freeze.'
-          Write-Json $provPath $prov
-
-      - name: Validate coherent state before durable commit
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          foreach ($script in @(
-            'tools/Test-ManagerEngineeringKnowledge.ps1',
-            'tools/Verify-ManagerReleaseInstructions.ps1',
-            'tools/Verify-PublicCandidateMetadata.ps1',
-            'tools/Verify-PublicRepository.ps1',
-            'tools/Invoke-ManagerRiskContextRegression.ps1',
-            'tools/Invoke-Manager41712ReviewRegression.ps1'
-          )) {
-            Write-Host "=== $script ==="
-            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -RepositoryRoot $PWD.Path
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Build-PublicFileManifest.ps1 -RepositoryRoot $PWD.Path -Check
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/Converge-Manager41712DevelopmentState.ps1 -RepositoryRoot $PWD.Path
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Write-Host 'Manager 4.17.12 coherent development state pre-commit validation: PASS.'
-
-      - name: Commit coherent unqualified development state
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm -- .github/workflows/converge-manager-4.17.12-development-state.yml
-          git add -- .github/workflows/development-validation.yml .github/workflows/manager-risk-defect-gate.yml MANAGER_DEVELOPMENT_STATE.json PUBLIC_PROVENANCE.json tests/knowledge/defects/manager-4.17.11-postfreeze.json tests/knowledge/risk-map.json tools/Invoke-ManagerRiskContextRegression.ps1
-          $staged = @(git diff --cached --name-only | Sort-Object)
+          $actual = @(git diff --name-only | Sort-Object)
           $expected = @(
-            '.github/workflows/converge-manager-4.17.12-development-state.yml',
             '.github/workflows/development-validation.yml',
             '.github/workflows/manager-risk-defect-gate.yml',
             'MANAGER_DEVELOPMENT_STATE.json',
@@ -287,8 +58,33 @@ jobs:
             'tests/knowledge/risk-map.json',
             'tools/Invoke-ManagerRiskContextRegression.ps1'
           ) | Sort-Object
-          if (($staged -join "`n") -cne ($expected -join "`n")) {
-            throw ('Unexpected convergence commit paths: ' + ($staged -join ', '))
+          if (($actual -join "`n") -cne ($expected -join "`n")) {
+            throw ('Unexpected converger output paths: ' + ($actual -join ', '))
+          }
+          Write-Host 'Converger exact output set: PASS.'
+
+      - name: Commit coherent unqualified state
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -- .github/workflows/converge-manager-4.17.12-development-state.yml tools/Converge-Manager41712DevelopmentState.ps1
+          git add -- .github/workflows/development-validation.yml .github/workflows/manager-risk-defect-gate.yml MANAGER_DEVELOPMENT_STATE.json PUBLIC_PROVENANCE.json tests/knowledge/defects/manager-4.17.11-postfreeze.json tests/knowledge/risk-map.json tools/Invoke-ManagerRiskContextRegression.ps1
+          $actual = @(git diff --cached --name-only | Sort-Object)
+          $expected = @(
+            '.github/workflows/converge-manager-4.17.12-development-state.yml',
+            '.github/workflows/development-validation.yml',
+            '.github/workflows/manager-risk-defect-gate.yml',
+            'MANAGER_DEVELOPMENT_STATE.json',
+            'PUBLIC_PROVENANCE.json',
+            'tests/knowledge/defects/manager-4.17.11-postfreeze.json',
+            'tests/knowledge/risk-map.json',
+            'tools/Converge-Manager41712DevelopmentState.ps1',
+            'tools/Invoke-ManagerRiskContextRegression.ps1'
+          ) | Sort-Object
+          if (($actual -join "`n") -cne ($expected -join "`n")) {
+            throw ('Unexpected staged convergence paths: ' + ($actual -join ', '))
           }
           git commit -m 'Converge Manager 4.17.12 unqualified development state'
           git push origin HEAD:dev/manager-4.17.12
