@@ -6,7 +6,11 @@ on:
       - 'dev/**'
     paths:
       - 'manager/**'
+      - 'tests/knowledge/**'
       - 'tools/Invoke-DevelopmentValidation.ps1'
+      - 'tools/Test-ManagerEngineeringKnowledge.ps1'
+      - 'tools/Build-ManagerRiskContext.ps1'
+      - 'tools/Invoke-ManagerRiskDefectGate.ps1'
       - 'tools/Invoke-Manager4178ReviewRegression.ps1'
       - 'tools/Invoke-Manager4177ReviewRegression.ps1'
       - 'tools/Invoke-Manager4176ReviewRegression.ps1'
@@ -18,6 +22,7 @@ on:
       - 'tools/Verify-DevelopmentGovernance.ps1'
       - 'DEVELOPMENT_GOVERNANCE.json'
       - '.github/workflows/development-validation.yml'
+      - '.github/workflows/manager-risk-defect-gate.yml'
   workflow_dispatch:
 
 permissions:
@@ -34,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 1
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Verify development governance
@@ -67,8 +72,12 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: keelaryn-development-${{ github.sha }}-${{ github.run_attempt }}
-          path: ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
+          path: |
+            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
+            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.json
+            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.md
           if-no-files-found: warn
           retention-days: 3
 
-# Manager 4.17.8 clean-head development validation with permanent corrective regressions.
+# Engineering knowledge integrity and compact task risk context are development checks.
+# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow.
