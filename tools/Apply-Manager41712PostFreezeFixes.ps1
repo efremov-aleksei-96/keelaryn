@@ -83,8 +83,14 @@ function Show-HubManagementMenu {
 '@
 $text=Replace-SinglelineExactlyOnce $text $registryPattern $registryReplacement 'frontend registry enumeration independence'
 
+# Scope recovery replacement to the exact UI function. Similar unresolved-active guards
+# elsewhere are intentionally retained and must not be broadened into recovery paths.
+$showPattern='(?s)function Show-HubManagementMenu \{.*?\r?\n\}\r?\nfunction Show-MaintenanceMenu \{'
+$showMatches=[regex]::Matches($text,$showPattern)
+if($showMatches.Count-ne1){throw("Show-HubManagementMenu function scope expected exactly one match; observed $($showMatches.Count).")}
+$showBlock=$showMatches[0].Value
 $unresolvedPattern=@'
-(?s)        if\(-not\$ctx\.InstanceId\)\{\r?\n            Write-UiHost 'Registry exists but is invalid/unresolved\. Run Doctor; switching is disabled\.' -ForegroundColor Red\r?\n            Write-UiHost '  \[0\] Back'\r?\n            if\(\(Read-UiInput 'Select'\)\.Trim\(\)-eq'0'\)\{return\}\r?\n            continue\r?\n        \}\r?\n        Write-UiHost \('Active: '\+\$ctx\.Name\+' \| '\+\$ctx\.InstanceId\) -ForegroundColor Green
+(?s)        if\(-not\$ctx\.InstanceId\)\{\r?\n            Write-UiHost 'Registry exists but is invalid/unresolved\. Run Doctor; switching is disabled\.' -ForegroundColor Red\r?\n            Write-UiHost '  \[0\] Back'\r?\n            if\(\(Read-UiInput 'Select'\)\.Trim\(\)-eq'0'\)\{return\}\r?\n            continue\r?\n        \}
 '@
 $unresolvedReplacement=@'
         if(-not$ctx.InstanceId){
@@ -113,10 +119,10 @@ $unresolvedReplacement=@'
             }else{Write-UiHost 'Invalid selection.' -ForegroundColor Yellow;Pause-Menu}
             continue
         }
-        Write-UiHost ('Active: '+$ctx.Name+' | '+$ctx.InstanceId) -ForegroundColor Green
 '@
-$text=Replace-SinglelineExactlyOnce $text $unresolvedPattern $unresolvedReplacement 'frontend unresolved-active recovery menu'
-if($text.Contains('Registry exists but is invalid/unresolved. Run Doctor; switching is disabled.')){throw 'Stale frontend recovery-blocking message remains.'}
+$updatedShowBlock=Replace-SinglelineExactlyOnce $showBlock $unresolvedPattern $unresolvedReplacement 'frontend unresolved-active recovery menu within Show-HubManagementMenu'
+$text=Replace-LiteralExactlyOnce $text $showBlock $updatedShowBlock 'Show-HubManagementMenu scoped publication'
+if($updatedShowBlock.Contains('Registry exists but is invalid/unresolved. Run Doctor; switching is disabled.')){throw 'Stale frontend recovery-blocking message remains inside Show-HubManagementMenu.'}
 [IO.File]::WriteAllText($frontend,$text,$Utf8NoBom)
 
 Write-Host 'Manager 4.17.12 post-freeze product materialization staged: PASS' -ForegroundColor Green
