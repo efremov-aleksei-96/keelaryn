@@ -154,10 +154,10 @@ A lower-numbered roadmap item is not automatically more important than a later i
 
 - **Priority:** P1
 - **Status:** ACTIVE
-- **Goal:** gate/risk/knowledge tooling must be able to validate fixes to its own broken historical states without silently dropping risk or making cleanup of an unparsable historical file impossible.
-- **Required properties:** current/HEAD source remains fail-closed on parse errors; historical/base parse failure uses an explicit conservative path-level fallback; the fallback is visible in generated risk context; reusable tooling behaviors have permanent regressions.
-- **Trigger:** Manager 4.17.9 knowledge closure exposed both compact PowerShell parser defects and a historical-source AST failure while deleting a broken one-shot transformer.
-- **Exit:** permanent synthetic regression proves historical unparsable deletion succeeds conservatively and current unparsable source still fails; ordinary Development Validation executes that regression on hosted Windows.
+- **Goal:** gate/risk/knowledge/release-governance tooling must be able to validate fixes to its own broken historical states without silently dropping risk, accepting stale candidate-bound metadata, or making cleanup of an unparsable historical file impossible.
+- **Required properties:** current/HEAD source remains fail-closed on parse errors; historical/base parse failure uses an explicit conservative path-level fallback; the fallback is visible in generated risk context; reusable tooling behaviors have permanent regressions; generated candidate-bound source metadata such as `PUBLIC_FILE_MANIFEST.json` is reproducible from the exact tree and is checked by ordinary development CI before candidate freeze; changes to that metadata or its generator trigger the check.
+- **Trigger:** Manager 4.17.9 knowledge closure exposed both compact PowerShell parser defects and a historical-source AST failure while deleting a broken one-shot transformer; Manager 4.17.10 g1 later proved that a green product/regression cycle could still freeze a tree with a stale 4.17.9 `PUBLIC_FILE_MANIFEST.json` when manifest reproducibility was not part of the canonical development workflow.
+- **Exit:** permanent synthetic regression proves historical unparsable deletion succeeds conservatively and current unparsable source still fails; ordinary Development Validation executes that regression on hosted Windows and fails closed when the public source manifest is stale/non-canonical before freeze.
 
 ### R-015 — Structured intake of reusable CI and qualification lessons
 
