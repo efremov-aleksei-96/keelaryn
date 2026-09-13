@@ -23,6 +23,18 @@ function Replace-LiteralExactlyOnce([string]$Text,[string]$Old,[string]$New,[str
     if($second-ge0){throw("$Label expected exactly one literal match; observed more than one.")}
     return $Text.Substring(0,$first)+$New+$Text.Substring($first+$Old.Length)
 }
+function Get-ExecutableFunctionSpan([string]$Text,[string]$Name){
+    $tokens=$null;$errors=$null
+    $ast=[Management.Automation.Language.Parser]::ParseInput($Text,[ref]$tokens,[ref]$errors)
+    if(@($errors).Count-ne0){throw('Frontend parser failed before materialization: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+    $rows=@($ast.FindAll({param($node)$node-is[Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-ceq$Name},$true))
+    if($rows.Count-ne1){throw("Executable function $Name expected exactly once; observed $($rows.Count).")}
+    return [pscustomobject]@{Start=[int]$rows[0].Extent.StartOffset;End=[int]$rows[0].Extent.EndOffset;Text=[string]$rows[0].Extent.Text}
+}
+function Replace-ExecutableFunction([string]$Text,[string]$Name,[string]$Replacement){
+    $span=Get-ExecutableFunctionSpan $Text $Name
+    return $Text.Substring(0,$span.Start)+$Replacement+$Text.Substring($span.End)
+}
 
 $runtime=Join-Path $RepositoryRoot 'manager\product\runtime\Keelaryn__Manager.ps1'
 $installation=Join-Path $RepositoryRoot 'manager\product\install\INSTALLATION.json'
@@ -56,7 +68,6 @@ $text=Replace-LiteralExactlyOnce $text 'This source is not production-approved m
 [IO.File]::WriteAllText($readme,$text,$Utf8NoBom)
 
 $text=[IO.File]::ReadAllText($frontend)
-$registryPattern='(?s)function Get-FrontendRegistryRows \{.*?\r?\n\}\r?\n\r?\nfunction Show-HubManagementMenu \{'
 $registryReplacement=@'
 function Get-FrontendRegistryRows {
     if(-not$StateLayoutActive){return @()}
@@ -78,17 +89,11 @@ function Get-FrontendRegistryRows {
     if($rows.Count-eq0){throw 'Manager instance registry contains no instances.'}
     return @($rows|Sort-Object name,instance_id)
 }
-
-function Show-HubManagementMenu {
 '@
-$text=Replace-SinglelineExactlyOnce $text $registryPattern $registryReplacement 'frontend registry enumeration independence'
+$text=Replace-ExecutableFunction $text 'Get-FrontendRegistryRows' $registryReplacement
 
-# Scope recovery replacement to the exact UI function. Similar unresolved-active guards
-# elsewhere are intentionally retained and must not be broadened into recovery paths.
-$showPattern='(?s)function Show-HubManagementMenu \{.*?\r?\n\}\r?\nfunction Show-MaintenanceMenu \{'
-$showMatches=[regex]::Matches($text,$showPattern)
-if($showMatches.Count-ne1){throw("Show-HubManagementMenu function scope expected exactly one match; observed $($showMatches.Count).")}
-$showBlock=$showMatches[0].Value
+$showSpan=Get-ExecutableFunctionSpan $text 'Show-HubManagementMenu'
+$showBlock=$showSpan.Text
 $unresolvedPattern=@'
 (?s)        if\(-not\$ctx\.InstanceId\)\{\r?\n            Write-UiHost 'Registry exists but is invalid/unresolved\. Run Doctor; switching is disabled\.' -ForegroundColor Red\r?\n            Write-UiHost '  \[0\] Back'\r?\n            if\(\(Read-UiInput 'Select'\)\.Trim\(\)-eq'0'\)\{return\}\r?\n            continue\r?\n        \}
 '@
@@ -120,9 +125,13 @@ $unresolvedReplacement=@'
             continue
         }
 '@
-$updatedShowBlock=Replace-SinglelineExactlyOnce $showBlock $unresolvedPattern $unresolvedReplacement 'frontend unresolved-active recovery menu within Show-HubManagementMenu'
-$text=Replace-LiteralExactlyOnce $text $showBlock $updatedShowBlock 'Show-HubManagementMenu scoped publication'
-if($updatedShowBlock.Contains('Registry exists but is invalid/unresolved. Run Doctor; switching is disabled.')){throw 'Stale frontend recovery-blocking message remains inside Show-HubManagementMenu.'}
+$updatedShowBlock=Replace-SinglelineExactlyOnce $showBlock $unresolvedPattern $unresolvedReplacement 'frontend unresolved-active recovery menu inside executable Show-HubManagementMenu'
+$text=$text.Substring(0,$showSpan.Start)+$updatedShowBlock+$text.Substring($showSpan.End)
+if($updatedShowBlock.Contains('Registry exists but is invalid/unresolved. Run Doctor; switching is disabled.')){throw 'Stale frontend recovery-blocking message remains inside executable Show-HubManagementMenu.'}
+
+# Reparse final frontend and prove both edited executable functions remain unique.
+$null=Get-ExecutableFunctionSpan $text 'Get-FrontendRegistryRows'
+$null=Get-ExecutableFunctionSpan $text 'Show-HubManagementMenu'
 [IO.File]::WriteAllText($frontend,$text,$Utf8NoBom)
 
 Write-Host 'Manager 4.17.12 post-freeze product materialization staged: PASS' -ForegroundColor Green
