@@ -25,11 +25,52 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Repair and parse temporary materializer
+        shell: powershell
+        run: |
+          $source = Join-Path $env:GITHUB_WORKSPACE 'tools\Materialize-Manager4178.ps1'
+          $temp = Join-Path $env:RUNNER_TEMP 'Materialize-Manager4178-fixed.ps1'
+          $raw = [IO.File]::ReadAllText($source,[Text.Encoding]::UTF8).Replace("`r`n","`n")
+          function Replace-OneLine([string]$Old,[string]$New) {
+              $first = $script:raw.IndexOf($Old,[StringComparison]::Ordinal)
+              if ($first -lt 0) { throw ('Repair anchor missing: ' + $Old) }
+              if ($script:raw.IndexOf($Old,$first+$Old.Length,[StringComparison]::Ordinal) -ge 0) { throw ('Repair anchor not unique: ' + $Old) }
+              $script:raw = $script:raw.Substring(0,$first) + $New + $script:raw.Substring($first+$Old.Length)
+          }
+          $old1=@'
+              "            ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\"%~dp0..\\..\\product\\tools\\KeelarynMenu.ps1\\" -Action '+[string]`$spec.frontend_action+' -NoRootLauncher'),",
+          '@.Trim()
+          $new1=@'
+              '            (''powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\..\product\tools\KeelarynMenu.ps1" -Action ''+[string]$spec.frontend_action+'' -NoRootLauncher''),',
+          '@.Trim()
+          $old2=@'
+              "            'set \\"RC=%ERRORLEVEL%\\"'",
+          '@.Trim()
+          $new2=@'
+              '            ''set "RC=%ERRORLEVEL%"''',
+          '@.Trim()
+          $old3=@'
+              "        elseif ([string]`$spec.pause -eq 'error') { `$lines += 'if not \\"%RC%\\"==\\"0\\" pause' }",
+          '@.Trim()
+          $new3=@'
+              '        elseif ([string]$spec.pause -eq ''error'') { $lines += ''if not "%RC%"=="0" pause'' }',
+          '@.Trim()
+          Replace-OneLine $old1 $new1
+          Replace-OneLine $old2 $new2
+          Replace-OneLine $old3 $new3
+          [IO.File]::WriteAllText($temp,$raw,(New-Object Text.UTF8Encoding($false)))
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($temp,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw ('Repaired materializer parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          "KEELARYN_FIXED_MATERIALIZER=$temp" >> $env:GITHUB_ENV
+
       - name: Materialize exact 4.17.8 development source
         shell: powershell
         run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Materialize-Manager4178.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:KEELARYN_FIXED_MATERIALIZER" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $original = Join-Path $env:GITHUB_WORKSPACE 'tools\Materialize-Manager4178.ps1'
+          if (Test-Path -LiteralPath $original) { Remove-Item -LiteralPath $original -Force }
 
       - name: Commit materialized development source
         shell: powershell
