@@ -28,7 +28,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $expectedParent = '7be22fdc4344ac886ceb3c9738103e035016619f'
+          $expectedParent = 'dad973d8d60343b8cc00b395efdd618660cd64be'
           $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
           $parent = (git rev-parse HEAD^).Trim().ToLowerInvariant()
           if ($parent -cne $expectedParent) { throw "Unexpected convergence parent: $parent expected $expectedParent" }
@@ -50,8 +50,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $actual = @(git diff --name-only | Sort-Object)
           $expected = @(
-            '.github/workflows/development-validation.yml',
-            '.github/workflows/manager-risk-defect-gate.yml',
             'MANAGER_DEVELOPMENT_STATE.json',
             'PUBLIC_PROVENANCE.json',
             'tests/knowledge/defects/manager-4.17.11-postfreeze.json',
@@ -69,18 +67,13 @@ jobs:
           $ErrorActionPreference = 'Stop'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm -- .github/workflows/converge-manager-4.17.12-development-state.yml tools/Converge-Manager41712DevelopmentState.ps1
-          git add -- .github/workflows/development-validation.yml .github/workflows/manager-risk-defect-gate.yml MANAGER_DEVELOPMENT_STATE.json PUBLIC_PROVENANCE.json tests/knowledge/defects/manager-4.17.11-postfreeze.json tests/knowledge/risk-map.json tools/Invoke-ManagerRiskContextRegression.ps1
+          git add -- MANAGER_DEVELOPMENT_STATE.json PUBLIC_PROVENANCE.json tests/knowledge/defects/manager-4.17.11-postfreeze.json tests/knowledge/risk-map.json tools/Invoke-ManagerRiskContextRegression.ps1
           $actual = @(git diff --cached --name-only | Sort-Object)
           $expected = @(
-            '.github/workflows/converge-manager-4.17.12-development-state.yml',
-            '.github/workflows/development-validation.yml',
-            '.github/workflows/manager-risk-defect-gate.yml',
             'MANAGER_DEVELOPMENT_STATE.json',
             'PUBLIC_PROVENANCE.json',
             'tests/knowledge/defects/manager-4.17.11-postfreeze.json',
             'tests/knowledge/risk-map.json',
-            'tools/Converge-Manager41712DevelopmentState.ps1',
             'tools/Invoke-ManagerRiskContextRegression.ps1'
           ) | Sort-Object
           if (($actual -join "`n") -cne ($expected -join "`n")) {
