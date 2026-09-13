@@ -84,7 +84,7 @@ function Show-HubManagementMenu {
 $text=Replace-SinglelineExactlyOnce $text $registryPattern $registryReplacement 'frontend registry enumeration independence'
 
 $unresolvedPattern=@'
-(?s)        if\(-not\$ctx\.InstanceId\)\{\r?\n            Write-UiHost 'Registry exists but is invalid/unresolved\. Run Doctor; switching is disabled\.' -ForegroundColor Red\r?\n            Write-UiHost '  \[0\] Back'\r?\n            if\(\(Read-UiInput 'Select'\)\.Trim\(\)-eq'0'\)\{return\}\r?\n            continue\r?\n        \}
+(?s)        if\(-not\$ctx\.InstanceId\)\{\r?\n            Write-UiHost 'Registry exists but is invalid/unresolved\. Run Doctor; switching is disabled\.' -ForegroundColor Red\r?\n            Write-UiHost '  \[0\] Back'\r?\n            if\(\(Read-UiInput 'Select'\)\.Trim\(\)-eq'0'\)\{return\}\r?\n            continue\r?\n        \}\r?\n        Write-UiHost \('Active: '\+\$ctx\.Name\+' \| '\+\$ctx\.InstanceId\) -ForegroundColor Green
 '@
 $unresolvedReplacement=@'
         if(-not$ctx.InstanceId){
@@ -113,6 +113,7 @@ $unresolvedReplacement=@'
             }else{Write-UiHost 'Invalid selection.' -ForegroundColor Yellow;Pause-Menu}
             continue
         }
+        Write-UiHost ('Active: '+$ctx.Name+' | '+$ctx.InstanceId) -ForegroundColor Green
 '@
 $text=Replace-SinglelineExactlyOnce $text $unresolvedPattern $unresolvedReplacement 'frontend unresolved-active recovery menu'
 if($text.Contains('Registry exists but is invalid/unresolved. Run Doctor; switching is disabled.')){throw 'Stale frontend recovery-blocking message remains.'}
