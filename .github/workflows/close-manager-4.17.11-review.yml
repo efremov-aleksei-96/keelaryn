@@ -23,6 +23,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Normalize one-shot script for Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $p=Join-Path $env:GITHUB_WORKSPACE 'tools\Close-Manager41711Review.ps1'
+          $utf8=New-Object Text.UTF8Encoding($false)
+          $text=[IO.File]::ReadAllText($p,[Text.Encoding]::UTF8)
+          $text=$text.Replace([string][char]0x2014,'-')
+          [IO.File]::WriteAllText($p,$text,$utf8)
+
       - name: Execute coherent review closure transaction
         shell: powershell
         run: |
