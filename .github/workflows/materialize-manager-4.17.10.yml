@@ -1,0 +1,90 @@
+name: Materialize Manager 4.17.10
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.10'
+    paths:
+      - '.github/workflows/materialize-manager-4.17.10.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keelaryn-materialize-manager-4.17.10
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - name: Verify exact one-shot source identity
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $expectedParent='389476f9e38b97749c92dbdac01daefda8ba38e0'
+          $parent=(git rev-parse HEAD^).Trim()
+          if($parent -cne $expectedParent){throw('Unexpected materialization parent: '+$parent+' expected='+$expectedParent)}
+          $changed=@(git diff --name-only HEAD^ HEAD)
+          if($changed.Count-ne1 -or [string]$changed[0] -cne '.github/workflows/materialize-manager-4.17.10.yml'){throw('Unexpected workflow-publication diff: '+([string]::Join(', ',@($changed))))}
+          $runtime=(Get-Content -LiteralPath 'manager/product/runtime/Keelaryn__Manager.ps1' -Raw -Encoding UTF8)
+          if($runtime -notmatch '(?m)^\$ManagerVersion = "4\.17\.9"$'){throw 'Expected 4.17.9 runtime base marker is absent.'}
+
+      - name: Parse materializer
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $p='tools\Apply-Manager41710DoctorOrderingFix.ps1'
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $env:GITHUB_WORKSPACE $p),[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw([string]::Join(' | ',@($errors|ForEach-Object{$_.Message})))}
+
+      - name: Materialize product
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Apply-Manager41710DoctorOrderingFix.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Validate exact product diff and runtime parser
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected=@(
+            'manager/README_FIRST.md',
+            'manager/product/install/INSTALLATION.json',
+            'manager/product/manager_release.json',
+            'manager/product/runtime/Keelaryn__Manager.ps1'
+          )
+          $changed=@(git status --porcelain | ForEach-Object{$_.Substring(3).Replace('\','/')} | Sort-Object)
+          $wanted=@($expected|Sort-Object)
+          if([string]::Join("`n",$changed)-cne[string]::Join("`n",$wanted)){throw('Unexpected product diff: '+([string]::Join(', ',@($changed))))}
+          $runtime=Join-Path $env:GITHUB_WORKSPACE 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($runtime,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw('Runtime parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          $text=Get-Content -LiteralPath $runtime -Raw -Encoding UTF8
+          $doctor=[regex]::Match($text,'(?s)function Invoke-Doctor \{.*?(?=\r?\nfunction )').Value
+          if(-not$doctor){throw 'Invoke-Doctor body not found after materialization.'}
+          if($doctor -notmatch '^function Invoke-Doctor \{\r?\n    \$rows=New-Object System\.Collections\.ArrayList\r?\n'){throw 'Doctor accumulator is not initialized at function entry.'}
+          if(([regex]::Matches($doctor,'(?m)^\s*\$rows=New-Object System\.Collections\.ArrayList\r?$')).Count-ne1){throw 'Doctor must contain exactly one rows initializer.'}
+          git diff --check -- @expected
+          if($LASTEXITCODE-ne0){throw 'Product diff check failed.'}
+          Write-Host 'Manager 4.17.10 product materialization validation: PASS' -ForegroundColor Green
+
+      - name: Commit exact product materialization
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- manager/README_FIRST.md manager/product/install/INSTALLATION.json manager/product/manager_release.json manager/product/runtime/Keelaryn__Manager.ps1
+          $staged=@(git diff --cached --name-only)
+          if($staged.Count-ne4){throw('Expected four staged product paths; observed '+$staged.Count)}
+          git commit -m 'Manager 4.17.10: fix registered Doctor accumulator ordering'
+          git push origin HEAD:dev/manager-4.17.10
