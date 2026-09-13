@@ -18,6 +18,10 @@ function Assert-ExistingCoveragePath([string]$RelativePath,[string]$Owner){
     $path=Join-Path $RepositoryRoot ($RelativePath.Replace('/','\'))
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){Fail($Owner+' references missing permanent coverage: '+$RelativePath)}
 }
+function Assert-ExistingFile([string]$RelativePath,[string]$Owner){
+    $path=Join-Path $RepositoryRoot ($RelativePath.Replace('/','\'))
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){Fail($Owner+' references missing file: '+$RelativePath)}
+}
 function Read-AllDefectRecords {
     $dir=Join-Path $RepositoryRoot 'tests\knowledge\defects'
     if(-not(Test-Path -LiteralPath $dir -PathType Container)){Fail 'Knowledge defect directory is missing.'}
@@ -31,6 +35,19 @@ function Read-AllDefectRecords {
     }
     return [pscustomobject]@{Files=@($files);Records=@($records)}
 }
+function Read-AllRiskAudits {
+    $dir=Join-Path $RepositoryRoot 'tests\knowledge\audits'
+    if(-not(Test-Path -LiteralPath $dir -PathType Container)){Fail 'Knowledge audit directory is missing.'}
+    $files=@(Get-ChildItem -LiteralPath $dir -File -Filter '*.json'|Sort-Object Name)
+    if($files.Count-eq0){Fail 'Knowledge audit directory contains no risk-audit files.'}
+    $docs=New-Object System.Collections.ArrayList
+    foreach($file in $files){
+        try{$doc=Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8|ConvertFrom-Json}catch{Fail('Invalid JSON '+$file.FullName+': '+$_.Exception.Message)}
+        if([string]$doc.schema-cne'keelaryn.manager-risk-audit.v1'){Fail('Unexpected risk-audit schema in '+$file.Name+'.')}
+        [void]$docs.Add([pscustomobject]@{File=$file;Document=$doc})
+    }
+    return [pscustomobject]@{Files=@($files);Documents=@($docs)}
+}
 
 $roots=Read-Json 'tests/knowledge/root-causes.json'
 $invariantsDoc=Read-Json 'tests/knowledge/invariants/multi-hub.json'
@@ -38,11 +55,14 @@ $defectSet=Read-AllDefectRecords
 $allDefects=@($defectSet.Records)
 $machine=Read-Json 'tests/knowledge/state-machines/multi-hub.json'
 $risk=Read-Json 'tests/knowledge/risk-map.json'
+$auditSet=Read-AllRiskAudits
+$developmentState=Read-Json 'MANAGER_DEVELOPMENT_STATE.json'
 
 if([string]$roots.schema-cne'keelaryn.manager-engineering-root-causes.v1'){Fail 'Unexpected root-cause schema.'}
 if([string]$invariantsDoc.schema-cne'keelaryn.manager-invariants.v1'){Fail 'Unexpected invariant schema.'}
 if([string]$machine.schema-cne'keelaryn.manager-state-machine.v1'){Fail 'Unexpected state-machine schema.'}
 if([string]$risk.schema-cne'keelaryn.manager-risk-map.v1'){Fail 'Unexpected risk-map schema.'}
+if([string]$developmentState.schema-cne'keelaryn.manager-development-state.v1'){Fail 'Unexpected Manager development-state schema.'}
 
 $rootIds=New-IdSet
 foreach($row in @($roots.classes)){Add-Unique $rootIds ([string]$row.id) 'root-cause'}
@@ -128,6 +148,68 @@ foreach($d in $allDefects){
 }
 foreach($d in $allDefects){foreach($other in @($d.related_defects)){Assert-Ref $defectIds ([string]$other) 'defect' ([string]$d.id)}}
 
+$auditIds=New-IdSet
+$auditedOpenBlockers=New-IdSet
+foreach($entry in @($auditSet.Documents)){
+    $audit=$entry.Document
+    $aid=[string]$audit.audit_id
+    Add-Unique $auditIds $aid 'risk-audit'
+    if($aid-notmatch'^MHA-[A-Z0-9-]+$'){Fail('Risk-audit id is not canonical: '+$aid)}
+    if([string]::IsNullOrWhiteSpace([string]$audit.title)){Fail($aid+' has no title.')}
+    if(@($audit.confirmed_open_defects).Count-eq0){Fail($aid+' has no confirmed open defects.')}
+    foreach($did in @($audit.confirmed_open_defects)){
+        Assert-Ref $defectIds ([string]$did) 'defect' $aid
+        $defect=$defectById[[string]$did]
+        if([string]$defect.status-cne'open' -or -not[bool]$defect.release_blocker){Fail($aid+' confirmed_open_defects must reference an open release blocker: '+[string]$did)}
+        [void]$auditedOpenBlockers.Add([string]$did)
+    }
+    $clusterIds=New-IdSet
+    foreach($cluster in @($audit.convergence_clusters)){
+        $cid=[string]$cluster.id
+        Add-Unique $clusterIds $cid ($aid+' cluster')
+        if(@($cluster.invariants).Count-eq0){Fail($aid+'/'+$cid+' has no invariants.')}
+        foreach($iid in @($cluster.invariants)){Assert-Ref $invariantIds ([string]$iid) 'invariant' ($aid+'/'+$cid)}
+        foreach($did in @($cluster.defects)){Assert-Ref $defectIds ([string]$did) 'defect' ($aid+'/'+$cid)}
+    }
+    $testIds=New-IdSet
+    if(@($audit.required_pre_product_tests).Count-eq0){Fail($aid+' has no required pre-product tests.')}
+    foreach($test in @($audit.required_pre_product_tests)){
+        $tid=[string]$test.id
+        Add-Unique $testIds $tid ($aid+' test')
+        Assert-Ref $stateIds ([string]$test.state) 'state' ($aid+'/'+$tid)
+        Assert-Ref $operationIds ([string]$test.operation) 'operation' ($aid+'/'+$tid)
+        if([string]::IsNullOrWhiteSpace([string]$test.expected)){Fail($aid+'/'+$tid+' has no expected result.')}
+    }
+    if(@($audit.implementation_constraints).Count-eq0){Fail($aid+' has no implementation constraints.')}
+    if(@($audit.freeze_criteria).Count-eq0){Fail($aid+' has no freeze criteria.')}
+}
+
+$openReleaseBlockers=@($allDefects|Where-Object{[string]$_.status-eq'open' -and [bool]$_.release_blocker})
+foreach($d in $openReleaseBlockers){
+    $id=[string]$d.id
+    if(-not$auditedOpenBlockers.Contains($id) -and @($d.planned_regressions).Count-eq0){Fail($id+' is an open release blocker with neither audit coverage nor planned regression.')}
+}
+
+if([string]$developmentState.repository-cne'efremov-aleksei-96/keelaryn'){Fail 'Development state repository identity is unexpected.'}
+if([string]::IsNullOrWhiteSpace([string]$developmentState.authoritative_branch)){Fail 'Development state authoritative_branch is empty.'}
+if($developmentState.PSObject.Properties.Name -contains 'authoritative_head'){Fail 'Development state must not store self-referential authoritative_head; resolve the branch ref live.'}
+if([string]$developmentState.head_resolution.mode-cne'resolve_branch_ref_live'){Fail 'Development state head_resolution.mode must be resolve_branch_ref_live.'}
+if(@('unqualified_development','candidate_frozen','qualified_release')-cnotcontains[string]$developmentState.lifecycle_state){Fail('Unsupported development lifecycle_state: '+[string]$developmentState.lifecycle_state)}
+Assert-ExistingFile ([string]$developmentState.knowledge.roadmap) 'development state'
+Assert-ExistingFile ([string]$developmentState.knowledge.strict_pre_freeze_gate) 'development state'
+if([string]::IsNullOrWhiteSpace([string]$developmentState.next_exact_goal.id) -or [string]::IsNullOrWhiteSpace([string]$developmentState.next_exact_goal.description)){Fail 'Development state next_exact_goal is incomplete.'}
+
+$stateBlockers=New-IdSet
+foreach($did in @($developmentState.open_release_blockers)){
+    Add-Unique $stateBlockers ([string]$did) 'development-state blocker'
+    Assert-Ref $defectIds ([string]$did) 'defect' 'development state'
+    $defect=$defectById[[string]$did]
+    if([string]$defect.status-cne'open' -or -not[bool]$defect.release_blocker){Fail('Development state blocker is not an open release blocker: '+[string]$did)}
+}
+foreach($d in $openReleaseBlockers){if(-not$stateBlockers.Contains([string]$d.id)){Fail('Development state omits open release blocker: '+[string]$d.id)}}
+foreach($did in @($stateBlockers)){if(-not(@($openReleaseBlockers|ForEach-Object{[string]$_.id})-contains$did)){Fail('Development state contains stale blocker: '+$did)}}
+foreach($aid in @($developmentState.knowledge.current_risk_audits)){Assert-Ref $auditIds ([string]$aid) 'risk-audit' 'development state'}
+
 Write-Host 'Manager Engineering Knowledge: structural validation PASS' -ForegroundColor Green
 Write-Host ('  root-cause classes: '+@($roots.classes).Count)
 Write-Host ('  invariants: '+@($invariantsDoc.invariants).Count)
@@ -135,6 +217,8 @@ Write-Host ('  defect files: '+@($defectSet.Files).Count)
 Write-Host ('  defects: '+$allDefects.Count+' (open='+@($allDefects|Where-Object{$_.status-eq'open'}).Count+')')
 Write-Host ('  risk surfaces: '+@($risk.surfaces).Count)
 Write-Host ('  state scenarios: '+@($machine.states).Count+'; operations='+@($machine.operations).Count+'; rules='+@($machine.rules).Count)
+Write-Host ('  risk audits: '+@($auditSet.Files).Count)
+Write-Host ('  development-state blockers: '+@($developmentState.open_release_blockers).Count)
 
 $repeated=New-Object System.Collections.ArrayList
 foreach($inv in @($invariantsDoc.invariants)){
