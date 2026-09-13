@@ -83,6 +83,7 @@ function Test-WildcardPath([string]$Path,[string]$Pattern){
     return [regex]::IsMatch($Path.Replace('\','/'),$regex,[Text.RegularExpressions.RegexOptions]::IgnoreCase)
 }
 function Intersects($A,$B){foreach($x in @($A)){if(@($B)-contains$x){return $true}}return $false}
+function Set-Intersects($Rows,$Set){foreach($row in @($Rows)){if($Set.Contains([string]$row)){return $true}}return $false}
 function Add-UniqueIds($Set,$Rows){foreach($row in @($Rows)){if(-not[string]::IsNullOrWhiteSpace([string]$row)){[void]$Set.Add([string]$row)}}}
 function Escape-Md([string]$Text){if($null-eq$Text){return''};return $Text.Replace('|','\|').Replace("`r",' ').Replace("`n",' ')}
 
@@ -125,7 +126,7 @@ foreach($surface in $matchedSurfaces){
 $invariants=@($invDoc.invariants|Where-Object{$invariantIds.Contains([string]$_.id)}|Sort-Object id)
 $rootClasses=@($rootDoc.classes|Where-Object{$rootIds.Contains([string]$_.id)}|Sort-Object id)
 $stateRules=@($machine.rules|Where-Object{$ruleIds.Contains([string]$_.id)}|Sort-Object id)
-$relatedDefects=@($defectDoc.defects|Where-Object{Intersects @($_.affected_surfaces) @($matchedSurfaceIds)}|Sort-Object id)
+$relatedDefects=@($defectDoc.defects|Where-Object{Set-Intersects @($_.affected_surfaces) $matchedSurfaceIds}|Sort-Object id)
 $openBlockers=@($defectDoc.defects|Where-Object{[string]$_.status-eq'open' -and [bool]$_.release_blocker}|Sort-Object id)
 
 $context=[ordered]@{
@@ -143,7 +144,8 @@ $context=[ordered]@{
     state_machine_rules=@($stateRules|ForEach-Object{[ordered]@{id=[string]$_.id;states=@($_.states);operation=[string]$_.operation;outcome=[string]$_.outcome;reason=[string]$_.reason;invariants=@($_.invariants)}})
 }
 
-$parent=[IO.Path]::GetDirectoryName($OutputPath);if($parent-and-not(Test-Path -LiteralPath $parent -PathType Container)){[void][IO.Directory]::CreateDirectory($parent)}
+$parent=[IO.Path]::GetDirectoryName($OutputPath)
+if($parent -and -not(Test-Path -LiteralPath $parent -PathType Container)){[void][IO.Directory]::CreateDirectory($parent)}
 $json=(($context|ConvertTo-Json -Depth 50).Replace("`r`n","`n"))+"`n"
 [IO.File]::WriteAllText($JsonOutputPath,$json,$Utf8NoBom)
 
