@@ -71,7 +71,8 @@
   },
   "qualification": {
     "risk_defect_gate": {
-      "status": "pass",
+      "status": "required_pass_before_freeze",
+      "observed_status": "pass",
       "base_commit": "7183f563e644b85f7131db2707816730b5dffb6b",
       "closure_run_id": "34753054865",
       "exact_head_run_id": "34753434645",
@@ -143,6 +144,12 @@
       "run_id": "34754507678",
       "classification": "state_schema_integration",
       "cause": "post-freeze operational state used a descriptive lifecycle_state outside the canonical allowed enum; detailed phase belongs in candidate.status and qualification fields while lifecycle_state remains candidate_frozen",
+      "candidate_bytes_changed": false
+    },
+    {
+      "run_id": "34754565146",
+      "classification": "state_contract_integration",
+      "cause": "risk_defect_gate.status was populated with observed result pass instead of preserving the canonical required_pass_before_freeze policy marker; observed result is now stored separately",
       "candidate_bytes_changed": false
     }
   ],
