@@ -27,7 +27,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $expectedParent='5524370201153a66f7279674bf7bd1500b782ce6'
+          $expectedParent='3f4c5e1484a05809abff707ae9a5567260f9edfd'
           $parent=(git rev-parse HEAD^).Trim()
           if($parent -cne $expectedParent){throw('Unexpected cleanup parent: '+$parent+' expected='+$expectedParent)}
           $changed=@(git diff --name-only HEAD^ HEAD)
@@ -41,28 +41,21 @@ jobs:
 
           $runner='tools\Invoke-DevelopmentValidation.ps1'
           $text=[IO.File]::ReadAllText($runner)
-          $old=@"
-Write-Host '[4/7] Run Manager 4.17.8 regression chain...'
-foreach(`$regressionName in @('Invoke-Manager4178ReviewRegression.ps1')){
-    `$regression=Join-Path `$RepositoryRoot ('tools\'+`$regressionName)
-    if(-not(Test-Path -LiteralPath `$regression -PathType Leaf)){Fail('Manager 4.17.8 regression tool is missing: '+`$regressionName)}
-    Parse-File `$regression
-    Invoke-Child `$regression @('-RepositoryRoot',`$RepositoryRoot)
-}
-Write-Host 'Manager 4.17.8 regression chain: PASS' -ForegroundColor Green
-"@
-          $new=@"
-Write-Host '[4/7] Run Manager 4.17.10 regression chain...'
-foreach(`$regressionName in @('Invoke-Manager41710ReviewRegression.ps1')){
-    `$regression=Join-Path `$RepositoryRoot ('tools\'+`$regressionName)
-    if(-not(Test-Path -LiteralPath `$regression -PathType Leaf)){Fail('Manager 4.17.10 regression tool is missing: '+`$regressionName)}
-    Parse-File `$regression
-    Invoke-Child `$regression @('-RepositoryRoot',`$RepositoryRoot)
-}
-Write-Host 'Manager 4.17.10 regression chain: PASS' -ForegroundColor Green
-"@
-          if(([regex]::Matches($text,[regex]::Escape($old))).Count-ne1){throw 'DevelopmentValidation 4.17.8 regression block is not uniquely replaceable.'}
-          $text=$text.Replace($old,$new)
+          $pattern="(?s)Write-Host '\[4/7\] Run Manager 4\.17\.8 regression chain\.\.\.'.*?Write-Host 'Manager 4\.17\.8 regression chain: PASS' -ForegroundColor Green"
+          $matches=[regex]::Matches($text,$pattern)
+          if($matches.Count-ne1){throw('DevelopmentValidation 4.17.8 regression block count='+$matches.Count)}
+          $newLines=@(
+            "Write-Host '[4/7] Run Manager 4.17.10 regression chain...'",
+            "foreach(`$regressionName in @('Invoke-Manager41710ReviewRegression.ps1')){",
+            "    `$regression=Join-Path `$RepositoryRoot ('tools\'+`$regressionName)",
+            "    if(-not(Test-Path -LiteralPath `$regression -PathType Leaf)){Fail('Manager 4.17.10 regression tool is missing: '+`$regressionName)}",
+            "    Parse-File `$regression",
+            "    Invoke-Child `$regression @('-RepositoryRoot',`$RepositoryRoot)",
+            "}",
+            "Write-Host 'Manager 4.17.10 regression chain: PASS' -ForegroundColor Green"
+          )
+          $replacement=[string]::Join("`r`n",$newLines)
+          $text=[regex]::Replace($text,$pattern,[Text.RegularExpressions.MatchEvaluator]{param($m)$replacement},1)
           [IO.File]::WriteAllText($runner,$text,$utf8)
 
           $roadmap='MANAGER_ENGINEERING_ROADMAP.md'
@@ -72,9 +65,9 @@ Write-Host 'Manager 4.17.10 regression chain: PASS' -ForegroundColor Green
           if(([regex]::Matches($text,[regex]::Escape($oldR3))).Count-ne1){throw 'Roadmap R-003 required-properties line is not uniquely replaceable.'}
           $text=$text.Replace($oldR3,$newR3)
           $oldR15='- **Design direction:** compact machine-readable finding with classification, affected subsystem, recurrence risk, candidate invariant/root-cause/roadmap links and evidence reference; human/Chat Manager reconciliation decides whether it becomes a defect, invariant, regression or roadmap item.'
-          $newR15=$oldR15+"`r`n- **Execution-process lesson:** remote Manager development should operate from one explicit atomic goal, reuse already-discovered tool/schema knowledge, and emit progress only on evidence-bearing state transitions (commit, run result, blocker). Repeated tool rediscovery or status-only loops are reusable process findings, not progress."
+          $lesson='- **Execution-process lesson:** remote Manager development should operate from one explicit atomic goal, reuse already-discovered tool/schema knowledge, and emit progress only on evidence-bearing state transitions (commit, run result, blocker). Repeated tool rediscovery or status-only loops are reusable process findings, not progress.'
           if(([regex]::Matches($text,[regex]::Escape($oldR15))).Count-ne1){throw 'Roadmap R-015 design line is not uniquely replaceable.'}
-          $text=$text.Replace($oldR15,$newR15)
+          $text=$text.Replace($oldR15,$oldR15+"`r`n"+$lesson)
           [IO.File]::WriteAllText($roadmap,$text,$utf8)
 
           foreach($path in @(
