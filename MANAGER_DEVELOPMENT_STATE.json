@@ -28,6 +28,13 @@
     "candidate_issued": true
   },
   "qualification": {
+    "risk_defect_gate": {
+      "status": "required_pass_before_freeze",
+      "observed_status": "pass",
+      "validated_candidate_commit": "88e3dcba0af75264c4b53e8ec24d770c215677a0",
+      "hosted_qualification_run_id": "34770214698",
+      "candidate_freeze_permitted": true
+    },
     "candidate_4_17_11_g1": {
       "manager_version": "4.17.11",
       "candidate_revision": "g1",
