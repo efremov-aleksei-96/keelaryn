@@ -28,7 +28,7 @@ function Invoke-Git([string[]]$Arguments,[switch]$AllowEmpty){
     return @($lines|ForEach-Object{[string]$_})
 }
 function Resolve-Commit([string]$Ref){
-    $rows=Invoke-Git @('rev-parse','--verify',($Ref+'^{commit}'))
+    $rows=@(Invoke-Git @('rev-parse','--verify',($Ref+'^{commit}')))
     if($rows.Count-ne1){Fail('Could not resolve commit: '+$Ref)}
     return $rows[0].Trim().ToLowerInvariant()
 }
@@ -61,7 +61,7 @@ function Add-RangeSymbols([string]$Commit,[string]$Path,$Ranges,$Set){
     }finally{Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue}
 }
 function Get-PathChange([string]$Path,[string]$Base,[string]$Head){
-    $diff=Invoke-Git @('diff','--unified=0','--no-color',$Base,$Head,'--',$Path) -AllowEmpty
+    $diff=@(Invoke-Git @('diff','--unified=0','--no-color',$Base,$Head,'--',$Path) -AllowEmpty)
     $oldRanges=New-Object System.Collections.ArrayList
     $newRanges=New-Object System.Collections.ArrayList
     foreach($line in @($diff)){
