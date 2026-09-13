@@ -1,38 +1,56 @@
 {
-  "schema": "keelaryn.manager-risk-audit.v1",
-  "audit_id": "MHA-41710-001",
-  "title": "Manager 4.17.10 post-freeze registry pending-state outcome audit",
-  "source_manager_version": "4.17.10",
-  "source_candidate_commit": "af128f0f10752ff1500155707b56260aac296569",
-  "source_provenance_head": "694bea57a3d3add8bb612b9006f84dbadcd17787",
-  "product_bytes_changed": false,
-  "production_multi_hub_must_remain_inactive": true,
-  "confirmed_open_defects": ["MGR-DEF-0024"],
-  "convergence_clusters": [
-    {
-      "id": "instance_pending_state_outcome",
-      "invariants": ["MH-LIFECYCLE-001", "MH-REACHABILITY-001", "MH-CONTEXT-001"],
-      "defects": ["MGR-DEF-0024"]
-    }
-  ],
-  "required_pre_product_tests": [
-    {
-      "id": "A21",
-      "state": "REGISTRY_PENDING_INSTANCE",
-      "operation": "UpdateHub",
-      "expected": "With only CANDIDATE packages in the captured active instance inbox and no installable APPROVED package, UpdateHub performs no Hub mutation but explicitly reports the exact pending CANDIDATE count from that instance inbox. Unrelated Manager-global inbox contents must not determine the result."
-    }
-  ],
-  "implementation_constraints": [
-    "Use the same captured instance-owned Hub inbox for discovery, candidate-only outcome reporting and any subsequent Hub lifecycle decision.",
-    "Do not move or copy CANDIDATE packages merely to make them visible to completion reporting.",
-    "The no-install outcome must distinguish no pending Hub work from pending CANDIDATE work requiring Chat Manager.",
-    "The regression must execute a real disposable registry-active UpdateHub path rather than only asserting source text.",
-    "No personal Hub bytes may enter fixtures or evidence."
-  ],
-  "freeze_criteria": [
-    "MGR-DEF-0024 is fixed in the successor Manager and has permanent executable regression coverage.",
-    "A21 passes against an exact disposable registry-active state.",
-    "The strict Risk/Defect Gate passes on the exact successor candidate-prep head before freeze."
-  ]
+    "schema":  "keelaryn.manager-risk-audit.v1",
+    "audit_id":  "MHA-41710-001",
+    "title":  "Manager 4.17.10 post-freeze registry pending-state outcome audit",
+    "source_manager_version":  "4.17.10",
+    "source_candidate_commit":  "af128f0f10752ff1500155707b56260aac296569",
+    "source_provenance_head":  "694bea57a3d3add8bb612b9006f84dbadcd17787",
+    "product_bytes_changed":  false,
+    "production_multi_hub_must_remain_inactive":  true,
+    "confirmed_open_defects":  [
+
+                               ],
+    "convergence_clusters":  [
+                                 {
+                                     "id":  "instance_pending_state_outcome",
+                                     "invariants":  [
+                                                        "MH-LIFECYCLE-001",
+                                                        "MH-REACHABILITY-001",
+                                                        "MH-CONTEXT-001"
+                                                    ],
+                                     "defects":  [
+                                                     "MGR-DEF-0024"
+                                                 ]
+                                 }
+                             ],
+    "required_pre_product_tests":  [
+                                       {
+                                           "id":  "A21",
+                                           "state":  "REGISTRY_PENDING_INSTANCE",
+                                           "operation":  "UpdateHub",
+                                           "expected":  "With only CANDIDATE packages in the captured active instance inbox and no installable APPROVED package, UpdateHub performs no Hub mutation but explicitly reports the exact pending CANDIDATE count from that instance inbox. Unrelated Manager-global inbox contents must not determine the result."
+                                       }
+                                   ],
+    "implementation_constraints":  [
+                                       "Use the same captured instance-owned Hub inbox for discovery, candidate-only outcome reporting and any subsequent Hub lifecycle decision.",
+                                       "Do not move or copy CANDIDATE packages merely to make them visible to completion reporting.",
+                                       "The no-install outcome must distinguish no pending Hub work from pending CANDIDATE work requiring Chat Manager.",
+                                       "The regression must execute a real disposable registry-active UpdateHub path rather than only asserting source text.",
+                                       "No personal Hub bytes may enter fixtures or evidence."
+                                   ],
+    "freeze_criteria":  [
+                            "MGR-DEF-0024 is fixed in the successor Manager and has permanent executable regression coverage.",
+                            "A21 passes against an exact disposable registry-active state.",
+                            "The strict Risk/Defect Gate passes on the exact successor candidate-prep head before freeze."
+                        ],
+    "resolved_defects":  [
+                             "MGR-DEF-0024"
+                         ],
+    "resolution":  {
+                       "status":  "resolved",
+                       "manager_version":  "4.17.11",
+                       "permanent_regression":  "tools/Invoke-Manager41711ReviewRegression.ps1",
+                       "evidence_run_id":  "34769051128",
+                       "evidence_head":  "89d593b261b4e432fef2f62484cfbf3293ecf4cc"
+                   }
 }

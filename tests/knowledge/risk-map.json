@@ -164,7 +164,8 @@
                          "regressions":  [
                                              "tools/Invoke-Manager4175ReviewRegression.ps1",
                                              "tools/Invoke-Manager4176ReviewRegression.ps1",
-                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1"
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1",
+                                             "tools/Invoke-Manager41711ReviewRegression.ps1"
                                          ],
                          "planned_regressions":  [
 
@@ -200,7 +201,8 @@
                                                 ],
                          "regressions":  [
                                              "tools/Invoke-Manager4176ReviewRegression.ps1",
-                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1"
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1",
+                                             "tools/Invoke-Manager41711ReviewRegression.ps1"
                                          ],
                          "planned_regressions":  [
 
@@ -402,7 +404,8 @@
                                        "tests/knowledge/**",
                                        "tools/Build-ManagerRiskContext.ps1",
                                        "tools/Test-ManagerEngineeringKnowledge.ps1",
-                                       "tools/Invoke-ManagerRiskDefectGate.ps1"
+                                       "tools/Invoke-ManagerRiskDefectGate.ps1",
+                                       "tools/Verify-ManagerReleaseInstructions.ps1"
                                    ],
                          "symbols":  [
 
@@ -414,7 +417,8 @@
                                                     "RC-COMPAT-001"
                                                 ],
                          "regressions":  [
-                                             ".github/workflows/development-validation.yml"
+                                             ".github/workflows/development-validation.yml",
+                                             "tools/Verify-ManagerReleaseInstructions.ps1"
                                          ],
                          "planned_regressions":  [
 

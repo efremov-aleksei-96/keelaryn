@@ -29,8 +29,8 @@
                         },
     "qualification":  {
                           "risk_defect_gate":  {
-                                                   "status":  "expected_fail_while_open_release_blockers_exist",
-                                                   "observed_status":  "pending_successor_closure_validation",
+                                                   "status":  "required_pass_before_freeze",
+                                                   "observed_status":  "pending_exact_head_development_validation_after_review_closure",
                                                    "last_required_pass_head":  "af4e26133cfb2dada0a56f6e8d7dd5c6f69b1efe",
                                                    "last_required_pass_run_id":  "34762448272"
                                                },
@@ -48,9 +48,11 @@
                           "manager_4_17_11":  {
                                                   "status":  "unqualified_development",
                                                   "product_runtime_repair":  "pass_minimal_delta",
-                                                  "review_closure":  "pending",
+                                                  "review_closure":  "pass",
                                                   "development_validation":  "pending",
-                                                  "candidate_issued":  false
+                                                  "candidate_issued":  false,
+                                                  "review_closure_run_id":  "34769051128",
+                                                  "review_closure_head":  "89d593b261b4e432fef2f62484cfbf3293ecf4cc"
                                               }
                       },
     "production_policy":  {
@@ -61,8 +63,7 @@
                               "candidate_4_17_10_g3":  "immutable_production_installed_public_release_rejected_do_not_modify"
                           },
     "open_release_blockers":  [
-                                  "MGR-DEF-0024",
-                                  "MGR-DEF-0025"
+
                               ],
     "knowledge":  {
                       "roadmap":  "MANAGER_ENGINEERING_ROADMAP.md",
@@ -81,8 +82,8 @@
                       "public_repository_verifier":  "tools/Verify-PublicRepository.ps1"
                   },
     "next_exact_goal":  {
-                            "id":  "MANAGER-41711-CLOSURE-001",
-                            "description":  "Execute the registry-active CANDIDATE-only UpdateHub regression and release-instruction identity guard on exact 4.17.11 source; close MGR-DEF-0024/MGR-DEF-0025 only after that evidence passes, integrate both controls into canonical Development Validation, remove one-shot materialization/diagnostic/repair tooling, then require strict exact-head PASS before any candidate freeze.",
+                            "id":  "MANAGER-41711-DEVELOPMENT-VALIDATION-001",
+                            "description":  "Require exact-head canonical Development Validation and strict Risk/Defect Gate PASS with the 4.17.11 review regression and release-instruction identity guard integrated. Do not freeze until both checks pass on the same authoritative development source identity.",
                             "product_changes_permitted_on_frozen_4_17_10_g3":  false
                         },
     "bootstrap":  {
@@ -90,8 +91,8 @@
                       "required_first_actions":  [
                                                      "Resolve dev/manager-4.17.11 live; remote branch is authoritative.",
                                                      "Treat production Manager 4.17.10 as installed and accepted only in single-instance compatibility mode; do not activate multi-Hub.",
-                                                     "Keep MGR-DEF-0024/MGR-DEF-0025 open until permanent executable/identity controls pass.",
-                                                     "Do not freeze 4.17.11 before exact-head Development Validation and strict Risk/Defect Gate PASS."
+                                                     "MGR-DEF-0024/MGR-DEF-0025 are fixed in 4.17.11 with permanent pre-freeze coverage; require canonical exact-head Development Validation and Risk/Defect Gate PASS.",
+                                                     "Do not freeze 4.17.11 until exact-head development evidence is green."
                                                  ]
                   }
 }

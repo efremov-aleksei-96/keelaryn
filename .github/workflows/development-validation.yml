@@ -19,6 +19,8 @@ on:
       - 'tools/Build-ManagerRiskContext.ps1'
       - 'tools/Invoke-ManagerRiskDefectGate.ps1'
       - 'tools/Invoke-ManagerRiskContextRegression.ps1'
+      - 'tools/Invoke-Manager41711ReviewRegression.ps1'
+      - 'tools/Verify-ManagerReleaseInstructions.ps1'
       - 'tools/Invoke-Manager41710ReviewRegression.ps1'
       - 'tools/Invoke-Manager4179ConvergenceRegression.ps1'
       - 'tools/Invoke-Manager4178ReviewRegression.ps1'
@@ -105,5 +107,5 @@ jobs:
           retention-days: 3
 
 # Engineering knowledge integrity, compact task risk context, public manifest/provenance consistency and the risk-context lifecycle regression are development checks.
-# Invoke-DevelopmentValidation.ps1 owns the permanent Manager 4.17.10 regression chain, including real disposable Genesis -> registry activation -> Doctor execution. The workflow does not repeat that expensive chain.
+# Invoke-DevelopmentValidation.ps1 owns the permanent Manager 4.17.10 + 4.17.11 regression chain, including real disposable registry-active Doctor and CANDIDATE-only UpdateHub execution plus the managed release-instruction identity guard. The workflow does not repeat that expensive chain.
 # The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run verifies that its observed PASS/FAIL matches repository policy state.
