@@ -1,0 +1,213 @@
+name: Manager 4.17.11 g1 qualification
+
+on:
+  push:
+    branches:
+      - 'maintenance/qualify-manager-4.17.11-g1'
+    paths:
+      - '.github/workflows/manager-4.17.11-g1-qualification.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-4.17.11-g1-hosted-qualification
+  cancel-in-progress: false
+
+jobs:
+  hosted-g1:
+    runs-on: windows-2025
+    timeout-minutes: 100
+    steps:
+      - name: Checkout exact frozen g1 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 88e3dcba0af75264c4b53e8ec24d770c215677a0
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout exact production-qualified 4.17.10 provenance baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 694bea57a3d3add8bb612b9006f84dbadcd17787
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify frozen identities and public metadata contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $baseline=Join-Path $env:GITHUB_WORKSPACE 'baseline'
+          $candidateSha=(git -C $candidate rev-parse HEAD).Trim()
+          $candidateTree=(git -C $candidate rev-parse 'HEAD^{tree}').Trim()
+          $candidateParent=(git -C $candidate rev-parse 'HEAD^').Trim()
+          $baselineSha=(git -C $baseline rev-parse HEAD).Trim()
+          if($candidateSha-cne'88e3dcba0af75264c4b53e8ec24d770c215677a0'){throw('Candidate SHA mismatch: '+$candidateSha)}
+          if($candidateTree-cne'7d23ab245699d63c264958f9132d29fe85d43de7'){throw('Candidate tree mismatch: '+$candidateTree)}
+          if($candidateParent-cne'e1024937320cf60ba0257e7c61c0f0124cd379d3'){throw('Candidate parent mismatch: '+$candidateParent)}
+          if($baselineSha-cne'694bea57a3d3add8bb612b9006f84dbadcd17787'){throw('Baseline SHA mismatch: '+$baselineSha)}
+          $freezeDiff=@(git -C $candidate diff --name-only HEAD^ HEAD)
+          if($freezeDiff.Count-ne0){throw('Frozen g1 commit is not tree-identical to validated development parent: '+([string]::Join(', ',@($freezeDiff))))}
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $candidate -Check
+          if($LASTEXITCODE-ne0){throw 'Candidate PUBLIC_FILE_MANIFEST reproducibility failed.'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Verify-PublicCandidateMetadata.ps1') -RepositoryRoot $candidate
+          if($LASTEXITCODE-ne0){throw 'Candidate public metadata consistency failed.'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $candidate
+          if($LASTEXITCODE-ne0){throw 'Candidate public repository verification failed.'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $baseline 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $baseline -Check
+          if($LASTEXITCODE-ne0){throw 'Baseline PUBLIC_FILE_MANIFEST reproducibility failed.'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $baseline 'tools\Verify-PublicRepository.ps1') -RepositoryRoot $baseline
+          if($LASTEXITCODE-ne0){throw 'Baseline public repository verification failed.'}
+
+          $cm=Get-Content (Join-Path $candidate 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $bm=Get-Content (Join-Path $baseline 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $cp=Get-Content (Join-Path $candidate 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $bp=Get-Content (Join-Path $baseline 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $ci=Get-Content (Join-Path $candidate 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $bi=Get-Content (Join-Path $baseline 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$ci.manager_version-cne'4.17.11'){throw 'Candidate version mismatch.'}
+          if([string]$bi.manager_version-cne'4.17.10'){throw 'Baseline version mismatch.'}
+          if([string]$cm.manager.installation_sha256-cne'cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc'){throw 'Candidate installation identity mismatch.'}
+          if([string]$cm.manager.gate_managed_content_sha256-cne'a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b'){throw 'Candidate managed digest mismatch.'}
+          if([string]$bm.manager.installation_sha256-cne'3d4e1102b6852e1c1502d265e913bbe8c640ce7e881b4051a9b4e5cc6e7fab25'){throw 'Baseline installation identity mismatch.'}
+          if([string]$bm.manager.gate_managed_content_sha256-cne'2df8ff820d1f4c31fe8c8b537ff81ec4a3e67516325ca73f4470c561c9497cfa'){throw 'Baseline managed digest mismatch.'}
+          if([string]$cp.source_manager_version-cne'4.17.11'){throw 'Candidate provenance version mismatch.'}
+          if([string]$cp.source_gate_baseline_manager_version-cne'4.17.10'){throw 'Candidate provenance baseline mismatch.'}
+          if([bool]$cp.production_validation.full_gate_pass){throw 'Unqualified candidate provenance must not claim Full Gate PASS.'}
+          if(-not[string]::IsNullOrWhiteSpace([string]$cp.production_validation.tested_update_sha256)){throw 'Unqualified candidate provenance must not retain tested UPDATE identity.'}
+          if(-not[bool]$bp.production_validation.full_gate_pass){throw 'Baseline provenance is not production-qualified.'}
+          if([string]$bp.production_validation.tested_update_sha256-cne'c3d005861f1c2b4e39e6a7bf826cbb4ff81460fd89a595592d1960a711277a6f'){throw 'Baseline tested UPDATE identity mismatch.'}
+          if([int]$cm.gate_framework.revision-ne24-or[int]$bm.gate_framework.revision-ne24){throw 'Framework revision mismatch.'}
+          $cRows=@($cm.gate_framework.files|ForEach-Object{([string]$_.path)+':'+([string]$_.sha256)}|Sort-Object)
+          $bRows=@($bm.gate_framework.files|ForEach-Object{([string]$_.path)+':'+([string]$_.sha256)}|Sort-Object)
+          if([string]::Join('|',$cRows)-cne[string]::Join('|',$bRows)){throw 'Candidate/baseline Framework bytes differ.'}
+
+          $state=Get-Content (Join-Path $candidate 'MANAGER_DEVELOPMENT_STATE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$state.lifecycle_state-cne'unqualified_development'){throw 'Frozen source tree must remain the exact validated development tree.'}
+          if([string]$state.authoritative_branch-cne'dev/manager-4.17.11'){throw 'Candidate source state points at an unexpected development branch.'}
+          if(@($state.open_release_blockers).Count-ne0){throw 'Frozen candidate source records open release blockers.'}
+          if([string]$state.qualification.risk_defect_gate.status-cne'required_pass_before_freeze'){throw 'Frozen candidate does not require strict pre-freeze Risk/Defect Gate PASS.'}
+          Write-Host 'FROZEN g1 IDENTITY / PUBLIC METADATA / BASELINE / FRAMEWORK: PASS' -ForegroundColor Green
+
+      - name: Verify GitHub Actions supply-chain policy
+        shell: powershell
+        run: |
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Verify-GitHubActionsPolicy.ps1') -RepositoryRoot $candidate
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Re-run strict risk gate and permanent pre-freeze regressions on exact g1 candidate
+        shell: powershell
+        run: |
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $riskOut=Join-Path $env:RUNNER_TEMP 'manager-4.17.11-g1-risk'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Invoke-ManagerRiskDefectGate.ps1') -RepositoryRoot $candidate -BaseCommit '9cd48da9aa7485027f6646a9f1334ffa772b49ab' -HeadCommit '88e3dcba0af75264c4b53e8ec24d770c215677a0' -OutputDirectory $riskOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Invoke-ManagerRiskContextRegression.ps1') -RepositoryRoot $candidate
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Verify-ManagerReleaseInstructions.ps1') -RepositoryRoot $candidate
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Invoke-Manager41711ReviewRegression.ps1') -RepositoryRoot $candidate
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          "RISK_EVIDENCE=$riskOut" >> $env:GITHUB_ENV
+
+      - name: Build exact ordinary g1 Manager gate
+        shell: powershell
+        run: |
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $out=Join-Path $env:RUNNER_TEMP 'manager-4.17.11.zip'
+          $builder=Join-Path $candidate 'tests\framework\manager-gate\Build-ManagerGate.ps1'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $builder -SourceRoot (Join-Path $candidate 'manager') -BaselineVersion '4.17.10' -GateRevision 1 -OutputPath $out -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $sha=(Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash.ToLowerInvariant()
+          "G1_GATE=$out" >> $env:GITHUB_ENV
+          "G1_GATE_SHA=$sha" >> $env:GITHUB_ENV
+          Write-Host ('Ordinary g1 gate SHA-256: '+$sha)
+
+      - name: Run exact ordinary SourceGate g1
+        shell: powershell
+        run: |
+          $keelaryn=Join-Path $env:RUNNER_TEMP 'keelaryn'
+          $work=Join-Path $keelaryn 'tests\work'
+          New-Item -ItemType Directory -Force -Path $work|Out-Null
+          Expand-Archive -LiteralPath $env:G1_GATE -DestinationPath $work -Force
+          $root=Join-Path $work 'manager-4.17.11'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $root 'gate\Run-KeelarynManagerSourceGate.ps1') -ManagerRoot $root
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          Write-Host 'ORDINARY SOURCE GATE g1: PASS' -ForegroundColor Green
+
+      - name: Run disposable Full Gate g9001 over exact production 4.17.10 provenance source
+        shell: powershell
+        run: |
+          $candidate=Join-Path $env:GITHUB_WORKSPACE 'candidate'
+          $baseline=Join-Path $env:GITHUB_WORKSPACE 'baseline'
+          $workspace=Join-Path $env:RUNNER_TEMP 'manager-4.17.11-g9001'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $candidate 'tools\Invoke-DisposableManagerFullGate.ps1') `
+            -CandidateManagerRoot (Join-Path $candidate 'manager') `
+            -BaselineManagerRoot (Join-Path $baseline 'manager') `
+            -FrameworkRoot (Join-Path $candidate 'tests\framework\manager-gate') `
+            -WorkspaceRoot $workspace `
+            -CandidateRef '88e3dcba0af75264c4b53e8ec24d770c215677a0' `
+            -BaselineRef '694bea57a3d3add8bb612b9006f84dbadcd17787' `
+            -GateRevision 9001
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          "DISPOSABLE_EVIDENCE=$workspace\evidence" >> $env:GITHUB_ENV
+
+      - name: Write compact hosted qualification receipt
+        shell: powershell
+        run: |
+          $receipt=[ordered]@{
+            schema='keelaryn.manager-hosted-qualification.v1'
+            classification='hosted_prequalification_only'
+            manager_version='4.17.11'
+            candidate_revision='g1'
+            candidate_commit='88e3dcba0af75264c4b53e8ec24d770c215677a0'
+            candidate_tree='7d23ab245699d63c264958f9132d29fe85d43de7'
+            validated_development_parent='e1024937320cf60ba0257e7c61c0f0124cd379d3'
+            development_validation_run_id='34769796314'
+            development_validation_job_id='103757172668'
+            development_validation_artifact_id='10321517311'
+            development_validation_artifact_sha256='1cd6a18a6d9fa70ca30ac0f52da1437b40662ca39a156e6a9137ba4b450226e3'
+            managed_digest='a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b'
+            installation_sha256='cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc'
+            baseline_version='4.17.10'
+            baseline_commit='694bea57a3d3add8bb612b9006f84dbadcd17787'
+            baseline_managed_digest='2df8ff820d1f4c31fe8c8b537ff81ec4a3e67516325ca73f4470c561c9497cfa'
+            baseline_tested_update_sha256='c3d005861f1c2b4e39e6a7bf826cbb4ff81460fd89a595592d1960a711277a6f'
+            framework_revision=24
+            qualification_gate_revision=1
+            disposable_gate_revision=9001
+            ordinary_gate_sha256=$env:G1_GATE_SHA
+            public_manifest_reproducibility_pass=$true
+            public_candidate_metadata_consistency_pass=$true
+            public_repository_verification_pass=$true
+            strict_risk_defect_gate_pass=$true
+            risk_context_lifecycle_regression_pass=$true
+            release_instruction_identity_pass=$true
+            manager_41711_review_regression_pass=$true
+            source_gate_pass=$true
+            disposable_full_gate_pass=$true
+            personal_hub_used=$false
+            production_qualified=$false
+            requires_real_current_backed_gate=$true
+            completed_utc=[DateTime]::UtcNow.ToString('o')
+          }
+          $path=Join-Path $env:RUNNER_TEMP 'HOSTED_QUALIFICATION.json'
+          [IO.File]::WriteAllText($path,(($receipt|ConvertTo-Json -Depth 10).Replace("`r`n","`n")+"`n"),(New-Object Text.UTF8Encoding($false)))
+          "HOSTED_RECEIPT=$path" >> $env:GITHUB_ENV
+
+      - name: Upload exact g1 gate and hosted evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.11-g1-hosted-qualification
+          path: |
+            ${{ env.G1_GATE }}
+            ${{ env.HOSTED_RECEIPT }}
+            ${{ env.RISK_EVIDENCE }}
+            ${{ env.DISPOSABLE_EVIDENCE }}
+          if-no-files-found: error
+          retention-days: 7
