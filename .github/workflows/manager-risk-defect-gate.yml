@@ -1,0 +1,80 @@
+name: Manager risk defect gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_commit:
+        description: Exact qualified development base commit SHA
+        required: true
+        type: string
+      head_commit:
+        description: Exact development head commit SHA; defaults to dispatched branch HEAD
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-manager-risk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  risk-defect-gate:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify GitHub Actions supply-chain policy
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Resolve exact gate identities
+        shell: powershell
+        env:
+          INPUT_BASE: ${{ inputs.base_commit }}
+          INPUT_HEAD: ${{ inputs.head_commit }}
+        run: |
+          $base = $env:INPUT_BASE.Trim()
+          if (-not $base) { throw 'base_commit is required.' }
+          $head = $env:INPUT_HEAD.Trim()
+          if (-not $head) { $head = '${{ github.sha }}' }
+          $baseResolved = (git rev-parse --verify "$base^{commit}").Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $headResolved = (git rev-parse --verify "$head^{commit}").Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($headResolved -cne '${{ github.sha }}'.ToLowerInvariant()) {
+            throw "Dispatched checkout identity mismatch: requested head=$headResolved checkout=${{ github.sha }}"
+          }
+          $out = Join-Path $env:RUNNER_TEMP ('keelaryn-manager-risk-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          "KEELARYN_RISK_BASE=$baseResolved" >> $env:GITHUB_ENV
+          "KEELARYN_RISK_HEAD=$headResolved" >> $env:GITHUB_ENV
+          "KEELARYN_RISK_OUT=$out" >> $env:GITHUB_ENV
+          Write-Host "Risk gate base: $baseResolved"
+          Write-Host "Risk gate head: $headResolved"
+
+      - name: Run pre-freeze Risk Defect Gate
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit "$env:KEELARYN_RISK_BASE" -HeadCommit "$env:KEELARYN_RISK_HEAD" -OutputDirectory "$env:KEELARYN_RISK_OUT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload compact risk evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-risk-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.KEELARYN_RISK_OUT }}\RISK_DEFECT_GATE.json
+            ${{ env.KEELARYN_RISK_OUT }}\MANAGER_RISK_CONTEXT.json
+            ${{ env.KEELARYN_RISK_OUT }}\MANAGER_RISK_CONTEXT.md
+          if-no-files-found: warn
+          retention-days: 3
+
+# This workflow is a pre-freeze gate only. PASS does not qualify or freeze a candidate.
