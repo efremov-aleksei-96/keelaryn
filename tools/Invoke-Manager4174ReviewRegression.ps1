@@ -15,13 +15,20 @@ foreach($path in @($runtimePath,$legacyRegression)){
 }
 
 function Assert([bool]$Condition,[string]$Message){if(-not$Condition){throw $Message}}
-function Get-FunctionText([string]$Path,[string]$Name){
+function Get-FunctionAst([string]$Path,[string]$Name){
     $tokens=$null;$errors=$null
     $ast=[Management.Automation.Language.Parser]::ParseFile($Path,[ref]$tokens,[ref]$errors)
     if(@($errors).Count-ne0){throw('Parser failed for '+$Path+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
     $rows=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-eq$Name},$true))
     if($rows.Count-ne1){throw('Expected exactly one function '+$Name+' in '+$Path+'; actual='+$rows.Count)}
-    return [string]$rows[0].Extent.Text
+    return $rows[0]
+}
+function Get-FunctionText([string]$Path,[string]$Name){return [string](Get-FunctionAst $Path $Name).Extent.Text}
+function Get-FunctionCommandAsts($FunctionAst,[string]$CommandName){
+    return @($FunctionAst.Body.FindAll({param($n)
+        if($n-isnot[Management.Automation.Language.CommandAst]){return $false}
+        return [string]::Equals([string]$n.GetCommandName(),$CommandName,[StringComparison]::OrdinalIgnoreCase)
+    },$true))
 }
 
 $powershell=Join-Path $PSHOME 'powershell.exe'
@@ -86,24 +93,26 @@ try{
     Assert ($stateText.Contains('Move-DirectoryFailIfDestinationExists $staging $paths.Root')) 'Per-instance state publication does not use fail-if-exists directory publication.'
     Assert (-not$stateText.Contains('Move-Item -LiteralPath $staging -Destination $paths.Root')) 'Per-instance state publication still uses container-nesting Move-Item semantics.'
 
-    # Source transaction contract: published Hub/state must be freshly validated before
-    # instances.json becomes authoritative, not only after the commit. 4.17.8 strengthens
-    # registration with an activation-eligibility helper that itself retains the original
-    # published-baseline validation before adding APPROVED-checkpoint validation.
-    $activationHelper=$null
-    try{$activationHelper=Get-FunctionText $runtimePath 'Assert-RegisteredInstanceActivationEligible'}catch{$activationHelper=$null}
-    if($activationHelper){
-        Assert ($activationHelper.Contains('Assert-RegisteredInstanceBaseline $Row')) 'Activation-eligibility helper does not retain published-baseline validation.'
+    # Source transaction contract: compare real PowerShell command AST offsets rather than
+    # substring offsets so comments/diagnostics cannot masquerade as transaction commands.
+    $activationAst=$null
+    try{$activationAst=Get-FunctionAst $runtimePath 'Assert-RegisteredInstanceActivationEligible'}catch{$activationAst=$null}
+    if($activationAst){
+        $helperBaseline=@(Get-FunctionCommandAsts $activationAst 'Assert-RegisteredInstanceBaseline')
+        Assert ($helperBaseline.Count-ge1) 'Activation-eligibility helper does not retain published-baseline validation.'
     }
     foreach($name in @('Invoke-RegisterExistingInstance','Invoke-GenesisRegisteredInstance')){
-        $text=Get-FunctionText $runtimePath $name
-        $validate=$text.IndexOf('Assert-RegisteredInstanceBaseline $candidateRow',[StringComparison]::Ordinal)
-        if($validate-lt0-and$name-eq'Invoke-RegisterExistingInstance'-and$activationHelper){
-            $validate=$text.IndexOf('Assert-RegisteredInstanceActivationEligible $candidateRow',[StringComparison]::Ordinal)
+        $functionAst=Get-FunctionAst $runtimePath $name
+        $commits=@(Get-FunctionCommandAsts $functionAst 'Write-ManagerInstanceRegistry')
+        Assert ($commits.Count-eq1) ($name+' must contain exactly one registry commit command; actual='+$commits.Count)
+        $validations=@(Get-FunctionCommandAsts $functionAst 'Assert-RegisteredInstanceBaseline')
+        if($name-eq'Invoke-RegisterExistingInstance'-and$activationAst){
+            $validations+=@(Get-FunctionCommandAsts $functionAst 'Assert-RegisteredInstanceActivationEligible')
         }
-        $commit=$text.IndexOf('Write-ManagerInstanceRegistry',[StringComparison]::Ordinal)
-        Assert ($validate-ge0) ($name+' lacks fresh published-baseline validation before registry commit.')
-        Assert ($commit-gt$validate) ($name+' validates the published baseline only after registry commit.')
+        Assert ($validations.Count-ge1) ($name+' lacks fresh published-baseline validation before registry commit.')
+        $commitOffset=[int]$commits[0].Extent.StartOffset
+        $before=@($validations|Where-Object{[int]$_.Extent.StartOffset-lt$commitOffset})
+        Assert ($before.Count-ge1) ($name+' validates the published baseline only after registry commit.')
     }
     Write-Host '  PASS multi-Hub registry commits revalidate published instance state at the commit boundary'
 
