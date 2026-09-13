@@ -37,6 +37,14 @@ function Assert-ChildFails([string]$Label,$Result,[string]$Pattern){
 $riskTool=Join-Path $RepositoryRoot 'tools\Build-ManagerRiskContext.ps1'
 if(-not(Test-Path -LiteralPath $riskTool -PathType Leaf)){Fail 'Build-ManagerRiskContext.ps1 is missing.'}
 $knowledgeSource=Join-Path $RepositoryRoot 'tests\knowledge'
+$riskWorkflow=Join-Path $RepositoryRoot '.github\workflows\manager-risk-defect-gate.yml'
+if(-not(Test-Path -LiteralPath $riskWorkflow -PathType Leaf)){Fail 'manager-risk-defect-gate.yml is missing.'}
+$riskWorkflowText=[IO.File]::ReadAllText($riskWorkflow,[Text.Encoding]::UTF8)
+foreach($token in @('Dispatched checkout identity mismatch','Risk qualification range must be non-empty','git merge-base --is-ancestor','git rev-list --count')){
+    if(-not$riskWorkflowText.Contains($token)){Fail('Risk workflow lost fail-closed range guard token: '+$token)}
+}
+if(-not$riskWorkflowText.Contains('Invoke-ManagerRiskDefectGate.ps1')){Fail 'Risk workflow no longer delegates to the strict gate implementation.'}
+Write-Host '  PASS workflow exact-head and proper-ancestor range guards are wired' -ForegroundColor Green
 if(-not(Test-Path -LiteralPath $knowledgeSource -PathType Container)){Fail 'Engineering knowledge root is missing.'}
 
 $temp=Join-Path ([IO.Path]::GetTempPath()) ('keelaryn-risk-context-regression-'+[guid]::NewGuid().ToString('N'))
