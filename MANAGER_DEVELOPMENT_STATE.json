@@ -25,7 +25,7 @@
     "installation_sha256": "6072f033cca7f51b56c58ed8332410972246744c80f6c4c7d47a340e7709d357",
     "managed_content_sha256": "cbffc5af41738afcbff038d1a2ca4f68e2495957f4ebe75afacc215a79190e56",
     "temporary_materializer_removed": true,
-    "note": "Manager 4.17.9 product bytes were materialized once and remained unchanged through knowledge closure, tooling hardening, exact-head development validation and candidate freeze."
+    "note": "Manager 4.17.9 product bytes were materialized once and remained unchanged through knowledge closure, tooling hardening, exact-head development validation, candidate freeze, hosted qualification, real-current qualification and production acceptance."
   },
   "knowledge_closure": {
     "status": "published_pass",
@@ -33,14 +33,7 @@
     "qualification_run_id": "34753054865",
     "qualification_artifact_id": "10316067855",
     "qualification_artifact_sha256": "a3102a2bb380e3da5f92b7816e53e9d7bccffaccd6de2c68d213a50d91c65af3",
-    "fixed_release_blockers": [
-      "MGR-DEF-0017",
-      "MGR-DEF-0018",
-      "MGR-DEF-0019",
-      "MGR-DEF-0020",
-      "MGR-DEF-0021",
-      "MGR-DEF-0022"
-    ],
+    "fixed_release_blockers": ["MGR-DEF-0017","MGR-DEF-0018","MGR-DEF-0019","MGR-DEF-0020","MGR-DEF-0021","MGR-DEF-0022"],
     "open_release_blockers_after_closure": 0,
     "strict_gate_from_production_provenance": "pass",
     "exact_closure_head_development_validation": "pass"
@@ -58,7 +51,7 @@
   "candidate": {
     "manager_version": "4.17.9",
     "candidate_revision": "g1",
-    "status": "frozen_real_current_full_gate_pass_pending_production_install",
+    "status": "frozen_production_qualified_pending_public_release_review",
     "commit": "cb036051586d567502ce31ca8f1192a39bd69ddf",
     "tree": "dd9f3858ede2a1ced94a77026a36fbbb046da1ba",
     "validated_development_parent": "04b59748ca39ea7dc786ef7df722d1426fdc74ac",
@@ -122,48 +115,35 @@
       "workstation_evidence_source": "maintainer-provided complete console output from the validated launcher"
     },
     "production_acceptance": {
-      "status": "real_current_full_gate_pass_pending_exact_update_hash_and_install",
-      "production_install_allowed": "only_if_local_tested_update_sha256_matches_expected",
-      "expected_tested_update_sha256": "e440aa1b25990d3dd9ce88f27d21f048fed02e7d8414149dfd59873de0bb566a",
-      "tested_update_path": "D:\\0\\0__Core\\keelaryn\\tests\\results\\manager-4.17.9\\artifacts\\Keelaryn__Manager_Update_v4.17.9_Built.zip",
-      "installer_path": "D:\\0\\0__Core\\keelaryn\\tests\\results\\manager-4.17.9\\artifacts\\INSTALL_TESTED_MANAGER_UPDATE.cmd",
-      "note": "The real CURRENT-backed Full Gate passed with production Manager and Hub unchanged. Hosted deterministic qualification for the exact frozen candidate identifies the expected tested UPDATE SHA-256; production installation must fail closed unless the workstation artifact matches it exactly."
+      "status": "pass",
+      "production_qualified": true,
+      "production_installed_manager_version": "4.17.9",
+      "tested_update_sha256": "e440aa1b25990d3dd9ce88f27d21f048fed02e7d8414149dfd59873de0bb566a",
+      "tested_update_identity_check": "pass",
+      "installer_validation": "pass",
+      "production_install": "pass",
+      "production_doctor": "pass",
+      "production_ux_smoke": "pass",
+      "production_main_render": "pass",
+      "production_installation_info": "pass",
+      "production_hub_immutability": "pass",
+      "production_managed_content_prefix": "4b11b397a6e3",
+      "post_install_acceptance_script_commit": "cd52ba93c1720113b7df2662159348a13beb0eb0",
+      "post_install_acceptance_validation_run_id": "34756026441",
+      "post_install_acceptance_validation": "pass",
+      "multi_hub_registry_active": false,
+      "note": "Production Manager 4.17.9 is installed and production-qualified. Public release/main merge remains gated by final post-qualification review."
     }
   },
   "historical_non_product_failures": [
-    {
-      "run_id": "34753609023",
-      "classification": "qualification_harness",
-      "cause": "candidate checkout used fetch-depth 1 while immutable-freeze preflight required HEAD^",
-      "candidate_bytes_changed": false
-    },
-    {
-      "run_id": "34754337800",
-      "classification": "bootstrap_validation_harness",
-      "cause": "static assertion expected two backslashes instead of the one-backslash PowerShell path literal",
-      "candidate_bytes_changed": false
-    },
-    {
-      "run_id": "34754409006",
-      "classification": "bootstrap_validation_harness",
-      "cause": "validation recursively counted both issued g1 and nested disposable g9001 gate instead of preferring the artifact-root issued gate like the bootstrap does",
-      "candidate_bytes_changed": false
-    },
-    {
-      "run_id": "34754507678",
-      "classification": "state_schema_integration",
-      "cause": "post-freeze operational state used a descriptive lifecycle_state outside the canonical allowed enum; detailed phase belongs in candidate.status and qualification fields while lifecycle_state remains candidate_frozen",
-      "candidate_bytes_changed": false
-    },
-    {
-      "run_id": "34754565146",
-      "classification": "state_contract_integration",
-      "cause": "risk_defect_gate.status was populated with observed result pass instead of preserving the canonical required_pass_before_freeze policy marker; observed result is now stored separately",
-      "candidate_bytes_changed": false
-    }
+    {"run_id":"34753609023","classification":"qualification_harness","cause":"candidate checkout used fetch-depth 1 while immutable-freeze preflight required HEAD^","candidate_bytes_changed":false},
+    {"run_id":"34754337800","classification":"bootstrap_validation_harness","cause":"static assertion expected two backslashes instead of the one-backslash PowerShell path literal","candidate_bytes_changed":false},
+    {"run_id":"34754409006","classification":"bootstrap_validation_harness","cause":"validation recursively counted both issued g1 and nested disposable g9001 gate instead of preferring the artifact-root issued gate like the bootstrap does","candidate_bytes_changed":false},
+    {"run_id":"34754507678","classification":"state_schema_integration","cause":"post-freeze operational state used a descriptive lifecycle_state outside the canonical allowed enum; detailed phase belongs in candidate.status and qualification fields while lifecycle_state remains candidate_frozen","candidate_bytes_changed":false},
+    {"run_id":"34754565146","classification":"state_contract_integration","cause":"risk_defect_gate.status was populated with observed result pass instead of preserving the canonical required_pass_before_freeze policy marker; observed result is now stored separately","candidate_bytes_changed":false}
   ],
   "production_policy": {
-    "multi_hub": "inactive_until_manager_4.17.9_is_production_qualified_and_installed",
+    "multi_hub": "inactive_until_final_public_release_review_passes",
     "production_hub_mutation_from_manager_development": "forbidden",
     "candidate_g1_product_bytes": "immutable"
   },
@@ -171,25 +151,23 @@
   "knowledge": {
     "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
     "knowledge_root": "tests/knowledge",
-    "current_risk_audits": [
-      "MHA-4179-001"
-    ],
+    "current_risk_audits": ["MHA-4179-001"],
     "strict_pre_freeze_gate": "tools/Invoke-ManagerRiskDefectGate.ps1",
     "risk_context_regression": "tools/Invoke-ManagerRiskContextRegression.ps1"
   },
   "next_exact_goal": {
-    "id": "MANAGER-4179-PRODUCTION-INSTALL-001",
-    "description": "Hash the exact workstation tested UPDATE produced by the real-current-backed Full Gate. If and only if its SHA-256 equals e440aa1b25990d3dd9ce88f27d21f048fed02e7d8414149dfd59873de0bb566a, run the generated one-click installer. Review post-install Doctor/validation before enabling production multi-Hub or declaring public release qualification.",
+    "id": "MANAGER-4179-PUBLIC-RELEASE-REVIEW-001",
+    "description": "Perform final post-qualification review of frozen Manager 4.17.9 g1, its public provenance and the full main diff. Confirm no unresolved product/security/data-safety blockers and no post-freeze product drift before opening/merging the public release PR. Keep production multi-Hub inactive until review passes.",
     "product_changes_permitted_on_frozen_g1": false
   },
   "bootstrap": {
-    "ordinary_new_chat_instruction": "Continue Manager 4.17.9 qualification from repository-resident state; do not reconstruct state from chat history.",
+    "ordinary_new_chat_instruction": "Continue Manager 4.17.9 public-release review from repository-resident state; do not reconstruct state from chat history.",
     "required_first_actions": [
       "Read MANAGER_DEVELOPMENT_STATE.json from dev/manager-4.17.9.",
       "Resolve dev/manager-4.17.9 and provenance/candidate-manager-4.17.9-g1 refs live from GitHub.",
       "Treat candidate cb036051586d567502ce31ca8f1192a39bd69ddf / tree dd9f3858ede2a1ced94a77026a36fbbb046da1ba as immutable.",
-      "Use the recorded real-current Full Gate PASS and expected tested UPDATE identity; do not regenerate candidate bytes.",
-      "Do not activate production multi-Hub until production install and post-install acceptance pass."
+      "Treat production Manager 4.17.9 as installed and production-qualified, but keep multi-Hub inactive until final public-release review passes.",
+      "Do not regenerate qualified product bytes; public provenance must point to exact tested UPDATE e440aa1b25990d3dd9ce88f27d21f048fed02e7d8414149dfd59873de0bb566a."
     ]
   }
 }
