@@ -6,13 +6,13 @@
   "source_manager_installation_sha256": "3d4e1102b6852e1c1502d265e913bbe8c640ce7e881b4051a9b4e5cc6e7fab25",
   "source_manager_gate_managed_content_sha256": "2df8ff820d1f4c31fe8c8b537ff81ec4a3e67516325ca73f4470c561c9497cfa",
   "production_validation": {
-    "full_gate_pass": false,
-    "gate_revision": null,
+    "full_gate_pass": true,
+    "gate_revision": 3,
     "framework_revision": 24,
-    "tested_update_sha256": null,
-    "production_doctor_pass": false,
-    "production_ux_smoke_pass": false,
-    "production_managed_content_prefix": null
+    "tested_update_sha256": "c3d005861f1c2b4e39e6a7bf826cbb4ff81460fd89a595592d1960a711277a6f",
+    "production_doctor_pass": true,
+    "production_ux_smoke_pass": true,
+    "production_managed_content_prefix": "5a7738a147c3"
   },
   "personal_hub_included": false,
   "manager_runtime_state_included": false,
@@ -21,14 +21,14 @@
     "version": "2.0",
     "revision": 24,
     "windows_qualified": true,
-    "frozen_for_manager_candidate": false
+    "frozen_for_manager_candidate": true
   },
   "license": {
     "spdx_id": "MIT",
     "file": "LICENSE",
     "copyright": "Copyright (c) 2026 Keelaryn contributors"
   },
-  "public_candidate_revision": 15,
+  "public_candidate_revision": 16,
   "git_checkout_contract": {
     "manager_authoritative_tree_attribute": "-text",
     "framework_authoritative_tree_attribute": "-text",
