@@ -1,0 +1,73 @@
+name: Manager 4.17.10 g3 real-current bootstrap validation
+
+on:
+  push:
+    branches:
+      - 'maintenance/manager-4.17.10-g3-real-current-bootstrap'
+    paths:
+      - 'tools/Invoke-Manager41710G3RealCurrentQualificationBootstrap.ps1'
+      - '.github/workflows/manager-4.17.10-g3-real-current-bootstrap-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Checkout bootstrap source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Parse and verify bootstrap constants
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=Join-Path $env:GITHUB_WORKSPACE 'tools\Invoke-Manager41710G3RealCurrentQualificationBootstrap.ps1'
+          $tokens=$null;$errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile($script,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Bootstrap parser errors: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          $text=Get-Content -LiteralPath $script -Raw -Encoding UTF8
+          foreach($required in @(
+            "`$runId = '34762615650'",
+            "`$artifactName = 'manager-4.17.10-g3-hosted-qualification'",
+            "`$expectedVersion = '4.17.10'",
+            "`$expectedBaseline = '4.17.9'",
+            "`$expectedCandidate = 'af128f0f10752ff1500155707b56260aac296569'",
+            "`$expectedGateSha256 = '83ba8110017ba40b3bf4400d3ef52012ec2eee65fce9ad9fe34e20b1d711cf3c'",
+            "tests\UNPACK_MANAGER_GATE.cmd"
+          )){
+            if($text.IndexOf($required,[StringComparison]::Ordinal)-lt0){throw('Missing bootstrap contract literal: '+$required)}
+          }
+          Write-Host 'BOOTSTRAP SOURCE CONTRACT: PASS' -ForegroundColor Green
+
+      - name: Download exact hosted artifact and verify receipt plus root gate
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'hosted'
+          New-Item -ItemType Directory -Force -Path $out|Out-Null
+          gh run download 34762615650 --repo efremov-aleksei-96/keelaryn --name manager-4.17.10-g3-hosted-qualification --dir $out
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $receiptPath=Join-Path $out 'HOSTED_QUALIFICATION.json'
+          $gate=Join-Path $out 'manager-4.17.10.zip'
+          if(-not(Test-Path -LiteralPath $receiptPath -PathType Leaf)){throw 'Hosted receipt missing at artifact root.'}
+          if(-not(Test-Path -LiteralPath $gate -PathType Leaf)){throw 'Ordinary g3 gate missing at artifact root.'}
+          $receipt=Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$receipt.manager_version-cne'4.17.10'){throw 'Receipt Manager mismatch.'}
+          if([string]$receipt.candidate_revision-cne'g3'){throw 'Receipt candidate revision mismatch.'}
+          if([string]$receipt.candidate_commit-cne'af128f0f10752ff1500155707b56260aac296569'){throw 'Receipt candidate commit mismatch.'}
+          if([string]$receipt.baseline_version-cne'4.17.9'){throw 'Receipt baseline mismatch.'}
+          if(-not[bool]$receipt.source_gate_pass-or-not[bool]$receipt.disposable_full_gate_pass){throw 'Hosted qualification PASS flags missing.'}
+          if([bool]$receipt.production_qualified-or-not[bool]$receipt.requires_real_current_backed_gate){throw 'Hosted qualification classification mismatch.'}
+          $sha=(Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sha-cne'83ba8110017ba40b3bf4400d3ef52012ec2eee65fce9ad9fe34e20b1d711cf3c'){throw('Ordinary g3 gate SHA mismatch: '+$sha)}
+          if([string]$receipt.ordinary_gate_sha256-cne$sha){throw 'Receipt/root gate identity mismatch.'}
+          Write-Host ('HOSTED ARTIFACT / ROOT GATE: PASS '+$sha) -ForegroundColor Green
