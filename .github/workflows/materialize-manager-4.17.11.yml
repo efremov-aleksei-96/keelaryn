@@ -28,11 +28,11 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $expectedParent='5a37c190b5a464fdcd09b4ee0818a5ea09b0bd7b'
+          $expectedParent='cd8dfb73cf1223cd8468ab55e53f46cf2455c1e8'
           $parent=(git rev-parse HEAD^).Trim()
           if($parent -cne $expectedParent){throw('Unexpected materialization parent: '+$parent+' expected='+$expectedParent)}
           $changed=@(git diff --name-only HEAD^ HEAD)
-          if($changed.Count-ne1 -or [string]$changed[0] -cne '.github/workflows/materialize-manager-4.17.11.yml'){throw('Unexpected workflow-publication diff: '+([string]::Join(', ',@($changed))))}
+          if($changed.Count-ne1 -or [string]$changed[0] -cne '.github/workflows/materialize-manager-4.17.11.yml'){throw('Unexpected workflow-validator diff: '+([string]::Join(', ',@($changed))))}
           $runtime=(Get-Content -LiteralPath 'manager/product/runtime/Keelaryn__Manager.ps1' -Raw -Encoding UTF8)
           if($runtime -notmatch '(?m)^\$ManagerVersion = "4\.17\.10"$'){throw 'Expected 4.17.10 runtime base marker is absent.'}
 
@@ -71,9 +71,11 @@ jobs:
           if(@($errors).Count){throw('Runtime parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
           $text=Get-Content -LiteralPath $runtime -Raw -Encoding UTF8
           if($text -notmatch '(?m)^\$ManagerVersion = "4\.17\.11"$'){throw '4.17.11 runtime marker absent.'}
-          $pending=[regex]::Matches($text,'(?m)^\s*\$pendingCandidates=@\(Get-ChildItem -LiteralPath \$(?<inbox>\w+) -File -Filter ''\*\.zip''')
-          if($pending.Count-ne1){throw('Expected exactly one pendingCandidates inventory; actual='+$pending.Count)}
-          if($pending[0].Groups['inbox'].Value-cne'HubInbox'){throw('pendingCandidates must inventory active $HubInbox; actual=$'+$pending[0].Groups['inbox'].Value)}
+          $update=[regex]::Match($text,'(?s)function Invoke-Update \{.*?(?=\r?\nfunction )').Value
+          if(-not$update){throw 'Invoke-Update body not found.'}
+          $pending=[regex]::Matches($update,'(?m)^\s*\$pendingCandidates=@\(Get-ChildItem -LiteralPath \$(?<inbox>\w+) -File -Filter ''\*\.zip''')
+          if($pending.Count-ne1){throw('Invoke-Update must contain exactly one pendingCandidates inventory; actual='+$pending.Count)}
+          if($pending[0].Groups['inbox'].Value-cne'HubInbox'){throw('Invoke-Update pendingCandidates must inventory active $HubInbox; actual=$'+$pending[0].Groups['inbox'].Value)}
 
           $readme=Get-Content -LiteralPath 'manager/README_FIRST.md' -Raw -Encoding UTF8
           foreach($required in @('# Keelaryn Manager 4.17.11','production-installed Manager 4.17.10 -> 4.17.11','inherited and 4.17.11 regressions','disposable 4.17.10 -> 4.17.11 update')){if(-not$readme.Contains($required)){throw('README missing current release contract: '+$required)}}
