@@ -55,7 +55,7 @@ Assert ($showText.Contains('Get-FrontendRegistryRows')) 'Manage Hubs recovery mo
 Assert ($showText.Contains('-SwitchInstanceId')) 'Manage Hubs recovery mode does not call target-driven runtime switching.'
 Assert ($showText.Contains('Select recovery Hub number')) 'Manage Hubs recovery mode lacks explicit target selection.'
 Assert (-not$showText.Contains('switching is disabled')) 'Stale frontend message still disables recovery switching.'
-Assert ($menu.Contains("'OpenHubInbox' { $ctx=Get-FrontendInstanceContext;if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail('Multi-Hub registry is unresolved; active Hub inbox cannot be opened.')")) 'Non-recovery active-instance actions were broadened instead of remaining fail-closed.'
+Assert ($menu.Contains("'OpenHubInbox' { `$ctx=Get-FrontendInstanceContext;if(`$ctx.RegistryActive-and-not`$ctx.InstanceId){Fail('Multi-Hub registry is unresolved; active Hub inbox cannot be opened.')")) 'Non-recovery active-instance actions were broadened instead of remaining fail-closed.'
 Pass 'SURFACE' 'Manage Hubs recovery is target-driven while unrelated active-context actions stay fail-closed'
 
 # Execute only the pure/safe frontend registry-enumeration slice against synthetic state.
