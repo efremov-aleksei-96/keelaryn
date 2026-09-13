@@ -56,7 +56,7 @@ A lower-numbered roadmap item is not automatically more important than a later i
 ### R-003 — Multi-Hub convergence and recovery completeness
 
 - **Priority:** P0
-- **Status:** NEXT
+- **Status:** ACTIVE
 - **Goal:** make registry activation, switching, binding/rebinding, pending input reachability and commit-boundary validation safe under broken/partial states.
 - **Required properties:** target-driven recovery; identity-preserving rebind; no silent stranded Hub inputs; commit predicate at least as strong as resulting state; durable/post-commit outcomes explicit.
 - **Dependency:** R-001 and R-002 sufficiently operational to preserve context and enforce regressions.
@@ -139,6 +139,35 @@ A lower-numbered roadmap item is not automatically more important than a later i
 - **Goal:** select exact changed functions, applicable invariants, defects, state-machine rules, audits and current operational state instead of loading full Manager history.
 - **Rule:** optimization may remove duplicate context, never required validation or provenance.
 - **Dependency:** engineering knowledge and risk-context tooling.
+
+### R-013 — Evidence-backed defect and audit lifecycle
+
+- **Priority:** P1
+- **Status:** PLANNED
+- **Goal:** make `open -> fixed -> qualified/released` transitions first-class repository state instead of ad-hoc JSON edits, while preserving the historical audit that originally proved the defect.
+- **Required properties:** a defect cannot close without an exact fix version, permanent executable/static coverage and evidence identity; resolved audits retain their original scenarios and rejected evidence; reopening is explicit rather than destructive history rewriting.
+- **Safety:** a green development run alone must never turn a defect into production-qualified state; closure and production qualification remain separate transitions.
+- **Dependency:** R-002 knowledge model and stable qualification receipts.
+- **Exit:** validated closure/receipt schema binds defect IDs, exact source identity, coverage paths and qualifying evidence, and the validator accepts both active and historically resolved audits without weakening blocker enforcement.
+
+### R-014 — Engineering tooling self-regression and historical-source resilience
+
+- **Priority:** P1
+- **Status:** ACTIVE
+- **Goal:** gate/risk/knowledge tooling must be able to validate fixes to its own broken historical states without silently dropping risk or making cleanup of an unparsable historical file impossible.
+- **Required properties:** current/HEAD source remains fail-closed on parse errors; historical/base parse failure uses an explicit conservative path-level fallback; the fallback is visible in generated risk context; reusable tooling behaviors have permanent regressions.
+- **Trigger:** Manager 4.17.9 knowledge closure exposed both compact PowerShell parser defects and a historical-source AST failure while deleting a broken one-shot transformer.
+- **Exit:** permanent synthetic regression proves historical unparsable deletion succeeds conservatively and current unparsable source still fails; ordinary Development Validation executes that regression on hosted Windows.
+
+### R-015 — Structured intake of reusable CI and qualification lessons
+
+- **Priority:** P2
+- **Status:** PLANNED
+- **Goal:** when CI/gate/qualification diagnosis reveals a reusable defect class, invariant gap, tooling weakness or future architecture idea, produce a durable repository-resident intake instead of relying on chat history to remember it.
+- **Design direction:** compact machine-readable finding with classification, affected subsystem, recurrence risk, candidate invariant/root-cause/roadmap links and evidence reference; human/Chat Manager reconciliation decides whether it becomes a defect, invariant, regression or roadmap item.
+- **Safety:** intake automation may not close blockers, mutate product bytes, weaken thresholds or publish personal Hub data; failed/rejected evidence remains preserved.
+- **Dependency:** R-001/R-002 and evidence-backed lifecycle semantics from R-013.
+- **Exit:** CI can emit deterministic reusable finding records and a later session can reconcile them without reconstructing the originating chat/log narrative.
 
 ## Roadmap maintenance policy
 
