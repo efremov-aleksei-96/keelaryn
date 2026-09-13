@@ -27,7 +27,7 @@ jobs:
       - name: Verify exact closure source identity
         shell: powershell
         run: |
-          $expectedParent='1248df988ee3c407cb549f04552f13c100cf52de'
+          $expectedParent='70556a079c8ff0265b141cdec8a3e2eed0f9f919'
           $parent=(git rev-parse HEAD^).Trim()
           if($parent -cne $expectedParent){throw('Unexpected closure workflow parent: '+$parent+' expected='+$expectedParent)}
           $changed=@(git diff --name-only HEAD^ HEAD)
@@ -110,9 +110,8 @@ jobs:
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           $report=Get-Content -LiteralPath (Join-Path $out 'RISK_DEFECT_GATE.json') -Raw -Encoding UTF8|ConvertFrom-Json
           if(-not[bool]$report.pass -or -not[bool]$report.candidate_freeze_permitted){throw 'Strict gate did not permit candidate freeze.'}
-          $blockers=@()
-          if(($report.PSObject.Properties.Name -contains 'global_open_release_blockers') -and $null-ne$report.global_open_release_blockers){$blockers=@($report.global_open_release_blockers)}
-          if($blockers.Count-ne0){throw('Strict gate still reports open release blockers: '+([string]::Join(', ',@($blockers|ForEach-Object{[string]$_.id}))))}
+          $reportedFailures=@($report.failures | Where-Object {$null-ne$_})
+          if($reportedFailures.Count-ne0){throw('Gate report is PASS but contains failures: '+([string]::Join(', ',@($reportedFailures|ForEach-Object{[string]$_.id}))))}
 
       - name: Run exact closure-head development validation
         shell: powershell
