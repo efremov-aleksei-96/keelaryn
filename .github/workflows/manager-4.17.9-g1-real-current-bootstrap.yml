@@ -1,0 +1,45 @@
+name: Manager 4.17.9 g1 real-current bootstrap validation
+
+on:
+  push:
+    branches:
+      - 'maintenance/qualify-manager-4.17.9-g1'
+    paths:
+      - 'tools/Invoke-Manager4179RealCurrentQualificationBootstrap.ps1'
+      - '.github/workflows/manager-4.17.9-g1-real-current-bootstrap.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-bootstrap:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout maintenance qualification branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Parse and verify one-step production-qualification bootstrap
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $path=Join-Path $env:GITHUB_WORKSPACE 'tools\Invoke-Manager4179RealCurrentQualificationBootstrap.ps1'
+          $text=Get-Content -LiteralPath $path -Raw -Encoding UTF8
+          $tokens=$null
+          $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw('Bootstrap parser errors: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          $required=@(
+            "`$runId = '34753663749'",
+            "`$artifactName = 'manager-4.17.9-g1-hosted-qualification'",
+            "`$expectedGateSha256 = 'f0f62c19b52cc75cd75a0a6d7cff9495614ebc08a9a2ec4492cc075199d5fcba'",
+            "`$expectedBaseline = '4.17.8'",
+            "tests\\UNPACK_MANAGER_GATE.cmd",
+            'gh run download',
+            'does not install Manager 4.17.9'
+          )
+          foreach($needle in $required){if(-not $text.Contains($needle)){throw('Missing required bootstrap contract: '+$needle)}}
+          if($text.Contains('INSTALL_TESTED_MANAGER_UPDATE.cmd')){throw 'Bootstrap must not install production Manager.'}
+          Write-Host 'MANAGER 4.17.9 REAL-CURRENT BOOTSTRAP VALIDATION: PASS' -ForegroundColor Green
