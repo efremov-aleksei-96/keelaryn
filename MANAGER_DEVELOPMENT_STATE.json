@@ -29,8 +29,7 @@
       "manager/product/runtime/Keelaryn__Manager.ps1"
     ],
     "fix": "Invoke-Doctor initializes its finding accumulator before every registry-specific Add-DoctorFinding path.",
-    "candidate_issued": false,
-    "note": "4.17.10 remains unqualified development. Product fix and permanent registry-active Doctor runtime regression are complete; exact-head development validation with strict gate PASS is required before freeze."
+    "candidate_issued": false
   },
   "knowledge_closure": {
     "status": "blocker_fixed_pending_exact_head_validation",
@@ -39,6 +38,12 @@
     "runtime_regression_run_id": "34760555917",
     "runtime_regression_status": "pass",
     "runtime_path_proven": "disposable Genesis -> InitializeInstanceRegistry -> Doctor -> [OK] inbox.hub_global and [OK] instances.registry",
+    "development_validation_integration_commit": "dc750c086b1c6e4ec6f490c6b5054159c1ecfe49",
+    "closure_cleanup_run_id": "34760823523",
+    "closure_cleanup_status": "pass",
+    "one_shot_materialization_tooling_removed": true,
+    "roadmap_runtime_state_matrix_lesson_persisted": true,
+    "roadmap_atomic_remote_execution_lesson_persisted": true,
     "open_release_blockers": 0
   },
   "historical_candidate_4_17_9": {
@@ -59,7 +64,7 @@
       "observed_status": "pending_exact_head_validation_after_MGR-DEF-0023_closure"
     },
     "development_validation": {
-      "status": "pending_exact_head_after_blocker_closure",
+      "status": "pending_exact_head_after_closure_integration",
       "runtime_regression_preclosure_run_id": "34760555917",
       "runtime_regression_preclosure_status": "pass"
     },
@@ -86,7 +91,8 @@
     {"run_id":"34754409006","classification":"bootstrap_validation_harness","cause":"validation recursively counted both issued g1 and nested disposable g9001 gate instead of preferring the artifact-root issued gate like the bootstrap does","candidate_bytes_changed":false},
     {"run_id":"34754507678","classification":"state_schema_integration","cause":"post-freeze operational state used a lifecycle_state outside the canonical enum","candidate_bytes_changed":false},
     {"run_id":"34754565146","classification":"state_contract_integration","cause":"risk_defect_gate.status temporarily stored observed result instead of the policy marker","candidate_bytes_changed":false},
-    {"run_id":"34760197329","classification":"materialization_harness","cause":"one-shot validator incorrectly applied git diff --check to authoritative Manager CRLF/mixed-EOL bytes; product materialization was staged but not committed","candidate_bytes_changed":false}
+    {"run_id":"34760197329","classification":"materialization_harness","cause":"one-shot validator incorrectly applied git diff --check to authoritative Manager CRLF/mixed-EOL bytes; product materialization was staged but not committed","candidate_bytes_changed":false},
+    {"run_id":"34760773562","classification":"closure_cleanup_workflow_yaml_harness","cause":"first closure-cleanup workflow revision embedded an unindented PowerShell here-string inside YAML block scalar, so GitHub rejected the workflow before job creation","candidate_bytes_changed":false}
   ],
   "production_policy": {
     "multi_hub": "disabled_until_Manager_4_17_10_is_fully_qualified_and_installed",
@@ -106,7 +112,7 @@
   },
   "next_exact_goal": {
     "id": "MANAGER-41710-EXACT-HEAD-VALIDATION-001",
-    "description": "Run exact-head Development Validation after MGR-DEF-0023 closure. Require engineering knowledge PASS, strict Risk/Defect Gate PASS, permanent 4.17.10 registry-active Doctor regression PASS, SelfTests PASS and deterministic BuildRelease PASS before any candidate freeze.",
+    "description": "Validate the exact live dev/manager-4.17.10 head after blocker closure and one-shot cleanup. Require engineering knowledge PASS, strict Risk/Defect Gate PASS, permanent 4.17.10 registry-active Doctor regression PASS, SelfTests PASS and deterministic BuildRelease PASS before candidate freeze.",
     "product_changes_permitted_on_frozen_4_17_9_g1": false
   },
   "bootstrap": {
