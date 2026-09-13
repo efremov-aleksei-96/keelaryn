@@ -1,23 +1,22 @@
 {
   "schema": "keelaryn.manager-development-state.v1",
   "repository": "efremov-aleksei-96/keelaryn",
-  "lifecycle_state": "unqualified_development",
+  "lifecycle_state": "candidate_frozen_hosted_prequalified_pending_real_current_acceptance",
   "authoritative_branch": "dev/manager-4.17.9",
   "head_resolution": {
     "mode": "resolve_branch_ref_live",
-    "note": "Do not store the containing commit as authoritative_head: that would be self-referential. Resolve the current authoritative branch ref from GitHub before every development action."
+    "note": "Operational development state lives on dev/manager-4.17.9, but the issued candidate is immutable on its provenance branch. Resolve both refs live before acting."
   },
   "lineage": {
     "production_manager_version": "4.17.8",
     "production_provenance_head": "7183f563e644b85f7131db2707816730b5dffb6b",
+    "production_candidate_commit": "88577ad1022c751cc7fc259a13c9c7a1ff025532",
+    "production_candidate_tree": "a8017d41d4b3a248da15924fbda23d157669588c",
+    "production_managed_digest": "09f405fa6e628d1cfbd45da533f86eb35865b506c017dcc764e476db54c93758",
     "knowledge_bootstrap_head": "d66b5fee2a9ff531c15dc8ab1d1abbb4655c7ee2",
-    "frozen_candidate_commit": "88577ad1022c751cc7fc259a13c9c7a1ff025532",
-    "frozen_candidate_tree": "a8017d41d4b3a248da15924fbda23d157669588c",
-    "frozen_candidate_managed_digest": "09f405fa6e628d1cfbd45da533f86eb35865b506c017dcc764e476db54c93758",
     "framework_revision": "r24",
-    "planned_successor_manager_version": "4.17.9"
+    "successor_manager_version": "4.17.9"
   },
-  "product_bytes_changed_from_production_provenance": true,
   "materialization": {
     "manager_version": "4.17.9",
     "product_commit": "bdcf5372dda6ed0e3216b41b9568574b998ec460",
@@ -26,7 +25,7 @@
     "installation_sha256": "6072f033cca7f51b56c58ed8332410972246744c80f6c4c7d47a340e7709d357",
     "managed_content_sha256": "cbffc5af41738afcbff038d1a2ca4f68e2495957f4ebe75afacc215a79190e56",
     "temporary_materializer_removed": true,
-    "note": "Manager 4.17.9 product bytes were materialized once and remained unchanged throughout knowledge closure and pre-freeze tooling hardening."
+    "note": "Manager 4.17.9 product bytes were materialized once and remained unchanged through knowledge closure, tooling hardening, exact-head development validation and candidate freeze."
   },
   "knowledge_closure": {
     "status": "published_pass",
@@ -44,19 +43,107 @@
     ],
     "open_release_blockers_after_closure": 0,
     "strict_gate_from_production_provenance": "pass",
-    "exact_closure_head_development_validation": "pass",
-    "note": "The closure run proved zero open release blockers, permanent Manager 4.17.9 convergence coverage, strict Risk/Defect Gate PASS from the 4.17.8 production-provenance base, exact closure-head Development Validation PASS, and unchanged Manager installation/managed identities before publication."
+    "exact_closure_head_development_validation": "pass"
   },
   "pre_freeze_tooling_hardening": {
     "risk_context_historical_parse_policy": "current_head_parse_failure_is_fatal; historical_base_parse_failure_uses_explicit_conservative_path_level_fallback",
     "permanent_regression": "tools/Invoke-ManagerRiskContextRegression.ps1",
     "development_validation_integration": true,
-    "status": "exact_head_validation_required",
-    "note": "The closure cycle exposed a reusable risk-context lifecycle defect while deleting an unparsable historical one-shot transformer. The fix is now protected by a synthetic permanent regression; the current branch HEAD must pass hosted Development Validation before candidate freeze."
+    "exact_head_validation_commit": "04b59748ca39ea7dc786ef7df722d1426fdc74ac",
+    "exact_head_validation_run_id": "34753434645",
+    "exact_head_validation_artifact_id": "10316478367",
+    "exact_head_validation_artifact_sha256": "d6fbfeea7f446acdd574f116f4e0c150b8e66b26b75aa4ae99d1630afc56d050",
+    "status": "pass"
   },
+  "candidate": {
+    "manager_version": "4.17.9",
+    "candidate_revision": "g1",
+    "status": "frozen",
+    "commit": "cb036051586d567502ce31ca8f1192a39bd69ddf",
+    "tree": "dd9f3858ede2a1ced94a77026a36fbbb046da1ba",
+    "validated_development_parent": "04b59748ca39ea7dc786ef7df722d1426fdc74ac",
+    "provenance_branch": "provenance/candidate-manager-4.17.9-g1",
+    "freeze_commit_is_tree_identical_to_parent": true,
+    "managed_content_sha256": "cbffc5af41738afcbff038d1a2ca4f68e2495957f4ebe75afacc215a79190e56",
+    "installation_sha256": "6072f033cca7f51b56c58ed8332410972246744c80f6c4c7d47a340e7709d357",
+    "product_bytes_mutable": false,
+    "product_change_policy": "Any Manager product-byte change requires a successor Manager version/candidate; g1 is immutable."
+  },
+  "qualification": {
+    "risk_defect_gate": {
+      "status": "pass",
+      "base_commit": "7183f563e644b85f7131db2707816730b5dffb6b",
+      "closure_run_id": "34753054865",
+      "exact_head_run_id": "34753434645",
+      "open_release_blockers": 0
+    },
+    "development_validation": {
+      "status": "pass",
+      "validated_commit": "04b59748ca39ea7dc786ef7df722d1426fdc74ac",
+      "run_id": "34753434645",
+      "artifact_id": "10316478367",
+      "artifact_sha256": "d6fbfeea7f446acdd574f116f4e0c150b8e66b26b75aa4ae99d1630afc56d050"
+    },
+    "hosted_prequalification": {
+      "status": "pass",
+      "classification": "hosted_prequalification_only",
+      "run_id": "34753663749",
+      "artifact_id": "10316013700",
+      "artifact_sha256": "59c43de487551ba50c79512ed787b09b4bb16d3040f0e8cb4bf1af7a53208206",
+      "ordinary_gate_revision": 1,
+      "ordinary_gate_sha256": "f0f62c19b52cc75cd75a0a6d7cff9495614ebc08a9a2ec4492cc075199d5fcba",
+      "source_gate": "pass",
+      "disposable_full_gate_revision": 9001,
+      "disposable_full_gate": "pass",
+      "baseline_manager_version": "4.17.8",
+      "baseline_commit": "7183f563e644b85f7131db2707816730b5dffb6b",
+      "personal_hub_used": false,
+      "production_qualified": false
+    },
+    "real_current_bootstrap": {
+      "status": "validated_ready_for_workstation_execution",
+      "maintenance_branch": "maintenance/qualify-manager-4.17.9-g1",
+      "script_path": "tools/Invoke-Manager4179RealCurrentQualificationBootstrap.ps1",
+      "script_introduction_commit": "c63207dcc03e61b2d02193a29a19f9561ffbf54c",
+      "validated_maintenance_head": "9a8d9ccd6b6f3d3b3143402864c3d7460f104367",
+      "validation_run_id": "34754442944",
+      "downloads_hosted_run_id": "34753663749",
+      "downloads_artifact_name": "manager-4.17.9-g1-hosted-qualification",
+      "expected_gate_sha256": "f0f62c19b52cc75cd75a0a6d7cff9495614ebc08a9a2ec4492cc075199d5fcba",
+      "expected_production_baseline": "4.17.8",
+      "entrypoint": "D:\\0\\0__Core\\keelaryn\\tests\\UNPACK_MANAGER_GATE.cmd",
+      "install_included": false
+    },
+    "production_acceptance": {
+      "status": "pending_real_current_backed_full_gate",
+      "production_install_allowed": false,
+      "note": "Run the validated one-step workstation bootstrap. Review the real CURRENT-backed Full Gate evidence before explicitly running INSTALL_TESTED_MANAGER_UPDATE.cmd."
+    }
+  },
+  "historical_non_product_failures": [
+    {
+      "run_id": "34753609023",
+      "classification": "qualification_harness",
+      "cause": "candidate checkout used fetch-depth 1 while immutable-freeze preflight required HEAD^",
+      "candidate_bytes_changed": false
+    },
+    {
+      "run_id": "34754337800",
+      "classification": "bootstrap_validation_harness",
+      "cause": "static assertion expected two backslashes instead of the one-backslash PowerShell path literal",
+      "candidate_bytes_changed": false
+    },
+    {
+      "run_id": "34754409006",
+      "classification": "bootstrap_validation_harness",
+      "cause": "validation recursively counted both issued g1 and nested disposable g9001 gate instead of preferring the artifact-root issued gate like the bootstrap does",
+      "candidate_bytes_changed": false
+    }
+  ],
   "production_policy": {
-    "multi_hub": "inactive_until_successor_qualified",
-    "production_hub_mutation_from_manager_development": "forbidden"
+    "multi_hub": "inactive_until_manager_4.17.9_is_production_qualified_and_installed",
+    "production_hub_mutation_from_manager_development": "forbidden",
+    "candidate_g1_product_bytes": "immutable"
   },
   "open_release_blockers": [],
   "knowledge": {
@@ -68,44 +155,19 @@
     "strict_pre_freeze_gate": "tools/Invoke-ManagerRiskDefectGate.ps1",
     "risk_context_regression": "tools/Invoke-ManagerRiskContextRegression.ps1"
   },
-  "qualification": {
-    "development_validation": {
-      "status": "pass_required_on_current_head_before_freeze",
-      "last_known_pass_commit": "00239eb609f84eb1ad5110ff0abffda236769aff",
-      "last_known_pass_run_id": "34753054865",
-      "materialized_product_commit": "bdcf5372dda6ed0e3216b41b9568574b998ec460",
-      "note": "The exact published closure commit passed hosted Windows Development Validation. Subsequent knowledge/tooling-only hardening must receive a new exact-head PASS before candidate freeze; authoritative branch HEAD is always resolved live."
-    },
-    "risk_defect_gate": {
-      "status": "required_pass_before_freeze",
-      "last_policy_check_run_id": "34753054865",
-      "last_pass_run_id": "34753054865",
-      "base_commit": "7183f563e644b85f7131db2707816730b5dffb6b",
-      "note": "The published closure passed the strict Risk/Defect Gate from the production-provenance base with zero open release blockers. Any later pre-freeze source/tooling delta remains subject to normal exact-head development validation and candidate-freeze discipline."
-    },
-    "source_gate": {
-      "status": "not_applicable_before_candidate_freeze"
-    },
-    "full_gate": {
-      "status": "not_applicable_before_candidate_freeze"
-    },
-    "production_acceptance": {
-      "status": "not_applicable_before_candidate_freeze"
-    }
-  },
   "next_exact_goal": {
-    "id": "MANAGER-4179-PREFREEZE-VALIDATION-001",
-    "description": "Obtain hosted Development Validation PASS on the exact current dev/manager-4.17.9 HEAD containing the permanent risk-context lifecycle regression, roadmap intake, and closure state. If PASS and no new blocker appears, freeze immutable Manager 4.17.9 candidate g1 without changing Manager product bytes, then run Source/Full Gate and production-specific acceptance. Production multi-Hub remains inactive until qualification completes.",
-    "product_changes_permitted": true
+    "id": "MANAGER-4179-REAL-CURRENT-ACCEPTANCE-001",
+    "description": "Execute the validated one-step workstation bootstrap against the actual production Manager 4.17.8 and personal CURRENT read-only boundary; obtain real-current-backed Full Gate PASS. Do not install 4.17.9 until that evidence is reviewed. Production multi-Hub remains inactive.",
+    "product_changes_permitted_on_frozen_g1": false
   },
   "bootstrap": {
-    "ordinary_new_chat_instruction": "Continue Manager development from the repository-resident state.",
+    "ordinary_new_chat_instruction": "Continue Manager 4.17.9 qualification from repository-resident state; do not reconstruct state from chat history.",
     "required_first_actions": [
-      "Read MANAGER_DEVELOPMENT_STATE.json from the authoritative repository branch available to the session.",
-      "Resolve authoritative_branch HEAD live from GitHub and treat the remote branch as authoritative.",
-      "Read MANAGER_ENGINEERING_ROADMAP.md only for deferred priorities and architectural intent.",
-      "Load task-specific risk context / knowledge instead of full history where possible.",
-      "Do not require a human to reconstruct current state from previous chat messages."
+      "Read MANAGER_DEVELOPMENT_STATE.json from dev/manager-4.17.9.",
+      "Resolve dev/manager-4.17.9 and provenance/candidate-manager-4.17.9-g1 refs live from GitHub.",
+      "Treat candidate cb036051586d567502ce31ca8f1192a39bd69ddf / tree dd9f3858ede2a1ced94a77026a36fbbb046da1ba as immutable.",
+      "Use the hosted qualification and real-current bootstrap identities recorded here rather than regenerating candidate bytes.",
+      "Do not activate production multi-Hub or install Manager 4.17.9 until production-specific acceptance passes."
     ]
   }
 }
