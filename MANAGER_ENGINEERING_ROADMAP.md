@@ -16,7 +16,23 @@ It is deliberately **not** the authoritative record of the current development b
 
 Statuses: `ACTIVE`, `NEXT`, `PLANNED`, `PARKED`, `RESEARCH`, `DONE`, `REJECTED`.
 
-Priority is relative and may be changed when new defects, security findings or release constraints appear. Correctness, rollback/data safety, deterministic behavior and security always outrank convenience and automation.
+Priority is relative and must be reconsidered whenever new defects, security findings, release constraints or dependency changes appear. Correctness, rollback/data safety, deterministic behavior and security always outrank convenience, automation and optimization.
+
+### Priority ordering rule
+
+When two roadmap items compete, rank them by the first material discriminator in this order:
+
+1. current release blocker / possibility of incorrect durable state;
+2. data loss, rollback failure, cross-instance contamination or security exposure;
+3. repeated-defect prevention and missing executable validation;
+4. recovery/diagnostic availability under damaged or partial state;
+5. provenance, reproducibility and autonomous context recovery;
+6. removal of manual steps that are themselves error-prone;
+7. performance / context / maintenance cost;
+8. generic UX convenience;
+9. speculative capability.
+
+A lower-numbered roadmap item is not automatically more important than a later item; `Priority` and current dependencies are authoritative. Merge overlapping ideas rather than creating parallel backlog items that describe the same underlying capability.
 
 ## Roadmap
 
@@ -124,9 +140,47 @@ Priority is relative and may be changed when new defects, security findings or r
 - **Rule:** optimization may remove duplicate context, never required validation or provenance.
 - **Dependency:** engineering knowledge and risk-context tooling.
 
+## Roadmap maintenance policy
+
+The roadmap is a mandatory sink for **meaningful reusable ideas** discovered during implementation, review, testing, CI diagnosis, qualification, production acceptance or architecture discussion. Do not rely on chat history to preserve them.
+
+Capture an idea when it could plausibly improve any of the following even if it is not actionable in the current release:
+
+- correctness or transaction safety;
+- rollback/recovery behavior;
+- security or trust boundaries;
+- repeated-defect prevention;
+- diagnostics / Doctor / SelfTest;
+- provenance and release governance;
+- multi-Hub isolation and lifecycle safety;
+- autonomous context recovery between sessions;
+- CI/gate reliability and evidence quality;
+- Windows portability/compatibility;
+- performance, hashing, scans or context efficiency;
+- remote development / reduced maintainer manual work;
+- Hub automation or transport ergonomics;
+- generic UX/onboarding;
+- maintainability, simplification or removal of duplicated mechanisms.
+
+The backlog should be broad but not noisy. Do not create roadmap items for a one-off implementation detail that is fully resolved inside the current change unless it reveals a reusable class of problem. If a new observation belongs to an existing item, extend that item rather than duplicating it.
+
+### Reprioritization rule
+
+Re-evaluate priorities when:
+
+- a new defect or review finding is confirmed;
+- a supposedly isolated failure reveals a recurring root-cause class;
+- a roadmap item becomes a dependency of a current release blocker;
+- automation would eliminate a repeated unsafe/manual operation;
+- security or privacy assumptions change;
+- qualification evidence shows an existing control is insufficient;
+- a prerequisite becomes complete, making a deferred item actionable.
+
+Promotion and demotion are both expected. Preserve the reason when a non-obvious priority change materially affects sequencing.
+
 ## Intake rule for new ideas
 
-When a future idea appears during development and is intentionally deferred, add it here before leaving the topic. Each item should contain at minimum:
+When a future idea appears during development, add it here before leaving the topic if it has reusable architectural, safety, automation, reliability, performance, maintenance or UX value — not only when it is explicitly “deferred”. Each item should contain at minimum:
 
 - stable roadmap ID;
 - priority and status;
@@ -135,7 +189,9 @@ When a future idea appears during development and is intentionally deferred, add
 - key safety constraints where applicable;
 - a concrete exit condition or trigger for revisiting it.
 
-Do not implement a parked idea merely because it exists here. The current development state and applicable release blockers decide what is executable now.
+Before adding a new ID, check whether an existing roadmap item should absorb it. After adding or materially changing an item, reconsider the relative priority of neighboring items rather than merely appending it to the end.
+
+Do not implement a parked idea merely because it exists here. The current development state, risk model and applicable release blockers decide what is executable now.
 
 ## Privacy and provenance boundary
 
