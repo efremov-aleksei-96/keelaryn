@@ -20,7 +20,7 @@ jobs:
         with:
           ref: cb036051586d567502ce31ca8f1192a39bd69ddf
           path: candidate
-          fetch-depth: 1
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Checkout exact production 4.17.8 provenance baseline
