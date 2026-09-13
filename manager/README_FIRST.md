@@ -1,4 +1,7 @@
-# Keelaryn Manager 4.17.7
+# Keelaryn Manager 4.17.8
+Manager 4.17.8 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.7. It restores the documented UPDATE_ALL compatibility alias in multi-Hub mode by routing it through the frontend that captures the active Hub expectation, and it rejects existing Hubs whose staged CURRENT is not an APPROVED activation baseline before instances.json can commit. It preserves the qualified 4.17.7 fail-closed legacy-restart guard, registry-validation contracts and Framework r24 architecture.
+
+## 4.17.7 context
 Manager 4.17.7 is the corrective successor to the production-qualified but public-release-rejected Manager 4.17.6. It fails closed when a legacy UpdateAll restart reaches an active multi-Hub registry without a captured Hub-context token, and validates an already-present multi-Hub registry plus active selection before reporting registry initialization success. It preserves the qualified 4.17.6 transaction-safety architecture and Framework r24 contracts.
 
 ## 4.17.6 context

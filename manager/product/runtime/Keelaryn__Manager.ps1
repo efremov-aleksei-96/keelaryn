@@ -40,7 +40,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.17.7"
+$ManagerVersion = "4.17.8"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -653,7 +653,7 @@ $CompatibilityCommandSpecs = [ordered]@{
     'REPAIR_CURRENT_TRANSPORT.cmd' = [ordered]@{ kind='standard'; manager_arg='-RepairCurrentTransport'; pause='error' }
     'RESTORE_CANDIDATE_TRANSPORT.cmd' = [ordered]@{ kind='standard'; manager_arg='-RestoreCandidateTransport'; pause='error' }
     'SHOW_INSTANCE_INFO.cmd' = [ordered]@{ kind='standard'; manager_arg='-InstanceInfo'; pause='always' }
-    'UPDATE_ALL.cmd' = [ordered]@{ kind='standard'; manager_arg='-UpdateAll'; pause='always' }
+    'UPDATE_ALL.cmd' = [ordered]@{ kind='frontend'; frontend_action='UpdateAll'; pause='always' }
     'UPDATE_HUB.cmd' = [ordered]@{ kind='standard'; manager_arg='-UpdateHub'; pause='always' }
     'UPDATE_MANAGER.cmd' = [ordered]@{ kind='standard'; manager_arg='-UpdateManager'; pause='always' }
 }
@@ -2277,6 +2277,17 @@ function Assert-ManagerInstallTargetPathSafe([string]$BaseRoot,[string]$Relative
 function Get-GeneratedCompatibilityCommandText([string]$CommandName) {
     if (-not $CompatibilityCommandSpecs.Contains($CommandName)) { throw ('Unknown compatibility command: '+$CommandName) }
     $spec=$CompatibilityCommandSpecs[$CommandName]
+    if ([string]$spec.kind -eq 'frontend') {
+        $lines=@(
+            '@echo off','setlocal','rem Keelaryn generated compatibility command',
+            ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\..\product\tools\KeelarynMenu.ps1" -Action '+[string]$spec.frontend_action+' -NoRootLauncher'),
+            'set "RC=%ERRORLEVEL%"'
+        )
+        if ([string]$spec.pause -eq 'always') { $lines += @('echo.','pause') }
+        elseif ([string]$spec.pause -eq 'error') { $lines += 'if not "%RC%"=="0" pause' }
+        $lines += @('exit /b %RC%','')
+        return [string]::Join("`r`n",$lines)
+    }
     if ([string]$spec.kind -eq 'bind') {
         return [string]::Join("`r`n",@(
             '@echo off','setlocal','rem Keelaryn generated compatibility command',
@@ -5176,6 +5187,15 @@ function Assert-RegisteredInstanceBaseline($Row) {
     return $true
 }
 
+function Assert-RegisteredInstanceActivationEligible($Row) {
+    $null=Assert-RegisteredInstanceBaseline $Row
+    $paths=Get-InstanceStatePaths ([string]$Row.instance_id)
+    $identity=Get-CompatibilityCheckpointIdentityFast $paths.Current
+    if(-not$identity){throw 'Registered instance CURRENT activation identity is invalid.'}
+    if([string]$identity.ArtifactStatus-ne'approved'){throw 'Registered instance CURRENT must be an approved checkpoint before registration can commit.'}
+    return $true
+}
+
 function Assert-UpdateAllContextSafe {
     if(-not$UpdateAll){return}
     if($ExpectedSingleInstance-or-not[string]::IsNullOrWhiteSpace([string]$ExpectedInstanceId)){return}
@@ -5433,7 +5453,7 @@ function Invoke-RegisterExistingInstance([string]$Path,[string]$Name,[bool]$Acti
         $paths=New-RegisteredInstanceStateFromVault $id $full
         # The generated state and source Hub can change after staging validation. Revalidate
         # the exact published pair immediately before instances.json becomes authoritative.
-        $null=Assert-RegisteredInstanceBaseline $candidateRow
+        $null=Assert-RegisteredInstanceActivationEligible $candidateRow
         $newRows=@($registry.instances)+@($candidateRow)
         $registryWriteStarted=$true
         Write-ManagerInstanceRegistry ([ordered]@{schema='keelaryn.manager.instances.v1';registry_revision=([int]$registry.registry_revision+1);instances=@($newRows)})
@@ -7585,7 +7605,10 @@ function Test-UpdateCommandSurfaceSelfTest {
     if ($CompatibilityCommandSpecs.Count -ne 21) { return $false }
     foreach ($name in @($CompatibilityCommandSpecs.Keys)) {
         $generated=Get-GeneratedCompatibilityCommandText ([string]$name)
-        if ($generated -notmatch '(?i)Keelaryn__Manager\.ps1') { return $false }
+        $spec=$CompatibilityCommandSpecs[$name]
+        if ([string]$spec.kind -eq 'frontend') {
+            if ($generated -notmatch '(?i)KeelarynMenu\.ps1' -or $generated -notmatch ('(?i)-Action\s+'+[regex]::Escape([string]$spec.frontend_action))) { return $false }
+        } elseif ($generated -notmatch '(?i)Keelaryn__Manager\.ps1') { return $false }
     }
     return $true
 }
