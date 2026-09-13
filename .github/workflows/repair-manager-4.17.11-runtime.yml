@@ -42,12 +42,12 @@ jobs:
           if($roundtrip.Length-ne$bytes.Length){throw 'UTF-8 roundtrip byte length mismatch before edits.'}
           for($i=0;$i-lt$bytes.Length;$i++){if($bytes[$i]-ne$roundtrip[$i]){throw('UTF-8 roundtrip mismatch at byte '+$i)}}
 
-          function Replace-One([string]$input,[string]$old,[string]$new,[string]$label){
-            $first=$input.IndexOf($old,[StringComparison]::Ordinal)
-            if($first-lt0){throw($label+' not found.')}
-            $second=$input.IndexOf($old,$first+$old.Length,[StringComparison]::Ordinal)
-            if($second-ge0){throw($label+' is not unique.')}
-            return $input.Substring(0,$first)+$new+$input.Substring($first+$old.Length)
+          function Replace-One([string]$SourceText,[string]$OldText,[string]$NewText,[string]$Label){
+            $first=$SourceText.IndexOf($OldText,[StringComparison]::Ordinal)
+            if($first-lt0){throw($Label+' not found.')}
+            $second=$SourceText.IndexOf($OldText,$first+$OldText.Length,[StringComparison]::Ordinal)
+            if($second-ge0){throw($Label+' is not unique.')}
+            return $SourceText.Substring(0,$first)+$NewText+$SourceText.Substring($first+$OldText.Length)
           }
 
           $q=[char]34
