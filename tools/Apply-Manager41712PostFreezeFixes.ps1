@@ -8,13 +8,15 @@ $Utf8NoBom=New-Object Text.UTF8Encoding($false)
 function Replace-ExactlyOnce([string]$Text,[string]$Pattern,[string]$Replacement,[string]$Label){
     $m=[regex]::Matches($Text,$Pattern,[Text.RegularExpressions.RegexOptions]::Multiline)
     if($m.Count-ne1){throw("$Label expected exactly one match; observed $($m.Count).")}
-    return [regex]::Replace($Text,$Pattern,$Replacement,[Text.RegularExpressions.RegexOptions]::Multiline)
+    $hit=$m[0]
+    return $Text.Substring(0,$hit.Index)+$Replacement+$Text.Substring($hit.Index+$hit.Length)
 }
 function Replace-SinglelineExactlyOnce([string]$Text,[string]$Pattern,[string]$Replacement,[string]$Label){
     $options=[Text.RegularExpressions.RegexOptions]::Multiline-bor[Text.RegularExpressions.RegexOptions]::Singleline
     $m=[regex]::Matches($Text,$Pattern,$options)
     if($m.Count-ne1){throw("$Label expected exactly one match; observed $($m.Count).")}
-    return [regex]::Replace($Text,$Pattern,$Replacement,$options)
+    $hit=$m[0]
+    return $Text.Substring(0,$hit.Index)+$Replacement+$Text.Substring($hit.Index+$hit.Length)
 }
 function Replace-LiteralExactlyOnce([string]$Text,[string]$Old,[string]$New,[string]$Label){
     $first=$Text.IndexOf($Old,[StringComparison]::Ordinal)
