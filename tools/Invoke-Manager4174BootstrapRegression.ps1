@@ -49,13 +49,25 @@ try{
     function New-RegisteredInstanceStateFromVault([string]$InstanceId,[string]$VaultPath){
         $root=Join-Path $temp ('state-'+[guid]::NewGuid().ToString('N'))
         $current=Join-Path $root 'baseline\Keelaryn__Hub_CURRENT.zip'
+        $inbox=Join-Path $root 'inbox'
         [void][IO.Directory]::CreateDirectory((Split-Path -Parent $current))
+        [void][IO.Directory]::CreateDirectory($inbox)
         [IO.File]::WriteAllText($current,'current',(New-Object Text.UTF8Encoding($false)))
         $script:StateRootForCase=$root
-        return [pscustomobject]@{Root=$root;Current=$current}
+        return [pscustomobject]@{Root=$root;Current=$current;Inbox=$inbox}
     }
     function Publish-CompatibilityShadowFromRegisteredInstance($Row,[string]$Reason){return $true}
     function Assert-RegisteredInstanceBaseline($Row){return $true}
+    # Manager 4.17.9 bootstrap adds pending-input reachability and full activation predicates.
+    # This inherited regression isolates commit-outcome semantics, so those independently
+    # covered dependencies are explicit successful stubs here instead of being omitted.
+    function Assert-RegisteredInstanceActivationEligible($Row){return $true}
+    function Stage-GlobalHubInputsForRegistryActivation([string]$InstanceId,[string]$DestinationInbox){return [pscustomobject]@{Entries=@()}}
+    function Assert-GlobalHubInputActivationHandoffPrepared($Handoff){return $true}
+    function Test-GlobalHubInputActivationHandoffSourcesIntact($Handoff){return $true}
+    function Complete-GlobalHubInputActivationHandoff($Handoff){return 0}
+    function Get-CompatibilityShadowAssessment($Row){return [pscustomobject]@{Valid=$true;Reason=''}}
+    function Reconcile-StrandedGlobalHubInputsForExistingRegistry{return 0}
     function Write-ManagerActiveInstance([string]$InstanceId){
         [IO.File]::WriteAllText($script:ActiveInstanceFile,$InstanceId,(New-Object Text.UTF8Encoding($false)))
     }
