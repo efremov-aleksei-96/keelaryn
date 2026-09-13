@@ -28,7 +28,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $expectedParent='f11ca80001cf0a9dd9e718cef47988c1ce38437c'
+          $expectedParent='5a37c190b5a464fdcd09b4ee0818a5ea09b0bd7b'
           $parent=(git rev-parse HEAD^).Trim()
           if($parent -cne $expectedParent){throw('Unexpected materialization parent: '+$parent+' expected='+$expectedParent)}
           $changed=@(git diff --name-only HEAD^ HEAD)
