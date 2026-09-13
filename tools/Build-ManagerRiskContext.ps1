@@ -52,6 +52,20 @@ function Resolve-Commit([string]$Ref){
     if($rows.Count-ne1){Fail('Could not resolve commit: '+$Ref)}
     return $rows[0].Trim().ToLowerInvariant()
 }
+function Assert-ProperAncestorRiskRange([string]$Base,[string]$Head){
+    if([string]$Base-ceq[string]$Head){Fail('Risk qualification range must be non-empty: base and head resolve to the same commit '+$Head+'.')}
+    $old=$ErrorActionPreference
+    try{
+        $ErrorActionPreference='Continue'
+        $lines=@(& git.exe -C $RepositoryRoot merge-base --is-ancestor $Base $Head 2>&1)
+        $code=[int]$LASTEXITCODE
+    }finally{$ErrorActionPreference=$old}
+    if($code-eq1){Fail('Risk qualification base must be a proper ancestor of head. base='+$Base+' head='+$Head)}
+    if($code-ne0){Fail('git merge-base --is-ancestor failed for risk qualification range: '+([string]::Join(' | ',@($lines))))}
+    $countRows=@(Invoke-Git @('rev-list','--count',($Base+'..'+$Head)))
+    $count=0
+    if($countRows.Count-ne1-or-not[int]::TryParse($countRows[0].Trim(),[ref]$count)-or$count-lt1){Fail('Risk qualification range contains no commits after ancestry validation. base='+$Base+' head='+$Head)}
+}
 function New-StringSet(){return New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)}
 function Add-RangeSymbols([string]$Commit,[string]$Path,$Ranges,$Set,[switch]$AllowParseFailure){
     if(-not$Path.EndsWith('.ps1',[StringComparison]::OrdinalIgnoreCase)){return}
@@ -114,6 +128,7 @@ function Get-WinningStateRule($Machine,[string]$State,[string]$Operation){
 }
 
 $head=Resolve-Commit $HeadCommit;if([string]::IsNullOrWhiteSpace($BaseCommit)){$base=Resolve-Commit ($head+'^')}else{$base=Resolve-Commit $BaseCommit}
+Assert-ProperAncestorRiskRange $base $head
 $risk=Read-Json 'tests/knowledge/risk-map.json';$invDoc=Read-Json 'tests/knowledge/invariants/multi-hub.json';$rootDoc=Read-Json 'tests/knowledge/root-causes.json';$allDefects=@(Read-AllDefects);$machine=Read-Json 'tests/knowledge/state-machines/multi-hub.json';$allAudits=@(Read-AllRiskAudits)
 
 $changedPaths=@(Invoke-Git @('diff','--name-only','--diff-filter=ACDMRT',$base,$head,'--') -AllowEmpty|Where-Object{-not[string]::IsNullOrWhiteSpace($_)}|ForEach-Object{$_.Trim().Replace('\','/')}|Sort-Object -Unique)
