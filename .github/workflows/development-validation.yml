@@ -72,12 +72,6 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$env:KEELARYN_DEVELOPMENT_ROOT"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run Manager 4.17.10 registry-active Doctor regression
-        shell: powershell
-        run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-Manager41710ReviewRegression.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
       - name: Upload compact development evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -92,5 +86,5 @@ jobs:
           retention-days: 3
 
 # Engineering knowledge integrity, compact task risk context and the risk-context lifecycle regression are development checks.
-# Manager 4.17.10 additionally requires the real disposable Genesis -> registry activation -> Doctor regression, which inherits the audited 4.17.9 convergence chain.
-# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run only verifies that its observed PASS/FAIL matches repository policy state.
+# Invoke-DevelopmentValidation.ps1 owns the permanent Manager 4.17.10 regression chain, including real disposable Genesis -> registry activation -> Doctor execution. The workflow does not repeat that expensive chain.
+# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run verifies that its observed PASS/FAIL matches repository policy state.
