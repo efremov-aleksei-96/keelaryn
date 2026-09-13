@@ -1,0 +1,34 @@
+{
+  "schema": "keelaryn.manager-defects.v1",
+  "scope": "Manager 4.17.11 production-specific qualification findings",
+  "defects": [
+    {
+      "id": "MGR-DEF-0026",
+      "title": "Doctor report publication turns a transient Windows sharing lock into a false Doctor command failure",
+      "severity": "P2",
+      "status": "open",
+      "release_blocker": false,
+      "detected_in": "4.17.10",
+      "detected_stage": "manager_4_17_11_real_current_full_gate",
+      "defect_class": "diagnostic report publication / transient Windows sharing-lock resilience",
+      "affected_surfaces": ["S-RUNTIME-INBOX"],
+      "preconditions": "DOCTOR_REPORT.json already exists and another Windows process temporarily holds an exclusive handle when Invoke-Doctor publishes the next report.",
+      "bad_behavior": "Invoke-Doctor can complete all health findings as OK and then exit 1 because its final DOCTOR_REPORT.json publication uses direct Set-Content. The report sink failure is surfaced as a Doctor command failure even though Manager/Hub health and durable state are unchanged.",
+      "root_cause": "Doctor report publication bypasses the Manager's existing transient Windows sharing-lock classifier/retry/fallback and atomic-publication resilience used by other diagnostic/state writers. A short external lock therefore changes the semantic Doctor outcome instead of being retried or reported distinctly.",
+      "root_cause_classes": ["RC-OUTCOME-001", "RC-PUBLISH-001"],
+      "violated_invariants": ["MH-OUTCOME-001"],
+      "related_defects": [],
+      "permanent_regressions": [],
+      "planned_regressions": ["tools/Invoke-ManagerDoctorReportLockRegression.ps1"],
+      "fixed_in": null,
+      "evidence": [
+        {"type": "frozen_candidate_commit", "id": "88e3dcba0af75264c4b53e8ec24d770c215677a0"},
+        {"type": "production_qualified_baseline_commit", "id": "694bea57a3d3add8bb612b9006f84dbadcd17787"},
+        {"type": "hosted_candidate_qualification_run", "id": "34770214698"},
+        {"type": "real_current_gate_observation", "id": "Manager 4.17.11 g1 D3 Doctor report sharing violation after all health findings were OK"},
+        {"type": "deterministic_hosted_diagnostic_run", "id": "34772231525", "result": "4.17.11 initial=0 locked=1 released=0; 4.17.10 initial=0 locked=1 released=0"},
+        {"type": "source_expression", "id": "$report | ConvertTo-Json -Depth 8 | Set-Content $path -Encoding UTF8"}
+      ]
+    }
+  ]
+}
