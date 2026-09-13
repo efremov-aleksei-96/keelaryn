@@ -42,6 +42,17 @@ function Copy-ManagedManager([string]$SourceManager,[string]$DestinationManager)
     }
 }
 
+$currentInstall=Get-Content -LiteralPath (Join-Path $RepositoryRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
+$currentVersion=([string]$currentInstall.manager_version).Trim()
+if($currentVersion-ceq'4.17.11'){
+    $successor=Join-Path $RepositoryRoot 'tools\Invoke-Manager41711ReviewRegression.ps1'
+    if(-not(Test-Path -LiteralPath $successor -PathType Leaf)){Fail('Manager 4.17.11 successor review regression missing: '+$successor)}
+    $null=Invoke-Captured $successor @('-RepositoryRoot',$RepositoryRoot) 'Manager 4.17.11 successor review regression'
+    Write-Host 'MANAGER 4.17.10 REVIEW REGRESSION: PASS VIA 4.17.11 SUCCESSOR CHAIN' -ForegroundColor Green
+    exit 0
+}
+Assert ($currentVersion-ceq'4.17.10') ('Manager 4.17.10 review regression supports 4.17.10 or delegated 4.17.11 source; observed '+$currentVersion)
+
 $inherited=Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1'
 if(-not(Test-Path -LiteralPath $inherited -PathType Leaf)){Fail('Inherited 4.17.9 convergence regression missing: '+$inherited)}
 $null=Invoke-Captured $inherited @('-RepositoryRoot',$RepositoryRoot) 'Inherited Manager 4.17.9 convergence regression'
