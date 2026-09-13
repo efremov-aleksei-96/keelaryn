@@ -28,6 +28,11 @@ function Commit-One([string]$Root,[string]$Message){
     if($rows.Count-ne1){Fail('Could not resolve synthetic commit for '+$Message)}
     return $rows[0].Trim().ToLowerInvariant()
 }
+function Assert-ChildFails([string]$Label,$Result,[string]$Pattern){
+    if($Result.ExitCode-eq0){Fail($Label+' must fail closed.')}
+    $combined=[string]::Join(' | ',@($Result.Output))
+    if($combined-notmatch$Pattern){Fail($Label+' failure was not explicit. output='+$combined)}
+}
 
 $riskTool=Join-Path $RepositoryRoot 'tools\Build-ManagerRiskContext.ps1'
 if(-not(Test-Path -LiteralPath $riskTool -PathType Leaf)){Fail 'Build-ManagerRiskContext.ps1 is missing.'}
@@ -58,7 +63,7 @@ try{
     [void][IO.Directory]::CreateDirectory($outDir)
     $outMd=Join-Path $outDir 'MANAGER_RISK_CONTEXT.md'
     $deletedRun=Invoke-ChildResult $riskTool @('-RepositoryRoot',$temp,'-BaseCommit',$base,'-HeadCommit',$deletedHead,'-OutputPath',$outMd)
-    if($deletedRun.ExitCode-ne0){Fail('Historical unparsable deletion must be accepted conservatively. output='+([string]::Join(' | ',@($deletedRun.Output))))}
+    if($deletedRun.ExitCode-ne0){Fail('Valid proper-ancestor range must succeed. output='+([string]::Join(' | ',@($deletedRun.Output))))}
     $outJson=[IO.Path]::ChangeExtension($outMd,'.json')
     if(-not(Test-Path -LiteralPath $outJson -PathType Leaf)){Fail 'Historical fallback run did not produce risk JSON.'}
     $report=Get-Content -LiteralPath $outJson -Raw -Encoding UTF8|ConvertFrom-Json
@@ -67,16 +72,36 @@ try{
     if(@($runtimeChange[0].symbols)-notcontains'__HISTORICAL_PARSE_FALLBACK__'){Fail 'Historical parse fallback marker is missing from changed-file symbols.'}
     if(@($report.matched_surfaces).Count-eq0){Fail 'Historical parse fallback must conservatively match path-level risk surfaces.'}
     if(@($report.matched_surfaces|ForEach-Object{[string]$_.id})-notcontains'S-RUNTIME-REGISTRY-RESOLUTION'){Fail 'Historical parse fallback did not include the registry-resolution risk surface.'}
-    Write-Host '  PASS unparsable historical/base source falls back conservatively for risk mapping' -ForegroundColor Green
+    Write-Host '  PASS valid proper-ancestor range and historical parse fallback' -ForegroundColor Green
+
+    $equalOut=Join-Path $temp 'out-equal\MANAGER_RISK_CONTEXT.md'
+    $equalRun=Invoke-ChildResult $riskTool @('-RepositoryRoot',$temp,'-BaseCommit',$deletedHead,'-HeadCommit',$deletedHead,'-OutputPath',$equalOut)
+    Assert-ChildFails 'base=head risk range' $equalRun 'must be non-empty'
+    Write-Host '  PASS base=head risk range fails closed' -ForegroundColor Green
 
     [IO.File]::WriteAllText($runtimePath,"function Invoke-StillBroken {`n    if (`n}`n",$Utf8NoBom)
     $invalidHead=Commit-One $temp 'synthetic unparsable current runtime'
+
+    $reversedOut=Join-Path $temp 'out-reversed\MANAGER_RISK_CONTEXT.md'
+    $reversedRun=Invoke-ChildResult $riskTool @('-RepositoryRoot',$temp,'-BaseCommit',$invalidHead,'-HeadCommit',$deletedHead,'-OutputPath',$reversedOut)
+    Assert-ChildFails 'reversed risk range' $reversedRun 'proper ancestor'
+    Write-Host '  PASS reversed risk range fails closed' -ForegroundColor Green
+
     $invalidOut=Join-Path $temp 'out-invalid-head\MANAGER_RISK_CONTEXT.md'
     $invalidRun=Invoke-ChildResult $riskTool @('-RepositoryRoot',$temp,'-BaseCommit',$deletedHead,'-HeadCommit',$invalidHead,'-OutputPath',$invalidOut)
     if($invalidRun.ExitCode-eq0){Fail 'Unparsable current/head source must remain fail-closed.'}
     $combined=[string]::Join(' | ',@($invalidRun.Output))
     if($combined-notmatch'Could not parse .*Keelaryn__Manager\.ps1'){Fail('Current-head parse failure was not explicit. output='+$combined)}
     Write-Host '  PASS unparsable current/head source remains fatal' -ForegroundColor Green
+
+    [void](Invoke-Git $temp @('checkout','--orphan','unrelated-risk-range'))
+    $marker=Join-Path $temp 'unrelated.txt'
+    [IO.File]::WriteAllText($marker,"unrelated`n",$Utf8NoBom)
+    $unrelatedHead=Commit-One $temp 'synthetic unrelated head'
+    $unrelatedOut=Join-Path $temp 'out-unrelated\MANAGER_RISK_CONTEXT.md'
+    $unrelatedRun=Invoke-ChildResult $riskTool @('-RepositoryRoot',$temp,'-BaseCommit',$deletedHead,'-HeadCommit',$unrelatedHead,'-OutputPath',$unrelatedOut)
+    Assert-ChildFails 'unrelated risk range' $unrelatedRun 'proper ancestor'
+    Write-Host '  PASS unrelated risk range fails closed' -ForegroundColor Green
 
     Write-Host 'MANAGER RISK CONTEXT REGRESSION: PASS' -ForegroundColor Green
 }finally{
