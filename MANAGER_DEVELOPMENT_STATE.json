@@ -5,7 +5,7 @@
   "authoritative_branch": "dev/manager-4.17.10",
   "head_resolution": {
     "mode": "resolve_branch_ref_live",
-    "note": "Resolve dev/manager-4.17.10 live. Manager 4.17.9 remains production-installed in single-instance compatibility mode. Manager 4.17.10 g1 is immutable and rejected before qualification because its root PUBLIC_FILE_MANIFEST.json was stale; proceed only through g2 after exact-head revalidation."
+    "note": "Resolve dev/manager-4.17.10 live. Manager 4.17.9 remains production-installed in single-instance compatibility mode. Manager 4.17.10 g1 and g2 are immutable rejected prequalification candidates; proceed only through g3 after exact-head public metadata validation."
   },
   "lineage": {
     "production_manager_version": "4.17.9",
@@ -52,19 +52,20 @@
       "observed_status": "pending_exact_head_revalidation"
     },
     "development_validation": {
-      "status": "pending_exact_head_after_manifest_repair_and_guard",
-      "last_coherent_validated_head": "2bee97938391d933267dec23939fb4250033b7f0",
-      "last_coherent_run_id": "34761193473",
-      "last_coherent_job_id": "103734211320",
-      "last_coherent_artifact_id": "10319046572",
-      "last_coherent_artifact_sha256": "f93cdead2a74c246b21637d4cde5970b736e9694f48dcdfb4283e438b3632a30",
+      "status": "pending_exact_head_after_complete_public_metadata_guard",
+      "last_product_risk_validated_head": "5736a7773627820307bd5232049e210251ba7410",
+      "last_product_risk_run_id": "34761995442",
+      "last_product_risk_job_id": "103736344255",
+      "last_product_risk_artifact_id": "10319391700",
+      "last_product_risk_artifact_sha256": "3c4a95c4180dbaa66a8f8e794b3098a42bf77b429af2d3ad9dc67a30ab01cd64",
+      "public_manifest_reproducibility": "pass_on_5736a777",
       "engineering_knowledge": "pass_defects_23_open_0",
       "registry_active_doctor_regression": "pass_inside_canonical_validation_runner",
       "selftests": "pass",
       "deterministic_build_release_x2": "pass",
       "classification": "development_only",
       "production_qualified": false,
-      "note": "The previously validated head preceded discovery of stale candidate-bound PUBLIC_FILE_MANIFEST metadata. The repaired/guarded exact head must pass the normal Development Validation, including public manifest reproducibility, before g2 freeze."
+      "note": "The 5736a777 run proved product/risk/runtime/build plus canonical PUBLIC_FILE_MANIFEST, but PUBLIC_PROVENANCE consistency was not yet part of development CI. g2 qualification exposed that remaining gap. Final g3 parent must pass the expanded metadata guard."
     },
     "candidate_4_17_10_g1": {
       "manager_version": "4.17.10",
@@ -77,26 +78,55 @@
       "product_bytes_changed_after_freeze": false,
       "freeze_diff_files": 0,
       "rejection_classification": "candidate_source_metadata",
-      "rejection_reason": "Frozen root PUBLIC_FILE_MANIFEST.json still identified Manager 4.17.9 and bound 4.17.9 hashes even though manager/product/install/INSTALLATION.json and Manager product bytes identified 4.17.10.",
+      "rejection_reason": "Frozen root PUBLIC_FILE_MANIFEST.json still identified Manager 4.17.9 and bound 4.17.9 hashes even though Manager product bytes identified 4.17.10.",
       "qualification_started": false
     },
-    "public_manifest_repair": {
-      "status": "repaired_with_canonical_guard_pending_exact_head_validation",
-      "repair_run_id": "34761794090",
-      "repair_job_id": "103735813245",
-      "repair_commit": "4a9b8c394dccfa5dae2c8d71e5ca88ba60693e22",
-      "manifest_generator": "tools/Build-PublicFileManifest.ps1",
+    "candidate_4_17_10_g2": {
       "manager_version": "4.17.10",
+      "candidate_revision": "g2",
+      "commit": "739e612ff77b218da2eedbbbd7d9dec87fcf21ad",
+      "tree": "a4635823662b6d5caf2e81a0f129ef5827b70766",
+      "parent": "5736a7773627820307bd5232049e210251ba7410",
+      "status": "frozen_rejected_prequalification_stale_public_provenance",
+      "immutable": true,
+      "product_bytes_changed_after_freeze": false,
+      "freeze_diff_files": 0,
+      "rejection_classification": "candidate_source_metadata",
+      "rejection_reason": "PUBLIC_PROVENANCE.json still identified source Manager 4.17.9, baseline 4.17.8, predecessor hashes and predecessor Full Gate/production validation after PUBLIC_FILE_MANIFEST had already been corrected to 4.17.10.",
+      "qualification_run_id": "34762222214",
+      "qualification_job_id": "103736937748",
+      "identity_manifest_framework_preflight": "pass",
+      "failure_step": "Verify public repository boundary and Actions policy",
+      "failure_message": "Public provenance Manager version mismatch.",
+      "gate_build_started": false,
+      "source_gate_started": false,
+      "full_gate_started": false
+    },
+    "public_metadata_repair": {
+      "status": "manifest_and_provenance_repaired_with_fail_closed_guard_pending_exact_head_validation",
+      "manager_version": "4.17.10",
+      "baseline_manager_version": "4.17.9",
       "managed_file_count": 70,
       "installation_sha256": "3d4e1102b6852e1c1502d265e913bbe8c640ce7e881b4051a9b4e5cc6e7fab25",
       "managed_digest": "2df8ff820d1f4c31fe8c8b537ff81ec4a3e67516325ca73f4470c561c9497cfa",
       "framework_revision": 24,
+      "manifest_repair_run_id": "34761794090",
+      "manifest_repair_job_id": "103735813245",
+      "manifest_repair_commit": "4a9b8c394dccfa5dae2c8d71e5ca88ba60693e22",
+      "manifest_generator": "tools/Build-PublicFileManifest.ps1",
+      "manifest_guard_commit": "8c288001e6a8fd815e6308e20620b59176d57b43",
+      "provenance_repair_commit": "9706b6b3a228253688426c104d672a3905fc46da",
+      "provenance_public_candidate_revision": 15,
+      "provenance_full_gate_pass": false,
+      "provenance_tested_update_sha256": null,
+      "metadata_verifier": "tools/Verify-PublicCandidateMetadata.ps1",
+      "metadata_verifier_commit": "9659408dc6f7d3b2baad0e878309236b36f63ccd",
+      "development_validation_guard_commit": "04dbe708dbe3ae9bd7ddbde9d2d83b66791a2d6f",
+      "guard": "Development validation triggers on PUBLIC_FILE_MANIFEST.json, PUBLIC_PROVENANCE.json and their verification tooling; it requires canonical manifest reproducibility, public candidate metadata consistency and full public repository verification before disposable development validation.",
+      "roadmap_commit": "05d64cc74ac94f1c56533e8ac716ed26ff1db832",
+      "roadmap_item": "R-014",
       "metadata_only": true,
-      "product_bytes_changed": false,
-      "development_validation_guard_commit": "8c288001e6a8fd815e6308e20620b59176d57b43",
-      "guard": "Development validation triggers on PUBLIC_FILE_MANIFEST.json and Build-PublicFileManifest.ps1 and executes Build-PublicFileManifest.ps1 -Check before disposable validation.",
-      "roadmap_commit": "a6dad0d72be449864121faade5d2e0e17ff9cf7e",
-      "roadmap_item": "R-014"
+      "product_bytes_changed": false
     },
     "production_4_17_9": {
       "status": "installed_and_accepted_single_instance_compatibility_mode",
@@ -142,7 +172,8 @@
     "production_rollback": "not_required",
     "production_hub_mutation_from_manager_development": "forbidden",
     "candidate_4_17_9_g1_product_bytes": "immutable",
-    "candidate_4_17_10_g1": "immutable_rejected_prequalification_do_not_reuse"
+    "candidate_4_17_10_g1": "immutable_rejected_prequalification_do_not_reuse",
+    "candidate_4_17_10_g2": "immutable_rejected_prequalification_do_not_reuse"
   },
   "open_release_blockers": [],
   "knowledge": {
@@ -152,22 +183,25 @@
     "strict_pre_freeze_gate": "tools/Invoke-ManagerRiskDefectGate.ps1",
     "risk_context_regression": "tools/Invoke-ManagerRiskContextRegression.ps1",
     "manager_4_17_10_review_regression": "tools/Invoke-Manager41710ReviewRegression.ps1",
-    "public_manifest_reproducibility": "tools/Build-PublicFileManifest.ps1 -Check"
+    "public_manifest_reproducibility": "tools/Build-PublicFileManifest.ps1 -Check",
+    "public_candidate_metadata_verifier": "tools/Verify-PublicCandidateMetadata.ps1",
+    "public_repository_verifier": "tools/Verify-PublicRepository.ps1"
   },
   "next_exact_goal": {
-    "id": "MANAGER-41710-G2-FREEZE-001",
-    "description": "Require exact-head Development Validation PASS after the canonical 4.17.10 public manifest repair and new fail-closed manifest reproducibility guard. The run must also retain engineering knowledge PASS, strict Risk/Defect Gate PASS, permanent 4.17.10 registry-active Doctor regression PASS, SelfTests PASS and deterministic BuildRelease PASS. Then freeze Manager 4.17.10 g2 from that exact tree and qualify g2 against production Manager 4.17.9. Do not activate production multi-Hub before qualified 4.17.10 installation.",
+    "id": "MANAGER-41710-G3-FREEZE-001",
+    "description": "Require exact-head Development Validation PASS with the complete public metadata guard: canonical PUBLIC_FILE_MANIFEST reproducibility, PUBLIC_PROVENANCE version/hash/baseline/stage consistency, full public repository verification, engineering knowledge PASS, strict Risk/Defect Gate PASS, permanent 4.17.10 registry-active Doctor regression PASS, SelfTests PASS and deterministic BuildRelease PASS. Then freeze Manager 4.17.10 g3 from that exact tree and qualify g3 against production Manager 4.17.9. Do not activate production multi-Hub before qualified 4.17.10 installation.",
     "product_changes_permitted_on_frozen_4_17_9_g1": false,
-    "product_changes_permitted_on_rejected_4_17_10_g1": false
+    "product_changes_permitted_on_rejected_4_17_10_g1": false,
+    "product_changes_permitted_on_rejected_4_17_10_g2": false
   },
   "bootstrap": {
-    "ordinary_new_chat_instruction": "Continue Manager 4.17.10 from dev/manager-4.17.10 using repository-resident state; g1 is rejected and immutable, so continue through g2.",
+    "ordinary_new_chat_instruction": "Continue Manager 4.17.10 from dev/manager-4.17.10 using repository-resident state; g1 and g2 are rejected and immutable, so continue through g3.",
     "required_first_actions": [
       "Resolve dev/manager-4.17.10 live; do not use an older local checkout as authority.",
       "Treat Manager 4.17.9 candidate cb036051586d567502ce31ca8f1192a39bd69ddf as immutable and keep production 4.17.9 installed.",
-      "Treat Manager 4.17.10 g1 candidate 57deae0e1bbd5ff58494358ba7a06c016018e9e0 as immutable and rejected before qualification because of stale PUBLIC_FILE_MANIFEST metadata.",
+      "Treat Manager 4.17.10 g1 57deae0e1bbd5ff58494358ba7a06c016018e9e0 and g2 739e612ff77b218da2eedbbbd7d9dec87fcf21ad as immutable rejected prequalification candidates.",
       "Keep production multi-Hub registry inactive until 4.17.10 is fully qualified and installed.",
-      "Require exact-head Development Validation PASS including PUBLIC_FILE_MANIFEST reproducibility before issuing 4.17.10 g2."
+      "Require exact-head Development Validation PASS including complete public candidate metadata verification before issuing 4.17.10 g3."
     ]
   }
 }
