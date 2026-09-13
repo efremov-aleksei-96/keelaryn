@@ -40,7 +40,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.17.9"
+$ManagerVersion = "4.17.10"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -4910,6 +4910,7 @@ function Add-DoctorFinding([System.Collections.ArrayList]$Rows,[string]$Severity
 }
 
 function Invoke-Doctor {
+    $rows=New-Object System.Collections.ArrayList
     if(Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf){
         try{
             $globalHubInputs=@(Get-GlobalHubOwnedInboxObjects)
@@ -4922,7 +4923,6 @@ function Invoke-Doctor {
         hub_state_core_ms=0.0; hub_portable_analysis_ms=0.0; hub_derived_metadata_ms=0.0; hub_manifest_diagnostic_ms=0.0
         hub_migration_ms=0.0; hub_governance_ms=0.0; hub_artifact_ms=0.0; current_baseline_ms=0.0
     }
-    $rows=New-Object System.Collections.ArrayList
     $phase=[System.Diagnostics.Stopwatch]::StartNew()
     try {
         if (Test-InstalledManagerVersionCoherence $ManagerVersion) { Add-DoctorFinding $rows 'OK' 'manager.version' ('Manager version markers agree at '+$ManagerVersion+'.') }
