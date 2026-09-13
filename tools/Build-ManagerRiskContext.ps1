@@ -96,6 +96,11 @@ function Intersects($A,$B){foreach($x in @($A)){if(@($B)-contains$x){return $tru
 function Set-Intersects($Rows,$Set){foreach($row in @($Rows)){if($Set.Contains([string]$row)){return $true}}return $false}
 function Add-UniqueIds($Set,$Rows){foreach($row in @($Rows)){if(-not[string]::IsNullOrWhiteSpace([string]$row)){[void]$Set.Add([string]$row)}}}
 function Escape-Md([string]$Text){if($null-eq$Text){return''};return $Text.Replace('|','\|').Replace("`r",' ').Replace("`n",' ')}
+function Get-OptionalText($Object,[string]$PropertyName){
+    if($null-eq$Object){return''}
+    if($Object.PSObject.Properties.Name -notcontains $PropertyName){return''}
+    return [string]$Object.$PropertyName
+}
 function Get-WinningStateRule($Machine,[string]$State,[string]$Operation){
     $matches=@($Machine.rules|Where-Object{[string]$_.operation-ceq$Operation -and (@($_.states)-contains'*' -or @($_.states)-contains$State)})
     if($matches.Count-eq0){return $null}
@@ -136,7 +141,8 @@ foreach($audit in @($allAudits)){
     foreach($test in @($audit.required_pre_product_tests)){
         $winner=Get-WinningStateRule $machine ([string]$test.state) ([string]$test.operation)
         if($null-ne$winner -and $ruleIds.Contains([string]$winner.id)){
-            [void]$scenarios.Add([ordered]@{id=[string]$test.id;state=[string]$test.state;operation=[string]$test.operation;fault=[string]$test.fault;expected=[string]$test.expected;state_machine_rule=[string]$winner.id})
+            $fault=Get-OptionalText $test 'fault'
+            [void]$scenarios.Add([ordered]@{id=[string]$test.id;state=[string]$test.state;operation=[string]$test.operation;fault=$fault;expected=[string]$test.expected;state_machine_rule=[string]$winner.id})
         }
     }
     if($scenarios.Count-gt0){
