@@ -13,6 +13,7 @@ on:
       - 'tools/Test-ManagerEngineeringKnowledge.ps1'
       - 'tools/Build-ManagerRiskContext.ps1'
       - 'tools/Invoke-ManagerRiskDefectGate.ps1'
+      - 'tools/Invoke-Manager4179ConvergenceRegression.ps1'
       - 'tools/Invoke-Manager4178ReviewRegression.ps1'
       - 'tools/Invoke-Manager4177ReviewRegression.ps1'
       - 'tools/Invoke-Manager4176ReviewRegression.ps1'
@@ -69,6 +70,12 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$env:KEELARYN_DEVELOPMENT_ROOT"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Run Manager 4.17.9 convergence regression
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-Manager4179ConvergenceRegression.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Upload compact development evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -83,4 +90,5 @@ jobs:
           retention-days: 3
 
 # Engineering knowledge integrity and compact task risk context are development checks.
+# Manager 4.17.9 additionally requires the audited convergence regression.
 # The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run only verifies that its observed PASS/FAIL matches repository policy state.
