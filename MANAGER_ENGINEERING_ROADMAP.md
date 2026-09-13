@@ -154,10 +154,10 @@ A lower-numbered roadmap item is not automatically more important than a later i
 
 - **Priority:** P1
 - **Status:** ACTIVE
-- **Goal:** gate/risk/knowledge/release-governance tooling must be able to validate fixes to its own broken historical states without silently dropping risk, accepting stale candidate-bound metadata, or making cleanup of an unparsable historical file impossible.
-- **Required properties:** current/HEAD source remains fail-closed on parse errors; historical/base parse failure uses an explicit conservative path-level fallback; the fallback is visible in generated risk context; reusable tooling behaviors have permanent regressions; generated candidate-bound source metadata such as `PUBLIC_FILE_MANIFEST.json` is reproducible from the exact tree and is checked by ordinary development CI before candidate freeze; changes to that metadata or its generator trigger the check.
-- **Trigger:** Manager 4.17.9 knowledge closure exposed both compact PowerShell parser defects and a historical-source AST failure while deleting a broken one-shot transformer; Manager 4.17.10 g1 later proved that a green product/regression cycle could still freeze a tree with a stale 4.17.9 `PUBLIC_FILE_MANIFEST.json` when manifest reproducibility was not part of the canonical development workflow.
-- **Exit:** permanent synthetic regression proves historical unparsable deletion succeeds conservatively and current unparsable source still fails; ordinary Development Validation executes that regression on hosted Windows and fails closed when the public source manifest is stale/non-canonical before freeze.
+- **Goal:** gate/risk/knowledge/release-governance tooling must validate its own broken historical states and candidate-bound metadata without silently dropping risk, accepting stale identities, or making cleanup of historical source impossible.
+- **Required properties:** current/HEAD source remains fail-closed on parse errors; historical/base parse failure uses an explicit conservative path-level fallback; the fallback is visible in generated risk context; reusable tooling behaviors have permanent regressions; `PUBLIC_FILE_MANIFEST.json` is reproducible from the exact source tree; `PUBLIC_PROVENANCE.json` must identify the same Manager version, installation digest, managed-set digest, Framework revision and development baseline as the canonical source/state; an unqualified development line must not inherit a predecessor's Full Gate/production acceptance receipt; changes to either metadata file or its verifier trigger ordinary development CI.
+- **Trigger:** Manager 4.17.9 knowledge closure exposed compact PowerShell parser defects and a historical-source AST failure. Manager 4.17.10 g1 then froze with a stale 4.17.9 `PUBLIC_FILE_MANIFEST.json`; after that was guarded, g2 qualification exposed a second stale candidate-bound file, `PUBLIC_PROVENANCE.json`, still identifying 4.17.9 and retaining predecessor production-validation data. Both candidate attempts were rejected without mutating frozen bytes.
+- **Exit:** permanent risk-context regression proves historical unparsable deletion succeeds conservatively and current unparsable source still fails; Development Validation fails closed on stale/noncanonical public manifest and on public provenance/version/hash/baseline/stage inconsistency via repository-resident verification before freeze.
 
 ### R-015 — Structured intake of reusable CI and qualification lessons
 
@@ -192,7 +192,7 @@ Capture an idea when it could plausibly improve any of the following even if it 
 - generic UX/onboarding;
 - maintainability, simplification or removal of duplicated mechanisms.
 
-The backlog should be broad but not noisy. Do not create roadmap items for a one-off implementation detail that is fully resolved inside the current change unless it reveals a reusable class of problem. If a new observation belongs to an existing item, extend that item rather than duplicating it.
+The backlog should be broad but not noisy. Do not create roadmap items for a one-off implementation detail that is fully resolved inside the current change unless it revealss a reusable class of problem. If a new observation belongs to an existing item, extend that item rather than duplicating it.
 
 ### Reprioritization rule
 
