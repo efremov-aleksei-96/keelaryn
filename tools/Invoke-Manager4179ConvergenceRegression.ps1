@@ -83,10 +83,11 @@ Assert ($globalClassify.Contains('Keelaryn__Hub')) 'A07-A11: global Hub-input cl
 Assert ($globalClassify.Contains('CANDIDATE_TRANSPORT')) 'A07/A11: global Hub-input classifier omits candidate transport JSON.'
 Assert ($globalClassify.Contains('Keelaryn__Manager') -or $globalClassify.Contains('ManagerGlobal')) 'A07: classifier does not explicitly separate Manager-global inputs from Hub-owned inputs.'
 
-$stageText=Get-FunctionText $runtimePath 'Stage-GlobalHubInputsForRegistryActivation'
+$stageAst=Get-FunctionAst $runtimePath 'Stage-GlobalHubInputsForRegistryActivation'
+$stageText=[string]$stageAst.Extent.Text
 Assert ($stageText.Contains('instance_id') -or $stageText.Contains('InstanceId')) 'A07: bootstrap Hub-input staging does not validate instance ownership.'
-Assert ($stageText -match 'Copy-Item|File\.Copy') 'A07: pending inputs are not copied/staged before registry commit.'
-Assert (-not($stageText -match 'Move-Item')) 'A07: bootstrap staging moves the only reachable pending input before registry commit.'
+Assert ((@(Get-CommandAsts $stageAst 'Copy-Item').Count-ge1) -or $stageText -match 'File\.Copy') 'A07: pending inputs are not copied/staged before registry commit.'
+Assert (@(Get-CommandAsts $stageAst 'Move-Item').Count-eq0) 'A07: bootstrap staging moves the only reachable pending input before registry commit.'
 Assert ($stageText -match 'collision|already exists|Test-Path') 'A07: bootstrap staging lacks destination collision handling.'
 
 $completeText=Get-FunctionText $runtimePath 'Complete-GlobalHubInputActivationHandoff'
