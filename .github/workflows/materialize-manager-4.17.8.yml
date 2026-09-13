@@ -1,0 +1,43 @@
+name: Materialize Manager 4.17.8
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.8'
+    paths:
+      - 'tools/Materialize-Manager4178.ps1'
+      - '.github/workflows/materialize-manager-4.17.8.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keelaryn-materialize-manager-4.17.8
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Materialize exact 4.17.8 development source
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Materialize-Manager4178.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit materialized development source
+        shell: powershell
+        run: |
+          git status --short
+          if (-not (git status --porcelain)) { throw 'Materializer produced no repository changes.' }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Manager 4.17.8: close alias and registration activation gaps'
+          git push origin HEAD:dev/manager-4.17.8
