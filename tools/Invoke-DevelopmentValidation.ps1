@@ -97,7 +97,8 @@ foreach($file in $psFiles){Parse-File $file.FullName}
 $knowledgeTools=@(
     'tools\Test-ManagerEngineeringKnowledge.ps1',
     'tools\Build-ManagerRiskContext.ps1',
-    'tools\Invoke-ManagerRiskDefectGate.ps1'
+    'tools\Invoke-ManagerRiskDefectGate.ps1',
+    'tools\Invoke-ManagerRiskContextRegression.ps1'
 )
 foreach($relative in $knowledgeTools){
     $path=Join-Path $RepositoryRoot $relative
@@ -122,7 +123,9 @@ if((Sha $riskA)-cne(Sha $riskB)){Fail 'MANAGER_RISK_CONTEXT.md is not determinis
 if((Sha $riskAJson)-cne(Sha $riskBJson)){Fail 'MANAGER_RISK_CONTEXT.json is not deterministic for the exact same base/head.'}
 Copy-Item -LiteralPath $riskA -Destination (Join-Path $evidence 'MANAGER_RISK_CONTEXT.md') -Force
 Copy-Item -LiteralPath $riskAJson -Destination (Join-Path $evidence 'MANAGER_RISK_CONTEXT.json') -Force
-Write-Host 'Engineering knowledge + risk context reproducibility: PASS' -ForegroundColor Green
+$riskContextRegression=Join-Path $RepositoryRoot 'tools\Invoke-ManagerRiskContextRegression.ps1'
+Invoke-Child $riskContextRegression @('-RepositoryRoot',$RepositoryRoot)
+Write-Host 'Engineering knowledge + risk context reproducibility + lifecycle regression: PASS' -ForegroundColor Green
 
 Write-Host '[3/7] Prove strict Risk/Defect Gate policy state...'
 $riskGateTool=Join-Path $RepositoryRoot 'tools\Invoke-ManagerRiskDefectGate.ps1'
@@ -205,6 +208,7 @@ $report=[ordered]@{
     parser_files=$psFiles.Count
     engineering_knowledge_pass=$true
     risk_context_reproducible=$true
+    risk_context_lifecycle_regression_pass=$true
     risk_defect_gate_policy_check_pass=$true
     risk_defect_gate_observed_pass=[bool]$riskGateReport.pass
     risk_defect_gate_expected_policy=$riskPolicy
