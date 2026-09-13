@@ -14,6 +14,18 @@
     "production_ux_smoke_pass": true,
     "production_managed_content_prefix": "db7b288b7ac2"
   },
+  "publication_rejection": {
+    "manager_version": "4.17.11",
+    "status": "rejected_post_freeze_public_review",
+    "pull_request": 60,
+    "frozen_candidate_commit": "88e3dcba0af75264c4b53e8ec24d770c215677a0",
+    "frozen_candidate_tree": "7d23ab245699d63c264958f9132d29fe85d43de7",
+    "frozen_candidate_changed": false,
+    "release_blockers": ["MGR-DEF-0026", "MGR-DEF-0027"],
+    "production_install_status": "installed_and_post_install_accepted",
+    "rollback_required": false,
+    "multi_hub_activated": false
+  },
   "predecessor_publication_rejection": {
     "manager_version": "4.17.10",
     "status": "rejected_post_freeze_public_review",
@@ -36,7 +48,7 @@
     "file": "LICENSE",
     "copyright": "Copyright (c) 2026 Keelaryn contributors"
   },
-  "public_candidate_revision": 19,
+  "public_candidate_revision": 20,
   "git_checkout_contract": {
     "manager_authoritative_tree_attribute": "-text",
     "framework_authoritative_tree_attribute": "-text",
