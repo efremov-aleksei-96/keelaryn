@@ -12,7 +12,7 @@
     {"id":"ListInstances","class":"diagnostic_recovery","expected":"reachable_without_old_active_shadow","invariants":["MH-REGISTRY-001","MH-RECOVERY-001"]},
     {"id":"SwitchInstance","class":"target_driven_recovery","expected":"reachable_without_old_active_shadow_and_validate_requested_target","invariants":["MH-RECOVERY-001","MH-SWITCH-001","MH-COMMIT-001"]},
     {"id":"BindInstance","class":"target_driven_recovery","expected":"reachable_without_old_active_shadow_and_validate_requested_target","invariants":["MH-RECOVERY-001","MH-REBIND-001","MH-BINDING-001"]},
-    {"id":"RepairCurrent","class":"active_context_recovery","expected":"must_be_reachable_when_the_active_CURRENT_is_the_failed_object_and_must_revalidate_instance_identity_before_commit","invariants":["MH-RECOVERY-001","MH-BINDING-001","MH-CONTEXT-001"]},
+    {"id":"RepairCurrent","class":"active_context_transport_repair","expected":"fail_closed_without_Hub_mutation_when_CURRENT_is_missing_or_unreadable; this command sanitizes an existing CURRENT and does not reconstruct a missing checkpoint","invariants":["MH-BINDING-001","MH-CONTEXT-001"]},
     {"id":"UpdateManager","class":"manager_global","expected":"reachable_without_active_Hub_or_CURRENT_health_and_must_not_process_Hub_inputs","invariants":["MH-MANAGER-GLOBAL-001","MH-RECOVERY-001"]},
     {"id":"BuildDistribution","class":"manager_global","expected":"reachable_without_active_Hub_or_CURRENT_health","invariants":["MH-MANAGER-GLOBAL-001","MH-RECOVERY-001"]},
     {"id":"BuildRelease","class":"manager_global","expected":"reachable_without_active_Hub_or_CURRENT_health","invariants":["MH-MANAGER-GLOBAL-001","MH-RECOVERY-001"]},
@@ -29,11 +29,13 @@
     {"id":"ER-003","state":"REGISTRY_ACTIVE_CURRENT_MISSING","action":"BindInstance","expected":"success_to_healthy_requested_target"},
     {"id":"ER-004","state":"REGISTRY_ACTIVE_CURRENT_MISSING","action":"UpdateManager","expected":"success_or_clean_no_update_without_Hub_processing"},
     {"id":"ER-005","state":"REGISTRY_ACTIVE_CURRENT_MISSING","action":"BuildDistribution","expected":"success"},
-    {"id":"ER-006","state":"REGISTRY_ACTIVE_CURRENT_MISSING","action":"RepairCurrent","expected":"success_if_active_Hub_is_structurally_valid_and_identity_bound"},
+    {"id":"ER-006","state":"REGISTRY_ACTIVE_CURRENT_MISSING","action":"RepairCurrent","expected":"fail_closed_without_Hub_mutation"},
     {"id":"ER-007","state":"REGISTRY_ACTIVE_CURRENT_MISSING","action":"UpdateHub","expected":"fail_closed_without_Hub_mutation"},
     {"id":"ER-008","state":"REGISTRY_ACTIVE_CURRENT_MISSING","action":"BuildCandidateTransport","expected":"fail_closed_without_cross_instance_fallback"},
     {"id":"ER-009","state":"REGISTRY_ACTIVE_METADATA_INVALID","action":"ListInstances","expected":"success"},
-    {"id":"ER-010","state":"REGISTRY_ACTIVE_METADATA_INVALID","action":"SwitchInstance","expected":"success_to_healthy_requested_target"}
+    {"id":"ER-010","state":"REGISTRY_ACTIVE_METADATA_INVALID","action":"SwitchInstance","expected":"success_to_healthy_requested_target"},
+    {"id":"ER-011","state":"REGISTRY_ACTIVE_CURRENT_CORRUPT","action":"ListInstances","expected":"success"},
+    {"id":"ER-012","state":"REGISTRY_ACTIVE_CURRENT_CORRUPT","action":"SwitchInstance","expected":"success_to_healthy_requested_target"}
   ],
   "freeze_rule": "Any P1/P2 recovery, registry-resolution, context-routing or compatibility-shadow surface must have at least one real process-entry executable scenario for every degraded state the action claims to recover. Static/function-level-only proof is a release blocker."
 }
