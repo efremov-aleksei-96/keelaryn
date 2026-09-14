@@ -32,6 +32,7 @@ $actionIds=New-Set;$actionById=@{}
 foreach($row in @($model.actions)){
     $id=[string]$row.id;Add-Unique $actionIds $id 'entry action';$actionById[$id]=$row
     if([string]::IsNullOrWhiteSpace([string]$row.class)){Fail($id+' class is empty.')}
+    if([string]::IsNullOrWhiteSpace([string]$row.proof_mode)){Fail($id+' proof_mode is empty.')}
     if(@('list_success','target_success','global_success','diagnostic_reached','fail_closed') -cnotcontains [string]$row.expected_mode){Fail($id+' expected_mode is unsupported: '+[string]$row.expected_mode)}
     if(@($row.invariants).Count-eq0){Fail($id+' has no invariant mapping.')}
     foreach($iid in @($row.invariants)){if(-not$invariantIds.Contains([string]$iid)){Fail($id+' references unknown invariant '+[string]$iid)}}
@@ -39,6 +40,8 @@ foreach($row in @($model.actions)){
 
 foreach($requiredState in @('REGISTRY_ACTIVE_METADATA_INVALID','REGISTRY_ACTIVE_HUB_MISSING','REGISTRY_ACTIVE_HUB_CORRUPT','REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_CORRUPT')){if(-not$stateIds.Contains($requiredState)){Fail('Required degraded state is missing: '+$requiredState)}}
 foreach($requiredAction in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout','InitializeInstanceRegistry','UpdateHub','UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport')){if(-not$actionIds.Contains($requiredAction)){Fail('Required action is missing: '+$requiredAction)}}
+if([string]$actionById['BindInstance'].proof_mode-cne'changed_path_rebind_commit'){Fail 'BindInstance must require changed_path_rebind_commit proof.'}
+if([string]$actionById['UpdateManager'].proof_mode-cne'install_successor_restart'){Fail 'UpdateManager must require install_successor_restart proof.'}
 
 $requirementIds=New-Set;$pairs=New-Set
 foreach($req in @($model.coverage_requirements)){
@@ -63,6 +66,8 @@ foreach($sid in @('REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_COR
 if($pairs.Count-lt75){Fail('Entry-reachability cross-product is unexpectedly small: '+$pairs.Count)}
 if([string]::IsNullOrWhiteSpace([string]$model.freeze_rule)){Fail 'Entry-reachability freeze_rule is empty.'}
 if(-not([string]$model.freeze_rule).Contains('may not restore state through the same runtime path under test')){Fail 'Freeze rule must prohibit runtime-dependent scenario reset.'}
+if(-not([string]$model.freeze_rule).Contains('changed-path rebind transaction')){Fail 'Freeze rule must require real changed-path BindInstance rebind.'}
+if(-not([string]$model.freeze_rule).Contains('newer valid disposable Manager package')){Fail 'Freeze rule must require a real UpdateManager installation/restart.'}
 
 Write-Host 'Manager entry-reachability knowledge: PASS' -ForegroundColor Green
 Write-Host ('  states: '+@($model.states).Count)

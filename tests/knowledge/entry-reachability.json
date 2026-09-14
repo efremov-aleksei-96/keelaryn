@@ -36,7 +36,8 @@
                         "invariants":  [
                                            "MH-REGISTRY-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "entry_list_no_mutation"
                     },
                     {
                         "id":  "SwitchInstance",
@@ -46,7 +47,8 @@
                                            "MH-RECOVERY-001",
                                            "MH-SWITCH-001",
                                            "MH-COMMIT-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "target_switch"
                     },
                     {
                         "id":  "BindInstance",
@@ -56,7 +58,8 @@
                                            "MH-RECOVERY-001",
                                            "MH-REBIND-001",
                                            "MH-BINDING-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "changed_path_rebind_commit"
                     },
                     {
                         "id":  "UpdateManager",
@@ -65,7 +68,8 @@
                         "invariants":  [
                                            "MH-MANAGER-GLOBAL-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "install_successor_restart"
                     },
                     {
                         "id":  "BuildDistribution",
@@ -74,7 +78,8 @@
                         "invariants":  [
                                            "MH-MANAGER-GLOBAL-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "manager_global_execution"
                     },
                     {
                         "id":  "BuildRelease",
@@ -83,7 +88,8 @@
                         "invariants":  [
                                            "MH-MANAGER-GLOBAL-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "manager_global_execution"
                     },
                     {
                         "id":  "BuildAIContext",
@@ -92,7 +98,8 @@
                         "invariants":  [
                                            "MH-MANAGER-GLOBAL-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "manager_global_execution"
                     },
                     {
                         "id":  "Doctor",
@@ -102,7 +109,8 @@
                                            "MH-REGISTRY-001",
                                            "MH-ISOLATION-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "diagnostic_body"
                     },
                     {
                         "id":  "UpdateHub",
@@ -111,7 +119,8 @@
                         "invariants":  [
                                            "MH-CONTEXT-001",
                                            "MH-ISOLATION-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
                     },
                     {
                         "id":  "UpdateAll",
@@ -121,7 +130,8 @@
                                            "MH-CONTEXT-001",
                                            "MH-COMPAT-001",
                                            "MH-MANAGER-GLOBAL-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
                     },
                     {
                         "id":  "RepairCurrent",
@@ -130,7 +140,8 @@
                         "invariants":  [
                                            "MH-BINDING-001",
                                            "MH-CONTEXT-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
                     },
                     {
                         "id":  "BuildCandidateTransport",
@@ -140,7 +151,8 @@
                                            "MH-LIFECYCLE-001",
                                            "MH-CONTEXT-001",
                                            "MH-BINDING-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
                     },
                     {
                         "id":  "RestoreCandidateTransport",
@@ -150,7 +162,8 @@
                                            "MH-LIFECYCLE-001",
                                            "MH-CONTEXT-001",
                                            "MH-BINDING-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
                     },
                     {
                         "id":  "SelfTest",
@@ -159,7 +172,8 @@
                         "invariants":  [
                                            "MH-MANAGER-GLOBAL-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "manager_global_execution"
                     },
                     {
                         "id":  "PrepareTests",
@@ -168,7 +182,8 @@
                         "invariants":  [
                                            "MH-MANAGER-GLOBAL-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "manager_global_execution"
                     },
                     {
                         "id":  "InitializePresentation",
@@ -177,7 +192,8 @@
                         "invariants":  [
                                            "MH-MANAGER-GLOBAL-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "manager_global_execution"
                     },
                     {
                         "id":  "FinalizeFilesystemLayout",
@@ -186,7 +202,8 @@
                         "invariants":  [
                                            "MH-MANAGER-GLOBAL-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "manager_global_execution"
                     },
                     {
                         "id":  "InitializeInstanceRegistry",
@@ -195,7 +212,8 @@
                         "invariants":  [
                                            "MH-REGISTRY-001",
                                            "MH-RECOVERY-001"
-                                       ]
+                                       ],
+                        "proof_mode":  "manager_global_execution"
                     }
                 ],
     "coverage_requirements":  [
@@ -239,5 +257,5 @@
                                                   ]
                                   }
                               ],
-    "freeze_rule":  "Every pair generated by coverage_requirements must execute through the real Manager process entry on a disposable Windows installation. Every compatibility-shadow bypass action must have executable entry coverage. Any new PrimaryModeCount action absent from manager-entry-policy.json is a release blocker. A scenario harness may not restore state through the same runtime path under test and must publish a result record even when setup or cleanup fails."
+    "freeze_rule":  "Every pair generated by coverage_requirements must execute through the real Manager process entry on a disposable Windows installation. Every compatibility-shadow bypass action must have executable entry coverage. Any new PrimaryModeCount action absent from manager-entry-policy.json is a release blocker. A scenario harness may not restore state through the same runtime path under test and must publish a result record even when setup or cleanup fails. BindInstance coverage must execute a changed-path rebind transaction and assert the new registry path is committed without Manager-driven Hub-byte movement or cloning. UpdateManager coverage must seed a newer valid disposable Manager package and assert the successor is installed, self-test succeeds, and the restarted -UpdateManager process reaches its post-install no-newer-package completion path."
 }
