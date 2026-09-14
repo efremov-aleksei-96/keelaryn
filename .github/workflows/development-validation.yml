@@ -21,6 +21,11 @@ on:
       - 'tools/Invoke-ManagerRiskContextRegression.ps1'
       - 'tools/Invoke-Manager41711ReviewRegression.ps1'
       - 'tools/Invoke-Manager41712ReviewRegression.ps1'
+      - 'tools/Invoke-ManagerRecoveryBehaviorRegression.ps1'
+      - 'tools/Invoke-Manager41713ReviewRegression.ps1'
+      - 'tools/Test-ManagerEntryReachabilityKnowledge.ps1'
+      - 'tools/Test-ManagerEntryPolicyCompleteness.ps1'
+      - 'tools/Invoke-ManagerEntryReachabilityMatrix.ps1'
       - 'tools/Verify-ManagerReleaseInstructions.ps1'
       - 'tools/Invoke-Manager41710ReviewRegression.ps1'
       - 'tools/Invoke-Manager4179ConvergenceRegression.ps1'
@@ -108,6 +113,6 @@ jobs:
           retention-days: 3
 
 # Engineering knowledge integrity, compact task risk context, public manifest/provenance consistency and the risk-context lifecycle regression are development checks.
-# Invoke-DevelopmentValidation.ps1 owns the permanent Manager 4.17.10 + 4.17.11 + 4.17.12 regression chain, including real disposable registry-active Doctor and CANDIDATE-only UpdateHub execution plus the managed release-instruction identity guard. The workflow does not repeat that expensive chain.
+# Invoke-DevelopmentValidation.ps1 owns the permanent Manager review-regression chain, including real disposable registry-active Doctor, CANDIDATE-only UpdateHub, process-entry reachability and release-instruction identity checks. The workflow does not repeat that expensive chain.
 # The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run verifies that its observed PASS/FAIL matches repository policy state.
-# Manager 4.17.12 remains unqualified until exact-head validation, full-successor-range Risk/Defect Gate, and pre-freeze adversarial review all pass.
+# Manager 4.17.13 remains unqualified until exact-head validation, full-successor-range Risk/Defect Gate, and pre-freeze adversarial review all pass.
