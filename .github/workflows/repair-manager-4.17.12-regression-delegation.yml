@@ -1,0 +1,104 @@
+name: Repair Manager 4.17.12 regression delegation
+
+on:
+  push:
+    branches:
+      - dev/manager-4.17.12
+    paths:
+      - .github/workflows/repair-manager-4.17.12-regression-delegation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-manager-4.17.12-regression-delegation
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout exact repair commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          ref: dev/manager-4.17.12
+
+      - name: Verify one-shot identity
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expectedParent = '5976395544d77f94f1d0d049609f4162ed7bcebd'
+          $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          $parent = (git rev-parse HEAD^).Trim().ToLowerInvariant()
+          if ($parent -cne $expectedParent) { throw "Unexpected repair parent: $parent expected $expectedParent" }
+          $changed = @(git diff --name-only "$expectedParent..$head")
+          if ($changed.Count -ne 1 -or $changed[0] -cne '.github/workflows/repair-manager-4.17.12-regression-delegation.yml') {
+            throw ('Repair workflow commit is not isolated: ' + ($changed -join ', '))
+          }
+          Write-Host "One-shot identity PASS. HEAD=$head parent=$parent"
+
+      - name: Repair inherited regression successor compatibility
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $utf8 = New-Object System.Text.UTF8Encoding($false)
+          function Replace-Unique([string]$Text,[string]$Old,[string]$New,[string]$Label) {
+            $first = $Text.IndexOf($Old,[StringComparison]::Ordinal)
+            if ($first -lt 0) { throw "$Label: source token not found" }
+            if ($Text.IndexOf($Old,$first+$Old.Length,[StringComparison]::Ordinal) -ge 0) { throw "$Label: source token is not unique" }
+            return $Text.Substring(0,$first) + $New + $Text.Substring($first+$Old.Length)
+          }
+
+          $p10 = 'tools/Invoke-Manager41710ReviewRegression.ps1'
+          $t10 = [IO.File]::ReadAllText((Resolve-Path $p10),[Text.Encoding]::UTF8)
+          $t10 = Replace-Unique $t10 "    Assert ([string]`$install.manager_version-ceq'4.17.10') ('Regression requires Manager 4.17.10 source; observed '+[string]`$install.manager_version)" "    Assert (@('4.17.10','4.17.12')-contains[string]`$install.manager_version) ('Regression requires Manager 4.17.10 source or validated 4.17.12 successor source; observed '+[string]`$install.manager_version)" '41710 managed-source version guard'
+          $t10 = Replace-Unique $t10 "Assert (`$currentVersion-ceq'4.17.10') ('Manager 4.17.10 review regression supports 4.17.10 or delegated 4.17.11 source; observed '+`$currentVersion)" "Assert (@('4.17.10','4.17.12')-contains`$currentVersion) ('Manager 4.17.10 review regression supports 4.17.10, delegated 4.17.11, or validated 4.17.12 successor source; observed '+`$currentVersion)" '41710 top-level version guard'
+          $old10 = "    Assert `$doctorText.Contains('Keelaryn Doctor - Manager 4.17.10') 'Registry-active Doctor did not identify Manager 4.17.10.'"
+          $new10 = "    `$expectedDoctorHeader='Keelaryn Doctor - Manager '+`$currentVersion`r`n    Assert `$doctorText.Contains(`$expectedDoctorHeader) ('Registry-active Doctor did not identify expected Manager '+`$currentVersion+'.')"
+          $t10 = Replace-Unique $t10 $old10 $new10 '41710 Doctor version assertion'
+          [IO.File]::WriteAllText((Resolve-Path $p10),$t10,$utf8)
+
+          $p11 = 'tools/Invoke-Manager41711ReviewRegression.ps1'
+          $t11 = [IO.File]::ReadAllText((Resolve-Path $p11),[Text.Encoding]::UTF8)
+          $t11 = Replace-Unique $t11 "    Assert ([string]`$install.manager_version-ceq'4.17.11') ('Regression requires Manager 4.17.11 source; observed '+[string]`$install.manager_version)" "    Assert (@('4.17.11','4.17.12')-contains[string]`$install.manager_version) ('Regression requires Manager 4.17.11 source or validated 4.17.12 successor source; observed '+[string]`$install.manager_version)" '41711 managed-source version guard'
+          $anchor11 = "`$sourceManager=Join-Path `$RepositoryRoot 'manager'"
+          $insert11 = "`$sourceManager=Join-Path `$RepositoryRoot 'manager'`r`n`$currentInstall=Get-Content -LiteralPath (Join-Path `$sourceManager 'product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json`r`n`$currentVersion=([string]`$currentInstall.manager_version).Trim()`r`nAssert (@('4.17.11','4.17.12')-contains`$currentVersion) ('Manager 4.17.11 review regression supports 4.17.11 or validated 4.17.12 successor source; observed '+`$currentVersion)"
+          $t11 = Replace-Unique $t11 $anchor11 $insert11 '41711 current-version initialization'
+          $old11 = "    Assert `$doctorText.Contains('Keelaryn Doctor - Manager 4.17.11') 'Inherited registry Doctor regression did not execute on 4.17.11.'"
+          $new11 = "    `$expectedDoctorHeader='Keelaryn Doctor - Manager '+`$currentVersion`r`n    Assert `$doctorText.Contains(`$expectedDoctorHeader) ('Inherited registry Doctor regression did not execute on expected Manager '+`$currentVersion+'.')"
+          $t11 = Replace-Unique $t11 $old11 $new11 '41711 Doctor version assertion'
+          [IO.File]::WriteAllText((Resolve-Path $p11),$t11,$utf8)
+
+          foreach ($path in @($p10,$p11)) {
+            $tokens=$null; $errors=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path),[ref]$tokens,[ref]$errors)
+            if (@($errors).Count -ne 0) { throw ('Parser failure in '+$path+': '+(($errors|ForEach-Object Message)-join' | ')) }
+          }
+          $actual = @(git diff --name-only | Sort-Object)
+          $expected = @($p10,$p11) | Sort-Object
+          if (($actual -join "`n") -cne ($expected -join "`n")) { throw ('Unexpected repair diff: '+($actual -join ', ')) }
+          Write-Host 'Regression successor-compatibility repair: PASS.'
+
+      - name: Execute repaired regression chain
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($script in @('tools/Invoke-Manager41710ReviewRegression.ps1','tools/Invoke-Manager41711ReviewRegression.ps1','tools/Invoke-Manager41712ReviewRegression.ps1')) {
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -RepositoryRoot $PWD.Path
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          Write-Host 'Repaired 4.17.10 + 4.17.11 + 4.17.12 regression chain: PASS.'
+
+      - name: Commit regression tooling repair
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- tools/Invoke-Manager41710ReviewRegression.ps1 tools/Invoke-Manager41711ReviewRegression.ps1
+          $actual = @(git diff --cached --name-only | Sort-Object)
+          $expected = @('tools/Invoke-Manager41710ReviewRegression.ps1','tools/Invoke-Manager41711ReviewRegression.ps1') | Sort-Object
+          if (($actual -join "`n") -cne ($expected -join "`n")) { throw ('Unexpected staged repair paths: '+($actual -join ', ')) }
+          git commit -m 'Allow inherited review regressions on Manager 4.17.12 successor'
+          git push origin HEAD:dev/manager-4.17.12
