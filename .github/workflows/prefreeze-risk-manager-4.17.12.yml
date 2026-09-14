@@ -1,0 +1,81 @@
+name: Manager 4.17.12 full-successor pre-freeze risk gate
+
+on:
+  push:
+    branches:
+      - maintenance/prefreeze-risk-manager-4.17.12
+    paths:
+      - .github/workflows/prefreeze-risk-manager-4.17.12.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prefreeze-risk-manager-4.17.12
+  cancel-in-progress: false
+
+jobs:
+  risk:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact reviewed development head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: 4f0e054c9d8a1bf6cddb9a2ae16fa1f2577b0173
+
+      - name: Verify exact full-successor identities
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $base='f6d04c175a22bd44f15c3d699a05ab5d60fa9a83'
+          $expectedHead='4f0e054c9d8a1bf6cddb9a2ae16fa1f2577b0173'
+          $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
+          if($head-cne$expectedHead){throw "Exact development head mismatch: $head expected $expectedHead"}
+          $baseResolved=(git rev-parse --verify "$base^{commit}").Trim().ToLowerInvariant()
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          if($baseResolved-cne$base){throw "Base identity mismatch: $baseResolved expected $base"}
+          git merge-base --is-ancestor $base $head
+          if($LASTEXITCODE-ne0){throw "Rejected-line base is not an ancestor of exact development head."}
+          $countText=(git rev-list --count "$base..$head").Trim()
+          $count=0
+          if(-not[int]::TryParse($countText,[ref]$count)-or$count-lt1){throw "Full-successor range is empty/invalid: $countText"}
+          $mergeBase=(git merge-base $base $head).Trim().ToLowerInvariant()
+          if($mergeBase-cne$base){throw "Merge-base mismatch: $mergeBase expected $base"}
+          Write-Host "Full-successor identity PASS. base=$base head=$head commits=$count"
+
+      - name: Verify Actions supply-chain policy
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Run strict Risk Defect Gate over full successor range
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'keelaryn-manager-4.17.12-full-successor-risk'
+          "KEELARYN_PREFREEZE_RISK_OUT=$out" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit 'f6d04c175a22bd44f15c3d699a05ab5d60fa9a83' -HeadCommit '4f0e054c9d8a1bf6cddb9a2ae16fa1f2577b0173' -OutputDirectory $out
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $report=Get-Content -LiteralPath (Join-Path $out 'RISK_DEFECT_GATE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if(-not[bool]$report.pass-or-not[bool]$report.candidate_freeze_permitted){throw 'Strict full-successor Risk/Defect Gate did not permit freeze.'}
+          if([string]$report.base_commit-cne'f6d04c175a22bd44f15c3d699a05ab5d60fa9a83'){throw 'Risk evidence base identity mismatch.'}
+          if([string]$report.head_commit-cne'4f0e054c9d8a1bf6cddb9a2ae16fa1f2577b0173'){throw 'Risk evidence head identity mismatch.'}
+          Write-Host 'FULL-SUCCESSOR MANAGER 4.17.12 RISK/DEFECT GATE: PASS'
+
+      - name: Upload compact pre-freeze risk evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.12-full-successor-risk-4f0e054c9d8a
+          path: |
+            ${{ env.KEELARYN_PREFREEZE_RISK_OUT }}\RISK_DEFECT_GATE.json
+            ${{ env.KEELARYN_PREFREEZE_RISK_OUT }}\MANAGER_RISK_CONTEXT.json
+            ${{ env.KEELARYN_PREFREEZE_RISK_OUT }}\MANAGER_RISK_CONTEXT.md
+          if-no-files-found: error
+          retention-days: 3
+
+# Pre-freeze development evidence only. This workflow neither freezes nor qualifies/publishes Manager 4.17.12.
