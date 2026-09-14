@@ -44,6 +44,26 @@ $boolCount=[regex]::Matches($text,[regex]::Escape($oldBool)).Count
 if($boolCount-ne1){throw('R1 AST boolean-normalization token count='+$boolCount)}
 $text=$text.Replace($oldBool,$newBool)
 
+# development-validation.yml is published as a separate CI-only commit because the Actions
+# token cannot update workflow files. Keep the materializer transactional by validating the
+# already-published trigger paths instead of rewriting the workflow in the product commit.
+$oldWorkflow=@'
+# Keep workflow triggering complete for future policy-only changes.
+$workflowPath=Join-Path $RepositoryRoot '.github\workflows\development-validation.yml';$wf=[IO.File]::ReadAllText($workflowPath,[Text.Encoding]::UTF8)
+$wf=Replace-Once $wf "      - 'tools/Invoke-Manager41712ReviewRegression.ps1'" "      - 'tools/Invoke-Manager41712ReviewRegression.ps1'`n      - 'tools/Invoke-ManagerRecoveryBehaviorRegression.ps1'`n      - 'tools/Invoke-Manager41713ReviewRegression.ps1'`n      - 'tools/Test-ManagerEntryReachabilityKnowledge.ps1'`n      - 'tools/Test-ManagerEntryPolicyCompleteness.ps1'`n      - 'tools/Invoke-ManagerEntryReachabilityMatrix.ps1'" 'development workflow policy paths'
+Write-Utf8 $workflowPath $wf
+'@
+$newWorkflow=@'
+# Workflow trigger wiring is a separately published development-CI commit. Validate exact
+# required paths here so the product materialization cannot silently rely on stale CI coverage.
+$workflowPath=Join-Path $RepositoryRoot '.github\workflows\development-validation.yml';$wf=[IO.File]::ReadAllText($workflowPath,[Text.Encoding]::UTF8)
+foreach($requiredWorkflowPath in @('tools/Invoke-ManagerRecoveryBehaviorRegression.ps1','tools/Invoke-Manager41713ReviewRegression.ps1','tools/Test-ManagerEntryReachabilityKnowledge.ps1','tools/Test-ManagerEntryPolicyCompleteness.ps1','tools/Invoke-ManagerEntryReachabilityMatrix.ps1')){if(-not$wf.Contains("      - '"+$requiredWorkflowPath+"'")){Fail('Development validation workflow missing required path trigger: '+$requiredWorkflowPath)}}
+'@
+$oldWorkflow=$oldWorkflow.Trim();$newWorkflow=$newWorkflow.Trim()
+$workflowBlockCount=[regex]::Matches($text,[regex]::Escape($oldWorkflow)).Count
+if($workflowBlockCount-ne1){throw('R1 workflow-publication block count='+$workflowBlockCount)}
+$text=$text.Replace($oldWorkflow,$newWorkflow)
+
 # Historical executable regressions remain applicable to 4.17.13. Extend only their
 # release-identity guards; the behavioral assertions themselves are unchanged.
 $r41710=Join-Path $RepositoryRoot 'tools\Invoke-Manager41710ReviewRegression.ps1'
