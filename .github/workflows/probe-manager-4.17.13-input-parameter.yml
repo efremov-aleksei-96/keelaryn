@@ -1,0 +1,34 @@
+name: Probe Manager 4.17.13 input parameter collision
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/probe-manager-4.17.13-input-parameter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-2025
+    steps:
+      - name: Probe Windows PowerShell 5.1 input parameter collision
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          function Get-ProbeIdentity($Input) {
+            Write-Host ('PARAM_TYPE='+$(if($null-eq$Input){'<null>'}else{$Input.GetType().FullName}))
+            Write-Host ('PARAM_HAS_FILE='+($null-ne$Input.PSObject.Properties['File']))
+            Write-Host ('PARAM_FILE='+[string]$Input.File)
+            return [pscustomobject]@{HasFile=($null-ne$Input.PSObject.Properties['File']);File=[string]$Input.File;Type=$(if($null-eq$Input){'<null>'}else{$Input.GetType().FullName})}
+          }
+          $descriptor=[pscustomobject]@{File='sentinel';Kind='hub_zip'}
+          $result=Get-ProbeIdentity $descriptor
+          Write-Host ('RESULT_TYPE='+$result.Type)
+          Write-Host ('RESULT_HAS_FILE='+$result.HasFile)
+          Write-Host ('RESULT_FILE='+$result.File)
+          if(-not$result.HasFile){throw '$Input parameter was replaced by the automatic input enumerator.'}
+          if([string]$result.File-cne'sentinel'){throw '$Input parameter did not preserve descriptor.'}
