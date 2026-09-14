@@ -17,6 +17,11 @@
       "description": "A recovery operation requires successful validation of the state it is intended to bypass, replace or repair."
     },
     {
+      "id": "RC-ENTRY-001",
+      "title": "Process-entry lifecycle composition is not exercised end to end",
+      "description": "A function, frontend surface or local transaction is correct in isolation, but an earlier or later startup/resolution/reconciliation/gating/dispatch/outcome stage changes reachability or semantics. Function-level/static coverage passes because the complete real process-entry path and degraded-state composition are not executed."
+    },
+    {
       "id": "RC-REACHABILITY-001",
       "title": "State reachability changes across global/per-instance transition",
       "description": "A layout or ownership transition changes which pending inputs/state are discoverable without migration, rejection or explicit fail-closed handling."
