@@ -53,10 +53,11 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $root=Join-Path $env:RUNNER_TEMP 'gate-r2'
-          New-Item -ItemType Directory -Force -Path $root|Out-Null
-          Expand-Archive -LiteralPath $env:GATE_PATH -DestinationPath $root -Force
-          $mgr=Join-Path $root 'manager-4.17.12'
+          $keelaryn=Join-Path $env:RUNNER_TEMP 'keelaryn'
+          $work=Join-Path $keelaryn 'tests\work'
+          New-Item -ItemType Directory -Force -Path $work|Out-Null
+          Expand-Archive -LiteralPath $env:GATE_PATH -DestinationPath $work -Force
+          $mgr=Join-Path $work 'manager-4.17.12'
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $mgr 'gate\Run-KeelarynManagerSourceGate.ps1') -ManagerRoot $mgr
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           Write-Host 'GATE R2 SOURCE QUALIFICATION: PASS' -ForegroundColor Green
