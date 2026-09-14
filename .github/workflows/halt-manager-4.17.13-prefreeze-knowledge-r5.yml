@@ -1,0 +1,22 @@
+name: Halt superseded Manager 4.17.13 prefreeze knowledge r5
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/halt-manager-4.17.13-prefreeze-knowledge-r5.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-4.17.13-prefreeze-knowledge-r5
+  cancel-in-progress: true
+
+jobs:
+  halt:
+    runs-on: windows-2025
+    steps:
+      - shell: powershell
+        run: Write-Host 'R5 superseded before publication by risk-map/state-machine traceability audit.'
