@@ -1,0 +1,72 @@
+name: Confirm Manager 4.17.12 P1 recovery shadow blocker
+
+on:
+  push:
+    branches:
+      - 'maintenance/confirm-manager-4.17.12-p1-recovery-shadow'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  confirm:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Confirm exact frozen-parent scope and blocker reachability
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          Set-StrictMode -Version 2.0
+          $expectedParent='3dde367f1bd83f661bd29c75912732e9f92efa02'
+          $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant()
+          if($parent -cne $expectedParent){throw "Unexpected parent: $parent"}
+          $changed=@(git diff --name-only $expectedParent HEAD)
+          $expected='.github/workflows/confirm-manager-4.17.12-p1-recovery-shadow.yml'
+          if($changed.Count-ne1 -or $changed[0] -cne $expected){throw ('Confirmation commit changed unexpected files: '+($changed -join ', '))}
+
+          $runtimePath=Join-Path $env:GITHUB_WORKSPACE 'manager\product\runtime\Keelaryn__Manager.ps1'
+          $runtime=[IO.File]::ReadAllText($runtimePath,[Text.Encoding]::UTF8)
+          if($runtime -notmatch '(?m)^\$ManagerVersion = "4\.17\.12"$'){throw 'Frozen runtime is not Manager 4.17.12.'}
+
+          $tokens=$null;$errors=$null
+          $ast=[Management.Automation.Language.Parser]::ParseFile($runtimePath,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw ('Runtime parser errors: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+          function Fn([string]$name){
+            $rows=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]},$true)|Where-Object{$_.Name-ceq$name})
+            if($rows.Count-ne1){throw "Function $name count=$($rows.Count)"}
+            return [string]$rows[0].Extent.Text
+          }
+
+          $resolve=Fn 'Resolve-RegisteredInstanceContextEarly'
+          foreach($required in @('Read-InstanceRegistryEarly','Read-ActiveInstanceEarly','Assert-RegisteredVaultStructuralSafetyEarly','$TestHubCandidate','$ReadBoundInstanceId','$script:InstanceRegistryActive=$true')){
+            if(-not$resolve.Contains($required)){throw "Early resolver missing expected token: $required"}
+          }
+          foreach($forbidden in @('Get-CompatibilityShadowAssessment','Invoke-ReconcileActiveCompatibilityShadow','Assert-RegisteredInstanceBaseline','$script:CurrentZip')){
+            if($resolve.Contains($forbidden)){throw "Early resolver unexpectedly validates compatibility baseline: $forbidden"}
+          }
+
+          $reconcile=Fn 'Invoke-ReconcileActiveCompatibilityShadow'
+          foreach($required in @('Get-ManagerActiveInstance','Get-CompatibilityShadowAssessment','Publish-CompatibilityShadowFromRegisteredInstance')){
+            if(-not$reconcile.Contains($required)){throw "Reconcile function missing expected token: $required"}
+          }
+
+          $guard='if($script:InstanceRegistryActive -and -not$Doctor)'
+          $guardIndex=$runtime.IndexOf($guard,[StringComparison]::Ordinal)
+          if($guardIndex-lt0){throw 'Pre-dispatch compatibility reconciliation guard not found.'}
+          $switchIndex=$runtime.IndexOf('elseif ($SwitchInstanceId)',[StringComparison]::Ordinal)
+          $bindIndex=$runtime.IndexOf('elseif ($BindInstancePath)',[StringComparison]::Ordinal)
+          if($switchIndex-lt0 -or $bindIndex-lt0){throw 'Recovery dispatch branches not found.'}
+          if($guardIndex-ge$switchIndex -or $guardIndex-ge$bindIndex){throw 'Compatibility reconciliation is not pre-dispatch; review claim no longer applies.'}
+
+          $guardSlice=$runtime.Substring($guardIndex,[Math]::Min(350,$runtime.Length-$guardIndex))
+          if($guardSlice.Contains('$SwitchInstanceId') -or $guardSlice.Contains('$BindInstancePath')){throw 'Recovery actions are already excluded from pre-dispatch reconciliation; review claim does not apply.'}
+
+          Write-Host 'CONFIRMED P1: structurally valid active registry context can reach compatibility-shadow reconciliation before SwitchInstanceId/BindInstancePath dispatch, while early resolution does not validate CURRENT/checkpoint availability.' -ForegroundColor Green
+          Write-Host 'Frozen Manager 4.17.12 product bytes were not modified by this confirmation.' -ForegroundColor Green
