@@ -1,4 +1,4 @@
-name: Manager 4.17.13 prefreeze product fix and proof r8
+name: Manager 4.17.13 prefreeze product fix and proof r8b
 
 on:
   push:
@@ -6,6 +6,9 @@ on:
       - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
     paths:
       - '.github/workflows/materialize-manager-4.17.13-prefreeze-product-r8.yml'
+      - 'tools/Materialize-Manager41713PrefreezeProductFixR8.ps1'
+      - 'tools/Materialize-Manager41713PrefreezeProductFixR8b.ps1'
+      - 'tools/Materialize-Manager41713PrefreezeKnowledgeR7d.ps1'
   workflow_dispatch:
 
 permissions:
@@ -20,7 +23,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 120
     steps:
-      - name: Checkout R8 and R7d materializers
+      - name: Checkout R8b and R7d materializers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: maintenance/prefreeze-review-fixes-4.17.13-r1
@@ -44,7 +47,7 @@ jobs:
           $fullSuccessorBase='bdd1fa38ce680304f59764ae7a9482d6b1728053'
           $target=Join-Path $env:GITHUB_WORKSPACE 'target'
           $tools=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools'
-          $productMaterializer=Join-Path $tools 'Materialize-Manager41713PrefreezeProductFixR8.ps1'
+          $productMaterializer=Join-Path $tools 'Materialize-Manager41713PrefreezeProductFixR8b.ps1'
           $knowledgeMaterializer=Join-Path $tools 'Materialize-Manager41713PrefreezeKnowledgeR7d.ps1'
           $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-prefreeze-product-r8'
           $productEvidence=Join-Path $evidence 'product-fix'
