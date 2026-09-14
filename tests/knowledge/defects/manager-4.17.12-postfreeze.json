@@ -1,0 +1,69 @@
+{
+  "schema": "keelaryn.manager-defects.v1",
+  "scope": "Post-freeze public-release review findings for Manager 4.17.12",
+  "defects": [
+    {
+      "id": "MGR-DEF-0030",
+      "title": "Pre-dispatch compatibility-shadow reconciliation blocks target-driven recovery before action dispatch",
+      "severity": "P1",
+      "status": "open",
+      "release_blocker": true,
+      "detected_in": "4.17.12",
+      "detected_stage": "public_release_pr_review",
+      "defect_class": "recovery reachability / startup action ordering",
+      "affected_surfaces": [
+        "S-RUNTIME-REGISTRY-RESOLUTION"
+      ],
+      "preconditions": "Multi-Hub registry is active; the selected old active Hub is structurally resolvable; its per-instance and compatibility CURRENT checkpoints are missing, corrupt or otherwise unusable; another healthy registered target exists; the invocation requests a target-driven recovery action such as SwitchInstanceId or BindInstancePath.",
+      "bad_behavior": "Early registry resolution can mark registry mode active without proving compatibility CURRENT health. Top-level startup then unconditionally invokes compatibility-shadow reconciliation before action dispatch for every non-Doctor action. Reconciliation fails on the broken old active CURRENT, so SwitchInstanceId/BindInstancePath/ListInstances and Manager-global actions can be blocked before reaching their own contracts even though recovery/global semantics are intended not to depend on the old active CURRENT.",
+      "root_cause": "The system proved recovery at function/UI boundaries but did not execute the complete process-entry -> early resolution -> compatibility handling -> action gating -> dispatch path for degraded active-CURRENT states. The engineering state model also lacked an explicit active-Hub-valid / active-CURRENT-invalid state, so diff/risk selection could not require this scenario. This repeats the reachability failure pattern already documented by MGR-DEF-0023, MGR-DEF-0024 and MGR-DEF-0026.",
+      "root_cause_classes": [
+        "RC-RECOVERY-001",
+        "RC-REACHABILITY-001"
+      ],
+      "violated_invariants": [
+        "MH-RECOVERY-001"
+      ],
+      "related_defects": [
+        "MGR-DEF-0023",
+        "MGR-DEF-0024",
+        "MGR-DEF-0026"
+      ],
+      "permanent_regressions": [],
+      "planned_regressions": [
+        "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
+      ],
+      "fixed_in": "",
+      "evidence": [
+        {
+          "type": "public_release_pr",
+          "id": "61"
+        },
+        {
+          "type": "pr_review_thread",
+          "id": "4002869913"
+        },
+        {
+          "type": "windows_confirmation_run",
+          "id": "34816733121"
+        },
+        {
+          "type": "rejected_frozen_candidate_commit",
+          "id": "3dde367f1bd83f661bd29c75912732e9f92efa02"
+        },
+        {
+          "type": "rejected_publication_head",
+          "id": "bdd1fa38ce680304f59764ae7a9482d6b1728053"
+        },
+        {
+          "type": "source_symbol",
+          "id": "Invoke-ReconcileActiveCompatibilityShadow"
+        },
+        {
+          "type": "source_boundary",
+          "id": "top-level pre-dispatch reconciliation before SwitchInstanceId/BindInstancePath"
+        }
+      ]
+    }
+  ]
+}
