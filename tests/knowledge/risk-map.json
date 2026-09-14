@@ -59,7 +59,15 @@
                                                      "R-CURRENT-MISSING-BIND",
                                                      "R-CURRENT-CORRUPT-BIND",
                                                      "R-CURRENT-MISSING-UPDATE-MANAGER",
-                                                     "R-CURRENT-CORRUPT-UPDATE-MANAGER"
+                                                     "R-CURRENT-CORRUPT-UPDATE-MANAGER",
+                                                     "R-INACTIVE-CORRUPT-SWITCH",
+                                                     "R-INACTIVE-MISSING-SWITCH",
+                                                     "R-MISMATCH-SWITCH",
+                                                     "R-NONAPPROVED-SWITCH",
+                                                     "R-POSTCOMMIT-SWITCH",
+                                                     "R-REGISTRY-DOCUMENT-INVALID-LIST",
+                                                     "R-SINGLE-BIND",
+                                                     "R-CURRENT-DEGRADED-INIT"
                                                  ]
                      },
                      {
@@ -148,7 +156,9 @@
                          "state_machine_rules":  [
                                                      "R-UPDATE-RESTART-ALL",
                                                      "R-DEFAULT-UPDATE-MANAGER",
-                                                     "R-DEFAULT-UPDATE-ALL"
+                                                     "R-DEFAULT-UPDATE-ALL",
+                                                     "R-BROKEN-ACTIVE-UPDATE-ALL-CORRUPT",
+                                                     "R-BROKEN-ACTIVE-UPDATE-ALL-MISSING"
                                                  ]
                      },
                      {
@@ -226,7 +236,8 @@
                                                      "R-SINGLE-PENDING-INIT",
                                                      "R-REGISTRY-GLOBAL-PENDING-HUB-OPS",
                                                      "R-REGISTRY-GLOBAL-PENDING-DOCTOR",
-                                                     "R-REGISTRY-INSTANCE-PENDING-UPDATE"
+                                                     "R-REGISTRY-INSTANCE-PENDING-UPDATE",
+                                                     "R-REGISTRY-GLOBAL-PENDING-INIT"
                                                  ]
                      },
                      {

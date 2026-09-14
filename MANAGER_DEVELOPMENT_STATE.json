@@ -62,7 +62,7 @@
                                                       "multi_hub_activated":  false
                                                   },
                           "successor_4_17_13":  {
-                                                    "status":  "materialized_unqualified_development_entry_policy_hardening",
+                                                    "status":  "materialized_unqualified_development_prefreeze_knowledge_hardening",
                                                     "development_base":  "bdd1fa38ce680304f59764ae7a9482d6b1728053",
                                                     "candidate_issued":  false,
                                                     "framework_revision":  24,
@@ -77,11 +77,12 @@
                                                                                    "draft_prefreeze_semantic_PR_review_on_exact_product_tree",
                                                                                    "zero_unresolved_P1_P2_semantic_review_threads",
                                                                                    "adversarial_state_machine_review",
-                                                                                   "entry_policy_completeness_pass"
+                                                                                   "entry_policy_completeness_pass",
+                                                                                   "state_machine_entry_oracle_consistency_pass"
                                                                                ],
                                                     "process_entry_red_proof_run":  "34822083447",
                                                     "process_entry_red_proof_artifact":  "10338886824",
-                                                    "process_entry_green_proof":  "R5 requires 75-scenario exact-entry PASS plus 29-mode completeness guard"
+                                                    "process_entry_green_proof":  "R7 requires 101-scenario exact-entry PASS plus 29-mode completeness, state-machine/oracle consistency and complete non-default risk mapping"
                                                 }
                       },
     "production_policy":  {
@@ -118,7 +119,7 @@
                   },
     "next_exact_goal":  {
                             "id":  "MANAGER-41713-PREFREEZE-001",
-                            "description":  "Obtain exact-head Development Validation with 29-mode entry-policy completeness and 75-scenario process-entry PASS, then full-successor Risk/Defect Gate and semantic pre-freeze review.",
+                            "description":  "Obtain exact-head Development Validation with 29-mode entry-policy completeness, 101-scenario process-entry PASS, state-machine/oracle consistency and complete non-default state-machine risk mapping; then full-successor Risk/Defect Gate and semantic pre-freeze review.",
                             "product_fix_may_start_only_after_red_proof":  false,
                             "candidate_freeze_permitted":  false,
                             "multi_hub_activation_permitted":  false

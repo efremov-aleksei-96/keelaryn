@@ -9,7 +9,7 @@
                                "revision":  "development",
                                "frozen_commit":  null,
                                "frozen_tree":  null,
-                               "validated_development_parent":  "6023c4cf505393820bc803a765e0744eefbabda5",
+                               "validated_development_parent":  "f2ed168400cc27e89fc10941358d1aa3f8479a4b",
                                "immutable":  false,
                                "product_bytes_changed_after_freeze":  false
                            },
@@ -130,7 +130,7 @@
                                                                "status":  "unqualified_development",
                                                                "candidate_issued":  false,
                                                                "entry_policy_modes":  29,
-                                                               "entry_reachability_scenarios":  75,
+                                                               "entry_reachability_scenarios":  101,
                                                                "exact_head_validation":  "required_before_freeze",
                                                                "prefreeze_product_fix":  {
                                                                                              "defect_id":  "MGR-DEF-0031",
@@ -143,7 +143,9 @@
                                                                                              "root_cause_probe_job_id":  103997985944,
                                                                                              "fix":  "Get-GlobalHubInputIdentity parameter renamed from automatic-variable collision $Input to $Descriptor",
                                                                                              "exact_green_requalification":  "required_before_freeze"
-                                                                                         }
+                                                                                         },
+                                                               "state_machine_entry_oracle_consistency":  "required_before_freeze",
+                                                               "nondefault_state_machine_risk_mapping":  "required_before_freeze"
                                                            }
                                },
     "publication_status":  {

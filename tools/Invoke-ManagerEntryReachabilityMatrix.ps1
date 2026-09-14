@@ -92,7 +92,9 @@ foreach($req in @($model.coverage_requirements)){
     foreach($sid0 in @($req.states)){
         foreach($aid0 in @($req.actions)){
             $ordinal++;$sid=[string]$sid0;$aid=[string]$aid0
-            [void]$scenarioSpecs.Add([pscustomobject]@{Id=('ER-{0:D3}' -f $ordinal);Requirement=[string]$req.id;State=$sid;Action=$aid;Mode=[string]$actionById[$aid].expected_mode})
+            $mode=[string]$actionById[$aid].expected_mode
+            if($null-ne$req.PSObject.Properties['expected_mode']-and-not[string]::IsNullOrWhiteSpace([string]$req.expected_mode)){$mode=[string]$req.expected_mode}
+            [void]$scenarioSpecs.Add([pscustomobject]@{Id=('ER-{0:D3}' -f $ordinal);Requirement=[string]$req.id;State=$sid;Action=$aid;Mode=$mode})
         }
     }
 }
@@ -101,7 +103,7 @@ $sourceManager=Join-Path $RepositoryRoot 'manager'
 $tempRoot=Join-Path ([IO.Path]::GetTempPath()) ('keelaryn-entry-reachability-'+[guid]::NewGuid().ToString('N'))
 $keelarynRoot=Join-Path $tempRoot 'keelaryn';$managerRoot=Join-Path $keelarynRoot 'manager'
 $configA=Join-Path $tempRoot 'alpha.json';$configB=Join-Path $tempRoot 'beta.json'
-$results=New-Object System.Collections.ArrayList;$version='unknown';$harnessError=$null
+$results=New-Object System.Collections.ArrayList;$version='unknown';$harnessError=$null;$successor=$null
 if([string]::IsNullOrWhiteSpace($OutputPath)){$OutputPath=Join-Path ([IO.Path]::GetTempPath()) ('ENTRY_REACHABILITY_RESULT_'+[guid]::NewGuid().ToString('N')+'.json')}
 
 try{
@@ -122,6 +124,7 @@ try{
     if($alpha.Count-ne1-or$beta.Count-ne1){Fail 'Could not resolve Alpha/Beta registry rows.'};$alpha=$alpha[0];$beta=$beta[0]
     $alphaId=[string]$alpha.instance_id;$betaId=[string]$beta.instance_id;$alphaPath=[string]$alpha.vault_path;$betaPath=[string]$beta.vault_path
     $stateRoot=Join-Path $managerRoot 'state';$alphaCurrent=Join-Path $stateRoot ('instances\'+$alphaId+'\baseline\Keelaryn__Hub_CURRENT.zip');$legacyCurrent=Join-Path $stateRoot 'baseline\Keelaryn__Hub_CURRENT.zip';$activeFile=Join-Path $stateRoot 'active_instance.json'
+    $globalInbox=Join-Path $stateRoot 'inbox';$alphaInbox=Join-Path $stateRoot ('instances\'+$alphaId+'\inbox')
     foreach($p in @($alphaCurrent,$legacyCurrent,$activeFile)){if(-not(Test-Path -LiteralPath $p -PathType Leaf)){Fail('Required initialized state missing: '+$p)}}
 
     # Build proof fixtures outside the tested installation. Bind uses a relocated copy with the same immutable instance_id;
@@ -137,7 +140,14 @@ try{
 
     function Reset-ScenarioBaseline {Copy-DirectoryExact $snapManager $managerRoot;Copy-DirectoryExact $snapAlpha $alphaPath;Copy-DirectoryExact $snapBeta $betaPath;Copy-DirectoryExact $snapBetaRelocated $betaRelocatedPath}
     function Apply-DegradedFixture([string]$Fixture){
+        $script:ScenarioPendingGlobalSource=$null;$script:ScenarioPendingGlobalTarget=$null;$script:ScenarioPendingGlobalSha=$null
         switch($Fixture){
+            'registry_document_invalid' {Write-Utf8 (Join-Path $stateRoot 'instances.json') '{ not-json'}
+            'registry_healthy' {}
+            'inactive_hub_missing' {Remove-Item -LiteralPath $betaPath -Recurse -Force}
+            'inactive_hub_corrupt' {$stateDoc=Join-Path $betaPath '_System\STATE.md';if(Test-Path -LiteralPath $stateDoc){Remove-Item -LiteralPath $stateDoc -Force}else{Fail('Beta structural marker missing before corruption fixture: '+$stateDoc)}}
+            'registry_pending_global' {$name='Keelaryn__Hub_APPROVED_entry-reachability.zip';$dst=Join-Path $globalInbox $name;Copy-Item -LiteralPath $alphaCurrent -Destination $dst -Force;$script:ScenarioPendingGlobalSource=$dst;$script:ScenarioPendingGlobalTarget=Join-Path $alphaInbox $name;$script:ScenarioPendingGlobalSha=(Get-FileHash -LiteralPath $dst -Algorithm SHA256).Hash.ToLowerInvariant()}
+            'registry_pending_instance' {$name='Keelaryn__Hub_APPROVED_entry-reachability.zip';Copy-Item -LiteralPath $alphaCurrent -Destination (Join-Path $alphaInbox $name) -Force}
             'active_metadata_invalid' {Write-Utf8 $activeFile '{ not-json'}
             'active_hub_missing' {Remove-Item -LiteralPath $alphaPath -Recurse -Force}
             'active_hub_corrupt' {$stateDoc=Join-Path $alphaPath '_System\STATE.md';if(Test-Path -LiteralPath $stateDoc){Remove-Item -LiteralPath $stateDoc -Force}else{Fail('Alpha structural marker missing before corruption fixture: '+$stateDoc)}}
@@ -182,10 +192,20 @@ try{
                 Copy-Item -LiteralPath ([string]$successor.Path) -Destination $updateInboxPath -Force
             }
             $alphaBefore=Get-TreeDigest $alphaPath;$betaBefore=Get-TreeDigest $betaPath;$betaRelocatedBefore=Get-TreeDigest $betaRelocatedPath
+            $registryControl=Join-Path $stateRoot 'instances.json'
+            $registryBefore=if(Test-Path -LiteralPath $registryControl -PathType Leaf){(Get-FileHash -LiteralPath $registryControl -Algorithm SHA256).Hash.ToLowerInvariant()}else{'missing'}
+            $activeBefore=if(Test-Path -LiteralPath $activeFile -PathType Leaf){(Get-FileHash -LiteralPath $activeFile -Algorithm SHA256).Hash.ToLowerInvariant()}else{'missing'}
+            $instancesStatePath=Join-Path $stateRoot 'instances';$compatBaselinePath=Join-Path $stateRoot 'baseline'
+            $instancesStateBefore=Get-TreeDigest $instancesStatePath;$compatBaselineBefore=Get-TreeDigest $compatBaselinePath
             $r=Invoke-Runtime $runtime (Get-ActionArguments $spec.Action);$exitCode=$r.ExitCode
             $hubsUnchanged=((Get-TreeDigest $alphaPath)-ceq$alphaBefore-and(Get-TreeDigest $betaPath)-ceq$betaBefore-and(Get-TreeDigest $betaRelocatedPath)-ceq$betaRelocatedBefore)
+            $registryAfter=if(Test-Path -LiteralPath $registryControl -PathType Leaf){(Get-FileHash -LiteralPath $registryControl -Algorithm SHA256).Hash.ToLowerInvariant()}else{'missing'}
+            $activeAfter=if(Test-Path -LiteralPath $activeFile -PathType Leaf){(Get-FileHash -LiteralPath $activeFile -Algorithm SHA256).Hash.ToLowerInvariant()}else{'missing'}
+            $controlStateUnchanged=($registryAfter-ceq$registryBefore-and$activeAfter-ceq$activeBefore)
+            $instancesStateAfter=Get-TreeDigest $instancesStatePath;$compatBaselineAfter=Get-TreeDigest $compatBaselinePath
+            $lifecycleStateUnchanged=($controlStateUnchanged-and$instancesStateAfter-ceq$instancesStateBefore-and$compatBaselineAfter-ceq$compatBaselineBefore)
             switch([string]$spec.Mode){
-                'list_success' {$pass=($r.ExitCode-eq0-and$r.Text.Contains('Registered Hubs:')-and$hubsUnchanged);$detail=if($pass){'real process entry reached registry listing without Hub mutation'}else{'listing unreachable/failed or Hub bytes changed: '+$r.Text}}
+                'list_success' {$pass=($r.ExitCode-eq0-and$r.Text.Contains('Registered Hubs:')-and$hubsUnchanged-and$lifecycleStateUnchanged);$detail=if($pass){'real process entry reached registry listing without Hub mutation'}else{'listing unreachable/failed or Hub bytes changed: '+$r.Text}}
                 'target_success' {
                     $activeOk=$false;$registryPathOk=$true
                     if($r.ExitCode-eq0){
@@ -204,14 +224,20 @@ try{
                 'global_success' {
                     if([string]$spec.Action-ceq'UpdateManager'){
                         $installed=(Get-InstalledManagerVersion $managerRoot);$restartObserved=$r.Text.Contains('Manager update: no newer valid Manager package was found.');$packageConsumed=(-not(Test-Path -LiteralPath $updateInboxPath -PathType Leaf))
-                        $pass=($r.ExitCode-eq0-and$hubsUnchanged-and$installed-ceq[string]$successor.Version-and$restartObserved-and$packageConsumed)
+                        $pass=($r.ExitCode-eq0-and$hubsUnchanged-and$lifecycleStateUnchanged-and$installed-ceq[string]$successor.Version-and$restartObserved-and$packageConsumed)
                         $detail=if($pass){'valid disposable successor installed, post-install self-test passed, restarted -UpdateManager reached completion, and Hub bytes stayed unchanged'}else{'real Manager install/restart proof failed; installed='+$installed+' restart='+$restartObserved+' package_consumed='+$packageConsumed+' output='+$r.Text}
+                    }elseif([string]$spec.Action-ceq'InitializeInstanceRegistry'){
+                        $pass=($r.ExitCode-eq0-and$hubsUnchanged-and$lifecycleStateUnchanged-and$r.Text.Contains('Multi-Hub registry is already initialized and valid.'))
+                        $detail=if($pass){'existing-registry initialization remained reachable and preserved Hub lifecycle state'}else{'existing-registry initialization did not reach intended idempotent/recovery success or mutated lifecycle state: '+$r.Text}
                     }else{
-                        $pass=($r.ExitCode-eq0-and$hubsUnchanged);$detail=if($pass){'Manager-global action completed independently of degraded Hub context'}else{'Manager-global action blocked/failed or mutated Hub bytes: '+$r.Text}
+                        $pass=($r.ExitCode-eq0-and$hubsUnchanged-and$lifecycleStateUnchanged);$detail=if($pass){'Manager-global action completed independently of degraded Hub context without Hub lifecycle mutation'}else{'Manager-global action blocked/failed or mutated Hub lifecycle state: '+$r.Text}
                     }
                 }
-                'diagnostic_reached' {$pass=($r.Text.Contains('Keelaryn Doctor - Manager')-and$hubsUnchanged);$detail=if($pass){'Doctor reached diagnostic body and left Hub bytes unchanged; exit='+$r.ExitCode}else{'Doctor was blocked before diagnostic body or mutated Hub bytes: '+$r.Text}}
-                'fail_closed' {$pass=($r.ExitCode-ne0-and$hubsUnchanged);$detail=if($pass){'Hub/context-bound action failed closed without Hub mutation'}else{'expected fail-closed outcome not observed: '+$r.Text}}
+                'diagnostic_reached' {$pass=($r.Text.Contains('Keelaryn Doctor - Manager')-and$hubsUnchanged-and$lifecycleStateUnchanged);$detail=if($pass){'Doctor reached diagnostic body and preserved Hub lifecycle state; exit='+$r.ExitCode}else{'Doctor was blocked before diagnostic body or mutated Hub lifecycle state: '+$r.Text}}
+                'registry_document_rejected_after_dispatch' {$startupBlocked=$r.Text.Contains('Invalid Keelaryn multi-Hub registry:');$operationReached=$r.Text.Contains('Manager instance registry JSON is invalid:');$pass=($r.ExitCode-ne0-and$hubsUnchanged-and$lifecycleStateUnchanged-and-not$startupBlocked-and$operationReached);$detail=if($pass){'unsafe registry passed startup allow-dispatch, reached action-level parsing, and was rejected without lifecycle mutation'}else{'action-level unsafe-registry rejection was not proven, startup blocked first, or state mutated: '+$r.Text}}
+                'registry_init_rejected_after_dispatch' {$reached=$r.Text.Contains('Existing multi-Hub registry is invalid:');$pass=($r.ExitCode-ne0-and$hubsUnchanged-and$lifecycleStateUnchanged-and$reached);$detail=if($pass){'InitializeInstanceRegistry reached its existing-registry validator and rejected invalid authoritative registry state without mutation'}else{'registry initialization was blocked before operation-specific validation, succeeded unexpectedly, or mutated state: '+$r.Text}}
+                'registry_init_reconciles_global_input' {$sourceConsumed=($script:ScenarioPendingGlobalSource-and-not(Test-Path -LiteralPath $script:ScenarioPendingGlobalSource -PathType Leaf));$targetOk=$false;if($script:ScenarioPendingGlobalTarget-and(Test-Path -LiteralPath $script:ScenarioPendingGlobalTarget -PathType Leaf)){$targetOk=((Get-FileHash -LiteralPath $script:ScenarioPendingGlobalTarget -Algorithm SHA256).Hash.ToLowerInvariant()-ceq[string]$script:ScenarioPendingGlobalSha)};$pass=($r.ExitCode-eq0-and$hubsUnchanged-and$controlStateUnchanged-and$compatBaselineAfter-ceq$compatBaselineBefore-and$sourceConsumed-and$targetOk-and$r.Text.Contains('Reconciled 1 identity-bound Hub input(s)'));$detail=if($pass){'InitializeInstanceRegistry moved the validated identity-bound global input into the active registered per-instance inbox while preserving registry/active/baseline state'}else{'pending-global Initialize reconciliation proof failed: '+$r.Text}}
+                'fail_closed' {$pass=($r.ExitCode-ne0-and$hubsUnchanged-and$lifecycleStateUnchanged);$detail=if($pass){'Hub/context-bound action failed closed without Hub lifecycle mutation'}else{'expected fail-closed lifecycle outcome not observed: '+$r.Text}}
                 default {Fail('Unsupported expected mode: '+[string]$spec.Mode)}
             }
         }catch{
@@ -223,8 +249,9 @@ try{
 }catch{$harnessError=$_.Exception.Message;Write-Host ('ENTRY MATRIX HARNESS ERROR: '+$harnessError) -ForegroundColor Red}
 
 $failed=@($results|Where-Object{-not[bool]$_.pass})
+$syntheticSuccessorVersion=if($null-ne$successor){[string]$successor.Version}else{''}
 $report=[ordered]@{
-    schema='keelaryn.manager-entry-reachability-result.v2';manager_version=$version;model_sha256=$modelSha;scenario_count=@($scenarioSpecs).Count;executed_count=@($results).Count;pass=($null-eq$harnessError-and$failed.Count-eq0);harness_error=$harnessError;failures=@($failed|ForEach-Object{[string]$_.id});scenarios=@($results);production_hub_used=$false;scenario_reset='direct_external_full_manager_and_hub_snapshot_restore';transactional_proof_revision=2;synthetic_successor_version=[string]$successor.Version;completed_utc=[DateTime]::UtcNow.ToString('o')
+    schema='keelaryn.manager-entry-reachability-result.v2';manager_version=$version;model_sha256=$modelSha;scenario_count=@($scenarioSpecs).Count;executed_count=@($results).Count;pass=($null-eq$harnessError-and$failed.Count-eq0);harness_error=$harnessError;failures=@($failed|ForEach-Object{[string]$_.id});scenarios=@($results);production_hub_used=$false;scenario_reset='direct_external_full_manager_and_hub_snapshot_restore';transactional_proof_revision=4;synthetic_successor_version=$syntheticSuccessorVersion;completed_utc=[DateTime]::UtcNow.ToString('o')
 }
 try{Write-Json $OutputPath $report;Write-Host ('Evidence: '+$OutputPath)}catch{Write-Host ('Could not write entry-reachability evidence: '+$_.Exception.Message) -ForegroundColor Red;if(-not$harnessError){$harnessError=$_.Exception.Message}}
 try{if(Test-Path -LiteralPath $tempRoot){Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction Stop}}catch{Write-Warning('Disposable cleanup failed: '+$_.Exception.Message)}

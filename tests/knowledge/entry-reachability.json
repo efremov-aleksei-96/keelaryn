@@ -26,6 +26,36 @@
                        "id":  "REGISTRY_ACTIVE_CURRENT_CORRUPT",
                        "fixture":  "active_current_corrupt",
                        "description":  "Registry, active selection and active Hub are structurally valid, but both old-active CURRENT checkpoints are unreadable/corrupt."
+                   },
+                   {
+                       "id":  "REGISTRY_DOCUMENT_INVALID",
+                       "fixture":  "registry_document_invalid",
+                       "description":  "instances.json exists but the authoritative registry document is malformed and unsafe to resolve."
+                   },
+                   {
+                       "id":  "REGISTRY_HEALTHY",
+                       "fixture":  "registry_healthy",
+                       "description":  "Registry document, active selection, active Hub and CURRENT are healthy."
+                   },
+                   {
+                       "id":  "REGISTRY_INACTIVE_HUB_MISSING",
+                       "fixture":  "inactive_hub_missing",
+                       "description":  "Active Hub is healthy while an inactive registered Hub path is missing."
+                   },
+                   {
+                       "id":  "REGISTRY_INACTIVE_HUB_CORRUPT",
+                       "fixture":  "inactive_hub_corrupt",
+                       "description":  "Active Hub is healthy while an inactive registered Hub is structurally corrupt."
+                   },
+                   {
+                       "id":  "REGISTRY_PENDING_GLOBAL",
+                       "fixture":  "registry_pending_global",
+                       "description":  "Registry is healthy while a valid identity-bound Hub input is stranded in the global Manager inbox."
+                   },
+                   {
+                       "id":  "REGISTRY_PENDING_INSTANCE",
+                       "fixture":  "registry_pending_instance",
+                       "description":  "Registry is healthy while a valid Hub input is already pending in the active per-instance inbox."
                    }
                ],
     "actions":  [
@@ -255,7 +285,102 @@
                                                       "RestoreCandidateTransport",
                                                       "InitializeInstanceRegistry"
                                                   ]
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-INIT-INVALID-ACTIVE",
+                                      "states":  [
+                                                     "REGISTRY_ACTIVE_METADATA_INVALID",
+                                                     "REGISTRY_ACTIVE_HUB_MISSING",
+                                                     "REGISTRY_ACTIVE_HUB_CORRUPT"
+                                                 ],
+                                      "actions":  [
+                                                      "InitializeInstanceRegistry"
+                                                  ],
+                                      "expected_mode":  "registry_init_rejected_after_dispatch"
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-GLOBAL",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "UpdateManager",
+                                                      "BuildDistribution",
+                                                      "BuildRelease",
+                                                      "BuildAIContext",
+                                                      "SelfTest",
+                                                      "PrepareTests",
+                                                      "InitializePresentation",
+                                                      "FinalizeFilesystemLayout"
+                                                  ]
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-DOCTOR",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "Doctor"
+                                                  ]
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-RECOVERY",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "ListInstances",
+                                                      "SwitchInstance",
+                                                      "BindInstance"
+                                                  ],
+                                      "expected_mode":  "registry_document_rejected_after_dispatch"
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-INIT",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "InitializeInstanceRegistry"
+                                                  ],
+                                      "expected_mode":  "registry_init_rejected_after_dispatch"
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-BOUND",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "UpdateHub",
+                                                      "UpdateAll",
+                                                      "RepairCurrent",
+                                                      "BuildCandidateTransport",
+                                                      "RestoreCandidateTransport"
+                                                  ]
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-INIT-VALID-EXISTING",
+                                      "states":  [
+                                                     "REGISTRY_HEALTHY",
+                                                     "REGISTRY_INACTIVE_HUB_MISSING",
+                                                     "REGISTRY_INACTIVE_HUB_CORRUPT",
+                                                     "REGISTRY_PENDING_INSTANCE"
+                                                 ],
+                                      "actions":  [
+                                                      "InitializeInstanceRegistry"
+                                                  ],
+                                      "expected_mode":  "global_success"
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-INIT-PENDING-GLOBAL",
+                                      "states":  [
+                                                     "REGISTRY_PENDING_GLOBAL"
+                                                 ],
+                                      "actions":  [
+                                                      "InitializeInstanceRegistry"
+                                                  ],
+                                      "expected_mode":  "registry_init_reconciles_global_input"
                                   }
                               ],
-    "freeze_rule":  "Every pair generated by coverage_requirements must execute through the real Manager process entry on a disposable Windows installation. Every compatibility-shadow bypass action must have executable entry coverage. Any new PrimaryModeCount action absent from manager-entry-policy.json is a release blocker. A scenario harness may not restore state through the same runtime path under test and must publish a result record even when setup or cleanup fails. BindInstance coverage must execute a changed-path rebind transaction and assert the new registry path is committed without Manager-driven Hub-byte movement or cloning. UpdateManager coverage must seed a newer valid disposable Manager package and assert the successor is installed, self-test succeeds, and the restarted -UpdateManager process reaches its post-install no-newer-package completion path."
+    "freeze_rule":  "Every pair generated by coverage_requirements must execute through the real Manager process entry on a disposable Windows installation. Every compatibility-shadow bypass action must have executable entry coverage. Any new PrimaryModeCount action absent from manager-entry-policy.json is a release blocker. A scenario harness may not restore state through the same runtime path under test and must publish a result record even when setup or cleanup fails. BindInstance coverage must execute a changed-path rebind transaction and assert the new registry path is committed without Manager-driven Hub-byte movement or cloning. UpdateManager coverage must seed a newer valid disposable Manager package and assert the successor is installed, self-test succeeds, and the restarted -UpdateManager process reaches its post-install no-newer-package completion path. InitializeInstanceRegistry invalid-active coverage must prove operation-specific rejection after real process-entry dispatch. REGISTRY_DOCUMENT_INVALID must cover every modeled entry action; List/Switch/Bind must prove action-level registry reparsing while unsafe rows never become recovery targets. Existing-registry Initialize semantics for healthy, inactive-degraded, CURRENT-degraded, pending-instance and pending-global states must execute through real process entry; pending-global must prove identity-bound transfer into the registered per-instance inbox. Rejected and non-target scenarios must preserve authoritative Hub lifecycle state unless the modeled operation explicitly performs the pending-global inbox handoff. Entry-oracle InitializeInstanceRegistry expectations must resolve consistently with the canonical multi-Hub state machine."
 }

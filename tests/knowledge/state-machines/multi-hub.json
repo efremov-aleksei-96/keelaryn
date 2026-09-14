@@ -305,7 +305,10 @@
                   {
                       "id":  "R-REGISTRY-INIT-IDEMPOTENT",
                       "states":  [
-                                     "REGISTRY_HEALTHY"
+                                     "REGISTRY_HEALTHY",
+                                     "REGISTRY_INACTIVE_HUB_MISSING",
+                                     "REGISTRY_INACTIVE_HUB_CORRUPT",
+                                     "REGISTRY_PENDING_INSTANCE"
                                  ],
                       "operation":  "InitializeRegistry",
                       "priority":  100,
@@ -313,7 +316,7 @@
                       "invariants":  [
                                          "MH-REGISTRY-001"
                                      ],
-                      "reason":  "Existing registry may report already initialized only after registry and active selection fully resolve."
+                      "reason":  "An existing structurally valid registry may report initialized when active selection resolves; inactive-Hub degradation or instance-owned pending input does not invalidate registry initialization state."
                   },
                   {
                       "id":  "R-INVALID-REGISTRY-INIT",
@@ -1005,6 +1008,36 @@
                                          "MH-RECOVERY-001"
                                      ],
                       "reason":  "Manager-global update must remain reachable without active Hub CURRENT health."
+                  },
+                  {
+                      "id":  "R-CURRENT-DEGRADED-INIT",
+                      "states":  [
+                                     "REGISTRY_ACTIVE_CURRENT_MISSING",
+                                     "REGISTRY_ACTIVE_CURRENT_CORRUPT"
+                                 ],
+                      "operation":  "InitializeRegistry",
+                      "priority":  210,
+                      "outcome":  "existing_registry_valid_without_old_current_dependency",
+                      "invariants":  [
+                                         "MH-REGISTRY-001",
+                                         "MH-RECOVERY-001"
+                                     ],
+                      "reason":  "Existing-registry initialization validates registry and active selection but does not consume old active CURRENT; CURRENT recovery remains a separate lifecycle operation."
+                  },
+                  {
+                      "id":  "R-REGISTRY-GLOBAL-PENDING-INIT",
+                      "states":  [
+                                     "REGISTRY_PENDING_GLOBAL"
+                                 ],
+                      "operation":  "InitializeRegistry",
+                      "priority":  180,
+                      "outcome":  "reconcile_identity_bound_global_inputs_then_report_initialized",
+                      "invariants":  [
+                                         "MH-INBOX-001",
+                                         "MH-REGISTRY-001",
+                                         "MH-REACHABILITY-001"
+                                     ],
+                      "reason":  "InitializeRegistry is the explicit recovery path for identity-bound Hub inputs stranded in the global Manager inbox after registry activation."
                   }
               ]
 }

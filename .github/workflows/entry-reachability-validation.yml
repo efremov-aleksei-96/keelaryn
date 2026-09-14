@@ -8,6 +8,7 @@ on:
       - 'manager/**'
       - 'tests/knowledge/entry-reachability.json'
       - 'tests/knowledge/invariants/multi-hub.json'
+      - 'tests/knowledge/state-machines/multi-hub.json'
       - 'tools/Test-ManagerEntryReachabilityKnowledge.ps1'
       - 'tools/Invoke-ManagerEntryReachabilityMatrix.ps1'
       - '.github/workflows/entry-reachability-validation.yml'
