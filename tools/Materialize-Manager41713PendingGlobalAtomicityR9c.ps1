@@ -16,12 +16,17 @@ $targets=@()
 for($i=0;$i-lt$lines.Count;$i++){if(([string]$lines[$i]).Contains("'R9 validator state-machine outcome'")){$targets+=@($i)}}
 if($targets.Count-ne1){Fail('R9c source marker count='+$targets.Count)}
 $idx=[int]$targets[0]
-$replacement=@(
-    '$oldOutcomeAnchor="    else{Fail(''Covered Initialize pair has unsupported cross-model mode ''+$mode+'' for ''+$sid)}"',
-    '$newOutcomeAnchor="    elseif($mode-ceq''registry_init_mixed_invalid_rejected_without_partial_handoff''){if($outcome-cne''reject_fail_closed''){Fail(''Mixed-invalid pending-global Initialize oracle/state-machine mismatch: ''+$outcome)}}`r`n    else{Fail(''Covered Initialize pair has unsupported cross-model mode ''+$mode+'' for ''+$sid)}"',
-    'if(-not$v.Contains($oldOutcomeAnchor)){$oldOutcomeAnchor=$oldOutcomeAnchor.Replace("`r`n","`n");$newOutcomeAnchor=$newOutcomeAnchor.Replace("`r`n","`n")}',
-    '$v=Replace-Once $v $oldOutcomeAnchor $newOutcomeAnchor ''R9 validator state-machine outcome'''
-)
+
+# The generated inner materializer must preserve $mode/$sid/$outcome as literal target-source
+# text. A single-quoted outer here-string avoids a second interpolation layer under StrictMode.
+$replacementText=@'
+$oldOutcomeAnchor='    else{Fail(''Covered Initialize pair has unsupported cross-model mode ''+$mode+'' for ''+$sid)}'
+$newOutcomeAnchor='    elseif($mode-ceq''registry_init_mixed_invalid_rejected_without_partial_handoff''){if($outcome-cne''reject_fail_closed''){Fail(''Mixed-invalid pending-global Initialize oracle/state-machine mismatch: ''+$outcome)}}'+"`r`n"+'    else{Fail(''Covered Initialize pair has unsupported cross-model mode ''+$mode+'' for ''+$sid)}'
+if(-not$v.Contains($oldOutcomeAnchor)){$oldOutcomeAnchor=$oldOutcomeAnchor.Replace("`r`n","`n");$newOutcomeAnchor=$newOutcomeAnchor.Replace("`r`n","`n")}
+$v=Replace-Once $v $oldOutcomeAnchor $newOutcomeAnchor 'R9 validator state-machine outcome'
+'@
+$replacement=@([regex]::Split($replacementText.TrimEnd("`r","`n"),'\r?\n'))
+
 $new=New-Object System.Collections.Generic.List[string]
 for($i=0;$i-lt$idx;$i++){$new.Add([string]$lines[$i])}
 foreach($line in $replacement){$new.Add([string]$line)}
