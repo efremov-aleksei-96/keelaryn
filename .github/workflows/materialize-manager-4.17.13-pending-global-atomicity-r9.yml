@@ -1,4 +1,4 @@
-name: Manager 4.17.13 pending-global atomicity fix r9b
+name: Manager 4.17.13 pending-global atomicity fix r9c
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     paths:
       - '.github/workflows/materialize-manager-4.17.13-pending-global-atomicity-r9.yml'
       - 'tools/Materialize-Manager41713PendingGlobalAtomicityR9.ps1'
-      - 'tools/Materialize-Manager41713PendingGlobalAtomicityR9b.ps1'
+      - 'tools/Materialize-Manager41713PendingGlobalAtomicityR9c.ps1'
   workflow_dispatch:
 
 permissions:
@@ -22,7 +22,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 120
     steps:
-      - name: Checkout R9b materializer
+      - name: Checkout R9c materializer
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: maintenance/prefreeze-review-fixes-4.17.13-r1
@@ -45,7 +45,7 @@ jobs:
           $base='c7cf09d7b0b87646b1235f09653dd470865bca81'
           $fullSuccessorBase='bdd1fa38ce680304f59764ae7a9482d6b1728053'
           $target=Join-Path $env:GITHUB_WORKSPACE 'target'
-          $materializer=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713PendingGlobalAtomicityR9b.ps1'
+          $materializer=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713PendingGlobalAtomicityR9c.ps1'
           $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-atomicity-r9'
           New-Item -ItemType Directory -Force -Path $evidence|Out-Null
           "KEELARYN_R9_EVIDENCE=$evidence" >> $env:GITHUB_ENV
