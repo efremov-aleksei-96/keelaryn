@@ -29,7 +29,7 @@ function Copy-ManagedManager([string]$SourceManager,[string]$DestinationManager)
     $installPath=Join-Path $SourceManager 'product\install\INSTALLATION.json'
     $install=Get-Content -LiteralPath $installPath -Raw -Encoding UTF8|ConvertFrom-Json
     Assert ([string]$install.schema-ceq'keelaryn.manager.installation.v2') 'Unsupported Manager installation schema in regression source.'
-    Assert ([string]$install.manager_version-ceq'4.17.10') ('Regression requires Manager 4.17.10 source; observed '+[string]$install.manager_version)
+    Assert (@('4.17.10','4.17.12')-contains[string]$install.manager_version) ('Regression requires Manager 4.17.10 source or validated 4.17.12 successor source; observed '+[string]$install.manager_version)
     New-Item -ItemType Directory -Force -Path $DestinationManager|Out-Null
     foreach($raw in @($install.managed_files)){
         $rel=([string]$raw).Replace('/','\')
@@ -51,7 +51,7 @@ if($currentVersion-ceq'4.17.11'){
     Write-Host 'MANAGER 4.17.10 REVIEW REGRESSION: PASS VIA 4.17.11 SUCCESSOR CHAIN' -ForegroundColor Green
     exit 0
 }
-Assert ($currentVersion-ceq'4.17.10') ('Manager 4.17.10 review regression supports 4.17.10 or delegated 4.17.11 source; observed '+$currentVersion)
+Assert (@('4.17.10','4.17.12')-contains$currentVersion) ('Manager 4.17.10 review regression supports 4.17.10, delegated 4.17.11, or validated 4.17.12 successor source; observed '+$currentVersion)
 
 $inherited=Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1'
 if(-not(Test-Path -LiteralPath $inherited -PathType Leaf)){Fail('Inherited 4.17.9 convergence regression missing: '+$inherited)}
@@ -89,7 +89,8 @@ try{
 
     $doctor=@(Invoke-Captured $runtime @('-Doctor') 'Registry-active Doctor')
     $doctorText=[string]::Join("`n",$doctor)
-    Assert $doctorText.Contains('Keelaryn Doctor - Manager 4.17.10') 'Registry-active Doctor did not identify Manager 4.17.10.'
+    $expectedDoctorHeader='Keelaryn Doctor - Manager '+$currentVersion
+    Assert $doctorText.Contains($expectedDoctorHeader) ('Registry-active Doctor did not identify expected Manager '+$currentVersion+'.')
     Assert $doctorText.Contains('[OK] instances.registry:') 'Registry-active Doctor did not report the registry finding.'
     Assert $doctorText.Contains('[OK] inbox.hub_global:') 'Registry-active Doctor did not execute the global-Hub-inbox diagnostic path.'
     Assert (-not($doctorText-match '(?m)^\s*\[(WARN|ERROR)\]')) 'Clean registry-active Doctor unexpectedly produced WARN/ERROR.'

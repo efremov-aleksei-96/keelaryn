@@ -30,7 +30,7 @@ function Invoke-Captured([string]$Script,[string[]]$Arguments,[string]$Purpose){
 function Copy-ManagedManager([string]$SourceManager,[string]$DestinationManager){
     $install=Get-Content -LiteralPath (Join-Path $SourceManager 'product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
     Assert ([string]$install.schema-ceq'keelaryn.manager.installation.v2') 'Unsupported Manager installation schema in regression source.'
-    Assert ([string]$install.manager_version-ceq'4.17.11') ('Regression requires Manager 4.17.11 source; observed '+[string]$install.manager_version)
+    Assert (@('4.17.11','4.17.12')-contains[string]$install.manager_version) ('Regression requires Manager 4.17.11 source or validated 4.17.12 successor source; observed '+[string]$install.manager_version)
     New-Item -ItemType Directory -Force -Path $DestinationManager|Out-Null
     foreach($raw in @($install.managed_files)){
         $rel=([string]$raw).Replace('/','\')
@@ -78,6 +78,9 @@ $null=Invoke-Captured $inherited @('-RepositoryRoot',$RepositoryRoot) 'Inherited
 Write-Host '  PASS inherited multi-Hub convergence regression chain'
 
 $sourceManager=Join-Path $RepositoryRoot 'manager'
+$currentInstall=Get-Content -LiteralPath (Join-Path $sourceManager 'product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
+$currentVersion=([string]$currentInstall.manager_version).Trim()
+Assert (@('4.17.11','4.17.12')-contains$currentVersion) ('Manager 4.17.11 review regression supports 4.17.11 or validated 4.17.12 successor source; observed '+$currentVersion)
 $tempRoot=Join-Path ([IO.Path]::GetTempPath()) ('keelaryn-manager-41711-review-'+[guid]::NewGuid().ToString('N'))
 $keelarynRoot=Join-Path $tempRoot 'keelaryn'
 $managerRoot=Join-Path $keelarynRoot 'manager'
@@ -128,7 +131,8 @@ try{
 
     $doctor=@(Invoke-Captured $runtime @('-Doctor') 'Registry-active Doctor inheritance')
     $doctorText=[string]::Join("`n",$doctor)
-    Assert $doctorText.Contains('Keelaryn Doctor - Manager 4.17.11') 'Inherited registry Doctor regression did not execute on 4.17.11.'
+    $expectedDoctorHeader='Keelaryn Doctor - Manager '+$currentVersion
+    Assert $doctorText.Contains($expectedDoctorHeader) ('Inherited registry Doctor regression did not execute on expected Manager '+$currentVersion+'.')
     Assert $doctorText.Contains('[OK] instances.registry:') 'Inherited registry Doctor regression lost registry diagnostics.'
     Write-Host '  PASS inherited registry-active Doctor path on 4.17.11' -ForegroundColor Green
 }
