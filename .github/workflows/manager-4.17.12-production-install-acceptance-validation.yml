@@ -1,0 +1,70 @@
+name: Manager 4.17.12 production install acceptance validation
+
+on:
+  push:
+    branches:
+      - maintenance/manager-4.17.12-production-acceptance
+    paths:
+      - '.github/workflows/manager-4.17.12-production-install-acceptance-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-4.17.12-production-install-acceptance-validation
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact acceptance helper commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 64470b3b87dd5b2d1e17848bc611d4e161b38ef2
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify helper isolation, parser and transaction contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $helperCommit='64470b3b87dd5b2d1e17848bc611d4e161b38ef2'
+          $candidate='3dde367f1bd83f661bd29c75912732e9f92efa02'
+          $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
+          $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant()
+          if($head-cne$helperCommit){throw('Helper commit mismatch: '+$head)}
+          if($parent-cne$candidate){throw('Helper parent is not frozen candidate: '+$parent)}
+          $changed=@(git diff --name-only "$candidate..$helperCommit")
+          if($changed.Count-ne1-or$changed[0]-cne'tools/Invoke-Manager41712ProductionInstallAcceptance.ps1'){throw('Acceptance helper commit is not isolated: '+($changed-join', '))}
+
+          $path=Resolve-Path 'tools/Invoke-Manager41712ProductionInstallAcceptance.ps1'
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw('Parser failure: '+(($errors|ForEach-Object Message)-join' | '))}
+          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          foreach($needle in @(
+            "`$expectedBaseline = '4.17.11'",
+            "`$expectedVersion = '4.17.12'",
+            "`$expectedGateRevision = 2",
+            "`$expectedFrameworkRevision = 24",
+            "`$expectedCandidateInstallationSha256 = 'f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d'",
+            "`$expectedCandidateManagedDigest = '5118a866aa54ed916bb087fe41a4ac724bf527181b79b1c34e9b29311bf10fb8'",
+            "`$expectedBaselineInstallationSha256 = 'cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc'",
+            "@('-ValidateOnly')",
+            "DURABLE PRODUCTION COMMIT: Manager 4.17.12 installed.",
+            "post_commit_failed",
+            "No automatic rollback was attempted.",
+            "@('-SelfTest')",
+            "@('-SelfTest','-NoRootLauncher')",
+            "@('-Action','RenderMain','-NoRootLauncher')",
+            "@('-Action','InstanceInfo','-NoRootLauncher')",
+            "@('-Doctor')",
+            "production Hub portable content changed",
+            "production CURRENT changed",
+            "Multi-Hub registry remains intentionally inactive"
+          )){if(-not$text.Contains($needle)){throw('Missing acceptance contract token: '+$needle)}}
+          foreach($forbidden in @('-UpdateHub','-UpdateAll','-InitializeInstanceRegistry','-SwitchInstanceId','-RegisterInstancePath','-BindInstancePath')){if($text.Contains($forbidden)){throw('Acceptance helper contains forbidden Hub/registry mutation token: '+$forbidden)}}
+          if($text -match '(?im)^\s*(Remove-Item|Move-Item|Copy-Item).*\$hubRoot'){throw 'Acceptance helper directly mutates production Hub.'}
+          Write-Host 'MANAGER 4.17.12 PRODUCTION INSTALL ACCEPTANCE HELPER VALIDATION: PASS' -ForegroundColor Green
