@@ -115,6 +115,11 @@ try{
             'BuildRelease' {return @('-BuildRelease')}
             'BuildAIContext' {return @('-BuildAIContext')}
             'Doctor' {return @('-Doctor')}
+            'SelfTest' {return @('-SelfTest')}
+            'PrepareTests' {return @('-PrepareTests')}
+            'InitializePresentation' {return @('-InitializePresentation')}
+            'FinalizeFilesystemLayout' {return @('-FinalizeFilesystemLayout')}
+            'InitializeInstanceRegistry' {return @('-InitializeInstanceRegistry')}
             'UpdateHub' {return @('-UpdateHub')}
             'UpdateAll' {return @('-UpdateAll')}
             'RepairCurrent' {return @('-RepairCurrentTransport')}

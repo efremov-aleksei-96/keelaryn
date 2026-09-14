@@ -21,11 +21,11 @@
                 },
     "materialization":  {
                             "manager_version":  "4.17.13",
-                            "product_commit":  "3dde367f1bd83f661bd29c75912732e9f92efa02",
-                            "product_tree":  "63e42a5bfdd6000ee273f5f927902f6ac29703b6",
-                            "installation_sha256":  "f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d",
-                            "managed_content_sha256":  "5118a866aa54ed916bb087fe41a4ac724bf527181b79b1c34e9b29311bf10fb8",
-                            "status":  "materialized_unqualified_development",
+                            "product_commit":  null,
+                            "product_tree":  null,
+                            "installation_sha256":  "acc2b2eeff9b32775dfeaea2d1ca4ee0b8c4293b14acd70efdd8ca08db4eb66b",
+                            "managed_content_sha256":  "9804c7aebc6cfedef128a281186683a1f11a32c88c46a82a21a81eae6dbc3de0",
+                            "status":  "materialized_unqualified_development_live_branch",
                             "candidate_issued":  false
                         },
     "qualification":  {
@@ -62,7 +62,7 @@
                                                       "multi_hub_activated":  false
                                                   },
                           "successor_4_17_13":  {
-                                                    "status":  "materialized_unqualified_development",
+                                                    "status":  "materialized_unqualified_development_entry_policy_hardening",
                                                     "development_base":  "bdd1fa38ce680304f59764ae7a9482d6b1728053",
                                                     "candidate_issued":  false,
                                                     "framework_revision":  24,
@@ -76,11 +76,12 @@
                                                                                    "full_successor_range_risk_defect_gate",
                                                                                    "draft_prefreeze_semantic_PR_review_on_exact_product_tree",
                                                                                    "zero_unresolved_P1_P2_semantic_review_threads",
-                                                                                   "adversarial_state_machine_review"
+                                                                                   "adversarial_state_machine_review",
+                                                                                   "entry_policy_completeness_pass"
                                                                                ],
                                                     "process_entry_red_proof_run":  "34822083447",
                                                     "process_entry_red_proof_artifact":  "10338886824",
-                                                    "process_entry_green_proof":  "materializer_local_precommit_53_of_53_pass"
+                                                    "process_entry_green_proof":  "R5 requires 75-scenario exact-entry PASS plus 29-mode completeness guard"
                                                 }
                       },
     "production_policy":  {
@@ -111,11 +112,13 @@
                       "release_instruction_identity_guard":  "tools/Verify-ManagerReleaseInstructions.ps1",
                       "public_manifest_reproducibility":  "tools/Build-PublicFileManifest.ps1 -Check",
                       "public_candidate_metadata_verifier":  "tools/Verify-PublicCandidateMetadata.ps1",
-                      "public_repository_verifier":  "tools/Verify-PublicRepository.ps1"
+                      "public_repository_verifier":  "tools/Verify-PublicRepository.ps1",
+                      "entry_policy_model":  "tests/knowledge/manager-entry-policy.json",
+                      "entry_policy_validator":  "tools/Test-ManagerEntryPolicyCompleteness.ps1"
                   },
     "next_exact_goal":  {
-                            "id":  "MANAGER-41713-QUALIFY-001",
-                            "description":  "Obtain clean exact-head Development Validation and Entry Reachability PASS, then full-successor Risk/Defect Gate and exact-head pre-freeze semantic PR review before candidate freeze.",
+                            "id":  "MANAGER-41713-PREFREEZE-001",
+                            "description":  "Obtain exact-head Development Validation with 29-mode entry-policy completeness and 75-scenario process-entry PASS, then full-successor Risk/Defect Gate and semantic pre-freeze review.",
                             "product_fix_may_start_only_after_red_proof":  false,
                             "candidate_freeze_permitted":  false,
                             "multi_hub_activation_permitted":  false

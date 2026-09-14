@@ -444,7 +444,7 @@ function Resolve-RegisteredInstanceContextEarly {
     Set-InstanceScopedOperationalPathsEarly ([string]$row.instance_id)
     return $true
 }
-$SkipHubBindingResolution = (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) -or ((-not $BindInstancePath) -and ($SelfTest -or $BuildDistribution -or $BuildRelease -or $BuildAIContext -or $UpdateManager -or $BuildCandidateTransport -or $RestoreCandidateTransport -or $FinalizeFilesystemLayout -or $ListInstances -or $RegisterInstancePath -or $SwitchInstanceId -or $GenesisInstancePath))
+$SkipHubBindingResolution = (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) -or ((-not $BindInstancePath) -and ($SelfTest -or $BuildDistribution -or $BuildRelease -or $BuildAIContext -or $UpdateManager -or $PrepareTests -or $InitializePresentation -or $BuildCandidateTransport -or $RestoreCandidateTransport -or $FinalizeFilesystemLayout -or $ListInstances -or $RegisterInstancePath -or $SwitchInstanceId -or $GenesisInstancePath))
 if (-not $SkipHubBindingResolution) {
 try {
     if ($BindInstancePath) {
@@ -513,7 +513,7 @@ try {
     }
 }
 catch {
-    $allowUnresolved = $Doctor -or $SelfTest -or $BuildDistribution -or $BuildRelease -or $BuildAIContext -or $BuildCandidateTransport -or $RestoreCandidateTransport -or $InitializePresentation -or $FinalizeFilesystemLayout -or $WantsManagerUpdate
+    $allowUnresolved = $Doctor -or $SelfTest -or $BuildDistribution -or $BuildRelease -or $BuildAIContext -or $PrepareTests -or $BuildCandidateTransport -or $RestoreCandidateTransport -or $InitializePresentation -or $FinalizeFilesystemLayout -or $WantsManagerUpdate
     if ($allowUnresolved) {
         $script:BindingResolutionError = $_.Exception.Message
         $Vault = $DefaultVault
@@ -527,7 +527,7 @@ if (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) {
         $null=Resolve-RegisteredInstanceContextEarly
     }
     catch {
-        $allowRegistryUnresolved=$Doctor-or$SelfTest-or$BuildDistribution-or$BuildRelease-or$BuildAIContext-or$UpdateManager-or$InitializeInstanceRegistry-or$ListInstances-or$SwitchInstanceId-or$BindInstancePath-or$FinalizeFilesystemLayout
+        $allowRegistryUnresolved=$Doctor-or$SelfTest-or$BuildDistribution-or$BuildRelease-or$BuildAIContext-or$UpdateManager-or$PrepareTests-or$InitializePresentation-or$InitializeInstanceRegistry-or$ListInstances-or$SwitchInstanceId-or$BindInstancePath-or$FinalizeFilesystemLayout
         if($allowRegistryUnresolved){
             $script:BindingResolutionError='Multi-Hub registry: '+$_.Exception.Message
             $script:InstanceRegistryActive=$false
@@ -8034,7 +8034,7 @@ function Test-ActiveCompatibilityShadowReconciliationRequired {
     if(-not$script:InstanceRegistryActive){return $false}
     # Diagnostic/target-driven recovery and Manager-global operations must be reachable
     # without validating or repairing the old active Hub CURRENT they do not consume.
-    if($Doctor-or$ListInstances-or$SwitchInstanceId-or$BindInstancePath-or$UpdateManager-or$BuildDistribution-or$BuildRelease-or$BuildAIContext){return $false}
+    if($Doctor-or$SelfTest-or$ListInstances-or$SwitchInstanceId-or$BindInstancePath-or$InitializeInstanceRegistry-or$UpdateManager-or$BuildDistribution-or$BuildRelease-or$BuildAIContext-or$PrepareTests-or$InitializePresentation-or$FinalizeFilesystemLayout){return $false}
     return $true
 }
 

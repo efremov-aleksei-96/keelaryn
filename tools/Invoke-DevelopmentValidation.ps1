@@ -104,6 +104,7 @@ $knowledgeTools=@(
     'tools\Invoke-Manager41712ReviewRegression.ps1',
     'tools\Invoke-ManagerRecoveryBehaviorRegression.ps1',
     'tools\Test-ManagerEntryReachabilityKnowledge.ps1',
+    'tools\Test-ManagerEntryPolicyCompleteness.ps1',
     'tools\Invoke-ManagerEntryReachabilityMatrix.ps1',
     'tools\Invoke-Manager41713ReviewRegression.ps1'
 )
@@ -165,6 +166,8 @@ foreach($regressionName in @('Invoke-Manager41710ReviewRegression.ps1','Invoke-M
     Parse-File $regression
     Invoke-Child $regression @('-RepositoryRoot',$RepositoryRoot)
 }
+$entryPolicyValidator=Join-Path $RepositoryRoot 'tools\Test-ManagerEntryPolicyCompleteness.ps1'
+Invoke-Child $entryPolicyValidator @('-RepositoryRoot',$RepositoryRoot)
 $entryModelValidator=Join-Path $RepositoryRoot 'tools\Test-ManagerEntryReachabilityKnowledge.ps1'
 Invoke-Child $entryModelValidator @('-RepositoryRoot',$RepositoryRoot)
 $entryEvidence=Join-Path $evidence 'ENTRY_REACHABILITY_RESULT.json'
@@ -175,8 +178,10 @@ Write-Host 'Manager review regressions + release identity + process-entry reacha
 Write-Host '[5/7] Run Manager and frontend SelfTests from source...'
 $runtime=Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1'
 $menu=Join-Path $manager 'product\tools\KeelarynMenu.ps1'
-Invoke-Child $runtime @('-SelfTest')
-Invoke-Child $menu @('-SelfTest','-NoRootLauncher')
+$selfTestRoot=Join-Path $OutputDirectory 'source-selftest\manager'
+Copy-Managed $manager $selfTestRoot
+Invoke-Child (Join-Path $selfTestRoot 'product\runtime\Keelaryn__Manager.ps1') @('-SelfTest')
+Invoke-Child (Join-Path $selfTestRoot 'product\tools\KeelarynMenu.ps1') @('-SelfTest','-NoRootLauncher')
 Write-Host 'SelfTests: PASS' -ForegroundColor Green
 
 Write-Host '[6/7] Run deterministic BuildRelease x2 in isolated disposable Manager roots...'
@@ -228,6 +233,7 @@ $report=[ordered]@{
     risk_defect_gate_expected_policy=$riskPolicy
     review_regressions_pass=$true
     entry_reachability_pass=$true
+    entry_policy_completeness_pass=$true
     manager_selftest_pass=$true
     frontend_selftest_pass=$true
     deterministic_build_release_pass=$true

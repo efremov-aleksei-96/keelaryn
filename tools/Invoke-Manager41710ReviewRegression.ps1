@@ -29,7 +29,7 @@ function Copy-ManagedManager([string]$SourceManager,[string]$DestinationManager)
     $installPath=Join-Path $SourceManager 'product\install\INSTALLATION.json'
     $install=Get-Content -LiteralPath $installPath -Raw -Encoding UTF8|ConvertFrom-Json
     Assert ([string]$install.schema-ceq'keelaryn.manager.installation.v2') 'Unsupported Manager installation schema in regression source.'
-    Assert (@('4.17.10','4.17.12')-contains[string]$install.manager_version) ('Regression requires Manager 4.17.10 source or validated 4.17.12 successor source; observed '+[string]$install.manager_version)
+    Assert (@('4.17.10','4.17.12','4.17.13')-contains[string]$install.manager_version) ('Regression requires Manager 4.17.10 source or validated 4.17.12/4.17.13 successor source; observed '+[string]$install.manager_version)
     New-Item -ItemType Directory -Force -Path $DestinationManager|Out-Null
     foreach($raw in @($install.managed_files)){
         $rel=([string]$raw).Replace('/','\')
@@ -51,7 +51,7 @@ if($currentVersion-ceq'4.17.11'){
     Write-Host 'MANAGER 4.17.10 REVIEW REGRESSION: PASS VIA 4.17.11 SUCCESSOR CHAIN' -ForegroundColor Green
     exit 0
 }
-Assert (@('4.17.10','4.17.12')-contains$currentVersion) ('Manager 4.17.10 review regression supports 4.17.10, delegated 4.17.11, or validated 4.17.12 successor source; observed '+$currentVersion)
+Assert (@('4.17.10','4.17.12','4.17.13')-contains$currentVersion) ('Manager 4.17.10 review regression supports 4.17.10, delegated 4.17.11, or validated 4.17.12/4.17.13 successor source; observed '+$currentVersion)
 
 $inherited=Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1'
 if(-not(Test-Path -LiteralPath $inherited -PathType Leaf)){Fail('Inherited 4.17.9 convergence regression missing: '+$inherited)}

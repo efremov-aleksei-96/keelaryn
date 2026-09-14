@@ -38,7 +38,7 @@ foreach($row in @($model.actions)){
 }
 
 foreach($requiredState in @('REGISTRY_ACTIVE_METADATA_INVALID','REGISTRY_ACTIVE_HUB_MISSING','REGISTRY_ACTIVE_HUB_CORRUPT','REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_CORRUPT')){if(-not$stateIds.Contains($requiredState)){Fail('Required degraded state is missing: '+$requiredState)}}
-foreach($requiredAction in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','UpdateHub','UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport')){if(-not$actionIds.Contains($requiredAction)){Fail('Required action is missing: '+$requiredAction)}}
+foreach($requiredAction in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout','InitializeInstanceRegistry','UpdateHub','UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport')){if(-not$actionIds.Contains($requiredAction)){Fail('Required action is missing: '+$requiredAction)}}
 
 $requirementIds=New-Set;$pairs=New-Set
 foreach($req in @($model.coverage_requirements)){
@@ -53,14 +53,14 @@ foreach($req in @($model.coverage_requirements)){
     }
 }
 foreach($sid in @($stateIds)){
-    foreach($aid in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','UpdateHub')){
+    foreach($aid in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout','UpdateHub')){
         if(-not$pairs.Contains($sid+'|'+$aid)){Fail('All-degraded coverage omitted '+$sid+'|'+$aid)}
     }
 }
 foreach($sid in @('REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_CORRUPT')){
-    foreach($aid in @('UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport')){if(-not$pairs.Contains($sid+'|'+$aid)){Fail('CURRENT-degraded boundary coverage omitted '+$sid+'|'+$aid)}}
+    foreach($aid in @('UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport','InitializeInstanceRegistry')){if(-not$pairs.Contains($sid+'|'+$aid)){Fail('CURRENT-degraded boundary coverage omitted '+$sid+'|'+$aid)}}
 }
-if($pairs.Count-lt53){Fail('Entry-reachability cross-product is unexpectedly small: '+$pairs.Count)}
+if($pairs.Count-lt75){Fail('Entry-reachability cross-product is unexpectedly small: '+$pairs.Count)}
 if([string]::IsNullOrWhiteSpace([string]$model.freeze_rule)){Fail 'Entry-reachability freeze_rule is empty.'}
 if(-not([string]$model.freeze_rule).Contains('may not restore state through the same runtime path under test')){Fail 'Freeze rule must prohibit runtime-dependent scenario reset.'}
 
