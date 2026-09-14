@@ -1,0 +1,173 @@
+name: Manager 4.17.13 prefreeze product fix and proof r8
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/materialize-manager-4.17.13-prefreeze-product-r8.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-4.17.13-prefreeze-product-r8
+  cancel-in-progress: true
+
+jobs:
+  materialize-qualify-publish:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Checkout R8 and R7d materializers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: maintenance/prefreeze-review-fixes-4.17.13-r1
+          path: materializer
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout exact authoritative development base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.13
+          path: target
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Materialize product fix, converge proof model, qualify exact final head, publish only after green
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $base='6023c4cf505393820bc803a765e0744eefbabda5'
+          $fullSuccessorBase='bdd1fa38ce680304f59764ae7a9482d6b1728053'
+          $target=Join-Path $env:GITHUB_WORKSPACE 'target'
+          $tools=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools'
+          $productMaterializer=Join-Path $tools 'Materialize-Manager41713PrefreezeProductFixR8.ps1'
+          $knowledgeMaterializer=Join-Path $tools 'Materialize-Manager41713PrefreezeKnowledgeR7d.ps1'
+          $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-prefreeze-product-r8'
+          $productEvidence=Join-Path $evidence 'product-fix'
+          $knowledgeEvidence=Join-Path $evidence 'proof-convergence'
+          New-Item -ItemType Directory -Force -Path $productEvidence,$knowledgeEvidence|Out-Null
+          "KEELARYN_41713_R8_EVIDENCE=$evidence" >> $env:GITHUB_ENV
+
+          $actual=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          if($actual-cne$base){throw ('Authoritative dev moved before R8: '+$actual+' expected='+$base)}
+          if(@(git -C $target status --porcelain).Count-ne0){throw 'R8 target checkout is not clean at start.'}
+
+          # Phase A: exact minimal product correction + product/provenance identity materialization.
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $productMaterializer -RepositoryRoot $target -ExpectedBase $base -EvidenceRoot $productEvidence
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          git -C $target config user.name 'Aleksei Efremov'
+          git -C $target config user.email 'efremov.aleksei.96@gmail.com'
+          git -C $target add -- PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json manager/product/runtime/Keelaryn__Manager.ps1 tests/knowledge/defects/manager-4.17.13-prefreeze.json tests/knowledge/risk-map.json
+          $productChanged=@(git -C $target diff --cached --name-only)
+          $expectedProduct=@('PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json','manager/product/runtime/Keelaryn__Manager.ps1','tests/knowledge/defects/manager-4.17.13-prefreeze.json','tests/knowledge/risk-map.json')|Sort-Object
+          if(([string]::Join('|',@($productChanged|Sort-Object)))-cne([string]::Join('|',$expectedProduct))){throw ('Unexpected staged R8 product commit set: '+($productChanged-join', '))}
+          $managerProduct=@(git -C $target diff --cached --name-only -- manager)
+          if($managerProduct.Count-ne1-or[string]$managerProduct[0]-cne'manager/product/runtime/Keelaryn__Manager.ps1'){throw ('R8 product commit changed unexpected Manager bytes: '+($managerProduct-join', '))}
+          git -C $target commit -m 'Manager 4.17.13: fix stranded global input reconciliation'
+          if($LASTEXITCODE-ne0){throw 'R8 local product-fix commit failed.'}
+          $productCommit=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          $productParent=(git -C $target rev-parse 'HEAD^').Trim().ToLowerInvariant()
+          if($productParent-cne$base){throw ('R8 product-fix parent mismatch: '+$productParent)}
+          if(@(git -C $target status --porcelain).Count-ne0){throw 'R8 target is dirty after local product-fix commit.'}
+          Write-Host ('R8 local product-fix commit: '+$productCommit) -ForegroundColor Cyan
+
+          # Phase B: apply the already-defined R7d knowledge/state-machine/evidence convergence
+          # against the exact corrected product commit. This materializer itself executes 101/101.
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $knowledgeMaterializer -RepositoryRoot $target -ExpectedBase $productCommit -EvidenceRoot $knowledgeEvidence
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          if(@(git -C $target diff --name-only -- manager).Count-ne0){throw 'R7d convergence changed Manager product bytes after R8 product commit.'}
+
+          git -C $target add -- .github/workflows/entry-reachability-validation.yml MANAGER_DEVELOPMENT_STATE.json PUBLIC_PROVENANCE.json tests/knowledge/entry-reachability.json tests/knowledge/prefreeze-semantic-review.json tests/knowledge/risk-map.json tests/knowledge/state-machines/multi-hub.json tools/Invoke-ManagerEntryReachabilityMatrix.ps1 tools/Test-ManagerEngineeringKnowledge.ps1 tools/Test-ManagerEntryReachabilityKnowledge.ps1
+          $proofChanged=@(git -C $target diff --cached --name-only)
+          $expectedProof=@('.github/workflows/entry-reachability-validation.yml','MANAGER_DEVELOPMENT_STATE.json','PUBLIC_PROVENANCE.json','tests/knowledge/entry-reachability.json','tests/knowledge/prefreeze-semantic-review.json','tests/knowledge/risk-map.json','tests/knowledge/state-machines/multi-hub.json','tools/Invoke-ManagerEntryReachabilityMatrix.ps1','tools/Test-ManagerEngineeringKnowledge.ps1','tools/Test-ManagerEntryReachabilityKnowledge.ps1')|Sort-Object
+          if(([string]::Join('|',@($proofChanged|Sort-Object)))-cne([string]::Join('|',$expectedProof))){throw ('Unexpected staged R8 proof-convergence set: '+($proofChanged-join', '))}
+          if(@(git -C $target diff --cached --name-only -- manager).Count-ne0){throw 'Proof-convergence commit unexpectedly stages Manager product bytes.'}
+          git -C $target commit -m 'Manager 4.17.13: converge prefreeze proof model'
+          if($LASTEXITCODE-ne0){throw 'R8 local proof-convergence commit failed.'}
+
+          $head=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          $tree=(git -C $target rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
+          $proofParent=(git -C $target rev-parse 'HEAD^').Trim().ToLowerInvariant()
+          if($proofParent-cne$productCommit){throw ('R8 proof-convergence parent mismatch: '+$proofParent+' expected='+$productCommit)}
+          if(@(git -C $target status --porcelain).Count-ne0){throw 'R8 exact final head is not clean.'}
+
+          $matrixPath=Join-Path $knowledgeEvidence 'ENTRY_REACHABILITY_RESULT.json'
+          if(-not(Test-Path -LiteralPath $matrixPath -PathType Leaf)){throw 'R8 101-scenario matrix evidence is missing.'}
+          $matrix=Get-Content -LiteralPath $matrixPath -Raw -Encoding UTF8|ConvertFrom-Json
+          if(-not[bool]$matrix.pass-or[int]$matrix.scenario_count-ne101-or[int]$matrix.executed_count-ne101){throw ('R8 requires exact 101/101 process-entry PASS; count='+[string]$matrix.scenario_count+' executed='+[string]$matrix.executed_count)}
+          $er101=@($matrix.scenarios|Where-Object{[string]$_.state-ceq'REGISTRY_PENDING_GLOBAL'-and[string]$_.action-ceq'InitializeInstanceRegistry'})
+          if($er101.Count-ne1-or-not[bool]$er101[0].pass-or[string]$er101[0].expected_mode-cne'registry_init_reconciles_global_input'){throw 'MGR-DEF-0031 green process-entry proof is absent.'}
+
+          # Identity and metadata remain coherent after the second commit.
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $target -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Verify-PublicCandidateMetadata.ps1') -RepositoryRoot $target
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Test-ManagerEngineeringKnowledge.ps1') -RepositoryRoot $target
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          # Exact-head development qualification on the complete successor state.
+          $env:GITHUB_SHA=$head
+          $devOut=Join-Path $evidence 'development-validation'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Invoke-DevelopmentValidation.ps1') -RepositoryRoot $target -OutputDirectory $devOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          # Full-successor risk/defect gate from the rejected 4.17.12 publication lineage.
+          $riskOut=Join-Path $evidence 'full-successor-risk-gate'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Invoke-ManagerRiskDefectGate.ps1') -RepositoryRoot $target -BaseCommit $fullSuccessorBase -HeadCommit $head -OutputDirectory $riskOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          # Final scope/provenance assertions immediately before publication.
+          $lineageManager=@(git -C $target diff --name-only $base $head -- manager)
+          if($lineageManager.Count-lt1){throw 'R8 final lineage unexpectedly contains no Manager product change.'}
+          $unexpectedManager=@($lineageManager|Where-Object{[string]$_-cne'manager/product/runtime/Keelaryn__Manager.ps1'})
+          if($unexpectedManager.Count-ne0){throw ('R8 final lineage contains unexpected Manager product paths: '+($unexpectedManager-join', '))}
+          $runtimeText=[IO.File]::ReadAllText((Join-Path $target 'manager\product\runtime\Keelaryn__Manager.ps1'),[Text.Encoding]::UTF8)
+          if($runtimeText-notmatch'function\s+Get-GlobalHubInputIdentity\(\$Descriptor\)'){throw 'R8 final runtime lost the corrected descriptor parameter.'}
+          if($runtimeText-match'function\s+Get-GlobalHubInputIdentity\(\$Input\)'){throw 'R8 final runtime still contains the defective $Input parameter.'}
+
+          $receipt=[ordered]@{
+            schema='keelaryn.manager-prefreeze-product-proof-r8.v1'
+            manager_version='4.17.13'
+            base=$base
+            product_fix_commit=$productCommit
+            final_head=$head
+            final_tree=$tree
+            full_successor_base=$fullSuccessorBase
+            defect_id='MGR-DEF-0031'
+            product_change='Get-GlobalHubInputIdentity parameter $Input -> $Descriptor'
+            manager_product_paths=@($lineageManager)
+            entry_matrix='101/101 pass'
+            pending_global_reconciliation='pass'
+            development_validation='pass'
+            full_successor_risk_defect_gate='pass'
+            candidate_issued=$false
+            production_qualified=$false
+            completed_utc=[DateTime]::UtcNow.ToString('o')
+          }
+          $receipt|ConvertTo-Json -Depth 10|Set-Content -LiteralPath (Join-Path $evidence 'PREFREEZE_PRODUCT_PROOF_R8.json') -Encoding UTF8
+
+          # Publication is the final transaction boundary. Reconfirm remote authoritative base
+          # has not moved since checkout; ordinary force/update is not permitted.
+          git -C $target fetch origin dev/manager-4.17.13 --no-tags
+          if($LASTEXITCODE-ne0){throw 'Could not refresh authoritative dev before R8 publication.'}
+          $remote=(git -C $target rev-parse origin/dev/manager-4.17.13).Trim().ToLowerInvariant()
+          if($remote-cne$base){throw ('Authoritative dev moved during R8 qualification; refusing publication. remote='+$remote+' base='+$base)}
+          Write-Host ('R8 validated final head: '+$head) -ForegroundColor Green
+          Write-Host ('R8 validated final tree: '+$tree) -ForegroundColor Green
+          git -C $target push origin HEAD:dev/manager-4.17.13
+          if($LASTEXITCODE-ne0){throw 'R8 authoritative dev push failed.'}
+
+      - name: Upload R8 qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.13-prefreeze-product-r8-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_41713_R8_EVIDENCE }}
+          if-no-files-found: warn
+          retention-days: 5
