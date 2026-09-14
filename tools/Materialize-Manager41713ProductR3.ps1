@@ -13,13 +13,15 @@ $baseSource=Join-Path $PSScriptRoot 'Materialize-Manager41713Product.ps1'
 foreach($p in @($r2Source,$baseSource)){if(-not(Test-Path -LiteralPath $p -PathType Leaf)){throw('Required materializer source is missing: '+$p)}}
 $text=[IO.File]::ReadAllText($r2Source,[Text.Encoding]::UTF8)
 
-# R2 transforms the base materializer text. Insert one additional transform immediately
-# after it reads the base source: `Args` is a PowerShell automatic variable, so using it
-# as the child-argument parameter caused every Run(...) call to drop its explicit args.
+# R2 transforms the base materializer text. Insert additional transforms immediately
+# after it reads the base source.
 $anchor='$text=[IO.File]::ReadAllText($source,[Text.Encoding]::UTF8)'
 if(([regex]::Matches($text,[regex]::Escape($anchor))).Count-ne1){throw 'R2 base-read anchor is missing/ambiguous.'}
 $replacement=@'
 $text=[IO.File]::ReadAllText($source,[Text.Encoding]::UTF8)
+
+# `Args` is a PowerShell automatic variable. Using it as the child-argument parameter
+# caused Run(...) calls to drop explicit arguments such as -RepositoryRoot.
 $runSignature='function Run([string]$Script,[string[]]$Args){'
 $runSignatureCount=[regex]::Matches($text,[regex]::Escape($runSignature)).Count
 if($runSignatureCount-ne1){throw('Base materializer Run signature count='+$runSignatureCount)}
@@ -28,6 +30,13 @@ if(([regex]::Matches($text,[regex]::Escape("(`$Args-join' ')"))).Count-ne1){thro
 $text=$text.Replace($runSignature,'function Run([string]$Script,[string[]]$Arguments){')
 $text=$text.Replace('@Args 2>&1','@Arguments 2>&1')
 $text=$text.Replace("(`$Args-join' ')","(`$Arguments-join' ')")
+
+# Keep the managed README machine-bound to the canonical release-instruction guard.
+$releaseIdentityOld='version-independent behavioral regressions, the 4.17.13 review regression'
+$releaseIdentityNew='inherited and 4.17.13 regressions, the version-independent behavioral regression suite'
+$releaseIdentityCount=[regex]::Matches($text,[regex]::Escape($releaseIdentityOld)).Count
+if($releaseIdentityCount-ne1){throw('4.17.13 README regression identity token count='+$releaseIdentityCount)}
+$text=$text.Replace($releaseIdentityOld,$releaseIdentityNew)
 '@
 $text=$text.Replace($anchor,$replacement.TrimEnd())
 
