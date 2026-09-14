@@ -1,0 +1,32 @@
+name: Probe Manager 4.17.13 input automatic variable collision
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/probe-manager-4.17.13-input-automatic-variable.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-2025
+    steps:
+      - name: Probe Windows PowerShell 5.1 foreach input collision
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          function Invoke-Probe {
+            $inputs=@([pscustomobject]@{File='sentinel';Kind='hub_zip'})
+            Write-Host ('AUTO_BEFORE_TYPE='+$(if($null-eq$input){'<null>'}else{$input.GetType().FullName}))
+            foreach($input in $inputs){
+              Write-Host ('LOOP_TYPE='+$(if($null-eq$input){'<null>'}else{$input.GetType().FullName}))
+              Write-Host ('LOOP_HAS_FILE='+($null-ne$input.PSObject.Properties['File']))
+              Write-Host ('LOOP_FILE='+[string]$input.File)
+              if($null-eq$input.PSObject.Properties['File']){throw '$input automatic variable shadowed foreach descriptor.'}
+            }
+          }
+          Invoke-Probe
