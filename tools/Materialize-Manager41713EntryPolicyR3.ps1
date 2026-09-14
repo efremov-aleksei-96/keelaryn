@@ -25,6 +25,19 @@ $selfBreakCount=[regex]::Matches($text,[regex]::Escape($oldSelfBreak)).Count
 if($selfBreakCount-ne1){throw('R1 source-SelfTest line-ending matcher count='+$selfBreakCount)}
 $text=$text.Replace($oldSelfBreak,$newSelfBreak)
 
+# PowerShell represents $true/$false as VariableExpressionAst nodes. They are syntax literals,
+# not Manager action variables, so the completeness guard must normalize them out.
+$oldBool=@'
+|Where-Object{$_-cne'script:InstanceRegistryActive'}|Sort-Object -Unique)
+'@
+$newBool=@'
+|Where-Object{$_-cne'script:InstanceRegistryActive'-and$_-cne'true'-and$_-cne'false'}|Sort-Object -Unique)
+'@
+$oldBool=$oldBool.Trim();$newBool=$newBool.Trim()
+$boolCount=[regex]::Matches($text,[regex]::Escape($oldBool)).Count
+if($boolCount-ne1){throw('R1 AST boolean-normalization token count='+$boolCount)}
+$text=$text.Replace($oldBool,$newBool)
+
 $temp=Join-Path ([IO.Path]::GetTempPath()) ('Materialize-Manager41713EntryPolicy-r3-'+[guid]::NewGuid().ToString('N')+'.ps1')
 try{
     [IO.File]::WriteAllText($temp,$text,$Utf8)
