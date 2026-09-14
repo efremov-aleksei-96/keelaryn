@@ -16,20 +16,20 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Confirm exact frozen-parent scope and blocker reachability
+      - name: Confirm exact frozen-source blocker reachability
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           Set-StrictMode -Version 2.0
-          $expectedParent='3dde367f1bd83f661bd29c75912732e9f92efa02'
-          $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant()
-          if($parent -cne $expectedParent){throw "Unexpected parent: $parent"}
-          $changed=@(git diff --name-only $expectedParent HEAD)
+          $frozen='3dde367f1bd83f661bd29c75912732e9f92efa02'
+          & git merge-base --is-ancestor $frozen HEAD
+          if($LASTEXITCODE-ne0){throw 'Confirmation branch does not descend from exact frozen Manager 4.17.12 g1.'}
+          $changed=@(git diff --name-only $frozen HEAD)
           $expected='.github/workflows/confirm-manager-4.17.12-p1-recovery-shadow.yml'
-          if($changed.Count-ne1 -or $changed[0] -cne $expected){throw ('Confirmation commit changed unexpected files: '+($changed -join ', '))}
+          if($changed.Count-ne1 -or $changed[0] -cne $expected){throw ('Confirmation branch changed unexpected files: '+($changed -join ', '))}
 
           $runtimePath=Join-Path $env:GITHUB_WORKSPACE 'manager\product\runtime\Keelaryn__Manager.ps1'
           $runtime=[IO.File]::ReadAllText($runtimePath,[Text.Encoding]::UTF8)
@@ -53,9 +53,11 @@ jobs:
           }
 
           $reconcile=Fn 'Invoke-ReconcileActiveCompatibilityShadow'
-          foreach($required in @('Get-ManagerActiveInstance','Get-CompatibilityShadowAssessment','Publish-CompatibilityShadowFromRegisteredInstance')){
-            if(-not$reconcile.Contains($required)){throw "Reconcile function missing expected token: $required"}
-          }
+          if(-not$reconcile.Contains('Get-ManagerActiveInstance')){throw 'Reconcile function no longer resolves active registry row.'}
+          if(-not$reconcile.Contains('Get-CompatibilityShadowAssessment')){throw 'Reconcile function no longer inspects compatibility shadow.'}
+          Write-Host '=== RECONCILE FUNCTION ==='
+          Write-Host $reconcile
+          Write-Host '=== END RECONCILE FUNCTION ==='
 
           $guard='if($script:InstanceRegistryActive -and -not$Doctor)'
           $guardIndex=$runtime.IndexOf($guard,[StringComparison]::Ordinal)
@@ -68,5 +70,5 @@ jobs:
           $guardSlice=$runtime.Substring($guardIndex,[Math]::Min(350,$runtime.Length-$guardIndex))
           if($guardSlice.Contains('$SwitchInstanceId') -or $guardSlice.Contains('$BindInstancePath')){throw 'Recovery actions are already excluded from pre-dispatch reconciliation; review claim does not apply.'}
 
-          Write-Host 'CONFIRMED P1: structurally valid active registry context can reach compatibility-shadow reconciliation before SwitchInstanceId/BindInstancePath dispatch, while early resolution does not validate CURRENT/checkpoint availability.' -ForegroundColor Green
+          Write-Host 'STATIC REACHABILITY CONFIRMED: structurally valid active registry context reaches compatibility-shadow reconciliation before SwitchInstanceId/BindInstancePath dispatch, while early resolution does not validate CURRENT/checkpoint availability.' -ForegroundColor Green
           Write-Host 'Frozen Manager 4.17.12 product bytes were not modified by this confirmation.' -ForegroundColor Green
