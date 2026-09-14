@@ -7,6 +7,7 @@ on:
     paths:
       - 'tools/Materialize-Manager41713Product.ps1'
       - 'tools/Materialize-Manager41713ProductR4.ps1'
+      - 'tools/Materialize-Manager41713EntryPolicyR1.ps1'
       - '.github/workflows/materialize-manager-4.17.13-product-r1.yml'
   workflow_dispatch:
 
@@ -38,11 +39,11 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $script=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713ProductR4.ps1'
+          $script=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713EntryPolicyR1.ps1'
           $target=Join-Path $env:GITHUB_WORKSPACE 'target'
-          $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-materialize'
+          $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-entry-policy'
           "KEELARYN_41713_MATERIALIZE_EVIDENCE=$evidence" >> $env:GITHUB_ENV
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -RepositoryRoot $target -ExpectedBase '9030aee23e457ba22d8ec1ded52a222c79aebf36' -EvidenceRoot $evidence
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -RepositoryRoot $target -ExpectedBase '32c5d79df12ce5d292e5553794e5e33b01fa4dcf' -EvidenceRoot $evidence
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           $head=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
           $tree=(git -C $target rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
@@ -55,7 +56,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: manager-4.17.13-product-materialization-${{ github.run_attempt }}
+          name: manager-4.17.13-entry-policy-${{ github.run_attempt }}
           path: ${{ env.KEELARYN_41713_MATERIALIZE_EVIDENCE }}
           if-no-files-found: warn
           retention-days: 5
