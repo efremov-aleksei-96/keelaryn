@@ -22,6 +22,14 @@ $text=$text.Replace($runSignature,'function Run([string]$Script,[string[]]$Argum
 $text=$text.Replace('@Args 2>&1','@Arguments 2>&1')
 $text=$text.Replace("(`$Args-join' ')","(`$Arguments-join' ')")
 
+# PowerShell parses an unquoted HEAD^{tree} argument as HEAD^ followed by a ScriptBlock.
+# Keep the post-commit tree identity query literal so the transaction can finish proving
+# the commit it just created before the workflow is allowed to push it.
+$treeRevisionOld='rev-parse HEAD^{tree}'
+$treeRevisionNew="rev-parse 'HEAD^{tree}'"
+if(([regex]::Matches($text,[regex]::Escape($treeRevisionOld))).Count-ne1){throw 'Base post-commit tree revision token is missing/ambiguous.'}
+$text=$text.Replace($treeRevisionOld,$treeRevisionNew)
+
 # Keep the managed README bound to the canonical release-instruction validator.
 $releaseIdentityOld='version-independent behavioral regressions, the 4.17.13 review regression'
 $releaseIdentityNew='inherited and 4.17.13 regressions, the version-independent behavioral regression suite'
