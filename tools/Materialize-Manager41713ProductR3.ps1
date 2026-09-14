@@ -37,6 +37,35 @@ $releaseIdentityNew='inherited and 4.17.13 regressions, the version-independent 
 $releaseIdentityCount=[regex]::Matches($text,[regex]::Escape($releaseIdentityOld)).Count
 if($releaseIdentityCount-ne1){throw('4.17.13 README regression identity token count='+$releaseIdentityCount)}
 $text=$text.Replace($releaseIdentityOld,$releaseIdentityNew)
+
+# SelfTests are validation, not source-generation. Run them from an exact managed-set copy
+# so diagnostic/runtime state can never contaminate manager/ before PUBLIC_FILE_MANIFEST.
+$selfTestPattern="(?m)^Run \$runtimePath @\('-SelfTest'\)\|Out-Null\r?\nRun \(Join-Path \$RepositoryRoot '[^']*KeelarynMenu\.ps1'\) @\('-SelfTest','-NoRootLauncher'\)\|Out-Null$"
+$selfTestMatches=[regex]::Matches($text,$selfTestPattern)
+if($selfTestMatches.Count-ne1){throw('Base materializer source-SelfTest block count='+$selfTestMatches.Count)}
+$selfTestReplacement=@'
+$selfTestRoot=Join-Path $EvidenceRoot 'managed-selftest'
+$selfTestManager=Join-Path $selfTestRoot 'manager'
+if(Test-Path -LiteralPath $selfTestRoot){Remove-Item -LiteralPath $selfTestRoot -Recurse -Force}
+New-Item -ItemType Directory -Force -Path $selfTestManager|Out-Null
+$selfTestInstall=Get-Content -LiteralPath (Join-Path $RepositoryRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
+foreach($raw in @($selfTestInstall.managed_files)){
+    $rel=([string]$raw).Replace('/','\')
+    $src=Join-Path (Join-Path $RepositoryRoot 'manager') $rel
+    $dst=Join-Path $selfTestManager $rel
+    if(-not(Test-Path -LiteralPath $src -PathType Leaf)){Fail('Managed SelfTest source missing: '+$rel)}
+    $parent=Split-Path -Parent $dst
+    if($parent-and-not(Test-Path -LiteralPath $parent -PathType Container)){New-Item -ItemType Directory -Force -Path $parent|Out-Null}
+    Copy-Item -LiteralPath $src -Destination $dst -Force
+}
+try{
+    Run (Join-Path $selfTestManager 'product\runtime\Keelaryn__Manager.ps1') @('-SelfTest')|Out-Null
+    Run (Join-Path $selfTestManager 'product\tools\KeelarynMenu.ps1') @('-SelfTest','-NoRootLauncher')|Out-Null
+}finally{
+    if(Test-Path -LiteralPath $selfTestRoot){Remove-Item -LiteralPath $selfTestRoot -Recurse -Force -ErrorAction SilentlyContinue}
+}
+'@
+$text=[regex]::Replace($text,$selfTestPattern,{param($m)$selfTestReplacement.TrimEnd()},1)
 '@
 $text=$text.Replace($anchor,$replacement.TrimEnd())
 
