@@ -28,7 +28,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $expectedParent = '5976395544d77f94f1d0d049609f4162ed7bcebd'
+          $expectedParent = 'a6b4562e1977ea37e20203bbb7923407d008841e'
           $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
           $parent = (git rev-parse HEAD^).Trim().ToLowerInvariant()
           if ($parent -cne $expectedParent) { throw "Unexpected repair parent: $parent expected $expectedParent" }
@@ -45,8 +45,8 @@ jobs:
           $utf8 = New-Object System.Text.UTF8Encoding($false)
           function Replace-Unique([string]$Text,[string]$Old,[string]$New,[string]$Label) {
             $first = $Text.IndexOf($Old,[StringComparison]::Ordinal)
-            if ($first -lt 0) { throw "$Label: source token not found" }
-            if ($Text.IndexOf($Old,$first+$Old.Length,[StringComparison]::Ordinal) -ge 0) { throw "$Label: source token is not unique" }
+            if ($first -lt 0) { throw "${Label}: source token not found" }
+            if ($Text.IndexOf($Old,$first+$Old.Length,[StringComparison]::Ordinal) -ge 0) { throw "${Label}: source token is not unique" }
             return $Text.Substring(0,$first) + $New + $Text.Substring($first+$Old.Length)
           }
 
