@@ -29,7 +29,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $expectedParent='5b8d29c0909f22926287466cb039f3d811d1d527'
+          $expectedParent='a110b9383eea94b948611713b59eb090efafd799'
           $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
           $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant()
           if($parent-cne$expectedParent){throw "Unexpected workflow parent: $parent expected $expectedParent"}
@@ -41,7 +41,7 @@ jobs:
           [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $apply),[ref]$tokens,[ref]$errors)
           if(@($errors).Count){throw('Materializer parser failure: '+(($errors|ForEach-Object Message)-join' | '))}
 
-          # Repair two materializer-only template hazards in the disposable checkout; these bytes are never committed.
+          # Repair materializer-only template hazards in the disposable checkout; these bytes are never committed.
           $text=[IO.File]::ReadAllText((Resolve-Path $apply),[Text.Encoding]::UTF8)
           $text=$text.Replace("`$writer=New-Object IO.StreamWriter(`$entry.Open(),`$Utf8NoBom)","`$writer=New-Object IO.StreamWriter(`$entry.Open(),(New-Object Text.UTF8Encoding(`$false)))")
           [IO.File]::WriteAllText((Resolve-Path $apply),$text,(New-Object Text.UTF8Encoding($false)))
@@ -56,6 +56,18 @@ jobs:
             if($first-lt0-or$menuText.IndexOf($needle,$first+$needle.Length,[StringComparison]::Ordinal)-ge0){throw 'Frontend compression-assembly insertion anchor is not unique.'}
             $menuText=$menuText.Substring(0,$first)+$replacement+$menuText.Substring($first+$needle.Length)
             [IO.File]::WriteAllText((Resolve-Path $menu),$menuText,(New-Object Text.UTF8Encoding($false)))
+          }
+
+          # EOL-independent pre-insertion: the historical regression is LF in Git, while the old materializer template used CRLF literals.
+          $reg3='tools/Invoke-Manager4173ReviewRegression.ps1'
+          $reg3Text=[IO.File]::ReadAllText((Resolve-Path $reg3),[Text.Encoding]::UTF8)
+          if(-not$reg3Text.Contains("Get-FunctionText `$menuPath 'Assert-FrontendCurrentArchiveBinding'")){
+            $importAnchor="Invoke-Expression (Get-FunctionText `$menuPath 'Ensure-ChatGPTExchangeLayout')"
+            $imports=$importAnchor+"`nInvoke-Expression (Get-FunctionText `$menuPath 'ConvertTo-CanonicalFrontendInstanceId')`nInvoke-Expression (Get-FunctionText `$menuPath 'Read-FrontendZipEntryJson')`nInvoke-Expression (Get-FunctionText `$menuPath 'Assert-FrontendCurrentArchiveBinding')"
+            $first=$reg3Text.IndexOf($importAnchor,[StringComparison]::Ordinal)
+            if($first-lt0-or$reg3Text.IndexOf($importAnchor,$first+$importAnchor.Length,[StringComparison]::Ordinal)-ge0){throw '4.17.3 regression import insertion anchor is not unique.'}
+            $reg3Text=$reg3Text.Substring(0,$first)+$imports+$reg3Text.Substring($first+$importAnchor.Length)
+            [IO.File]::WriteAllText((Resolve-Path $reg3),$reg3Text,(New-Object Text.UTF8Encoding($false)))
           }
           Write-Host "One-shot identity + materializer preparation PASS. HEAD=$head"
 
