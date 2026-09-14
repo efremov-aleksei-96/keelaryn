@@ -1,0 +1,37 @@
+name: Audit Manager state-machine risk-map coverage
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/audit-manager-state-machine-risk-map.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.13
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Enumerate unmapped state-machine rules
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $machine=Get-Content 'tests/knowledge/state-machines/multi-hub.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          $risk=Get-Content 'tests/knowledge/risk-map.json' -Raw -Encoding UTF8|ConvertFrom-Json
+          $mapped=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+          foreach($surface in @($risk.surfaces)){foreach($id in @($surface.state_machine_rules)){[void]$mapped.Add([string]$id)}}
+          $nonDefault=@($machine.rules|Where-Object{[int]$_.priority -gt 0}|ForEach-Object{[string]$_.id}|Sort-Object -Unique)
+          $unmapped=@($nonDefault|Where-Object{-not$mapped.Contains($_)})
+          Write-Host ('NONDEFAULT='+$nonDefault.Count)
+          Write-Host ('MAPPED='+@($nonDefault|Where-Object{$mapped.Contains($_)}).Count)
+          Write-Host ('UNMAPPED='+$unmapped.Count)
+          foreach($id in $unmapped){Write-Host ('UNMAPPED_RULE='+$id)}
