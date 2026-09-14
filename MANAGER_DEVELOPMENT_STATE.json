@@ -8,14 +8,13 @@
     "note": "Post-freeze branch commits may update qualification/provenance metadata only. Frozen Manager 4.17.12 g1 remains commit 3dde367f1bd83f661bd29c75912732e9f92efa02 / tree 63e42a5bfdd6000ee273f5f927902f6ac29703b6."
   },
   "lineage": {
-    "production_manager_version": "4.17.12",
-    "previous_production_manager_version": "4.17.11",
+    "production_manager_version": "4.17.11",
+    "previous_production_manager_version": "4.17.10",
     "production_candidate_revision": "g1",
-    "production_candidate_commit": "3dde367f1bd83f661bd29c75912732e9f92efa02",
-    "production_candidate_tree": "63e42a5bfdd6000ee273f5f927902f6ac29703b6",
-    "validated_development_parent": "9c639cc954fef5e8a17966c43636c3d86b93a6a7",
-    "production_managed_digest": "5118a866aa54ed916bb087fe41a4ac724bf527181b79b1c34e9b29311bf10fb8",
-    "production_installation_sha256": "f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d",
+    "production_candidate_commit": "88e3dcba0af75264c4b53e8ec24d770c215677a0",
+    "production_candidate_tree": "7d23ab245699d63c264958f9132d29fe85d43de7",
+    "production_managed_digest": "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
+    "production_installation_sha256": "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
     "framework_revision": "r24",
     "source_gate_baseline_manager_version": "4.17.11",
     "successor_manager_version": "4.17.12"
