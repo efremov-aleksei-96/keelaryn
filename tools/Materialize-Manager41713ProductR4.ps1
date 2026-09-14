@@ -102,7 +102,10 @@ $text=$text.Replace($section7,$behaviorParamFix.TrimEnd())
 
 # SelfTests are validation, never source-generation. Execute them on an exact managed-set
 # copy so runtime diagnostic state cannot contaminate manager/ before public-manifest binding.
-$selfTestPattern="(?m)^Run \$runtimePath @\('-SelfTest'\)\|Out-Null\r?\nRun \(Join-Path \$RepositoryRoot '[^']*KeelarynMenu\.ps1'\) @\('-SelfTest','-NoRootLauncher'\)\|Out-Null$"
+$selfTestPattern=@'
+(?m)^Run \$runtimePath @\('-SelfTest'\)\|Out-Null\r?\nRun \(Join-Path \$RepositoryRoot '[^']*KeelarynMenu\.ps1'\) @\('-SelfTest','-NoRootLauncher'\)\|Out-Null$
+'@
+$selfTestPattern=$selfTestPattern.Trim()
 if(([regex]::Matches($text,$selfTestPattern)).Count-ne1){throw 'Base source-SelfTest block is missing/ambiguous.'}
 $selfTestReplacement=@'
 $selfTestRoot=Join-Path $EvidenceRoot 'managed-selftest'
