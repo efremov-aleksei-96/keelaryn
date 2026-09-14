@@ -63,14 +63,21 @@ if($remaining.Count-ne0){Fail('Runtime still contains ParameterAst node(s) named
 '@
 $text=Replace-Exact $text $oldAfter.TrimEnd("`r","`n") $newAfter.TrimEnd("`r","`n") 'R8b post-fix AST guard'
 
-$temp=Join-Path $env:RUNNER_TEMP 'Materialize-Manager41713PrefreezeProductFixR8b.inner.ps1'
+# R8b proved the product correction and metadata, then failed only because git diff does not
+# report a newly-created untracked defect record. Build the scope set from both tracked changes
+# and untracked non-ignored files so the exact patch-set assertion covers the new provenance file.
+$oldChanged='$changed=@(& git.exe -C $RepositoryRoot diff --name-only)'
+$newChanged='$changed=@((@(& git.exe -C $RepositoryRoot diff --name-only)+@(& git.exe -C $RepositoryRoot ls-files --others --exclude-standard))|Sort-Object -Unique)'
+$text=Replace-Exact $text $oldChanged $newChanged 'R8c tracked-plus-untracked patch-set capture'
+
+$temp=Join-Path $env:RUNNER_TEMP 'Materialize-Manager41713PrefreezeProductFixR8c.inner.ps1'
 [IO.File]::WriteAllText($temp,$text,$Utf8)
 $tokens=$null;$errors=$null
 [void][Management.Automation.Language.Parser]::ParseFile($temp,[ref]$tokens,[ref]$errors)
-if(@($errors).Count-ne0){Fail('R8b patched materializer parse failed: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+if(@($errors).Count-ne0){Fail('R8c patched materializer parse failed: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
 
 $exe=Join-Path $PSHOME 'powershell.exe'
 & $exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $temp -RepositoryRoot $RepositoryRoot -ExpectedBase $ExpectedBase -EvidenceRoot $EvidenceRoot
 $code=[int]$LASTEXITCODE
 if($code-ne0){exit $code}
-Write-Host 'Manager 4.17.13 R8b AST gate-harness correction: PASS' -ForegroundColor Green
+Write-Host 'Manager 4.17.13 R8c gate-harness correction: PASS' -ForegroundColor Green
