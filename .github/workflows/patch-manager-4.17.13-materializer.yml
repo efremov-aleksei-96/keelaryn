@@ -1,0 +1,36 @@
+name: Patch Manager 4.17.13 materializer
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-manager-4.17.13-recovery-shadow'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Patch parser-safe label interpolation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $path='.github/workflows/materialize-manager-4.17.13-recovery-shadow.yml'
+          $text=[IO.File]::ReadAllText($path)
+          $old='throw "$label: source token'
+          $new='throw "${label}: source token'
+          $count=([regex]::Matches($text,[regex]::Escape($old))).Count
+          if($count-eq0){Write-Host 'Materializer already patched.';exit 0}
+          if($count-ne2){throw "Unexpected interpolation occurrence count: $count"}
+          $text=$text.Replace($old,$new)
+          [IO.File]::WriteAllText($path,$text,(New-Object Text.UTF8Encoding($false)))
+          git config user.name 'Aleksei Efremov'
+          git config user.email 'efremov.aleksei.96@gmail.com'
+          git add $path
+          git commit -m 'Fix 4.17.13 materializer parser interpolation'
+          git push origin HEAD:maintenance/materialize-manager-4.17.13-recovery-shadow
