@@ -25,10 +25,7 @@ $sourceText=[IO.File]::ReadAllText($source,[Text.Encoding]::UTF8)
 #    the rollback set immediately after the durable rename, before presentation/hash verification.
 #    This avoids both clobbering a race-created destination and losing rollback ownership if a
 #    post-commit SetHidden/hash check fails.
-$sourceText=Replace-Exact $sourceText \
-    'if(-[string]::IsNullOrWhiteSpace([string]$plan.Stage)-and(Test-Path -LiteralPath ([string]$plan.Stage))){Remove-Item -LiteralPath ([string]$plan.Stage) -Force -ErrorAction SilentlyContinue}' \
-    'if(-not [string]::IsNullOrWhiteSpace([string]$plan.Stage)-and(Test-Path -LiteralPath ([string]$plan.Stage))){Remove-Item -LiteralPath ([string]$plan.Stage) -Force -ErrorAction SilentlyContinue}' \
-    'R9 unpublished stage cleanup correction'
+$sourceText=Replace-Exact $sourceText 'if(-[string]::IsNullOrWhiteSpace([string]$plan.Stage)-and(Test-Path -LiteralPath ([string]$plan.Stage))){Remove-Item -LiteralPath ([string]$plan.Stage) -Force -ErrorAction SilentlyContinue}' 'if(-not [string]::IsNullOrWhiteSpace([string]$plan.Stage)-and(Test-Path -LiteralPath ([string]$plan.Stage))){Remove-Item -LiteralPath ([string]$plan.Stage) -Force -ErrorAction SilentlyContinue}' 'R9 unpublished stage cleanup correction'
 
 $oldPublish=@'
                 Publish-CompletedFileAtomically ([string]$plan.Stage) ([string]$plan.Destination)
