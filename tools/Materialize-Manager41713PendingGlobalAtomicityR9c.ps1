@@ -8,10 +8,51 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
 $Utf8=New-Object Text.UTF8Encoding($false)
 function Fail([string]$Message){throw $Message}
+function Replace-Exact([string]$Text,[string]$Old,[string]$New,[string]$Label){
+    $count=[regex]::Matches($Text,[regex]::Escape($Old)).Count
+    if($count-ne1){Fail($Label+' count='+$count)}
+    return $Text.Replace($Old,$New)
+}
 
 $source=Join-Path $PSScriptRoot 'Materialize-Manager41713PendingGlobalAtomicityR9.ps1'
 if(-not(Test-Path -LiteralPath $source -PathType Leaf)){Fail('R9 source materializer missing: '+$source)}
-$lines=@([IO.File]::ReadAllLines($source,[Text.Encoding]::UTF8))
+$sourceText=[IO.File]::ReadAllText($source,[Text.Encoding]::UTF8)
+
+# Pre-qualification adversarial review of the proposed R9 fix found two defects in the
+# unpublished implementation. Correct the materializer before it can generate candidate bytes:
+# 1) staging cleanup must use -not IsNullOrWhiteSpace;
+# 2) missing-destination publication must use a no-overwrite same-volume rename and must enter
+#    the rollback set immediately after the durable rename, before presentation/hash verification.
+#    This avoids both clobbering a race-created destination and losing rollback ownership if a
+#    post-commit SetHidden/hash check fails.
+$sourceText=Replace-Exact $sourceText \
+    'if(-[string]::IsNullOrWhiteSpace([string]$plan.Stage)-and(Test-Path -LiteralPath ([string]$plan.Stage))){Remove-Item -LiteralPath ([string]$plan.Stage) -Force -ErrorAction SilentlyContinue}' \
+    'if(-not [string]::IsNullOrWhiteSpace([string]$plan.Stage)-and(Test-Path -LiteralPath ([string]$plan.Stage))){Remove-Item -LiteralPath ([string]$plan.Stage) -Force -ErrorAction SilentlyContinue}' \
+    'R9 unpublished stage cleanup correction'
+
+$oldPublish=@'
+                Publish-CompletedFileAtomically ([string]$plan.Stage) ([string]$plan.Destination)
+                $plan.Stage=''
+                $destItem=Get-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                if($destItem.PSIsContainer-or($destItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Published stranded Hub input destination is unsafe: '+[string]$plan.Destination)}
+                if((Get-FileHash -LiteralPath ([string]$plan.Destination) -Algorithm SHA256).Hash.ToLowerInvariant()-ne[string]$plan.Sha256){throw('Published stranded Hub input destination failed hash verification: '+[string]$plan.Destination)}
+                $plan.PublishedByThisRun=$true
+                [void]$published.Add($plan)
+'@.TrimEnd("`r","`n")
+$newPublish=@'
+                [System.IO.File]::Move([string]$plan.Stage,[string]$plan.Destination)
+                $plan.Stage=''
+                $plan.PublishedByThisRun=$true
+                [void]$published.Add($plan)
+                Set-ManagerMutablePresentationHidden ([string]$plan.Destination)
+                $destItem=Get-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                if($destItem.PSIsContainer-or($destItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Published stranded Hub input destination is unsafe: '+[string]$plan.Destination)}
+                if((Get-FileHash -LiteralPath ([string]$plan.Destination) -Algorithm SHA256).Hash.ToLowerInvariant()-ne[string]$plan.Sha256){throw('Published stranded Hub input destination failed hash verification: '+[string]$plan.Destination)}
+'@.TrimEnd("`r","`n")
+if(-not$sourceText.Contains($oldPublish)){$oldPublish=$oldPublish.Replace("`r`n","`n");$newPublish=$newPublish.Replace("`r`n","`n")}
+$sourceText=Replace-Exact $sourceText $oldPublish $newPublish 'R9 unpublished publication-boundary correction'
+
+$lines=@([regex]::Split($sourceText,'\r?\n'))
 $targets=@()
 for($i=0;$i-lt$lines.Count;$i++){if(([string]$lines[$i]).Contains("'R9 validator state-machine outcome'")){$targets+=@($i)}}
 if($targets.Count-ne1){Fail('R9c source marker count='+$targets.Count)}
@@ -40,4 +81,4 @@ $exe=Join-Path $PSHOME 'powershell.exe'
 & $exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $temp -RepositoryRoot $RepositoryRoot -ExpectedBase $ExpectedBase -EvidenceRoot $EvidenceRoot
 $code=[int]$LASTEXITCODE
 if($code-ne0){exit $code}
-Write-Host 'Manager 4.17.13 R9c materializer harness correction: PASS' -ForegroundColor Green
+Write-Host 'Manager 4.17.13 R9c materializer harness/product-prequalification correction: PASS' -ForegroundColor Green
