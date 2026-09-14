@@ -1,0 +1,144 @@
+name: Manager 4.17.13 consolidated prefreeze proof r7c
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/materialize-manager-4.17.13-prefreeze-knowledge-r7c.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-4.17.13-prefreeze-knowledge-r6
+  cancel-in-progress: true
+
+jobs:
+  materialize-and-prove:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - name: Checkout R7 materializer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: maintenance/prefreeze-review-fixes-4.17.13-r1
+          path: materializer
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout exact authoritative development base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.13
+          path: target
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Materialize R7c, qualify exact head, and publish only after green
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $base='6023c4cf505393820bc803a765e0744eefbabda5'
+          $fullSuccessorBase='bdd1fa38ce680304f59764ae7a9482d6b1728053'
+          $target=Join-Path $env:GITHUB_WORKSPACE 'target'
+          $sourceMaterializer=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713PrefreezeKnowledgeR7.ps1'
+          $materializer=Join-Path $env:RUNNER_TEMP 'Materialize-Manager41713PrefreezeKnowledgeR7c.ps1'
+          $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-prefreeze-knowledge-r7c'
+          New-Item -ItemType Directory -Force -Path $evidence|Out-Null
+          "KEELARYN_41713_R7C_EVIDENCE=$evidence" >> $env:GITHUB_ENV
+
+          $text=[IO.File]::ReadAllText($sourceMaterializer,[Text.Encoding]::UTF8)
+          $fixes=[ordered]@{
+            'instances\\'='instances\'
+            '\\baseline\\Keelaryn__Hub_CURRENT.zip'='\baseline\Keelaryn__Hub_CURRENT.zip'
+            'baseline\\Keelaryn__Hub_CURRENT.zip'='baseline\Keelaryn__Hub_CURRENT.zip'
+            '\\inbox'='\inbox'
+            '_System\\STATE.md'='_System\STATE.md'
+          }
+          foreach($old in @($fixes.Keys)){
+            $count=[regex]::Matches($text,[regex]::Escape($old)).Count
+            if($count-lt1){throw ('Expected R7 path-literal defect was not found: '+$old)}
+            $text=$text.Replace($old,[string]$fixes[$old])
+          }
+          [IO.File]::WriteAllText($materializer,$text,(New-Object Text.UTF8Encoding($false)))
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($materializer,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count-ne0){throw ('Patched R7c materializer does not parse: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+
+          $actual=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          if($actual-cne$base){throw ('Authoritative dev moved before R7c materialization: '+$actual)}
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $materializer -RepositoryRoot $target -ExpectedBase $base -EvidenceRoot $evidence
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          if(@(git -C $target diff --name-only -- manager).Count-ne0){throw 'Manager product bytes changed in R7c convergence.'}
+
+          git -C $target config user.name 'Aleksei Efremov'
+          git -C $target config user.email 'efremov.aleksei.96@gmail.com'
+          git -C $target add -- .github/workflows/entry-reachability-validation.yml MANAGER_DEVELOPMENT_STATE.json PUBLIC_PROVENANCE.json tests/knowledge/entry-reachability.json tests/knowledge/prefreeze-semantic-review.json tests/knowledge/risk-map.json tests/knowledge/state-machines/multi-hub.json tools/Invoke-ManagerEntryReachabilityMatrix.ps1 tools/Test-ManagerEngineeringKnowledge.ps1 tools/Test-ManagerEntryReachabilityKnowledge.ps1
+          $changed=@(git -C $target diff --cached --name-only)
+          $expected=@('.github/workflows/entry-reachability-validation.yml','MANAGER_DEVELOPMENT_STATE.json','PUBLIC_PROVENANCE.json','tests/knowledge/entry-reachability.json','tests/knowledge/prefreeze-semantic-review.json','tests/knowledge/risk-map.json','tests/knowledge/state-machines/multi-hub.json','tools/Invoke-ManagerEntryReachabilityMatrix.ps1','tools/Test-ManagerEngineeringKnowledge.ps1','tools/Test-ManagerEntryReachabilityKnowledge.ps1')|Sort-Object
+          if(([string]::Join('|',@($changed|Sort-Object)))-cne([string]::Join('|',$expected))){throw ('Unexpected staged R7c patch set: '+($changed-join', '))}
+          if(@(git -C $target diff --cached --name-only -- manager).Count-ne0){throw 'Manager product bytes are staged unexpectedly.'}
+          git -C $target commit -m 'Manager 4.17.13: converge prefreeze proof model'
+          if($LASTEXITCODE-ne0){throw 'R7c commit failed.'}
+
+          $head=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          $tree=(git -C $target rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
+          $parent=(git -C $target rev-parse 'HEAD^').Trim().ToLowerInvariant()
+          if($parent-cne$base){throw ('R7c parent mismatch: '+$parent)}
+          if(@(git -C $target status --porcelain).Count-ne0){throw 'R7c checkout is not clean after commit.'}
+
+          $matrix=Get-Content -LiteralPath (Join-Path $evidence 'ENTRY_REACHABILITY_RESULT.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if(-not[bool]$matrix.pass-or[int]$matrix.scenario_count-ne101-or[int]$matrix.executed_count-ne101){throw 'R7c requires exact 101/101 entry matrix PASS.'}
+
+          $env:GITHUB_SHA=$head
+          $devOut=Join-Path $evidence 'development-validation'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Invoke-DevelopmentValidation.ps1') -RepositoryRoot $target -OutputDirectory $devOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $riskOut=Join-Path $evidence 'full-successor-risk-gate'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Invoke-ManagerRiskDefectGate.ps1') -RepositoryRoot $target -BaseCommit $fullSuccessorBase -HeadCommit $head -OutputDirectory $riskOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $receipt=[ordered]@{
+            schema='keelaryn.manager-prefreeze-proof-convergence.v1'
+            gate_revision='r7c'
+            manager_version='4.17.13'
+            base=$base
+            head=$head
+            tree=$tree
+            full_successor_base=$fullSuccessorBase
+            classification='qualification_knowledge_state_machine_risk_map_ci_evidence'
+            product_bytes_changed=$false
+            entry_matrix_scenarios=101
+            registry_document_invalid_scenarios=18
+            existing_registry_initialize_scenarios=11
+            pending_global_identity_bound_reconciliation='pass'
+            state_machine_entry_oracle_consistency='pass'
+            nondefault_state_machine_risk_mapping='complete'
+            entry_workflow_state_machine_trigger='bound'
+            non_target_hub_lifecycle_immutability='pass'
+            failure_evidence_reporter='failure_safe_before_synthetic_successor_creation'
+            development_validation='pass'
+            full_successor_risk_defect_gate='pass'
+            candidate_issued=$false
+            production_qualified=$false
+            completed_utc=[DateTime]::UtcNow.ToString('o')
+          }
+          $receipt|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $evidence 'PREFREEZE_PROOF_CONVERGENCE.json') -Encoding UTF8
+
+          Write-Host ('Validated R7c head: '+$head) -ForegroundColor Green
+          Write-Host ('Validated R7c tree: '+$tree) -ForegroundColor Green
+          git -C $target push origin HEAD:dev/manager-4.17.13
+          if($LASTEXITCODE-ne0){throw 'Authoritative dev push failed.'}
+
+      - name: Upload R7c qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.13-prefreeze-proof-r7c-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_41713_R7C_EVIDENCE }}
+          if-no-files-found: warn
+          retention-days: 5
