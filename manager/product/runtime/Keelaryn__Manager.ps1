@@ -40,7 +40,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$ManagerVersion = "4.17.12"
+$ManagerVersion = "4.17.13"
 $RuntimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeProductDirectory = Split-Path -Parent $RuntimeDirectory
 $Root = Split-Path -Parent $RuntimeProductDirectory
@@ -8030,7 +8030,15 @@ if ($SelfTest) {
 
 # Update commands never perform transport repair implicitly. Use the Maintenance repair action explicitly.
 # Multi-Hub compatibility shadow reconciliation is Manager-state recovery, not a Hub transport repair.
-if($script:InstanceRegistryActive -and -not$Doctor){
+function Test-ActiveCompatibilityShadowReconciliationRequired {
+    if(-not$script:InstanceRegistryActive){return $false}
+    # Diagnostic/target-driven recovery and Manager-global operations must be reachable
+    # without validating or repairing the old active Hub CURRENT they do not consume.
+    if($Doctor-or$ListInstances-or$SwitchInstanceId-or$BindInstancePath-or$UpdateManager-or$BuildDistribution-or$BuildRelease-or$BuildAIContext){return $false}
+    return $true
+}
+
+if(Test-ActiveCompatibilityShadowReconciliationRequired){
     Acquire-ManagerLock
     try{$null=Invoke-ReconcileActiveCompatibilityShadow}
     finally{Release-ManagerLock}

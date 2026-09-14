@@ -1,4 +1,7 @@
-# Keelaryn Manager 4.17.12
+# Keelaryn Manager 4.17.13
+Manager 4.17.13 is the corrective successor to the production-installed but public-release-rejected Manager 4.17.12. It makes compatibility-shadow reconciliation action-aware: target-driven recovery, registry diagnostics and Manager-global build/update operations remain reachable when the old active CURRENT is missing or corrupt, while Hub/context-bound operations continue to reconcile or fail closed. The release process also adds real process-entry reachability coverage and mandatory semantic review before candidate freeze. Production multi-Hub remains disabled until qualification, installation, public release and separate activation approval.
+
+## 4.17.12 context
 Manager 4.17.12 is the corrective successor to the production-installed but public-release-rejected Manager 4.17.11. It restores target-driven recovery switching in the Manage Hubs UI when active selection metadata is broken, while preserving runtime target validation and fail-closed behavior for actions that require a resolved active Hub. It also ships with the hardened pre-freeze risk-range contract in repository tooling. Production multi-Hub remains disabled until this successor completes qualification, installation, public release, and separate activation approval.
 
 ## 4.17.11 context
@@ -133,10 +136,9 @@ The tests workspace contract is explicit: `framework` holds one current reusable
 
 ## Update compatibility
 
-Manager 4.17.12 preserves the native update compatibility floor in `product/manager_release.json` and the established UPDATE transition envelope. The normal production qualification transition for this corrective candidate is production-installed Manager 4.17.11 -> 4.17.12.
+Manager 4.17.13 preserves the native update compatibility floor in `product/manager_release.json` and the established UPDATE transition envelope. The normal production qualification transition for this corrective candidate is production-installed Manager 4.17.12 -> 4.17.13.
 
-Manager-only update commands continue to distinguish "no newer valid package" from failure and do not silently process Hub updates. Installing Manager 4.17.12 alone must not change canonical Hub content.
-
+Manager-only update commands remain Manager-global and do not require a healthy active Hub compatibility CURRENT. Installing Manager 4.17.13 alone must not change canonical Hub content.
 ## User interface compatibility
 
 Use `keelaryn\Keelaryn.cmd` or `manager\KEELARYN.cmd`.
@@ -145,4 +147,4 @@ The existing numeric main-menu contract is preserved to avoid breaking establish
 
 ## Release gate
 
-This source is not production-approved merely because it carries version 4.17.12. Production approval requires the applicable Windows PowerShell parser/static checks, inherited and 4.17.12 regressions, Manager/frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.17.11 -> 4.17.12 update and rollback/fault-injection coverage, Doctor/migration/UI/Genesis coverage, production Hub immutability, exact tested/public-source/release UPDATE identity, real CURRENT-backed Full Gate and gated publication. The consolidated gate uses qualified Gate Framework r24.
+This source is not production-approved merely because it carries version 4.17.13. Production approval requires the applicable parser/static checks, inherited and 4.17.13 regressions, the version-independent behavioral regression suite, the real process-entry reachability matrix, Manager/frontend SelfTests, deterministic SOURCE/DISTRIBUTION/UPDATE/AI_CONTEXT checks, disposable 4.17.12 -> 4.17.13 update and rollback/fault-injection coverage, Doctor/migration/UI/Genesis coverage, full-successor Risk/Defect Gate, a clean exact-head pre-freeze semantic PR review, production Hub immutability, exact tested/public-source/release UPDATE identity, real CURRENT-backed Full Gate and gated publication. The consolidated gate uses qualified Gate Framework r24.

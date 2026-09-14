@@ -101,7 +101,11 @@ $knowledgeTools=@(
     'tools\Invoke-ManagerRiskContextRegression.ps1',
     'tools\Verify-ManagerReleaseInstructions.ps1',
     'tools\Invoke-Manager41711ReviewRegression.ps1',
-    'tools\Invoke-Manager41712ReviewRegression.ps1'
+    'tools\Invoke-Manager41712ReviewRegression.ps1',
+    'tools\Invoke-ManagerRecoveryBehaviorRegression.ps1',
+    'tools\Test-ManagerEntryReachabilityKnowledge.ps1',
+    'tools\Invoke-ManagerEntryReachabilityMatrix.ps1',
+    'tools\Invoke-Manager41713ReviewRegression.ps1'
 )
 foreach($relative in $knowledgeTools){
     $path=Join-Path $RepositoryRoot $relative
@@ -155,13 +159,18 @@ Copy-Item -LiteralPath $riskGateEvidence -Destination (Join-Path $evidence 'RISK
 Write-Host '[4/7] Run Manager review regression and release-identity chain...'
 $releaseInstructionGuard=Join-Path $RepositoryRoot 'tools\Verify-ManagerReleaseInstructions.ps1'
 Invoke-Child $releaseInstructionGuard @('-RepositoryRoot',$RepositoryRoot)
-foreach($regressionName in @('Invoke-Manager41710ReviewRegression.ps1','Invoke-Manager41711ReviewRegression.ps1','Invoke-Manager41712ReviewRegression.ps1')){
+foreach($regressionName in @('Invoke-Manager41710ReviewRegression.ps1','Invoke-Manager41711ReviewRegression.ps1','Invoke-ManagerRecoveryBehaviorRegression.ps1','Invoke-Manager41713ReviewRegression.ps1')){
     $regression=Join-Path $RepositoryRoot ('tools\'+$regressionName)
     if(-not(Test-Path -LiteralPath $regression -PathType Leaf)){Fail('Manager review regression tool is missing: '+$regressionName)}
     Parse-File $regression
     Invoke-Child $regression @('-RepositoryRoot',$RepositoryRoot)
 }
-Write-Host 'Manager 4.17.10 + 4.17.11 + 4.17.12 review regression and release-instruction chain: PASS' -ForegroundColor Green
+$entryModelValidator=Join-Path $RepositoryRoot 'tools\Test-ManagerEntryReachabilityKnowledge.ps1'
+Invoke-Child $entryModelValidator @('-RepositoryRoot',$RepositoryRoot)
+$entryEvidence=Join-Path $evidence 'ENTRY_REACHABILITY_RESULT.json'
+$entryMatrix=Join-Path $RepositoryRoot 'tools\Invoke-ManagerEntryReachabilityMatrix.ps1'
+Invoke-Child $entryMatrix @('-RepositoryRoot',$RepositoryRoot,'-OutputPath',$entryEvidence)
+Write-Host 'Manager review regressions + release identity + process-entry reachability: PASS' -ForegroundColor Green
 
 Write-Host '[5/7] Run Manager and frontend SelfTests from source...'
 $runtime=Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1'
@@ -218,6 +227,7 @@ $report=[ordered]@{
     risk_defect_gate_observed_pass=[bool]$riskGateReport.pass
     risk_defect_gate_expected_policy=$riskPolicy
     review_regressions_pass=$true
+    entry_reachability_pass=$true
     manager_selftest_pass=$true
     frontend_selftest_pass=$true
     deterministic_build_release_pass=$true

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$RepositoryRoot=(Join-Path $PSScriptRoot '..'))
+param([Parameter(Mandatory=$true)][string]$RepositoryRoot)
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
