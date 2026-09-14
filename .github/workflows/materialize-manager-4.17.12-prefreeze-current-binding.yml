@@ -29,7 +29,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $expectedParent='cd807db41f056fb5bc9337a8e5b9f3a28e21ac49'
+          $expectedParent='e59b13595a6cb8383a65831b4b898b3b254dff7b'
           $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
           $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant()
           if($parent-cne$expectedParent){throw "Unexpected workflow parent: $parent expected $expectedParent"}
@@ -60,17 +60,24 @@ jobs:
             [IO.File]::WriteAllText((Resolve-Path $menu),$menuText,(New-Object Text.UTF8Encoding($false)))
           }
 
-          # EOL-independent pre-insertion: the historical regression is LF in Git, while the old materializer template used CRLF literals.
+          # EOL-independent pre-insertion: historical regression source is LF in Git.
           $reg3='tools/Invoke-Manager4173ReviewRegression.ps1'
           $reg3Text=[IO.File]::ReadAllText((Resolve-Path $reg3),[Text.Encoding]::UTF8)
+          if(-not$reg3Text.Contains('Add-Type -AssemblyName System.IO.Compression.FileSystem')){
+            $strict='Set-StrictMode -Version 2.0'
+            $strictReplacement=$strict+"`nAdd-Type -AssemblyName System.IO.Compression`nAdd-Type -AssemblyName System.IO.Compression.FileSystem"
+            $first=$reg3Text.IndexOf($strict,[StringComparison]::Ordinal)
+            if($first-lt0-or$reg3Text.IndexOf($strict,$first+$strict.Length,[StringComparison]::Ordinal)-ge0){throw '4.17.3 regression strict-mode anchor is not unique.'}
+            $reg3Text=$reg3Text.Substring(0,$first)+$strictReplacement+$reg3Text.Substring($first+$strict.Length)
+          }
           if(-not$reg3Text.Contains("Get-FunctionText `$menuPath 'Assert-FrontendCurrentArchiveBinding'")){
             $importAnchor="Invoke-Expression (Get-FunctionText `$menuPath 'Ensure-ChatGPTExchangeLayout')"
             $imports=$importAnchor+"`nInvoke-Expression (Get-FunctionText `$menuPath 'ConvertTo-CanonicalFrontendInstanceId')`nInvoke-Expression (Get-FunctionText `$menuPath 'Read-FrontendZipEntryJson')`nInvoke-Expression (Get-FunctionText `$menuPath 'Assert-FrontendCurrentArchiveBinding')"
             $first=$reg3Text.IndexOf($importAnchor,[StringComparison]::Ordinal)
             if($first-lt0-or$reg3Text.IndexOf($importAnchor,$first+$importAnchor.Length,[StringComparison]::Ordinal)-ge0){throw '4.17.3 regression import insertion anchor is not unique.'}
             $reg3Text=$reg3Text.Substring(0,$first)+$imports+$reg3Text.Substring($first+$importAnchor.Length)
-            [IO.File]::WriteAllText((Resolve-Path $reg3),$reg3Text,(New-Object Text.UTF8Encoding($false)))
           }
+          [IO.File]::WriteAllText((Resolve-Path $reg3),$reg3Text,(New-Object Text.UTF8Encoding($false)))
           Write-Host "One-shot identity + materializer preparation PASS. HEAD=$head"
 
       - name: Apply product and permanent regression fix
