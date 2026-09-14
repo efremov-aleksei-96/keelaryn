@@ -4,12 +4,12 @@
     "source_manager_version":  "4.17.13",
     "source_gate_baseline_manager_version":  "4.17.12",
     "source_manager_installation_sha256":  "acc2b2eeff9b32775dfeaea2d1ca4ee0b8c4293b14acd70efdd8ca08db4eb66b",
-    "source_manager_gate_managed_content_sha256":  "9804c7aebc6cfedef128a281186683a1f11a32c88c46a82a21a81eae6dbc3de0",
+    "source_manager_gate_managed_content_sha256":  "4289ea828023e1dc2d08cee1ee5e772b71d01616a38d6951c3ff6f5724f17596",
     "candidate_identity":  {
                                "revision":  "development",
                                "frozen_commit":  null,
                                "frozen_tree":  null,
-                               "validated_development_parent":  "8db87660ecb3a77483d06073dfa5812b842a01d7",
+                               "validated_development_parent":  "6023c4cf505393820bc803a765e0744eefbabda5",
                                "immutable":  false,
                                "product_bytes_changed_after_freeze":  false
                            },
@@ -131,7 +131,19 @@
                                                                "candidate_issued":  false,
                                                                "entry_policy_modes":  29,
                                                                "entry_reachability_scenarios":  75,
-                                                               "exact_head_validation":  "required_before_freeze"
+                                                               "exact_head_validation":  "required_before_freeze",
+                                                               "prefreeze_product_fix":  {
+                                                                                             "defect_id":  "MGR-DEF-0031",
+                                                                                             "status":  "materialized_unqualified_development",
+                                                                                             "red_run_id":  34849395914,
+                                                                                             "red_job_id":  103993196794,
+                                                                                             "red_artifact_id":  10350446110,
+                                                                                             "red_artifact_sha256":  "49b8fc478bc371667cd1948200a5df766fed1973fe402c1d8a6f7fe2ecf7fe21",
+                                                                                             "root_cause_probe_run_id":  34850808950,
+                                                                                             "root_cause_probe_job_id":  103997985944,
+                                                                                             "fix":  "Get-GlobalHubInputIdentity parameter renamed from automatic-variable collision $Input to $Descriptor",
+                                                                                             "exact_green_requalification":  "required_before_freeze"
+                                                                                         }
                                                            }
                                },
     "publication_status":  {

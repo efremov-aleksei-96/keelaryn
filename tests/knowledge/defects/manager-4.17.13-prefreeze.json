@@ -1,0 +1,78 @@
+{
+    "schema":  "keelaryn.manager-defects.v1",
+    "scope":  "Pre-freeze process-entry findings for Manager 4.17.13",
+    "defects":  [
+                    {
+                        "id":  "MGR-DEF-0031",
+                        "title":  "PowerShell automatic $input variable replaces global Hub input descriptor parameter",
+                        "severity":  "P1",
+                        "status":  "fixed",
+                        "release_blocker":  true,
+                        "detected_in":  "4.17.13",
+                        "detected_stage":  "prefreeze_process_entry_qualification",
+                        "defect_class":  "PowerShell automatic-variable collision / pending-input reconciliation reachability",
+                        "affected_surfaces":  [
+                                                  "S-RUNTIME-INBOX"
+                                              ],
+                        "preconditions":  "A valid multi-Hub registry exists, an identity-bound Hub-owned APPROVED/CANDIDATE/transport object is stranded in the global Manager inbox, and InitializeInstanceRegistry dispatches existing-registry reconciliation under Windows PowerShell 5.1.",
+                        "bad_behavior":  "Get-GlobalHubInputIdentity receives the automatic $input enumerator instead of the positional descriptor because its parameter is named $Input. Reconciliation fails immediately with Global Hub input descriptor is invalid before ZIP/transport identity validation or safe transfer can occur.",
+                        "root_cause":  "Windows PowerShell reserves $input as an automatic variable. Declaring Get-GlobalHubInputIdentity($Input) does not preserve the caller-supplied descriptor; function entry replaces it with the pipeline input enumerator. Function-local/static coverage had never executed the pending-global reconciliation path end to end.",
+                        "root_cause_classes":  [
+                                                   "RC-REACHABILITY-001",
+                                                   "RC-ENTRY-001"
+                                               ],
+                        "violated_invariants":  [
+                                                    "MH-INBOX-001",
+                                                    "MH-REACHABILITY-001"
+                                                ],
+                        "related_defects":  [
+
+                                            ],
+                        "permanent_regressions":  [
+                                                      "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
+                                                  ],
+                        "planned_regressions":  [
+
+                                                ],
+                        "fixed_in":  "4.17.13",
+                        "evidence":  [
+                                         {
+                                             "type":  "prefreeze_process_entry_red_run",
+                                             "id":  "34849395914"
+                                         },
+                                         {
+                                             "type":  "prefreeze_process_entry_red_job",
+                                             "id":  "103993196794"
+                                         },
+                                         {
+                                             "type":  "prefreeze_process_entry_red_artifact",
+                                             "id":  "10350446110"
+                                         },
+                                         {
+                                             "type":  "prefreeze_process_entry_red_artifact_sha256",
+                                             "id":  "49b8fc478bc371667cd1948200a5df766fed1973fe402c1d8a6f7fe2ecf7fe21"
+                                         },
+                                         {
+                                             "type":  "prefreeze_process_entry_red_summary",
+                                             "id":  "101 executed; 100 PASS; only REGISTRY_PENDING_GLOBAL x InitializeInstanceRegistry failed; harness_error=false"
+                                         },
+                                         {
+                                             "type":  "powershell_parameter_collision_probe_run",
+                                             "id":  "34850808950"
+                                         },
+                                         {
+                                             "type":  "powershell_parameter_collision_probe_job",
+                                             "id":  "103997985944"
+                                         },
+                                         {
+                                             "type":  "source_symbol",
+                                             "id":  "Get-GlobalHubInputIdentity"
+                                         },
+                                         {
+                                             "type":  "root_cause",
+                                             "id":  "function parameter $Input is replaced by Windows PowerShell automatic $input enumerator"
+                                         }
+                                     ]
+                    }
+                ]
+}

@@ -5379,12 +5379,12 @@ function Get-GlobalHubOwnedInboxObjects {
     return @($rows)
 }
 
-function Get-GlobalHubInputIdentity($Input) {
-    if($null-eq$Input-or$null-eq$Input.File){throw 'Global Hub input descriptor is invalid.'}
-    $file=Get-Item -LiteralPath ([string]$Input.File.FullName) -Force -ErrorAction Stop
+function Get-GlobalHubInputIdentity($Descriptor) {
+    if($null-eq$Descriptor-or$null-eq$Descriptor.File){throw 'Global Hub input descriptor is invalid.'}
+    $file=Get-Item -LiteralPath ([string]$Descriptor.File.FullName) -Force -ErrorAction Stop
     if($file.PSIsContainer-or($file.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Global Hub input is unsafe: '+$file.FullName)}
     $sha=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-    if([string]$Input.Kind-eq'hub_zip'){
+    if([string]$Descriptor.Kind-eq'hub_zip'){
         $candidate=$file.Name.StartsWith('Keelaryn__Hub_CANDIDATE_',[StringComparison]::OrdinalIgnoreCase)-or$file.Name.StartsWith([string]$LegacyCoreCompat.CandidatePrefix,[StringComparison]::OrdinalIgnoreCase)
         $approved=$file.Name.StartsWith('Keelaryn__Hub_APPROVED_',[StringComparison]::OrdinalIgnoreCase)-or$file.Name.StartsWith([string]$LegacyCoreCompat.ApprovedPrefix,[StringComparison]::OrdinalIgnoreCase)
         if(-not$candidate-and-not$approved){throw('Global Hub ZIP has an unsupported pending role and cannot be assigned safely: '+$file.Name)}
@@ -5398,13 +5398,13 @@ function Get-GlobalHubInputIdentity($Input) {
             return [pscustomobject]@{InstanceId=$g.ToString().ToLowerInvariant();Sha256=$sha;Kind='hub_zip';File=$file}
         }finally{if($identity-and$identity.Session){Close-HubZipInspectionSession $identity.Session}}
     }
-    if([string]$Input.Kind-eq'candidate_transport'){
+    if([string]$Descriptor.Kind-eq'candidate_transport'){
         $doc=Read-CandidateTransportDocument $file.FullName
         $id=([string]$doc.candidate.instance_id).Trim().ToLowerInvariant();$g=[guid]::Empty
         if(-not[guid]::TryParse($id,[ref]$g)-or$g-eq[guid]::Empty){throw('Global candidate transport lacks canonical instance_id: '+$file.Name)}
         return [pscustomobject]@{InstanceId=$g.ToString().ToLowerInvariant();Sha256=$sha;Kind='candidate_transport';File=$file}
     }
-    throw('Unsupported global Hub input kind: '+[string]$Input.Kind)
+    throw('Unsupported global Hub input kind: '+[string]$Descriptor.Kind)
 }
 
 function Stage-GlobalHubInputsForRegistryActivation([string]$InstanceId,[string]$DestinationInbox) {

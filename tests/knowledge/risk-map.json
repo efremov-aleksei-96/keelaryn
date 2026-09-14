@@ -200,7 +200,9 @@
                                          "Get-QuickStatus",
                                          "Get-ValidHubPackages",
                                          "Invoke-InitializeInstanceRegistry",
-                                         "Invoke-Doctor"
+                                         "Invoke-Doctor",
+                                         "Get-GlobalHubInputIdentity",
+                                         "Reconcile-StrandedGlobalHubInputsForExistingRegistry"
                                      ],
                          "invariants":  [
                                             "MH-LIFECYCLE-001",
@@ -214,7 +216,8 @@
                          "regressions":  [
                                              "tools/Invoke-Manager4176ReviewRegression.ps1",
                                              "tools/Invoke-Manager4179ConvergenceRegression.ps1",
-                                             "tools/Invoke-Manager41711ReviewRegression.ps1"
+                                             "tools/Invoke-Manager41711ReviewRegression.ps1",
+                                             "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
                                          ],
                          "planned_regressions":  [
 
