@@ -1,0 +1,24 @@
+name: Halt superseded Manager 4.17.13 prefreeze proof
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/halt-manager-4.17.13-prefreeze-proof.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-4.17.13-init-registry-entry-proof
+  cancel-in-progress: true
+
+jobs:
+  halt:
+    runs-on: windows-2025
+    steps:
+      - name: Record superseded proof halt
+        shell: powershell
+        run: |
+          Write-Host 'Superseded proof run cancelled before publication because adversarial review found a product/state-machine contradiction in InitializeInstanceRegistry CURRENT-degraded semantics.'
