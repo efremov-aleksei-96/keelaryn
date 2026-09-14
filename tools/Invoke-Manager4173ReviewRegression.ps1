@@ -81,7 +81,16 @@ try{
         if(-not$item.PSIsContainer-or($item.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Unsafe directory in regression: '+$Purpose)}
     }
     function Get-ChatGPTExchangeDirectoryNames {return @('workspace-input','workspace-checkouts','chat-returns','chat-manager-input','chat-manager-results','development')}
-    function Get-FileSha256Hex([string]$FilePath){return Get-Sha256 $FilePath}
+    $script:ForcedPublishedHashMismatchPath=$null
+    function Get-FileSha256Hex([string]$FilePath){
+        $hash=Get-Sha256 $FilePath
+        if($script:ForcedPublishedHashMismatchPath){
+            $actual=[IO.Path]::GetFullPath($FilePath)
+            $forced=[IO.Path]::GetFullPath([string]$script:ForcedPublishedHashMismatchPath)
+            if($actual-ieq$forced){return ('0'*64)}
+        }
+        return $hash
+    }
     function Write-UiHost {param([object]$Object,[object]$ForegroundColor) }
     function Set-ActionSemantic {param([string]$Status) }
 
@@ -123,6 +132,23 @@ try{
     Assert $blocked 'CANDIDATE CURRENT was accepted for ChatGPT exchange preparation.'
     Assert ((Get-Sha256 $prepared)-ceq$preparedHash) 'Rejected non-approved CURRENT modified the previously prepared exchange artifact.'
     Write-Host '  PASS wrong-instance, mixed-identity and non-approved CURRENT exports fail closed without changing exchange bytes'
+    # Regression A3: rollback bytes survive until post-publication verification succeeds.
+    New-IdentityBoundCurrentZip $aCurrent $aId
+    [IO.File]::WriteAllText($prepared,'previous-exchange-artifact',(New-Object Text.UTF8Encoding($false)))
+    $previousExchangeHash=Get-Sha256 $prepared
+    $script:ForcedPublishedHashMismatchPath=$prepared
+    $blocked=$false;$failureMessage=$null
+    try{$null=Copy-CurrentForChatGPT $ctxA 'workspace-input'}catch{$blocked=$true;$failureMessage=$_.Exception.Message}finally{$script:ForcedPublishedHashMismatchPath=$null}
+    Assert $blocked 'Forced post-publication verification failure did not fail closed.'
+    Assert ([string]$failureMessage).Contains('durable publication succeeded') 'Post-publication failure did not identify the durable commit.'
+    Assert ([string]$failureMessage).Contains('Previous exchange artifact is preserved at') 'Post-publication failure did not report preserved rollback data.'
+    Assert ((Get-Sha256 $prepared)-ceq(Get-Sha256 $aCurrent)) 'Durably published target bytes were not the verified source bytes.'
+    $backupPattern=(Split-Path $prepared -Leaf)+'.replace-backup-*'
+    $rollbackRows=@(Get-ChildItem -LiteralPath (Split-Path -Parent $prepared) -File -Filter $backupPattern)
+    Assert ($rollbackRows.Count-eq1) ('Expected exactly one preserved rollback artifact; actual='+$rollbackRows.Count)
+    Assert ((Get-Sha256 $rollbackRows[0].FullName)-ceq$previousExchangeHash) 'Preserved rollback artifact does not match the previous exchange bytes.'
+    Remove-Item -LiteralPath $rollbackRows[0].FullName -Force
+    Write-Host '  PASS previous exchange bytes survive a durable-commit/post-publication verification failure'
 
     # Regression B: directory publication must fail if the destination is occupied at commit time.
     $src1=Join-Path $temp 'publish-source-1'

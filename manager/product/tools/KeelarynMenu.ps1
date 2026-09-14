@@ -351,14 +351,21 @@ function Copy-CurrentForChatGPT($Context,[string]$DestinationName) {
         $tmpHash=Get-FileSha256Hex $tmp
         if($sourceHash-cne$tmpHash){Fail 'Prepared CURRENT failed locked-source SHA-256 verification.'}
 
-        if(Test-Path -LiteralPath $target -PathType Leaf){
+        $replacedPrevious=(Test-Path -LiteralPath $target -PathType Leaf)
+        if($replacedPrevious){
             [IO.File]::Replace($tmp,$target,$backup,$true)
-            if(Test-Path -LiteralPath $backup){Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue}
         }else{
             [IO.File]::Move($tmp,$target)
         }
-        $publishedHash=Get-FileSha256Hex $target
-        if($publishedHash-cne$sourceHash){Fail 'Prepared CURRENT durable publication succeeded, but post-publication SHA-256 verification failed.'}
+        try{$publishedHash=Get-FileSha256Hex $target}catch{
+            $rollbackNote=if($replacedPrevious-and(Test-Path -LiteralPath $backup -PathType Leaf)){('Previous exchange artifact is preserved at '+$backup+'.')}else{'No previous exchange artifact existed.'}
+            Fail('Prepared CURRENT durable publication succeeded, but post-publication SHA-256 verification could not complete. '+$rollbackNote+' '+$_.Exception.Message)
+        }
+        if($publishedHash-cne$sourceHash){
+            $rollbackNote=if($replacedPrevious-and(Test-Path -LiteralPath $backup -PathType Leaf)){('Previous exchange artifact is preserved at '+$backup+'.')}else{'No previous exchange artifact existed.'}
+            Fail('Prepared CURRENT durable publication succeeded, but post-publication SHA-256 verification failed. '+$rollbackNote)
+        }
+        if(Test-Path -LiteralPath $backup){Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue}
         Write-UiHost ('Prepared CURRENT: '+$target) -ForegroundColor Green
         return 0
     }finally{
@@ -366,7 +373,6 @@ function Copy-CurrentForChatGPT($Context,[string]$DestinationName) {
         if($targetStream){$targetStream.Dispose()}
         if($sourceStream){$sourceStream.Dispose()}
         if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}
-        if(Test-Path -LiteralPath $backup){Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue}
     }
 }
 

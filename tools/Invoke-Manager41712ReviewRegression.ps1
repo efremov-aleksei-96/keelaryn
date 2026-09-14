@@ -111,5 +111,9 @@ Assert ($copyCurrentText.Contains('Assert-FrontendCurrentArchiveBinding $archive
 Assert ($copyCurrentText.Contains('[IO.FileShare]::Read')) 'ChatGPT CURRENT export does not hold a read lock from identity validation through byte copy.'
 Assert ($menu.Contains('function Assert-FrontendCurrentArchiveBinding')) 'Frontend CURRENT identity-binding validator is missing.'
 Assert ($menu.Contains("CURRENT belongs to a different instance_id")) 'Frontend CURRENT wrong-instance failure contract is missing.'
+Assert ($copyCurrentText.Contains('Previous exchange artifact is preserved at')) 'ChatGPT CURRENT post-publication failure does not preserve/report rollback data.'
+$postVerifyIndex=$copyCurrentText.IndexOf('$publishedHash=Get-FileSha256Hex $target',[StringComparison]::Ordinal)
+$backupCleanupIndex=$copyCurrentText.IndexOf('if(Test-Path -LiteralPath $backup){Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue}',[StringComparison]::Ordinal)
+Assert ($postVerifyIndex-ge0-and$backupCleanupIndex-gt$postVerifyIndex) 'ChatGPT CURRENT rollback backup is deleted before post-publication verification.'
 Write-Host '  PASS CURRENT export identity binding is enforced under a locked source artifact'
 Write-Host 'MANAGER 4.17.12 REVIEW REGRESSION: PASS' -ForegroundColor Green

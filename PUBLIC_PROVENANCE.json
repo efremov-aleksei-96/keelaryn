@@ -4,7 +4,7 @@
     "source_manager_version":  "4.17.12",
     "source_gate_baseline_manager_version":  "4.17.11",
     "source_manager_installation_sha256":  "f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d",
-    "source_manager_gate_managed_content_sha256":  "a1a6f90530e4e330f87be7d06963ff352b2bf68ef2ab74b052eec05df6bb59e5",
+    "source_manager_gate_managed_content_sha256":  "5118a866aa54ed916bb087fe41a4ac724bf527181b79b1c34e9b29311bf10fb8",
     "production_validation":  {
                                   "full_gate_pass":  false,
                                   "gate_revision":  null,
@@ -72,6 +72,6 @@
     "known_nonsecret_hygiene_notes":  [
                                           "manager/product/docs/TESTING.md retains a maintainer-local D:\\0\\0__Core example; it is not a product default."
                                       ],
-    "development_status":  "unqualified_manager_4_17_12_prefreeze_finding_0028_fixed_rerun_required",
+    "development_status":  "unqualified_manager_4_17_12_prefreeze_findings_0028_0029_fixed_rerun_required",
     "public_candidate_revision_note":  "Revision 20 is inherited repository metadata; no 4.17.12 candidate revision is assigned until candidate issue/freeze."
 }

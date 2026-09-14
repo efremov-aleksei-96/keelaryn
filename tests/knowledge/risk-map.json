@@ -315,11 +315,13 @@
                                             "MH-IDENTITY-001",
                                             "MH-ISOLATION-001",
                                             "MH-PATH-001",
+                                            "MH-POSTCOMMIT-001",
                                             "MH-RECOVERY-001"
                                         ],
                          "root_cause_classes":  [
-                                                    "RC-PATH-001",
                                                     "RC-CONTEXT-001",
+                                                    "RC-OUTCOME-001",
+                                                    "RC-PATH-001",
                                                     "RC-RECOVERY-001"
                                                 ],
                          "regressions":  [

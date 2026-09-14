@@ -53,6 +53,53 @@
                                              "id":  "MH-BINDING-001"
                                          }
                                      ]
+                    },
+                    {
+                        "id":  "MGR-DEF-0029",
+                        "title":  "ChatGPT CURRENT replacement deletes rollback bytes before post-publication verification",
+                        "severity":  "P2",
+                        "status":  "fixed",
+                        "release_blocker":  true,
+                        "detected_in":  "4.17.12",
+                        "detected_stage":  "pre_freeze_adversarial_review_repeat",
+                        "defect_class":  "post-commit verification / rollback preservation",
+                        "affected_surfaces":  [
+                                                  "S-FRONTEND-INSTANCE-CONTEXT"
+                                              ],
+                        "preconditions":  "A previously prepared ChatGPT CURRENT exists, atomic File.Replace succeeds, and the subsequent SHA-256 verification fails or cannot complete.",
+                        "bad_behavior":  "The replacement backup was deleted immediately after File.Replace and again in finally, before post-publication verification. A durable replacement followed by verification failure therefore destroyed the prior known exchange artifact even though rollback bytes had been created.",
+                        "root_cause":  "Rollback cleanup was tied to successful atomic replacement rather than successful post-commit verification, collapsing durable commit and verified completion into one cleanup boundary.",
+                        "root_cause_classes":  [
+                                                   "RC-OUTCOME-001"
+                                               ],
+                        "violated_invariants":  [
+                                                    "MH-POSTCOMMIT-001"
+                                                ],
+                        "related_defects":  [
+                                                "MGR-DEF-0028"
+                                            ],
+                        "permanent_regressions":  [
+                                                      "tools/Invoke-Manager4173ReviewRegression.ps1",
+                                                      "tools/Invoke-Manager41712ReviewRegression.ps1"
+                                                  ],
+                        "planned_regressions":  [
+
+                                                ],
+                        "fixed_in":  "4.17.12",
+                        "evidence":  [
+                                         {
+                                             "type":  "pre_freeze_reviewed_head",
+                                             "id":  "121a16d59f7d4e2a8dfa8122c90448718d4c976d"
+                                         },
+                                         {
+                                             "type":  "source_symbol",
+                                             "id":  "Copy-CurrentForChatGPT"
+                                         },
+                                         {
+                                             "type":  "project_transaction_rule",
+                                             "id":  "preserve_rollback_data_until_post_commit_verification"
+                                         }
+                                     ]
                     }
                 ]
 }

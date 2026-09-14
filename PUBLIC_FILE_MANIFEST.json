@@ -5,7 +5,7 @@
                     "version":  "4.17.12",
                     "file_count":  70,
                     "installation_sha256":  "f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d",
-                    "gate_managed_content_sha256":  "a1a6f90530e4e330f87be7d06963ff352b2bf68ef2ab74b052eec05df6bb59e5",
+                    "gate_managed_content_sha256":  "5118a866aa54ed916bb087fe41a4ac724bf527181b79b1c34e9b29311bf10fb8",
                     "files":  [
                                   {
                                       "path":  "KEELARYN.cmd",
@@ -334,8 +334,8 @@
                                   },
                                   {
                                       "path":  "product/tools/KeelarynMenu.ps1",
-                                      "size_bytes":  101801,
-                                      "sha256":  "6989548b6c5e76aed5317ffdbcc046faae1fe4ca259c8ce7b8015bf1523406e9"
+                                      "size_bytes":  102376,
+                                      "sha256":  "5d9ad29fc541bdd5975a5109254eb2ddd5064a2cb5e65b874e1420261f196b7d"
                                   },
                                   {
                                       "path":  "product/tools/New-KeelarynAIContext.ps1",
