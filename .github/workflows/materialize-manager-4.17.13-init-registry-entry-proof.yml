@@ -1,0 +1,107 @@
+name: Manager 4.17.13 registry-init entry proof
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - 'tools/Materialize-Manager41713InitializeRegistryCoverageR1.ps1'
+      - '.github/workflows/materialize-manager-4.17.13-init-registry-entry-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-4.17.13-init-registry-entry-proof
+  cancel-in-progress: false
+
+jobs:
+  materialize-and-prove:
+    runs-on: windows-2025
+    timeout-minutes: 55
+    steps:
+      - name: Checkout proof materializer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: maintenance/prefreeze-review-fixes-4.17.13-r1
+          path: materializer
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout exact authoritative development base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.13
+          path: target
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Prove registry-init degraded entry and publish only after green
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $target=Join-Path $env:GITHUB_WORKSPACE 'target'
+          $script=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713InitializeRegistryCoverageR1.ps1'
+          $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-init-registry-entry-proof'
+          "KEELARYN_41713_INIT_REGISTRY_EVIDENCE=$evidence" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -RepositoryRoot $target -ExpectedBase '6023c4cf505393820bc803a765e0744eefbabda5' -EvidenceRoot $evidence
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $changed=@(git -C $target diff --name-only)
+          $expected=@('tests/knowledge/entry-reachability.json','tools/Invoke-ManagerEntryReachabilityMatrix.ps1','tools/Test-ManagerEntryReachabilityKnowledge.ps1')|Sort-Object
+          if(([string]::Join('|',@($changed|Sort-Object)))-cne([string]::Join('|',$expected))){throw ('Unexpected patch set before commit: '+($changed-join', '))}
+          if(@(git -C $target diff --name-only -- manager).Count-ne0){throw 'Manager product bytes changed in registry-init proof-only repair.'}
+
+          git -C $target config user.name 'Aleksei Efremov'
+          git -C $target config user.email 'efremov.aleksei.96@gmail.com'
+          git -C $target add -- tests/knowledge/entry-reachability.json tools/Invoke-ManagerEntryReachabilityMatrix.ps1 tools/Test-ManagerEntryReachabilityKnowledge.ps1
+          git -C $target commit -m 'Manager 4.17.13: cover registry-init degraded entry'
+          if($LASTEXITCODE-ne0){throw 'Registry-init proof commit failed.'}
+          $head=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          $tree=(git -C $target rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
+          $parent=(git -C $target rev-parse 'HEAD^').Trim().ToLowerInvariant()
+          if($parent-cne'6023c4cf505393820bc803a765e0744eefbabda5'){throw ('Unexpected registry-init proof parent: '+$parent)}
+
+          $env:GITHUB_SHA=$head
+          $devOut=Join-Path $evidence 'development-validation'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Invoke-DevelopmentValidation.ps1') -RepositoryRoot $target -OutputDirectory $devOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $riskOut=Join-Path $evidence 'full-successor-risk-gate'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Invoke-ManagerRiskDefectGate.ps1') -RepositoryRoot $target -BaseCommit 'bdd1fa38ce680304f59764ae7a9482d6b1728053' -HeadCommit $head -OutputDirectory $riskOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $matrix=Get-Content -LiteralPath (Join-Path $evidence 'ENTRY_REACHABILITY_RESULT.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if(-not[bool]$matrix.pass-or[int]$matrix.scenario_count-ne78-or[int]$matrix.executed_count-ne78){throw 'Expected exact 78/78 registry-init strengthened matrix PASS.'}
+          $receipt=[ordered]@{
+            schema='keelaryn.manager-prefreeze-registry-init-entry-proof.v1'
+            manager_version='4.17.13'
+            base='6023c4cf505393820bc803a765e0744eefbabda5'
+            head=$head
+            tree=$tree
+            full_successor_base='bdd1fa38ce680304f59764ae7a9482d6b1728053'
+            product_bytes_changed=$false
+            entry_matrix_scenarios=78
+            registry_init_invalid_active_entry_proof='pass'
+            development_validation='pass'
+            full_successor_risk_defect_gate='pass'
+            candidate_issued=$false
+            production_qualified=$false
+            completed_utc=[DateTime]::UtcNow.ToString('o')
+          }
+          $receipt|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $evidence 'PREFREEZE_REGISTRY_INIT_ENTRY_PROOF.json') -Encoding UTF8
+
+          Write-Host ('Validated registry-init proof head: '+$head) -ForegroundColor Green
+          Write-Host ('Validated registry-init proof tree: '+$tree) -ForegroundColor Green
+          git -C $target push origin HEAD:dev/manager-4.17.13
+          if($LASTEXITCODE-ne0){throw 'Authoritative dev push failed.'}
+
+      - name: Upload registry-init proof evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.13-init-registry-entry-proof-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_41713_INIT_REGISTRY_EVIDENCE }}
+          if-no-files-found: warn
+          retention-days: 5
