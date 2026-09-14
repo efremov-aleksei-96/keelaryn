@@ -1,0 +1,78 @@
+name: Validate Manager 4.17.12 real-CURRENT bootstrap r2
+
+on:
+  push:
+    branches:
+      - maintenance/manager-4.17.12-g1-real-current-bootstrap
+    paths:
+      - .github/workflows/validate-manager-4.17.12-real-current-bootstrap-r2.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-manager-4.17.12-real-current-bootstrap-r2
+  cancel-in-progress: true
+
+jobs:
+  validate-bootstrap-r2:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact r2 bootstrap helper commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 786ff46aa24b201da2a4ef779c37fab5a055924c
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify helper isolation, syntax, history preservation and frozen identities
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected='786ff46aa24b201da2a4ef779c37fab5a055924c'
+          $parentExpected='187e5ea8831a1ced8c1a67f96fc05445deed6706'
+          $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
+          $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant()
+          if($head-cne$expected){throw "Helper commit mismatch: $head expected $expected"}
+          if($parent-cne$parentExpected){throw "Helper parent mismatch: $parent expected $parentExpected"}
+          $changed=@(git diff --name-only "$parentExpected..$head")
+          if($changed.Count-ne1-or$changed[0]-cne'tools/Invoke-Manager41712G1RealCurrentQualificationBootstrapR2.ps1'){
+            throw('R2 bootstrap helper commit is not isolated: '+($changed-join', '))
+          }
+
+          $path=Resolve-Path 'tools/Invoke-Manager41712G1RealCurrentQualificationBootstrapR2.ps1'
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw('R2 bootstrap parser failure: '+(($errors|ForEach-Object Message)-join' | '))}
+          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          foreach($token in @(
+            "`$runId = '34812953426'",
+            "`$artifactName = 'manager-4.17.12-g1-gate-r2'",
+            "`$expectedCandidate = '3dde367f1bd83f661bd29c75912732e9f92efa02'",
+            "`$expectedCandidateTree = '63e42a5bfdd6000ee273f5f927902f6ac29703b6'",
+            "`$expectedGateRevision = 2",
+            "`$expectedGateSha256 = '0b027b87d4fb0c452990f19d4d9d4d6b7f48bf0a710e28aba74da42084a04a11'",
+            "`$priorGateSha256 = 'd256df61396fa2afa08916b7ac3efb41e2ba4c9dcfc6556fbe61a6f774396200'",
+            "tests\\results\\history\\manager-4.17.12-g1-gate-r1-real-current-fail-20260914T0615Z",
+            "environment_or_measurement_ambiguity",
+            "UNPACK_MANAGER_GATE.cmd",
+            "Do not install Manager 4.17.12 yet."
+          )){
+            if(-not$text.Contains($token)){throw('R2 bootstrap required identity/contract token missing: '+$token)}
+          }
+          if($text -match '(?im)^\s*(Remove-Item|Move-Item|Copy-Item).*manager\\product'){
+            throw 'R2 bootstrap contains a direct production Manager product mutation path.'
+          }
+          if($text -match '(?im)^\s*&\s*\$installer\b' -or $text -match '(?im)Start-Process[^\r\n]*INSTALL_TESTED_MANAGER_UPDATE'){
+            throw 'R2 bootstrap must qualify only and must not invoke production installation.'
+          }
+          if(-not$text.Contains('Move-Item -LiteralPath $resultsRoot -Destination $historyResults')){
+            throw 'R2 bootstrap does not preserve failed r1 results before rerun.'
+          }
+          if(-not$text.Contains('Copy-Item -LiteralPath $issuedGate -Destination $historyGate')){
+            throw 'R2 bootstrap does not preserve failed r1 gate identity before replacement.'
+          }
+          Write-Host 'MANAGER 4.17.12 REAL-CURRENT BOOTSTRAP R2 STATIC VALIDATION: PASS' -ForegroundColor Green
+
+# External qualification helper validation only. Frozen Manager 4.17.12 g1 bytes are not modified.
