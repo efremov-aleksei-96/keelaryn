@@ -61,6 +61,12 @@ $lifecycle=[string]$state.lifecycle_state
 if($lifecycle-ceq'unqualified_development'-and$successor-ceq$version){
     $expectedBaseline=([string]$state.lineage.production_manager_version).Trim()
     if($baselineVersion-cne$expectedBaseline){Fail('PUBLIC_PROVENANCE baseline mismatch for active development line: provenance='+$baselineVersion+' production='+$expectedBaseline)}
+    $stateMaterializationVersion=([string]$state.materialization.manager_version).Trim()
+    if($stateMaterializationVersion-cne$version){Fail('MANAGER_DEVELOPMENT_STATE materialization version mismatch: state='+$stateMaterializationVersion+' install='+$version)}
+    $stateInstall=Normalized-Optional $state.materialization.installation_sha256
+    if($stateInstall-cne$manifestInstall){Fail('MANAGER_DEVELOPMENT_STATE installation identity mismatch: state='+$stateInstall+' manifest='+$manifestInstall)}
+    $stateManaged=Normalized-Optional $state.materialization.managed_content_sha256
+    if($stateManaged-cne$manifestManaged){Fail('MANAGER_DEVELOPMENT_STATE managed identity mismatch: state='+$stateManaged+' manifest='+$manifestManaged)}
     if([bool]$provenance.production_validation.full_gate_pass){Fail 'Unqualified development provenance must not claim Full Gate PASS.'}
     if(-not[string]::IsNullOrWhiteSpace((Normalized-Optional $provenance.production_validation.tested_update_sha256))){Fail 'Unqualified development provenance must not retain tested_update_sha256.'}
     if([bool]$provenance.production_validation.production_doctor_pass){Fail 'Unqualified development provenance must not claim production Doctor PASS.'}

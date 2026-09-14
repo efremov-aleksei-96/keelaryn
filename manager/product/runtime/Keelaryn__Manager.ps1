@@ -5501,7 +5501,9 @@ function Reconcile-StrandedGlobalHubInputsForExistingRegistry {
     $inputs=@(Get-GlobalHubOwnedInboxObjects)
     if($inputs.Count-eq0){return 0}
     $registry=Get-ManagerInstanceRegistry
-    $entries=New-Object System.Collections.ArrayList
+    $plans=New-Object System.Collections.ArrayList
+
+    # Phase 1: preflight every input and every destination before any durable publication.
     foreach($input in $inputs){
         $identity=Get-GlobalHubInputIdentity $input
         $matches=@($registry.instances|Where-Object{[string]$_.instance_id-eq[string]$identity.InstanceId})
@@ -5509,25 +5511,114 @@ function Reconcile-StrandedGlobalHubInputsForExistingRegistry {
         $paths=Get-InstanceStatePaths ([string]$identity.InstanceId)
         if(-not(Test-Path -LiteralPath $paths.Inbox -PathType Container)){throw('Registered instance inbox is missing for stranded input reconciliation: '+$paths.Inbox)}
         $destRoot=Get-Item -LiteralPath $paths.Inbox -Force -ErrorAction Stop
-        if(($destRoot.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Registered instance inbox is unsafe: '+$paths.Inbox)}
-        $source=[string]$identity.File.FullName;$destination=Join-Path $destRoot.FullName $identity.File.Name
+        if(-not$destRoot.PSIsContainer-or($destRoot.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Registered instance inbox is unsafe: '+$paths.Inbox)}
+        $source=[string]$identity.File.FullName
+        $sourceItem=Get-Item -LiteralPath $source -Force -ErrorAction Stop
+        if($sourceItem.PSIsContainer-or($sourceItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Stranded Hub input source is unsafe: '+$source)}
+        $sourceHash=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+        if($sourceHash-ne[string]$identity.Sha256){throw('Stranded Hub input changed during preflight: '+$source)}
+        $destination=Join-Path $destRoot.FullName $identity.File.Name
         $existing=Get-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
+        $alreadyPresent=$false
         if($existing){
             if($existing.PSIsContainer-or($existing.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Stranded Hub input destination collision is unsafe: '+$destination)}
             if((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()-ne[string]$identity.Sha256){throw('Stranded Hub input destination collision has different bytes: '+$destination)}
-        }else{
-            $tmp=$destination+'.stage.'+[guid]::NewGuid().ToString('N')
-            try{
-                $before=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
-                Copy-Item -LiteralPath $source -Destination $tmp -Force
-                $copied=(Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash.ToLowerInvariant();$after=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
-                if($before-ne[string]$identity.Sha256-or$copied-ne$before-or$after-ne$before){throw('Stranded Hub input changed during staging: '+$source)}
-                Publish-CompletedFileAtomically $tmp $destination
-            }finally{if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}}
+            $alreadyPresent=$true
         }
-        [void]$entries.Add([pscustomobject]@{Source=$source;Destination=$destination;Sha256=[string]$identity.Sha256;InstanceId=[string]$identity.InstanceId;Kind=[string]$identity.Kind})
+        [void]$plans.Add([pscustomobject]@{
+            Source=$source;Destination=$destination;Sha256=[string]$identity.Sha256;InstanceId=[string]$identity.InstanceId;Kind=[string]$identity.Kind
+            AlreadyPresent=$alreadyPresent;Stage='';PublishedByThisRun=$false
+        })
     }
-    return Complete-GlobalHubInputActivationHandoff ([pscustomobject]@{Entries=@($entries)})
+
+    try{
+        # Phase 2: stage every missing destination. Staging is non-authoritative.
+        foreach($plan in @($plans)){
+            if([bool]$plan.AlreadyPresent){continue}
+            $sourceItem=Get-Item -LiteralPath ([string]$plan.Source) -Force -ErrorAction Stop
+            if($sourceItem.PSIsContainer-or($sourceItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Stranded Hub input source became unsafe before staging: '+[string]$plan.Source)}
+            $before=(Get-FileHash -LiteralPath ([string]$plan.Source) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if($before-ne[string]$plan.Sha256){throw('Stranded Hub input changed before staging: '+[string]$plan.Source)}
+            $tmp=([string]$plan.Destination)+'.stage.'+[guid]::NewGuid().ToString('N')
+            $plan.Stage=$tmp
+            Copy-Item -LiteralPath ([string]$plan.Source) -Destination $tmp -Force
+            $copied=(Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash.ToLowerInvariant()
+            $after=(Get-FileHash -LiteralPath ([string]$plan.Source) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if($copied-ne$before-or$after-ne$before){throw('Stranded Hub input changed while it was staged: '+[string]$plan.Source)}
+        }
+
+        # Phase 3: revalidate the complete plan immediately before the publication boundary.
+        foreach($plan in @($plans)){
+            $sourceItem=Get-Item -LiteralPath ([string]$plan.Source) -Force -ErrorAction Stop
+            if($sourceItem.PSIsContainer-or($sourceItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Stranded Hub input source became unsafe before handoff commit: '+[string]$plan.Source)}
+            if((Get-FileHash -LiteralPath ([string]$plan.Source) -Algorithm SHA256).Hash.ToLowerInvariant()-ne[string]$plan.Sha256){throw('Stranded Hub input changed before handoff commit: '+[string]$plan.Source)}
+            if([bool]$plan.AlreadyPresent){
+                $destItem=Get-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                if($destItem.PSIsContainer-or($destItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Existing stranded Hub input destination became unsafe before handoff commit: '+[string]$plan.Destination)}
+                if((Get-FileHash -LiteralPath ([string]$plan.Destination) -Algorithm SHA256).Hash.ToLowerInvariant()-ne[string]$plan.Sha256){throw('Existing stranded Hub input destination changed before handoff commit: '+[string]$plan.Destination)}
+            }else{
+                if(Test-Path -LiteralPath ([string]$plan.Destination)){throw('Stranded Hub input destination became occupied before handoff commit: '+[string]$plan.Destination)}
+                $stageItem=Get-Item -LiteralPath ([string]$plan.Stage) -Force -ErrorAction Stop
+                if($stageItem.PSIsContainer-or($stageItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Stranded Hub input stage is unsafe before handoff commit: '+[string]$plan.Stage)}
+                if((Get-FileHash -LiteralPath ([string]$plan.Stage) -Algorithm SHA256).Hash.ToLowerInvariant()-ne[string]$plan.Sha256){throw('Stranded Hub input stage changed before handoff commit: '+[string]$plan.Stage)}
+            }
+        }
+
+        # Phase 4: publish missing destinations. If any publication fails, roll back only
+        # destinations created by this invocation while all global sources are still intact.
+        $published=New-Object System.Collections.ArrayList
+        try{
+            foreach($plan in @($plans)){
+                if([bool]$plan.AlreadyPresent){continue}
+                # Fresh per-entry commit-boundary revalidation protects later entries in the batch.
+                $sourceItem=Get-Item -LiteralPath ([string]$plan.Source) -Force -ErrorAction Stop
+                if($sourceItem.PSIsContainer-or($sourceItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Stranded Hub input source became unsafe at handoff commit: '+[string]$plan.Source)}
+                if((Get-FileHash -LiteralPath ([string]$plan.Source) -Algorithm SHA256).Hash.ToLowerInvariant()-ne[string]$plan.Sha256){throw('Stranded Hub input changed at handoff commit: '+[string]$plan.Source)}
+                if(Test-Path -LiteralPath ([string]$plan.Destination)){throw('Stranded Hub input destination became occupied at handoff commit: '+[string]$plan.Destination)}
+                $stageItem=Get-Item -LiteralPath ([string]$plan.Stage) -Force -ErrorAction Stop
+                if($stageItem.PSIsContainer-or($stageItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Stranded Hub input stage became unsafe at handoff commit: '+[string]$plan.Stage)}
+                if((Get-FileHash -LiteralPath ([string]$plan.Stage) -Algorithm SHA256).Hash.ToLowerInvariant()-ne[string]$plan.Sha256){throw('Stranded Hub input stage changed at handoff commit: '+[string]$plan.Stage)}
+                [System.IO.File]::Move([string]$plan.Stage,[string]$plan.Destination)
+                $plan.Stage=''
+                $plan.PublishedByThisRun=$true
+                [void]$published.Add($plan)
+                Set-ManagerMutablePresentationHidden ([string]$plan.Destination)
+                $destItem=Get-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                if($destItem.PSIsContainer-or($destItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('Published stranded Hub input destination is unsafe: '+[string]$plan.Destination)}
+                if((Get-FileHash -LiteralPath ([string]$plan.Destination) -Algorithm SHA256).Hash.ToLowerInvariant()-ne[string]$plan.Sha256){throw('Published stranded Hub input destination failed hash verification: '+[string]$plan.Destination)}
+            }
+        }catch{
+            $publicationError=$_.Exception.Message
+            $rollbackFailures=New-Object System.Collections.ArrayList
+            for($i=$published.Count-1;$i-ge0;$i--){
+                $plan=$published[$i]
+                try{
+                    if(Test-Path -LiteralPath ([string]$plan.Destination)){
+                        $destItem=Get-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                        if($destItem.PSIsContainer-or($destItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('rollback destination is unsafe: '+[string]$plan.Destination)}
+                        $destHash=(Get-FileHash -LiteralPath ([string]$plan.Destination) -Algorithm SHA256).Hash.ToLowerInvariant()
+                        if($destHash-ne[string]$plan.Sha256){throw('rollback destination hash is ambiguous: '+[string]$plan.Destination)}
+                        Remove-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                    }
+                }catch{[void]$rollbackFailures.Add($_.Exception.Message)}
+            }
+            if($rollbackFailures.Count-ne0){
+                throw('Stranded global Hub input destination publication failed and rollback was incomplete; partial per-instance handoff may be durable. Global sources were preserved. publication_error='+$publicationError+'; rollback_errors='+([string]::Join(' | ',@($rollbackFailures))))
+            }
+            throw('Stranded global Hub input destination publication failed before handoff commit; all destinations created by this invocation were rolled back and global sources were preserved. publication_error='+$publicationError)
+        }
+    }finally{
+        foreach($plan in @($plans)){
+            if(-not [string]::IsNullOrWhiteSpace([string]$plan.Stage)-and(Test-Path -LiteralPath ([string]$plan.Stage))){Remove-Item -LiteralPath ([string]$plan.Stage) -Force -ErrorAction SilentlyContinue}
+        }
+    }
+
+    $handoff=[pscustomobject]@{Entries=@($plans|ForEach-Object{[pscustomobject]@{Source=[string]$_.Source;Destination=[string]$_.Destination;Sha256=[string]$_.Sha256;InstanceId=[string]$_.InstanceId;Kind=[string]$_.Kind}})}
+    try{
+        return Complete-GlobalHubInputActivationHandoff $handoff
+    }catch{
+        throw('Stranded global Hub input destinations committed, but global source cleanup failed. Per-instance destination bytes are authoritative for this handoff; preserve remaining global sources and re-run Initialize instance registry for idempotent cleanup. '+$_.Exception.Message)
+    }
 }
 
 function Invoke-ListInstances {

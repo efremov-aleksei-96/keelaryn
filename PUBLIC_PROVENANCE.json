@@ -4,12 +4,12 @@
     "source_manager_version":  "4.17.13",
     "source_gate_baseline_manager_version":  "4.17.12",
     "source_manager_installation_sha256":  "acc2b2eeff9b32775dfeaea2d1ca4ee0b8c4293b14acd70efdd8ca08db4eb66b",
-    "source_manager_gate_managed_content_sha256":  "4289ea828023e1dc2d08cee1ee5e772b71d01616a38d6951c3ff6f5724f17596",
+    "source_manager_gate_managed_content_sha256":  "8710554461f7f2dac2283f8249aaeaeecbc1f14a6983db134f9f95cfe579c269",
     "candidate_identity":  {
                                "revision":  "development",
                                "frozen_commit":  null,
                                "frozen_tree":  null,
-                               "validated_development_parent":  "f2ed168400cc27e89fc10941358d1aa3f8479a4b",
+                               "validated_development_parent":  "c7cf09d7b0b87646b1235f09653dd470865bca81",
                                "immutable":  false,
                                "product_bytes_changed_after_freeze":  false
                            },
@@ -130,7 +130,7 @@
                                                                "status":  "unqualified_development",
                                                                "candidate_issued":  false,
                                                                "entry_policy_modes":  29,
-                                                               "entry_reachability_scenarios":  101,
+                                                               "entry_reachability_scenarios":  102,
                                                                "exact_head_validation":  "required_before_freeze",
                                                                "prefreeze_product_fix":  {
                                                                                              "defect_id":  "MGR-DEF-0031",
@@ -145,7 +145,17 @@
                                                                                              "exact_green_requalification":  "required_before_freeze"
                                                                                          },
                                                                "state_machine_entry_oracle_consistency":  "required_before_freeze",
-                                                               "nondefault_state_machine_risk_mapping":  "required_before_freeze"
+                                                               "nondefault_state_machine_risk_mapping":  "required_before_freeze",
+                                                               "prefreeze_atomicity_fix":  {
+                                                                                               "defect_id":  "MGR-DEF-0032",
+                                                                                               "status":  "materialized_unqualified_development",
+                                                                                               "red_run_id":  34858872734,
+                                                                                               "red_job_id":  104025497974,
+                                                                                               "red_artifact_id":  10354056744,
+                                                                                               "red_artifact_sha256":  "6530ae9bbb912bfd8060918b923ff267efe31665c0f5889c2f3a5d87b61c7960",
+                                                                                               "fix":  "batch-wide preflight + staging + commit-boundary revalidation + rollback of newly published destinations + explicit post-commit source-cleanup outcome",
+                                                                                               "exact_green_requalification":  "required_before_freeze"
+                                                                                           }
                                                            }
                                },
     "publication_status":  {

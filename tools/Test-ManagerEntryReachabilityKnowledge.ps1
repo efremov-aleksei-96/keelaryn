@@ -39,7 +39,7 @@ foreach($row in @($model.actions)){
     foreach($iid in @($row.invariants)){if(-not$invariantIds.Contains([string]$iid)){Fail($id+' references unknown invariant '+[string]$iid)}}
 }
 
-foreach($requiredState in @('REGISTRY_DOCUMENT_INVALID','REGISTRY_HEALTHY','REGISTRY_INACTIVE_HUB_MISSING','REGISTRY_INACTIVE_HUB_CORRUPT','REGISTRY_PENDING_GLOBAL','REGISTRY_PENDING_INSTANCE','REGISTRY_ACTIVE_METADATA_INVALID','REGISTRY_ACTIVE_HUB_MISSING','REGISTRY_ACTIVE_HUB_CORRUPT','REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_CORRUPT')){if(-not$stateIds.Contains($requiredState)){Fail('Required degraded state is missing: '+$requiredState)}}
+foreach($requiredState in @('REGISTRY_DOCUMENT_INVALID','REGISTRY_HEALTHY','REGISTRY_INACTIVE_HUB_MISSING','REGISTRY_INACTIVE_HUB_CORRUPT','REGISTRY_PENDING_GLOBAL','REGISTRY_PENDING_GLOBAL_INVALID','REGISTRY_PENDING_INSTANCE','REGISTRY_ACTIVE_METADATA_INVALID','REGISTRY_ACTIVE_HUB_MISSING','REGISTRY_ACTIVE_HUB_CORRUPT','REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_CORRUPT')){if(-not$stateIds.Contains($requiredState)){Fail('Required degraded state is missing: '+$requiredState)}}
 foreach($requiredAction in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout','InitializeInstanceRegistry','UpdateHub','UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport')){if(-not$actionIds.Contains($requiredAction)){Fail('Required action is missing: '+$requiredAction)}}
 if([string]$actionById['BindInstance'].proof_mode-cne'changed_path_rebind_commit'){Fail 'BindInstance must require changed_path_rebind_commit proof.'}
 if([string]$actionById['UpdateManager'].proof_mode-cne'install_successor_restart'){Fail 'UpdateManager must require install_successor_restart proof.'}
@@ -47,7 +47,7 @@ if([string]$actionById['UpdateManager'].proof_mode-cne'install_successor_restart
 $requirementIds=New-Set;$pairs=New-Set;$pairModes=@{}
 foreach($req in @($model.coverage_requirements)){
     $rid=[string]$req.id;Add-Unique $requirementIds $rid 'coverage requirement'
-    if($null-ne$req.PSObject.Properties['expected_mode']){$reqMode=[string]$req.expected_mode;if(@('list_success','target_success','global_success','diagnostic_reached','fail_closed','registry_init_rejected_after_dispatch','registry_document_rejected_after_dispatch','registry_init_reconciles_global_input') -cnotcontains $reqMode){Fail($rid+' expected_mode override is unsupported: '+$reqMode)}}
+    if($null-ne$req.PSObject.Properties['expected_mode']){$reqMode=[string]$req.expected_mode;if(@('list_success','target_success','global_success','diagnostic_reached','fail_closed','registry_init_rejected_after_dispatch','registry_document_rejected_after_dispatch','registry_init_reconciles_global_input','registry_init_mixed_invalid_rejected_without_partial_handoff') -cnotcontains $reqMode){Fail($rid+' expected_mode override is unsupported: '+$reqMode)}}
     if(@($req.states).Count-eq0-or@($req.actions).Count-eq0){Fail($rid+' must contain states and actions.')}
     foreach($state in @($req.states)){
         $sid=[string]$state;if(-not$stateIds.Contains($sid)){Fail($rid+' references unknown state '+$sid)}
@@ -69,13 +69,14 @@ foreach($sid in @('REGISTRY_ACTIVE_METADATA_INVALID','REGISTRY_ACTIVE_HUB_MISSIN
 foreach($sid in @('REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_CORRUPT')){foreach($aid in @('UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport','InitializeInstanceRegistry')){if(-not$pairs.Contains($sid+'|'+$aid)){Fail('CURRENT-degraded boundary coverage omitted '+$sid+'|'+$aid)}}}
 foreach($sid in @('REGISTRY_ACTIVE_METADATA_INVALID','REGISTRY_ACTIVE_HUB_MISSING','REGISTRY_ACTIVE_HUB_CORRUPT')){if(-not$pairs.Contains($sid+'|InitializeInstanceRegistry')){Fail('Invalid-active registry initialization coverage omitted '+$sid+'|InitializeInstanceRegistry')}}
 foreach($aid in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','UpdateHub','UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout','InitializeInstanceRegistry')){if(-not$pairs.Contains('REGISTRY_DOCUMENT_INVALID|'+$aid)){Fail('REGISTRY_DOCUMENT_INVALID coverage omitted '+$aid)}}
-foreach($sid in @('REGISTRY_HEALTHY','REGISTRY_INACTIVE_HUB_MISSING','REGISTRY_INACTIVE_HUB_CORRUPT','REGISTRY_PENDING_INSTANCE','REGISTRY_PENDING_GLOBAL')){if(-not$pairs.Contains($sid+'|InitializeInstanceRegistry')){Fail('Existing-registry Initialize coverage omitted '+$sid)}}
-if($pairs.Count-lt101){Fail('Entry-reachability cross-product is unexpectedly small: '+$pairs.Count)}
+foreach($sid in @('REGISTRY_HEALTHY','REGISTRY_INACTIVE_HUB_MISSING','REGISTRY_INACTIVE_HUB_CORRUPT','REGISTRY_PENDING_INSTANCE','REGISTRY_PENDING_GLOBAL','REGISTRY_PENDING_GLOBAL_INVALID')){if(-not$pairs.Contains($sid+'|InitializeInstanceRegistry')){Fail('Existing-registry Initialize coverage omitted '+$sid)}}
+if($pairs.Count-ne102){Fail('Entry-reachability cross-product must be exactly 102 after MGR-DEF-0032 regression; actual='+$pairs.Count)}
 if([string]::IsNullOrWhiteSpace([string]$model.freeze_rule)){Fail 'Entry-reachability freeze_rule is empty.'}
 if(-not([string]$model.freeze_rule).Contains('may not restore state through the same runtime path under test')){Fail 'Freeze rule must prohibit runtime-dependent scenario reset.'}
 if(-not([string]$model.freeze_rule).Contains('changed-path rebind transaction')){Fail 'Freeze rule must require real changed-path BindInstance rebind.'}
 if(-not([string]$model.freeze_rule).Contains('newer valid disposable Manager package')){Fail 'Freeze rule must require a real UpdateManager installation/restart.'}
 if(-not([string]$model.freeze_rule).Contains('pending-global must prove identity-bound transfer')){Fail 'Freeze rule must require executable existing-registry Initialize semantics.'}
+if(-not([string]$model.freeze_rule).Contains('mixed valid/invalid pending-global batch')){Fail 'Freeze rule must require mixed-invalid pending-global atomicity.'}
 
 function Resolve-StateMachineOutcome([string]$State,[string]$Operation){
     $matches=@($stateMachine.rules|Where-Object{[string]$_.operation-ceq$Operation-and((@($_.states|ForEach-Object{[string]$_}) -ccontains $State)-or(@($_.states|ForEach-Object{[string]$_}) -ccontains '*'))})
@@ -92,6 +93,7 @@ foreach($sid in @($stateIds)){
     if($mode-ceq'global_success'){if($initSuccessOutcomes-cnotcontains$outcome){Fail('Initialize oracle expects success but state machine resolves '+$sid+' to '+$outcome)}}
     elseif($mode-ceq'registry_init_rejected_after_dispatch'){if($outcome-cne'reject_fail_closed'){Fail('Initialize oracle expects rejection but state machine resolves '+$sid+' to '+$outcome)}}
     elseif($mode-ceq'registry_init_reconciles_global_input'){if($outcome-cne'reconcile_identity_bound_global_inputs_then_report_initialized'){Fail('Pending-global Initialize oracle/state-machine mismatch: '+$outcome)}}
+    elseif($mode-ceq'registry_init_mixed_invalid_rejected_without_partial_handoff'){if($outcome-cne'reject_fail_closed'){Fail('Mixed-invalid pending-global Initialize oracle/state-machine mismatch: '+$outcome)}}
     else{Fail('Covered Initialize pair has unsupported cross-model mode '+$mode+' for '+$sid)}
 }
 Write-Host 'Manager entry-reachability knowledge: PASS' -ForegroundColor Green

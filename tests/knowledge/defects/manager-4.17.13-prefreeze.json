@@ -73,6 +73,68 @@
                                              "id":  "function parameter $Input is replaced by Windows PowerShell automatic $input enumerator"
                                          }
                                      ]
+                    },
+                    {
+                        "id":  "MGR-DEF-0032",
+                        "title":  "Existing-registry stranded-input reconciliation publishes an earlier valid destination before a later invalid input is validated",
+                        "severity":  "P1",
+                        "status":  "fixed",
+                        "release_blocker":  true,
+                        "detected_in":  "4.17.13",
+                        "detected_stage":  "prefreeze_adversarial_state_machine_review",
+                        "defect_class":  "multi-input transaction preflight / partial durable inbox handoff",
+                        "affected_surfaces":  [
+                                                  "S-RUNTIME-INBOX"
+                                              ],
+                        "preconditions":  "A valid multi-Hub registry exists and the global Manager inbox contains at least two recognized Hub-owned objects ordered so that a valid identity-bound input is processed before a later invalid input.",
+                        "bad_behavior":  "Reconcile-StrandedGlobalHubInputsForExistingRegistry validates and publishes each destination in one loop. A valid first input is copied into the active per-instance inbox before validation of a later invalid input fails, leaving partial durable/discoverable lifecycle mutation while the command reports failure and global sources remain.",
+                        "root_cause":  "Failure-prone identity, registration, destination and collision validation was interleaved with authoritative per-instance destination publication instead of being completed for the whole batch before the first commit. Single-input ER-101 could not expose this multi-input transaction boundary.",
+                        "root_cause_classes":  [
+                                                   "RC-COMMIT-001",
+                                                   "RC-PUBLISH-001",
+                                                   "RC-REACHABILITY-001"
+                                               ],
+                        "violated_invariants":  [
+                                                    "MH-INBOX-001",
+                                                    "MH-COMMIT-001",
+                                                    "MH-LIFECYCLE-001"
+                                                ],
+                        "related_defects":  [
+                                                "MGR-DEF-0031"
+                                            ],
+                        "permanent_regressions":  [
+                                                      "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
+                                                  ],
+                        "planned_regressions":  [
+
+                                                ],
+                        "fixed_in":  "4.17.13",
+                        "evidence":  [
+                                         {
+                                             "type":  "prefreeze_atomicity_red_run",
+                                             "id":  "34858872734"
+                                         },
+                                         {
+                                             "type":  "prefreeze_atomicity_red_job",
+                                             "id":  "104025497974"
+                                         },
+                                         {
+                                             "type":  "prefreeze_atomicity_red_artifact",
+                                             "id":  "10354056744"
+                                         },
+                                         {
+                                             "type":  "prefreeze_atomicity_red_artifact_sha256",
+                                             "id":  "6530ae9bbb912bfd8060918b923ff267efe31665c0f5889c2f3a5d87b61c7960"
+                                         },
+                                         {
+                                             "type":  "prefreeze_atomicity_red_summary",
+                                             "id":  "exact c7cf09d7: valid A destination was published before invalid Z identity validation failed; both global sources remained; harness_error=false"
+                                         },
+                                         {
+                                             "type":  "source_symbol",
+                                             "id":  "Reconcile-StrandedGlobalHubInputsForExistingRegistry"
+                                         }
+                                     ]
                     }
                 ]
 }

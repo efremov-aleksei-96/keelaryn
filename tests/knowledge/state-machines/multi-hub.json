@@ -70,6 +70,10 @@
                    {
                        "id":  "REGISTRY_ACTIVE_CURRENT_CORRUPT",
                        "description":  "Registry and active selection resolve and the selected active Hub is structurally valid, but both old-active per-instance/compatibility CURRENT checkpoints are corrupt or unreadable."
+                   },
+                   {
+                       "id":  "REGISTRY_PENDING_GLOBAL_INVALID",
+                       "description":  "Registry is healthy while the global Manager inbox contains a mixed batch: an earlier valid identity-bound Hub input and a later recognized but invalid Hub input."
                    }
                ],
     "operations":  [
@@ -1038,6 +1042,21 @@
                                          "MH-REACHABILITY-001"
                                      ],
                       "reason":  "InitializeRegistry is the explicit recovery path for identity-bound Hub inputs stranded in the global Manager inbox after registry activation."
+                  },
+                  {
+                      "id":  "R-REGISTRY-PENDING-GLOBAL-INVALID-INIT",
+                      "states":  [
+                                     "REGISTRY_PENDING_GLOBAL_INVALID"
+                                 ],
+                      "operation":  "InitializeRegistry",
+                      "priority":  190,
+                      "outcome":  "reject_fail_closed",
+                      "invariants":  [
+                                         "MH-INBOX-001",
+                                         "MH-COMMIT-001",
+                                         "MH-LIFECYCLE-001"
+                                     ],
+                      "reason":  "Existing-registry reconciliation must validate the complete stranded-input batch before publishing any per-instance destination; a later invalid input must leave all global sources and per-instance lifecycle state unchanged."
                   }
               ]
 }

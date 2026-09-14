@@ -24,7 +24,7 @@
                             "product_commit":  null,
                             "product_tree":  null,
                             "installation_sha256":  "acc2b2eeff9b32775dfeaea2d1ca4ee0b8c4293b14acd70efdd8ca08db4eb66b",
-                            "managed_content_sha256":  "9804c7aebc6cfedef128a281186683a1f11a32c88c46a82a21a81eae6dbc3de0",
+                            "managed_content_sha256":  "8710554461f7f2dac2283f8249aaeaeecbc1f14a6983db134f9f95cfe579c269",
                             "status":  "materialized_unqualified_development_live_branch",
                             "candidate_issued":  false
                         },
@@ -62,7 +62,7 @@
                                                       "multi_hub_activated":  false
                                                   },
                           "successor_4_17_13":  {
-                                                    "status":  "materialized_unqualified_development_prefreeze_knowledge_hardening",
+                                                    "status":  "materialized_unqualified_development_prefreeze_atomicity_fix",
                                                     "development_base":  "bdd1fa38ce680304f59764ae7a9482d6b1728053",
                                                     "candidate_issued":  false,
                                                     "framework_revision":  24,
@@ -82,7 +82,7 @@
                                                                                ],
                                                     "process_entry_red_proof_run":  "34822083447",
                                                     "process_entry_red_proof_artifact":  "10338886824",
-                                                    "process_entry_green_proof":  "R7 requires 101-scenario exact-entry PASS plus 29-mode completeness, state-machine/oracle consistency and complete non-default risk mapping"
+                                                    "process_entry_green_proof":  "R9 requires exact 102-scenario process-entry PASS including mixed-invalid pending-global atomicity, 29-mode completeness, state-machine/oracle consistency and complete non-default risk mapping"
                                                 }
                       },
     "production_policy":  {
@@ -119,7 +119,7 @@
                   },
     "next_exact_goal":  {
                             "id":  "MANAGER-41713-PREFREEZE-001",
-                            "description":  "Obtain exact-head Development Validation with 29-mode entry-policy completeness, 101-scenario process-entry PASS, state-machine/oracle consistency and complete non-default state-machine risk mapping; then full-successor Risk/Defect Gate and semantic pre-freeze review.",
+                            "description":  "Obtain exact-head Development Validation with 29-mode entry-policy completeness, 102-scenario process-entry PASS including MGR-DEF-0032 atomicity, state-machine/oracle consistency and complete non-default state-machine risk mapping; then full-successor Risk/Defect Gate and clean semantic pre-freeze review.",
                             "product_fix_may_start_only_after_red_proof":  false,
                             "candidate_freeze_permitted":  false,
                             "multi_hub_activation_permitted":  false

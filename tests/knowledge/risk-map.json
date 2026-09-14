@@ -212,7 +212,8 @@
                                          "Invoke-InitializeInstanceRegistry",
                                          "Invoke-Doctor",
                                          "Get-GlobalHubInputIdentity",
-                                         "Reconcile-StrandedGlobalHubInputsForExistingRegistry"
+                                         "Reconcile-StrandedGlobalHubInputsForExistingRegistry",
+                                         "Complete-GlobalHubInputActivationHandoff"
                                      ],
                          "invariants":  [
                                             "MH-LIFECYCLE-001",
@@ -221,7 +222,9 @@
                                             "MH-MANAGER-GLOBAL-001"
                                         ],
                          "root_cause_classes":  [
-                                                    "RC-REACHABILITY-001"
+                                                    "RC-REACHABILITY-001",
+                                                    "RC-COMMIT-001",
+                                                    "RC-PUBLISH-001"
                                                 ],
                          "regressions":  [
                                              "tools/Invoke-Manager4176ReviewRegression.ps1",
@@ -237,7 +240,8 @@
                                                      "R-REGISTRY-GLOBAL-PENDING-HUB-OPS",
                                                      "R-REGISTRY-GLOBAL-PENDING-DOCTOR",
                                                      "R-REGISTRY-INSTANCE-PENDING-UPDATE",
-                                                     "R-REGISTRY-GLOBAL-PENDING-INIT"
+                                                     "R-REGISTRY-GLOBAL-PENDING-INIT",
+                                                     "R-REGISTRY-PENDING-GLOBAL-INVALID-INIT"
                                                  ]
                      },
                      {
