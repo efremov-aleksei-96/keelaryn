@@ -1,0 +1,55 @@
+name: Manager 4.17.13 pending-global atomicity red probe
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/probe-manager-4.17.13-pending-global-atomicity.yml'
+      - 'tools/Probe-Manager41713PendingGlobalAtomicity.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-4.17.13-pending-global-atomicity-probe
+  cancel-in-progress: true
+
+jobs:
+  red-probe:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout probe tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: maintenance/prefreeze-review-fixes-4.17.13-r1
+          path: probe
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout exact qualified development head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: c7cf09d7b0b87646b1235f09653dd470865bca81
+          path: target
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Execute mixed pending-global atomicity probe
+        shell: powershell
+        run: |
+          $out=Join-Path $env:RUNNER_TEMP 'PENDING_GLOBAL_ATOMICITY_RED.json'
+          "KEELARYN_ATOMICITY_EVIDENCE=$out" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\probe\tools\Probe-Manager41713PendingGlobalAtomicity.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE\target" -ExpectedHead 'c7cf09d7b0b87646b1235f09653dd470865bca81' -OutputPath $out
+          exit $LASTEXITCODE
+
+      - name: Upload red-probe evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.13-pending-global-atomicity-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_ATOMICITY_EVIDENCE }}
+          if-no-files-found: warn
+          retention-days: 5
