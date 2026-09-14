@@ -1,0 +1,37 @@
+name: Probe Manager 4.17.13 ArrayList return semantics
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/probe-manager-4.17.13-arraylist-return.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-2025
+    steps:
+      - name: Probe Windows PowerShell 5.1 collection return semantics
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          function Get-ProbeRows {
+            $rows=New-Object System.Collections.ArrayList
+            [void]$rows.Add([pscustomobject]@{File='sentinel';Kind='hub_zip'})
+            return @($rows)
+          }
+          $inputs=@(Get-ProbeRows)
+          Write-Host ('COUNT='+$inputs.Count)
+          for($i=0;$i-lt$inputs.Count;$i++){
+            $x=$inputs[$i]
+            Write-Host ('ITEM_'+$i+'_TYPE='+$x.GetType().FullName)
+            Write-Host ('ITEM_'+$i+'_HAS_FILE='+($null-ne$x.PSObject.Properties['File']))
+            Write-Host ('ITEM_'+$i+'_FILE='+[string]$x.File)
+          }
+          if($inputs.Count-ne1){throw 'Unexpected return count.'}
+          if($null-eq$inputs[0].PSObject.Properties['File']){throw 'ArrayList wrapper escaped instead of descriptor.'}
+          if([string]$inputs[0].File-cne'sentinel'){throw 'Descriptor File property changed.'}
