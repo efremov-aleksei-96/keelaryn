@@ -50,6 +50,27 @@ Write-Json $riskPath $risk
 '@
 $text=[regex]::Replace($text,$riskPattern,{param($m)$riskReplacement.TrimEnd()},1)
 
+# Replace the brittle escaped-string development-validation materialization with exact
+# PowerShell path spelling and section-level guards.
+$devPattern='(?s)# 6\. Development validation: execute reusable behavior \+ current-version wrapper \+ real entry matrix\..*?Write-Utf8 \$devPath \$dev'
+$devMatches=[regex]::Matches($text,$devPattern)
+if($devMatches.Count-ne1){throw('Development-validation materialization block count='+$devMatches.Count)}
+$devReplacement=@'
+# 6. Development validation: execute reusable behavior + current-version wrapper + real entry matrix.
+$devPath=Join-Path $RepositoryRoot 'tools\Invoke-DevelopmentValidation.ps1';$dev=[IO.File]::ReadAllText($devPath,[Text.Encoding]::UTF8)
+$knowledgeAnchor="    'tools\Invoke-Manager41712ReviewRegression.ps1'"
+$dev=Replace-Once $dev $knowledgeAnchor ($knowledgeAnchor+","+$nl+"    'tools\Invoke-ManagerRecoveryBehaviorRegression.ps1',"+$nl+"    'tools\Test-ManagerEntryReachabilityKnowledge.ps1',"+$nl+"    'tools\Invoke-ManagerEntryReachabilityMatrix.ps1',"+$nl+"    'tools\Invoke-Manager41713ReviewRegression.ps1'") 'development knowledge-tool list'
+$oldLoop="foreach(`$regressionName in @('Invoke-Manager41710ReviewRegression.ps1','Invoke-Manager41711ReviewRegression.ps1','Invoke-Manager41712ReviewRegression.ps1')){"
+$newLoop="foreach(`$regressionName in @('Invoke-Manager41710ReviewRegression.ps1','Invoke-Manager41711ReviewRegression.ps1','Invoke-ManagerRecoveryBehaviorRegression.ps1','Invoke-Manager41713ReviewRegression.ps1')){"
+$dev=Replace-Once $dev $oldLoop $newLoop 'development review-regression loop'
+$oldReviewPass="Write-Host 'Manager 4.17.10 + 4.17.11 + 4.17.12 review regression and release-instruction chain: PASS' -ForegroundColor Green"
+$newReviewPass="`$entryModelValidator=Join-Path `$RepositoryRoot 'tools\Test-ManagerEntryReachabilityKnowledge.ps1'"+$nl+"Invoke-Child `$entryModelValidator @('-RepositoryRoot',`$RepositoryRoot)"+$nl+"`$entryEvidence=Join-Path `$evidence 'ENTRY_REACHABILITY_RESULT.json'"+$nl+"`$entryMatrix=Join-Path `$RepositoryRoot 'tools\Invoke-ManagerEntryReachabilityMatrix.ps1'"+$nl+"Invoke-Child `$entryMatrix @('-RepositoryRoot',`$RepositoryRoot,'-OutputPath',`$entryEvidence)"+$nl+"Write-Host 'Manager review regressions + release identity + process-entry reachability: PASS' -ForegroundColor Green"
+$dev=Replace-Once $dev $oldReviewPass $newReviewPass 'development entry matrix insertion'
+$dev=Replace-Once $dev '    review_regressions_pass=$true' ('    review_regressions_pass=$true'+$nl+'    entry_reachability_pass=$true') 'development evidence entry flag'
+Write-Utf8 $devPath $dev
+'@
+$text=[regex]::Replace($text,$devPattern,{param($m)$devReplacement.TrimEnd()},1)
+
 $temp=Join-Path ([IO.Path]::GetTempPath()) ('Materialize-Manager41713Product-r2-'+[guid]::NewGuid().ToString('N')+'.ps1')
 try{
     [IO.File]::WriteAllText($temp,$text,$Utf8)
