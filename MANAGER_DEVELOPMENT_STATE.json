@@ -138,11 +138,20 @@
         "acceptance_helper_validation_run_id": "34814120011"
       },
       "final_publication_review": {
-        "status": "pending",
+        "status": "pass",
         "scope": "publication_release_provenance_only",
+        "reviewed_metadata_parent": "fea266ac840440f68e42e7e6a60c38b028b94dba",
+        "review_validation_run_id": "34815070518",
+        "review_validation_artifact_id": "10335363817",
+        "review_validation_artifact_sha256": "a0d17502b7545cb514a8ec99474ba8f644ef8acb4397d8b18c20a00eeb04584d",
+        "post_freeze_changed_files": [
+          "MANAGER_DEVELOPMENT_STATE.json",
+          "PUBLIC_PROVENANCE.json"
+        ],
+        "product_bytes_changed_after_freeze": false,
         "open_blockers": 0,
         "post_freeze_product_review_allowed": false,
-        "decision": "pending"
+        "decision": "approve_pr_candidate"
       }
     },
     "predecessor_4_17_11": {
@@ -185,8 +194,8 @@
     "public_repository_verifier": "tools/Verify-PublicRepository.ps1"
   },
   "next_exact_goal": {
-    "id": "MANAGER-41712-PUBLICATION-001",
-    "description": "Run final publication-only review on the post-install provenance head, require exact tested UPDATE identity in PR/main CI, then merge/publish only if every applicable release gate passes.",
+    "id": "MANAGER-41712-PR-001",
+    "description": "Open the Manager 4.17.12 release PR, require exact tested UPDATE identity 1fb11a51f144e66142f14e48a9bf88c98c9655e0061c5199477b72fdaf4cedb5 and all applicable PR gates, then merge/publish only if the exact PR head remains clean.",
     "product_changes_permitted_on_frozen_g1": false,
     "multi_hub_activation_permitted_before_public_release": false
   },
@@ -194,7 +203,6 @@
     "ordinary_new_chat_instruction": "Continue Manager 4.17.12 publication from the exact remote dev/manager-4.17.12 head. Frozen g1 product bytes are immutable; production install and post-install acceptance already passed.",
     "required_first_actions": [
       "Resolve dev/manager-4.17.12 live and confirm only post-freeze qualification/provenance metadata differs from frozen candidate 3dde367f1bd83f661bd29c75912732e9f92efa02.",
-      "Perform publication/release/provenance-only final review; do not reopen frozen product changes without a new Manager version.",
       "Require PR/main CI to rebuild exact UPDATE identity 1fb11a51f144e66142f14e48a9bf88c98c9655e0061c5199477b72fdaf4cedb5 before publication.",
       "Do not activate multi-Hub until Manager 4.17.12 is publicly released and activation is separately approved."
     ]
