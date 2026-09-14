@@ -168,8 +168,13 @@
     "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
     "hub_relay_research": "HUB_RELAY_RESEARCH.md",
     "knowledge_root": "tests/knowledge",
+    "current_risk_audits": [
+      "MHA-4179-001",
+      "MHA-41710-001"
+    ],
     "strict_pre_freeze_gate": "tools/Invoke-ManagerRiskDefectGate.ps1",
     "risk_context_regression": "tools/Invoke-ManagerRiskContextRegression.ps1",
+    "manager_4_17_11_review_regression": "tools/Invoke-Manager41711ReviewRegression.ps1",
     "manager_4_17_12_review_regression": "tools/Invoke-Manager41712ReviewRegression.ps1",
     "release_instruction_identity_guard": "tools/Verify-ManagerReleaseInstructions.ps1",
     "public_manifest_reproducibility": "tools/Build-PublicFileManifest.ps1 -Check",
