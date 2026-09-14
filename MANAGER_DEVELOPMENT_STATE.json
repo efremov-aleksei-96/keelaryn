@@ -25,13 +25,13 @@
                             "source_manifest_refresh_commit":  "9844ff5281da898fa7f77a33f837561e445c0aad",
                             "installation_sha256":  "f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d",
                             "managed_content_sha256":  "64c6cc7bd71742c7dcb50dfc93761d5155095b0604fae2cd4bf20ca16f014b6b",
-                            "status":  "development_materialized_permanent_regressions_pass",
+                            "status":  "development_materialized_prefreeze_current_binding_fix_regressions_pass",
                             "candidate_issued":  false
                         },
     "qualification":  {
                           "risk_defect_gate":  {
                                                    "status":  "required_pass_before_freeze",
-                                                   "observed_status":  "not_yet_run_for_exact_4_17_12_converged_head",
+                                                   "observed_status":  "stale_after_prefreeze_product_fix_requires_exact_head_rerun",
                                                    "validated_development_head":  null,
                                                    "candidate_freeze_permitted":  false,
                                                    "open_release_blockers":  [
@@ -153,7 +153,7 @@
                                                                 "materialization_run_id":  "34776567506",
                                                                 "manager_41712_review_regression":  "pass_during_materialization",
                                                                 "risk_context_regression":  "must_pass_in_convergence_validation",
-                                                                "pre_freeze_adversarial_review":  "pending",
+                                                                "pre_freeze_adversarial_review":  "MGR-DEF-0028_found_and_fixed_exact_head_rerun_required",
                                                                 "production_qualified":  false
                                                             }
                       },
@@ -186,7 +186,7 @@
                   },
     "next_exact_goal":  {
                             "id":  "MANAGER-41712-PREFREEZE-CONVERGENCE-001",
-                            "description":  "Require exact-head Development Validation PASS and strict proper-ancestor Risk/Defect Gate PASS, then perform a full PR-equivalent adversarial review of the exact 4.17.12 development head and full successor diff. Fix every finding within unqualified 4.17.12 and repeat until clean before any candidate freeze.",
+                            "description":  "Re-run exact-head Development Validation and full-successor Risk/Defect Gate after the MGR-DEF-0028 CURRENT identity-binding fix, then repeat PR-equivalent adversarial review on the new exact 4.17.12 head. Freeze only after the repeated review is clean.",
                             "candidate_freeze_before_clean_adversarial_review":  false,
                             "product_changes_permitted_on_frozen_4_17_11_g1":  false
                         },

@@ -7,6 +7,8 @@ param(
 # The existing 4.17.2 regression suite remains authoritative for the earlier four fixes.
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $RepositoryRoot=[IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\')
 $runtimePath=Join-Path $RepositoryRoot 'manager\product\runtime\Keelaryn__Manager.ps1'
 $menuPath=Join-Path $RepositoryRoot 'manager\product\tools\KeelarynMenu.ps1'
@@ -15,6 +17,7 @@ foreach($path in @($runtimePath,$menuPath,$legacyRegression)){
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw('Required regression input missing: '+$path)}
 }
 
+function Fail([string]$Message){throw $Message}
 function Assert([bool]$Condition,[string]$Message){if(-not$Condition){throw $Message}}
 function Get-FunctionText([string]$Path,[string]$Name){
     $tokens=$null;$errors=$null
@@ -25,6 +28,26 @@ function Get-FunctionText([string]$Path,[string]$Name){
     return [string]$rows[0].Extent.Text
 }
 function Get-Sha256([string]$Path){return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()}
+function New-IdentityBoundCurrentZip([string]$Path,[string]$InstanceId,[string]$ArtifactInstanceId=$null,[string]$Status='approved'){
+    if(-not$ArtifactInstanceId){$ArtifactInstanceId=$InstanceId}
+    if(Test-Path -LiteralPath $Path){Remove-Item -LiteralPath $Path -Force}
+    $parent=Split-Path -Parent $Path;if(-not(Test-Path -LiteralPath $parent)){[void][IO.Directory]::CreateDirectory($parent)}
+    $stream=[IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+    try{
+        $archive=New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Create,$true)
+        try{
+            foreach($row in @(
+                [pscustomobject]@{Name='Keelaryn__Hub/_System/INSTANCE.json';Text=(([ordered]@{schema='keelaryn.instance.v1';instance_id=$InstanceId;created='2026-09-14T00:00:00Z'}|ConvertTo-Json -Compress))},
+                [pscustomobject]@{Name='Keelaryn__Hub/_System/ARTIFACT.json';Text=(([ordered]@{schema='keelaryn.artifact.v3';artifact_status=$Status;artifact_id='appr-regression-current';instance_id=$ArtifactInstanceId}|ConvertTo-Json -Compress))},
+                [pscustomobject]@{Name='Keelaryn__Hub/README.md';Text='identity-bound regression current'}
+            )){
+                $entry=$archive.CreateEntry($row.Name,[IO.Compression.CompressionLevel]::Optimal)
+                $writer=New-Object IO.StreamWriter($entry.Open(),(New-Object Text.UTF8Encoding($false)))
+                try{$writer.Write([string]$row.Text)}finally{$writer.Dispose()}
+            }
+        }finally{$archive.Dispose()}
+    }finally{$stream.Dispose()}
+}
 
 # Preserve all prior 4.17.2 regression coverage.
 $powershell=Join-Path $PSHOME 'powershell.exe'
@@ -35,6 +58,9 @@ Write-Host '  PASS inherited Manager 4.17.2 review regressions'
 # Import only the new helpers/functions under test. Dependencies are controlled stubs.
 Invoke-Expression (Get-FunctionText $runtimePath 'Move-DirectoryFailIfDestinationExists')
 Invoke-Expression (Get-FunctionText $menuPath 'Ensure-ChatGPTExchangeLayout')
+Invoke-Expression (Get-FunctionText $menuPath 'ConvertTo-CanonicalFrontendInstanceId')
+Invoke-Expression (Get-FunctionText $menuPath 'Read-FrontendZipEntryJson')
+Invoke-Expression (Get-FunctionText $menuPath 'Assert-FrontendCurrentArchiveBinding')
 Invoke-Expression (Get-FunctionText $menuPath 'Get-CurrentHubTransportPath')
 Invoke-Expression (Get-FunctionText $menuPath 'Copy-CurrentForChatGPT')
 
@@ -64,7 +90,7 @@ try{
     $aCurrent=Join-Path $aRoot 'baseline\Keelaryn__Hub_CURRENT.zip'
     $aExchange=Join-Path $ExchangeParent ('instances\'+$aId+'\chatgpt')
     [void][IO.Directory]::CreateDirectory((Split-Path -Parent $aCurrent))
-    [IO.File]::WriteAllText($aCurrent,'instance-a-current',(New-Object Text.UTF8Encoding($false)))
+    New-IdentityBoundCurrentZip $aCurrent $aId
     $ctxA=[pscustomobject]@{
         RegistryActive=$true;InstanceId=$aId;Name='A';HubPath=(Join-Path $temp 'hub-a')
         HubInbox=(Join-Path $aRoot 'inbox');CurrentZip=$aCurrent;ExchangeRoot=$aExchange
@@ -76,6 +102,27 @@ try{
     Assert (Test-Path -LiteralPath $prepared -PathType Leaf) 'Captured-context preparation did not write to instance A exchange.'
     Assert ((Get-Sha256 $prepared)-ceq(Get-Sha256 $aCurrent)) 'Prepared CURRENT bytes do not match captured instance A.'
     Write-Host '  PASS ChatGPT CURRENT source/destination stay on one captured instance context'
+    # Regression A2: a captured context must reject a CURRENT whose embedded identity belongs to another instance.
+    $preparedHash=Get-Sha256 $prepared
+    $bId='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    New-IdentityBoundCurrentZip $aCurrent $bId
+    $blocked=$false
+    try{$null=Copy-CurrentForChatGPT $ctxA 'workspace-input'}catch{$blocked=$true}
+    Assert $blocked 'Instance A context accepted a CURRENT bound to instance B.'
+    Assert ((Get-Sha256 $prepared)-ceq$preparedHash) 'Rejected wrong-instance CURRENT export modified the previously prepared exchange artifact.'
+
+    New-IdentityBoundCurrentZip $aCurrent $aId $bId
+    $blocked=$false
+    try{$null=Copy-CurrentForChatGPT $ctxA 'workspace-input'}catch{$blocked=$true}
+    Assert $blocked 'CURRENT with mismatched INSTANCE/ARTIFACT identities was not rejected.'
+    Assert ((Get-Sha256 $prepared)-ceq$preparedHash) 'Rejected mixed-identity CURRENT modified the previously prepared exchange artifact.'
+
+    New-IdentityBoundCurrentZip $aCurrent $aId $aId 'candidate'
+    $blocked=$false
+    try{$null=Copy-CurrentForChatGPT $ctxA 'workspace-input'}catch{$blocked=$true}
+    Assert $blocked 'CANDIDATE CURRENT was accepted for ChatGPT exchange preparation.'
+    Assert ((Get-Sha256 $prepared)-ceq$preparedHash) 'Rejected non-approved CURRENT modified the previously prepared exchange artifact.'
+    Write-Host '  PASS wrong-instance, mixed-identity and non-approved CURRENT exports fail closed without changing exchange bytes'
 
     # Regression B: directory publication must fail if the destination is occupied at commit time.
     $src1=Join-Path $temp 'publish-source-1'

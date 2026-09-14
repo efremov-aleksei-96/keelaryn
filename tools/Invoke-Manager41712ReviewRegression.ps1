@@ -105,4 +105,11 @@ try{
     Pass 'REGISTRY' 'registry corruption remains fail-closed'
 }finally{if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue}}
 
+
+$copyCurrentText=Get-FunctionText $menuPath 'Copy-CurrentForChatGPT'
+Assert ($copyCurrentText.Contains('Assert-FrontendCurrentArchiveBinding $archive ([string]$Context.InstanceId)')) 'ChatGPT CURRENT export does not validate embedded instance identity against captured context.'
+Assert ($copyCurrentText.Contains('[IO.FileShare]::Read')) 'ChatGPT CURRENT export does not hold a read lock from identity validation through byte copy.'
+Assert ($menu.Contains('function Assert-FrontendCurrentArchiveBinding')) 'Frontend CURRENT identity-binding validator is missing.'
+Assert ($menu.Contains("CURRENT belongs to a different instance_id")) 'Frontend CURRENT wrong-instance failure contract is missing.'
+Write-Host '  PASS CURRENT export identity binding is enforced under a locked source artifact'
 Write-Host 'MANAGER 4.17.12 REVIEW REGRESSION: PASS' -ForegroundColor Green

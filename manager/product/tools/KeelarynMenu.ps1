@@ -22,6 +22,8 @@ param(
 )
 
 $ErrorActionPreference='Stop'
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $script:FrontendScriptPath=[string]$MyInvocation.MyCommand.Path
 
 function Fail([string]$Message) { throw $Message }
@@ -233,15 +235,76 @@ function Ensure-ChatGPTExchangeLayout($Context=$null) {
     }
 }
 
+function Read-FrontendZipEntryJson($Entry,[string]$Label) {
+    if($null-eq$Entry){Fail($Label+' entry is missing.')}
+    if([long]$Entry.Length-lt1-or[long]$Entry.Length-gt4MB){Fail($Label+' entry size is invalid.')}
+    $stream=$null;$reader=$null
+    try{
+        $stream=$Entry.Open()
+        $reader=New-Object IO.StreamReader($stream,[Text.Encoding]::UTF8,$true,4096,$false)
+        $text=$reader.ReadToEnd()
+        if([Text.Encoding]::UTF8.GetByteCount($text)-gt4MB){Fail($Label+' entry exceeds the 4 MiB metadata limit.')}
+        try{return ($text|ConvertFrom-Json)}catch{Fail($Label+' JSON is invalid: '+$_.Exception.Message)}
+    }finally{
+        if($reader){$reader.Dispose()}elseif($stream){$stream.Dispose()}
+    }
+}
+
+function Assert-FrontendCurrentArchiveBinding($Archive,[string]$ExpectedInstanceId) {
+    $expected=ConvertTo-CanonicalFrontendInstanceId $ExpectedInstanceId
+    $entries=@($Archive.Entries)
+    if($entries.Count-lt1-or$entries.Count-gt10000){Fail('CURRENT archive entry count is outside the 1..10000 safety range.')}
+    [long]$expanded=0
+    $seen=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $names=New-Object System.Collections.ArrayList
+    foreach($entry in $entries){
+        $name=([string]$entry.FullName).Replace('\','/')
+        if([string]::IsNullOrWhiteSpace($name)-or$name.StartsWith('/')-or$name-match'(^|/)\.\.?(/|$)'-or$name.Contains(':')){Fail('CURRENT archive contains an unsafe path: '+$name)}
+        if(-not$seen.Add($name)){Fail('CURRENT archive contains a duplicate path: '+$name)}
+        $expanded+=[long]$entry.Length
+        if($expanded-gt250MB){Fail 'CURRENT archive expanded-size safety limit exceeded.'}
+        if([long]$entry.Length-gt0){
+            $compressed=[Math]::Max([long]$entry.CompressedLength,1)
+            if(([double]$entry.Length/[double]$compressed)-gt200.0){Fail('CURRENT archive compression-ratio safety limit exceeded: '+$name)}
+        }
+        [void]$names.Add($name)
+    }
+
+    $root=$null
+    foreach($candidateRoot in @('Keelaryn__Hub/','Core__Hub/')){
+        $outside=@($names|Where-Object{-not([string]$_).StartsWith($candidateRoot,[StringComparison]::OrdinalIgnoreCase)})
+        $instance=@($entries|Where-Object{([string]$_.FullName).Replace('\','/').Equals($candidateRoot+'_System/INSTANCE.json',[StringComparison]::OrdinalIgnoreCase)})
+        $artifact=@($entries|Where-Object{([string]$_.FullName).Replace('\','/').Equals($candidateRoot+'_System/ARTIFACT.json',[StringComparison]::OrdinalIgnoreCase)})
+        if($outside.Count-eq0-and$instance.Count-eq1-and$artifact.Count-eq1){
+            if($root){Fail 'CURRENT archive root is ambiguous.'}
+            $root=$candidateRoot;$instanceEntry=$instance[0];$artifactEntry=$artifact[0]
+        }
+    }
+    if(-not$root){Fail 'CURRENT archive does not have a supported Hub envelope with INSTANCE/ARTIFACT metadata.'}
+
+    $instance=Read-FrontendZipEntryJson $instanceEntry 'CURRENT INSTANCE'
+    $artifact=Read-FrontendZipEntryJson $artifactEntry 'CURRENT ARTIFACT'
+    $instanceSchema=([string]$instance.schema).Trim()
+    if(@('keelaryn.instance.v1','corehub.instance.v1')-cnotcontains$instanceSchema){Fail('CURRENT INSTANCE schema is unsupported: '+$instanceSchema)}
+    $artifactSchema=([string]$artifact.schema).Trim()
+    if(@('keelaryn.artifact.v3','corehub.artifact.v3')-cnotcontains$artifactSchema){Fail('CURRENT ARTIFACT schema is unsupported for instance-bound export: '+$artifactSchema)}
+    if(([string]$artifact.artifact_status).Trim().ToLowerInvariant()-cne'approved'){Fail 'CURRENT ARTIFACT is not an approved checkpoint.'}
+    $instanceId=ConvertTo-CanonicalFrontendInstanceId $instance.instance_id
+    $artifactInstanceId=ConvertTo-CanonicalFrontendInstanceId $artifact.instance_id
+    if($instanceId-cne$artifactInstanceId){Fail('CURRENT INSTANCE/ARTIFACT identities differ: instance='+$instanceId+' artifact='+$artifactInstanceId)}
+    if($instanceId-cne$expected){Fail('CURRENT belongs to a different instance_id. expected='+$expected+' actual='+$instanceId)}
+    return [pscustomobject]@{InstanceId=$instanceId;ArtifactId=([string]$artifact.artifact_id).Trim();Status='approved';Root=$root}
+}
+
 function Get-CurrentHubTransportPath($Context=$null) {
     $ctx=if($null-eq$Context){Get-RequiredFrontendInstanceContext}else{$Context}
     if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail 'Multi-Hub registry exists but the supplied instance context is unresolved. CURRENT preparation refused.'}
     $path=[string]$ctx.CurrentZip
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){return $null}
     $item=Get-Item -LiteralPath $path -Force -ErrorAction Stop
-    if(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('CURRENT transport must not be a reparse point: '+$path)}
-    if($item.Length-gt1GB){Fail('CURRENT transport exceeds the 1 GiB safety limit: '+$path)}
-    return $path
+    if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('CURRENT transport must not be a reparse point: '+$path)}
+    if($item.Length-gt50MB){Fail('CURRENT transport exceeds the 50 MiB Hub transport safety limit: '+$path)}
+    return $item.FullName
 }
 
 function Copy-CurrentForChatGPT($Context,[string]$DestinationName) {
@@ -264,14 +327,47 @@ function Copy-CurrentForChatGPT($Context,[string]$DestinationName) {
         if($item.PSIsContainer-or($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('Unsafe ChatGPT CURRENT destination: '+$target)}
     }
     $tmp=$target+'.tmp-'+[guid]::NewGuid().ToString('N')
+    $backup=$target+'.replace-backup-'+[guid]::NewGuid().ToString('N')
+    $sourceStream=$null;$archive=$null;$targetStream=$null
     try{
-        Copy-Item -LiteralPath $source -Destination $tmp -Force -ErrorAction Stop
-        if((Get-FileSha256Hex $source)-cne(Get-FileSha256Hex $tmp)){Fail('Prepared CURRENT failed SHA-256 verification.')}
-        if(Test-Path -LiteralPath $target -PathType Leaf){Remove-Item -LiteralPath $target -Force -ErrorAction Stop}
-        Move-Item -LiteralPath $tmp -Destination $target -ErrorAction Stop
+        # Hold the exact CURRENT bytes read-locked from identity proof through byte copy.
+        # This prevents a switch/repair/external replacement from changing the artifact after validation.
+        $sourceStream=New-Object IO.FileStream($source,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+        if([bool]$Context.RegistryActive){
+            if([string]::IsNullOrWhiteSpace([string]$Context.InstanceId)){Fail 'Instance-bound CURRENT export requires a captured instance_id.'}
+            $archive=New-Object IO.Compression.ZipArchive($sourceStream,[IO.Compression.ZipArchiveMode]::Read,$true)
+            $null=Assert-FrontendCurrentArchiveBinding $archive ([string]$Context.InstanceId)
+            $archive.Dispose();$archive=$null
+        }
+
+        $sourceStream.Position=0
+        $sha=[Security.Cryptography.SHA256]::Create()
+        try{$sourceHash=([BitConverter]::ToString($sha.ComputeHash($sourceStream))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+        $sourceStream.Position=0
+        $targetStream=New-Object IO.FileStream($tmp,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+        $sourceStream.CopyTo($targetStream)
+        $targetStream.Flush($true)
+        $targetStream.Dispose();$targetStream=$null
+        $tmpHash=Get-FileSha256Hex $tmp
+        if($sourceHash-cne$tmpHash){Fail 'Prepared CURRENT failed locked-source SHA-256 verification.'}
+
+        if(Test-Path -LiteralPath $target -PathType Leaf){
+            [IO.File]::Replace($tmp,$target,$backup,$true)
+            if(Test-Path -LiteralPath $backup){Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue}
+        }else{
+            [IO.File]::Move($tmp,$target)
+        }
+        $publishedHash=Get-FileSha256Hex $target
+        if($publishedHash-cne$sourceHash){Fail 'Prepared CURRENT durable publication succeeded, but post-publication SHA-256 verification failed.'}
         Write-UiHost ('Prepared CURRENT: '+$target) -ForegroundColor Green
         return 0
-    }finally{if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}}
+    }finally{
+        if($archive){$archive.Dispose()}
+        if($targetStream){$targetStream.Dispose()}
+        if($sourceStream){$sourceStream.Dispose()}
+        if(Test-Path -LiteralPath $tmp){Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}
+        if(Test-Path -LiteralPath $backup){Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue}
+    }
 }
 
 function Get-SafeTreeInventory([string]$Directory) {

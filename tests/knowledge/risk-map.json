@@ -300,6 +300,9 @@
                                        "manager/product/tools/KeelarynMenu.ps1"
                                    ],
                          "symbols":  [
+                                         "Assert-FrontendCurrentArchiveBinding",
+                                         "Copy-CurrentForChatGPT",
+                                         "Get-CurrentHubTransportPath",
                                          "Get-FrontendInstanceContext",
                                          "Get-FrontendRegistryRows",
                                          "Invoke-Action",
@@ -307,10 +310,11 @@
                                          "Show-HubManagementMenu"
                                      ],
                          "invariants":  [
-                                            "MH-IDENTITY-001",
-                                            "MH-PATH-001",
+                                            "MH-BINDING-001",
                                             "MH-CONTEXT-001",
+                                            "MH-IDENTITY-001",
                                             "MH-ISOLATION-001",
+                                            "MH-PATH-001",
                                             "MH-RECOVERY-001"
                                         ],
                          "root_cause_classes":  [
