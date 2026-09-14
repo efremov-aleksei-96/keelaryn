@@ -54,7 +54,7 @@ jobs:
             "`$expectedGateRevision = 2",
             "`$expectedGateSha256 = '0b027b87d4fb0c452990f19d4d9d4d6b7f48bf0a710e28aba74da42084a04a11'",
             "`$priorGateSha256 = 'd256df61396fa2afa08916b7ac3efb41e2ba4c9dcfc6556fbe61a6f774396200'",
-            "tests\\results\\history\\manager-4.17.12-g1-gate-r1-real-current-fail-20260914T0615Z",
+            "tests\results\history\manager-4.17.12-g1-gate-r1-real-current-fail-20260914T0615Z",
             "environment_or_measurement_ambiguity",
             "UNPACK_MANAGER_GATE.cmd",
             "Do not install Manager 4.17.12 yet."
