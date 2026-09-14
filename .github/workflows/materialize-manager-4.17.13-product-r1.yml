@@ -9,6 +9,7 @@ on:
       - 'tools/Materialize-Manager41713ProductR4.ps1'
       - 'tools/Materialize-Manager41713EntryPolicyR1.ps1'
       - 'tools/Materialize-Manager41713EntryPolicyR2.ps1'
+      - 'tools/Materialize-Manager41713EntryPolicyR3.ps1'
       - '.github/workflows/materialize-manager-4.17.13-product-r1.yml'
   workflow_dispatch:
 
@@ -40,7 +41,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $script=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713EntryPolicyR2.ps1'
+          $script=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713EntryPolicyR3.ps1'
           $target=Join-Path $env:GITHUB_WORKSPACE 'target'
           $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-entry-policy'
           "KEELARYN_41713_MATERIALIZE_EVIDENCE=$evidence" >> $env:GITHUB_ENV
