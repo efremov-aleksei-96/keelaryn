@@ -8,9 +8,10 @@ param(
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
 $Utf8=New-Object Text.UTF8Encoding($false)
-$source=Join-Path $PSScriptRoot 'Materialize-Manager41713ProductR2.ps1'
-if(-not(Test-Path -LiteralPath $source -PathType Leaf)){throw 'R2 materializer is missing.'}
-$text=[IO.File]::ReadAllText($source,[Text.Encoding]::UTF8)
+$r2Source=Join-Path $PSScriptRoot 'Materialize-Manager41713ProductR2.ps1'
+$baseSource=Join-Path $PSScriptRoot 'Materialize-Manager41713Product.ps1'
+foreach($p in @($r2Source,$baseSource)){if(-not(Test-Path -LiteralPath $p -PathType Leaf)){throw('Required materializer source is missing: '+$p)}}
+$text=[IO.File]::ReadAllText($r2Source,[Text.Encoding]::UTF8)
 
 # R2 transforms the base materializer text. Insert one additional transform immediately
 # after it reads the base source: `Args` is a PowerShell automatic variable, so using it
@@ -30,15 +31,19 @@ $text=$text.Replace("(`$Args-join' ')","(`$Arguments-join' ')")
 '@
 $text=$text.Replace($anchor,$replacement.TrimEnd())
 
-$temp=Join-Path ([IO.Path]::GetTempPath()) ('Materialize-Manager41713Product-r3-'+[guid]::NewGuid().ToString('N')+'.ps1')
+$tempRoot=Join-Path ([IO.Path]::GetTempPath()) ('keelaryn-41713-r3-'+[guid]::NewGuid().ToString('N'))
+$tempR2=Join-Path $tempRoot 'Materialize-Manager41713ProductR2.ps1'
+$tempBase=Join-Path $tempRoot 'Materialize-Manager41713Product.ps1'
 try{
-    [IO.File]::WriteAllText($temp,$text,$Utf8)
+    [void][IO.Directory]::CreateDirectory($tempRoot)
+    [IO.File]::WriteAllText($tempR2,$text,$Utf8)
+    Copy-Item -LiteralPath $baseSource -Destination $tempBase -Force
     $tokens=$null;$errors=$null
-    [void][Management.Automation.Language.Parser]::ParseFile($temp,[ref]$tokens,[ref]$errors)
+    [void][Management.Automation.Language.Parser]::ParseFile($tempR2,[ref]$tokens,[ref]$errors)
     if(@($errors).Count){throw('R3 wrapper parser failed: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
     $exe=Join-Path $PSHOME 'powershell.exe'
-    & $exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $temp -RepositoryRoot $RepositoryRoot -ExpectedBase $ExpectedBase -EvidenceRoot $EvidenceRoot
+    & $exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $tempR2 -RepositoryRoot $RepositoryRoot -ExpectedBase $ExpectedBase -EvidenceRoot $EvidenceRoot
     exit [int]$LASTEXITCODE
 }finally{
-    Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
