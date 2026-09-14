@@ -103,10 +103,30 @@
       "multi_hub_registry_active": false,
       "personal_hub_fingerprint_published": false,
       "acceptance_helper_validation_run_id": 34814120011
+    },
+    "postinstall_metadata_validation": {
+      "status": "pass",
+      "validated_head": "fea266ac840440f68e42e7e6a60c38b028b94dba",
+      "run_id": 34815070518,
+      "job_id": 103883942019,
+      "artifact_id": 10335363817,
+      "artifact_sha256": "a0d17502b7545cb514a8ec99474ba8f644ef8acb4397d8b18c20a00eeb04584d"
+    },
+    "final_publication_review": {
+      "status": "pass",
+      "scope": "publication_release_provenance_only",
+      "reviewed_metadata_parent": "fea266ac840440f68e42e7e6a60c38b028b94dba",
+      "post_freeze_changed_files": [
+        "MANAGER_DEVELOPMENT_STATE.json",
+        "PUBLIC_PROVENANCE.json"
+      ],
+      "product_bytes_changed_after_freeze": false,
+      "open_blockers": 0,
+      "decision": "approve_pr_candidate"
     }
   },
   "publication_status": {
-    "status": "production_qualified_installed_pending_final_publication_review",
+    "status": "production_qualified_installed_publication_review_pass",
     "public_release_approved": false,
     "merged_to_main": false,
     "multi_hub_activated": false
