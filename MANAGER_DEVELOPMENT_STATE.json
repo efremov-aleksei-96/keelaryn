@@ -1,203 +1,190 @@
 {
-    "schema":  "keelaryn.manager-development-state.v1",
-    "repository":  "efremov-aleksei-96/keelaryn",
-    "lifecycle_state":  "unqualified_development",
-    "authoritative_branch":  "dev/manager-4.17.12",
-    "head_resolution":  {
-                            "mode":  "resolve_branch_ref_live",
-                            "note":  "Resolve dev/manager-4.17.12 live. No 4.17.12 candidate has been issued. Product correction commit 85d15b41e342217c1ec046d0e486c03cc72abb6d is development-only and includes the pre-freeze MGR-DEF-0028 fix; frozen Manager 4.17.11 g1 remains immutable historical production-installed/public-release-rejected evidence."
-                        },
-    "lineage":  {
-                    "production_manager_version":  "4.17.11",
-                    "previous_production_manager_version":  "4.17.10",
-                    "production_candidate_commit":  "88e3dcba0af75264c4b53e8ec24d770c215677a0",
-                    "production_candidate_tree":  "7d23ab245699d63c264958f9132d29fe85d43de7",
-                    "production_managed_digest":  "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
-                    "production_installation_sha256":  "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
-                    "framework_revision":  "r24",
-                    "successor_manager_version":  "4.17.12"
-                },
-    "materialization":  {
-                            "manager_version":  "4.17.12",
-                            "product_commit":  "85d15b41e342217c1ec046d0e486c03cc72abb6d",
-                            "product_tree":  "a09e55102066a5a4cdde3f24b9d13dfcf3bf3029",
-                            "materialization_run_id":  "34808011859",
-                            "source_manifest_refresh_commit":  "85d15b41e342217c1ec046d0e486c03cc72abb6d",
-                            "installation_sha256":  "f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d",
-                            "managed_content_sha256":  "a1a6f90530e4e330f87be7d06963ff352b2bf68ef2ab74b052eec05df6bb59e5",
-                            "status":  "development_materialized_prefreeze_findings_0028_0029_regressions_pass",
-                            "candidate_issued":  false
-                        },
-    "qualification":  {
-                          "risk_defect_gate":  {
-                                                   "status":  "required_pass_before_freeze",
-                                                   "observed_status":  "stale_after_prefreeze_product_fix_0029_requires_exact_head_rerun",
-                                                   "validated_development_head":  null,
-                                                   "candidate_freeze_permitted":  false,
-                                                   "open_release_blockers":  [
-
-                                                                             ]
-                                               },
-                          "candidate_4_17_11_g1":  {
-                                                       "manager_version":  "4.17.11",
-                                                       "candidate_revision":  "g1",
-                                                       "status":  "frozen_production_qualified_public_release_rejected",
-                                                       "commit":  "88e3dcba0af75264c4b53e8ec24d770c215677a0",
-                                                       "tree":  "7d23ab245699d63c264958f9132d29fe85d43de7",
-                                                       "parent":  "e1024937320cf60ba0257e7c61c0f0124cd379d3",
-                                                       "immutable":  true,
-                                                       "product_bytes_changed_after_freeze":  false,
-                                                       "installation_sha256":  "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
-                                                       "managed_content_sha256":  "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
-                                                       "framework_revision":  24,
-                                                       "hosted_qualification":  {
-                                                                                    "run_id":  "34770214698",
-                                                                                    "job_id":  "103758327226",
-                                                                                    "artifact_id":  "10321488389",
-                                                                                    "artifact_sha256":  "742a455c23b942bd77f9caa308afe04c9a6c2619b97d5aa14a6ddd371d98b4c5",
-                                                                                    "development_validation_run_id":  "34769796314",
-                                                                                    "ordinary_gate_revision":  1,
-                                                                                    "ordinary_gate_sha256":  "d09ac45cdbd25dfacd17d451c62e15e3f38fc8c1c045bb9216069ad70368e534",
-                                                                                    "source_gate":  "pass",
-                                                                                    "strict_risk_defect_gate":  "pass_before_post_freeze_findings",
-                                                                                    "release_instruction_identity":  "pass",
-                                                                                    "manager_41711_review_regression":  "pass",
-                                                                                    "disposable_gate_revision":  9001,
-                                                                                    "disposable_full_gate":  "pass"
-                                                                                },
-                                                       "real_current_qualification":  {
-                                                                                          "status":  "pass",
-                                                                                          "ordinary_gate_revision":  1,
-                                                                                          "framework_revision":  24,
-                                                                                          "full_gate_phases":  14,
-                                                                                          "full_gate_pass":  true,
-                                                                                          "production_manager_hub_immutability":  "pass",
-                                                                                          "production_execution_isolated":  true,
-                                                                                          "evidence_source":  "validated workstation Full Gate output reviewed after hosted qualification",
-                                                                                          "historical_environment_only_failure":  {
-                                                                                                                                      "status":  "preserved",
-                                                                                                                                      "classification":  "environment-only",
-                                                                                                                                      "cause":  "Google Drive Desktop held DOCTOR_REPORT.json during the first frozen g1 Full Gate execution",
-                                                                                                                                      "candidate_bytes_changed":  false,
-                                                                                                                                      "candidate_revision_changed":  false,
-                                                                                                                                      "resolution":  "same frozen g1 rerun passed after Google Drive Desktop was paused"
-                                                                                                                                  }
-                                                                                      },
-                                                       "deterministic_tested_update":  {
-                                                                                           "sha256":  "f2bc027eca62c35b6b1244b8389cda0d87296ce0b04ee2a5bb3b569fcc5c19ed",
-                                                                                           "bytes":  238011,
-                                                                                           "release_manifest_sha256":  "1e13cbed15c8b69ab58c6854d030b74a72e65db585b59432e9022bacbac43616"
-                                                                                       },
-                                                       "production_install":  {
-                                                                                  "status":  "pass",
-                                                                                  "baseline_manager_version":  "4.17.10",
-                                                                                  "installed_manager_version":  "4.17.11",
-                                                                                  "tested_update_identity":  "pass",
-                                                                                  "doctor":  "pass",
-                                                                                  "installed_managed_content_prefix":  "db7b288b7ac2",
-                                                                                  "multi_hub_registry_active":  false
-                                                                              },
-                                                       "production_post_install_acceptance":  {
-                                                                                                  "status":  "pass",
-                                                                                                  "exact_installed_candidate":  "pass",
-                                                                                                  "installation_sha256":  "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
-                                                                                                  "managed_content_sha256":  "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
-                                                                                                  "doctor_receipt":  "pass",
-                                                                                                  "frontend_selftest":  "pass",
-                                                                                                  "production_hub_immutability":  "pass",
-                                                                                                  "single_instance_compatibility":  "pass",
-                                                                                                  "multi_hub_registry_active":  false,
-                                                                                                  "personal_hub_fingerprint_published":  false
-                                                                                              },
-                                                       "final_public_review":  {
-                                                                                   "status":  "failed",
-                                                                                   "pull_request":  60,
-                                                                                   "open_blockers":  2,
-                                                                                   "release_blockers":  [
-                                                                                                            "MGR-DEF-0026",
-                                                                                                            "MGR-DEF-0027"
-                                                                                                        ],
-                                                                                   "post_freeze_product_drift":  false,
-                                                                                   "environment_only_failure_reclassified":  true,
-                                                                                   "erroneous_product_defect_record_removed":  true,
-                                                                                   "decision":  "public_release_rejected"
-                                                                               }
-                                                   },
-                          "post_freeze_repository_validation":  {
-                                                                    "reclassification_head":  "10efafdd1bbb109c6ed3e3c2c7a306825fe34bd1",
-                                                                    "reclassification_tree":  "7d23ab245699d63c264958f9132d29fe85d43de7",
-                                                                    "development_validation_run_id":  "34772495719",
-                                                                    "final_release_metadata_head":  "29de2125cf0d092b9f7a326dbbbaff0f84ee45f9",
-                                                                    "final_release_metadata_validation_run_id":  "34773670010",
-                                                                    "public_release_pr":  60,
-                                                                    "public_release_pr_state":  "closed_unmerged",
-                                                                    "status":  "release_rejected_after_green_gates",
-                                                                    "product_bytes_changed":  false
-                                                                },
-                          "predecessor_4_17_10":  {
-                                                      "status":  "frozen_production_qualified_public_release_rejected",
-                                                      "candidate":  "g3",
-                                                      "commit":  "af128f0f10752ff1500155707b56260aac296569",
-                                                      "pull_request":  59,
-                                                      "tested_update_sha256":  "c3d005861f1c2b4e39e6a7bf826cbb4ff81460fd89a595592d1960a711277a6f",
-                                                      "release_blockers":  [
-                                                                               "MGR-DEF-0024",
-                                                                               "MGR-DEF-0025"
-                                                                           ]
-                                                  },
-                          "successor_4_17_12_development":  {
-                                                                "manager_version":  "4.17.12",
-                                                                "lifecycle":  "unqualified_development",
-                                                                "candidate_issued":  false,
-                                                                "product_commit":  "85d15b41e342217c1ec046d0e486c03cc72abb6d",
-                                                                "materialization_run_id":  "34808011859",
-                                                                "manager_41712_review_regression":  "pass_after_prefreeze_0028_fix",
-                                                                "risk_context_regression":  "must_pass_in_convergence_validation",
-                                                                "pre_freeze_adversarial_review":  "MGR-DEF-0028_and_0029_found_and_fixed_exact_head_rerun_required",
-                                                                "production_qualified":  false
-                                                            }
-                      },
-    "production_policy":  {
-                              "production_manager":  "4.17.11_installed_and_accepted_public_release_rejected",
-                              "production_rollback":  "not_required_while_multi_hub_inactive",
-                              "multi_hub":  "disabled_until_Manager_4_17_12_is_fully_qualified_installed_public_released_and_activation_is_explicitly_requested",
-                              "production_hub_mutation_from_manager_development":  "forbidden",
-                              "candidate_4_17_11_g1":  "immutable_production_installed_public_release_rejected_do_not_modify"
-                          },
-    "open_release_blockers":  [
-
-                              ],
-    "knowledge":  {
-                      "roadmap":  "MANAGER_ENGINEERING_ROADMAP.md",
-                      "hub_relay_research":  "HUB_RELAY_RESEARCH.md",
-                      "knowledge_root":  "tests/knowledge",
-                      "current_risk_audits":  [
-                                                  "MHA-4179-001",
-                                                  "MHA-41710-001"
-                                              ],
-                      "strict_pre_freeze_gate":  "tools/Invoke-ManagerRiskDefectGate.ps1",
-                      "risk_context_regression":  "tools/Invoke-ManagerRiskContextRegression.ps1",
-                      "manager_4_17_11_review_regression":  "tools/Invoke-Manager41711ReviewRegression.ps1",
-                      "release_instruction_identity_guard":  "tools/Verify-ManagerReleaseInstructions.ps1",
-                      "public_manifest_reproducibility":  "tools/Build-PublicFileManifest.ps1 -Check",
-                      "public_candidate_metadata_verifier":  "tools/Verify-PublicCandidateMetadata.ps1",
-                      "public_repository_verifier":  "tools/Verify-PublicRepository.ps1",
-                      "manager_4_17_12_review_regression":  "tools/Invoke-Manager41712ReviewRegression.ps1"
-                  },
-    "next_exact_goal":  {
-                            "id":  "MANAGER-41712-PREFREEZE-CONVERGENCE-001",
-                            "description":  "Re-run exact-head Development Validation and full-successor Risk/Defect Gate after MGR-DEF-0029 rollback-preservation fix, then repeat PR-equivalent adversarial review on the new exact 4.17.12 head. Freeze only after the repeated review is clean.",
-                            "candidate_freeze_before_clean_adversarial_review":  false,
-                            "product_changes_permitted_on_frozen_4_17_11_g1":  false
-                        },
-    "bootstrap":  {
-                      "ordinary_new_chat_instruction":  "Continue unqualified Manager 4.17.12 convergence development; do not issue a candidate until exact-head validation, strict risk gate and pre-freeze adversarial review are all clean.",
-                      "required_first_actions":  [
-                                                     "Preserve Manager 4.17.11 g1 commit 88e3dcba0af75264c4b53e8ec24d770c215677a0 / tree 7d23ab245699d63c264958f9132d29fe85d43de7 as immutable production-installed rejected evidence.",
-                                                     "Treat Manager 4.17.12 as unqualified development; product materialization and permanent regression PASS do not issue or qualify a candidate.",
-                                                     "Require a non-empty proper-ancestor risk range and exact-head identity before any freeze permission.",
-                                                     "Perform PR-equivalent adversarial review before freeze, including recovery reachability, routing, update handoff, commit outcomes, release identity and regression reachability.",
-                                                     "Do not activate multi-Hub before a successor is fully qualified, installed, publicly released, and activation is separately approved."
-                                                 ]
-                  }
+  "schema": "keelaryn.manager-development-state.v1",
+  "repository": "efremov-aleksei-96/keelaryn",
+  "lifecycle_state": "unqualified_development",
+  "authoritative_branch": "dev/manager-4.17.12",
+  "head_resolution": {
+    "mode": "resolve_branch_ref_live",
+    "note": "Resolve dev/manager-4.17.12 live. No 4.17.12 candidate has been issued. Product correction commit a4db98b45c851391c26b290514402f0b613906d5 is development-only and includes pre-freeze MGR-DEF-0028 and MGR-DEF-0029 fixes; frozen Manager 4.17.11 g1 remains immutable historical production-installed/public-release-rejected evidence."
+  },
+  "lineage": {
+    "production_manager_version": "4.17.11",
+    "previous_production_manager_version": "4.17.10",
+    "production_candidate_commit": "88e3dcba0af75264c4b53e8ec24d770c215677a0",
+    "production_candidate_tree": "7d23ab245699d63c264958f9132d29fe85d43de7",
+    "production_managed_digest": "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
+    "production_installation_sha256": "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
+    "framework_revision": "r24",
+    "successor_manager_version": "4.17.12"
+  },
+  "materialization": {
+    "manager_version": "4.17.12",
+    "product_commit": "a4db98b45c851391c26b290514402f0b613906d5",
+    "product_tree": "615a4f2c7289b5aa825cf2cbb013a5029ade8eec",
+    "materialization_run_id": "34808793163",
+    "source_manifest_refresh_commit": "a4db98b45c851391c26b290514402f0b613906d5",
+    "installation_sha256": "f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d",
+    "managed_content_sha256": "5118a866aa54ed916bb087fe41a4ac724bf527181b79b1c34e9b29311bf10fb8",
+    "status": "development_materialized_prefreeze_findings_0028_0029_regressions_pass",
+    "candidate_issued": false
+  },
+  "qualification": {
+    "risk_defect_gate": {
+      "status": "required_pass_before_freeze",
+      "observed_status": "stale_after_prefreeze_product_fix_0029_requires_exact_head_rerun",
+      "validated_development_head": null,
+      "candidate_freeze_permitted": false,
+      "open_release_blockers": []
+    },
+    "candidate_4_17_11_g1": {
+      "manager_version": "4.17.11",
+      "candidate_revision": "g1",
+      "status": "frozen_production_qualified_public_release_rejected",
+      "commit": "88e3dcba0af75264c4b53e8ec24d770c215677a0",
+      "tree": "7d23ab245699d63c264958f9132d29fe85d43de7",
+      "parent": "e1024937320cf60ba0257e7c61c0f0124cd379d3",
+      "immutable": true,
+      "product_bytes_changed_after_freeze": false,
+      "installation_sha256": "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
+      "managed_content_sha256": "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
+      "framework_revision": 24,
+      "hosted_qualification": {
+        "run_id": "34770214698",
+        "job_id": "103758327226",
+        "artifact_id": "10321488389",
+        "artifact_sha256": "742a455c23b942bd77f9caa308afe04c9a6c2619b97d5aa14a6ddd371d98b4c5",
+        "development_validation_run_id": "34769796314",
+        "ordinary_gate_revision": 1,
+        "ordinary_gate_sha256": "d09ac45cdbd25dfacd17d451c62e15e3f38fc8c1c045bb9216069ad70368e534",
+        "source_gate": "pass",
+        "strict_risk_defect_gate": "pass_before_post_freeze_findings",
+        "release_instruction_identity": "pass",
+        "manager_41711_review_regression": "pass",
+        "disposable_gate_revision": 9001,
+        "disposable_full_gate": "pass"
+      },
+      "real_current_qualification": {
+        "status": "pass",
+        "ordinary_gate_revision": 1,
+        "framework_revision": 24,
+        "full_gate_phases": 14,
+        "full_gate_pass": true,
+        "production_manager_hub_immutability": "pass",
+        "production_execution_isolated": true,
+        "evidence_source": "validated workstation Full Gate output reviewed after hosted qualification",
+        "historical_environment_only_failure": {
+          "status": "preserved",
+          "classification": "environment-only",
+          "cause": "Google Drive Desktop held DOCTOR_REPORT.json during the first frozen g1 Full Gate execution",
+          "candidate_bytes_changed": false,
+          "candidate_revision_changed": false,
+          "resolution": "same frozen g1 rerun passed after Google Drive Desktop was paused"
+        }
+      },
+      "deterministic_tested_update": {
+        "sha256": "f2bc027eca62c35b6b1244b8389cda0d87296ce0b04ee2a5bb3b569fcc5c19ed",
+        "bytes": 238011,
+        "release_manifest_sha256": "1e13cbed15c8b69ab58c6854d030b74a72e65db585b59432e9022bacbac43616"
+      },
+      "production_install": {
+        "status": "pass",
+        "baseline_manager_version": "4.17.10",
+        "installed_manager_version": "4.17.11",
+        "tested_update_identity": "pass",
+        "doctor": "pass",
+        "installed_managed_content_prefix": "db7b288b7ac2",
+        "multi_hub_registry_active": false
+      },
+      "production_post_install_acceptance": {
+        "status": "pass",
+        "exact_installed_candidate": "pass",
+        "installation_sha256": "cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc",
+        "managed_content_sha256": "a683573f8d0d4f22e58548352ee6219bb2cca482368db43161474881aec6747b",
+        "doctor_receipt": "pass",
+        "frontend_selftest": "pass",
+        "production_hub_immutability": "pass",
+        "single_instance_compatibility": "pass",
+        "multi_hub_registry_active": false,
+        "personal_hub_fingerprint_published": false
+      },
+      "final_public_review": {
+        "status": "failed",
+        "pull_request": 60,
+        "open_blockers": 2,
+        "release_blockers": ["MGR-DEF-0026", "MGR-DEF-0027"],
+        "post_freeze_product_drift": false,
+        "environment_only_failure_reclassified": true,
+        "erroneous_product_defect_record_removed": true,
+        "decision": "public_release_rejected"
+      }
+    },
+    "post_freeze_repository_validation": {
+      "reclassification_head": "10efafdd1bbb109c6ed3e3c2c7a306825fe34bd1",
+      "reclassification_tree": "7d23ab245699d63c264958f9132d29fe85d43de7",
+      "development_validation_run_id": "34772495719",
+      "final_release_metadata_head": "29de2125cf0d092b9f7a326dbbbaff0f84ee45f9",
+      "final_release_metadata_validation_run_id": "34773670010",
+      "public_release_pr": 60,
+      "public_release_pr_state": "closed_unmerged",
+      "status": "release_rejected_after_green_gates",
+      "product_bytes_changed": false
+    },
+    "predecessor_4_17_10": {
+      "status": "frozen_production_qualified_public_release_rejected",
+      "candidate": "g3",
+      "commit": "af128f0f10752ff1500155707b56260aac296569",
+      "pull_request": 59,
+      "tested_update_sha256": "c3d005861f1c2b4e39e6a7bf826cbb4ff81460fd89a595592d1960a711277a6f",
+      "release_blockers": ["MGR-DEF-0024", "MGR-DEF-0025"]
+    },
+    "successor_4_17_12_development": {
+      "manager_version": "4.17.12",
+      "lifecycle": "unqualified_development",
+      "candidate_issued": false,
+      "product_commit": "a4db98b45c851391c26b290514402f0b613906d5",
+      "materialization_run_id": "34808793163",
+      "manager_41712_review_regression": "pass_after_prefreeze_0028_0029_fixes",
+      "risk_context_regression": "must_pass_in_convergence_validation",
+      "pre_freeze_adversarial_review": "MGR-DEF-0028_and_0029_found_and_fixed_exact_head_rerun_required",
+      "production_qualified": false
+    }
+  },
+  "production_policy": {
+    "production_manager": "4.17.11_installed_and_accepted_public_release_rejected",
+    "production_rollback": "not_required_while_multi_hub_inactive",
+    "multi_hub": "disabled_until_Manager_4_17_12_is_fully_qualified_installed_public_released_and_activation_is_explicitly_requested",
+    "production_hub_mutation_from_manager_development": "forbidden",
+    "candidate_4_17_11_g1": "immutable_production_installed_public_release_rejected_do_not_modify"
+  },
+  "open_release_blockers": [],
+  "knowledge": {
+    "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
+    "hub_relay_research": "HUB_RELAY_RESEARCH.md",
+    "knowledge_root": "tests/knowledge",
+    "current_risk_audits": ["MHA-4179-001", "MHA-41710-001"],
+    "strict_pre_freeze_gate": "tools/Invoke-ManagerRiskDefectGate.ps1",
+    "risk_context_regression": "tools/Invoke-ManagerRiskContextRegression.ps1",
+    "manager_4_17_11_review_regression": "tools/Invoke-Manager41711ReviewRegression.ps1",
+    "release_instruction_identity_guard": "tools/Verify-ManagerReleaseInstructions.ps1",
+    "public_manifest_reproducibility": "tools/Build-PublicFileManifest.ps1 -Check",
+    "public_candidate_metadata_verifier": "tools/Verify-PublicCandidateMetadata.ps1",
+    "public_repository_verifier": "tools/Verify-PublicRepository.ps1",
+    "manager_4_17_12_review_regression": "tools/Invoke-Manager41712ReviewRegression.ps1"
+  },
+  "next_exact_goal": {
+    "id": "MANAGER-41712-PREFREEZE-CONVERGENCE-001",
+    "description": "Run exact-head Development Validation and full-successor Risk/Defect Gate on the cleaned post-MGR-DEF-0029 4.17.12 tree, then repeat PR-equivalent adversarial review. Freeze only after that repeated review is clean.",
+    "candidate_freeze_before_clean_adversarial_review": false,
+    "product_changes_permitted_on_frozen_4_17_11_g1": false
+  },
+  "bootstrap": {
+    "ordinary_new_chat_instruction": "Continue unqualified Manager 4.17.12 convergence development; do not issue a candidate until exact-head validation, strict risk gate and pre-freeze adversarial review are all clean.",
+    "required_first_actions": [
+      "Preserve Manager 4.17.11 g1 commit 88e3dcba0af75264c4b53e8ec24d770c215677a0 / tree 7d23ab245699d63c264958f9132d29fe85d43de7 as immutable production-installed rejected evidence.",
+      "Treat Manager 4.17.12 as unqualified development; product materialization and permanent regression PASS do not issue or qualify a candidate.",
+      "Require a non-empty proper-ancestor risk range and exact-head identity before any freeze permission.",
+      "Perform PR-equivalent adversarial review before freeze, including recovery reachability, routing, update handoff, commit outcomes, release identity and regression reachability.",
+      "Do not activate multi-Hub before a successor is fully qualified, installed, publicly released, and activation is separately approved."
+    ]
+  }
 }
