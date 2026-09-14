@@ -29,7 +29,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $expectedParent='0cb01f115652120dd34e2ec21ba1a1eaa19760a1'
+          $expectedParent='cf86f5c062acf37409d834569e24c6ecaf845518'
           $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
           $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant()
           if($parent-cne$expectedParent){throw "Unexpected workflow parent: $parent expected $expectedParent"}
