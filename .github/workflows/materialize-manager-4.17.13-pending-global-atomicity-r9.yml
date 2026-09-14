@@ -1,0 +1,151 @@
+name: Manager 4.17.13 pending-global atomicity fix r9
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-review-fixes-4.17.13-r1'
+    paths:
+      - '.github/workflows/materialize-manager-4.17.13-pending-global-atomicity-r9.yml'
+      - 'tools/Materialize-Manager41713PendingGlobalAtomicityR9.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-4.17.13-pending-global-atomicity-r9
+  cancel-in-progress: true
+
+jobs:
+  materialize-qualify-publish:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Checkout R9 materializer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: maintenance/prefreeze-review-fixes-4.17.13-r1
+          path: materializer
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout exact authoritative development head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.13
+          path: target
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Materialize atomicity fix, qualify exact successor, publish only after green
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $base='c7cf09d7b0b87646b1235f09653dd470865bca81'
+          $fullSuccessorBase='bdd1fa38ce680304f59764ae7a9482d6b1728053'
+          $target=Join-Path $env:GITHUB_WORKSPACE 'target'
+          $materializer=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713PendingGlobalAtomicityR9.ps1'
+          $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-atomicity-r9'
+          New-Item -ItemType Directory -Force -Path $evidence|Out-Null
+          "KEELARYN_R9_EVIDENCE=$evidence" >> $env:GITHUB_ENV
+
+          $actual=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          if($actual-cne$base){throw ('Authoritative dev moved before R9: '+$actual+' expected='+$base)}
+          if(@(git -C $target status --porcelain).Count-ne0){throw 'R9 target checkout is not clean at start.'}
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $materializer -RepositoryRoot $target -ExpectedBase $base -EvidenceRoot $evidence
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $expected=@(
+            'MANAGER_DEVELOPMENT_STATE.json',
+            'PUBLIC_FILE_MANIFEST.json',
+            'PUBLIC_PROVENANCE.json',
+            'manager/product/runtime/Keelaryn__Manager.ps1',
+            'tests/knowledge/defects/manager-4.17.13-prefreeze.json',
+            'tests/knowledge/entry-reachability.json',
+            'tests/knowledge/risk-map.json',
+            'tests/knowledge/state-machines/multi-hub.json',
+            'tools/Invoke-ManagerEntryReachabilityMatrix.ps1',
+            'tools/Test-ManagerEntryReachabilityKnowledge.ps1',
+            'tools/Verify-PublicCandidateMetadata.ps1'
+          )|Sort-Object
+          $changed=@(git -C $target status --porcelain|ForEach-Object{([string]$_).Substring(3)})|Sort-Object
+          if(([string]::Join('|',$changed))-cne([string]::Join('|',$expected))){throw ('Unexpected R9 materialized file set: '+($changed-join', '))}
+          $managerChanged=@(git -C $target diff --name-only -- manager)
+          if($managerChanged.Count-ne1-or[string]$managerChanged[0]-cne'manager/product/runtime/Keelaryn__Manager.ps1'){throw ('R9 Manager product scope is not exactly runtime: '+($managerChanged-join', '))}
+
+          git -C $target config user.name 'Aleksei Efremov'
+          git -C $target config user.email 'efremov.aleksei.96@gmail.com'
+          git -C $target add -- $expected
+          git -C $target commit -m 'Manager 4.17.13: make stranded input reconciliation atomic'
+          if($LASTEXITCODE-ne0){throw 'R9 local successor commit failed.'}
+          $head=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          $tree=(git -C $target rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
+          $parent=(git -C $target rev-parse 'HEAD^').Trim().ToLowerInvariant()
+          if($parent-cne$base){throw ('R9 successor parent mismatch: '+$parent)}
+          if(@(git -C $target status --porcelain).Count-ne0){throw 'R9 exact successor head is dirty.'}
+
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $target -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Verify-PublicCandidateMetadata.ps1') -RepositoryRoot $target
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Test-ManagerEngineeringKnowledge.ps1') -RepositoryRoot $target
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Test-ManagerEntryPolicyCompleteness.ps1') -RepositoryRoot $target
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Test-ManagerEntryReachabilityKnowledge.ps1') -RepositoryRoot $target
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $entryOut=Join-Path $evidence 'ENTRY_REACHABILITY_RESULT.json'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Invoke-ManagerEntryReachabilityMatrix.ps1') -RepositoryRoot $target -OutputPath $entryOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $entry=Get-Content -LiteralPath $entryOut -Raw -Encoding UTF8|ConvertFrom-Json
+          if(-not[bool]$entry.pass-or[int]$entry.scenario_count-ne102-or[int]$entry.executed_count-ne102){throw ('R9 requires exact 102/102 process-entry PASS; count='+[string]$entry.scenario_count+' executed='+[string]$entry.executed_count)}
+          $atomic=@($entry.scenarios|Where-Object{[string]$_.state-ceq'REGISTRY_PENDING_GLOBAL_INVALID'-and[string]$_.action-ceq'InitializeInstanceRegistry'})
+          if($atomic.Count-ne1-or-not[bool]$atomic[0].pass-or[string]$atomic[0].expected_mode-cne'registry_init_mixed_invalid_rejected_without_partial_handoff'){throw 'MGR-DEF-0032 permanent green process-entry proof is absent.'}
+
+          $env:GITHUB_SHA=$head
+          $devOut=Join-Path $evidence 'development-validation'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Invoke-DevelopmentValidation.ps1') -RepositoryRoot $target -OutputDirectory $devOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          $riskOut=Join-Path $evidence 'full-successor-risk-gate'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $target 'tools\Invoke-ManagerRiskDefectGate.ps1') -RepositoryRoot $target -BaseCommit $fullSuccessorBase -HeadCommit $head -OutputDirectory $riskOut
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+          # Final identity/scope checks immediately before the publication boundary.
+          $lineageManager=@(git -C $target diff --name-only $base $head -- manager)
+          if($lineageManager.Count-ne1-or[string]$lineageManager[0]-cne'manager/product/runtime/Keelaryn__Manager.ps1'){throw ('R9 final Manager delta from c7 is unexpected: '+($lineageManager-join', '))}
+          $runtime=[IO.File]::ReadAllText((Join-Path $target 'manager\product\runtime\Keelaryn__Manager.ps1'),[Text.Encoding]::UTF8)
+          foreach($token in @('Phase 1: preflight every input','Phase 2: stage every missing destination','Phase 3: revalidate the complete plan','all destinations created by this invocation were rolled back','destinations committed, but global source cleanup failed')){if(-not$runtime.Contains($token)){throw ('R9 runtime atomicity token missing: '+$token)}}
+          $manifest=Get-Content -LiteralPath (Join-Path $target 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $state=Get-Content -LiteralPath (Join-Path $target 'MANAGER_DEVELOPMENT_STATE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $prov=Get-Content -LiteralPath (Join-Path $target 'PUBLIC_PROVENANCE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if([string]$state.materialization.managed_content_sha256-cne[string]$manifest.manager.gate_managed_content_sha256){throw 'R9 development-state managed digest is not bound to final manifest.'}
+          if([string]$prov.source_manager_gate_managed_content_sha256-cne[string]$manifest.manager.gate_managed_content_sha256){throw 'R9 provenance managed digest is not bound to final manifest.'}
+          if([int]$prov.qualification_evidence.development_4_17_13.entry_reachability_scenarios-ne102){throw 'R9 provenance scenario count is not 102.'}
+
+          $receipt=[ordered]@{
+            schema='keelaryn.manager-41713-pending-global-atomicity-r9.v1';base=$base;final_head=$head;final_tree=$tree;full_successor_base=$fullSuccessorBase;
+            defect_id='MGR-DEF-0032';entry_matrix='102/102 pass';metadata_identity_guard='red_then_green';development_validation='pass';full_successor_risk_defect_gate='pass';
+            installation_sha256=[string]$manifest.manager.installation_sha256;managed_content_sha256=[string]$manifest.manager.gate_managed_content_sha256;candidate_issued=$false;production_qualified=$false;completed_utc=[DateTime]::UtcNow.ToString('o')
+          }
+          $receipt|ConvertTo-Json -Depth 20|Set-Content -LiteralPath (Join-Path $evidence 'R9_QUALIFICATION.json') -Encoding UTF8
+
+          git -C $target fetch origin dev/manager-4.17.13 --no-tags
+          if($LASTEXITCODE-ne0){throw 'Could not refresh authoritative dev before R9 publication.'}
+          $remote=(git -C $target rev-parse origin/dev/manager-4.17.13).Trim().ToLowerInvariant()
+          if($remote-cne$base){throw ('Authoritative dev moved during R9 qualification; refusing publication. remote='+$remote+' base='+$base)}
+          Write-Host ('R9 validated final head: '+$head) -ForegroundColor Green
+          Write-Host ('R9 validated final tree: '+$tree) -ForegroundColor Green
+          git -C $target push origin HEAD:dev/manager-4.17.13
+          if($LASTEXITCODE-ne0){throw 'R9 authoritative dev push failed.'}
+
+      - name: Upload R9 qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.13-pending-global-atomicity-r9-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_R9_EVIDENCE }}
+          if-no-files-found: warn
+          retention-days: 5
