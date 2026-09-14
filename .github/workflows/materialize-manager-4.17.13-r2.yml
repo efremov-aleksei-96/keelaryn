@@ -1,0 +1,43 @@
+name: Materialize Manager 4.17.13 r2
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-manager-4.17.13-r2'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout materializer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: maintenance/materialize-manager-4.17.13-r2
+          path: materializer
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout authoritative development target
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.13
+          path: target
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Materialize and validate exact successor
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713RecoveryShadow.ps1'
+          $target=Join-Path $env:GITHUB_WORKSPACE 'target'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -RepositoryRoot $target -ExpectedBase 'bdd1fa38ce680304f59764ae7a9482d6b1728053' -MaterializationRunId $env:GITHUB_RUN_ID
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $head=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          Write-Host ('Validated local materialized head: '+$head) -ForegroundColor Green
+          git -C $target push origin HEAD:dev/manager-4.17.13
