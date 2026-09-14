@@ -1,0 +1,75 @@
+name: Validate Manager 4.17.12 real-CURRENT bootstrap
+
+on:
+  push:
+    branches:
+      - maintenance/manager-4.17.12-g1-real-current-bootstrap
+    paths:
+      - .github/workflows/validate-manager-4.17.12-real-current-bootstrap.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-manager-4.17.12-real-current-bootstrap
+  cancel-in-progress: true
+
+jobs:
+  validate-bootstrap:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact bootstrap helper commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ba20c6914f8f09811c87e42e76872a0a8330274b
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify helper isolation, syntax and frozen identities
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected='ba20c6914f8f09811c87e42e76872a0a8330274b'
+          $candidate='3dde367f1bd83f661bd29c75912732e9f92efa02'
+          $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
+          $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant()
+          if($head-cne$expected){throw "Helper commit mismatch: $head expected $expected"}
+          if($parent-cne$candidate){throw "Helper parent mismatch: $parent expected frozen candidate $candidate"}
+          $changed=@(git diff --name-only "$candidate..$head")
+          if($changed.Count-ne1-or$changed[0]-cne'tools/Invoke-Manager41712G1RealCurrentQualificationBootstrap.ps1'){
+            throw('Bootstrap helper commit is not isolated: '+($changed-join', '))
+          }
+
+          $path=Resolve-Path 'tools/Invoke-Manager41712G1RealCurrentQualificationBootstrap.ps1'
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw('Bootstrap parser failure: '+(($errors|ForEach-Object Message)-join' | '))}
+          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          foreach($token in @(
+            "`$runId = '34809456682'",
+            "`$expectedVersion = '4.17.12'",
+            "`$expectedBaseline = '4.17.11'",
+            "`$expectedCandidate = '3dde367f1bd83f661bd29c75912732e9f92efa02'",
+            "`$expectedCandidateTree = '63e42a5bfdd6000ee273f5f927902f6ac29703b6'",
+            "`$expectedDevelopmentParent = '9c639cc954fef5e8a17966c43636c3d86b93a6a7'",
+            "`$expectedBaselineCommit = 'f6d04c175a22bd44f15c3d699a05ab5d60fa9a83'",
+            "`$expectedGateSha256 = 'd256df61396fa2afa08916b7ac3efb41e2ba4c9dcfc6556fbe61a6f774396200'",
+            "`$expectedManagedDigest = '5118a866aa54ed916bb087fe41a4ac724bf527181b79b1c34e9b29311bf10fb8'",
+            "`$expectedInstallationSha256 = 'f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d'",
+            "`$expectedBaselineInstallationSha256 = 'cd531baa24836a518afdf582e5313006cdc503fcc212b8b1bcffbb7c55ae2bfc'",
+            "manager-4.17.12-g1-hosted-qualification",
+            "UNPACK_MANAGER_GATE.cmd",
+            "Do not install Manager 4.17.12 yet."
+          )){
+            if(-not$text.Contains($token)){throw('Bootstrap required identity/contract token missing: '+$token)}
+          }
+          if($text -match '(?im)^\s*(Remove-Item|Move-Item|Copy-Item).*manager\\product'){
+            throw 'Bootstrap contains a direct production Manager product mutation path.'
+          }
+          if($text.Contains('UpdateManager')-or$text.Contains('INSTALL_TESTED_MANAGER_UPDATE.cmd"')){
+            throw 'Bootstrap must qualify only and must not invoke production installation.'
+          }
+          Write-Host 'MANAGER 4.17.12 REAL-CURRENT BOOTSTRAP STATIC VALIDATION: PASS' -ForegroundColor Green
+
+# External qualification helper validation only. Frozen Manager 4.17.12 g1 bytes are not modified.
