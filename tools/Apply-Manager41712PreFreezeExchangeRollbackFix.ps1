@@ -112,7 +112,7 @@ Write-Text $reg3Rel $reg3
 $reg12Rel='tools\Invoke-Manager41712ReviewRegression.ps1'
 $reg12=Read-Text $reg12Rel
 $reg12Eol=if($reg12.Contains("`r`n")){"`r`n"}else{"`n"}
-$reg12Anchor="Assert (`$menu.Contains(\"CURRENT belongs to a different instance_id\")) 'Frontend CURRENT wrong-instance failure contract is missing.'"
+$reg12Anchor='Assert ($menu.Contains("CURRENT belongs to a different instance_id")) ''Frontend CURRENT wrong-instance failure contract is missing.'''
 $reg12Extra=Lines @(
 "Assert (`$copyCurrentText.Contains('Previous exchange artifact is preserved at')) 'ChatGPT CURRENT post-publication failure does not preserve/report rollback data.'",
 "`$postVerifyIndex=`$copyCurrentText.IndexOf('`$publishedHash=Get-FileSha256Hex `$target',[StringComparison]::Ordinal)",
