@@ -71,6 +71,26 @@ Write-Utf8 $devPath $dev
 '@
 $text=[regex]::Replace($text,$devPattern,{param($m)$devReplacement.TrimEnd()},1)
 
+# Generated helper scripts are always invoked with an explicit RepositoryRoot. Make that
+# contract explicit and remove dependence on host-specific $PSScriptRoot default evaluation.
+$reviewParam="param([string]`$RepositoryRoot=(Join-Path `$PSScriptRoot '..'))"
+$reviewParamMatches=[regex]::Matches($text,[regex]::Escape($reviewParam))
+if($reviewParamMatches.Count-ne1){throw('Generated review RepositoryRoot default count='+$reviewParamMatches.Count)}
+$text=$text.Replace($reviewParam,"param([Parameter(Mandatory=`$true)][string]`$RepositoryRoot)")
+
+$section7='# 7. Run behavioral and real process-entry checks before closing the defect.'
+if(([regex]::Matches($text,[regex]::Escape($section7))).Count-ne1){throw 'Behavioral section marker is missing/ambiguous.'}
+$behaviorParamFix=@'
+# Normalize the reusable behavior helper to the same explicit-root execution contract.
+$behaviorPath=Join-Path $RepositoryRoot 'tools\Invoke-ManagerRecoveryBehaviorRegression.ps1'
+$behavior=[IO.File]::ReadAllText($behaviorPath,[Text.Encoding]::UTF8)
+$behavior=Replace-Once $behavior "param([string]`$RepositoryRoot=(Join-Path `$PSScriptRoot '..'))" 'param([Parameter(Mandatory=$true)][string]$RepositoryRoot)' 'recovery behavior required RepositoryRoot'
+Write-Utf8 $behaviorPath $behavior
+
+# 7. Run behavioral and real process-entry checks before closing the defect.
+'@
+$text=$text.Replace($section7,$behaviorParamFix.TrimEnd())
+
 $temp=Join-Path ([IO.Path]::GetTempPath()) ('Materialize-Manager41713Product-r2-'+[guid]::NewGuid().ToString('N')+'.ps1')
 try{
     [IO.File]::WriteAllText($temp,$text,$Utf8)
