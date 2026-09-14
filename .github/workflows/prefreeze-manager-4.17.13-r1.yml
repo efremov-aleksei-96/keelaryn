@@ -1,0 +1,112 @@
+name: Pre-freeze Manager 4.17.13 r1
+
+on:
+  push:
+    branches:
+      - 'maintenance/prefreeze-manager-4.17.13-r1'
+    paths:
+      - '.github/workflows/prefreeze-manager-4.17.13-r1.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-prefreeze-manager-4.17.13-r1
+  cancel-in-progress: true
+
+jobs:
+  prefreeze-proof:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact reviewed development head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 692c893a853065d8520a0176319cb8c5f850c275
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact identities and full-successor range
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $expectedHead='692c893a853065d8520a0176319cb8c5f850c275'
+          $expectedTree='32b93c993e897116ae107cc19bcd2213f9067d39'
+          $fullBase='bdd1fa38ce680304f59764ae7a9482d6b1728053'
+          $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
+          $tree=(git rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
+          if($head-cne$expectedHead){throw "Exact-head mismatch: expected=$expectedHead actual=$head"}
+          if($tree-cne$expectedTree){throw "Exact-tree mismatch: expected=$expectedTree actual=$tree"}
+          git merge-base --is-ancestor $fullBase $head
+          if($LASTEXITCODE-ne0){throw "Full-successor base is not an ancestor: base=$fullBase head=$head"}
+          $count=[int](git rev-list --count "$fullBase..$head").Trim()
+          if($count-lt1){throw "Full-successor range is empty: base=$fullBase head=$head"}
+          $root=Join-Path $env:RUNNER_TEMP ('keelaryn-41713-prefreeze-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          "KEELARYN_PREFREEZE_ROOT=$root" >> $env:GITHUB_ENV
+          "KEELARYN_PREFREEZE_DEV=$root\development-validation" >> $env:GITHUB_ENV
+          "KEELARYN_PREFREEZE_RISK=$root\full-successor-risk" >> $env:GITHUB_ENV
+          Write-Host "Exact reviewed head: $head"
+          Write-Host "Exact reviewed tree: $tree"
+          Write-Host "Full-successor range: $fullBase..$head commits=$count"
+
+      - name: Run independent exact-head Development Validation
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$env:KEELARYN_PREFREEZE_DEV"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+      - name: Run full-successor Risk Defect Gate
+        shell: powershell
+        run: |
+          $base='bdd1fa38ce680304f59764ae7a9482d6b1728053'
+          $head='692c893a853065d8520a0176319cb8c5f850c275'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit $base -HeadCommit $head -OutputDirectory "$env:KEELARYN_PREFREEZE_RISK"
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $report=Get-Content -LiteralPath (Join-Path $env:KEELARYN_PREFREEZE_RISK 'RISK_DEFECT_GATE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if(-not[bool]$report.pass-or-not[bool]$report.candidate_freeze_permitted){throw 'Full-successor Risk/Defect Gate did not explicitly permit freeze by risk policy.'}
+
+      - name: Write exact pre-freeze proof receipt
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:KEELARYN_PREFREEZE_ROOT 'PREFREEZE_HOSTED_PROOF.json'
+          $dev=Get-Content -LiteralPath (Join-Path $env:KEELARYN_PREFREEZE_DEV 'evidence\DEVELOPMENT_VALIDATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          $risk=Get-Content -LiteralPath (Join-Path $env:KEELARYN_PREFREEZE_RISK 'RISK_DEFECT_GATE.json') -Raw -Encoding UTF8|ConvertFrom-Json
+          if(-not[bool]$dev.pass){throw 'Development Validation receipt is not PASS.'}
+          if(-not[bool]$risk.pass){throw 'Full-successor Risk Gate receipt is not PASS.'}
+          $receipt=[ordered]@{
+            schema='keelaryn.manager-prefreeze-hosted-proof.v1'
+            classification='development_prefreeze_only'
+            manager_version='4.17.13'
+            reviewed_head='692c893a853065d8520a0176319cb8c5f850c275'
+            reviewed_tree='32b93c993e897116ae107cc19bcd2213f9067d39'
+            full_successor_base='bdd1fa38ce680304f59764ae7a9482d6b1728053'
+            exact_head_development_validation_pass=$true
+            full_successor_risk_defect_gate_pass=$true
+            candidate_freeze_permitted_by_this_receipt=$false
+            semantic_pr_review_still_required=$true
+            production_qualified=$false
+            production_hub_used=$false
+            completed_utc=[DateTime]::UtcNow.ToString('o')
+          }
+          $json=(($receipt|ConvertTo-Json -Depth 20).Replace("`r`n","`n"))+"`n"
+          [IO.File]::WriteAllText($out,$json,(New-Object Text.UTF8Encoding($false)))
+          Write-Host 'PRE-FREEZE HOSTED PROOF: PASS; semantic review/freeze still pending.' -ForegroundColor Green
+
+      - name: Upload compact pre-freeze evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.13-prefreeze-r1-${{ github.run_attempt }}
+          path: |
+            ${{ env.KEELARYN_PREFREEZE_ROOT }}\PREFREEZE_HOSTED_PROOF.json
+            ${{ env.KEELARYN_PREFREEZE_DEV }}\evidence\DEVELOPMENT_VALIDATION.json
+            ${{ env.KEELARYN_PREFREEZE_DEV }}\evidence\ENTRY_REACHABILITY_RESULT.json
+            ${{ env.KEELARYN_PREFREEZE_DEV }}\evidence\RISK_DEFECT_GATE_POLICY_CHECK.json
+            ${{ env.KEELARYN_PREFREEZE_RISK }}\RISK_DEFECT_GATE.json
+            ${{ env.KEELARYN_PREFREEZE_RISK }}\MANAGER_RISK_CONTEXT.json
+            ${{ env.KEELARYN_PREFREEZE_RISK }}\MANAGER_RISK_CONTEXT.md
+          if-no-files-found: warn
+          retention-days: 5
+
+# Disposable pre-freeze evidence only. This workflow never freezes a candidate, publishes a release, or touches production.
