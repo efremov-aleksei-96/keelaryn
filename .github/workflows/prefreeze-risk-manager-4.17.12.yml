@@ -24,14 +24,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: 4f0e054c9d8a1bf6cddb9a2ae16fa1f2577b0173
+          ref: 121a16d59f7d4e2a8dfa8122c90448718d4c976d
 
       - name: Verify exact full-successor identities
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           $base='f6d04c175a22bd44f15c3d699a05ab5d60fa9a83'
-          $expectedHead='4f0e054c9d8a1bf6cddb9a2ae16fa1f2577b0173'
+          $expectedHead='121a16d59f7d4e2a8dfa8122c90448718d4c976d'
           $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
           if($head-cne$expectedHead){throw "Exact development head mismatch: $head expected $expectedHead"}
           $baseResolved=(git rev-parse --verify "$base^{commit}").Trim().ToLowerInvariant()
@@ -58,19 +58,19 @@ jobs:
           $ErrorActionPreference='Stop'
           $out=Join-Path $env:RUNNER_TEMP 'keelaryn-manager-4.17.12-full-successor-risk'
           "KEELARYN_PREFREEZE_RISK_OUT=$out" >> $env:GITHUB_ENV
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit 'f6d04c175a22bd44f15c3d699a05ab5d60fa9a83' -HeadCommit '4f0e054c9d8a1bf6cddb9a2ae16fa1f2577b0173' -OutputDirectory $out
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit 'f6d04c175a22bd44f15c3d699a05ab5d60fa9a83' -HeadCommit '121a16d59f7d4e2a8dfa8122c90448718d4c976d' -OutputDirectory $out
           if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
           $report=Get-Content -LiteralPath (Join-Path $out 'RISK_DEFECT_GATE.json') -Raw -Encoding UTF8|ConvertFrom-Json
           if(-not[bool]$report.pass-or-not[bool]$report.candidate_freeze_permitted){throw 'Strict full-successor Risk/Defect Gate did not permit freeze.'}
           if([string]$report.base_commit-cne'f6d04c175a22bd44f15c3d699a05ab5d60fa9a83'){throw 'Risk evidence base identity mismatch.'}
-          if([string]$report.head_commit-cne'4f0e054c9d8a1bf6cddb9a2ae16fa1f2577b0173'){throw 'Risk evidence head identity mismatch.'}
+          if([string]$report.head_commit-cne'121a16d59f7d4e2a8dfa8122c90448718d4c976d'){throw 'Risk evidence head identity mismatch.'}
           Write-Host 'FULL-SUCCESSOR MANAGER 4.17.12 RISK/DEFECT GATE: PASS'
 
       - name: Upload compact pre-freeze risk evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: manager-4.17.12-full-successor-risk-4f0e054c9d8a
+          name: manager-4.17.12-full-successor-risk-121a16d59f7d
           path: |
             ${{ env.KEELARYN_PREFREEZE_RISK_OUT }}\RISK_DEFECT_GATE.json
             ${{ env.KEELARYN_PREFREEZE_RISK_OUT }}\MANAGER_RISK_CONTEXT.json
