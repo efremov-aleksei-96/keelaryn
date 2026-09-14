@@ -1,0 +1,98 @@
+name: Manager 4.17.12 g1 gate-r2 qualification
+
+on:
+  push:
+    paths:
+      - '.github/workflows/manager-4.17.12-g1-r2-qualification.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-4.17.12-g1-r2-qualification
+  cancel-in-progress: true
+
+jobs:
+  qualify-gate-r2:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout exact frozen g1 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 3dde367f1bd83f661bd29c75912732e9f92efa02
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify frozen identity
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $sha=(git rev-parse HEAD).Trim().ToLowerInvariant()
+          $tree=(git rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
+          if($sha-cne'3dde367f1bd83f661bd29c75912732e9f92efa02'){throw('Candidate SHA mismatch: '+$sha)}
+          if($tree-cne'63e42a5bfdd6000ee273f5f927902f6ac29703b6'){throw('Candidate tree mismatch: '+$tree)}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools\Build-PublicFileManifest.ps1 -RepositoryRoot $PWD -Check
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools\Verify-PublicCandidateMetadata.ps1 -RepositoryRoot $PWD
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          Write-Host 'FROZEN CANDIDATE IDENTITY: PASS' -ForegroundColor Green
+
+      - name: Build exact gate revision 2
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'manager-4.17.12.zip'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tests\framework\manager-gate\Build-ManagerGate.ps1 -SourceRoot manager -BaselineVersion '4.17.11' -GateRevision 2 -OutputPath $out -Force
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $sha=(Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash.ToLowerInvariant()
+          "GATE_PATH=$out" >> $env:GITHUB_ENV
+          "GATE_SHA=$sha" >> $env:GITHUB_ENV
+          Write-Host ('GATE_R2_SHA256='+$sha) -ForegroundColor Green
+
+      - name: Run SourceGate from exact gate r2
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'gate-r2'
+          New-Item -ItemType Directory -Force -Path $root|Out-Null
+          Expand-Archive -LiteralPath $env:GATE_PATH -DestinationPath $root -Force
+          $mgr=Join-Path $root 'manager-4.17.12'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $mgr 'gate\Run-KeelarynManagerSourceGate.ps1') -ManagerRoot $mgr
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          Write-Host 'GATE R2 SOURCE QUALIFICATION: PASS' -ForegroundColor Green
+
+      - name: Write gate-r2 receipt
+        shell: powershell
+        run: |
+          $r=[ordered]@{
+            schema='keelaryn.manager-gate-revision-qualification.v1'
+            classification='gate_execution_revision_only'
+            manager_version='4.17.12'
+            candidate_revision='g1'
+            candidate_commit='3dde367f1bd83f661bd29c75912732e9f92efa02'
+            candidate_tree='63e42a5bfdd6000ee273f5f927902f6ac29703b6'
+            baseline_version='4.17.11'
+            gate_revision=2
+            framework_revision=24
+            managed_digest='5118a866aa54ed916bb087fe41a4ac724bf527181b79b1c34e9b29311bf10fb8'
+            installation_sha256='f66f83aba661868c6ff5007e77f96b3be8be34536000c060cdd0017dcf553b5d'
+            gate_sha256=$env:GATE_SHA
+            source_gate_pass=$true
+            reason='Real-CURRENT gate r1 ended inconclusive only at AI_CONTEXT performance control; product bytes unchanged; r1 evidence preserved.'
+            production_qualified=$false
+            completed_utc=[DateTime]::UtcNow.ToString('o')
+          }
+          $path=Join-Path $env:RUNNER_TEMP 'GATE_R2_QUALIFICATION.json'
+          [IO.File]::WriteAllText($path,(($r|ConvertTo-Json -Depth 8).Replace("`r`n","`n")+"`n"),(New-Object Text.UTF8Encoding($false)))
+          "RECEIPT_PATH=$path" >> $env:GITHUB_ENV
+
+      - name: Upload gate-r2 evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: manager-4.17.12-g1-gate-r2
+          path: |
+            ${{ env.GATE_PATH }}
+            ${{ env.RECEIPT_PATH }}
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 6
