@@ -7,6 +7,12 @@ param(
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
 $Utf8=New-Object Text.UTF8Encoding($false)
+function Replace-TargetOnce([string]$Path,[string]$Old,[string]$New,[string]$Label){
+    $s=[IO.File]::ReadAllText($Path,[Text.Encoding]::UTF8)
+    $count=[regex]::Matches($s,[regex]::Escape($Old)).Count
+    if($count-ne1){throw($Label+' count='+$count)}
+    [IO.File]::WriteAllText($Path,$s.Replace($Old,$New),$Utf8)
+}
 $source=Join-Path $PSScriptRoot 'Materialize-Manager41713EntryPolicyR1.ps1'
 if(-not(Test-Path -LiteralPath $source -PathType Leaf)){throw 'Entry-policy R1 materializer is missing.'}
 $text=[IO.File]::ReadAllText($source,[Text.Encoding]::UTF8)
@@ -38,12 +44,28 @@ $boolCount=[regex]::Matches($text,[regex]::Escape($oldBool)).Count
 if($boolCount-ne1){throw('R1 AST boolean-normalization token count='+$boolCount)}
 $text=$text.Replace($oldBool,$newBool)
 
+# Historical executable regressions remain applicable to 4.17.13. Extend only their
+# release-identity guards; the behavioral assertions themselves are unchanged.
+$r41710=Join-Path $RepositoryRoot 'tools\Invoke-Manager41710ReviewRegression.ps1'
+Replace-TargetOnce $r41710 "@('4.17.10','4.17.12')-contains[string]`$install.manager_version" "@('4.17.10','4.17.12','4.17.13')-contains[string]`$install.manager_version" '4.17.10 managed-copy version guard'
+Replace-TargetOnce $r41710 "Regression requires Manager 4.17.10 source or validated 4.17.12 successor source; observed " "Regression requires Manager 4.17.10 source or validated 4.17.12/4.17.13 successor source; observed " '4.17.10 managed-copy guard message'
+Replace-TargetOnce $r41710 "@('4.17.10','4.17.12')-contains`$currentVersion" "@('4.17.10','4.17.12','4.17.13')-contains`$currentVersion" '4.17.10 current-version guard'
+Replace-TargetOnce $r41710 "supports 4.17.10, delegated 4.17.11, or validated 4.17.12 successor source; observed " "supports 4.17.10, delegated 4.17.11, or validated 4.17.12/4.17.13 successor source; observed " '4.17.10 current-version guard message'
+
+$r41711=Join-Path $RepositoryRoot 'tools\Invoke-Manager41711ReviewRegression.ps1'
+Replace-TargetOnce $r41711 "@('4.17.11','4.17.12')-contains[string]`$install.manager_version" "@('4.17.11','4.17.12','4.17.13')-contains[string]`$install.manager_version" '4.17.11 managed-copy version guard'
+Replace-TargetOnce $r41711 "Regression requires Manager 4.17.11 source or validated 4.17.12 successor source; observed " "Regression requires Manager 4.17.11 source or validated 4.17.12/4.17.13 successor source; observed " '4.17.11 managed-copy guard message'
+Replace-TargetOnce $r41711 "@('4.17.11','4.17.12')-contains`$currentVersion" "@('4.17.11','4.17.12','4.17.13')-contains`$currentVersion" '4.17.11 current-version guard'
+Replace-TargetOnce $r41711 "supports 4.17.11 or validated 4.17.12 successor source; observed " "supports 4.17.11 or validated 4.17.12/4.17.13 successor source; observed " '4.17.11 current-version guard message'
+
 $temp=Join-Path ([IO.Path]::GetTempPath()) ('Materialize-Manager41713EntryPolicy-r3-'+[guid]::NewGuid().ToString('N')+'.ps1')
 try{
     [IO.File]::WriteAllText($temp,$text,$Utf8)
-    $tokens=$null;$errors=$null
-    [void][Management.Automation.Language.Parser]::ParseFile($temp,[ref]$tokens,[ref]$errors)
-    if(@($errors).Count){throw('Entry-policy R3 generated parser failed: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+    foreach($parsePath in @($temp,$r41710,$r41711)){
+        $tokens=$null;$errors=$null
+        [void][Management.Automation.Language.Parser]::ParseFile($parsePath,[ref]$tokens,[ref]$errors)
+        if(@($errors).Count){throw('Entry-policy R3 parser failed: '+$parsePath+' :: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+    }
     $exe=Join-Path $PSHOME 'powershell.exe'
     & $exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $temp -RepositoryRoot $RepositoryRoot -ExpectedBase $ExpectedBase -EvidenceRoot $EvidenceRoot
     exit [int]$LASTEXITCODE
