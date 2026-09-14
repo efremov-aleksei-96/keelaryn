@@ -1,0 +1,60 @@
+name: Materialize Manager 4.17.13 product r1
+
+on:
+  push:
+    branches:
+      - 'maintenance/materialize-manager-4.17.13-product-r1'
+    paths:
+      - 'tools/Materialize-Manager41713Product.ps1'
+      - '.github/workflows/materialize-manager-4.17.13-product-r1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout materializer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: maintenance/materialize-manager-4.17.13-product-r1
+          path: materializer
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout authoritative development target
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev/manager-4.17.13
+          path: target
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Materialize and prove successor before push
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=Join-Path $env:GITHUB_WORKSPACE 'materializer\tools\Materialize-Manager41713Product.ps1'
+          $target=Join-Path $env:GITHUB_WORKSPACE 'target'
+          $evidence=Join-Path $env:RUNNER_TEMP 'manager-41713-materialize'
+          "KEELARYN_41713_MATERIALIZE_EVIDENCE=$evidence" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -RepositoryRoot $target -ExpectedBase '9030aee23e457ba22d8ec1ded52a222c79aebf36' -EvidenceRoot $evidence
+          if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+          $head=(git -C $target rev-parse HEAD).Trim().ToLowerInvariant()
+          $tree=(git -C $target rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
+          Write-Host ('Validated materialized development head: '+$head) -ForegroundColor Green
+          Write-Host ('Validated materialized development tree: '+$tree) -ForegroundColor Green
+          git -C $target push origin HEAD:dev/manager-4.17.13
+          if($LASTEXITCODE-ne0){throw 'Authoritative development push failed.'}
+
+      - name: Upload pre-push materialization evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.13-product-materialization-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_41713_MATERIALIZE_EVIDENCE }}
+          if-no-files-found: warn
+          retention-days: 5
