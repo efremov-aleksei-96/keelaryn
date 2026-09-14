@@ -1,0 +1,60 @@
+name: Entry reachability validation
+
+on:
+  push:
+    branches:
+      - 'dev/**'
+    paths:
+      - 'manager/**'
+      - 'tests/knowledge/entry-reachability.json'
+      - 'tests/knowledge/invariants/multi-hub.json'
+      - 'tools/Test-ManagerEntryReachabilityKnowledge.ps1'
+      - 'tools/Invoke-ManagerEntryReachabilityMatrix.ps1'
+      - '.github/workflows/entry-reachability-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-entry-reachability-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  entry-reachability:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify GitHub Actions supply-chain policy
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Validate entry-reachability engineering model
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEntryReachabilityKnowledge.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Execute real process-entry matrix
+        shell: powershell
+        run: |
+          $evidence=Join-Path $env:RUNNER_TEMP 'ENTRY_REACHABILITY_RESULT.json'
+          "KEELARYN_ENTRY_EVIDENCE=$evidence" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerEntryReachabilityMatrix.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$evidence"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload entry-reachability evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-entry-reachability-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_ENTRY_EVIDENCE }}
+          if-no-files-found: warn
+          retention-days: 5
