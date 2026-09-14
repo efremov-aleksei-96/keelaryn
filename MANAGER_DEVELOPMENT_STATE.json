@@ -30,6 +30,9 @@
     "candidate_issued": true
   },
   "qualification": {
+    "risk_defect_gate": {
+      "status": "required_pass_before_freeze"
+    },
     "prefreeze_development_validation": {
       "status": "pass",
       "validated_head": "9c639cc954fef5e8a17966c43636c3d86b93a6a7",
