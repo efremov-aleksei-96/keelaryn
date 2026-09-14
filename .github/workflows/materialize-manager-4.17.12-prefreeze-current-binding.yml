@@ -29,7 +29,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $expectedParent='a110b9383eea94b948611713b59eb090efafd799'
+          $expectedParent='cd807db41f056fb5bc9337a8e5b9f3a28e21ac49'
           $head=(git rev-parse HEAD).Trim().ToLowerInvariant()
           $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant()
           if($parent-cne$expectedParent){throw "Unexpected workflow parent: $parent expected $expectedParent"}
@@ -44,6 +44,8 @@ jobs:
           # Repair materializer-only template hazards in the disposable checkout; these bytes are never committed.
           $text=[IO.File]::ReadAllText((Resolve-Path $apply),[Text.Encoding]::UTF8)
           $text=$text.Replace("`$writer=New-Object IO.StreamWriter(`$entry.Open(),`$Utf8NoBom)","`$writer=New-Object IO.StreamWriter(`$entry.Open(),(New-Object Text.UTF8Encoding(`$false)))")
+          $text=$text.Replace('$marker="Write-Host ''  PASS SURFACE Manage Hubs recovery is target-driven while unrelated active-context actions stay fail-closed''"','$marker="Write-Host ''MANAGER 4.17.12 REVIEW REGRESSION: PASS'' -ForegroundColor Green"')
+          $text=$text.Replace('$reg12=$reg12.Replace($marker,$marker+$insert)','$reg12=$reg12.Replace($marker,$insert+"`r`n"+$marker)')
           [IO.File]::WriteAllText((Resolve-Path $apply),$text,(New-Object Text.UTF8Encoding($false)))
 
           # Pre-insert compression assemblies so the materializer's legacy string-anchor branch is not exercised.
