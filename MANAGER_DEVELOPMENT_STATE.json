@@ -1,7 +1,7 @@
 {
   "schema": "keelaryn.manager-development-state.v1",
   "repository": "efremov-aleksei-96/keelaryn",
-  "lifecycle_state": "production_qualified_installed_pending_publication",
+  "lifecycle_state": "qualified_release",
   "authoritative_branch": "dev/manager-4.17.12",
   "head_resolution": {
     "mode": "resolve_branch_ref_live",
