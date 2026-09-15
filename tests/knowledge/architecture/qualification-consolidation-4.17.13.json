@@ -4,7 +4,7 @@
   "title": "Manager qualification consolidation before 4.17.13 candidate freeze",
   "status": "in_progress",
   "manager_line": "4.17.13",
-  "product_bytes_changed_by_work_item": false,
+  "product_bytes_changed_by_work_item": true,
   "production_hub_mutation_permitted": false,
   "candidate_freeze_permitted": false,
   "semantic_sources": {
@@ -23,10 +23,14 @@
       "target": "bounded deterministic edge cover of real state-dependent process-entry behavior",
       "must_preserve_state_dependent_behavior": true,
       "bounded_planner_implemented": true,
-      "legacy_count_based_executor_pending_replacement": true
+      "bounded_executor_implemented": true,
+      "behavioral_owner": "tools/Invoke-ManagerBoundedEntryReachability.ps1",
+      "legacy_count_based_executor_pending_replacement": false,
+      "legacy_count_based_artifacts_role": "static_migration_provenance_only"
     },
     "transaction_fault_properties": {
       "separate_from_entry_reachability": true,
+      "implementation_status": "pending",
       "target": "capability/property suites for commit-boundary revalidation, publication, rollback or replacement semantics, collision handling and durable-partial-result reporting"
     },
     "risk_gate": {
@@ -40,6 +44,7 @@
       "implemented": true,
       "implementation": "tools/Invoke-ManagerQualificationScheduler.ps1",
       "proof_manifest": "tests/knowledge/qualification/capability-proofs.json",
+      "entry_behavior_owner": "entry_bounded",
       "receipt_must_bind": [
         "exact_source_commit",
         "exact_source_tree",
@@ -74,9 +79,11 @@
       "transaction_fault_properties"
     ],
     "legacy_version_scripts": {
-      "status": "migration_only_until_flattened",
-      "freeze_blocker": true,
-      "reason": "Existing version-specific regressions still recursively execute predecessors. The scheduler prevents independent duplicate selection but nested recursion must still be removed before candidate freeze."
+      "status": "static_provenance_active_behavior_flattened",
+      "freeze_blocker": false,
+      "source_recursion_retained_for_provenance": true,
+      "active_behavior_owner": "historical_flat_lineage",
+      "reason": "Historical version-specific source adapters remain byte-for-byte provenance, but the qualification scheduler never executes them recursively. Current behavioral coverage materializes disposable leaf copies through the flat historical runner and executes each preserved assertion body once."
     }
   },
   "preserved_safety_invariants": [
@@ -129,31 +136,34 @@
   "consolidation_state": {
     "single_scheduler_receipt_boundary": "implemented",
     "risk_gate_direct_regression_execution": "removed",
-    "dedicated_entry_workflow_duplicate_matrix_execution": "removed",
+    "dedicated_entry_workflow_duplicate_matrix_execution": "removed_model_only",
     "bounded_entry_plan": "implemented",
-    "bounded_entry_executor": "pending",
+    "bounded_entry_executor": "implemented_scheduler_owned",
+    "legacy_count_based_entry_behavioral_ownership": "removed_static_provenance_only",
     "transaction_fault_suite_separation": "pending",
-    "legacy_recursive_version_scripts": "pending_flattening",
+    "legacy_recursive_version_scripts": "active_qualification_flattened_static_sources_retained",
     "stranded_input_semantic_review": "complete",
     "stranded_input_product_implementation": "pending"
   },
   "known_duplication": {
     "development_same_sha_execution_owner": "tools/Invoke-ManagerQualificationScheduler.ps1",
     "risk_gate_mode": "receipt_verification_only",
-    "dedicated_entry_workflow_mode": "model_and_plan_only",
+    "dedicated_entry_workflow_mode": "model_plan_oracle_only",
     "same_sha_same_boundary_independent_entry_matrix_duplication_removed": true,
-    "version_regression_recursion_confirmed": true,
+    "outer_development_plan_duplicate_removed": true,
+    "historical_source_recursion_retained": true,
+    "active_historical_behavior_recursion_removed": true,
     "development_state_magic_count_drift_confirmed": true
   },
   "ordered_acceptance": [
-    "record_and_validate_this_architecture_without_product_byte_change",
+    "record_and_validate_qualification_architecture",
     "separate_entry_reachability_from_transaction_fault_properties",
     "derive_bounded_entry_coverage_from_state_machine_winning_rules_and_control_flow_classes",
     "introduce_flat_capability_suite_selection_and_single_execution_scheduler",
     "remove_same_SHA_same_boundary_duplicate_proof_execution",
     "review_stranded_input_state_machine_semantics_and_choose_transaction_contract",
-    "flatten_recursive_legacy_regressions_and_replace_legacy_count_based_entry_executor",
-    "implement_the_chosen_product_contract_and_capability_property_coverage",
+    "flatten_active_historical_behavior_and_replace_legacy_count_based_entry_behavioral_ownership",
+    "implement_the_chosen_stranded_input_product_contract_and_capability_property_coverage",
     "obtain_one_coherent_exact_head_Development_PASS",
     "run_full_successor_Risk_Defect_assessment_over_qualified_base_to_exact_head",
     "perform_fresh_semantic_and_adversarial_review",
