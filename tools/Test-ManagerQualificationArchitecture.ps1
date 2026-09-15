@@ -33,7 +33,7 @@ $strandedDesign=Read-Json 'tests/knowledge/architecture/stranded-input-reconcili
 if([string]$architecture.schema-cne'keelaryn.manager-qualification-architecture.v1'){Fail 'Unexpected qualification architecture schema.'}
 if([string]$architecture.work_item_id-cne'MQA-41713-001'){Fail 'Unexpected qualification architecture work-item id.'}
 if([string]$architecture.status-cne'in_progress'){Fail '4.17.13 qualification consolidation must remain in_progress until its acceptance sequence is complete.'}
-Require-False ([bool]$architecture.product_bytes_changed_by_work_item) 'Qualification-consolidation work item must not claim product-byte changes before the product implementation commit.'
+Require-True ([bool]$architecture.product_bytes_changed_by_work_item) 'Qualification architecture must record the materialized 4.17.13 product-byte change.'
 Require-False ([bool]$architecture.production_hub_mutation_permitted) 'Manager Development must not permit production Hub mutation.'
 Require-False ([bool]$architecture.candidate_freeze_permitted) 'Candidate freeze must remain blocked during qualification consolidation.'
 
@@ -44,15 +44,21 @@ Require-False ([bool]$entry.fixed_scenario_count_is_requirement) 'Entry Reachabi
 Require-False ([bool]$entry.supplemental_fault_scenarios_are_entry_reachability) 'Transaction fault scenarios must not be modeled as Entry Reachability supplementals.'
 Require-True ([bool]$entry.must_preserve_state_dependent_behavior) 'Entry Reachability consolidation must preserve real state-dependent behavior.'
 Require-True ([bool]$entry.bounded_planner_implemented) 'Bounded Entry Reachability planner must remain implemented.'
-Require-True ([bool]$entry.legacy_count_based_executor_pending_replacement) 'Legacy count-based executor must remain explicitly marked pending until replaced.'
+Require-True ([bool]$entry.bounded_executor_implemented) 'Bounded Entry Reachability executor must remain implemented.'
+if([string]$entry.behavioral_owner-cne'tools/Invoke-ManagerBoundedEntryReachability.ps1'){Fail 'Unexpected bounded Entry behavioral owner.'}
+Require-False ([bool]$entry.legacy_count_based_executor_pending_replacement) 'Legacy count-based Entry behavioral ownership must already be replaced.'
+if([string]$entry.legacy_count_based_artifacts_role-cne'static_migration_provenance_only'){Fail 'Legacy count-based Entry artifacts must remain static migration provenance only.'}
 
-Require-True ([bool]$architecture.qualification_contract.transaction_fault_properties.separate_from_entry_reachability) 'Transaction fault/property tests must be separate from Entry Reachability.'
+$transactionProperties=$architecture.qualification_contract.transaction_fault_properties
+Require-True ([bool]$transactionProperties.separate_from_entry_reachability) 'Transaction fault/property tests must be separate from Entry Reachability.'
+if([string]$transactionProperties.implementation_status-cne'pending'){Fail 'Transaction fault/property suite must remain pending until MGR-DEF-0034 coverage is implemented.'}
 Require-False ([bool]$architecture.qualification_contract.risk_gate.direct_child_execution_target) 'Risk Gate target architecture must verify receipts rather than directly execute child proofs.'
 Require-True ([bool]$architecture.qualification_contract.risk_gate.receipt_verifier_implemented) 'Risk Gate receipt verifier must be implemented.'
 $schedulerContract=$architecture.qualification_contract.execution_scheduler
 Require-True ([bool]$schedulerContract.implemented) 'Single qualification scheduler must be implemented.'
 if([string]$schedulerContract.implementation-cne'tools/Invoke-ManagerQualificationScheduler.ps1'){Fail 'Unexpected qualification scheduler implementation path.'}
 if([string]$schedulerContract.proof_manifest-cne'tests/knowledge/qualification/capability-proofs.json'){Fail 'Unexpected qualification proof manifest path.'}
+if([string]$schedulerContract.entry_behavior_owner-cne'entry_bounded'){Fail 'Scheduler Entry behavioral owner must be entry_bounded.'}
 Require-False ([bool]$schedulerContract.same_sha_same_boundary_duplicate_execution_permitted) 'Same-SHA proof duplication within one trust boundary must remain prohibited.'
 foreach($token in @('exact_source_commit','exact_source_tree','risk_context_identity','selected_requirement_ids','selected_capability_suite_ids','executed_proof_ids','result')){Require-Contains $schedulerContract.receipt_must_bind $token 'scheduler receipt contract'}
 Require-True ([bool]$architecture.qualification_contract.fresh_validation_at_new_boundary_required) 'Fresh validation must remain required at new trust boundaries.'
@@ -60,13 +66,30 @@ Require-False ([bool]$architecture.qualification_contract.source_gate_full_gate_
 
 Require-False ([bool]$architecture.capability_suite_direction.recursive_suite_invocation_permitted) 'Capability suites must not recursively invoke another suite.'
 if([int]$architecture.capability_suite_direction.orchestrator_count-ne1){Fail 'Exactly one proof orchestrator must own suite selection/execution per trust boundary.'}
-Require-True ([bool]$architecture.capability_suite_direction.legacy_version_scripts.freeze_blocker) 'Legacy recursive version scripts must remain a freeze blocker until flattened.'
+$legacyScripts=$architecture.capability_suite_direction.legacy_version_scripts
+Require-False ([bool]$legacyScripts.freeze_blocker) 'Historical recursive source adapters must not remain a freeze blocker after active behavioral flattening.'
+Require-True ([bool]$legacyScripts.source_recursion_retained_for_provenance) 'Architecture must distinguish retained historical source recursion from active execution.'
+if([string]$legacyScripts.active_behavior_owner-cne'historical_flat_lineage'){Fail 'Historical active behavioral owner must remain historical_flat_lineage.'}
+if([string]$legacyScripts.status-cne'static_provenance_active_behavior_flattened'){Fail 'Historical source status must record static provenance plus flat active behavior.'}
 
 if([string]$proofManifest.schema-cne'keelaryn.manager-qualification-proofs.v1'){Fail 'Unexpected qualification proof manifest schema.'}
 if([int]$proofManifest.execution_contract.same_path_same_boundary_max_execution_count-ne1){Fail 'Proof manifest must allow each path at most once per boundary.'}
 Require-False ([bool]$proofManifest.execution_contract.risk_gate_executes_child_proofs) 'Proof manifest must prohibit Risk Gate child-proof execution.'
 Require-True ([bool]$proofManifest.execution_contract.scheduler_receipt_required) 'Proof manifest must require scheduler receipt.'
 Require-False ([bool]$proofManifest.execution_contract.fresh_boundary_receipt_reuse_permitted) 'Proof receipt must not cross trust boundaries.'
+if([string]$proofManifest.execution_contract.entry_behavior_owner-cne'entry_bounded'){Fail 'Proof manifest must assign Entry behavior to entry_bounded.'}
+Require-False ([bool]$proofManifest.execution_contract.legacy_count_based_entry_proofs_execute_in_scheduler) 'Legacy count-based Entry proofs must not execute in scheduler.'
+
+$entryBounded=@($proofManifest.proofs|Where-Object{[string]$_.id-ceq'entry_bounded'})
+if($entryBounded.Count-ne1){Fail 'Proof manifest must declare entry_bounded exactly once.'}
+if([string]$entryBounded[0].path-cne'tools/Invoke-ManagerBoundedEntryReachability.ps1'){Fail 'entry_bounded proof path drifted.'}
+if(@($proofManifest.mandatory_development_proofs|ForEach-Object{[string]$_}) -cnotcontains 'entry_bounded'){Fail 'entry_bounded must be mandatory development coverage.'}
+foreach($legacyId in @('entry_model_legacy_static','entry_matrix_legacy_static')){
+    $legacy=@($proofManifest.proofs|Where-Object{[string]$_.id-ceq$legacyId})
+    if($legacy.Count-ne1-or[string]$legacy[0].execution-cne'static'-or-not[bool]$legacy[0].migration_only){Fail($legacyId+' must be one static migration-only proof.')}
+    if(@($legacy[0].capability_suites).Count-ne0){Fail($legacyId+' must not claim behavioral capabilities.')}
+    if(@($proofManifest.mandatory_development_proofs|ForEach-Object{[string]$_}) -ccontains $legacyId){Fail($legacyId+' must not be mandatory behavioral ownership.')}
+}
 
 $requiredSafety=@(
     'immutable_canonical_instance_id',
@@ -95,7 +118,7 @@ Require-False ([bool]$transaction.product_change_deferred_until_state_machine_re
 Require-True ([bool]$transaction.implementation_authorized) 'Reviewed stranded-input contract must authorize implementation.'
 if([string]$transaction.selected_contract.name-cne'per_artifact_claim_validate_publish'){Fail 'Unexpected stranded-input selected contract.'}
 Require-True ([bool]$transaction.selected_contract.requires_state_machine_change) 'Selected stranded-input contract must require canonical state-machine update.'
-Require-True ([bool]$transaction.selected_contract.implementation_pending) 'Product transaction implementation must remain pending until product bytes actually change and pass coverage.'
+Require-True ([bool]$transaction.selected_contract.implementation_pending) 'Stranded-input product transaction implementation must remain pending until MGR-DEF-0034 bytes and property coverage land.'
 
 if([string]$strandedDesign.schema-cne'keelaryn.stranded-input-reconciliation-design.v1'-or[string]$strandedDesign.design_id-cne'SIR-41713-001'){Fail 'Unexpected stranded-input design identity.'}
 if([string]$strandedDesign.status-cne'semantic_review_complete_implementation_pending'){Fail 'Stranded-input design must remain implementation-pending.'}
@@ -125,6 +148,7 @@ if([string]$stageLoss[0].status-cne'open'-or[string]$stageLoss[0].severity-cne'P
 $schedulerText=Read-Text 'tools/Invoke-ManagerQualificationScheduler.ps1'
 $riskGateText=Read-Text 'tools/Invoke-ManagerRiskDefectGate.ps1'
 $developmentText=Read-Text 'tools/Invoke-DevelopmentValidation.ps1'
+$developmentWorkflowText=Read-Text '.github/workflows/development-validation.yml'
 $entryWorkflowText=Read-Text '.github/workflows/entry-reachability-validation.yml'
 if(-not$schedulerText.Contains('keelaryn.manager-qualification-execution-receipt.v1')){Fail 'Qualification scheduler does not emit the required receipt schema.'}
 if(-not$schedulerText.Contains('duplicate_execution_count=0')){Fail 'Qualification scheduler does not explicitly bind zero duplicate execution.'}
@@ -132,7 +156,10 @@ if(-not$riskGateText.Contains('ExecutionReceiptPath')){Fail 'Risk Gate does not 
 if($riskGateText.Contains('Invoke-Child $path')){Fail 'Risk Gate still directly executes risk-selected regression scripts.'}
 if(-not$developmentText.Contains('Invoke-ManagerQualificationScheduler.ps1')){Fail 'Development Validation does not invoke the single qualification scheduler.'}
 if($developmentText.Contains('foreach($regressionName')){Fail 'Development Validation still independently owns review-regression execution.'}
-if($entryWorkflowText.Contains('Invoke-ManagerEntryReachabilityMatrix.ps1')){Fail 'Dedicated Entry Reachability workflow still duplicates executable matrix ownership.'}
+if($developmentWorkflowText.Contains('Derive bounded process-entry plan')){Fail 'Development workflow still duplicates bounded plan derivation outside scheduler ownership.'}
+if($entryWorkflowText.Contains('Invoke-ManagerBoundedEntryReachability.ps1')){Fail 'Dedicated Entry workflow must remain model-only and must not execute bounded Manager behavior.'}
+if($entryWorkflowText.Contains('Apply-Manager41713UpdateAllSplitPhaseProofPatch.ps1')){Fail 'Dedicated Entry workflow still depends on superseded disposable product-patch proof.'}
+foreach($required in @('Build-ManagerEntryReachabilityPlan.ps1','Test-ManagerEntryOracleContract.ps1','Test-ManagerEntryOracleMigration.ps1')){if(-not$entryWorkflowText.Contains($required)){Fail('Dedicated Entry model workflow omits '+$required)}}
 
 Require-Contains $developmentState.open_release_blockers 'MGR-DEF-0034' 'development state'
 if([string]$developmentState.next_exact_goal.id-cne'MANAGER-41713-CONSOLIDATION-001'){Fail 'Development state must point at the qualification-consolidation goal.'}
@@ -144,8 +171,10 @@ Write-Host ('  work item: '+[string]$architecture.work_item_id)
 Write-Host ('  scheduler: '+[string]$schedulerContract.implementation)
 Write-Host '  Risk Gate: receipt verification only'
 Write-Host ('  semantic owner: '+[string]$entry.semantic_owner)
+Write-Host ('  Entry behavior owner: '+[string]$entry.behavioral_owner)
 Write-Host ('  stranded-input contract: '+[string]$transaction.selected_contract.name)
 Write-Host ('  open transaction blocker: '+[string]$transaction.open_defect)
 Write-Host '  fixed Entry Reachability scenario count: prohibited'
-Write-Host '  recursive legacy version scripts: still freeze-blocking'
+Write-Host '  legacy count-based Entry execution: removed from active ownership'
+Write-Host '  historical recursive sources: static provenance; active behavior flattened'
 exit 0
