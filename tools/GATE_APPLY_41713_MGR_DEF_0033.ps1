@@ -1,0 +1,232 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory=$true)][string]$RepositoryRoot,
+    [Parameter(Mandatory=$true)][string]$ExpectedHead
+)
+
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version 2.0
+$RepositoryRoot=[IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\')
+$ExpectedHead=$ExpectedHead.Trim().ToLowerInvariant()
+$Utf8NoBom=New-Object System.Text.UTF8Encoding($false)
+
+function Read-Text([string]$Path){return [IO.File]::ReadAllText($Path,[Text.Encoding]::UTF8)}
+function Write-Text([string]$Path,[string]$Text){[IO.File]::WriteAllText($Path,$Text,$Utf8NoBom)}
+function Write-Json([string]$Path,$Object){Write-Text $Path ((($Object|ConvertTo-Json -Depth 80).Replace("`r`n","`n"))+"`n")}
+function Replace-One([string]$Path,[string]$Old,[string]$New,[string]$Label){
+    $text=Read-Text $Path
+    $count=[regex]::Matches($text,[regex]::Escape($Old)).Count
+    if($count-ne1){throw "$Label anchor count mismatch: $count"}
+    Write-Text $Path ($text.Replace($Old,$New))
+}
+function Parse-One([string]$Path){$tokens=$null;$errors=$null;[void][Management.Automation.Language.Parser]::ParseFile($Path,[ref]$tokens,[ref]$errors);if(@($errors).Count-ne0){throw('Parser failed '+$Path+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}}
+
+Push-Location $RepositoryRoot
+try{
+    $head=(git rev-parse --verify 'HEAD^{commit}').Trim().ToLowerInvariant()
+    if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+    if($head-cne$ExpectedHead){throw "Disposable dev checkout mismatch: expected=$ExpectedHead actual=$head"}
+    $branch=(git rev-parse --abbrev-ref HEAD).Trim()
+    if($branch-cne'dev/manager-4.17.13'){throw "Disposable checkout is not authoritative dev branch: $branch"}
+    $remote=([string](git ls-remote origin refs/heads/dev/manager-4.17.13)).Trim()
+    if($LASTEXITCODE-ne0-or-not$remote){throw 'Could not resolve authoritative remote dev head.'}
+    $remoteHead=($remote -split '\s+')[0].ToLowerInvariant()
+    if($remoteHead-cne$ExpectedHead){throw "Authoritative dev head moved before patch: expected=$ExpectedHead actual=$remoteHead"}
+
+    $runtime=Join-Path $RepositoryRoot 'manager\product\runtime\Keelaryn__Manager.ps1'
+    $oldRollback=@'
+                    if(Test-Path -LiteralPath ([string]$plan.Destination)){
+                        $destItem=Get-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                        if($destItem.PSIsContainer-or($destItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('rollback destination is unsafe: '+[string]$plan.Destination)}
+                        $destHash=(Get-FileHash -LiteralPath ([string]$plan.Destination) -Algorithm SHA256).Hash.ToLowerInvariant()
+                        if($destHash-ne[string]$plan.Sha256){throw('rollback destination hash is ambiguous: '+[string]$plan.Destination)}
+                        Remove-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                    }
+'@
+    $newRollback=@'
+                    if(Test-Path -LiteralPath ([string]$plan.Destination)){
+                        $destItem=Get-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                        if($destItem.PSIsContainer-or($destItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('rollback destination is unsafe: '+[string]$plan.Destination)}
+                        $destHash=(Get-FileHash -LiteralPath ([string]$plan.Destination) -Algorithm SHA256).Hash.ToLowerInvariant()
+                        if($destHash-ne[string]$plan.Sha256){throw('rollback destination hash is ambiguous: '+[string]$plan.Destination)}
+
+                        # Never discard the only verified copy. A destination published by this
+                        # invocation is removable only while its matching global source is still
+                        # an intact regular file with the exact preflight identity.
+                        if(-not(Test-Path -LiteralPath ([string]$plan.Source) -PathType Leaf)){
+                            throw('rollback source is missing; verified destination retained: '+[string]$plan.Destination+'; source='+[string]$plan.Source)
+                        }
+                        $sourceItem=Get-Item -LiteralPath ([string]$plan.Source) -Force -ErrorAction Stop
+                        if($sourceItem.PSIsContainer-or($sourceItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){
+                            throw('rollback source is unsafe; verified destination retained: '+[string]$plan.Destination+'; source='+[string]$plan.Source)
+                        }
+                        $sourceHash=(Get-FileHash -LiteralPath ([string]$plan.Source) -Algorithm SHA256).Hash.ToLowerInvariant()
+                        if($sourceHash-ne[string]$plan.Sha256){
+                            throw('rollback source hash changed; verified destination retained: '+[string]$plan.Destination+'; source='+[string]$plan.Source)
+                        }
+                        Remove-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
+                    }
+'@
+    Replace-One $runtime $oldRollback $newRollback 'runtime rollback preservation'
+    $oldMessage="throw('Stranded global Hub input destination publication failed and rollback was incomplete; partial per-instance handoff may be durable. Global sources were preserved. publication_error='+`$publicationError+'; rollback_errors='+([string]::Join(' | ',@(`$rollbackFailures))))"
+    $newMessage="throw('Stranded global Hub input destination publication failed and rollback was incomplete; partial per-instance handoff may be durable. A verified destination is removed only when its matching global source is proven intact; otherwise known-good destination bytes are retained. publication_error='+`$publicationError+'; rollback_errors='+([string]::Join(' | ',@(`$rollbackFailures))))"
+    Replace-One $runtime $oldMessage $newMessage 'runtime rollback outcome'
+
+    $harness=Join-Path $RepositoryRoot 'tools\Invoke-ManagerEntryReachabilityMatrix.ps1'
+    $oldFault='$fault="if([string]`$env:KEELARYN_ENTRY_ROLLBACK_FAULT -eq ''1'' -and `$published.Count -ge 1){throw ''KEELARYN_ENTRY_ROLLBACK_FAULT_AFTER_FIRST_PUBLICATION''}"'
+    $newFault='$fault="if([string]`$env:KEELARYN_ENTRY_ROLLBACK_FAULT -eq ''source_loss_after_first'' -and `$published.Count -ge 1){`$firstPublished=`$published[0];if(Test-Path -LiteralPath ([string]`$firstPublished.Source) -PathType Leaf){Remove-Item -LiteralPath ([string]`$firstPublished.Source) -Force -ErrorAction Stop};throw ''KEELARYN_ENTRY_ROLLBACK_FAULT_AFTER_FIRST_PUBLICATION_WITH_SOURCE_LOSS''};if([string]`$env:KEELARYN_ENTRY_ROLLBACK_FAULT -eq ''1'' -and `$published.Count -ge 1){throw ''KEELARYN_ENTRY_ROLLBACK_FAULT_AFTER_FIRST_PUBLICATION''}"'
+    Replace-One $harness $oldFault $newFault 'ER rollback instrumentation'
+    Replace-One $harness "if(@(`$supplement.scenarios).Count-ne1){Fail('Entry-reachability supplemental scenario count must be exactly 1; actual='+@(`$supplement.scenarios).Count)}" "if(@(`$supplement.scenarios).Count-ne2){Fail('Entry-reachability supplemental scenario count must be exactly 2; actual='+@(`$supplement.scenarios).Count)}" 'supplement count'
+
+    $oldSupplement=@'
+foreach($s in @($supplement.scenarios)){
+    if([string]$s.id-cne'ER-103'-or[string]$s.state-cne'REGISTRY_PENDING_GLOBAL'-or[string]$s.action-cne'InitializeInstanceRegistry'-or[string]$s.fixture-cne'registry_pending_global_rollback_fault'-or[string]$s.expected_mode-cne'registry_init_publication_fault_rolls_back_batch'-or[string]$s.proof_mode-cne'phase4_fault_after_first_verified_publication'){Fail 'Supplemental rollback scenario identity/contract mismatch.'}
+    [void]$scenarioSpecs.Add([pscustomobject]@{Id=[string]$s.id;Requirement=[string]$s.requirement;State=[string]$s.state;Action=[string]$s.action;Mode=[string]$s.expected_mode;Fixture=[string]$s.fixture;Supplemental=$true})
+}
+if($scenarioSpecs.Count-ne103){Fail('Total executable entry-reachability scenario count must be 103; actual='+$scenarioSpecs.Count)}
+'@
+    $newSupplement=@'
+foreach($s in @($supplement.scenarios)){
+    if([string]$s.state-cne'REGISTRY_PENDING_GLOBAL'-or[string]$s.action-cne'InitializeInstanceRegistry'-or[string]$s.fixture-cne'registry_pending_global_rollback_fault'){Fail('Supplemental rollback scenario common identity/contract mismatch: '+[string]$s.id)}
+    switch([string]$s.id){
+        'ER-103' {if([string]$s.expected_mode-cne'registry_init_publication_fault_rolls_back_batch'-or[string]$s.proof_mode-cne'phase4_fault_after_first_verified_publication'){Fail 'ER-103 rollback scenario contract mismatch.'}}
+        'ER-104' {if([string]$s.expected_mode-cne'registry_init_publication_fault_preserves_verified_destination_on_source_loss'-or[string]$s.proof_mode-cne'phase4_fault_after_first_publication_with_source_loss'){Fail 'ER-104 rollback source-loss scenario contract mismatch.'}}
+        default {Fail('Unknown supplemental rollback scenario: '+[string]$s.id)}
+    }
+    [void]$scenarioSpecs.Add([pscustomobject]@{Id=[string]$s.id;Requirement=[string]$s.requirement;State=[string]$s.state;Action=[string]$s.action;Mode=[string]$s.expected_mode;Fixture=[string]$s.fixture;ProofMode=[string]$s.proof_mode;Supplemental=$true})
+}
+if($scenarioSpecs.Count-ne104){Fail('Total executable entry-reachability scenario count must be 104; actual='+$scenarioSpecs.Count)}
+'@
+    Replace-One $harness $oldSupplement $newSupplement 'supplement scenario expansion'
+
+    $oldFaultDispatch="if([string]`$spec.Mode-ceq'registry_init_publication_fault_rolls_back_batch'){Set-RollbackFaultInstrumentation `$runtime;`$env:KEELARYN_ENTRY_ROLLBACK_FAULT='1'}else{`$env:KEELARYN_ENTRY_ROLLBACK_FAULT=`$null}"
+    $newFaultDispatch="if([string]`$spec.Mode-ceq'registry_init_publication_fault_rolls_back_batch'){Set-RollbackFaultInstrumentation `$runtime;`$env:KEELARYN_ENTRY_ROLLBACK_FAULT='1'}elseif([string]`$spec.Mode-ceq'registry_init_publication_fault_preserves_verified_destination_on_source_loss'){Set-RollbackFaultInstrumentation `$runtime;`$env:KEELARYN_ENTRY_ROLLBACK_FAULT='source_loss_after_first'}else{`$env:KEELARYN_ENTRY_ROLLBACK_FAULT=`$null}"
+    Replace-One $harness $oldFaultDispatch $newFaultDispatch 'supplement fault dispatch'
+
+    $oldOracle="                'registry_init_publication_fault_rolls_back_batch' {`$sourcesOk=`$script:ScenarioPendingGlobalSources.Count-eq2;`$targetsAbsent=`$script:ScenarioPendingGlobalTargets.Count-eq2;for(`$i=0;`$i-lt`$script:ScenarioPendingGlobalSources.Count;`$i++){`$sourcesOk=`$sourcesOk-and(Test-FileSha ([string]`$script:ScenarioPendingGlobalSources[`$i]) ([string]`$script:ScenarioPendingGlobalHashes[`$i]))};foreach(`$target in @(`$script:ScenarioPendingGlobalTargets)){`$targetsAbsent=`$targetsAbsent-and-not(Test-Path -LiteralPath ([string]`$target));`$parent=Split-Path -Parent ([string]`$target);if(Test-Path -LiteralPath `$parent -PathType Container){`$stages=@(Get-ChildItem -LiteralPath `$parent -File -Force -ErrorAction SilentlyContinue|Where-Object{`$_.Name-like'*.stage.*'});`$targetsAbsent=`$targetsAbsent-and`$stages.Count-eq0}};`$rollbackReported=`$r.Text.Contains('all destinations created by this invocation were rolled back and global sources were preserved');`$pass=(`$r.ExitCode-ne0-and`$hubsUnchanged-and`$lifecycleStateUnchanged-and`$sourcesOk-and`$targetsAbsent-and`$rollbackReported);`$detail=if(`$pass){'phase-4 injected second-publication fault executed real rollback: first published destination removed, both valid global sources preserved by exact hash, no stage residue, lifecycle unchanged'}else{'phase-4 rollback proof failed: '+`$r.Text}}"
+    $newOracle=$oldOracle+"`r`n                'registry_init_publication_fault_preserves_verified_destination_on_source_loss' {`$source0Missing=(-not(Test-Path -LiteralPath ([string]`$script:ScenarioPendingGlobalSources[0])));`$source1Ok=Test-FileSha ([string]`$script:ScenarioPendingGlobalSources[1]) ([string]`$script:ScenarioPendingGlobalHashes[1]);`$target0Ok=Test-FileSha ([string]`$script:ScenarioPendingGlobalTargets[0]) ([string]`$script:ScenarioPendingGlobalHashes[0]);`$target1Absent=(-not(Test-Path -LiteralPath ([string]`$script:ScenarioPendingGlobalTargets[1]));`$stageClean=`$true;foreach(`$target in @(`$script:ScenarioPendingGlobalTargets)){`$parent=Split-Path -Parent ([string]`$target);if(Test-Path -LiteralPath `$parent -PathType Container){`$stages=@(Get-ChildItem -LiteralPath `$parent -File -Force -ErrorAction SilentlyContinue|Where-Object{`$_.Name-like'*.stage.*'});`$stageClean=`$stageClean-and`$stages.Count-eq0}};`$rollbackReported=`$r.Text.Contains('rollback was incomplete')-and`$r.Text.Contains('verified destination retained');`$pass=(`$r.ExitCode-ne0-and`$hubsUnchanged-and`$controlStateUnchanged-and`$compatBaselineAfter-ceq`$compatBaselineBefore-and`$source0Missing-and`$source1Ok-and`$target0Ok-and`$target1Absent-and`$stageClean-and`$rollbackReported);`$detail=if(`$pass){'phase-4 source-loss fault retained the first verified destination as the only proven-good copy, preserved the second source, published no second destination, left no stage residue, and reported partial durable handoff fail-closed'}else{'phase-4 source-loss preservation proof failed: '+`$r.Text}}"
+    Replace-One $harness $oldOracle $newOracle 'ER-104 executable oracle'
+    Replace-One $harness "proof_mode=if([bool]`$spec.Supplemental){'phase4_fault_after_first_verified_publication'}else{[string]`$actionById[[string]`$spec.Action].proof_mode}" "proof_mode=if([bool]`$spec.Supplemental){[string]`$spec.ProofMode}else{[string]`$actionById[[string]`$spec.Action].proof_mode}" 'supplement proof-mode reporting'
+    Replace-One $harness 'supplemental_scenario_count=1;scenario_count=@($scenarioSpecs).Count' 'supplemental_scenario_count=2;scenario_count=@($scenarioSpecs).Count' 'report supplemental count'
+    Replace-One $harness 'transactional_proof_revision=5' 'transactional_proof_revision=6' 'transaction proof revision'
+    Replace-One $harness "scenarios='+@(`$results).Count+' (canonical=102 supplemental=1)'" "scenarios='+@(`$results).Count+' (canonical=102 supplemental=2)'" 'matrix PASS summary'
+
+    $suppPath=Join-Path $RepositoryRoot 'tests\knowledge\entry-reachability-supplemental.json'
+    $supp=Get-Content -LiteralPath $suppPath -Raw -Encoding UTF8|ConvertFrom-Json
+    if(@($supp.scenarios|Where-Object{[string]$_.id-ceq'ER-104'}).Count-ne0){throw 'ER-104 already exists unexpectedly.'}
+    $er104=[pscustomobject][ordered]@{
+        id='ER-104';requirement='SR-PENDING-GLOBAL-ROLLBACK-SOURCE-PRESERVATION';state='REGISTRY_PENDING_GLOBAL';action='InitializeInstanceRegistry';fixture='registry_pending_global_rollback_fault';expected_mode='registry_init_publication_fault_preserves_verified_destination_on_source_loss';proof_mode='phase4_fault_after_first_publication_with_source_loss';
+        invariants=@('MH-COMMIT-001','MH-LIFECYCLE-001','MH-INBOX-001');
+        required_assertions=@('two_valid_identity_bound_global_sources','first_destination_published_and_verified_before_source_loss','first_global_source_removed_after_publication','real_phase4_catch_executes','verified_first_destination_retained_when_source_integrity_cannot_be_proven','second_global_source_preserved_with_exact_hash','second_destination_not_published','no_stage_residue','registry_active_compat_baseline_and_hubs_unchanged','partial_durable_handoff_reported_fail_closed')
+    }
+    $supp.scenarios=@($supp.scenarios)+$er104;Write-Json $suppPath $supp
+
+    $validator=Join-Path $RepositoryRoot 'tools\Test-ManagerEntryReachabilityKnowledge.ps1'
+    $oldValidator=@'
+$supplementRows=@($supplement.scenarios)
+if($supplementRows.Count-ne1){Fail('Supplemental entry-reachability scenario count must be exactly 1; actual='+$supplementRows.Count)}
+$s=$supplementRows[0]
+if([string]$s.id-cne'ER-103'){Fail 'Supplemental rollback proof must retain id ER-103.'}
+if([string]$s.requirement-cne'SR-PENDING-GLOBAL-PUBLICATION-ROLLBACK'){Fail 'Supplemental rollback requirement id mismatch.'}
+if([string]$s.state-cne'REGISTRY_PENDING_GLOBAL'-or-not$stateIds.Contains([string]$s.state)){Fail 'Supplemental rollback proof must use the canonical REGISTRY_PENDING_GLOBAL state.'}
+if([string]$s.action-cne'InitializeInstanceRegistry'-or-not$actionIds.Contains([string]$s.action)){Fail 'Supplemental rollback proof must exercise InitializeInstanceRegistry.'}
+if([string]$s.fixture-cne'registry_pending_global_rollback_fault'){Fail 'Supplemental rollback fixture mismatch.'}
+if([string]$s.expected_mode-cne'registry_init_publication_fault_rolls_back_batch'){Fail 'Supplemental rollback expected mode mismatch.'}
+if([string]$s.proof_mode-cne'phase4_fault_after_first_verified_publication'){Fail 'Supplemental rollback proof mode mismatch.'}
+$requiredSupplementAssertions=@('two_valid_identity_bound_global_sources','first_destination_published_and_verified_before_fault','real_phase4_catch_executes','all_new_destinations_rolled_back','all_global_sources_preserved_with_exact_hashes','no_stage_residue','registry_active_compat_baseline_and_hubs_unchanged')
+foreach($token in $requiredSupplementAssertions){if(@($s.required_assertions|ForEach-Object{[string]$_}) -cnotcontains $token){Fail('Supplemental rollback proof omitted assertion '+$token)}}
+foreach($iid in @($s.invariants)){if(-not$invariantIds.Contains([string]$iid)){Fail('Supplemental rollback proof references unknown invariant '+[string]$iid)}}
+foreach($iid in @('MH-COMMIT-001','MH-LIFECYCLE-001','MH-INBOX-001')){if(@($s.invariants|ForEach-Object{[string]$_}) -cnotcontains $iid){Fail('Supplemental rollback proof omitted invariant '+$iid)}}
+$executableTotal=$pairs.Count+$supplementRows.Count;if($executableTotal-ne103){Fail('Executable entry-reachability scenario total must be 103; actual='+$executableTotal)}
+'@
+    $newValidator=@'
+$supplementRows=@($supplement.scenarios)
+if($supplementRows.Count-ne2){Fail('Supplemental entry-reachability scenario count must be exactly 2; actual='+$supplementRows.Count)}
+$er103=@($supplementRows|Where-Object{[string]$_.id-ceq'ER-103'});$er104=@($supplementRows|Where-Object{[string]$_.id-ceq'ER-104'})
+if($er103.Count-ne1-or$er104.Count-ne1){Fail 'Supplemental rollback proofs must contain exactly ER-103 and ER-104.'}
+$er103=$er103[0];$er104=$er104[0]
+foreach($s in @($er103,$er104)){
+    if([string]$s.state-cne'REGISTRY_PENDING_GLOBAL'-or-not$stateIds.Contains([string]$s.state)){Fail([string]$s.id+' must use canonical REGISTRY_PENDING_GLOBAL.')}
+    if([string]$s.action-cne'InitializeInstanceRegistry'-or-not$actionIds.Contains([string]$s.action)){Fail([string]$s.id+' must exercise InitializeInstanceRegistry.')}
+    if([string]$s.fixture-cne'registry_pending_global_rollback_fault'){Fail([string]$s.id+' rollback fixture mismatch.')}
+    foreach($iid in @($s.invariants)){if(-not$invariantIds.Contains([string]$iid)){Fail([string]$s.id+' references unknown invariant '+[string]$iid)}}
+    foreach($iid in @('MH-COMMIT-001','MH-LIFECYCLE-001','MH-INBOX-001')){if(@($s.invariants|ForEach-Object{[string]$_}) -cnotcontains $iid){Fail([string]$s.id+' omitted invariant '+$iid)}}
+}
+if([string]$er103.requirement-cne'SR-PENDING-GLOBAL-PUBLICATION-ROLLBACK'-or[string]$er103.expected_mode-cne'registry_init_publication_fault_rolls_back_batch'-or[string]$er103.proof_mode-cne'phase4_fault_after_first_verified_publication'){Fail 'ER-103 rollback contract mismatch.'}
+foreach($token in @('two_valid_identity_bound_global_sources','first_destination_published_and_verified_before_fault','real_phase4_catch_executes','all_new_destinations_rolled_back','all_global_sources_preserved_with_exact_hashes','no_stage_residue','registry_active_compat_baseline_and_hubs_unchanged')){if(@($er103.required_assertions|ForEach-Object{[string]$_}) -cnotcontains $token){Fail('ER-103 omitted assertion '+$token)}}
+if([string]$er104.requirement-cne'SR-PENDING-GLOBAL-ROLLBACK-SOURCE-PRESERVATION'-or[string]$er104.expected_mode-cne'registry_init_publication_fault_preserves_verified_destination_on_source_loss'-or[string]$er104.proof_mode-cne'phase4_fault_after_first_publication_with_source_loss'){Fail 'ER-104 source-loss rollback contract mismatch.'}
+foreach($token in @('two_valid_identity_bound_global_sources','first_destination_published_and_verified_before_source_loss','first_global_source_removed_after_publication','real_phase4_catch_executes','verified_first_destination_retained_when_source_integrity_cannot_be_proven','second_global_source_preserved_with_exact_hash','second_destination_not_published','no_stage_residue','registry_active_compat_baseline_and_hubs_unchanged','partial_durable_handoff_reported_fail_closed')){if(@($er104.required_assertions|ForEach-Object{[string]$_}) -cnotcontains $token){Fail('ER-104 omitted assertion '+$token)}}
+$executableTotal=$pairs.Count+$supplementRows.Count;if($executableTotal-ne104){Fail('Executable entry-reachability scenario total must be 104; actual='+$executableTotal)}
+'@
+    Replace-One $validator $oldValidator $newValidator 'knowledge supplemental validator'
+
+    $defectPath=Join-Path $RepositoryRoot 'tests\knowledge\defects\manager-4.17.13-prefreeze.json'
+    $defects=Get-Content -LiteralPath $defectPath -Raw -Encoding UTF8|ConvertFrom-Json
+    if(@($defects.defects|Where-Object{[string]$_.id-ceq'MGR-DEF-0033'}).Count-ne0){throw 'MGR-DEF-0033 already exists unexpectedly.'}
+    $defect=[pscustomobject][ordered]@{
+        id='MGR-DEF-0033';title='Publication rollback can delete the only verified copy after the matching global source changes or disappears';severity='P1';status='fixed';release_blocker=$true;detected_in='4.17.13';detected_stage='fresh_exact_head_prefreeze_semantic_review';defect_class='rollback preservation / concurrent source mutation / partial durable handoff';affected_surfaces=@('S-RUNTIME-INBOX');
+        preconditions='A multi-entry stranded-input handoff publishes and verifies an earlier destination, the matching global source then changes or disappears, and a later publication fails so phase-4 rollback executes.';
+        bad_behavior='Rollback validates the published destination and deletes it without revalidating the matching global source. If that source disappeared or changed after publication, rollback can destroy the only verified intact copy while reporting that global sources were preserved.';
+        root_cause='Rollback treated source preservation as a batch-wide assumption established before publication instead of a failure-prone condition that must be revalidated immediately before deleting each published destination.';
+        root_cause_classes=@('RC-COMMIT-001','RC-PUBLISH-001');violated_invariants=@('MH-INBOX-001','MH-COMMIT-001','MH-LIFECYCLE-001');related_defects=@('MGR-DEF-0032');permanent_regressions=@('tools/Invoke-ManagerEntryReachabilityMatrix.ps1');planned_regressions=@();fixed_in='4.17.13';
+        evidence=@([pscustomobject]@{type='fresh_exact_head_codex_review_comment';id='4013015495'},[pscustomobject]@{type='reviewed_prefix_head';id=$ExpectedHead},[pscustomobject]@{type='source_symbol';id='Reconcile-StrandedGlobalHubInputsForExistingRegistry'},[pscustomobject]@{type='permanent_scenario';id='ER-104'})
+    }
+    $defects.defects=@($defects.defects)+$defect;Write-Json $defectPath $defects
+
+    $statePath=Join-Path $RepositoryRoot 'MANAGER_DEVELOPMENT_STATE.json';$state=Get-Content -LiteralPath $statePath -Raw -Encoding UTF8|ConvertFrom-Json
+    $state.materialization.status='materialized_unqualified_development_prefreeze_rollback_preservation_fix'
+    $state.qualification.successor_4_17_13.status='materialized_unqualified_development_prefreeze_rollback_preservation_fix'
+    $state.qualification.successor_4_17_13.process_entry_green_proof='Requires exact 104-scenario executable process-entry PASS: canonical cross-product 102 plus ER-103 intact-source rollback and ER-104 source-loss preservation supplementals, action-specific Manager-global execution evidence, 29-mode completeness, state-machine/oracle consistency and complete non-default risk mapping'
+    $state.next_exact_goal.description='Obtain exact-head Development Validation with 29-mode entry-policy completeness and 104 executable process-entry scenarios (102 canonical + ER-103 intact-source rollback + ER-104 source-loss preservation), then rerun the full-successor Risk/Defect Gate and fresh exact-head semantic/adversarial review.'
+    $state.bootstrap.required_first_actions=@('Resolve dev/manager-4.17.13 live and preserve frozen Manager 4.17.12 g1 identity.','Require exact-head 104-scenario process-entry proof including ER-103 rollback and ER-104 known-good-copy preservation before freeze.','Do not freeze 4.17.13 until the exact product tree has a full-successor Risk/Defect Gate PASS and fresh semantic/adversarial review with no unresolved P1/P2 findings.')
+    Write-Json $statePath $state
+
+    $provPath=Join-Path $RepositoryRoot 'PUBLIC_PROVENANCE.json';$prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json
+    $prov.candidate_identity.validated_development_parent=$ExpectedHead
+    $dev=$prov.qualification_evidence.development_4_17_13
+    $dev.supplemental_entry_reachability_scenarios=2;$dev.entry_reachability_scenarios=104
+    $dev.proof_quality_closure.status='materialized_unqualified_development'
+    $dev.proof_quality_closure.trigger='fresh exact-head Codex review found P1 rollback preservation gap after ER-103 closure'
+    $dev.proof_quality_closure.requirements=@('ER-103 executes real phase-4 rollback after first verified publication with intact sources','ER-104 proves rollback retains a verified destination when its matching global source disappears after publication','Manager-global global_success cells require action-specific execution evidence')
+    if($dev.PSObject.Properties.Name -contains 'prefreeze_rollback_preservation_fix'){$dev.PSObject.Properties.Remove('prefreeze_rollback_preservation_fix')}
+    $dev|Add-Member -NotePropertyName prefreeze_rollback_preservation_fix -NotePropertyValue ([pscustomobject][ordered]@{defect_id='MGR-DEF-0033';status='materialized_unqualified_development';review_comment_id='4013015495';reviewed_prefix_head=$ExpectedHead;fix='revalidate matching global source immediately before rollback deletion; retain verified destination and report partial durable handoff when source preservation cannot be proven';permanent_regression='ER-104';exact_green_requalification='required_before_freeze'})
+    Write-Json $provPath $prov
+
+    & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepositoryRoot 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $RepositoryRoot -Write
+    if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+    $manifest=Get-Content -LiteralPath (Join-Path $RepositoryRoot 'PUBLIC_FILE_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+    $managed=[string]$manifest.manager.gate_managed_content_sha256;$installSha=[string]$manifest.manager.installation_sha256
+    $state=Get-Content -LiteralPath $statePath -Raw -Encoding UTF8|ConvertFrom-Json;$state.materialization.managed_content_sha256=$managed;$state.materialization.installation_sha256=$installSha;Write-Json $statePath $state
+    $prov=Get-Content -LiteralPath $provPath -Raw -Encoding UTF8|ConvertFrom-Json;$prov.source_manager_gate_managed_content_sha256=$managed;$prov.source_manager_installation_sha256=$installSha;Write-Json $provPath $prov
+
+    foreach($p in @($runtime,$harness,$validator)){Parse-One $p}
+    & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepositoryRoot 'tools\Build-PublicFileManifest.ps1') -RepositoryRoot $RepositoryRoot -Check
+    if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+    & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepositoryRoot 'tools\Verify-PublicCandidateMetadata.ps1') -RepositoryRoot $RepositoryRoot
+    if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+    $allowed=@('MANAGER_DEVELOPMENT_STATE.json','PUBLIC_FILE_MANIFEST.json','PUBLIC_PROVENANCE.json','manager/product/runtime/Keelaryn__Manager.ps1','tests/knowledge/defects/manager-4.17.13-prefreeze.json','tests/knowledge/entry-reachability-supplemental.json','tools/Invoke-ManagerEntryReachabilityMatrix.ps1','tools/Test-ManagerEntryReachabilityKnowledge.ps1')
+    $changed=@(git status --short|ForEach-Object{($_.Substring(3)).Replace('\','/')})
+    $unexpected=@($changed|Where-Object{$allowed-cnotcontains$_})
+    if($unexpected.Count-ne0){throw('Unexpected changed paths: '+([string]::Join(',',@($unexpected))))}
+    foreach($p in $allowed){if($changed-cnotcontains$p){throw('Expected changed path missing: '+$p)}}
+
+    git config user.name 'Aleksei Efremov';git config user.email 'efremov.aleksei.96@gmail.com'
+    git add -- MANAGER_DEVELOPMENT_STATE.json PUBLIC_FILE_MANIFEST.json PUBLIC_PROVENANCE.json manager/product/runtime/Keelaryn__Manager.ps1 tests/knowledge/defects/manager-4.17.13-prefreeze.json tests/knowledge/entry-reachability-supplemental.json tools/Invoke-ManagerEntryReachabilityMatrix.ps1 tools/Test-ManagerEntryReachabilityKnowledge.ps1
+    git commit -m 'Manager 4.17.13: preserve verified rollback destination on source loss'
+    if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+    $patchedHead=(git rev-parse HEAD).Trim().ToLowerInvariant()
+    Write-Host "Exact local patched head: $patchedHead"
+
+    $out=Join-Path $env:RUNNER_TEMP 'keelaryn-41713-mgr-def-0033'
+    powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepositoryRoot 'tools\Invoke-DevelopmentValidation.ps1') -RepositoryRoot $RepositoryRoot -OutputDirectory $out
+    if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+
+    $remote=([string](git ls-remote origin refs/heads/dev/manager-4.17.13)).Trim();if($LASTEXITCODE-ne0-or-not$remote){throw 'Could not resolve remote dev head before publication.'}
+    $remoteHead=($remote -split '\s+')[0].ToLowerInvariant();if($remoteHead-cne$ExpectedHead){throw "Commit-boundary remote identity changed: expected=$ExpectedHead actual=$remoteHead"}
+    $parent=(git rev-parse HEAD^).Trim().ToLowerInvariant();if($parent-cne$ExpectedHead){throw "Local patched parent mismatch: expected=$ExpectedHead actual=$parent"}
+
+    git push origin HEAD:refs/heads/dev/manager-4.17.13
+    if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
+    Write-Host "PATCH TRANSACTION: PASS; published_head=$patchedHead managed=$managed"
+} finally {Pop-Location}
