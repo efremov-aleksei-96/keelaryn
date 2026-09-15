@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.manager-qualification-proofs.v1",
-  "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Current qualification executes historical behavioral coverage through one flat runner that materializes disposable leaf copies while preserving the historical recursive scripts byte-for-byte as static provenance identities. Version-bound historical proofs remain non-executable on successor Manager lines. Meta-validation executed before scheduler selection is represented as static identity if selected by task risk, preventing duplicate execution inside one boundary.",
+  "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Current qualification executes historical behavioral coverage through one flat runner that materializes disposable leaf copies while preserving historical recursive scripts byte-for-byte as static provenance identities. Entry Reachability behavioral ownership is the bounded state-machine-driven executor; legacy count-based Entry artifacts remain static migration provenance only. Version-bound historical proofs remain non-executable on successor Manager lines. Meta-validation executed before scheduler selection is represented as static identity if selected by task risk, preventing duplicate execution inside one boundary.",
   "mandatory_development_proofs": [
     "proof_manifest_contract",
     "release_identity",
@@ -10,8 +10,7 @@
     "recovery_behavior_leaf",
     "review_41713_leaf",
     "entry_policy",
-    "entry_model",
-    "entry_matrix_legacy"
+    "entry_bounded"
   ],
   "proofs": [
     {
@@ -141,14 +140,22 @@
       "capability_suites": ["registry_recovery", "compatibility"]
     },
     {
-      "id": "entry_model",
-      "path": "tools/Test-ManagerEntryReachabilityKnowledge.ps1",
-      "capability_suites": ["registry_recovery", "captured_context", "compatibility"]
+      "id": "entry_bounded",
+      "path": "tools/Invoke-ManagerBoundedEntryReachability.ps1",
+      "capability_suites": ["registry_recovery", "inbox_handoff", "captured_context", "current_safety", "update_restart", "compatibility"]
     },
     {
-      "id": "entry_matrix_legacy",
+      "id": "entry_model_legacy_static",
+      "path": "tools/Test-ManagerEntryReachabilityKnowledge.ps1",
+      "execution": "static",
+      "capability_suites": [],
+      "migration_only": true
+    },
+    {
+      "id": "entry_matrix_legacy_static",
       "path": "tools/Invoke-ManagerEntryReachabilityMatrix.ps1",
-      "capability_suites": ["registry_recovery", "inbox_handoff", "captured_context", "current_safety", "update_restart", "compatibility"],
+      "execution": "static",
+      "capability_suites": [],
       "migration_only": true
     }
   ],
@@ -174,6 +181,8 @@
     "static_identity_proofs_do_not_claim_behavioral_capabilities": true,
     "pre_scheduler_meta_validation_is_not_reexecuted_by_scheduler": true,
     "historical_recursive_sources_execute_directly_in_scheduler": false,
-    "historical_behavior_owner": "historical_flat_lineage"
+    "historical_behavior_owner": "historical_flat_lineage",
+    "entry_behavior_owner": "entry_bounded",
+    "legacy_count_based_entry_proofs_execute_in_scheduler": false
   }
 }
