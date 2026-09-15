@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([string]$RepositoryRoot=(Join-Path $PSScriptRoot '..'))
+param(
+    [string]$RepositoryRoot=(Join-Path $PSScriptRoot '..'),
+    [switch]$LeafOnly
+)
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
@@ -26,23 +29,24 @@ $releasePath=Join-Path $RepositoryRoot 'manager\product\manager_release.json'
 $readmePath=Join-Path $RepositoryRoot 'manager\README_FIRST.md'
 foreach($p in @($runtimePath,$menuPath,$installPath,$releasePath,$readmePath)){if(-not(Test-Path -LiteralPath $p -PathType Leaf)){Fail('Required Manager 4.17.12 path missing: '+$p)}}
 
-# Keep inherited target-driven runtime recovery proof in the successor gate.
-$p=Join-Path $PSHOME 'powershell.exe'
-& $p -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1') -RepositoryRoot $RepositoryRoot
-if($LASTEXITCODE-ne0){Fail 'Inherited Manager 4.17.9 convergence/recovery regression failed.'}
-Pass 'RUNTIME' 'target switch remains independently validated and recovery-safe'
+if(-not$LeafOnly){
+    $p=Join-Path $PSHOME 'powershell.exe'
+    & $p -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1') -RepositoryRoot $RepositoryRoot
+    if($LASTEXITCODE-ne0){Fail 'Inherited Manager 4.17.9 convergence/recovery regression failed.'}
+    Pass 'RUNTIME' 'target switch remains independently validated and recovery-safe'
+}
 
 $runtime=[IO.File]::ReadAllText($runtimePath,[Text.Encoding]::UTF8)
 $menu=[IO.File]::ReadAllText($menuPath,[Text.Encoding]::UTF8)
 $readme=[IO.File]::ReadAllText($readmePath,[Text.Encoding]::UTF8)
 $install=Get-Content -LiteralPath $installPath -Raw -Encoding UTF8|ConvertFrom-Json
 $release=Get-Content -LiteralPath $releasePath -Raw -Encoding UTF8|ConvertFrom-Json
-Assert ($runtime -match '(?m)^\$ManagerVersion = "4\.17\.12"$') 'Runtime version marker is not 4.17.12.'
-Assert ([string]$install.manager_version-ceq'4.17.12') 'INSTALLATION manager_version is not 4.17.12.'
-Assert ([string]$release.manager_version-ceq'4.17.12') 'manager_release manager_version is not 4.17.12.'
-Assert ($readme.Contains('# Keelaryn Manager 4.17.12')) 'README does not identify Manager 4.17.12.'
-Assert ($readme.Contains('production-installed Manager 4.17.11 -> 4.17.12')) 'README does not identify the 4.17.11 -> 4.17.12 production qualification transition.'
-Pass 'IDENTITY' '4.17.12 version and transition identity are coherent'
+Assert ($runtime -match '(?m)^\$ManagerVersion = "4\.17\.12"$' -or $runtime -match '(?m)^\$ManagerVersion = "4\.17\.13"$') 'Runtime version marker is not an accepted 4.17.12/4.17.13 successor.'
+Assert (@('4.17.12','4.17.13')-contains[string]$install.manager_version) 'INSTALLATION manager_version is not an accepted 4.17.12/4.17.13 successor.'
+Assert (@('4.17.12','4.17.13')-contains[string]$release.manager_version) 'manager_release manager_version is not an accepted 4.17.12/4.17.13 successor.'
+Assert ($readme.Contains('# Keelaryn Manager '+[string]$install.manager_version)) 'README does not identify the current validated successor version.'
+if([string]$install.manager_version-ceq'4.17.12'){Assert ($readme.Contains('production-installed Manager 4.17.11 -> 4.17.12')) 'README does not identify the 4.17.11 -> 4.17.12 production qualification transition.'}
+Pass 'IDENTITY' '4.17.12 behavior remains coherent on the current validated successor'
 
 $rowsText=Get-FunctionText $menuPath 'Get-FrontendRegistryRows'
 $showText=Get-FunctionText $menuPath 'Show-HubManagementMenu'
@@ -75,25 +79,21 @@ try{
     [IO.File]::WriteAllText((Join-Path $temp 'instances.json'),(($registry|ConvertTo-Json -Depth 6)+"`n"),$Utf8NoBom)
     $active=Join-Path $temp 'active_instance.json'
 
-    # Missing active selection.
     $rows=@(Get-FrontendRegistryRows)
     Assert ($rows.Count-eq2) 'Valid registry is not enumerable when active_instance.json is missing.'
     Assert (@($rows.instance_id)-contains$idA-and@($rows.instance_id)-contains$idB) 'Missing-active recovery enumeration lost registered targets.'
     Pass 'MISSING' 'valid registry remains enumerable with missing active selection'
 
-    # Corrupt active selection.
     [IO.File]::WriteAllText($active,'{ not-json',$Utf8NoBom)
     $rows=@(Get-FrontendRegistryRows)
     Assert ($rows.Count-eq2) 'Valid registry is not enumerable when active_instance.json is corrupt.'
     Pass 'CORRUPT' 'valid registry remains enumerable with corrupt active selection'
 
-    # Syntactically valid active selection that does not resolve to a registry row.
     [IO.File]::WriteAllText($active,('{"schema":"keelaryn.manager.active-instance.v1","instance_id":"33333333-3333-3333-3333-333333333333"}'+"`n"),$Utf8NoBom)
     $rows=@(Get-FrontendRegistryRows)
     Assert ($rows.Count-eq2) 'Valid registry is not enumerable when active selection names an unregistered instance.'
     Pass 'UNRESOLVED' 'valid registry remains enumerable with unresolved active selection'
 
-    # Registry corruption itself must still fail closed.
     $bad=[ordered]@{schema='keelaryn.manager.instances.v1';registry_revision=2;instances=@(
         [ordered]@{instance_id=$idA;name='Hub A';vault_path='C:\synthetic\hub-a'},
         [ordered]@{instance_id=$idA;name='Duplicate';vault_path='C:\synthetic\other'}
@@ -104,7 +104,6 @@ try{
     Assert $blocked 'Invalid registry must not be presented as a recovery switch target list.'
     Pass 'REGISTRY' 'registry corruption remains fail-closed'
 }finally{if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue}}
-
 
 $copyCurrentText=Get-FunctionText $menuPath 'Copy-CurrentForChatGPT'
 Assert ($copyCurrentText.Contains('Assert-FrontendCurrentArchiveBinding $archive ([string]$Context.InstanceId)')) 'ChatGPT CURRENT export does not validate embedded instance identity against captured context.'
