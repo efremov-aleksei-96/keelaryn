@@ -30,8 +30,14 @@ $oldNorm=$old.Replace("`r`n","`n")
 $newNorm=$new.Replace("`r`n","`n")
 $count=[regex]::Matches($textNorm,[regex]::Escape($oldNorm)).Count
 if($count-ne1){throw "Patcher helper anchor count mismatch: $count"}
+$textNorm=$textNorm.Replace($oldNorm,$newNorm)
+$typo='$target1Absent=(-not(Test-Path -LiteralPath ([string]`$script:ScenarioPendingGlobalTargets[1]));'
+$fixed='$target1Absent=(-not(Test-Path -LiteralPath ([string]`$script:ScenarioPendingGlobalTargets[1])));'
+$typoCount=[regex]::Matches($textNorm,[regex]::Escape($typo)).Count
+if($typoCount-ne1){throw "ER-104 patch-payload parenthesis anchor count mismatch: $typoCount"}
+$textNorm=$textNorm.Replace($typo,$fixed)
 $temp=Join-Path $env:RUNNER_TEMP 'GATE_APPLY_41713_MGR_DEF_0033_NORMALIZED.ps1'
-[IO.File]::WriteAllText($temp,$textNorm.Replace($oldNorm,$newNorm),$utf8)
+[IO.File]::WriteAllText($temp,$textNorm,$utf8)
 $tokens=$null;$errors=$null
 [void][Management.Automation.Language.Parser]::ParseFile($temp,[ref]$tokens,[ref]$errors)
 if(@($errors).Count-ne0){throw('Normalized patcher parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
