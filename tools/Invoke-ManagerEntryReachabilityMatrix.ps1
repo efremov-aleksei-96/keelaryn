@@ -190,7 +190,24 @@ try{
                         $evidenceOk=$false;$evidence=''
                         switch([string]$spec.Action){
                             'BuildDistribution' {$artifact=Join-Path $managerRoot ('state\releases\Keelaryn__Manager_Distribution_v'+$version+'.zip');$evidenceOk=($r.Text.Contains('Generic distribution:')-and(Test-Path -LiteralPath $artifact -PathType Leaf));$evidence='distribution marker+artifact'}
-                            'BuildRelease' {$names=@('Keelaryn__Manager_SOURCE_v'+$version+'.zip','Keelaryn__Manager_Distribution_v'+$version+'.zip','Keelaryn__Manager_Update_v'+$version+'_Built.zip','Keelaryn__Manager_AI_CONTEXT_v'+$version+'.zip','Keelaryn__Manager_RELEASE_v'+$version+'.json');$missing=@($names|Where-Object{-not(Test-Path -LiteralPath (Join-Path $managerRoot ('state\releases\'+$_)) -PathType Leaf)});$evidenceOk=($r.Text.Contains('Release build: PASS')-and$missing.Count-eq0);$evidence='release PASS marker+five-artifact bundle'}
+                            'BuildRelease' {
+                                $releaseRoot=Join-Path $managerRoot 'state\releases'
+                                $names=@(
+                                    ('Keelaryn__Manager_SOURCE_v'+$version+'.zip'),
+                                    ('Keelaryn__Manager_Distribution_v'+$version+'.zip'),
+                                    ('Keelaryn__Manager_Update_v'+$version+'_Built.zip'),
+                                    ('Keelaryn__Manager_AI_CONTEXT_v'+$version+'.zip'),
+                                    ('Keelaryn__Manager_RELEASE_v'+$version+'.json')
+                                )
+                                $missing=New-Object System.Collections.ArrayList
+                                foreach($name in @($names)){
+                                    $expectedPath=Join-Path $releaseRoot ([string]$name)
+                                    if(-not(Test-Path -LiteralPath $expectedPath -PathType Leaf)){[void]$missing.Add([string]$name)}
+                                }
+                                $evidenceOk=($r.Text.Contains('Release build: PASS')-and$missing.Count-eq0)
+                                $evidence='release PASS marker+five-artifact bundle'
+                                if($missing.Count-ne0){$evidence+='; missing='+[string]::Join(',',@($missing))}
+                            }
                             'BuildAIContext' {$artifact=Join-Path $managerRoot ('state\releases\Keelaryn__Manager_AI_CONTEXT_v'+$version+'.zip');$evidenceOk=($r.Text.Contains('AI_CONTEXT build: PASS')-and(Test-Path -LiteralPath $artifact -PathType Leaf));$evidence='AI_CONTEXT marker+artifact'}
                             'SelfTest' {$evidenceOk=($sentinelPath-and(Test-Path -LiteralPath $sentinelPath -PathType Leaf)-and([IO.File]::ReadAllText($sentinelPath,[Text.Encoding]::ASCII)-ceq'SelfTest'));$evidence='test-only exact SelfTest dispatch sentinel'}
                             'PrepareTests' {$receipt=Join-Path $keelarynRoot 'tests\WORKSPACE.json';$evidenceOk=($r.Text.Contains('Keelaryn tests workspace ready.')-and(Test-Path -LiteralPath $receipt -PathType Leaf));$evidence='tests-workspace marker+receipt'}
