@@ -54,8 +54,8 @@
       "id": "MGR-DEF-0035",
       "title": "Token-bound UpdateAll cannot execute its Manager-global phase when the captured active Hub is missing or corrupt",
       "severity": "P1",
-      "status": "open",
-      "release_blocker": true,
+      "status": "closed",
+      "release_blocker": false,
       "detected_in": "4.17.13",
       "detected_stage": "bounded_state_machine_entry_reachability_migration",
       "defect_class": "pre-dispatch reachability / mixed Manager-global and Hub-bound update phase ordering",
@@ -80,11 +80,11 @@
         "MGR-DEF-0013",
         "MGR-DEF-0015"
       ],
-      "permanent_regressions": [],
-      "planned_regressions": [
+      "permanent_regressions": [
         "tools/Invoke-ManagerBoundedEntryReachability.ps1"
       ],
-      "fixed_in": "",
+      "planned_regressions": [],
+      "fixed_in": "4.17.13",
       "evidence": [
         {
           "type": "bounded_entry_red_run",
@@ -99,8 +99,28 @@
           "id": "55 derived edges executed; 53 PASS; only EDGE-033 REGISTRY_ACTIVE_HUB_CORRUPT x UpdateAll and EDGE-034 REGISTRY_ACTIVE_HUB_MISSING x UpdateAll failed; harness_error=false"
         },
         {
+          "type": "product_fix_commit",
+          "id": "9288e7ed7b7fc6ba6290ec50128e2b25ef506079"
+        },
+        {
+          "type": "product_fix_runtime_sha256",
+          "id": "6011b605e6574f31987f916a6b00b537a7402a1d9b4b5971007bf9f486f89f55"
+        },
+        {
+          "type": "exact_head_development_pass",
+          "id": "34992352135"
+        },
+        {
+          "type": "exact_head_development_artifact",
+          "id": "10406646609"
+        },
+        {
+          "type": "bounded_entry_green_summary",
+          "id": "55 derived edges executed; 55 PASS; EDGE-033 and EDGE-034 installed the Manager-global successor then failed closed on the exact captured broken Hub without retargeting"
+        },
+        {
           "type": "source_symbol",
-          "id": "Resolve-RegisteredInstanceContextEarly / top-level allowRegistryUnresolved"
+          "id": "Try-BindTokenBoundUpdateAllMetadataContextEarly / top-level registry resolution / Test-ActiveCompatibilityShadowReconciliationRequired"
         },
         {
           "type": "state_machine_rules",
