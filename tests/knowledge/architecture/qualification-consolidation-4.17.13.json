@@ -21,7 +21,9 @@
       "fixed_scenario_count_is_requirement": false,
       "supplemental_fault_scenarios_are_entry_reachability": false,
       "target": "bounded deterministic edge cover of real state-dependent process-entry behavior",
-      "must_preserve_state_dependent_behavior": true
+      "must_preserve_state_dependent_behavior": true,
+      "bounded_planner_implemented": true,
+      "legacy_count_based_executor_pending_replacement": true
     },
     "transaction_fault_properties": {
       "separate_from_entry_reachability": true,
@@ -29,11 +31,15 @@
     },
     "risk_gate": {
       "role": "select_and_enforce_requirements_then_verify_execution_receipt",
-      "direct_child_execution_target": false
+      "direct_child_execution_target": false,
+      "receipt_verifier_implemented": true
     },
     "execution_scheduler": {
       "role": "execute_each_unique required proof once per exact source identity and trust boundary",
       "same_sha_same_boundary_duplicate_execution_permitted": false,
+      "implemented": true,
+      "implementation": "tools/Invoke-ManagerQualificationScheduler.ps1",
+      "proof_manifest": "tests/knowledge/qualification/capability-proofs.json",
       "receipt_must_bind": [
         "exact_source_commit",
         "exact_source_tree",
@@ -70,7 +76,7 @@
     "legacy_version_scripts": {
       "status": "migration_only_until_flattened",
       "freeze_blocker": true,
-      "reason": "Existing version-specific regressions recursively execute predecessors and are also selected independently by orchestration."
+      "reason": "Existing version-specific regressions still recursively execute predecessors. The scheduler prevents independent duplicate selection but nested recursion must still be removed before candidate freeze."
     }
   },
   "preserved_safety_invariants": [
@@ -93,36 +99,49 @@
     "source_symbol": "Reconcile-StrandedGlobalHubInputsForExistingRegistry",
     "current_semantic_rule": "R-REGISTRY-PENDING-GLOBAL-INVALID-INIT",
     "open_defect": "MGR-DEF-0034",
-    "current_batch_semantics": "whole_batch_preflight_stage_publish_with_rollback",
+    "design_source": "tests/knowledge/architecture/stranded-input-reconciliation-4.17.13.json",
+    "previous_batch_semantics": "whole_batch_preflight_stage_publish_with_rollback",
     "current_problem": "A verified unpublished stage can become the only surviving known-good copy if its global source changes or disappears; unconditional finally cleanup then deletes that stage.",
-    "product_change_deferred_until_state_machine_review": true,
-    "preferred_hypothesis": {
-      "name": "per_artifact_atomic_idempotent_reconciliation",
+    "state_machine_review_completed": true,
+    "product_change_deferred_until_state_machine_review": false,
+    "implementation_authorized": true,
+    "selected_contract": {
+      "name": "per_artifact_claim_validate_publish",
       "algorithm": [
-        "validate exact artifact",
-        "resolve exact registered instance",
-        "freshly revalidate source and destination at the artifact commit boundary",
-        "atomically and idempotently publish or move the exact artifact",
-        "verify durable destination",
-        "record completed handoff",
-        "continue with the next artifact"
+        "atomically claim one recognized global Hub artifact into durable neutral Manager reconciliation state",
+        "validate claimed bytes and immutable canonical instance_id before choosing a per-instance destination",
+        "resolve the exact registered instance by instance_id only",
+        "freshly revalidate registry target and destination collision state at the artifact commit boundary",
+        "atomically move the exact validated claim into the exact per-instance inbox with fail-if-destination-exists semantics",
+        "verify durable destination and distinguish pre-commit failure from post-commit verification failure",
+        "record completed handoff and continue with the next independent artifact"
       ],
       "later_failure_semantics": [
         "already completed exact handoffs remain valid",
-        "failed or unprocessed artifacts remain global",
+        "failed or unprocessed artifacts or claims remain durable blocking state",
         "operation reports explicit partial result and failure",
-        "ordinary Hub operations remain fail_closed while stranded global Hub inputs remain"
+        "ordinary Hub operations remain fail_closed while stranded global Hub inputs or reconciliation claims remain"
       ],
       "requires_state_machine_change": true,
-      "must_not_be_implemented_before_review": true
+      "implementation_pending": true
     }
   },
+  "consolidation_state": {
+    "single_scheduler_receipt_boundary": "implemented",
+    "risk_gate_direct_regression_execution": "removed",
+    "dedicated_entry_workflow_duplicate_matrix_execution": "removed",
+    "bounded_entry_plan": "implemented",
+    "bounded_entry_executor": "pending",
+    "transaction_fault_suite_separation": "pending",
+    "legacy_recursive_version_scripts": "pending_flattening",
+    "stranded_input_semantic_review": "complete",
+    "stranded_input_product_implementation": "pending"
+  },
   "known_duplication": {
-    "entry_reachability_execution_sites": [
-      "tools/Invoke-DevelopmentValidation.ps1",
-      "tools/Invoke-ManagerRiskDefectGate.ps1 through applicable regressions",
-      ".github/workflows/entry-reachability-validation.yml"
-    ],
+    "development_same_sha_execution_owner": "tools/Invoke-ManagerQualificationScheduler.ps1",
+    "risk_gate_mode": "receipt_verification_only",
+    "dedicated_entry_workflow_mode": "model_and_plan_only",
+    "same_sha_same_boundary_independent_entry_matrix_duplication_removed": true,
     "version_regression_recursion_confirmed": true,
     "development_state_magic_count_drift_confirmed": true
   },
@@ -130,13 +149,14 @@
     "record_and_validate_this_architecture_without_product_byte_change",
     "separate_entry_reachability_from_transaction_fault_properties",
     "derive_bounded_entry_coverage_from_state_machine_winning_rules_and_control_flow_classes",
-    "introduce_flat_capability_suite_selection_and_single execution scheduler",
-    "remove same_SHA same_boundary duplicate proof execution",
-    "review stranded_input state_machine semantics and choose batch or per_artifact transaction contract",
-    "implement the chosen product contract and capability/property coverage",
-    "obtain one coherent exact_head Development PASS",
-    "run full_successor Risk/Defect assessment over qualified_base_to_exact_head",
-    "perform fresh semantic_and_adversarial review",
-    "consider candidate freeze only when all blockers are closed"
+    "introduce_flat_capability_suite_selection_and_single_execution_scheduler",
+    "remove_same_SHA_same_boundary_duplicate_proof_execution",
+    "review_stranded_input_state_machine_semantics_and_choose_transaction_contract",
+    "flatten_recursive_legacy_regressions_and_replace_legacy_count_based_entry_executor",
+    "implement_the_chosen_product_contract_and_capability_property_coverage",
+    "obtain_one_coherent_exact_head_Development_PASS",
+    "run_full_successor_Risk_Defect_assessment_over_qualified_base_to_exact_head",
+    "perform_fresh_semantic_and_adversarial_review",
+    "consider_candidate_freeze_only_when_all_blockers_are_closed"
   ]
 }
