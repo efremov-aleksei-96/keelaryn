@@ -87,7 +87,7 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerBoundedEntryReachability.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$bounded"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Upload compact entry evidence
+      - name: Upload compact entry evidence and materialized runtime
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -97,6 +97,7 @@ jobs:
             ${{ env.KEELARYN_ENTRY_ORACLE_CONTRACT }}
             ${{ env.KEELARYN_ENTRY_ORACLE }}
             ${{ env.KEELARYN_BOUNDED_ENTRY }}
+            ${{ github.workspace }}\manager\product\runtime\Keelaryn__Manager.ps1
           if-no-files-found: warn
           retention-days: 3
 
