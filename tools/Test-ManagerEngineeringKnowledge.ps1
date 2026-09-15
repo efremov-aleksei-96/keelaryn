@@ -110,16 +110,18 @@ foreach($state in @($machine.states)){
 $surfaceIds=New-IdSet
 $surfaceById=@{}
 $coveredInvariantIds=New-IdSet
+$coveredRuleIds=New-IdSet
 foreach($surface in @($risk.surfaces)){
     $sid=[string]$surface.id
     Add-Unique $surfaceIds $sid 'risk-surface'
     if(@($surface.paths).Count-eq0){Fail($sid+' has no path mapping.')}
     foreach($iid in @($surface.invariants)){Assert-Ref $invariantIds ([string]$iid) 'invariant' $sid;[void]$coveredInvariantIds.Add([string]$iid)}
     foreach($rc in @($surface.root_cause_classes)){Assert-Ref $rootIds ([string]$rc) 'root-cause' $sid}
-    foreach($rid in @($surface.state_machine_rules)){Assert-Ref $ruleIds ([string]$rid) 'state-machine rule' $sid}
+    foreach($rid in @($surface.state_machine_rules)){Assert-Ref $ruleIds ([string]$rid) 'state-machine rule' $sid;[void]$coveredRuleIds.Add([string]$rid)}
     foreach($reg in @($surface.regressions)){Assert-ExistingCoveragePath ([string]$reg) $sid}
     $surfaceById[$sid]=$surface
 }
+foreach($rule in @($machine.rules|Where-Object{[int]$_.priority-gt0})){$rid=[string]$rule.id;if(-not$coveredRuleIds.Contains($rid)){Fail('Non-default state-machine rule has no risk-surface mapping: '+$rid)}}
 foreach($iid in @($invariantIds)){if(-not$coveredInvariantIds.Contains($iid)){Fail('Invariant has no risk-surface mapping: '+$iid)}}
 
 $defectIds=New-IdSet

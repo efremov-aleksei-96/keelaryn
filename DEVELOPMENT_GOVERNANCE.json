@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-governance.v1",
-  "revision": 1,
+  "revision": 2,
   "repository": "efremov-aleksei-96/keelaryn",
   "development_branches": {
     "pattern": "dev/**",
@@ -37,6 +37,35 @@
     "commit_generated_release_archives": false,
     "upload_tests_work": false,
     "upload_duplicate_build_artifacts": false
+  },
+  "critical_model_escalation": {
+    "enabled": true,
+    "protocol": "ASTRA_ESCALATION.md",
+    "default_engineering_model": "GPT-5.6 Sol",
+    "preferred_scarce_reviewer": "GPT-6 Astra",
+    "availability_contract": "plus_limited_manual",
+    "automatic_invocation": false,
+    "max_reviews_per_critical_point": 1,
+    "allowed_triggers": [
+      "final_prefreeze_adversarial_review",
+      "evidence_reality_contradiction",
+      "two_evidence_backed_iterations_without_classification",
+      "high_consequence_proof_quality_question",
+      "repeated_late_escape_pattern"
+    ],
+    "forbidden_uses": [
+      "actions_polling",
+      "routine_log_reading",
+      "ordinary_code_generation",
+      "mechanical_metadata_sync",
+      "known_harness_only_fix",
+      "known_environment_retry",
+      "repeating_conclusive_test"
+    ],
+    "review_packet_required": true,
+    "review_is_qualification": false,
+    "clean_review_can_replace_required_gates": false,
+    "policy": "Scarce high-capability review is a bounded manual escalation, not a default execution model. Prefer one consolidated exact-head adversarial review at a genuine critical point; return implementation, CI iteration and ordinary follow-up to the default engineering model."
   },
   "promotion": {
     "development_validation_is_production_qualification": false,

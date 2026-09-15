@@ -1,0 +1,172 @@
+{
+  "schema": "keelaryn.manager-qualification-architecture.v1",
+  "work_item_id": "MQA-41713-001",
+  "title": "Manager qualification consolidation before 4.17.13 candidate freeze",
+  "status": "in_progress",
+  "manager_line": "4.17.13",
+  "product_bytes_changed_by_work_item": true,
+  "production_hub_mutation_permitted": false,
+  "candidate_freeze_permitted": false,
+  "semantic_sources": {
+    "multi_hub_state_machine": "tests/knowledge/state-machines/multi-hub.json",
+    "invariants": "tests/knowledge/invariants/multi-hub.json",
+    "risk_map": "tests/knowledge/risk-map.json",
+    "development_state": "MANAGER_DEVELOPMENT_STATE.json",
+    "historical_evidence": "GitHub commits, PRs, workflow runs, artifacts, tags and provenance refs"
+  },
+  "qualification_contract": {
+    "entry_reachability": {
+      "semantic_owner": "tests/knowledge/state-machines/multi-hub.json",
+      "coverage_basis": "winning_rule_and_control_flow_edge_cover",
+      "fixed_scenario_count_is_requirement": false,
+      "supplemental_fault_scenarios_are_entry_reachability": false,
+      "target": "bounded deterministic edge cover of real state-dependent process-entry behavior",
+      "must_preserve_state_dependent_behavior": true,
+      "bounded_planner_implemented": true,
+      "bounded_executor_implemented": true,
+      "behavioral_owner": "tools/Invoke-ManagerBoundedEntryReachability.ps1",
+      "legacy_count_based_executor_pending_replacement": false,
+      "legacy_count_based_artifacts_role": "static_migration_provenance_only"
+    },
+    "transaction_fault_properties": {
+      "separate_from_entry_reachability": true,
+      "implementation_status": "pending",
+      "target": "capability/property suites for commit-boundary revalidation, publication, rollback or replacement semantics, collision handling and durable-partial-result reporting"
+    },
+    "risk_gate": {
+      "role": "select_and_enforce_requirements_then_verify_execution_receipt",
+      "direct_child_execution_target": false,
+      "receipt_verifier_implemented": true
+    },
+    "execution_scheduler": {
+      "role": "execute_each_unique required proof once per exact source identity and trust boundary",
+      "same_sha_same_boundary_duplicate_execution_permitted": false,
+      "implemented": true,
+      "implementation": "tools/Invoke-ManagerQualificationScheduler.ps1",
+      "proof_manifest": "tests/knowledge/qualification/capability-proofs.json",
+      "entry_behavior_owner": "entry_bounded",
+      "receipt_must_bind": [
+        "exact_source_commit",
+        "exact_source_tree",
+        "risk_context_identity",
+        "selected_requirement_ids",
+        "selected_capability_suite_ids",
+        "executed_proof_ids",
+        "result"
+      ]
+    },
+    "fresh_boundaries": [
+      "candidate_freeze",
+      "Source Gate",
+      "Full Gate",
+      "production install/update/rollback acceptance"
+    ],
+    "fresh_validation_at_new_boundary_required": true,
+    "source_gate_full_gate_production_acceptance_deduplication_permitted": false
+  },
+  "capability_suite_direction": {
+    "recursive_suite_invocation_permitted": false,
+    "orchestrator_count": 1,
+    "target_suites": [
+      "registry_recovery",
+      "inbox_handoff",
+      "captured_context",
+      "current_safety",
+      "update_restart",
+      "genesis_registry_transaction",
+      "frontend_recovery",
+      "compatibility",
+      "transaction_fault_properties"
+    ],
+    "legacy_version_scripts": {
+      "status": "static_provenance_active_behavior_flattened",
+      "freeze_blocker": false,
+      "source_recursion_retained_for_provenance": true,
+      "active_behavior_owner": "historical_flat_lineage",
+      "reason": "Historical version-specific source adapters remain byte-for-byte provenance, but the qualification scheduler never executes them recursively. Current behavioral coverage materializes disposable leaf copies through the flat historical runner and executes each preserved assertion body once."
+    }
+  },
+  "preserved_safety_invariants": [
+    "immutable_canonical_instance_id",
+    "registry_authority_once_active",
+    "exact_artifact_instance_binding",
+    "cross_instance_fail_closed",
+    "captured_invocation_context",
+    "fresh_commit_boundary_validation",
+    "deterministic_atomic_publication_semantics",
+    "destination_collision_detection",
+    "durable_commit_vs_post_commit_failure_distinction",
+    "downgrade_compatibility_isolation",
+    "Doctor",
+    "actual_update_install_rollback_qualification",
+    "exact_source_and_artifact_identity",
+    "fresh_qualification_at_freeze_and_production_boundaries"
+  ],
+  "stranded_input_transaction_review": {
+    "source_symbol": "Reconcile-StrandedGlobalHubInputsForExistingRegistry",
+    "current_semantic_rule": "R-REGISTRY-PENDING-GLOBAL-INVALID-INIT",
+    "open_defect": "MGR-DEF-0034",
+    "design_source": "tests/knowledge/architecture/stranded-input-reconciliation-4.17.13.json",
+    "previous_batch_semantics": "whole_batch_preflight_stage_publish_with_rollback",
+    "current_problem": "A verified unpublished stage can become the only surviving known-good copy if its global source changes or disappears; unconditional finally cleanup then deletes that stage.",
+    "state_machine_review_completed": true,
+    "product_change_deferred_until_state_machine_review": false,
+    "implementation_authorized": true,
+    "selected_contract": {
+      "name": "per_artifact_claim_validate_publish",
+      "algorithm": [
+        "atomically claim one recognized global Hub artifact into durable neutral Manager reconciliation state",
+        "validate claimed bytes and immutable canonical instance_id before choosing a per-instance destination",
+        "resolve the exact registered instance by instance_id only",
+        "freshly revalidate registry target and destination collision state at the artifact commit boundary",
+        "atomically move the exact validated claim into the exact per-instance inbox with fail-if-destination-exists semantics",
+        "verify durable destination and distinguish pre-commit failure from post-commit verification failure",
+        "record completed handoff and continue with the next independent artifact"
+      ],
+      "later_failure_semantics": [
+        "already completed exact handoffs remain valid",
+        "failed or unprocessed artifacts or claims remain durable blocking state",
+        "operation reports explicit partial result and failure",
+        "ordinary Hub operations remain fail_closed while stranded global Hub inputs or reconciliation claims remain"
+      ],
+      "requires_state_machine_change": true,
+      "implementation_pending": true
+    }
+  },
+  "consolidation_state": {
+    "single_scheduler_receipt_boundary": "implemented",
+    "risk_gate_direct_regression_execution": "removed",
+    "dedicated_entry_workflow_duplicate_matrix_execution": "removed_model_only",
+    "bounded_entry_plan": "implemented",
+    "bounded_entry_executor": "implemented_scheduler_owned",
+    "legacy_count_based_entry_behavioral_ownership": "removed_static_provenance_only",
+    "transaction_fault_suite_separation": "pending",
+    "legacy_recursive_version_scripts": "active_qualification_flattened_static_sources_retained",
+    "stranded_input_semantic_review": "complete",
+    "stranded_input_product_implementation": "pending"
+  },
+  "known_duplication": {
+    "development_same_sha_execution_owner": "tools/Invoke-ManagerQualificationScheduler.ps1",
+    "risk_gate_mode": "receipt_verification_only",
+    "dedicated_entry_workflow_mode": "model_plan_oracle_only",
+    "same_sha_same_boundary_independent_entry_matrix_duplication_removed": true,
+    "outer_development_plan_duplicate_removed": true,
+    "historical_source_recursion_retained": true,
+    "active_historical_behavior_recursion_removed": true,
+    "development_state_magic_count_drift_confirmed": true
+  },
+  "ordered_acceptance": [
+    "record_and_validate_qualification_architecture",
+    "separate_entry_reachability_from_transaction_fault_properties",
+    "derive_bounded_entry_coverage_from_state_machine_winning_rules_and_control_flow_classes",
+    "introduce_flat_capability_suite_selection_and_single_execution_scheduler",
+    "remove_same_SHA_same_boundary_duplicate_proof_execution",
+    "review_stranded_input_state_machine_semantics_and_choose_transaction_contract",
+    "flatten_active_historical_behavior_and_replace_legacy_count_based_entry_behavioral_ownership",
+    "implement_the_chosen_stranded_input_product_contract_and_capability_property_coverage",
+    "obtain_one_coherent_exact_head_Development_PASS",
+    "run_full_successor_Risk_Defect_assessment_over_qualified_base_to_exact_head",
+    "perform_fresh_semantic_and_adversarial_review",
+    "consider_candidate_freeze_only_when_all_blockers_are_closed"
+  ]
+}

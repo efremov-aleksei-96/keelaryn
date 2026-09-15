@@ -1,0 +1,113 @@
+{
+  "schema": "keelaryn.manager-stranded-input-transaction-properties.v1",
+  "work_item": "MANAGER-41713-TRANSACTION-001",
+  "defect": "MGR-DEF-0034",
+  "semantic_design": "tests/knowledge/architecture/stranded-input-reconciliation-4.17.13.json",
+  "semantic_owner": "tests/knowledge/state-machines/multi-hub.json",
+  "primary_invariant": "MH-HANDOFF-001",
+  "scope": "existing-registry reconciliation of Manager-global Hub-owned input into exact registered per-instance inboxes",
+  "entry_reachability_owned": false,
+  "fixed_property_count_is_release_invariant": false,
+  "transaction_contract": "per_artifact_claim_validate_publish",
+  "claim_contract": {
+    "root": "manager/state/reconciliation/hub-inputs",
+    "same_manager_state_volume_required": true,
+    "payload_is_durable_transaction_state": true,
+    "claim_metadata_survives_payload_publication_until_final_destination_verification": true,
+    "target_selection_before_post_claim_identity_validation_permitted": false,
+    "silent_claim_cleanup_permitted": false,
+    "ordinary_hub_bound_operations_blocked_while_unresolved": true,
+    "doctor_visibility_required": true
+  },
+  "properties": [
+    {
+      "id": "SITP-001",
+      "name": "claim_survives_source_loss_before_publication",
+      "fault": "remove original global source immediately after atomic claim and before target publication",
+      "expected": "the claimed exact payload remains durable and discoverable; failure cannot remove the claim merely because the original global path no longer exists",
+      "invariants": ["MH-HANDOFF-001", "MH-INBOX-001"]
+    },
+    {
+      "id": "SITP-002",
+      "name": "claim_survives_source_mutation_equivalent",
+      "fault": "replace the original source pathname after claim with different bytes before publication",
+      "expected": "claim identity derives from claimed bytes, not the newly occupied source pathname; the exact claim remains durable and no wrong bytes are published or used for cleanup",
+      "invariants": ["MH-HANDOFF-001", "MH-COMMIT-001"]
+    },
+    {
+      "id": "SITP-003",
+      "name": "claimed_bytes_validate_before_target_resolution",
+      "fault": "claim a recognized filename whose payload is invalid or lacks canonical instance_id",
+      "expected": "validation fails closed while the durable claim remains recoverable; active selection or friendly name cannot choose a target",
+      "invariants": ["MH-IDENTITY-001", "MH-HANDOFF-001", "MH-ISOLATION-001"]
+    },
+    {
+      "id": "SITP-004",
+      "name": "unknown_or_ambiguous_instance_fails_closed",
+      "fault": "claim validates to an instance_id that resolves to zero or multiple authoritative registry rows",
+      "expected": "no destination publication occurs; claim is retained; no active or unrelated registered instance receives the artifact",
+      "invariants": ["MH-REGISTRY-001", "MH-ISOLATION-001", "MH-HANDOFF-001"]
+    },
+    {
+      "id": "SITP-005",
+      "name": "registry_target_revalidated_at_commit_boundary",
+      "fault": "change the authoritative registry target path or identity relationship after claim validation but before publication",
+      "expected": "publication fails closed against stale target information and the exact claim remains durable",
+      "invariants": ["MH-COMMIT-001", "MH-BINDING-001", "MH-HANDOFF-001"]
+    },
+    {
+      "id": "SITP-006",
+      "name": "different_destination_collision_never_overwrites",
+      "fault": "occupy exact per-instance destination with different or unverifiable bytes before publication",
+      "expected": "destination is not overwritten and exact claim remains durable for explicit recovery",
+      "invariants": ["MH-PUBLISH-001", "MH-HANDOFF-001"]
+    },
+    {
+      "id": "SITP-007",
+      "name": "same_exact_destination_is_idempotent",
+      "fault": "restart with a durable claim whose exact validated artifact is already present at the exact instance-bound destination",
+      "expected": "destination is verified as exact completed publication; claim may be retired only after verification; no duplicate or destructive rewrite occurs",
+      "invariants": ["MH-BINDING-001", "MH-HANDOFF-001", "MH-POSTCOMMIT-001"]
+    },
+    {
+      "id": "SITP-008",
+      "name": "postcommit_verification_failure_preserves_destination_and_claim_marker",
+      "fault": "inject failure after atomic claim-to-destination move but before successful final verification/claim retirement",
+      "expected": "destination is preserved, claim metadata remains discoverable as post-commit/ambiguous state, and no destructive rollback is attempted",
+      "invariants": ["MH-POSTCOMMIT-001", "MH-HANDOFF-001"]
+    },
+    {
+      "id": "SITP-009",
+      "name": "later_artifact_failure_preserves_prior_completed_handoff",
+      "fault": "complete one exact handoff, then make a later independent artifact invalid or fail before its publication",
+      "expected": "earlier destination remains authoritative and exact; current failed claim/unprocessed global input remains blocking; prior handoff is not rolled back",
+      "invariants": ["MH-LIFECYCLE-001", "MH-INBOX-001", "MH-HANDOFF-001"]
+    },
+    {
+      "id": "SITP-010",
+      "name": "restart_discovers_and_resumes_claim",
+      "fault": "terminate between durable claim creation and final claim retirement, then invoke InitializeInstanceRegistry again",
+      "expected": "restart discovers the durable claim deterministically and resumes/reconciles it before reporting clean initialization",
+      "invariants": ["MH-RECOVERY-001", "MH-HANDOFF-001", "MH-INBOX-001"]
+    },
+    {
+      "id": "SITP-011",
+      "name": "doctor_and_hub_operations_surface_unresolved_claim",
+      "fault": "leave a durable unresolved claim with otherwise healthy registry/active Hub state",
+      "expected": "Doctor explicitly reports the claim and ordinary Hub-bound update/candidate operations fail closed until reconciliation; Manager-global operations remain governed independently",
+      "invariants": ["MH-REACHABILITY-001", "MH-MANAGER-GLOBAL-001", "MH-HANDOFF-001"]
+    }
+  ],
+  "historical_migration": {
+    "ER-103": "Superseded as an Entry supplemental. Its useful later-publication-failure concern is preserved by SITP-009 without requiring whole-batch rollback.",
+    "ER-104": "Superseded as an Entry supplemental. Its known-good-copy preservation concern is strengthened by SITP-001, SITP-002 and SITP-008.",
+    "legacy_matrix_execution": "static migration provenance only; these transaction properties are owned by a dedicated property runner"
+  },
+  "acceptance": {
+    "pre_fix_red_required": true,
+    "post_fix_green_required": true,
+    "windows_disposable_execution_required": true,
+    "production_hub_use_permitted": false,
+    "candidate_freeze_permitted": false
+  }
+}

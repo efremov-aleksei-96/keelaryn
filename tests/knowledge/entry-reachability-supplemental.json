@@ -1,0 +1,55 @@
+{
+    "schema":  "keelaryn.manager-entry-reachability-supplemental.v1",
+    "purpose":  "Permanent fault-injection proof for transaction branches that are intentionally not represented as distinct production states in the canonical entry-reachability cross-product.",
+    "scenarios":  [
+                      {
+                          "id":  "ER-103",
+                          "requirement":  "SR-PENDING-GLOBAL-PUBLICATION-ROLLBACK",
+                          "state":  "REGISTRY_PENDING_GLOBAL",
+                          "action":  "InitializeInstanceRegistry",
+                          "fixture":  "registry_pending_global_rollback_fault",
+                          "expected_mode":  "registry_init_publication_fault_rolls_back_batch",
+                          "proof_mode":  "phase4_fault_after_first_verified_publication",
+                          "invariants":  [
+                                             "MH-COMMIT-001",
+                                             "MH-LIFECYCLE-001",
+                                             "MH-INBOX-001"
+                                         ],
+                          "required_assertions":  [
+                                                      "two_valid_identity_bound_global_sources",
+                                                      "first_destination_published_and_verified_before_fault",
+                                                      "real_phase4_catch_executes",
+                                                      "all_new_destinations_rolled_back",
+                                                      "all_global_sources_preserved_with_exact_hashes",
+                                                      "no_stage_residue",
+                                                      "registry_active_compat_baseline_and_hubs_unchanged"
+                                                  ]
+                      },
+                      {
+                          "id":  "ER-104",
+                          "requirement":  "SR-PENDING-GLOBAL-ROLLBACK-SOURCE-PRESERVATION",
+                          "state":  "REGISTRY_PENDING_GLOBAL",
+                          "action":  "InitializeInstanceRegistry",
+                          "fixture":  "registry_pending_global_rollback_fault",
+                          "expected_mode":  "registry_init_publication_fault_preserves_verified_destination_on_source_loss",
+                          "proof_mode":  "phase4_fault_after_first_publication_with_source_loss",
+                          "invariants":  [
+                                             "MH-COMMIT-001",
+                                             "MH-LIFECYCLE-001",
+                                             "MH-INBOX-001"
+                                         ],
+                          "required_assertions":  [
+                                                      "two_valid_identity_bound_global_sources",
+                                                      "first_destination_published_and_verified_before_source_loss",
+                                                      "first_global_source_removed_after_publication",
+                                                      "real_phase4_catch_executes",
+                                                      "verified_first_destination_retained_when_source_integrity_cannot_be_proven",
+                                                      "second_global_source_preserved_with_exact_hash",
+                                                      "second_destination_not_published",
+                                                      "no_stage_residue",
+                                                      "registry_active_compat_baseline_and_hubs_unchanged",
+                                                      "partial_durable_handoff_reported_fail_closed"
+                                                  ]
+                      }
+                  ]
+}

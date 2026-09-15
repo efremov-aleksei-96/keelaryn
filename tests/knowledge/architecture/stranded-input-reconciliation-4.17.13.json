@@ -1,0 +1,120 @@
+{
+  "schema": "keelaryn.stranded-input-reconciliation-design.v1",
+  "design_id": "SIR-41713-001",
+  "status": "semantic_review_complete_implementation_pending",
+  "scope": "existing-registry reconciliation of stranded Manager-global Hub-owned input files",
+  "replaces_semantics": "whole-batch preflight/stage/publish/rollback",
+  "selected_semantics": "per-artifact claim_validate_publish",
+  "decision": "Whole-batch atomicity is not a required safety invariant once the registry is authoritative. A completed exact per-artifact handoff is valid durable progress. Later failures must not roll it back; failed/unprocessed input remains Manager-global and keeps ordinary Hub operations fail-closed.",
+  "why_batch_atomicity_is_not_required": [
+    "registry and active selection are already authoritative before this recovery path starts",
+    "each Hub-owned artifact carries immutable instance_id binding and can resolve exactly one registered target independently",
+    "a completed handoff changes only inbox ownership of that exact artifact and does not change Hub vault bytes, registry identity, active selection or compatibility baseline",
+    "remaining stranded global Hub input already prevents ordinary Hub-bound operations from proceeding",
+    "rolling back an earlier verified handoff after a later independent artifact fails adds destructive data movement without restoring a stronger invariant"
+  ],
+  "algorithm": [
+    {
+      "step": 1,
+      "name": "enumerate",
+      "contract": "Deterministically enumerate recognized Manager-global Hub-owned inputs and reconciliation claims; Manager update packages remain out of scope."
+    },
+    {
+      "step": 2,
+      "name": "claim",
+      "contract": "Atomically move one selected global artifact to a neutral Manager-owned reconciliation claim on the same Manager state volume before target publication. The claim remains outside every per-instance inbox and preserves the only copy if the original global path disappears."
+    },
+    {
+      "step": 3,
+      "name": "validate_claim",
+      "contract": "Validate the claimed bytes, archive/package structure, immutable canonical instance_id and exact content identity after the atomic claim. Invalid or ambiguous claims fail closed and remain durably recoverable."
+    },
+    {
+      "step": 4,
+      "name": "resolve_target",
+      "contract": "Resolve the exact registered instance by canonical instance_id only; friendly name/current active selection never choose the target. Revalidate registry identity/path before publication."
+    },
+    {
+      "step": 5,
+      "name": "collision_check",
+      "contract": "If the exact target filename is occupied by different or unverifiable bytes, fail closed without overwriting. If it already contains the same validated artifact and binding, treat that as idempotent completed publication."
+    },
+    {
+      "step": 6,
+      "name": "publish",
+      "contract": "Atomically move the validated claim into the exact registered per-instance inbox with fail-if-destination-exists semantics. No copy-stage cleanup is part of the success path."
+    },
+    {
+      "step": 7,
+      "name": "verify_commit",
+      "contract": "Verify final destination content identity and instance binding. A successful atomic move followed by failed verification is reported as post-commit/ambiguous verification; the destination is preserved rather than destructively rolled back."
+    },
+    {
+      "step": 8,
+      "name": "continue",
+      "contract": "Record the completed handoff and process the next independent artifact. On any later failure, completed handoffs remain durable; failed/unprocessed artifacts or claims remain blocking state."
+    }
+  ],
+  "claim_recovery_contract": {
+    "claim_is_durable_transaction_state": true,
+    "claim_is_never_silently_deleted": true,
+    "claim_must_remain_discoverable_after_restart": true,
+    "claim_must_block_ordinary_hub_bound_operations_until_resolved": true,
+    "claim_must_be_visible_to_doctor": true,
+    "claim_target_is_not_selected_until_post_claim_identity_validation": true,
+    "claim_cleanup_allowed_only_when": [
+      "an exact verified final destination already exists",
+      "or the exact claim has been safely restored to a recognized global input path"
+    ]
+  },
+  "failure_semantics": {
+    "invalid_artifact": "preserve durable claim/global input; reject fail-closed; no prior completed handoff rollback",
+    "unknown_instance_id": "preserve durable claim; reject fail-closed",
+    "destination_collision_different_bytes": "preserve durable claim; reject fail-closed; never overwrite",
+    "destination_already_same_exact_artifact": "idempotent success for that artifact; retire claim only after exact destination verification",
+    "publication_precommit_failure": "preserve claim; report definite pre-commit failure",
+    "publication_postcommit_verification_failure": "preserve destination; report durable/ambiguous post-commit state distinctly",
+    "later_artifact_failure": "keep all earlier exact completed handoffs; failed/unprocessed state remains blocking"
+  },
+  "state_machine_consequences": {
+    "rule_R_REGISTRY_GLOBAL_PENDING_INIT": "Keep recovery reachability, but define reconciliation as independent per-artifact claim/validate/publish rather than batch staging.",
+    "rule_R_REGISTRY_PENDING_GLOBAL_INVALID_INIT": "Replace whole-batch no-publication requirement. Initialization may make durable progress on independently validated artifacts, then fail closed on an invalid artifact while preserving completed handoffs and all unresolved global/claim state.",
+    "new_state_required": "A durable reconciliation-claim state or equivalent explicit condition must be modeled so restart/Doctor/operation gating cannot treat an interrupted claim as clean.",
+    "ordinary_hub_operation_gate": "Any unresolved recognized global Hub input or reconciliation claim remains a fail-closed blocker."
+  },
+  "preserved_invariants": [
+    "MH-IDENTITY-001",
+    "MH-REGISTRY-001",
+    "MH-BINDING-001",
+    "MH-ISOLATION-001",
+    "MH-LIFECYCLE-001",
+    "MH-COMMIT-001",
+    "MH-POSTCOMMIT-001",
+    "MH-PUBLISH-001",
+    "MH-OUTCOME-001",
+    "MH-INBOX-001",
+    "MH-REACHABILITY-001"
+  ],
+  "required_transaction_properties": [
+    "claim_survives_restart_before_target_publication",
+    "claimed_bytes_are_validated_before_instance_inbox_publication",
+    "cross_instance_claim_application_fails_closed",
+    "different_destination_collision_never_overwrites",
+    "same_exact_destination_is_idempotent",
+    "postcommit_verification_failure_preserves_destination_and_reports_commit_distinction",
+    "later_invalid_artifact_does_not_rollback_prior_completed_handoff",
+    "failed_or_unprocessed_artifact_or_claim_remains_blocking",
+    "no_cleanup_path_can_remove_the_last_verified_copy"
+  ],
+  "historical_regression_migration": {
+    "ER-103": "Replace batch rollback expectation with a property that a later publication failure preserves every earlier completed handoff and the current durable claim/global source.",
+    "ER-104": "Retain its core known-good-copy principle as a transaction property, not an Entry Reachability scenario.",
+    "MGR-DEF-0034": "Add explicit last-verified-copy preservation property around claim interruption/recovery."
+  },
+  "implementation_authorization": {
+    "state_machine_review_completed": true,
+    "product_implementation_may_start": true,
+    "candidate_freeze_permitted": false,
+    "reason": "Implementation and new transaction-property evidence are still pending."
+  }
+}

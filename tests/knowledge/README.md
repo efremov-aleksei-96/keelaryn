@@ -15,9 +15,10 @@ Repository bootstrap is split deliberately:
 - `root-causes.json` — normalized defect/root-cause classes.
 - `defects/*.json` — canonical product/system defects and material process escapes.
 - `invariants/multi-hub.json` — architectural invariants. Invariants are stronger than individual regressions.
-- `state-machines/multi-hub.json` — executable scenario/operation expectation rules.
+- `state-machines/multi-hub.json` — executable state/operation semantics and winning rules. This is the semantic source of truth for state-dependent behavior.
 - `risk-map.json` — source surface -> invariant/root-cause/regression/state-machine mapping.
 - `audits/*.json` — bounded systemic audits that bind open blockers and required scenarios to the state machine before product convergence work.
+- `architecture/*.json` — active machine-readable architecture/consolidation contracts that constrain tooling and qualification design without duplicating historical evidence or volatile branch state.
 
 Historical qualification evidence stays in PRs, commits, workflow runs, artifacts, provenance refs and dedicated evidence files. Knowledge records contain identities/references only; they must not embed large logs or personal Hub content.
 
@@ -31,11 +32,14 @@ A fixed defect must point to permanent executable/static coverage. An open relea
 
 Open release blockers recorded in engineering knowledge must remain synchronized with `MANAGER_DEVELOPMENT_STATE.json`. Risk audits must reference valid defects/invariants/state-machine states and operations; applicable audit scenarios are selected into task risk context through the winning state-machine rules for touched risk surfaces.
 
+Qualification architecture has one additional rule: state-machine winning rules own state semantics; Entry Reachability proves a bounded control-flow/edge cover derived from those semantics, while transaction-fault/property suites prove commit and publication behavior. A fixed scenario count is not a safety invariant. Within one exact source identity and pre-freeze trust boundary, one scheduler should execute each unique proof once and produce a receipt; candidate freeze, Source Gate, Full Gate and production acceptance remain fresh validation boundaries.
+
 ## Tooling
 
 - `tools/Test-ManagerEngineeringKnowledge.ps1` validates root causes, invariants, defect references, state-machine completeness, risk mappings, audit references/scenarios and repository development-state consistency.
+- `tools/Test-ManagerQualificationArchitecture.ps1` validates the active qualification-consolidation contract, preservation of safety invariants, freeze blocking and stranded-input transaction-design dependency.
 - `tools/Build-ManagerRiskContext.ps1 -BaseCommit <sha> -HeadCommit <sha>` derives changed files/functions and writes compact `MANAGER_RISK_CONTEXT.md` plus JSON, including applicable audit scenarios.
-- `tools/Invoke-ManagerRiskDefectGate.ps1` is the strict pre-freeze gate. It validates knowledge, builds the exact diff risk context, rejects unresolved release blockers, requires coverage for touched invariants, and runs applicable executable regressions.
+- `tools/Invoke-ManagerRiskDefectGate.ps1` is the strict pre-freeze gate. During consolidation its target role is requirement selection/enforcement plus verification of an exact-identity execution receipt; direct duplicate child execution is being retired before candidate freeze.
 
 Knowledge integrity is allowed to PASS before open product blockers are fixed. The strict Risk/Defect Gate is not: that distinction prevents the knowledge-bootstrap work itself from being blocked while preserving fail-closed candidate freeze discipline.
 

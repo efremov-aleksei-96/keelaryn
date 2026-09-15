@@ -1,0 +1,93 @@
+name: Entry reachability validation
+
+on:
+  push:
+    branches:
+      - 'dev/**'
+    paths:
+      - 'tests/knowledge/entry-reachability.json'
+      - 'tests/knowledge/entry-reachability-control-flow.json'
+      - 'tests/knowledge/entry-reachability-oracles.json'
+      - 'tests/knowledge/invariants/multi-hub.json'
+      - 'tests/knowledge/state-machines/multi-hub.json'
+      - 'tests/knowledge/architecture/qualification-consolidation-4.17.13.json'
+      - 'tools/Build-ManagerEntryReachabilityPlan.ps1'
+      - 'tools/Test-ManagerEntryOracleMigration.ps1'
+      - 'tools/Test-ManagerEntryOracleContract.ps1'
+      - 'tools/Test-ManagerQualificationArchitecture.ps1'
+      - '.github/workflows/entry-reachability-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-entry-model-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  entry-model:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify GitHub Actions supply-chain policy
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify qualification architecture
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerQualificationArchitecture.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Derive bounded entry plan
+        shell: powershell
+        run: |
+          $plan=Join-Path $env:RUNNER_TEMP 'MANAGER_ENTRY_PLAN.json'
+          "KEELARYN_ENTRY_PLAN=$plan" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-ManagerEntryReachabilityPlan.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$plan"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify canonical entry oracle contract
+        shell: powershell
+        run: |
+          $contract=Join-Path $env:RUNNER_TEMP 'MANAGER_ENTRY_ORACLE_CONTRACT.json'
+          "KEELARYN_ENTRY_ORACLE_CONTRACT=$contract" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEntryOracleContract.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$contract"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Audit legacy observation migration only
+        shell: powershell
+        run: |
+          $oracle=Join-Path $env:RUNNER_TEMP 'MANAGER_ENTRY_ORACLE_MIGRATION.json'
+          "KEELARYN_ENTRY_ORACLE=$oracle" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEntryOracleMigration.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$oracle"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload compact entry model evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-entry-model-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.KEELARYN_ENTRY_PLAN }}
+            ${{ env.KEELARYN_ENTRY_ORACLE_CONTRACT }}
+            ${{ env.KEELARYN_ENTRY_ORACLE }}
+          if-no-files-found: warn
+          retention-days: 3
+
+# The canonical multi-Hub state machine owns process-entry semantics. This workflow is intentionally model-only:
+# it derives the bounded winning-rule/control-flow plan, validates explicit canonical oracles and audits legacy
+# observation migration without executing Manager behavior.
+# Real bounded process-entry execution is owned exactly once per Development Validation trust boundary by the
+# scheduler's mandatory entry_bounded proof. Legacy count-based Entry artifacts remain static migration
+# provenance and transaction fault properties remain a separate suite.
+# Fresh real process-entry execution remains mandatory again at candidate freeze, Source Gate, Full Gate and
+# production acceptance; no development receipt is reused across those boundaries.

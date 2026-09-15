@@ -26,11 +26,15 @@
                          "root_cause_classes":  [
                                                     "RC-RECOVERY-001",
                                                     "RC-CONTEXT-001",
-                                                    "RC-OUTCOME-001"
+                                                    "RC-OUTCOME-001",
+                                                    "RC-ENTRY-001"
                                                 ],
                          "regressions":  [
                                              "tools/Invoke-Manager4177ReviewRegression.ps1",
-                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1"
+                                             "tools/Invoke-Manager4179ConvergenceRegression.ps1",
+                                             "tools/Invoke-ManagerEntryReachabilityMatrix.ps1",
+                                             "tools/Invoke-ManagerRecoveryBehaviorRegression.ps1",
+                                             "tools/Invoke-Manager41713ReviewRegression.ps1"
                                          ],
                          "planned_regressions":  [
 
@@ -47,7 +51,23 @@
                                                      "R-REGISTRY-BIND",
                                                      "R-ACTIVE-METADATA-INVALID-BIND",
                                                      "R-BROKEN-ACTIVE-BIND-MISSING",
-                                                     "R-BROKEN-ACTIVE-BIND-CORRUPT"
+                                                     "R-BROKEN-ACTIVE-BIND-CORRUPT",
+                                                     "R-CURRENT-MISSING-LIST",
+                                                     "R-CURRENT-CORRUPT-LIST",
+                                                     "R-CURRENT-MISSING-SWITCH",
+                                                     "R-CURRENT-CORRUPT-SWITCH",
+                                                     "R-CURRENT-MISSING-BIND",
+                                                     "R-CURRENT-CORRUPT-BIND",
+                                                     "R-CURRENT-MISSING-UPDATE-MANAGER",
+                                                     "R-CURRENT-CORRUPT-UPDATE-MANAGER",
+                                                     "R-INACTIVE-CORRUPT-SWITCH",
+                                                     "R-INACTIVE-MISSING-SWITCH",
+                                                     "R-MISMATCH-SWITCH",
+                                                     "R-NONAPPROVED-SWITCH",
+                                                     "R-POSTCOMMIT-SWITCH",
+                                                     "R-REGISTRY-DOCUMENT-INVALID-LIST",
+                                                     "R-SINGLE-BIND",
+                                                     "R-CURRENT-DEGRADED-INIT"
                                                  ]
                      },
                      {
@@ -136,7 +156,9 @@
                          "state_machine_rules":  [
                                                      "R-UPDATE-RESTART-ALL",
                                                      "R-DEFAULT-UPDATE-MANAGER",
-                                                     "R-DEFAULT-UPDATE-ALL"
+                                                     "R-DEFAULT-UPDATE-ALL",
+                                                     "R-BROKEN-ACTIVE-UPDATE-ALL-CORRUPT",
+                                                     "R-BROKEN-ACTIVE-UPDATE-ALL-MISSING"
                                                  ]
                      },
                      {
@@ -188,30 +210,39 @@
                                          "Get-QuickStatus",
                                          "Get-ValidHubPackages",
                                          "Invoke-InitializeInstanceRegistry",
-                                         "Invoke-Doctor"
+                                         "Invoke-Doctor",
+                                         "Get-GlobalHubInputIdentity",
+                                         "Reconcile-StrandedGlobalHubInputsForExistingRegistry",
+                                         "Complete-GlobalHubInputActivationHandoff"
                                      ],
                          "invariants":  [
                                             "MH-LIFECYCLE-001",
                                             "MH-REACHABILITY-001",
                                             "MH-INBOX-001",
+                                            "MH-HANDOFF-001",
                                             "MH-MANAGER-GLOBAL-001"
                                         ],
                          "root_cause_classes":  [
-                                                    "RC-REACHABILITY-001"
+                                                    "RC-REACHABILITY-001",
+                                                    "RC-COMMIT-001",
+                                                    "RC-PUBLISH-001"
                                                 ],
                          "regressions":  [
                                              "tools/Invoke-Manager4176ReviewRegression.ps1",
                                              "tools/Invoke-Manager4179ConvergenceRegression.ps1",
-                                             "tools/Invoke-Manager41711ReviewRegression.ps1"
+                                             "tools/Invoke-Manager41711ReviewRegression.ps1",
+                                             "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
                                          ],
                          "planned_regressions":  [
-
+                                                     "tools/Invoke-ManagerStrandedInputTransactionProperties.ps1"
                                                  ],
                          "state_machine_rules":  [
                                                      "R-SINGLE-PENDING-INIT",
                                                      "R-REGISTRY-GLOBAL-PENDING-HUB-OPS",
                                                      "R-REGISTRY-GLOBAL-PENDING-DOCTOR",
-                                                     "R-REGISTRY-INSTANCE-PENDING-UPDATE"
+                                                     "R-REGISTRY-INSTANCE-PENDING-UPDATE",
+                                                     "R-REGISTRY-GLOBAL-PENDING-INIT",
+                                                     "R-REGISTRY-PENDING-GLOBAL-INVALID-INIT"
                                                  ]
                      },
                      {

@@ -1,0 +1,401 @@
+{
+    "schema":  "keelaryn.manager-entry-reachability.v2",
+    "purpose":  "Executable cross-product proof that critical actions remain reachable or fail closed from real Manager process entry under degraded multi-Hub states. The matrix exists because function-local correctness did not prevent MGR-DEF-0023, MGR-DEF-0024, MGR-DEF-0026 and MGR-DEF-0030.",
+    "states":  [
+                   {
+                       "id":  "REGISTRY_ACTIVE_METADATA_INVALID",
+                       "fixture":  "active_metadata_invalid",
+                       "description":  "instances.json is valid but active_instance.json is malformed/unresolved."
+                   },
+                   {
+                       "id":  "REGISTRY_ACTIVE_HUB_MISSING",
+                       "fixture":  "active_hub_missing",
+                       "description":  "Registry and active selection resolve but the selected Hub directory is missing."
+                   },
+                   {
+                       "id":  "REGISTRY_ACTIVE_HUB_CORRUPT",
+                       "fixture":  "active_hub_corrupt",
+                       "description":  "Registry and active selection resolve but the selected Hub fails structural validation."
+                   },
+                   {
+                       "id":  "REGISTRY_ACTIVE_CURRENT_MISSING",
+                       "fixture":  "active_current_missing",
+                       "description":  "Registry, active selection and active Hub are structurally valid, but both per-instance and compatibility CURRENT checkpoints for the old active context are missing."
+                   },
+                   {
+                       "id":  "REGISTRY_ACTIVE_CURRENT_CORRUPT",
+                       "fixture":  "active_current_corrupt",
+                       "description":  "Registry, active selection and active Hub are structurally valid, but both old-active CURRENT checkpoints are unreadable/corrupt."
+                   },
+                   {
+                       "id":  "REGISTRY_DOCUMENT_INVALID",
+                       "fixture":  "registry_document_invalid",
+                       "description":  "instances.json exists but the authoritative registry document is malformed and unsafe to resolve."
+                   },
+                   {
+                       "id":  "REGISTRY_HEALTHY",
+                       "fixture":  "registry_healthy",
+                       "description":  "Registry document, active selection, active Hub and CURRENT are healthy."
+                   },
+                   {
+                       "id":  "REGISTRY_INACTIVE_HUB_MISSING",
+                       "fixture":  "inactive_hub_missing",
+                       "description":  "Active Hub is healthy while an inactive registered Hub path is missing."
+                   },
+                   {
+                       "id":  "REGISTRY_INACTIVE_HUB_CORRUPT",
+                       "fixture":  "inactive_hub_corrupt",
+                       "description":  "Active Hub is healthy while an inactive registered Hub is structurally corrupt."
+                   },
+                   {
+                       "id":  "REGISTRY_PENDING_GLOBAL",
+                       "fixture":  "registry_pending_global",
+                       "description":  "Registry is healthy while a valid identity-bound Hub input is stranded in the global Manager inbox."
+                   },
+                   {
+                       "id":  "REGISTRY_PENDING_INSTANCE",
+                       "fixture":  "registry_pending_instance",
+                       "description":  "Registry is healthy while a valid Hub input is already pending in the active per-instance inbox."
+                   },
+                   {
+                       "id":  "REGISTRY_PENDING_GLOBAL_INVALID",
+                       "fixture":  "registry_pending_global_mixed_invalid",
+                       "description":  "Registry is healthy while the global Manager inbox contains a valid A input followed by a recognized invalid Z input; initialization must reject without partial per-instance publication."
+                   }
+               ],
+    "actions":  [
+                    {
+                        "id":  "ListInstances",
+                        "class":  "diagnostic_recovery",
+                        "expected_mode":  "list_success",
+                        "invariants":  [
+                                           "MH-REGISTRY-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "entry_list_no_mutation"
+                    },
+                    {
+                        "id":  "SwitchInstance",
+                        "class":  "target_driven_recovery",
+                        "expected_mode":  "target_success",
+                        "invariants":  [
+                                           "MH-RECOVERY-001",
+                                           "MH-SWITCH-001",
+                                           "MH-COMMIT-001"
+                                       ],
+                        "proof_mode":  "target_switch"
+                    },
+                    {
+                        "id":  "BindInstance",
+                        "class":  "target_driven_recovery",
+                        "expected_mode":  "target_success",
+                        "invariants":  [
+                                           "MH-RECOVERY-001",
+                                           "MH-REBIND-001",
+                                           "MH-BINDING-001"
+                                       ],
+                        "proof_mode":  "changed_path_rebind_commit"
+                    },
+                    {
+                        "id":  "UpdateManager",
+                        "class":  "manager_global",
+                        "expected_mode":  "global_success",
+                        "invariants":  [
+                                           "MH-MANAGER-GLOBAL-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "install_successor_restart"
+                    },
+                    {
+                        "id":  "BuildDistribution",
+                        "class":  "manager_global",
+                        "expected_mode":  "global_success",
+                        "invariants":  [
+                                           "MH-MANAGER-GLOBAL-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "manager_global_execution"
+                    },
+                    {
+                        "id":  "BuildRelease",
+                        "class":  "manager_global",
+                        "expected_mode":  "global_success",
+                        "invariants":  [
+                                           "MH-MANAGER-GLOBAL-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "manager_global_execution"
+                    },
+                    {
+                        "id":  "BuildAIContext",
+                        "class":  "manager_global",
+                        "expected_mode":  "global_success",
+                        "invariants":  [
+                                           "MH-MANAGER-GLOBAL-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "manager_global_execution"
+                    },
+                    {
+                        "id":  "Doctor",
+                        "class":  "diagnostic",
+                        "expected_mode":  "diagnostic_reached",
+                        "invariants":  [
+                                           "MH-REGISTRY-001",
+                                           "MH-ISOLATION-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "diagnostic_body"
+                    },
+                    {
+                        "id":  "UpdateHub",
+                        "class":  "hub_bound",
+                        "expected_mode":  "fail_closed",
+                        "invariants":  [
+                                           "MH-CONTEXT-001",
+                                           "MH-ISOLATION-001"
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
+                    },
+                    {
+                        "id":  "UpdateAll",
+                        "class":  "mixed_manager_hub",
+                        "expected_mode":  "fail_closed",
+                        "invariants":  [
+                                           "MH-CONTEXT-001",
+                                           "MH-COMPAT-001",
+                                           "MH-MANAGER-GLOBAL-001"
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
+                    },
+                    {
+                        "id":  "RepairCurrent",
+                        "class":  "active_context_transport_repair",
+                        "expected_mode":  "fail_closed",
+                        "invariants":  [
+                                           "MH-BINDING-001",
+                                           "MH-CONTEXT-001"
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
+                    },
+                    {
+                        "id":  "BuildCandidateTransport",
+                        "class":  "hub_bound",
+                        "expected_mode":  "fail_closed",
+                        "invariants":  [
+                                           "MH-LIFECYCLE-001",
+                                           "MH-CONTEXT-001",
+                                           "MH-BINDING-001"
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
+                    },
+                    {
+                        "id":  "RestoreCandidateTransport",
+                        "class":  "hub_bound",
+                        "expected_mode":  "fail_closed",
+                        "invariants":  [
+                                           "MH-LIFECYCLE-001",
+                                           "MH-CONTEXT-001",
+                                           "MH-BINDING-001"
+                                       ],
+                        "proof_mode":  "fail_closed_no_hub_mutation"
+                    },
+                    {
+                        "id":  "SelfTest",
+                        "class":  "manager_global_diagnostic",
+                        "expected_mode":  "global_success",
+                        "invariants":  [
+                                           "MH-MANAGER-GLOBAL-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "manager_global_execution"
+                    },
+                    {
+                        "id":  "PrepareTests",
+                        "class":  "manager_global",
+                        "expected_mode":  "global_success",
+                        "invariants":  [
+                                           "MH-MANAGER-GLOBAL-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "manager_global_execution"
+                    },
+                    {
+                        "id":  "InitializePresentation",
+                        "class":  "manager_global",
+                        "expected_mode":  "global_success",
+                        "invariants":  [
+                                           "MH-MANAGER-GLOBAL-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "manager_global_execution"
+                    },
+                    {
+                        "id":  "FinalizeFilesystemLayout",
+                        "class":  "manager_global",
+                        "expected_mode":  "global_success",
+                        "invariants":  [
+                                           "MH-MANAGER-GLOBAL-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "manager_global_execution"
+                    },
+                    {
+                        "id":  "InitializeInstanceRegistry",
+                        "class":  "registry_recovery",
+                        "expected_mode":  "global_success",
+                        "invariants":  [
+                                           "MH-REGISTRY-001",
+                                           "MH-RECOVERY-001"
+                                       ],
+                        "proof_mode":  "manager_global_execution"
+                    }
+                ],
+    "coverage_requirements":  [
+                                  {
+                                      "id":  "CR-ALL-DEGRADED-ENTRY",
+                                      "states":  [
+                                                     "REGISTRY_ACTIVE_METADATA_INVALID",
+                                                     "REGISTRY_ACTIVE_HUB_MISSING",
+                                                     "REGISTRY_ACTIVE_HUB_CORRUPT",
+                                                     "REGISTRY_ACTIVE_CURRENT_MISSING",
+                                                     "REGISTRY_ACTIVE_CURRENT_CORRUPT"
+                                                 ],
+                                      "actions":  [
+                                                      "ListInstances",
+                                                      "SwitchInstance",
+                                                      "BindInstance",
+                                                      "UpdateManager",
+                                                      "BuildDistribution",
+                                                      "BuildRelease",
+                                                      "BuildAIContext",
+                                                      "Doctor",
+                                                      "UpdateHub",
+                                                      "SelfTest",
+                                                      "PrepareTests",
+                                                      "InitializePresentation",
+                                                      "FinalizeFilesystemLayout"
+                                                  ]
+                                  },
+                                  {
+                                      "id":  "CR-CURRENT-DEGRADED-BOUNDARIES",
+                                      "states":  [
+                                                     "REGISTRY_ACTIVE_CURRENT_MISSING",
+                                                     "REGISTRY_ACTIVE_CURRENT_CORRUPT"
+                                                 ],
+                                      "actions":  [
+                                                      "UpdateAll",
+                                                      "RepairCurrent",
+                                                      "BuildCandidateTransport",
+                                                      "RestoreCandidateTransport",
+                                                      "InitializeInstanceRegistry"
+                                                  ]
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-INIT-INVALID-ACTIVE",
+                                      "states":  [
+                                                     "REGISTRY_ACTIVE_METADATA_INVALID",
+                                                     "REGISTRY_ACTIVE_HUB_MISSING",
+                                                     "REGISTRY_ACTIVE_HUB_CORRUPT"
+                                                 ],
+                                      "actions":  [
+                                                      "InitializeInstanceRegistry"
+                                                  ],
+                                      "expected_mode":  "registry_init_rejected_after_dispatch"
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-GLOBAL",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "UpdateManager",
+                                                      "BuildDistribution",
+                                                      "BuildRelease",
+                                                      "BuildAIContext",
+                                                      "SelfTest",
+                                                      "PrepareTests",
+                                                      "InitializePresentation",
+                                                      "FinalizeFilesystemLayout"
+                                                  ]
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-DOCTOR",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "Doctor"
+                                                  ]
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-RECOVERY",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "ListInstances",
+                                                      "SwitchInstance",
+                                                      "BindInstance"
+                                                  ],
+                                      "expected_mode":  "registry_document_rejected_after_dispatch"
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-INIT",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "InitializeInstanceRegistry"
+                                                  ],
+                                      "expected_mode":  "registry_init_rejected_after_dispatch"
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-DOCUMENT-INVALID-BOUND",
+                                      "states":  [
+                                                     "REGISTRY_DOCUMENT_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "UpdateHub",
+                                                      "UpdateAll",
+                                                      "RepairCurrent",
+                                                      "BuildCandidateTransport",
+                                                      "RestoreCandidateTransport"
+                                                  ]
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-INIT-VALID-EXISTING",
+                                      "states":  [
+                                                     "REGISTRY_HEALTHY",
+                                                     "REGISTRY_INACTIVE_HUB_MISSING",
+                                                     "REGISTRY_INACTIVE_HUB_CORRUPT",
+                                                     "REGISTRY_PENDING_INSTANCE"
+                                                 ],
+                                      "actions":  [
+                                                      "InitializeInstanceRegistry"
+                                                  ],
+                                      "expected_mode":  "global_success"
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-INIT-PENDING-GLOBAL",
+                                      "states":  [
+                                                     "REGISTRY_PENDING_GLOBAL"
+                                                 ],
+                                      "actions":  [
+                                                      "InitializeInstanceRegistry"
+                                                  ],
+                                      "expected_mode":  "registry_init_reconciles_global_input"
+                                  },
+                                  {
+                                      "id":  "CR-REGISTRY-INIT-PENDING-GLOBAL-MIXED-INVALID",
+                                      "states":  [
+                                                     "REGISTRY_PENDING_GLOBAL_INVALID"
+                                                 ],
+                                      "actions":  [
+                                                      "InitializeInstanceRegistry"
+                                                  ],
+                                      "expected_mode":  "registry_init_mixed_invalid_rejected_without_partial_handoff"
+                                  }
+                              ],
+    "freeze_rule":  "Every pair generated by coverage_requirements must execute through the real Manager process entry on a disposable Windows installation. Every compatibility-shadow bypass action must have executable entry coverage. Any new PrimaryModeCount action absent from manager-entry-policy.json is a release blocker. A scenario harness may not restore state through the same runtime path under test and must publish a result record even when setup or cleanup fails. BindInstance coverage must execute a changed-path rebind transaction and assert the new registry path is committed without Manager-driven Hub-byte movement or cloning. UpdateManager coverage must seed a newer valid disposable Manager package and assert the successor is installed, self-test succeeds, and the restarted -UpdateManager process reaches its post-install no-newer-package completion path. InitializeInstanceRegistry invalid-active coverage must prove operation-specific rejection after real process-entry dispatch. REGISTRY_DOCUMENT_INVALID must cover every modeled entry action; List/Switch/Bind must prove action-level registry reparsing while unsafe rows never become recovery targets. Existing-registry Initialize semantics for healthy, inactive-degraded, CURRENT-degraded, pending-instance and pending-global states must execute through real process entry; pending-global must prove identity-bound transfer into the registered per-instance inbox. Rejected and non-target scenarios must preserve authoritative Hub lifecycle state unless the modeled operation explicitly performs the pending-global inbox handoff. Entry-oracle InitializeInstanceRegistry expectations must resolve consistently with the canonical multi-Hub state machine. A mixed valid/invalid pending-global batch must fail before any valid object is published into a per-instance inbox; both global sources must remain and all Hub lifecycle state must remain unchanged."
+}

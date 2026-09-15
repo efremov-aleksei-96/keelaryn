@@ -90,7 +90,7 @@ $evidence=Join-Path $OutputDirectory 'evidence'
 [void][System.IO.Directory]::CreateDirectory($evidence)
 
 Write-Host ('Keelaryn development validation - Manager '+$version)
-Write-Host '[1/7] Parse Manager and development/risk PowerShell source...'
+Write-Host '[1/6] Parse Manager and development/risk/qualification PowerShell source...'
 $psFiles=@(Get-ChildItem -LiteralPath $manager -File -Recurse -Force -Filter '*.ps1')
 if($psFiles.Count-eq 0){Fail 'No Manager PowerShell files found.'}
 foreach($file in $psFiles){Parse-File $file.FullName}
@@ -98,19 +98,26 @@ $knowledgeTools=@(
     'tools\Test-ManagerEngineeringKnowledge.ps1',
     'tools\Build-ManagerRiskContext.ps1',
     'tools\Invoke-ManagerRiskDefectGate.ps1',
+    'tools\Invoke-ManagerQualificationScheduler.ps1',
     'tools\Invoke-ManagerRiskContextRegression.ps1',
     'tools\Verify-ManagerReleaseInstructions.ps1',
+    'tools\Invoke-Manager41710ReviewRegression.ps1',
     'tools\Invoke-Manager41711ReviewRegression.ps1',
-    'tools\Invoke-Manager41712ReviewRegression.ps1'
+    'tools\Invoke-Manager41712ReviewRegression.ps1',
+    'tools\Invoke-ManagerRecoveryBehaviorRegression.ps1',
+    'tools\Test-ManagerEntryReachabilityKnowledge.ps1',
+    'tools\Test-ManagerEntryPolicyCompleteness.ps1',
+    'tools\Invoke-ManagerEntryReachabilityMatrix.ps1',
+    'tools\Invoke-Manager41713ReviewRegression.ps1'
 )
 foreach($relative in $knowledgeTools){
     $path=Join-Path $RepositoryRoot $relative
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){Fail('Engineering knowledge tool is missing: '+$relative)}
     Parse-File $path
 }
-Write-Host ('Parser: PASS. Manager files='+$psFiles.Count+'; knowledge tools='+$knowledgeTools.Count) -ForegroundColor Green
+Write-Host ('Parser: PASS. Manager files='+$psFiles.Count+'; qualification tools='+$knowledgeTools.Count) -ForegroundColor Green
 
-Write-Host '[2/7] Validate engineering knowledge and reproducible task risk context...'
+Write-Host '[2/6] Validate engineering knowledge and reproducible task risk context...'
 $knowledgeTool=Join-Path $RepositoryRoot 'tools\Test-ManagerEngineeringKnowledge.ps1'
 Invoke-Child $knowledgeTool @('-RepositoryRoot',$RepositoryRoot)
 $head=Invoke-GitOne @('rev-parse','--verify','HEAD^{commit}')
@@ -130,13 +137,24 @@ $riskContextRegression=Join-Path $RepositoryRoot 'tools\Invoke-ManagerRiskContex
 Invoke-Child $riskContextRegression @('-RepositoryRoot',$RepositoryRoot)
 Write-Host 'Engineering knowledge + risk context reproducibility + lifecycle regression: PASS' -ForegroundColor Green
 
-Write-Host '[3/7] Prove strict Risk/Defect Gate policy state...'
+Write-Host '[3/6] Execute unique qualification proofs and verify strict Risk/Defect Gate policy...'
+$scheduler=Join-Path $RepositoryRoot 'tools\Invoke-ManagerQualificationScheduler.ps1'
+$schedulerRoot=Join-Path $OutputDirectory 'qualification-scheduler'
+[void][System.IO.Directory]::CreateDirectory($schedulerRoot)
+$receiptPath=Join-Path $schedulerRoot 'QUALIFICATION_EXECUTION_RECEIPT.json'
+Invoke-Child $scheduler @('-RepositoryRoot',$RepositoryRoot,'-RiskContextPath',$riskAJson,'-OutputPath',$receiptPath)
+if(-not(Test-Path -LiteralPath $receiptPath -PathType Leaf)){Fail 'Qualification scheduler did not produce a receipt.'}
+$receipt=Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8|ConvertFrom-Json
+if(-not[bool]$receipt.pass-or[int]$receipt.duplicate_execution_count-ne0){Fail 'Qualification scheduler receipt is not a clean unique-execution PASS.'}
+Copy-Item -LiteralPath $receiptPath -Destination (Join-Path $evidence 'QUALIFICATION_EXECUTION_RECEIPT.json') -Force
+
 $riskGateTool=Join-Path $RepositoryRoot 'tools\Invoke-ManagerRiskDefectGate.ps1'
 $riskGateRoot=Join-Path $OutputDirectory 'risk-gate'
-$riskGateRun=Invoke-ChildResult $riskGateTool @('-RepositoryRoot',$RepositoryRoot,'-BaseCommit',$base,'-HeadCommit',$head,'-OutputDirectory',$riskGateRoot)
+$riskGateRun=Invoke-ChildResult $riskGateTool @('-RepositoryRoot',$RepositoryRoot,'-BaseCommit',$base,'-HeadCommit',$head,'-OutputDirectory',$riskGateRoot,'-RiskContextPath',$riskAJson,'-ExecutionReceiptPath',$receiptPath)
 $riskGateEvidence=Join-Path $riskGateRoot 'RISK_DEFECT_GATE.json'
 if(-not(Test-Path -LiteralPath $riskGateEvidence -PathType Leaf)){Fail 'Strict Risk/Defect Gate did not produce evidence.'}
 $riskGateReport=Get-Content -LiteralPath $riskGateEvidence -Raw -Encoding UTF8|ConvertFrom-Json
+if(-not[bool]$riskGateReport.execution_receipt_verified){Fail 'Strict Risk/Defect Gate did not verify the scheduler receipt.'}
 $riskPolicy=[string]$developmentState.qualification.risk_defect_gate.status
 if($riskPolicy-ceq'expected_fail_while_open_release_blockers_exist'){
     if($riskGateRun.ExitCode-ne1){Fail('Strict Risk/Defect Gate must FAIL with exit 1 while blockers are open; actual='+$riskGateRun.ExitCode)}
@@ -145,44 +163,32 @@ if($riskPolicy-ceq'expected_fail_while_open_release_blockers_exist'){
     if($unexpected.Count-ne0){Fail('Strict gate has unexpected failure classes: '+([string]::Join(',',@($unexpected|ForEach-Object{[string]$_.kind+':'+[string]$_.id}))))}
     $actualBlockers=@($riskGateReport.failures|Where-Object{[string]$_.kind-ceq'open_release_blocker'}|ForEach-Object{[string]$_.id})
     Assert-SameStringSet @($developmentState.open_release_blockers) $actualBlockers 'Strict-gate blocker set'
-    Write-Host 'Strict Risk/Defect Gate: expected policy FAIL proven; blocker set exact.' -ForegroundColor Green
+    Write-Host 'Strict Risk/Defect Gate: expected policy FAIL proven; blocker set exact; receipt verified.' -ForegroundColor Green
 }elseif($riskPolicy-ceq'required_pass_before_freeze'){
     if($riskGateRun.ExitCode-ne0 -or -not[bool]$riskGateReport.pass -or -not[bool]$riskGateReport.candidate_freeze_permitted){Fail 'Strict Risk/Defect Gate is required to PASS by development state.'}
     Write-Host 'Strict Risk/Defect Gate: PASS required by policy and observed.' -ForegroundColor Green
 }else{Fail('Unsupported development-state risk gate policy: '+$riskPolicy)}
 Copy-Item -LiteralPath $riskGateEvidence -Destination (Join-Path $evidence 'RISK_DEFECT_GATE_POLICY_CHECK.json') -Force
+Write-Host ('Qualification scheduler ownership: PASS. unique_proofs='+@($receipt.executed_proofs).Count+'; duplicate_execution_count=0') -ForegroundColor Green
 
-Write-Host '[4/7] Run Manager review regression and release-identity chain...'
-$releaseInstructionGuard=Join-Path $RepositoryRoot 'tools\Verify-ManagerReleaseInstructions.ps1'
-Invoke-Child $releaseInstructionGuard @('-RepositoryRoot',$RepositoryRoot)
-foreach($regressionName in @('Invoke-Manager41710ReviewRegression.ps1','Invoke-Manager41711ReviewRegression.ps1','Invoke-Manager41712ReviewRegression.ps1')){
-    $regression=Join-Path $RepositoryRoot ('tools\'+$regressionName)
-    if(-not(Test-Path -LiteralPath $regression -PathType Leaf)){Fail('Manager review regression tool is missing: '+$regressionName)}
-    Parse-File $regression
-    Invoke-Child $regression @('-RepositoryRoot',$RepositoryRoot)
-}
-Write-Host 'Manager 4.17.10 + 4.17.11 + 4.17.12 review regression and release-instruction chain: PASS' -ForegroundColor Green
-
-Write-Host '[5/7] Run Manager and frontend SelfTests from source...'
-$runtime=Join-Path $manager 'product\runtime\Keelaryn__Manager.ps1'
-$menu=Join-Path $manager 'product\tools\KeelarynMenu.ps1'
-Invoke-Child $runtime @('-SelfTest')
-Invoke-Child $menu @('-SelfTest','-NoRootLauncher')
+Write-Host '[4/6] Run Manager and frontend SelfTests from source...'
+$selfTestRoot=Join-Path $OutputDirectory 'source-selftest\manager'
+Copy-Managed $manager $selfTestRoot
+Invoke-Child (Join-Path $selfTestRoot 'product\runtime\Keelaryn__Manager.ps1') @('-SelfTest')
+Invoke-Child (Join-Path $selfTestRoot 'product\tools\KeelarynMenu.ps1') @('-SelfTest','-NoRootLauncher')
 Write-Host 'SelfTests: PASS' -ForegroundColor Green
 
-Write-Host '[6/7] Run deterministic BuildRelease x2 in isolated disposable Manager roots...'
+Write-Host '[5/6] Run deterministic BuildRelease x2 in isolated disposable Manager roots...'
 $buildA=Join-Path $OutputDirectory 'build-a\manager'
 $buildB=Join-Path $OutputDirectory 'build-b\manager'
 Copy-Managed $manager $buildA
 Copy-Managed $manager $buildB
-
 foreach($copy in @($buildA,$buildB)){
     $copyRuntime=Join-Path $copy 'product\runtime\Keelaryn__Manager.ps1'
     Invoke-Child $copyRuntime @('-InitializePresentation')
     Invoke-Child $copyRuntime @('-SelfTest')
     Invoke-Child $copyRuntime @('-BuildRelease')
 }
-
 $expected=@(
     [string]::Concat('Keelaryn__Manager_SOURCE_v',$version,'.zip')
     [string]::Concat('Keelaryn__Manager_Distribution_v',$version,'.zip')
@@ -201,12 +207,13 @@ foreach($name in $expected){
 }
 Write-Host 'Deterministic BuildRelease x2: PASS' -ForegroundColor Green
 
-Write-Host '[7/7] Write compact development evidence...'
+Write-Host '[6/6] Write compact development evidence...'
 $report=[ordered]@{
-    schema='keelaryn.manager-development-validation.v3'
+    schema='keelaryn.manager-development-validation.v4'
     classification='development_only'
     manager_version=$version
     source_sha=$env:GITHUB_SHA
+    source_tree=[string]$receipt.exact_source_tree
     risk_base_commit=$base
     risk_head_commit=$head
     runner=$env:RUNNER_NAME
@@ -214,10 +221,17 @@ $report=[ordered]@{
     engineering_knowledge_pass=$true
     risk_context_reproducible=$true
     risk_context_lifecycle_regression_pass=$true
+    qualification_scheduler_pass=[bool]$receipt.pass
+    qualification_scheduler_unique_proof_count=@($receipt.executed_proofs).Count
+    qualification_scheduler_duplicate_execution_count=[int]$receipt.duplicate_execution_count
+    qualification_execution_receipt_sha256=Sha $receiptPath
     risk_defect_gate_policy_check_pass=$true
     risk_defect_gate_observed_pass=[bool]$riskGateReport.pass
     risk_defect_gate_expected_policy=$riskPolicy
+    risk_defect_gate_execution_receipt_verified=[bool]$riskGateReport.execution_receipt_verified
     review_regressions_pass=$true
+    entry_reachability_pass=$true
+    entry_policy_completeness_pass=$true
     manager_selftest_pass=$true
     frontend_selftest_pass=$true
     deterministic_build_release_pass=$true
@@ -235,6 +249,7 @@ Remove-Item -LiteralPath (Join-Path $OutputDirectory 'build-b') -Recurse -Force
 Remove-Item -LiteralPath (Join-Path $OutputDirectory 'risk-a') -Recurse -Force
 Remove-Item -LiteralPath (Join-Path $OutputDirectory 'risk-b') -Recurse -Force
 Remove-Item -LiteralPath (Join-Path $OutputDirectory 'risk-gate') -Recurse -Force
+Remove-Item -LiteralPath (Join-Path $OutputDirectory 'qualification-scheduler') -Recurse -Force
 
 Write-Host ''
 Write-Host 'KEELARYN DEVELOPMENT VALIDATION: PASS' -ForegroundColor Green

@@ -11,16 +11,29 @@ on:
       - 'PUBLIC_PROVENANCE.json'
       - 'MANAGER_DEVELOPMENT_STATE.json'
       - 'MANAGER_ENGINEERING_ROADMAP.md'
+      - 'ASTRA_ESCALATION.md'
       - 'tools/Invoke-DevelopmentValidation.ps1'
+      - 'tools/Invoke-ManagerQualificationScheduler.ps1'
+      - 'tools/Test-ManagerQualificationProofManifest.ps1'
+      - 'tools/Invoke-ManagerHistoricalFlatRegression.ps1'
       - 'tools/Build-PublicFileManifest.ps1'
       - 'tools/Verify-PublicCandidateMetadata.ps1'
       - 'tools/Verify-PublicRepository.ps1'
       - 'tools/Test-ManagerEngineeringKnowledge.ps1'
+      - 'tools/Test-ManagerQualificationArchitecture.ps1'
+      - 'tools/Build-ManagerEntryReachabilityPlan.ps1'
+      - 'tools/Test-ManagerEntryOracleContract.ps1'
+      - 'tools/Invoke-ManagerBoundedEntryReachability.ps1'
       - 'tools/Build-ManagerRiskContext.ps1'
       - 'tools/Invoke-ManagerRiskDefectGate.ps1'
       - 'tools/Invoke-ManagerRiskContextRegression.ps1'
       - 'tools/Invoke-Manager41711ReviewRegression.ps1'
       - 'tools/Invoke-Manager41712ReviewRegression.ps1'
+      - 'tools/Invoke-ManagerRecoveryBehaviorRegression.ps1'
+      - 'tools/Invoke-Manager41713ReviewRegression.ps1'
+      - 'tools/Test-ManagerEntryReachabilityKnowledge.ps1'
+      - 'tools/Test-ManagerEntryPolicyCompleteness.ps1'
+      - 'tools/Invoke-ManagerEntryReachabilityMatrix.ps1'
       - 'tools/Verify-ManagerReleaseInstructions.ps1'
       - 'tools/Invoke-Manager41710ReviewRegression.ps1'
       - 'tools/Invoke-Manager4179ConvergenceRegression.ps1'
@@ -35,6 +48,7 @@ on:
       - 'tools/Verify-DevelopmentGovernance.ps1'
       - 'DEVELOPMENT_GOVERNANCE.json'
       - '.github/workflows/development-validation.yml'
+      - '.github/workflows/entry-reachability-validation.yml'
       - '.github/workflows/manager-risk-defect-gate.yml'
   workflow_dispatch:
 
@@ -65,6 +79,12 @@ jobs:
         shell: powershell
         run: |
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify qualification architecture contract
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerQualificationArchitecture.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify public source manifest reproducibility
@@ -103,11 +123,15 @@ jobs:
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.json
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.md
+            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\QUALIFICATION_EXECUTION_RECEIPT.json
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\RISK_DEFECT_GATE_POLICY_CHECK.json
           if-no-files-found: warn
           retention-days: 3
 
-# Engineering knowledge integrity, compact task risk context, public manifest/provenance consistency and the risk-context lifecycle regression are development checks.
-# Invoke-DevelopmentValidation.ps1 owns the permanent Manager 4.17.10 + 4.17.11 + 4.17.12 regression chain, including real disposable registry-active Doctor and CANDIDATE-only UpdateHub execution plus the managed release-instruction identity guard. The workflow does not repeat that expensive chain.
-# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run verifies that its observed PASS/FAIL matches repository policy state.
-# Manager 4.17.12 remains unqualified until exact-head validation, full-successor-range Risk/Defect Gate, and pre-freeze adversarial review all pass.
+# Engineering knowledge, qualification architecture, compact task risk context, public manifest/provenance consistency and risk-context lifecycle checks are development checks.
+# One qualification scheduler owns same-SHA same-boundary behavioral proof execution, including bounded state-machine-driven Entry Reachability. The strict Risk/Defect Gate verifies its exact receipt and does not execute child regressions.
+# Historical recursive source adapters are retained byte-for-byte as static provenance identities; current behavioral qualification executes their assertion bodies once through the disposable flat historical runner.
+# Legacy count-based Entry artifacts are static migration provenance only; the bounded executor derives its plan from canonical winning-rule/control-flow semantics and runs each selected edge once.
+# Changes to the dedicated Entry model workflow also trigger this Development Validation boundary so ownership cannot drift without scheduler revalidation.
+# The strict Manager Risk/Defect Gate remains fail-closed while release blockers are open. Source Gate, Full Gate and production acceptance remain separate fresh trust boundaries.
+# Manager 4.17.13 remains unqualified and unfrozen until consolidation, product transaction resolution, exact-head validation, full-successor Risk/Defect assessment and fresh semantic/adversarial review all pass.

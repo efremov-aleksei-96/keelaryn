@@ -1,0 +1,63 @@
+{
+    "schema":  "keelaryn.manager-prefreeze-semantic-review.v1",
+    "purpose":  "Move the strongest semantic product review before candidate immutability. Public-release PR review must not be the first semantic review of a candidate tree.",
+    "required_sequence":  [
+                              "coherent_development_validation_pass",
+                              "entry_reachability_matrix_pass",
+                              "state_machine_entry_oracle_consistency_pass",
+                              "full_successor_risk_defect_gate_pass",
+                              "create_review_base_at_exact_development_base",
+                              "open_draft_prefreeze_review_pr_from_exact_dev_head",
+                              "run_semantic_codex_review_on_exact_dev_head",
+                              "resolve_or_fix_all_findings",
+                              "rerun_semantic_review_after_any_head_change",
+                              "record_clean_latest_review_identity",
+                              "freeze_candidate_tree_identical_to_reviewed_dev_tree"
+                          ],
+    "rules":  [
+                  {
+                      "id":  "PF-SR-001",
+                      "rule":  "The reviewed head SHA must equal the exact authoritative dev head selected for freeze."
+                  },
+                  {
+                      "id":  "PF-SR-002",
+                      "rule":  "Any commit after the latest semantic review invalidates that review for freeze, even when the commit appears metadata-only, unless the freeze operation proves the candidate tree is exactly identical to the reviewed tree."
+                  },
+                  {
+                      "id":  "PF-SR-003",
+                      "rule":  "Any P1 or P2 semantic product finding blocks freeze. A fix requires a new exact-head semantic review."
+                  },
+                  {
+                      "id":  "PF-SR-004",
+                      "rule":  "The pre-freeze PR base is the exact development baseline so the review covers the full successor delta rather than an arbitrarily truncated diff."
+                  },
+                  {
+                      "id":  "PF-SR-005",
+                      "rule":  "Candidate freeze is an empty/tree-identical provenance commit or exact reviewed commit identity; product, framework, regression and qualification-tool bytes may not change between clean semantic review and freeze."
+                  },
+                  {
+                      "id":  "PF-SR-006",
+                      "rule":  "The public-release PR after freeze remains a publication/provenance gate. Any product finding there still rejects the frozen candidate and forces a successor version, but the process treats such a finding as a failure of the pre-freeze review system requiring root-cause analysis before the next successor freeze."
+                  }
+              ],
+    "evidence_required":  {
+                              "review_pr_number":  true,
+                              "review_base_sha":  true,
+                              "reviewed_head_sha":  true,
+                              "latest_semantic_review_id":  true,
+                              "latest_semantic_review_commit":  true,
+                              "latest_review_p1_p2_count":  0,
+                              "reviewed_tree_sha":  true,
+                              "freeze_tree_sha_must_equal_reviewed_tree_sha":  true,
+                              "state_machine_entry_oracle_consistency_pass":  true
+                          },
+    "historical_reason":  {
+                              "public_release_prs_with_postfreeze_findings":  [
+                                                                                  59,
+                                                                                  60,
+                                                                                  61
+                                                                              ],
+                              "latest_failure":  "MGR-DEF-0030",
+                              "lesson":  "A semantic reviewer that repeatedly finds release blockers after freeze belongs before freeze."
+                          }
+}

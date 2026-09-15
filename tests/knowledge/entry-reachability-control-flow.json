@@ -1,0 +1,48 @@
+{
+  "schema": "keelaryn.manager-entry-control-flow.v1",
+  "purpose": "Declarative bridge from real Manager process-entry actions to canonical multi-Hub state-machine semantics. The generated executable plan is a bounded winning-rule/control-flow edge cover; scenario count is derived, never a qualification constant.",
+  "state_machine": "tests/knowledge/state-machines/multi-hub.json",
+  "fixture_states": [
+    {"id":"REGISTRY_ACTIVE_METADATA_INVALID","fixture":"active_metadata_invalid"},
+    {"id":"REGISTRY_ACTIVE_HUB_MISSING","fixture":"active_hub_missing"},
+    {"id":"REGISTRY_ACTIVE_HUB_CORRUPT","fixture":"active_hub_corrupt"},
+    {"id":"REGISTRY_ACTIVE_CURRENT_MISSING","fixture":"active_current_missing"},
+    {"id":"REGISTRY_ACTIVE_CURRENT_CORRUPT","fixture":"active_current_corrupt"},
+    {"id":"REGISTRY_DOCUMENT_INVALID","fixture":"registry_document_invalid"},
+    {"id":"REGISTRY_HEALTHY","fixture":"registry_healthy"},
+    {"id":"REGISTRY_INACTIVE_HUB_MISSING","fixture":"inactive_hub_missing"},
+    {"id":"REGISTRY_INACTIVE_HUB_CORRUPT","fixture":"inactive_hub_corrupt"},
+    {"id":"REGISTRY_PENDING_GLOBAL","fixture":"registry_pending_global"},
+    {"id":"REGISTRY_PENDING_INSTANCE","fixture":"registry_pending_instance"},
+    {"id":"REGISTRY_PENDING_GLOBAL_INVALID","fixture":"registry_pending_global_mixed_invalid"}
+  ],
+  "actions": [
+    {"id":"ListInstances","coverage":"winning_rule_edges","state_machine_operation":"ListInstances"},
+    {"id":"SwitchInstance","coverage":"winning_rule_edges","state_machine_operation":"SwitchInstance"},
+    {"id":"BindInstance","coverage":"winning_rule_edges","state_machine_operation":"BindInstance"},
+    {"id":"UpdateManager","coverage":"winning_rule_edges","state_machine_operation":"UpdateManager"},
+    {"id":"Doctor","coverage":"winning_rule_edges","state_machine_operation":"Doctor"},
+    {"id":"UpdateHub","coverage":"winning_rule_edges","state_machine_operation":"UpdateHub"},
+    {"id":"UpdateAll","coverage":"winning_rule_edges","state_machine_operation":"UpdateAll"},
+    {"id":"RepairCurrent","coverage":"winning_rule_edges","state_machine_operation":"RepairCurrent"},
+    {"id":"BuildCandidateTransport","coverage":"winning_rule_edges","state_machine_operation":"BuildCandidateTransport"},
+    {"id":"RestoreCandidateTransport","coverage":"winning_rule_edges","state_machine_operation":"RestoreCandidateTransport"},
+    {"id":"InitializeInstanceRegistry","coverage":"winning_rule_edges","state_machine_operation":"InitializeRegistry"},
+
+    {"id":"BuildDistribution","coverage":"dispatch_once","semantic_anchor_operation":"UpdateManager","representative_state":"REGISTRY_ACTIVE_METADATA_INVALID","control_flow_class":"manager_global"},
+    {"id":"BuildRelease","coverage":"dispatch_once","semantic_anchor_operation":"UpdateManager","representative_state":"REGISTRY_ACTIVE_METADATA_INVALID","control_flow_class":"manager_global"},
+    {"id":"BuildAIContext","coverage":"dispatch_once","semantic_anchor_operation":"UpdateManager","representative_state":"REGISTRY_ACTIVE_METADATA_INVALID","control_flow_class":"manager_global"},
+    {"id":"SelfTest","coverage":"dispatch_once","semantic_anchor_operation":"UpdateManager","representative_state":"REGISTRY_ACTIVE_METADATA_INVALID","control_flow_class":"manager_global"},
+    {"id":"PrepareTests","coverage":"dispatch_once","semantic_anchor_operation":"UpdateManager","representative_state":"REGISTRY_ACTIVE_METADATA_INVALID","control_flow_class":"manager_global"},
+    {"id":"InitializePresentation","coverage":"dispatch_once","semantic_anchor_operation":"UpdateManager","representative_state":"REGISTRY_ACTIVE_METADATA_INVALID","control_flow_class":"manager_global"},
+    {"id":"FinalizeFilesystemLayout","coverage":"dispatch_once","semantic_anchor_operation":"UpdateManager","representative_state":"REGISTRY_ACTIVE_METADATA_INVALID","control_flow_class":"manager_global"}
+  ],
+  "requirements": {
+    "every_fixture_state_must_exist_in_state_machine": true,
+    "every_winning_rule_edge_for_each_winning_rule_action_must_have_one_representative": true,
+    "every_dispatch_once_action_must_execute_once_through_real_process_entry": true,
+    "manager_global_dispatch_actions_must_not_expand_into_repeated_state_cartesian_products": true,
+    "transaction_fault_injection_is_out_of_scope": true,
+    "fixed_scenario_count_is_forbidden": true
+  }
+}

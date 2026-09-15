@@ -1,0 +1,193 @@
+{
+    "schema":  "keelaryn.manager-defects.v1",
+    "scope":  "Pre-freeze process-entry findings for Manager 4.17.13",
+    "defects":  [
+                    {
+                        "id":  "MGR-DEF-0031",
+                        "title":  "PowerShell automatic $input variable replaces global Hub input descriptor parameter",
+                        "severity":  "P1",
+                        "status":  "fixed",
+                        "release_blocker":  true,
+                        "detected_in":  "4.17.13",
+                        "detected_stage":  "prefreeze_process_entry_qualification",
+                        "defect_class":  "PowerShell automatic-variable collision / pending-input reconciliation reachability",
+                        "affected_surfaces":  [
+                                                  "S-RUNTIME-INBOX"
+                                              ],
+                        "preconditions":  "A valid multi-Hub registry exists, an identity-bound Hub-owned APPROVED/CANDIDATE/transport object is stranded in the global Manager inbox, and InitializeInstanceRegistry dispatches existing-registry reconciliation under Windows PowerShell 5.1.",
+                        "bad_behavior":  "Get-GlobalHubInputIdentity receives the automatic $input enumerator instead of the positional descriptor because its parameter is named $Input. Reconciliation fails immediately with Global Hub input descriptor is invalid before ZIP/transport identity validation or safe transfer can occur.",
+                        "root_cause":  "Windows PowerShell reserves $input as an automatic variable. Declaring Get-GlobalHubInputIdentity($Input) does not preserve the caller-supplied descriptor; function entry replaces it with the pipeline input enumerator. Function-local/static coverage had never executed the pending-global reconciliation path end to end.",
+                        "root_cause_classes":  [
+                                                   "RC-REACHABILITY-001",
+                                                   "RC-ENTRY-001"
+                                               ],
+                        "violated_invariants":  [
+                                                    "MH-INBOX-001",
+                                                    "MH-REACHABILITY-001"
+                                                ],
+                        "related_defects":  [
+
+                                            ],
+                        "permanent_regressions":  [
+                                                      "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
+                                                  ],
+                        "planned_regressions":  [
+
+                                                ],
+                        "fixed_in":  "4.17.13",
+                        "evidence":  [
+                                         {
+                                             "type":  "prefreeze_process_entry_red_run",
+                                             "id":  "34849395914"
+                                         },
+                                         {
+                                             "type":  "prefreeze_process_entry_red_job",
+                                             "id":  "103993196794"
+                                         },
+                                         {
+                                             "type":  "prefreeze_process_entry_red_artifact",
+                                             "id":  "10350446110"
+                                         },
+                                         {
+                                             "type":  "prefreeze_process_entry_red_artifact_sha256",
+                                             "id":  "49b8fc478bc371667cd1948200a5df766fed1973fe402c1d8a6f7fe2ecf7fe21"
+                                         },
+                                         {
+                                             "type":  "prefreeze_process_entry_red_summary",
+                                             "id":  "101 executed; 100 PASS; only REGISTRY_PENDING_GLOBAL x InitializeInstanceRegistry failed; harness_error=false"
+                                         },
+                                         {
+                                             "type":  "powershell_parameter_collision_probe_run",
+                                             "id":  "34850808950"
+                                         },
+                                         {
+                                             "type":  "powershell_parameter_collision_probe_job",
+                                             "id":  "103997985944"
+                                         },
+                                         {
+                                             "type":  "source_symbol",
+                                             "id":  "Get-GlobalHubInputIdentity"
+                                         },
+                                         {
+                                             "type":  "root_cause",
+                                             "id":  "function parameter $Input is replaced by Windows PowerShell automatic $input enumerator"
+                                         }
+                                     ]
+                    },
+                    {
+                        "id":  "MGR-DEF-0032",
+                        "title":  "Existing-registry stranded-input reconciliation publishes an earlier valid destination before a later invalid input is validated",
+                        "severity":  "P1",
+                        "status":  "fixed",
+                        "release_blocker":  true,
+                        "detected_in":  "4.17.13",
+                        "detected_stage":  "prefreeze_adversarial_state_machine_review",
+                        "defect_class":  "multi-input transaction preflight / partial durable inbox handoff",
+                        "affected_surfaces":  [
+                                                  "S-RUNTIME-INBOX"
+                                              ],
+                        "preconditions":  "A valid multi-Hub registry exists and the global Manager inbox contains at least two recognized Hub-owned objects ordered so that a valid identity-bound input is processed before a later invalid input.",
+                        "bad_behavior":  "Reconcile-StrandedGlobalHubInputsForExistingRegistry validates and publishes each destination in one loop. A valid first input is copied into the active per-instance inbox before validation of a later invalid input fails, leaving partial durable/discoverable lifecycle mutation while the command reports failure and global sources remain.",
+                        "root_cause":  "Failure-prone identity, registration, destination and collision validation was interleaved with authoritative per-instance destination publication instead of being completed for the whole batch before the first commit. Single-input ER-101 could not expose this multi-input transaction boundary.",
+                        "root_cause_classes":  [
+                                                   "RC-COMMIT-001",
+                                                   "RC-PUBLISH-001",
+                                                   "RC-REACHABILITY-001"
+                                               ],
+                        "violated_invariants":  [
+                                                    "MH-INBOX-001",
+                                                    "MH-COMMIT-001",
+                                                    "MH-LIFECYCLE-001"
+                                                ],
+                        "related_defects":  [
+                                                "MGR-DEF-0031"
+                                            ],
+                        "permanent_regressions":  [
+                                                      "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
+                                                  ],
+                        "planned_regressions":  [
+
+                                                ],
+                        "fixed_in":  "4.17.13",
+                        "evidence":  [
+                                         {
+                                             "type":  "prefreeze_atomicity_red_run",
+                                             "id":  "34858872734"
+                                         },
+                                         {
+                                             "type":  "prefreeze_atomicity_red_job",
+                                             "id":  "104025497974"
+                                         },
+                                         {
+                                             "type":  "prefreeze_atomicity_red_artifact",
+                                             "id":  "10354056744"
+                                         },
+                                         {
+                                             "type":  "prefreeze_atomicity_red_artifact_sha256",
+                                             "id":  "6530ae9bbb912bfd8060918b923ff267efe31665c0f5889c2f3a5d87b61c7960"
+                                         },
+                                         {
+                                             "type":  "prefreeze_atomicity_red_summary",
+                                             "id":  "exact c7cf09d7: valid A destination was published before invalid Z identity validation failed; both global sources remained; harness_error=false"
+                                         },
+                                         {
+                                             "type":  "source_symbol",
+                                             "id":  "Reconcile-StrandedGlobalHubInputsForExistingRegistry"
+                                         }
+                                     ]
+                    },
+                    {
+                        "id":  "MGR-DEF-0033",
+                        "title":  "Publication rollback can delete the only verified copy after the matching global source changes or disappears",
+                        "severity":  "P1",
+                        "status":  "fixed",
+                        "release_blocker":  true,
+                        "detected_in":  "4.17.13",
+                        "detected_stage":  "fresh_exact_head_prefreeze_semantic_review",
+                        "defect_class":  "rollback preservation / concurrent source mutation / partial durable handoff",
+                        "affected_surfaces":  [
+                                                  "S-RUNTIME-INBOX"
+                                              ],
+                        "preconditions":  "A multi-entry stranded-input handoff publishes and verifies an earlier destination, the matching global source then changes or disappears, and a later publication fails so phase-4 rollback executes.",
+                        "bad_behavior":  "Rollback validates the published destination and deletes it without revalidating the matching global source. If that source disappeared or changed after publication, rollback can destroy the only verified intact copy while reporting that global sources were preserved.",
+                        "root_cause":  "Rollback treated source preservation as a batch-wide assumption established before publication instead of a failure-prone condition that must be revalidated immediately before deleting each published destination.",
+                        "root_cause_classes":  [
+                                                   "RC-COMMIT-001",
+                                                   "RC-PUBLISH-001"
+                                               ],
+                        "violated_invariants":  [
+                                                    "MH-INBOX-001",
+                                                    "MH-COMMIT-001",
+                                                    "MH-LIFECYCLE-001"
+                                                ],
+                        "related_defects":  [
+                                                "MGR-DEF-0032"
+                                            ],
+                        "permanent_regressions":  [
+                                                      "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
+                                                  ],
+                        "planned_regressions":  [
+
+                                                ],
+                        "fixed_in":  "4.17.13",
+                        "evidence":  [
+                                         {
+                                             "type":  "fresh_exact_head_codex_review_comment",
+                                             "id":  "4013015495"
+                                         },
+                                         {
+                                             "type":  "reviewed_prefix_head",
+                                             "id":  "5dab4933d9a9430cba629b27693091b7c8613c9f"
+                                         },
+                                         {
+                                             "type":  "source_symbol",
+                                             "id":  "Reconcile-StrandedGlobalHubInputsForExistingRegistry"
+                                         },
+                                         {
+                                             "type":  "permanent_scenario",
+                                             "id":  "ER-104"
+                                         }
+                                     ]
+                    }
+                ]
+}

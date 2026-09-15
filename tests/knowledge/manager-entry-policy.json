@@ -1,0 +1,218 @@
+{
+    "schema":  "keelaryn.manager-entry-policy.v1",
+    "purpose":  "Complete pre-dispatch classification for every top-level Manager mode. A new PrimaryModeCount member is a release blocker until explicitly classified.",
+    "actions":  [
+                    {
+                        "parameter":  "OpenOnly",
+                        "class":  "active_context_read",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "UpdateManager",
+                        "class":  "manager_global",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "UpdateManager"
+                    },
+                    {
+                        "parameter":  "UpdateHub",
+                        "class":  "active_context_mutation",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  "UpdateHub"
+                    },
+                    {
+                        "parameter":  "UpdateAll",
+                        "class":  "mixed_manager_hub",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  "UpdateAll"
+                    },
+                    {
+                        "parameter":  "SelfTest",
+                        "class":  "manager_global_diagnostic",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "SelfTest"
+                    },
+                    {
+                        "parameter":  "Genesis",
+                        "class":  "active_context_genesis",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "BuildDistribution",
+                        "class":  "manager_global",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "BuildDistribution"
+                    },
+                    {
+                        "parameter":  "InstanceInfo",
+                        "class":  "active_context_diagnostic",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "CheckMigrations",
+                        "class":  "active_context_diagnostic",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "AdoptInstanceIdentity",
+                        "class":  "active_context_mutation",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "ApplyMigrations",
+                        "class":  "active_context_mutation",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "MigrateLegacyNamespace",
+                        "class":  "active_context_mutation",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "MigrateLayout",
+                        "class":  "active_context_mutation",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "FinalizeLayout",
+                        "class":  "active_context_mutation",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "Doctor",
+                        "class":  "diagnostic",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "Doctor"
+                    },
+                    {
+                        "parameter":  "BuildRelease",
+                        "class":  "manager_global",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "BuildRelease"
+                    },
+                    {
+                        "parameter":  "BuildAIContext",
+                        "class":  "manager_global",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "BuildAIContext"
+                    },
+                    {
+                        "parameter":  "RepairCurrentTransport",
+                        "class":  "active_context_transport_repair",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  "RepairCurrent"
+                    },
+                    {
+                        "parameter":  "PrepareTests",
+                        "class":  "manager_global",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "PrepareTests"
+                    },
+                    {
+                        "parameter":  "BuildCandidateTransport",
+                        "class":  "hub_bound",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  "BuildCandidateTransport"
+                    },
+                    {
+                        "parameter":  "RestoreCandidateTransport",
+                        "class":  "hub_bound",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  "RestoreCandidateTransport"
+                    },
+                    {
+                        "parameter":  "InitializePresentation",
+                        "class":  "manager_global",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "InitializePresentation"
+                    },
+                    {
+                        "parameter":  "FinalizeFilesystemLayout",
+                        "class":  "manager_global",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "FinalizeFilesystemLayout"
+                    },
+                    {
+                        "parameter":  "BindInstancePath",
+                        "class":  "target_driven_recovery",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "BindInstance"
+                    },
+                    {
+                        "parameter":  "InitializeInstanceRegistry",
+                        "class":  "registry_recovery",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "InitializeInstanceRegistry"
+                    },
+                    {
+                        "parameter":  "ListInstances",
+                        "class":  "diagnostic_recovery",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "ListInstances"
+                    },
+                    {
+                        "parameter":  "SwitchInstanceId",
+                        "class":  "target_driven_recovery",
+                        "old_active_current":  "bypass",
+                        "unresolved_registry":  "allow_dispatch",
+                        "entry_action":  "SwitchInstance"
+                    },
+                    {
+                        "parameter":  "RegisterInstancePath",
+                        "class":  "registry_target_mutation",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    },
+                    {
+                        "parameter":  "GenesisInstancePath",
+                        "class":  "registry_target_genesis",
+                        "old_active_current":  "reconcile_required",
+                        "unresolved_registry":  "fail_closed",
+                        "entry_action":  null
+                    }
+                ],
+    "conditional_compatibility_shadow_bypass":  {
+        "parameter":  "UpdateAll",
+        "entry_action":  "UpdateAll",
+        "requires_nonblank_expected_instance_id":  true,
+        "requires_preserved_binding_resolution_error":  true,
+        "generic_unresolved_registry_bypass_permitted":  false,
+        "reason":  "A token-bound UpdateAll whose registry and active metadata were revalidated may run its Manager-global phase when captured Hub health resolution failed; the preserved binding error keeps the Hub phase fail-closed on the same captured instance."
+    },
+    "freeze_rule":  "PrimaryModeCount, centralized generic compatibility-shadow bypass, the explicit token-bound UpdateAll conditional exception, and unresolved-registry pre-dispatch allowlist must exactly match this policy. Every generic bypass action requires real process-entry evidence; the conditional UpdateAll exception requires captured-token and preserved-binding-failure evidence."
+}
