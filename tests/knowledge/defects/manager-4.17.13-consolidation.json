@@ -54,7 +54,7 @@
       "id": "MGR-DEF-0035",
       "title": "Token-bound UpdateAll cannot execute its Manager-global phase when the captured active Hub is missing or corrupt",
       "severity": "P1",
-      "status": "closed",
+      "status": "fixed",
       "release_blocker": false,
       "detected_in": "4.17.13",
       "detected_stage": "bounded_state_machine_entry_reachability_migration",
