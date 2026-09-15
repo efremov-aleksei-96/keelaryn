@@ -108,7 +108,13 @@ foreach($relative0 in @($context.applicable_regressions|ForEach-Object{[string]$
         $dynamicId='risk::'+$relative
         Select-Proof $dynamicId $relative @($historicalCapabilities[$relative]) 'risk_selected'
     }else{
-        Fail('Risk-selected regression lacks qualification ownership mapping: '+$relative)
+        $candidate=Join-Path $RepositoryRoot ($relative.Replace('/','\'))
+        $isStatic=(Test-Path -LiteralPath $candidate -PathType Leaf)-and([IO.Path]::GetExtension($candidate)-ine'.ps1')
+        if($isStatic){
+            Select-Proof ('static::'+$relative) $relative @() 'risk_selected_static'
+        }else{
+            Fail('Risk-selected executable regression lacks qualification ownership mapping: '+$relative)
+        }
     }
 }
 
