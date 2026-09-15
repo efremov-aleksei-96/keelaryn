@@ -6,6 +6,7 @@ on:
       - 'dev/manager-4.17.13'
     paths:
       - '.github/workflows/claim-entry-semantic-migration.yml'
+      - 'tools/Invoke-Manager41713ClaimEntrySemanticMigration.ps1'
 
 permissions:
   contents: write
@@ -42,7 +43,7 @@ jobs:
       - name: Apply reviewed claim-first Entry semantic migration
         shell: powershell
         run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Apply-Manager41713ClaimEntrySemanticMigration.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-Manager41713ClaimEntrySemanticMigration.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Validate canonical knowledge and bounded oracle contract
