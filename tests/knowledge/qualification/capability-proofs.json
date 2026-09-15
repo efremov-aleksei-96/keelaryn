@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.manager-qualification-proofs.v1",
-  "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Historical version scripts remain migration adapters until their recursive inheritance is fully flattened; scheduler-owned execution uses explicit leaf arguments where supported and executes the older convergence lineage once per exact source identity and trust boundary. Version-bound historical proofs that cannot execute against the current Manager are retained as static identity targets while successor behavioral capabilities are owned by version-independent/current proofs.",
+  "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Historical version scripts remain migration adapters until their recursive inheritance is fully flattened; scheduler-owned execution uses explicit leaf arguments where supported and executes the older convergence lineage once per exact source identity and trust boundary. Version-bound historical proofs that cannot execute against the current Manager are retained as static identity targets while successor behavioral capabilities are owned by version-independent/current proofs. Meta-validation executed before scheduler selection is represented as static identity if selected by task risk, preventing duplicate execution inside one boundary.",
   "mandatory_development_proofs": [
     "release_identity",
     "convergence_4179_lineage_once",
@@ -17,6 +17,13 @@
       "id": "release_identity",
       "path": "tools/Verify-ManagerReleaseInstructions.ps1",
       "capability_suites": ["compatibility"]
+    },
+    {
+      "id": "risk_context_meta_identity",
+      "path": "tools/Invoke-ManagerRiskContextRegression.ps1",
+      "execution": "static",
+      "meta_validation_owner": "tools/Invoke-DevelopmentValidation.ps1:phase2",
+      "capability_suites": []
     },
     {
       "id": "convergence_4179_lineage_once",
@@ -100,6 +107,7 @@
     "fresh_boundary_receipt_reuse_permitted": false,
     "scheduler_leaf_arguments_are_authoritative": true,
     "version_bound_historical_proofs_may_be_static_identity_only": true,
-    "static_identity_proofs_do_not_claim_behavioral_capabilities": true
+    "static_identity_proofs_do_not_claim_behavioral_capabilities": true,
+    "pre_scheduler_meta_validation_is_not_reexecuted_by_scheduler": true
   }
 }
