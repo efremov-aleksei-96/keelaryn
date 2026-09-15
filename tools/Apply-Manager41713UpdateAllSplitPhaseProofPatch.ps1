@@ -35,7 +35,7 @@ function Try-BindTokenBoundUpdateAllMetadataContextEarly {
     }catch{return $false}
 }
 '@
-$text=$text.Replace($anchor,$helper+"`r`n"+$anchor)
+$text=$text.Replace($anchor,$helper+"`n"+$anchor)
 
 $old=@'
     catch {
