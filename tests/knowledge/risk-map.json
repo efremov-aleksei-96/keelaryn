@@ -219,6 +219,7 @@
                                             "MH-LIFECYCLE-001",
                                             "MH-REACHABILITY-001",
                                             "MH-INBOX-001",
+                                            "MH-HANDOFF-001",
                                             "MH-MANAGER-GLOBAL-001"
                                         ],
                          "root_cause_classes":  [
@@ -233,7 +234,7 @@
                                              "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
                                          ],
                          "planned_regressions":  [
-
+                                                     "tools/Invoke-ManagerStrandedInputTransactionProperties.ps1"
                                                  ],
                          "state_machine_rules":  [
                                                      "R-SINGLE-PENDING-INIT",
