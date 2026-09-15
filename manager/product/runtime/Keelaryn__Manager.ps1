@@ -5598,12 +5598,27 @@ function Reconcile-StrandedGlobalHubInputsForExistingRegistry {
                         if($destItem.PSIsContainer-or($destItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){throw('rollback destination is unsafe: '+[string]$plan.Destination)}
                         $destHash=(Get-FileHash -LiteralPath ([string]$plan.Destination) -Algorithm SHA256).Hash.ToLowerInvariant()
                         if($destHash-ne[string]$plan.Sha256){throw('rollback destination hash is ambiguous: '+[string]$plan.Destination)}
+
+                        # Never discard the only verified copy. A destination published by this
+                        # invocation is removable only while its matching global source is still
+                        # an intact regular file with the exact preflight identity.
+                        if(-not(Test-Path -LiteralPath ([string]$plan.Source) -PathType Leaf)){
+                            throw('rollback source is missing; verified destination retained: '+[string]$plan.Destination+'; source='+[string]$plan.Source)
+                        }
+                        $sourceItem=Get-Item -LiteralPath ([string]$plan.Source) -Force -ErrorAction Stop
+                        if($sourceItem.PSIsContainer-or($sourceItem.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){
+                            throw('rollback source is unsafe; verified destination retained: '+[string]$plan.Destination+'; source='+[string]$plan.Source)
+                        }
+                        $sourceHash=(Get-FileHash -LiteralPath ([string]$plan.Source) -Algorithm SHA256).Hash.ToLowerInvariant()
+                        if($sourceHash-ne[string]$plan.Sha256){
+                            throw('rollback source hash changed; verified destination retained: '+[string]$plan.Destination+'; source='+[string]$plan.Source)
+                        }
                         Remove-Item -LiteralPath ([string]$plan.Destination) -Force -ErrorAction Stop
                     }
                 }catch{[void]$rollbackFailures.Add($_.Exception.Message)}
             }
             if($rollbackFailures.Count-ne0){
-                throw('Stranded global Hub input destination publication failed and rollback was incomplete; partial per-instance handoff may be durable. Global sources were preserved. publication_error='+$publicationError+'; rollback_errors='+([string]::Join(' | ',@($rollbackFailures))))
+                throw('Stranded global Hub input destination publication failed and rollback was incomplete; partial per-instance handoff may be durable. A verified destination is removed only when its matching global source is proven intact; otherwise known-good destination bytes are retained. publication_error='+$publicationError+'; rollback_errors='+([string]::Join(' | ',@($rollbackFailures))))
             }
             throw('Stranded global Hub input destination publication failed before handoff commit; all destinations created by this invocation were rolled back and global sources were preserved. publication_error='+$publicationError)
         }

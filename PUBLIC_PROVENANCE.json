@@ -4,12 +4,12 @@
     "source_manager_version":  "4.17.13",
     "source_gate_baseline_manager_version":  "4.17.12",
     "source_manager_installation_sha256":  "acc2b2eeff9b32775dfeaea2d1ca4ee0b8c4293b14acd70efdd8ca08db4eb66b",
-    "source_manager_gate_managed_content_sha256":  "8710554461f7f2dac2283f8249aaeaeecbc1f14a6983db134f9f95cfe579c269",
+    "source_manager_gate_managed_content_sha256":  "dec7bbb29d035491cba6e7beb8c29ef7720e00e62554902e553df42764da3263",
     "candidate_identity":  {
                                "revision":  "development",
                                "frozen_commit":  null,
                                "frozen_tree":  null,
-                               "validated_development_parent":  "c7cf09d7b0b87646b1235f09653dd470865bca81",
+                               "validated_development_parent":  "5dab4933d9a9430cba629b27693091b7c8613c9f",
                                "immutable":  false,
                                "product_bytes_changed_after_freeze":  false
                            },
@@ -131,18 +131,19 @@
                                                                "candidate_issued":  false,
                                                                "entry_policy_modes":  29,
                                                                "canonical_entry_reachability_scenarios":  102,
-                                                               "supplemental_entry_reachability_scenarios":  1,
-                                                               "entry_reachability_scenarios":  103,
+                                                               "supplemental_entry_reachability_scenarios":  2,
+                                                               "entry_reachability_scenarios":  104,
                                                                "exact_head_validation":  "required_before_freeze",
                                                                "proof_quality_closure":  {
-                                                                                            "status":  "materialized_unqualified_development",
-                                                                                            "trigger":  "fresh Codex review on 4dbb2854 found two P2 qualification gaps",
-                                                                                            "requirements":  [
-                                                                                                                 "ER-103 executes real phase-4 rollback after first verified publication",
-                                                                                                                 "Manager-global global_success cells require action-specific execution evidence"
-                                                                                                             ],
-                                                                                            "exact_green_requalification":  "required_before_freeze"
-                                                                                        },
+                                                                                             "status":  "materialized_unqualified_development",
+                                                                                             "trigger":  "fresh exact-head Codex review found P1 rollback preservation gap after ER-103 closure",
+                                                                                             "requirements":  [
+                                                                                                                  "ER-103 executes real phase-4 rollback after first verified publication with intact sources",
+                                                                                                                  "ER-104 proves rollback retains a verified destination when its matching global source disappears after publication",
+                                                                                                                  "Manager-global global_success cells require action-specific execution evidence"
+                                                                                                              ],
+                                                                                             "exact_green_requalification":  "required_before_freeze"
+                                                                                         },
                                                                "prefreeze_product_fix":  {
                                                                                              "defect_id":  "MGR-DEF-0031",
                                                                                              "status":  "materialized_unqualified_development",
@@ -166,7 +167,16 @@
                                                                                                "red_artifact_sha256":  "6530ae9bbb912bfd8060918b923ff267efe31665c0f5889c2f3a5d87b61c7960",
                                                                                                "fix":  "batch-wide preflight + staging + commit-boundary revalidation + rollback of newly published destinations + explicit post-commit source-cleanup outcome",
                                                                                                "exact_green_requalification":  "required_before_freeze"
-                                                                                           }
+                                                                                           },
+                                                               "prefreeze_rollback_preservation_fix":  {
+                                                                                                           "defect_id":  "MGR-DEF-0033",
+                                                                                                           "status":  "materialized_unqualified_development",
+                                                                                                           "review_comment_id":  "4013015495",
+                                                                                                           "reviewed_prefix_head":  "5dab4933d9a9430cba629b27693091b7c8613c9f",
+                                                                                                           "fix":  "revalidate matching global source immediately before rollback deletion; retain verified destination and report partial durable handoff when source preservation cannot be proven",
+                                                                                                           "permanent_regression":  "ER-104",
+                                                                                                           "exact_green_requalification":  "required_before_freeze"
+                                                                                                       }
                                                            }
                                },
     "publication_status":  {

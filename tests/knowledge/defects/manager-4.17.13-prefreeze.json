@@ -135,6 +135,59 @@
                                              "id":  "Reconcile-StrandedGlobalHubInputsForExistingRegistry"
                                          }
                                      ]
+                    },
+                    {
+                        "id":  "MGR-DEF-0033",
+                        "title":  "Publication rollback can delete the only verified copy after the matching global source changes or disappears",
+                        "severity":  "P1",
+                        "status":  "fixed",
+                        "release_blocker":  true,
+                        "detected_in":  "4.17.13",
+                        "detected_stage":  "fresh_exact_head_prefreeze_semantic_review",
+                        "defect_class":  "rollback preservation / concurrent source mutation / partial durable handoff",
+                        "affected_surfaces":  [
+                                                  "S-RUNTIME-INBOX"
+                                              ],
+                        "preconditions":  "A multi-entry stranded-input handoff publishes and verifies an earlier destination, the matching global source then changes or disappears, and a later publication fails so phase-4 rollback executes.",
+                        "bad_behavior":  "Rollback validates the published destination and deletes it without revalidating the matching global source. If that source disappeared or changed after publication, rollback can destroy the only verified intact copy while reporting that global sources were preserved.",
+                        "root_cause":  "Rollback treated source preservation as a batch-wide assumption established before publication instead of a failure-prone condition that must be revalidated immediately before deleting each published destination.",
+                        "root_cause_classes":  [
+                                                   "RC-COMMIT-001",
+                                                   "RC-PUBLISH-001"
+                                               ],
+                        "violated_invariants":  [
+                                                    "MH-INBOX-001",
+                                                    "MH-COMMIT-001",
+                                                    "MH-LIFECYCLE-001"
+                                                ],
+                        "related_defects":  [
+                                                "MGR-DEF-0032"
+                                            ],
+                        "permanent_regressions":  [
+                                                      "tools/Invoke-ManagerEntryReachabilityMatrix.ps1"
+                                                  ],
+                        "planned_regressions":  [
+
+                                                ],
+                        "fixed_in":  "4.17.13",
+                        "evidence":  [
+                                         {
+                                             "type":  "fresh_exact_head_codex_review_comment",
+                                             "id":  "4013015495"
+                                         },
+                                         {
+                                             "type":  "reviewed_prefix_head",
+                                             "id":  "5dab4933d9a9430cba629b27693091b7c8613c9f"
+                                         },
+                                         {
+                                             "type":  "source_symbol",
+                                             "id":  "Reconcile-StrandedGlobalHubInputsForExistingRegistry"
+                                         },
+                                         {
+                                             "type":  "permanent_scenario",
+                                             "id":  "ER-104"
+                                         }
+                                     ]
                     }
                 ]
 }

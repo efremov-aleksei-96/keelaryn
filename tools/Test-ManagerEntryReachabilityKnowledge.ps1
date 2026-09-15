@@ -69,20 +69,22 @@ foreach($sid in @('REGISTRY_HEALTHY','REGISTRY_INACTIVE_HUB_MISSING','REGISTRY_I
 if($pairs.Count-ne102){Fail('Canonical entry-reachability cross-product must remain exactly 102; actual='+$pairs.Count)}
 
 $supplementRows=@($supplement.scenarios)
-if($supplementRows.Count-ne1){Fail('Supplemental entry-reachability scenario count must be exactly 1; actual='+$supplementRows.Count)}
-$s=$supplementRows[0]
-if([string]$s.id-cne'ER-103'){Fail 'Supplemental rollback proof must retain id ER-103.'}
-if([string]$s.requirement-cne'SR-PENDING-GLOBAL-PUBLICATION-ROLLBACK'){Fail 'Supplemental rollback requirement id mismatch.'}
-if([string]$s.state-cne'REGISTRY_PENDING_GLOBAL'-or-not$stateIds.Contains([string]$s.state)){Fail 'Supplemental rollback proof must use the canonical REGISTRY_PENDING_GLOBAL state.'}
-if([string]$s.action-cne'InitializeInstanceRegistry'-or-not$actionIds.Contains([string]$s.action)){Fail 'Supplemental rollback proof must exercise InitializeInstanceRegistry.'}
-if([string]$s.fixture-cne'registry_pending_global_rollback_fault'){Fail 'Supplemental rollback fixture mismatch.'}
-if([string]$s.expected_mode-cne'registry_init_publication_fault_rolls_back_batch'){Fail 'Supplemental rollback expected mode mismatch.'}
-if([string]$s.proof_mode-cne'phase4_fault_after_first_verified_publication'){Fail 'Supplemental rollback proof mode mismatch.'}
-$requiredSupplementAssertions=@('two_valid_identity_bound_global_sources','first_destination_published_and_verified_before_fault','real_phase4_catch_executes','all_new_destinations_rolled_back','all_global_sources_preserved_with_exact_hashes','no_stage_residue','registry_active_compat_baseline_and_hubs_unchanged')
-foreach($token in $requiredSupplementAssertions){if(@($s.required_assertions|ForEach-Object{[string]$_}) -cnotcontains $token){Fail('Supplemental rollback proof omitted assertion '+$token)}}
-foreach($iid in @($s.invariants)){if(-not$invariantIds.Contains([string]$iid)){Fail('Supplemental rollback proof references unknown invariant '+[string]$iid)}}
-foreach($iid in @('MH-COMMIT-001','MH-LIFECYCLE-001','MH-INBOX-001')){if(@($s.invariants|ForEach-Object{[string]$_}) -cnotcontains $iid){Fail('Supplemental rollback proof omitted invariant '+$iid)}}
-$executableTotal=$pairs.Count+$supplementRows.Count;if($executableTotal-ne103){Fail('Executable entry-reachability scenario total must be 103; actual='+$executableTotal)}
+if($supplementRows.Count-ne2){Fail('Supplemental entry-reachability scenario count must be exactly 2; actual='+$supplementRows.Count)}
+$er103=@($supplementRows|Where-Object{[string]$_.id-ceq'ER-103'});$er104=@($supplementRows|Where-Object{[string]$_.id-ceq'ER-104'})
+if($er103.Count-ne1-or$er104.Count-ne1){Fail 'Supplemental rollback proofs must contain exactly ER-103 and ER-104.'}
+$er103=$er103[0];$er104=$er104[0]
+foreach($s in @($er103,$er104)){
+    if([string]$s.state-cne'REGISTRY_PENDING_GLOBAL'-or-not$stateIds.Contains([string]$s.state)){Fail([string]$s.id+' must use canonical REGISTRY_PENDING_GLOBAL.')}
+    if([string]$s.action-cne'InitializeInstanceRegistry'-or-not$actionIds.Contains([string]$s.action)){Fail([string]$s.id+' must exercise InitializeInstanceRegistry.')}
+    if([string]$s.fixture-cne'registry_pending_global_rollback_fault'){Fail([string]$s.id+' rollback fixture mismatch.')}
+    foreach($iid in @($s.invariants)){if(-not$invariantIds.Contains([string]$iid)){Fail([string]$s.id+' references unknown invariant '+[string]$iid)}}
+    foreach($iid in @('MH-COMMIT-001','MH-LIFECYCLE-001','MH-INBOX-001')){if(@($s.invariants|ForEach-Object{[string]$_}) -cnotcontains $iid){Fail([string]$s.id+' omitted invariant '+$iid)}}
+}
+if([string]$er103.requirement-cne'SR-PENDING-GLOBAL-PUBLICATION-ROLLBACK'-or[string]$er103.expected_mode-cne'registry_init_publication_fault_rolls_back_batch'-or[string]$er103.proof_mode-cne'phase4_fault_after_first_verified_publication'){Fail 'ER-103 rollback contract mismatch.'}
+foreach($token in @('two_valid_identity_bound_global_sources','first_destination_published_and_verified_before_fault','real_phase4_catch_executes','all_new_destinations_rolled_back','all_global_sources_preserved_with_exact_hashes','no_stage_residue','registry_active_compat_baseline_and_hubs_unchanged')){if(@($er103.required_assertions|ForEach-Object{[string]$_}) -cnotcontains $token){Fail('ER-103 omitted assertion '+$token)}}
+if([string]$er104.requirement-cne'SR-PENDING-GLOBAL-ROLLBACK-SOURCE-PRESERVATION'-or[string]$er104.expected_mode-cne'registry_init_publication_fault_preserves_verified_destination_on_source_loss'-or[string]$er104.proof_mode-cne'phase4_fault_after_first_publication_with_source_loss'){Fail 'ER-104 source-loss rollback contract mismatch.'}
+foreach($token in @('two_valid_identity_bound_global_sources','first_destination_published_and_verified_before_source_loss','first_global_source_removed_after_publication','real_phase4_catch_executes','verified_first_destination_retained_when_source_integrity_cannot_be_proven','second_global_source_preserved_with_exact_hash','second_destination_not_published','no_stage_residue','registry_active_compat_baseline_and_hubs_unchanged','partial_durable_handoff_reported_fail_closed')){if(@($er104.required_assertions|ForEach-Object{[string]$_}) -cnotcontains $token){Fail('ER-104 omitted assertion '+$token)}}
+$executableTotal=$pairs.Count+$supplementRows.Count;if($executableTotal-ne104){Fail('Executable entry-reachability scenario total must be 104; actual='+$executableTotal)}
 
 if([string]::IsNullOrWhiteSpace([string]$model.freeze_rule)){Fail 'Entry-reachability freeze_rule is empty.'}
 if(-not([string]$model.freeze_rule).Contains('may not restore state through the same runtime path under test')){Fail 'Freeze rule must prohibit runtime-dependent scenario reset.'}
