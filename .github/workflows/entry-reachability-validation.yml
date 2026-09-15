@@ -13,6 +13,7 @@ on:
       - 'tests/knowledge/architecture/qualification-consolidation-4.17.13.json'
       - 'tools/Build-ManagerEntryReachabilityPlan.ps1'
       - 'tools/Invoke-ManagerBoundedEntryReachability.ps1'
+      - 'tools/Apply-Manager41713UpdateAllSplitPhaseProofPatch.ps1'
       - 'tools/Test-ManagerEntryOracleMigration.ps1'
       - 'tools/Test-ManagerEntryOracleContract.ps1'
       - 'tools/Test-ManagerQualificationArchitecture.ps1'
@@ -72,6 +73,12 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEntryOracleMigration.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$oracle"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Apply disposable UpdateAll split-phase prototype
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Apply-Manager41713UpdateAllSplitPhaseProofPatch.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Execute bounded real process-entry cover
         shell: powershell
         run: |
@@ -97,7 +104,8 @@ jobs:
 # winning-rule/control-flow edge cover and every derived edge resolves to an explicit oracle;
 # fallback and transaction-fault properties are prohibited here.
 # The legacy Cartesian model remains migration-only evidence. This workflow executes the new
-# bounded real process-entry harness as an isolated development proof; scheduler ownership is
-# not changed until this proof passes on Windows.
+# bounded real process-entry harness as an isolated development proof. The UpdateAll patch step
+# modifies only the disposable workflow checkout to validate MGR-DEF-0035 semantics before any
+# managed product bytes are committed; scheduler ownership is not changed here.
 # Fresh real process-entry execution remains mandatory at candidate freeze, Source Gate,
 # Full Gate and production acceptance.
