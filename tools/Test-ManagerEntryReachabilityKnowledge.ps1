@@ -16,8 +16,10 @@ function Add-Unique($Set,[string]$Id,[string]$Kind){if([string]::IsNullOrWhiteSp
 
 $invariants=Read-Json 'tests/knowledge/invariants/multi-hub.json'
 $model=Read-Json 'tests/knowledge/entry-reachability.json'
+$supplement=Read-Json 'tests/knowledge/entry-reachability-supplemental.json'
 $stateMachine=Read-Json 'tests/knowledge/state-machines/multi-hub.json'
 if([string]$model.schema-cne'keelaryn.manager-entry-reachability.v2'){Fail('Unexpected entry-reachability schema: '+[string]$model.schema)}
+if([string]$supplement.schema-cne'keelaryn.manager-entry-reachability-supplemental.v1'){Fail('Unexpected supplemental entry-reachability schema: '+[string]$supplement.schema)}
 
 $invariantIds=New-Set;$invariantById=@{}
 foreach($row in @($invariants.invariants)){$id=[string]$row.id;Add-Unique $invariantIds $id 'invariant';$invariantById[$id]=$row}
@@ -43,6 +45,7 @@ foreach($requiredState in @('REGISTRY_DOCUMENT_INVALID','REGISTRY_HEALTHY','REGI
 foreach($requiredAction in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout','InitializeInstanceRegistry','UpdateHub','UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport')){if(-not$actionIds.Contains($requiredAction)){Fail('Required action is missing: '+$requiredAction)}}
 if([string]$actionById['BindInstance'].proof_mode-cne'changed_path_rebind_commit'){Fail 'BindInstance must require changed_path_rebind_commit proof.'}
 if([string]$actionById['UpdateManager'].proof_mode-cne'install_successor_restart'){Fail 'UpdateManager must require install_successor_restart proof.'}
+foreach($aid in @('BuildDistribution','BuildRelease','BuildAIContext','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout')){if([string]$actionById[$aid].proof_mode-cne'manager_global_execution'){Fail($aid+' must remain bound to manager_global_execution proof mode.')}}
 
 $requirementIds=New-Set;$pairs=New-Set;$pairModes=@{}
 foreach($req in @($model.coverage_requirements)){
@@ -53,24 +56,34 @@ foreach($req in @($model.coverage_requirements)){
         $sid=[string]$state;if(-not$stateIds.Contains($sid)){Fail($rid+' references unknown state '+$sid)}
         foreach($action in @($req.actions)){
             $aid=[string]$action;if(-not$actionIds.Contains($aid)){Fail($rid+' references unknown action '+$aid)}
-            $key=$sid+'|'+$aid
-            if(-not$pairs.Add($key)){Fail('Duplicate generated state/action pair: '+$key)}
-            $mode=[string]$actionById[$aid].expected_mode
-            if($null-ne$req.PSObject.Properties['expected_mode']-and-not[string]::IsNullOrWhiteSpace([string]$req.expected_mode)){$mode=[string]$req.expected_mode}
-            $pairModes[$key]=$mode
+            $key=$sid+'|'+$aid;if(-not$pairs.Add($key)){Fail('Duplicate generated state/action pair: '+$key)}
+            $mode=[string]$actionById[$aid].expected_mode;if($null-ne$req.PSObject.Properties['expected_mode']-and-not[string]::IsNullOrWhiteSpace([string]$req.expected_mode)){$mode=[string]$req.expected_mode};$pairModes[$key]=$mode
         }
     }
 }
-foreach($sid in @('REGISTRY_ACTIVE_METADATA_INVALID','REGISTRY_ACTIVE_HUB_MISSING','REGISTRY_ACTIVE_HUB_CORRUPT','REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_CORRUPT')){
-    foreach($aid in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout','UpdateHub')){
-        if(-not$pairs.Contains($sid+'|'+$aid)){Fail('All-degraded coverage omitted '+$sid+'|'+$aid)}
-    }
-}
+foreach($sid in @('REGISTRY_ACTIVE_METADATA_INVALID','REGISTRY_ACTIVE_HUB_MISSING','REGISTRY_ACTIVE_HUB_CORRUPT','REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_CORRUPT')){foreach($aid in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout','UpdateHub')){if(-not$pairs.Contains($sid+'|'+$aid)){Fail('All-degraded coverage omitted '+$sid+'|'+$aid)}}}
 foreach($sid in @('REGISTRY_ACTIVE_CURRENT_MISSING','REGISTRY_ACTIVE_CURRENT_CORRUPT')){foreach($aid in @('UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport','InitializeInstanceRegistry')){if(-not$pairs.Contains($sid+'|'+$aid)){Fail('CURRENT-degraded boundary coverage omitted '+$sid+'|'+$aid)}}}
 foreach($sid in @('REGISTRY_ACTIVE_METADATA_INVALID','REGISTRY_ACTIVE_HUB_MISSING','REGISTRY_ACTIVE_HUB_CORRUPT')){if(-not$pairs.Contains($sid+'|InitializeInstanceRegistry')){Fail('Invalid-active registry initialization coverage omitted '+$sid+'|InitializeInstanceRegistry')}}
 foreach($aid in @('ListInstances','SwitchInstance','BindInstance','UpdateManager','BuildDistribution','BuildRelease','BuildAIContext','Doctor','UpdateHub','UpdateAll','RepairCurrent','BuildCandidateTransport','RestoreCandidateTransport','SelfTest','PrepareTests','InitializePresentation','FinalizeFilesystemLayout','InitializeInstanceRegistry')){if(-not$pairs.Contains('REGISTRY_DOCUMENT_INVALID|'+$aid)){Fail('REGISTRY_DOCUMENT_INVALID coverage omitted '+$aid)}}
 foreach($sid in @('REGISTRY_HEALTHY','REGISTRY_INACTIVE_HUB_MISSING','REGISTRY_INACTIVE_HUB_CORRUPT','REGISTRY_PENDING_INSTANCE','REGISTRY_PENDING_GLOBAL','REGISTRY_PENDING_GLOBAL_INVALID')){if(-not$pairs.Contains($sid+'|InitializeInstanceRegistry')){Fail('Existing-registry Initialize coverage omitted '+$sid)}}
-if($pairs.Count-ne102){Fail('Entry-reachability cross-product must be exactly 102 after MGR-DEF-0032 regression; actual='+$pairs.Count)}
+if($pairs.Count-ne102){Fail('Canonical entry-reachability cross-product must remain exactly 102; actual='+$pairs.Count)}
+
+$supplementRows=@($supplement.scenarios)
+if($supplementRows.Count-ne1){Fail('Supplemental entry-reachability scenario count must be exactly 1; actual='+$supplementRows.Count)}
+$s=$supplementRows[0]
+if([string]$s.id-cne'ER-103'){Fail 'Supplemental rollback proof must retain id ER-103.'}
+if([string]$s.requirement-cne'SR-PENDING-GLOBAL-PUBLICATION-ROLLBACK'){Fail 'Supplemental rollback requirement id mismatch.'}
+if([string]$s.state-cne'REGISTRY_PENDING_GLOBAL'-or-not$stateIds.Contains([string]$s.state)){Fail 'Supplemental rollback proof must use the canonical REGISTRY_PENDING_GLOBAL state.'}
+if([string]$s.action-cne'InitializeInstanceRegistry'-or-not$actionIds.Contains([string]$s.action)){Fail 'Supplemental rollback proof must exercise InitializeInstanceRegistry.'}
+if([string]$s.fixture-cne'registry_pending_global_rollback_fault'){Fail 'Supplemental rollback fixture mismatch.'}
+if([string]$s.expected_mode-cne'registry_init_publication_fault_rolls_back_batch'){Fail 'Supplemental rollback expected mode mismatch.'}
+if([string]$s.proof_mode-cne'phase4_fault_after_first_verified_publication'){Fail 'Supplemental rollback proof mode mismatch.'}
+$requiredSupplementAssertions=@('two_valid_identity_bound_global_sources','first_destination_published_and_verified_before_fault','real_phase4_catch_executes','all_new_destinations_rolled_back','all_global_sources_preserved_with_exact_hashes','no_stage_residue','registry_active_compat_baseline_and_hubs_unchanged')
+foreach($token in $requiredSupplementAssertions){if(@($s.required_assertions|ForEach-Object{[string]$_}) -cnotcontains $token){Fail('Supplemental rollback proof omitted assertion '+$token)}}
+foreach($iid in @($s.invariants)){if(-not$invariantIds.Contains([string]$iid)){Fail('Supplemental rollback proof references unknown invariant '+[string]$iid)}}
+foreach($iid in @('MH-COMMIT-001','MH-LIFECYCLE-001','MH-INBOX-001')){if(@($s.invariants|ForEach-Object{[string]$_}) -cnotcontains $iid){Fail('Supplemental rollback proof omitted invariant '+$iid)}}
+$executableTotal=$pairs.Count+$supplementRows.Count;if($executableTotal-ne103){Fail('Executable entry-reachability scenario total must be 103; actual='+$executableTotal)}
+
 if([string]::IsNullOrWhiteSpace([string]$model.freeze_rule)){Fail 'Entry-reachability freeze_rule is empty.'}
 if(-not([string]$model.freeze_rule).Contains('may not restore state through the same runtime path under test')){Fail 'Freeze rule must prohibit runtime-dependent scenario reset.'}
 if(-not([string]$model.freeze_rule).Contains('changed-path rebind transaction')){Fail 'Freeze rule must require real changed-path BindInstance rebind.'}
@@ -81,15 +94,12 @@ if(-not([string]$model.freeze_rule).Contains('mixed valid/invalid pending-global
 function Resolve-StateMachineOutcome([string]$State,[string]$Operation){
     $matches=@($stateMachine.rules|Where-Object{[string]$_.operation-ceq$Operation-and((@($_.states|ForEach-Object{[string]$_}) -ccontains $State)-or(@($_.states|ForEach-Object{[string]$_}) -ccontains '*'))})
     if($matches.Count-eq0){Fail('State machine has no rule for '+$State+' x '+$Operation)}
-    $max=($matches|Measure-Object -Property priority -Maximum).Maximum
-    $top=@($matches|Where-Object{[int]$_.priority-eq[int]$max})
-    if($top.Count-ne1){Fail('State machine rule resolution is ambiguous for '+$State+' x '+$Operation+' at priority '+$max)}
-    return [string]$top[0].outcome
+    $max=($matches|Measure-Object -Property priority -Maximum).Maximum;$top=@($matches|Where-Object{[int]$_.priority-eq[int]$max})
+    if($top.Count-ne1){Fail('State machine rule resolution is ambiguous for '+$State+' x '+$Operation+' at priority '+$max)};return [string]$top[0].outcome
 }
 $initSuccessOutcomes=@('no_op_after_full_validation','existing_registry_valid_without_old_current_dependency','reconcile_identity_bound_global_inputs_then_report_initialized')
 foreach($sid in @($stateIds)){
-    $key=$sid+'|InitializeInstanceRegistry';if(-not$pairs.Contains($key)){continue}
-    $mode=[string]$pairModes[$key];$outcome=Resolve-StateMachineOutcome $sid 'InitializeRegistry'
+    $key=$sid+'|InitializeInstanceRegistry';if(-not$pairs.Contains($key)){continue};$mode=[string]$pairModes[$key];$outcome=Resolve-StateMachineOutcome $sid 'InitializeRegistry'
     if($mode-ceq'global_success'){if($initSuccessOutcomes-cnotcontains$outcome){Fail('Initialize oracle expects success but state machine resolves '+$sid+' to '+$outcome)}}
     elseif($mode-ceq'registry_init_rejected_after_dispatch'){if($outcome-cne'reject_fail_closed'){Fail('Initialize oracle expects rejection but state machine resolves '+$sid+' to '+$outcome)}}
     elseif($mode-ceq'registry_init_reconciles_global_input'){if($outcome-cne'reconcile_identity_bound_global_inputs_then_report_initialized'){Fail('Pending-global Initialize oracle/state-machine mismatch: '+$outcome)}}
@@ -99,4 +109,6 @@ foreach($sid in @($stateIds)){
 Write-Host 'Manager entry-reachability knowledge: PASS' -ForegroundColor Green
 Write-Host ('  states: '+@($model.states).Count)
 Write-Host ('  actions: '+@($model.actions).Count)
-Write-Host ('  generated process-entry scenarios: '+$pairs.Count)
+Write-Host ('  canonical process-entry scenarios: '+$pairs.Count)
+Write-Host ('  supplemental process-entry scenarios: '+$supplementRows.Count)
+Write-Host ('  executable process-entry total: '+$executableTotal)
