@@ -10,7 +10,10 @@ on:
       - 'tests/knowledge/invariants/multi-hub.json'
       - 'tests/knowledge/risk-map.json'
       - 'tests/knowledge/architecture/stranded-input-reconciliation-4.17.13.json'
+      - 'tools/Apply-Manager41713StrandedInputClaimProofPatch.ps1'
       - 'tools/Invoke-ManagerStrandedInputTransactionProperties.ps1'
+      - 'tools/Invoke-ManagerStrandedInputClaimProperties.ps1'
+      - 'tools/Invoke-ManagerBoundedEntryReachability.ps1'
       - 'tools/Test-ManagerQualificationArchitecture.ps1'
       - '.github/workflows/stranded-input-transaction-validation.yml'
   workflow_dispatch:
@@ -52,7 +55,7 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerStrandedInputTransactionProperties.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -ExpectedState Broken -OutputPath "$out"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Upload compact transaction evidence
+      - name: Upload compact RED evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -61,8 +64,83 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
 
-# This development-only workflow intentionally expects the current MGR-DEF-0034 failure
-# before product implementation. PASS means the exact forbidden stage-loss trajectory was
-# reproduced in a disposable Manager; it does not mean the product is correct. After the
-# claim-first implementation lands, this workflow must be converted to fixed-state property
-# validation before MGR-DEF-0034 may close.
+  claim-proof:
+    needs: transaction-red
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify GitHub Actions supply-chain policy
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify transaction architecture contract
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerQualificationArchitecture.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply claim-first patch only to disposable checkout
+        shell: powershell
+        run: |
+          $proof=Join-Path $env:RUNNER_TEMP 'CLAIM_FIRST_PROOF.txt'
+          "KEELARYN_CLAIM_PROOF=$proof" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Apply-Manager41713StrandedInputClaimProofPatch.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" | Tee-Object -FilePath $proof
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runtime=Join-Path $env:GITHUB_WORKSPACE 'manager\product\runtime\Keelaryn__Manager.ps1'
+          ('disposable_patched_runtime_sha256='+(Get-FileHash -LiteralPath $runtime -Algorithm SHA256).Hash.ToLowerInvariant()) | Add-Content -LiteralPath $proof -Encoding UTF8
+
+      - name: Run fixed stranded-input transaction properties
+        shell: powershell
+        run: |
+          $out=Join-Path $env:RUNNER_TEMP 'STRANDED_INPUT_TRANSACTION_FIXED.json'
+          "KEELARYN_CLAIM_EVIDENCE=$out" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerStrandedInputClaimProperties.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$out"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run bounded Entry regression on patched runtime
+        shell: powershell
+        run: |
+          $out=Join-Path $env:RUNNER_TEMP 'BOUNDED_ENTRY_PATCHED.json'
+          "KEELARYN_BOUNDED_PATCHED=$out" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerBoundedEntryReachability.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$out"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run Manager SelfTest on patched runtime
+        shell: powershell
+        run: |
+          $runtime=Join-Path $env:GITHUB_WORKSPACE 'manager\product\runtime\Keelaryn__Manager.ps1'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $runtime -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build release from patched runtime
+        shell: powershell
+        run: |
+          $runtime=Join-Path $env:GITHUB_WORKSPACE 'manager\product\runtime\Keelaryn__Manager.ps1'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $runtime -BuildRelease
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'build_release=PASS' | Add-Content -LiteralPath "$env:KEELARYN_CLAIM_PROOF" -Encoding UTF8
+
+      - name: Upload compact claim-first proof evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-stranded-input-claim-proof-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.KEELARYN_CLAIM_PROOF }}
+            ${{ env.KEELARYN_CLAIM_EVIDENCE }}
+            ${{ env.KEELARYN_BOUNDED_PATCHED }}
+          if-no-files-found: warn
+          retention-days: 3
+
+# Until product implementation lands, transaction-red must reproduce MGR-DEF-0034 on the
+# committed runtime while claim-proof applies the deterministic claim-first patch only inside
+# a disposable Windows checkout. Claim-proof PASS is evidence for materialization, not a release
+# qualification and not permission to close MGR-DEF-0034. After exact proven bytes are committed,
+# this workflow must be converted to fixed-state validation against committed product bytes.
