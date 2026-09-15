@@ -22,6 +22,8 @@ on:
       - 'tools/Test-ManagerEngineeringKnowledge.ps1'
       - 'tools/Test-ManagerQualificationArchitecture.ps1'
       - 'tools/Build-ManagerEntryReachabilityPlan.ps1'
+      - 'tools/Test-ManagerEntryOracleContract.ps1'
+      - 'tools/Invoke-ManagerBoundedEntryReachability.ps1'
       - 'tools/Build-ManagerRiskContext.ps1'
       - 'tools/Invoke-ManagerRiskDefectGate.ps1'
       - 'tools/Invoke-ManagerRiskContextRegression.ps1'
@@ -135,6 +137,6 @@ jobs:
 # Engineering knowledge, qualification architecture, bounded process-entry planning, compact task risk context, public manifest/provenance consistency and risk-context lifecycle checks are development checks.
 # One qualification scheduler owns same-SHA same-boundary proof execution. The strict Risk/Defect Gate verifies its exact receipt and does not execute child regressions.
 # Historical recursive source adapters are retained byte-for-byte as static provenance identities; current behavioral qualification executes their assertion bodies once through the disposable flat historical runner.
-# The legacy Entry Matrix still carries historical scenario-count structure and remains an explicit candidate-freeze blocker under MQA-41713-001.
+# Legacy count-based Entry artifacts remain migration-only until the explicit canonical-oracle bounded executor replaces their behavioral ownership.
 # The strict Manager Risk/Defect Gate remains fail-closed while MGR-DEF-0034 is open. Source Gate, Full Gate and production acceptance remain separate fresh trust boundaries.
 # Manager 4.17.13 remains unqualified and unfrozen until consolidation, product transaction resolution, exact-head validation, full-successor Risk/Defect assessment and fresh semantic/adversarial review all pass.
