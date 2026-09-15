@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.manager-qualification-proofs.v1",
-  "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Historical version scripts remain migration adapters until their recursive inheritance is fully flattened; scheduler-owned execution uses explicit leaf arguments where supported and executes the older convergence lineage once per exact source identity and trust boundary.",
+  "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Historical version scripts remain migration adapters until their recursive inheritance is fully flattened; scheduler-owned execution uses explicit leaf arguments where supported and executes the older convergence lineage once per exact source identity and trust boundary. Version-bound historical proofs that cannot execute against the current Manager are retained as static identity targets while successor behavioral capabilities are owned by version-independent/current proofs.",
   "mandatory_development_proofs": [
     "release_identity",
     "convergence_4179_lineage_once",
@@ -39,10 +39,11 @@
       "migration_only": true
     },
     {
-      "id": "review_41712_leaf",
+      "id": "review_41712_historical_static",
       "path": "tools/Invoke-Manager41712ReviewRegression.ps1",
-      "arguments": ["-LeafOnly"],
-      "capability_suites": ["frontend_recovery", "current_safety"],
+      "execution": "static",
+      "historical_version": "4.17.12",
+      "capability_suites": [],
       "migration_only": true
     },
     {
@@ -92,11 +93,13 @@
     "tools/Invoke-ManagerEntryReachabilityMatrix.ps1": ["registry_recovery", "inbox_handoff", "captured_context", "current_safety", "update_restart", "compatibility"]
   },
   "execution_contract": {
-    "deduplicate_by": "repository-relative canonical proof path plus declared scheduler arguments",
+    "deduplicate_by": "repository-relative canonical proof path plus declared scheduler arguments and execution mode",
     "same_path_same_boundary_max_execution_count": 1,
     "risk_gate_executes_child_proofs": false,
     "scheduler_receipt_required": true,
     "fresh_boundary_receipt_reuse_permitted": false,
-    "scheduler_leaf_arguments_are_authoritative": true
+    "scheduler_leaf_arguments_are_authoritative": true,
+    "version_bound_historical_proofs_may_be_static_identity_only": true,
+    "static_identity_proofs_do_not_claim_behavioral_capabilities": true
   }
 }
