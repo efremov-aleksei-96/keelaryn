@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)][string]$RepositoryRoot)
+param(
+    [Parameter(Mandatory=$true)][string]$RepositoryRoot,
+    [switch]$LeafOnly
+)
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
@@ -9,7 +12,8 @@ $Utf8NoBom=New-Object Text.UTF8Encoding($false)
 function Fail([string]$Message){throw $Message}
 function Assert([bool]$Condition,[string]$Message){if(-not$Condition){Fail $Message}}
 function Get-FunctionAst([string]$Path,[string]$Name){
-    $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($Path,[ref]$tokens,[ref]$errors)
+    $tokens=$null;$errors=$null
+    $ast=[Management.Automation.Language.Parser]::ParseFile($Path,[ref]$tokens,[ref]$errors)
     if(@($errors).Count){Fail('Parser failed for '+$Path+': '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
     $rows=@($ast.FindAll({param($node)$node-is[Management.Automation.Language.FunctionDefinitionAst]},$true)|Where-Object{$_.Name-ceq$Name})
     if($rows.Count-ne1){Fail('function '+$Name+' count='+$rows.Count)}
@@ -22,11 +26,12 @@ $runtimePath=Join-Path $RepositoryRoot 'manager\product\runtime\Keelaryn__Manage
 $menuPath=Join-Path $RepositoryRoot 'manager\product\tools\KeelarynMenu.ps1'
 foreach($p in @($runtimePath,$menuPath)){if(-not(Test-Path -LiteralPath $p -PathType Leaf)){Fail('Required Manager behavior path missing: '+$p)}}
 
-# Inherit the broad multi-Hub convergence suite; it is intentionally version-independent.
-$p=Join-Path $PSHOME 'powershell.exe'
-& $p -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1') -RepositoryRoot $RepositoryRoot
-if($LASTEXITCODE-ne0){Fail 'Inherited multi-Hub convergence/recovery regression failed.'}
-Pass 'RUNTIME' 'target switch and multi-Hub convergence invariants remain executable'
+if(-not$LeafOnly){
+    $p=Join-Path $PSHOME 'powershell.exe'
+    & $p -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1') -RepositoryRoot $RepositoryRoot
+    if($LASTEXITCODE-ne0){Fail 'Inherited multi-Hub convergence/recovery regression failed.'}
+    Pass 'RUNTIME' 'target switch and multi-Hub convergence invariants remain executable'
+}
 
 $menu=[IO.File]::ReadAllText($menuPath,[Text.Encoding]::UTF8)
 $rowsText=Get-FunctionText $menuPath 'Get-FrontendRegistryRows'
