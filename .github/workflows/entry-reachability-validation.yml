@@ -7,6 +7,7 @@ on:
     paths:
       - 'manager/**'
       - 'tests/knowledge/entry-reachability.json'
+      - 'tests/knowledge/entry-reachability-supplemental.json'
       - 'tests/knowledge/invariants/multi-hub.json'
       - 'tests/knowledge/state-machines/multi-hub.json'
       - 'tools/Test-ManagerEntryReachabilityKnowledge.ps1'
