@@ -99,7 +99,7 @@ Require-True ([bool]$transaction.selected_contract.implementation_pending) 'Prod
 
 if([string]$strandedDesign.schema-cne'keelaryn.stranded-input-reconciliation-design.v1'-or[string]$strandedDesign.design_id-cne'SIR-41713-001'){Fail 'Unexpected stranded-input design identity.'}
 if([string]$strandedDesign.status-cne'semantic_review_complete_implementation_pending'){Fail 'Stranded-input design must remain implementation-pending.'}
-if([string]$strandedDesign.selected_semantics-cne'per-artifact claim_validate_publish'.Replace(' ','_')){Fail 'Stranded-input design selected semantics drifted.'}
+if([string]$strandedDesign.selected_semantics-cne'per-artifact claim_validate_publish'){Fail 'Stranded-input design selected semantics drifted.'}
 Require-True ([bool]$strandedDesign.claim_recovery_contract.claim_is_durable_transaction_state) 'Reconciliation claim must be durable transaction state.'
 Require-True ([bool]$strandedDesign.claim_recovery_contract.claim_is_never_silently_deleted) 'Reconciliation claim must never be silently deleted.'
 Require-True ([bool]$strandedDesign.claim_recovery_contract.claim_must_remain_discoverable_after_restart) 'Reconciliation claim must survive restart discovery.'
