@@ -13,6 +13,7 @@ on:
       - 'MANAGER_ENGINEERING_ROADMAP.md'
       - 'ASTRA_ESCALATION.md'
       - 'tools/Invoke-DevelopmentValidation.ps1'
+      - 'tools/Invoke-ManagerQualificationScheduler.ps1'
       - 'tools/Build-PublicFileManifest.ps1'
       - 'tools/Verify-PublicCandidateMetadata.ps1'
       - 'tools/Verify-PublicRepository.ps1'
@@ -124,11 +125,13 @@ jobs:
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.json
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.md
+            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\QUALIFICATION_EXECUTION_RECEIPT.json
             ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\RISK_DEFECT_GATE_POLICY_CHECK.json
           if-no-files-found: warn
           retention-days: 3
 
 # Engineering knowledge, qualification architecture, bounded process-entry planning, compact task risk context, public manifest/provenance consistency and risk-context lifecycle checks are development checks.
-# The current legacy execution graph still repeats some version-specific and Entry Reachability proofs. MQA-41713-001 makes removal of same-SHA same-boundary duplication and recursive suite invocation a candidate-freeze requirement.
+# One qualification scheduler owns same-SHA same-boundary proof execution. The strict Risk/Defect Gate verifies its exact receipt and does not execute child regressions.
+# Historical version scripts still contain recursive predecessor calls and the legacy Entry Matrix still carries historical scenario-count structure; both remain explicit candidate-freeze blockers under MQA-41713-001.
 # The strict Manager Risk/Defect Gate remains fail-closed while MGR-DEF-0034 is open. Source Gate, Full Gate and production acceptance remain separate fresh trust boundaries.
 # Manager 4.17.13 remains unqualified and unfrozen until consolidation, product transaction resolution, exact-head validation, full-successor Risk/Defect assessment and fresh semantic/adversarial review all pass.
