@@ -41,6 +41,7 @@ try{
     foreach($action in @($legacy.actions)){$actionById[[string]$action.id]=$action}
 
     $rows=New-Object System.Collections.ArrayList
+    $unmapped=New-Object System.Collections.ArrayList
     foreach($edge in @($plan.edges)){
         $state=[string]$edge.state
         $action=[string]$edge.action
@@ -49,10 +50,28 @@ try{
             @($_.states|ForEach-Object{[string]$_})-ccontains$state -and
             @($_.actions|ForEach-Object{[string]$_})-ccontains$action
         })
-        if($matches.Count-ne1){Fail('Legacy migration cross-check requires exactly one coverage row for '+$state+' x '+$action+'; actual='+$matches.Count)}
-        $req=$matches[0]
-        $mode=[string]$actionById[$action].expected_mode
-        if($null-ne$req.PSObject.Properties['expected_mode']-and-not[string]::IsNullOrWhiteSpace([string]$req.expected_mode)){$mode=[string]$req.expected_mode}
+        if($matches.Count-gt1){Fail('Legacy migration cross-check is ambiguous for '+$state+' x '+$action+'; coverage rows='+$matches.Count)}
+
+        $mode=$null
+        $requirement=$null
+        $status='unmapped'
+        if($matches.Count-eq1){
+            $req=$matches[0]
+            $mode=[string]$actionById[$action].expected_mode
+            if($null-ne$req.PSObject.Properties['expected_mode']-and-not[string]::IsNullOrWhiteSpace([string]$req.expected_mode)){$mode=[string]$req.expected_mode}
+            $requirement=[string]$req.id
+            $status='mapped'
+        }else{
+            [void]$unmapped.Add([ordered]@{
+                edge_id=[string]$edge.id
+                action=$action
+                state=$state
+                winning_rule=[string]$edge.winning_rule
+                canonical_outcome=[string]$edge.outcome
+                reason='Legacy Cartesian model contains no coverage row for this canonical bounded edge. No fallback is permitted.'
+            })
+        }
+
         [void]$rows.Add([ordered]@{
             edge_id=[string]$edge.id
             kind=[string]$edge.kind
@@ -62,27 +81,41 @@ try{
             state_machine_operation=[string]$edge.state_machine_operation
             winning_rule=[string]$edge.winning_rule
             canonical_outcome=[string]$edge.outcome
+            legacy_mapping_status=$status
             legacy_observation_mode=$mode
-            legacy_requirement=[string]$req.id
+            legacy_requirement=$requirement
         })
     }
 
+    $mappedRows=@($rows|Where-Object{[string]$_.legacy_mapping_status-ceq'mapped'})
     $byRule=@{}
-    foreach($row in @($rows)){
+    foreach($row in $mappedRows){
         $rule=[string]$row.winning_rule
         if(-not$byRule.ContainsKey($rule)){$byRule[$rule]=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)}
         [void]$byRule[$rule].Add([string]$row.legacy_observation_mode)
     }
     foreach($rule in @($byRule.Keys)){
-        if($byRule[$rule].Count-ne1){Fail('Canonical winning rule maps to multiple legacy observation modes: '+$rule+' => '+([string]::Join(',',@($byRule[$rule]))))}
+        if($byRule[$rule].Count-ne1){Fail('Mapped canonical winning rule has conflicting legacy observation modes: '+$rule+' => '+([string]::Join(',',@($byRule[$rule]))))}
     }
 
     $outcomeGroups=New-Object System.Collections.ArrayList
     foreach($outcome in @($rows|ForEach-Object{[string]$_.canonical_outcome}|Sort-Object -Unique)){
-        $modes=@($rows|Where-Object{[string]$_.canonical_outcome-ceq$outcome}|ForEach-Object{[string]$_.legacy_observation_mode}|Sort-Object -Unique)
-        $actions=@($rows|Where-Object{[string]$_.canonical_outcome-ceq$outcome}|ForEach-Object{[string]$_.action}|Sort-Object -Unique)
-        [void]$outcomeGroups.Add([ordered]@{canonical_outcome=$outcome;legacy_observation_modes=$modes;actions=$actions})
+        $groupRows=@($rows|Where-Object{[string]$_.canonical_outcome-ceq$outcome})
+        $modes=@($groupRows|Where-Object{[string]$_.legacy_mapping_status-ceq'mapped'}|ForEach-Object{[string]$_.legacy_observation_mode}|Sort-Object -Unique)
+        $actions=@($groupRows|ForEach-Object{[string]$_.action}|Sort-Object -Unique)
+        $missing=@($groupRows|Where-Object{[string]$_.legacy_mapping_status-ceq'unmapped'}).Count
+        [void]$outcomeGroups.Add([ordered]@{
+            canonical_outcome=$outcome
+            legacy_observation_modes=$modes
+            actions=$actions
+            unmapped_edge_count=$missing
+        })
     }
+
+    $derivedCount=@($plan.edges).Count
+    $mappedCount=$mappedRows.Count
+    $unmappedCount=$unmapped.Count
+    if($mappedCount+$unmappedCount-ne$derivedCount){Fail 'Entry oracle migration accounting is incomplete.'}
 
     $report=[ordered]@{
         schema='keelaryn.manager-entry-oracle-migration-audit.v1'
@@ -90,20 +123,31 @@ try{
         planner_owner='tools/Build-ManagerEntryReachabilityPlan.ps1'
         legacy_cross_check_only='tests/knowledge/entry-reachability.json'
         legacy_semantic_ownership=false
-        derived_edge_count=@($rows).Count
+        missing_legacy_mapping_is_not_failure=true
+        missing_legacy_mapping_must_not_fallback=true
+        derived_edge_count=$derivedCount
+        mapped_edge_count=$mappedCount
+        unmapped_edge_count=$unmappedCount
+        migration_complete=($unmappedCount-eq0)
         fixed_scenario_count_requirement=false
         transaction_fault_injection_included=false
         rows=@($rows)
+        unmapped_edges=@($unmapped)
         outcome_groups=@($outcomeGroups)
+        audit_completed=true
         pass=$true
     }
     if([string]::IsNullOrWhiteSpace($OutputPath)){$OutputPath=Join-Path ([IO.Path]::GetTempPath()) ('MANAGER_ENTRY_ORACLE_MIGRATION_'+[guid]::NewGuid().ToString('N')+'.json')}
     $OutputPath=[IO.Path]::GetFullPath($OutputPath)
     Write-Json $OutputPath $report
-    Write-Host ('MANAGER ENTRY ORACLE MIGRATION AUDIT: PASS; edges='+@($rows).Count+' outcomes='+@($outcomeGroups).Count) -ForegroundColor Green
+    Write-Host ('MANAGER ENTRY ORACLE MIGRATION AUDIT: PASS; edges='+$derivedCount+' mapped='+$mappedCount+' unmapped='+$unmappedCount) -ForegroundColor Green
     foreach($g in @($outcomeGroups)){
-        Write-Host ('  '+[string]$g.canonical_outcome+' => '+([string]::Join(',',@($g.legacy_observation_modes)))+' | actions='+([string]::Join(',',@($g.actions))))
+        Write-Host ('  '+[string]$g.canonical_outcome+' => '+([string]::Join(',',@($g.legacy_observation_modes)))+' | actions='+([string]::Join(',',@($g.actions)))+' | unmapped='+[string]$g.unmapped_edge_count)
     }
+    foreach($gap in @($unmapped)){
+        Write-Host ('  UNMAPPED '+[string]$gap.edge_id+' '+[string]$gap.state+' x '+[string]$gap.action+' rule='+[string]$gap.winning_rule+' outcome='+[string]$gap.canonical_outcome) -ForegroundColor Yellow
+    }
+    Write-Host ('Migration complete: '+($unmappedCount-eq0))
     Write-Host ('Evidence: '+$OutputPath)
 }finally{
     if(Test-Path -LiteralPath $tempPlan){Remove-Item -LiteralPath $tempPlan -Force -ErrorAction SilentlyContinue}
