@@ -46,6 +46,8 @@ function Get-RowId($Value){
     if($null-ne$Value.PSObject.Properties['id']){return [string]$Value.id}
     return [string]$Value
 }
+function Normalize-Arguments($Values){return @($Values|ForEach-Object{[string]$_})}
+function Arguments-Key($Values){return [string]::Join("`0",@(Normalize-Arguments $Values))}
 
 $manifestPath=Join-Path $RepositoryRoot 'tests\knowledge\qualification\capability-proofs.json'
 if(-not(Test-Path -LiteralPath $manifestPath -PathType Leaf)){Fail('Qualification proof manifest missing: '+$manifestPath)}
@@ -75,11 +77,15 @@ foreach($property in @($manifest.historical_path_capabilities.PSObject.Propertie
 }
 
 $selected=New-Object System.Collections.Specialized.OrderedDictionary ([StringComparer]::OrdinalIgnoreCase)
-function Select-Proof([string]$Id,[string]$Path,[string[]]$Suites,[string]$Reason){
+function Select-Proof([string]$Id,[string]$Path,[string[]]$Suites,[string[]]$Arguments,[string]$Reason){
     $canonical=$Path.Replace('\','/')
+    $argumentsNormalized=Normalize-Arguments $Arguments
     if([string]::IsNullOrWhiteSpace($canonical)){Fail('Selected proof path is empty for '+$Id)}
     if($selected.Contains($canonical)){
         $existing=$selected[$canonical]
+        if((Arguments-Key $existing.Arguments)-cne(Arguments-Key $argumentsNormalized)){
+            Fail('Qualification proof path selected with conflicting scheduler arguments: '+$canonical)
+        }
         foreach($suite in @($Suites)){if(@($existing.CapabilitySuites)-cnotcontains$suite){$existing.CapabilitySuites+=,$suite}}
         $existing.Reasons+=,$Reason
         return
@@ -88,6 +94,7 @@ function Select-Proof([string]$Id,[string]$Path,[string[]]$Suites,[string]$Reaso
         Id=$Id
         Path=$canonical
         CapabilitySuites=@($Suites|Sort-Object -Unique)
+        Arguments=@($argumentsNormalized)
         Reasons=@($Reason)
     })
 }
@@ -95,7 +102,8 @@ function Select-Proof([string]$Id,[string]$Path,[string[]]$Suites,[string]$Reaso
 foreach($mandatoryId in @($manifest.mandatory_development_proofs|ForEach-Object{[string]$_})){
     if(-not$proofById.ContainsKey($mandatoryId)){Fail('Mandatory qualification proof id is not declared: '+$mandatoryId)}
     $p=$proofById[$mandatoryId]
-    Select-Proof $mandatoryId ([string]$p.path) @($p.capability_suites|ForEach-Object{[string]$_}) 'mandatory_development'
+    $args=if($null-ne$p.PSObject.Properties['arguments']){@($p.arguments|ForEach-Object{[string]$_})}else{@()}
+    Select-Proof $mandatoryId ([string]$p.path) @($p.capability_suites|ForEach-Object{[string]$_}) $args 'mandatory_development'
 }
 
 foreach($relative0 in @($context.applicable_regressions|ForEach-Object{[string]$_}|Sort-Object -Unique)){
@@ -103,15 +111,15 @@ foreach($relative0 in @($context.applicable_regressions|ForEach-Object{[string]$
     $relative=$relative0.Replace('\','/')
     if($proofByPath.ContainsKey($relative)){
         $p=$proofByPath[$relative]
-        Select-Proof ([string]$p.id) $relative @($p.capability_suites|ForEach-Object{[string]$_}) 'risk_selected'
+        $args=if($null-ne$p.PSObject.Properties['arguments']){@($p.arguments|ForEach-Object{[string]$_})}else{@()}
+        Select-Proof ([string]$p.id) $relative @($p.capability_suites|ForEach-Object{[string]$_}) $args 'risk_selected'
     }elseif($historicalCapabilities.ContainsKey($relative)){
-        $dynamicId='risk::'+$relative
-        Select-Proof $dynamicId $relative @($historicalCapabilities[$relative]) 'risk_selected'
+        Select-Proof ('risk::'+$relative) $relative @($historicalCapabilities[$relative]) @() 'risk_selected'
     }else{
         $candidate=Join-Path $RepositoryRoot ($relative.Replace('/','\'))
         $isStatic=(Test-Path -LiteralPath $candidate -PathType Leaf)-and([IO.Path]::GetExtension($candidate)-ine'.ps1')
         if($isStatic){
-            Select-Proof ('static::'+$relative) $relative @() 'risk_selected_static'
+            Select-Proof ('static::'+$relative) $relative @() @() 'risk_selected_static'
         }else{
             Fail('Risk-selected executable regression lacks qualification ownership mapping: '+$relative)
         }
@@ -142,18 +150,19 @@ foreach($key in @($selected.Keys)){
     $path=Join-Path $RepositoryRoot (([string]$proof.Path).Replace('/','\'))
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){
         [void]$failures.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;kind='missing';message='Selected proof path is missing.'})
-        [void]$executed.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;capability_suites=@($proof.CapabilitySuites);reasons=@($proof.Reasons);kind='missing';result='fail';exit_code=$null})
+        [void]$executed.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;arguments=@($proof.Arguments);capability_suites=@($proof.CapabilitySuites);reasons=@($proof.Reasons);kind='missing';result='fail';exit_code=$null})
         continue
     }
     if([IO.Path]::GetExtension($path)-ine'.ps1'){
-        [void]$executed.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;capability_suites=@($proof.CapabilitySuites);reasons=@($proof.Reasons);kind='static';result='pass';exit_code=$null;sha256=Sha $path})
+        [void]$executed.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;arguments=@();capability_suites=@($proof.CapabilitySuites);reasons=@($proof.Reasons);kind='static';result='pass';exit_code=$null;sha256=Sha $path})
         Write-Host ('  PASS '+[string]$proof.Id+' ['+[string]$proof.Path+']') -ForegroundColor Green
         continue
     }
-    Write-Host ('--- '+[string]$proof.Id+' :: '+[string]$proof.Path+' ---')
-    $run=Invoke-Proof $path @('-RepositoryRoot',$RepositoryRoot)
+    Write-Host ('--- '+[string]$proof.Id+' :: '+[string]$proof.Path+' '+([string]::Join(' ',@($proof.Arguments)))+' ---')
+    $invokeArgs=@('-RepositoryRoot',$RepositoryRoot)+@($proof.Arguments)
+    $run=Invoke-Proof $path $invokeArgs
     $pass=($run.ExitCode-eq0)
-    [void]$executed.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;capability_suites=@($proof.CapabilitySuites);reasons=@($proof.Reasons);kind='executable';result=$(if($pass){'pass'}else{'fail'});exit_code=$run.ExitCode;sha256=Sha $path})
+    [void]$executed.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;arguments=@($proof.Arguments);capability_suites=@($proof.CapabilitySuites);reasons=@($proof.Reasons);kind='executable';result=$(if($pass){'pass'}else{'fail'});exit_code=$run.ExitCode;sha256=Sha $path})
     if(-not$pass){[void]$failures.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;kind='execution';message=('Proof exited '+$run.ExitCode+'.')})}
 }
 
