@@ -34,7 +34,7 @@ jobs:
       - name: Apply, validate and publish exact patch transaction
         shell: powershell
         run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\patcher\tools\GATE_APPLY_41713_MGR_DEF_0033.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE\work" -ExpectedHead "5dab4933d9a9430cba629b27693091b7c8613c9f"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\patcher\tools\GATE_RUN_41713_MGR_DEF_0033.ps1" -PatcherPath "$env:GITHUB_WORKSPACE\patcher\tools\GATE_APPLY_41713_MGR_DEF_0033.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE\work" -ExpectedHead "5dab4933d9a9430cba629b27693091b7c8613c9f"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload patch qualification evidence
