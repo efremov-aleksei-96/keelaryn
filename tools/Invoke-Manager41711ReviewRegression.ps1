@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([string]$RepositoryRoot=(Join-Path $PSScriptRoot '..'))
+param(
+    [string]$RepositoryRoot=(Join-Path $PSScriptRoot '..'),
+    [switch]$LeafOnly
+)
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
@@ -73,9 +76,11 @@ function Get-FunctionText([string]$Path,[string]$Name){
     return [string]$fn[0].Extent.Text
 }
 
-$inherited=Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1'
-$null=Invoke-Captured $inherited @('-RepositoryRoot',$RepositoryRoot) 'Inherited Manager 4.17.9 convergence regression'
-Write-Host '  PASS inherited multi-Hub convergence regression chain'
+if(-not$LeafOnly){
+    $inherited=Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1'
+    $null=Invoke-Captured $inherited @('-RepositoryRoot',$RepositoryRoot) 'Inherited Manager 4.17.9 convergence regression'
+    Write-Host '  PASS inherited multi-Hub convergence regression chain'
+}
 
 $sourceManager=Join-Path $RepositoryRoot 'manager'
 $currentInstall=Get-Content -LiteralPath (Join-Path $sourceManager 'product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
