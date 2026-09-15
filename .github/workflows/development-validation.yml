@@ -48,6 +48,7 @@ on:
       - 'tools/Verify-DevelopmentGovernance.ps1'
       - 'DEVELOPMENT_GOVERNANCE.json'
       - '.github/workflows/development-validation.yml'
+      - '.github/workflows/entry-reachability-validation.yml'
       - '.github/workflows/manager-risk-defect-gate.yml'
   workflow_dispatch:
 
@@ -131,5 +132,6 @@ jobs:
 # One qualification scheduler owns same-SHA same-boundary behavioral proof execution, including bounded state-machine-driven Entry Reachability. The strict Risk/Defect Gate verifies its exact receipt and does not execute child regressions.
 # Historical recursive source adapters are retained byte-for-byte as static provenance identities; current behavioral qualification executes their assertion bodies once through the disposable flat historical runner.
 # Legacy count-based Entry artifacts are static migration provenance only; the bounded executor derives its plan from canonical winning-rule/control-flow semantics and runs each selected edge once.
+# Changes to the dedicated Entry model workflow also trigger this Development Validation boundary so ownership cannot drift without scheduler revalidation.
 # The strict Manager Risk/Defect Gate remains fail-closed while release blockers are open. Source Gate, Full Gate and production acceptance remain separate fresh trust boundaries.
 # Manager 4.17.13 remains unqualified and unfrozen until consolidation, product transaction resolution, exact-head validation, full-successor Risk/Defect assessment and fresh semantic/adversarial review all pass.
