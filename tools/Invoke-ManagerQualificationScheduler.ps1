@@ -48,6 +48,18 @@ function Get-RowId($Value){
 }
 function Normalize-Arguments($Values){return @($Values|ForEach-Object{[string]$_})}
 function Arguments-Key($Values){return [string]::Join("`0",@(Normalize-Arguments $Values))}
+function Get-ProofArguments($Proof){
+    if($null-ne$Proof.PSObject.Properties['arguments']){return @($Proof.arguments|ForEach-Object{[string]$_})}
+    return @()
+}
+function Get-ProofExecution($Proof){
+    if($null-ne$Proof.PSObject.Properties['execution']){
+        $mode=([string]$Proof.execution).Trim().ToLowerInvariant()
+        if(@('executable','static')-cnotcontains$mode){Fail('Unsupported qualification proof execution mode: '+$mode)}
+        return $mode
+    }
+    return 'executable'
+}
 
 $manifestPath=Join-Path $RepositoryRoot 'tests\knowledge\qualification\capability-proofs.json'
 if(-not(Test-Path -LiteralPath $manifestPath -PathType Leaf)){Fail('Qualification proof manifest missing: '+$manifestPath)}
@@ -64,11 +76,14 @@ $riskSha=Sha $RiskContextPath
 $proofById=@{}
 $proofByPath=@{}
 foreach($proof in @($manifest.proofs)){
-    $id=[string]$proof.id;$path=([string]$proof.path).Replace('\','/')
+    $id=[string]$proof.id
+    $path=([string]$proof.path).Replace('\','/')
     if([string]::IsNullOrWhiteSpace($id)-or[string]::IsNullOrWhiteSpace($path)){Fail 'Qualification proof manifest contains an empty id/path.'}
     if($proofById.ContainsKey($id)){Fail('Duplicate qualification proof id: '+$id)}
     if($proofByPath.ContainsKey($path)){Fail('Duplicate qualification proof path: '+$path)}
-    $proofById[$id]=$proof;$proofByPath[$path]=$proof
+    $null=Get-ProofExecution $proof
+    $proofById[$id]=$proof
+    $proofByPath[$path]=$proof
 }
 
 $historicalCapabilities=@{}
@@ -77,14 +92,19 @@ foreach($property in @($manifest.historical_path_capabilities.PSObject.Propertie
 }
 
 $selected=New-Object System.Collections.Specialized.OrderedDictionary ([StringComparer]::OrdinalIgnoreCase)
-function Select-Proof([string]$Id,[string]$Path,[string[]]$Suites,[string[]]$Arguments,[string]$Reason){
+function Select-Proof([string]$Id,[string]$Path,[string[]]$Suites,[string[]]$Arguments,[string]$Execution,[string]$Reason){
     $canonical=$Path.Replace('\','/')
     $argumentsNormalized=Normalize-Arguments $Arguments
+    $executionNormalized=$Execution.Trim().ToLowerInvariant()
     if([string]::IsNullOrWhiteSpace($canonical)){Fail('Selected proof path is empty for '+$Id)}
+    if(@('executable','static')-cnotcontains$executionNormalized){Fail('Selected proof has unsupported execution mode: '+$executionNormalized)}
     if($selected.Contains($canonical)){
         $existing=$selected[$canonical]
         if((Arguments-Key $existing.Arguments)-cne(Arguments-Key $argumentsNormalized)){
             Fail('Qualification proof path selected with conflicting scheduler arguments: '+$canonical)
+        }
+        if([string]$existing.Execution-cne$executionNormalized){
+            Fail('Qualification proof path selected with conflicting execution modes: '+$canonical)
         }
         foreach($suite in @($Suites)){if(@($existing.CapabilitySuites)-cnotcontains$suite){$existing.CapabilitySuites+=,$suite}}
         $existing.Reasons+=,$Reason
@@ -95,6 +115,7 @@ function Select-Proof([string]$Id,[string]$Path,[string[]]$Suites,[string[]]$Arg
         Path=$canonical
         CapabilitySuites=@($Suites|Sort-Object -Unique)
         Arguments=@($argumentsNormalized)
+        Execution=$executionNormalized
         Reasons=@($Reason)
     })
 }
@@ -102,8 +123,9 @@ function Select-Proof([string]$Id,[string]$Path,[string[]]$Suites,[string[]]$Arg
 foreach($mandatoryId in @($manifest.mandatory_development_proofs|ForEach-Object{[string]$_})){
     if(-not$proofById.ContainsKey($mandatoryId)){Fail('Mandatory qualification proof id is not declared: '+$mandatoryId)}
     $p=$proofById[$mandatoryId]
-    $args=if($null-ne$p.PSObject.Properties['arguments']){@($p.arguments|ForEach-Object{[string]$_})}else{@()}
-    Select-Proof $mandatoryId ([string]$p.path) @($p.capability_suites|ForEach-Object{[string]$_}) $args 'mandatory_development'
+    $declaredArgs=Get-ProofArguments $p
+    $execution=Get-ProofExecution $p
+    Select-Proof $mandatoryId ([string]$p.path) @($p.capability_suites|ForEach-Object{[string]$_}) $declaredArgs $execution 'mandatory_development'
 }
 
 foreach($relative0 in @($context.applicable_regressions|ForEach-Object{[string]$_}|Sort-Object -Unique)){
@@ -111,15 +133,16 @@ foreach($relative0 in @($context.applicable_regressions|ForEach-Object{[string]$
     $relative=$relative0.Replace('\','/')
     if($proofByPath.ContainsKey($relative)){
         $p=$proofByPath[$relative]
-        $args=if($null-ne$p.PSObject.Properties['arguments']){@($p.arguments|ForEach-Object{[string]$_})}else{@()}
-        Select-Proof ([string]$p.id) $relative @($p.capability_suites|ForEach-Object{[string]$_}) $args 'risk_selected'
+        $declaredArgs=Get-ProofArguments $p
+        $execution=Get-ProofExecution $p
+        Select-Proof ([string]$p.id) $relative @($p.capability_suites|ForEach-Object{[string]$_}) $declaredArgs $execution 'risk_selected'
     }elseif($historicalCapabilities.ContainsKey($relative)){
-        Select-Proof ('risk::'+$relative) $relative @($historicalCapabilities[$relative]) @() 'risk_selected'
+        Select-Proof ('risk::'+$relative) $relative @($historicalCapabilities[$relative]) @() 'executable' 'risk_selected'
     }else{
         $candidate=Join-Path $RepositoryRoot ($relative.Replace('/','\'))
         $isStatic=(Test-Path -LiteralPath $candidate -PathType Leaf)-and([IO.Path]::GetExtension($candidate)-ine'.ps1')
         if($isStatic){
-            Select-Proof ('static::'+$relative) $relative @() @() 'risk_selected_static'
+            Select-Proof ('static::'+$relative) $relative @() @() 'static' 'risk_selected_static'
         }else{
             Fail('Risk-selected executable regression lacks qualification ownership mapping: '+$relative)
         }
@@ -127,10 +150,12 @@ foreach($relative0 in @($context.applicable_regressions|ForEach-Object{[string]$
 }
 
 $requirements=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
-foreach($surface in @($context.matched_surfaces)){Add-Requirement $requirements ('SURFACE:'+ (Get-RowId $surface))}
-foreach($inv in @($context.invariants)){Add-Requirement $requirements ('INVARIANT:'+ (Get-RowId $inv))}
-foreach($blocker in @($context.global_open_release_blockers)){Add-Requirement $requirements ('BLOCKER:'+ (Get-RowId $blocker))}
-foreach($relative in @($context.applicable_regressions|ForEach-Object{[string]$_}|Sort-Object -Unique)){if(-not[string]::IsNullOrWhiteSpace($relative)){Add-Requirement $requirements ('REGRESSION:'+$relative.Replace('\','/'))}}
+foreach($surface in @($context.matched_surfaces)){Add-Requirement $requirements ('SURFACE:'+(Get-RowId $surface))}
+foreach($inv in @($context.invariants)){Add-Requirement $requirements ('INVARIANT:'+(Get-RowId $inv))}
+foreach($blocker in @($context.global_open_release_blockers)){Add-Requirement $requirements ('BLOCKER:'+(Get-RowId $blocker))}
+foreach($relative in @($context.applicable_regressions|ForEach-Object{[string]$_}|Sort-Object -Unique)){
+    if(-not[string]::IsNullOrWhiteSpace($relative)){Add-Requirement $requirements ('REGRESSION:'+$relative.Replace('\','/'))}
+}
 
 $capabilities=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
 $executed=New-Object System.Collections.ArrayList
@@ -146,17 +171,22 @@ Write-Host ('Unique selected proofs: '+$selected.Count)
 foreach($key in @($selected.Keys)){
     $proof=$selected[$key]
     if(-not$seenExecution.Add([string]$proof.Path)){Fail('Scheduler duplicate execution attempt: '+[string]$proof.Path)}
-    foreach($suite in @($proof.CapabilitySuites)){if(-not[string]::IsNullOrWhiteSpace([string]$suite)){[void]$capabilities.Add([string]$suite)}}
+    foreach($suite in @($proof.CapabilitySuites)){
+        if(-not[string]::IsNullOrWhiteSpace([string]$suite)){[void]$capabilities.Add([string]$suite)}
+    }
     $path=Join-Path $RepositoryRoot (([string]$proof.Path).Replace('/','\'))
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){
         [void]$failures.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;kind='missing';message='Selected proof path is missing.'})
         [void]$executed.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;arguments=@($proof.Arguments);capability_suites=@($proof.CapabilitySuites);reasons=@($proof.Reasons);kind='missing';result='fail';exit_code=$null})
         continue
     }
-    if([IO.Path]::GetExtension($path)-ine'.ps1'){
+    if([string]$proof.Execution-ceq'static'){
         [void]$executed.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;arguments=@();capability_suites=@($proof.CapabilitySuites);reasons=@($proof.Reasons);kind='static';result='pass';exit_code=$null;sha256=Sha $path})
-        Write-Host ('  PASS '+[string]$proof.Id+' ['+[string]$proof.Path+']') -ForegroundColor Green
+        Write-Host ('  PASS '+[string]$proof.Id+' ['+[string]$proof.Path+'] static identity') -ForegroundColor Green
         continue
+    }
+    if([IO.Path]::GetExtension($path)-ine'.ps1'){
+        Fail('Executable qualification proof is not a PowerShell script: '+[string]$proof.Path)
     }
     Write-Host ('--- '+[string]$proof.Id+' :: '+[string]$proof.Path+' '+([string]::Join(' ',@($proof.Arguments)))+' ---')
     $invokeArgs=@('-RepositoryRoot',$RepositoryRoot)+@($proof.Arguments)
@@ -166,7 +196,9 @@ foreach($key in @($selected.Keys)){
     if(-not$pass){[void]$failures.Add([ordered]@{id=[string]$proof.Id;path=[string]$proof.Path;kind='execution';message=('Proof exited '+$run.ExitCode+'.')})}
 }
 
-if([string]::IsNullOrWhiteSpace($OutputPath)){$OutputPath=Join-Path ([IO.Path]::GetTempPath()) ('MANAGER_QUALIFICATION_EXECUTION_RECEIPT_'+[guid]::NewGuid().ToString('N')+'.json')}
+if([string]::IsNullOrWhiteSpace($OutputPath)){
+    $OutputPath=Join-Path ([IO.Path]::GetTempPath()) ('MANAGER_QUALIFICATION_EXECUTION_RECEIPT_'+[guid]::NewGuid().ToString('N')+'.json')
+}
 $OutputPath=[IO.Path]::GetFullPath($OutputPath)
 $receipt=[ordered]@{
     schema='keelaryn.manager-qualification-execution-receipt.v1'
