@@ -69,17 +69,36 @@ jobs:
           if (-not [int]::TryParse($countText,[ref]$count) -or $count -lt 1) {
             throw "Risk qualification range must contain at least one commit: base=$baseResolved head=$headResolved count=$countText"
           }
-          $out = Join-Path $env:RUNNER_TEMP ('keelaryn-manager-risk-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          $root = Join-Path $env:RUNNER_TEMP ('keelaryn-manager-risk-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          $contextMd = Join-Path $root 'context\MANAGER_RISK_CONTEXT.md'
+          $receipt = Join-Path $root 'QUALIFICATION_EXECUTION_RECEIPT.json'
+          $gateOut = Join-Path $root 'gate'
           "KEELARYN_RISK_BASE=$baseResolved" >> $env:GITHUB_ENV
           "KEELARYN_RISK_HEAD=$headResolved" >> $env:GITHUB_ENV
-          "KEELARYN_RISK_OUT=$out" >> $env:GITHUB_ENV
+          "KEELARYN_RISK_ROOT=$root" >> $env:GITHUB_ENV
+          "KEELARYN_RISK_CONTEXT_MD=$contextMd" >> $env:GITHUB_ENV
+          "KEELARYN_RISK_CONTEXT_JSON=$([IO.Path]::ChangeExtension($contextMd,'.json'))" >> $env:GITHUB_ENV
+          "KEELARYN_RISK_RECEIPT=$receipt" >> $env:GITHUB_ENV
+          "KEELARYN_RISK_GATE_OUT=$gateOut" >> $env:GITHUB_ENV
           Write-Host "Risk gate base: $baseResolved"
           Write-Host "Risk gate head: $headResolved"
+
+      - name: Build exact risk context
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-ManagerRiskContext.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit "$env:KEELARYN_RISK_BASE" -HeadCommit "$env:KEELARYN_RISK_HEAD" -OutputPath "$env:KEELARYN_RISK_CONTEXT_MD"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Execute unique selected proofs
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerQualificationScheduler.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -RiskContextPath "$env:KEELARYN_RISK_CONTEXT_JSON" -OutputPath "$env:KEELARYN_RISK_RECEIPT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run pre-freeze Risk Defect Gate
         shell: powershell
         run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit "$env:KEELARYN_RISK_BASE" -HeadCommit "$env:KEELARYN_RISK_HEAD" -OutputDirectory "$env:KEELARYN_RISK_OUT"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit "$env:KEELARYN_RISK_BASE" -HeadCommit "$env:KEELARYN_RISK_HEAD" -OutputDirectory "$env:KEELARYN_RISK_GATE_OUT" -RiskContextPath "$env:KEELARYN_RISK_CONTEXT_JSON" -ExecutionReceiptPath "$env:KEELARYN_RISK_RECEIPT"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload compact risk evidence
@@ -88,10 +107,12 @@ jobs:
         with:
           name: manager-risk-${{ github.sha }}-${{ github.run_attempt }}
           path: |
-            ${{ env.KEELARYN_RISK_OUT }}\RISK_DEFECT_GATE.json
-            ${{ env.KEELARYN_RISK_OUT }}\MANAGER_RISK_CONTEXT.json
-            ${{ env.KEELARYN_RISK_OUT }}\MANAGER_RISK_CONTEXT.md
+            ${{ env.KEELARYN_RISK_GATE_OUT }}\RISK_DEFECT_GATE.json
+            ${{ env.KEELARYN_RISK_CONTEXT_JSON }}
+            ${{ env.KEELARYN_RISK_CONTEXT_MD }}
+            ${{ env.KEELARYN_RISK_RECEIPT }}
           if-no-files-found: warn
           retention-days: 3
 
-# This workflow is a pre-freeze gate only. PASS does not qualify or freeze a candidate.
+# This workflow is a pre-freeze gate only. The scheduler owns proof execution for this trust boundary; the Risk Gate verifies the exact receipt and does not execute regressions itself.
+# PASS does not qualify or freeze a candidate. Source Gate, Full Gate and production acceptance remain fresh independent boundaries.
