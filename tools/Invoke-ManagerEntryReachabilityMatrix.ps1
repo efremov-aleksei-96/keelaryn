@@ -145,7 +145,29 @@ try{
             default {Fail('Unknown degraded-state fixture: '+$Fixture)}
         }
     }
-    function Get-ActionArguments([string]$Action){switch($Action){'ListInstances'{return @('-ListInstances')};'SwitchInstance'{return @('-SwitchInstanceId',$betaId)};'BindInstance'{return @('-BindInstancePath',$betaRelocatedPath,'-RegisterInstanceName','Beta')};'UpdateManager'{return @('-UpdateManager')};'BuildDistribution'{return @('-BuildDistribution')};'BuildRelease'{return @('-BuildRelease')};'BuildAIContext'{return @('-BuildAIContext')};'Doctor'{return @('-Doctor')};'SelfTest'{return @('-SelfTest')};'PrepareTests'{return @('-PrepareTests')};'InitializePresentation'{return @('-InitializePresentation')};'FinalizeFilesystemLayout'{return @('-FinalizeFilesystemLayout')};'InitializeInstanceRegistry'{return @('-InitializeInstanceRegistry')};'UpdateHub'{return @('-UpdateHub')};'UpdateAll'{return @('-UpdateAll')};'RepairCurrent'{return @('-RepairCurrentTransport')};'BuildCandidateTransport'{return @('-BuildCandidateTransport')};'RestoreCandidateTransport'{return @('-RestoreCandidateTransport')};default{Fail('Unknown entry-reachability action: '+$Action)}}}
+    function Get-ActionArguments([string]$Action){
+        switch($Action){
+            'ListInstances' {return @('-ListInstances')}
+            'SwitchInstance' {return @('-SwitchInstanceId',$betaId)}
+            'BindInstance' {return @('-BindInstancePath',$betaRelocatedPath,'-RegisterInstanceName','Beta')}
+            'UpdateManager' {return @('-UpdateManager')}
+            'BuildDistribution' {return @('-BuildDistribution')}
+            'BuildRelease' {return @('-BuildRelease')}
+            'BuildAIContext' {return @('-BuildAIContext')}
+            'Doctor' {return @('-Doctor')}
+            'SelfTest' {return @('-SelfTest')}
+            'PrepareTests' {return @('-PrepareTests')}
+            'InitializePresentation' {return @('-InitializePresentation')}
+            'FinalizeFilesystemLayout' {return @('-FinalizeFilesystemLayout')}
+            'InitializeInstanceRegistry' {return @('-InitializeInstanceRegistry')}
+            'UpdateHub' {return @('-UpdateHub')}
+            'UpdateAll' {return @('-UpdateAll')}
+            'RepairCurrent' {return @('-RepairCurrentTransport')}
+            'BuildCandidateTransport' {return @('-BuildCandidateTransport')}
+            'RestoreCandidateTransport' {return @('-RestoreCandidateTransport')}
+            default {Fail('Unknown entry-reachability action: '+$Action)}
+        }
+    }
 
     foreach($spec in @($scenarioSpecs)){
         $classification='product_contract_failure';$detail='';$exitCode=-999;$pass=$false;$oldSentinel=$env:KEELARYN_ENTRY_ACTION_SENTINEL;$oldFault=$env:KEELARYN_ENTRY_ROLLBACK_FAULT
