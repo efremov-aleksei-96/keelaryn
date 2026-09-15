@@ -2,6 +2,7 @@
   "schema": "keelaryn.manager-qualification-proofs.v1",
   "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Historical version scripts remain migration adapters until their recursive inheritance is fully flattened; scheduler-owned execution uses explicit leaf arguments where supported and executes the older convergence lineage once per exact source identity and trust boundary. Version-bound historical proofs that cannot execute against the current Manager are retained as static identity targets while successor behavioral capabilities are owned by version-independent/current proofs. Meta-validation executed before scheduler selection is represented as static identity if selected by task risk, preventing duplicate execution inside one boundary.",
   "mandatory_development_proofs": [
+    "proof_manifest_contract",
     "release_identity",
     "convergence_4179_lineage_once",
     "review_41710_leaf",
@@ -13,6 +14,11 @@
     "entry_matrix_legacy"
   ],
   "proofs": [
+    {
+      "id": "proof_manifest_contract",
+      "path": "tools/Test-ManagerQualificationProofManifest.ps1",
+      "capability_suites": []
+    },
     {
       "id": "release_identity",
       "path": "tools/Verify-ManagerReleaseInstructions.ps1",
