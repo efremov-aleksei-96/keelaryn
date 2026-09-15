@@ -36,6 +36,9 @@ function Assert-SameSet($Expected,$Actual,[string]$Label){
         Fail($Label+' mismatch. expected='+([string]::Join(',',$expectedRows))+' actual='+([string]::Join(',',$actualRows)))
     }
 }
+function Require-Capability($Proof,[string]$Capability,[string]$Owner){
+    if(@($Proof.capability_suites|ForEach-Object{[string]$_}) -cnotcontains $Capability){Fail($Owner+' omits capability '+$Capability)}
+}
 
 $manifestPath='tests/knowledge/qualification/capability-proofs.json'
 $manifest=Read-Json $manifestPath
@@ -87,6 +90,8 @@ if(-not[bool]$contract.static_identity_proofs_do_not_claim_behavioral_capabiliti
 if(-not[bool]$contract.pre_scheduler_meta_validation_is_not_reexecuted_by_scheduler){Fail 'Pre-scheduler meta validation must not be re-executed by scheduler.'}
 if([bool]$contract.historical_recursive_sources_execute_directly_in_scheduler){Fail 'Historical recursive source adapters must not execute directly in scheduler.'}
 if([string]$contract.historical_behavior_owner-cne'historical_flat_lineage'){Fail 'Historical behavioral ownership must remain historical_flat_lineage.'}
+if([string]$contract.entry_behavior_owner-cne'entry_bounded'){Fail 'Entry Reachability behavioral ownership must be entry_bounded.'}
+if([bool]$contract.legacy_count_based_entry_proofs_execute_in_scheduler){Fail 'Legacy count-based Entry proofs must not execute in scheduler.'}
 
 $flat=$byId['historical_flat_lineage']
 if($null-eq$flat){Fail 'historical_flat_lineage proof is missing.'}
@@ -115,6 +120,22 @@ foreach($path in $flatSources){
 if(-not$flatRunner.Contains('New-LeafCopy')){Fail 'Flat runner does not materialize disposable leaf copies.'}
 if(-not$flatRunner.Contains('unique_leaf_proofs')){Fail 'Flat runner does not report unique leaf execution count.'}
 
+$entryBounded=$byId['entry_bounded']
+if($null-eq$entryBounded){Fail 'entry_bounded proof is missing.'}
+if((Get-Execution $entryBounded)-cne'executable'){Fail 'entry_bounded must be executable.'}
+if([string]$entryBounded.path-cne'tools/Invoke-ManagerBoundedEntryReachability.ps1'){Fail 'entry_bounded path drifted.'}
+if($mandatory-cnotcontains'entry_bounded'){Fail 'entry_bounded must be mandatory development coverage.'}
+foreach($cap in @('registry_recovery','inbox_handoff','captured_context','current_safety','update_restart','compatibility')){Require-Capability $entryBounded $cap 'entry_bounded'}
+foreach($legacyId in @('entry_model_legacy_static','entry_matrix_legacy_static')){
+    if(-not$byId.ContainsKey($legacyId)){Fail('Legacy Entry static identity missing: '+$legacyId)}
+    $legacy=$byId[$legacyId]
+    if((Get-Execution $legacy)-cne'static'){Fail($legacyId+' must be static migration provenance.')}
+    if($mandatory-ccontains$legacyId){Fail($legacyId+' must not be mandatory executable ownership.')}
+    if($null-eq$legacy.PSObject.Properties['migration_only']-or-not[bool]$legacy.migration_only){Fail($legacyId+' must be explicitly migration_only.')}
+}
+if([string]$byId['entry_model_legacy_static'].path-cne'tools/Test-ManagerEntryReachabilityKnowledge.ps1'){Fail 'Legacy Entry model path drifted.'}
+if([string]$byId['entry_matrix_legacy_static'].path-cne'tools/Invoke-ManagerEntryReachabilityMatrix.ps1'){Fail 'Legacy Entry matrix path drifted.'}
+
 $riskMeta=$byId['risk_context_meta_identity']
 if($null-eq$riskMeta){Fail 'risk_context_meta_identity proof is missing.'}
 if((Get-Execution $riskMeta)-cne'static'){Fail 'risk_context_meta_identity must be static in scheduler ownership.'}
@@ -139,4 +160,7 @@ if((Get-Execution $historical)-cne'static'){Fail '4.17.12 version-bound historic
 if([string]$historical.historical_version-cne'4.17.12'){Fail '4.17.12 historical proof version identity drifted.'}
 
 Write-Host ('MANAGER QUALIFICATION PROOF MANIFEST: PASS; proofs='+$byId.Count+' mandatory='+$mandatory.Count) -ForegroundColor Green
+Write-Host '  historical behavior owner: historical_flat_lineage'
+Write-Host '  Entry behavior owner: entry_bounded'
+Write-Host '  legacy count-based Entry proofs: static migration provenance'
 exit 0
