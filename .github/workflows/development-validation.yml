@@ -14,6 +14,8 @@ on:
       - 'ASTRA_ESCALATION.md'
       - 'tools/Invoke-DevelopmentValidation.ps1'
       - 'tools/Invoke-ManagerQualificationScheduler.ps1'
+      - 'tools/Test-ManagerQualificationProofManifest.ps1'
+      - 'tools/Invoke-ManagerHistoricalFlatRegression.ps1'
       - 'tools/Build-PublicFileManifest.ps1'
       - 'tools/Verify-PublicCandidateMetadata.ps1'
       - 'tools/Verify-PublicRepository.ps1'
@@ -132,6 +134,7 @@ jobs:
 
 # Engineering knowledge, qualification architecture, bounded process-entry planning, compact task risk context, public manifest/provenance consistency and risk-context lifecycle checks are development checks.
 # One qualification scheduler owns same-SHA same-boundary proof execution. The strict Risk/Defect Gate verifies its exact receipt and does not execute child regressions.
-# Historical version scripts still contain recursive predecessor calls and the legacy Entry Matrix still carries historical scenario-count structure; both remain explicit candidate-freeze blockers under MQA-41713-001.
+# Historical recursive source adapters are retained byte-for-byte as static provenance identities; current behavioral qualification executes their assertion bodies once through the disposable flat historical runner.
+# The legacy Entry Matrix still carries historical scenario-count structure and remains an explicit candidate-freeze blocker under MQA-41713-001.
 # The strict Manager Risk/Defect Gate remains fail-closed while MGR-DEF-0034 is open. Source Gate, Full Gate and production acceptance remain separate fresh trust boundaries.
 # Manager 4.17.13 remains unqualified and unfrozen until consolidation, product transaction resolution, exact-head validation, full-successor Risk/Defect assessment and fresh semantic/adversarial review all pass.
