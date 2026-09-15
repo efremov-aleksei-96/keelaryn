@@ -11,6 +11,7 @@ on:
       - 'tests/knowledge/risk-map.json'
       - 'tests/knowledge/architecture/stranded-input-reconciliation-4.17.13.json'
       - 'tools/Apply-Manager41713StrandedInputClaimProofPatch.ps1'
+      - 'tools/Invoke-Manager41713StrandedInputClaimProofPatch.ps1'
       - 'tools/Invoke-ManagerStrandedInputTransactionProperties.ps1'
       - 'tools/Invoke-ManagerStrandedInputClaimProperties.ps1'
       - 'tools/Invoke-ManagerBoundedEntryReachability.ps1'
@@ -91,7 +92,7 @@ jobs:
         run: |
           $proof=Join-Path $env:RUNNER_TEMP 'CLAIM_FIRST_PROOF.txt'
           "KEELARYN_CLAIM_PROOF=$proof" >> $env:GITHUB_ENV
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Apply-Manager41713StrandedInputClaimProofPatch.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" | Tee-Object -FilePath $proof
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-Manager41713StrandedInputClaimProofPatch.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" | Tee-Object -FilePath $proof
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $runtime=Join-Path $env:GITHUB_WORKSPACE 'manager\product\runtime\Keelaryn__Manager.ps1'
           ('disposable_patched_runtime_sha256='+(Get-FileHash -LiteralPath $runtime -Algorithm SHA256).Hash.ToLowerInvariant()) | Add-Content -LiteralPath $proof -Encoding UTF8
