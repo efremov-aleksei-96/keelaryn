@@ -1,119 +1,86 @@
 name: Development validation
 
 on:
-  push:
-    branches:
-      - 'dev/**'
-    paths:
-      - 'manager/**'
-      - 'tests/knowledge/**'
-      - 'PUBLIC_FILE_MANIFEST.json'
-      - 'PUBLIC_PROVENANCE.json'
-      - 'MANAGER_DEVELOPMENT_STATE.json'
-      - 'MANAGER_ENGINEERING_ROADMAP.md'
-      - 'ASTRA_ESCALATION.md'
-      - 'tools/Invoke-DevelopmentValidation.ps1'
-      - 'tools/Build-PublicFileManifest.ps1'
-      - 'tools/Verify-PublicCandidateMetadata.ps1'
-      - 'tools/Verify-PublicRepository.ps1'
-      - 'tools/Test-ManagerEngineeringKnowledge.ps1'
-      - 'tools/Build-ManagerRiskContext.ps1'
-      - 'tools/Invoke-ManagerRiskDefectGate.ps1'
-      - 'tools/Invoke-ManagerRiskContextRegression.ps1'
-      - 'tools/Invoke-Manager41711ReviewRegression.ps1'
-      - 'tools/Invoke-Manager41712ReviewRegression.ps1'
-      - 'tools/Invoke-ManagerRecoveryBehaviorRegression.ps1'
-      - 'tools/Invoke-Manager41713ReviewRegression.ps1'
-      - 'tools/Test-ManagerEntryReachabilityKnowledge.ps1'
-      - 'tools/Test-ManagerEntryPolicyCompleteness.ps1'
-      - 'tools/Invoke-ManagerEntryReachabilityMatrix.ps1'
-      - 'tools/Verify-ManagerReleaseInstructions.ps1'
-      - 'tools/Invoke-Manager41710ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4179ConvergenceRegression.ps1'
-      - 'tools/Invoke-Manager4178ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4177ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4176ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4175ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4174ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4174BootstrapRegression.ps1'
-      - 'tools/Invoke-Manager4173ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4172ReviewRegression.ps1'
-      - 'tools/Verify-DevelopmentGovernance.ps1'
-      - 'DEVELOPMENT_GOVERNANCE.json'
-      - '.github/workflows/development-validation.yml'
-      - '.github/workflows/manager-risk-defect-gate.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: keelaryn-development-${{ github.ref }}
-  cancel-in-progress: true
+  group: keelaryn-full-successor-risk-4.17.13
+  cancel-in-progress: false
 
 jobs:
-  development-validation:
+  full-successor-risk-defect-gate:
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout gate runner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify development governance
+      - name: Rebind workspace to exact qualified target
         shell: powershell
+        env:
+          TARGET_BRANCH: dev/manager-4.17.13
+          TARGET_BASE: bdd1fa38ce680304f59764ae7a9482d6b1728053
+          TARGET_HEAD: 5dab4933d9a9430cba629b27693091b7c8613c9f
         run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-DevelopmentGovernance.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ErrorActionPreference='Stop'
+          $wrapper=(git rev-parse --verify 'HEAD^{commit}').Trim().ToLowerInvariant()
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $parent=(git rev-parse --verify 'HEAD^^{commit}').Trim().ToLowerInvariant()
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          if($parent -cne $env:TARGET_HEAD){throw "Gate-runner parent mismatch: expected=$env:TARGET_HEAD actual=$parent"}
+          $changed=@(git diff --name-only "$($env:TARGET_HEAD)..$wrapper")
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          if($changed.Count -ne 1 -or ([string]$changed[0]) -cne '.github/workflows/development-validation.yml'){
+            throw ('Gate-runner isolation mismatch: '+([string]::Join(',',@($changed))))
+          }
+          $remoteLine=([string](& git ls-remote origin ("refs/heads/"+$env:TARGET_BRANCH))).Trim()
+          if($LASTEXITCODE -ne 0 -or -not $remoteLine){throw 'Failed to resolve authoritative remote development branch.'}
+          $remoteHead=($remoteLine -split '\s+')[0].ToLowerInvariant()
+          if($remoteHead -cne $env:TARGET_HEAD){throw "Authoritative development branch moved: expected=$env:TARGET_HEAD actual=$remoteHead"}
+          git checkout --detach $env:TARGET_HEAD
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $actual=(git rev-parse --verify 'HEAD^{commit}').Trim().ToLowerInvariant()
+          if($actual -cne $env:TARGET_HEAD){throw "Detached target identity mismatch: expected=$env:TARGET_HEAD actual=$actual"}
+          & git merge-base --is-ancestor $env:TARGET_BASE $env:TARGET_HEAD
+          if($LASTEXITCODE -ne 0){throw 'Full-successor base is not an ancestor of exact target head.'}
+          $out=Join-Path $env:RUNNER_TEMP ('keelaryn-full-successor-risk-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          "KEELARYN_RISK_BASE=$env:TARGET_BASE" >> $env:GITHUB_ENV
+          "KEELARYN_RISK_HEAD=$env:TARGET_HEAD" >> $env:GITHUB_ENV
+          "KEELARYN_RISK_OUT=$out" >> $env:GITHUB_ENV
+          Write-Host "Gate runner wrapper: $wrapper"
+          Write-Host "Exact target head: $actual"
+          Write-Host "Full-successor base: $env:TARGET_BASE"
 
-      - name: Verify GitHub Actions supply-chain policy
+      - name: Verify exact-target GitHub Actions supply-chain policy
         shell: powershell
         run: |
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Verify public source manifest reproducibility
+      - name: Run exact full-successor Risk Defect Gate
         shell: powershell
         run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-PublicFileManifest.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Check
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit "$env:KEELARYN_RISK_BASE" -HeadCommit "$env:KEELARYN_RISK_HEAD" -OutputDirectory "$env:KEELARYN_RISK_OUT"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Verify public candidate metadata consistency
-        shell: powershell
-        run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicCandidateMetadata.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Prepare development evidence path
-        shell: powershell
-        run: |
-          $out = Join-Path $env:RUNNER_TEMP ('keelaryn-development-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
-          "KEELARYN_DEVELOPMENT_ROOT=$out" >> $env:GITHUB_ENV
-          "KEELARYN_DEVELOPMENT_EVIDENCE=$out\evidence" >> $env:GITHUB_ENV
-
-      - name: Run disposable development validation
-        shell: powershell
-        run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$env:KEELARYN_DEVELOPMENT_ROOT"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Upload compact development evidence
+      - name: Upload exact full-successor risk evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: keelaryn-development-${{ github.sha }}-${{ github.run_attempt }}
+          name: manager-risk-full-successor-5dab4933-${{ github.run_attempt }}
           path: |
-            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
-            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.json
-            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.md
-            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\RISK_DEFECT_GATE_POLICY_CHECK.json
-          if-no-files-found: warn
+            ${{ env.KEELARYN_RISK_OUT }}\RISK_DEFECT_GATE.json
+            ${{ env.KEELARYN_RISK_OUT }}\MANAGER_RISK_CONTEXT.json
+            ${{ env.KEELARYN_RISK_OUT }}\MANAGER_RISK_CONTEXT.md
+          if-no-files-found: error
           retention-days: 3
 
-# Engineering knowledge integrity, compact task risk context, public manifest/provenance consistency and the risk-context lifecycle regression are development checks.
-# Invoke-DevelopmentValidation.ps1 owns the permanent Manager review-regression chain, including real disposable registry-active Doctor, CANDIDATE-only UpdateHub, process-entry reachability and release-instruction identity checks. The workflow does not repeat that expensive chain.
-# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run verifies that its observed PASS/FAIL matches repository policy state.
-# Manager 4.17.13 remains unqualified until exact-head validation, full-successor-range Risk/Defect Gate, and pre-freeze adversarial review all pass.
+# Ephemeral gate-runner branch only. The job verifies that this branch differs from the exact target
+# solely by this workflow file, validates the authoritative dev branch identity, then detaches the
+# workspace back to the exact target head before executing the repository's strict Risk/Defect Gate.
