@@ -79,6 +79,12 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Apply-Manager41713UpdateAllSplitPhaseProofPatch.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Verify disposable runtime patch hygiene
+        shell: powershell
+        run: |
+          git diff --check -- manager/product/runtime/Keelaryn__Manager.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Execute bounded real process-entry cover
         shell: powershell
         run: |
@@ -106,6 +112,7 @@ jobs:
 # The legacy Cartesian model remains migration-only evidence. This workflow executes the new
 # bounded real process-entry harness as an isolated development proof. The UpdateAll patch step
 # modifies only the disposable workflow checkout to validate MGR-DEF-0035 semantics before any
-# managed product bytes are committed; scheduler ownership is not changed here.
+# managed product bytes are committed; diff hygiene is checked before behavioral execution and
+# scheduler ownership is not changed here.
 # Fresh real process-entry execution remains mandatory at candidate freeze, Source Gate,
 # Full Gate and production acceptance.
