@@ -1,0 +1,83 @@
+{
+  "schema": "keelaryn.manager-qualification-proofs.v1",
+  "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Historical version scripts remain migration adapters until their recursive inheritance is flattened; the scheduler nevertheless executes each selected path at most once per exact source identity and trust boundary.",
+  "mandatory_development_proofs": [
+    "release_identity",
+    "review_41710_legacy",
+    "review_41711_legacy",
+    "recovery_behavior",
+    "review_41713",
+    "entry_policy",
+    "entry_model",
+    "entry_matrix_legacy"
+  ],
+  "proofs": [
+    {
+      "id": "release_identity",
+      "path": "tools/Verify-ManagerReleaseInstructions.ps1",
+      "capability_suites": ["compatibility"]
+    },
+    {
+      "id": "review_41710_legacy",
+      "path": "tools/Invoke-Manager41710ReviewRegression.ps1",
+      "capability_suites": ["registry_recovery"],
+      "migration_only": true
+    },
+    {
+      "id": "review_41711_legacy",
+      "path": "tools/Invoke-Manager41711ReviewRegression.ps1",
+      "capability_suites": ["inbox_handoff", "captured_context"],
+      "migration_only": true
+    },
+    {
+      "id": "recovery_behavior",
+      "path": "tools/Invoke-ManagerRecoveryBehaviorRegression.ps1",
+      "capability_suites": ["registry_recovery", "frontend_recovery", "current_safety"]
+    },
+    {
+      "id": "review_41713",
+      "path": "tools/Invoke-Manager41713ReviewRegression.ps1",
+      "capability_suites": ["registry_recovery", "compatibility"]
+    },
+    {
+      "id": "entry_policy",
+      "path": "tools/Test-ManagerEntryPolicyCompleteness.ps1",
+      "capability_suites": ["registry_recovery", "compatibility"]
+    },
+    {
+      "id": "entry_model",
+      "path": "tools/Test-ManagerEntryReachabilityKnowledge.ps1",
+      "capability_suites": ["registry_recovery", "captured_context", "compatibility"]
+    },
+    {
+      "id": "entry_matrix_legacy",
+      "path": "tools/Invoke-ManagerEntryReachabilityMatrix.ps1",
+      "capability_suites": ["registry_recovery", "inbox_handoff", "captured_context", "current_safety", "update_restart", "compatibility"],
+      "migration_only": true
+    }
+  ],
+  "historical_path_capabilities": {
+    "tools/Invoke-Manager4172ReviewRegression.ps1": ["genesis_registry_transaction", "frontend_recovery"],
+    "tools/Invoke-Manager4173ReviewRegression.ps1": ["genesis_registry_transaction", "frontend_recovery"],
+    "tools/Invoke-Manager4174ReviewRegression.ps1": ["genesis_registry_transaction"],
+    "tools/Invoke-Manager4174BootstrapRegression.ps1": ["genesis_registry_transaction"],
+    "tools/Invoke-Manager4175ReviewRegression.ps1": ["captured_context", "genesis_registry_transaction", "frontend_recovery"],
+    "tools/Invoke-Manager4176ReviewRegression.ps1": ["inbox_handoff", "captured_context"],
+    "tools/Invoke-Manager4177ReviewRegression.ps1": ["registry_recovery", "update_restart"],
+    "tools/Invoke-Manager4178ReviewRegression.ps1": ["registry_recovery", "update_restart", "genesis_registry_transaction"],
+    "tools/Invoke-Manager4179ConvergenceRegression.ps1": ["registry_recovery", "inbox_handoff", "captured_context", "genesis_registry_transaction", "compatibility"],
+    "tools/Invoke-Manager41710ReviewRegression.ps1": ["registry_recovery"],
+    "tools/Invoke-Manager41711ReviewRegression.ps1": ["inbox_handoff", "captured_context"],
+    "tools/Invoke-Manager41712ReviewRegression.ps1": ["frontend_recovery", "current_safety"],
+    "tools/Invoke-ManagerRecoveryBehaviorRegression.ps1": ["registry_recovery", "frontend_recovery", "current_safety"],
+    "tools/Invoke-Manager41713ReviewRegression.ps1": ["registry_recovery", "compatibility"],
+    "tools/Invoke-ManagerEntryReachabilityMatrix.ps1": ["registry_recovery", "inbox_handoff", "captured_context", "current_safety", "update_restart", "compatibility"]
+  },
+  "execution_contract": {
+    "deduplicate_by": "repository-relative canonical proof path",
+    "same_path_same_boundary_max_execution_count": 1,
+    "risk_gate_executes_child_proofs": false,
+    "scheduler_receipt_required": true,
+    "fresh_boundary_receipt_reuse_permitted": false
+  }
+}
