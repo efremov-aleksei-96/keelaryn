@@ -30,7 +30,7 @@
   },
   "qualification": {
     "risk_defect_gate": {
-      "status": "blocked_by_open_release_blocker_and_architecture_consolidation"
+      "status": "expected_fail_while_open_release_blockers_exist"
     },
     "predecessor_4_17_12": {
       "status": "frozen_production_qualified_installed_public_release_rejected",
@@ -42,9 +42,7 @@
       "production_install_status": "pass",
       "production_post_install_acceptance": "pass",
       "public_release_status": "rejected",
-      "release_blockers": [
-        "MGR-DEF-0030"
-      ],
+      "release_blockers": ["MGR-DEF-0030"],
       "multi_hub_activated": false,
       "rollback_required": false
     },
@@ -55,10 +53,7 @@
       "tree": "7d23ab245699d63c264958f9132d29fe85d43de7",
       "pull_request": 60,
       "tested_update_sha256": "f2bc027eca62c35b6b1244b8389cda0d87296ce0b04ee2a5bb3b569fcc5c19ed",
-      "release_blockers": [
-        "MGR-DEF-0026",
-        "MGR-DEF-0027"
-      ],
+      "release_blockers": ["MGR-DEF-0026", "MGR-DEF-0027"],
       "multi_hub_activated": false
     },
     "successor_4_17_13": {
@@ -94,19 +89,14 @@
     "production_hub_mutation_from_manager_development": "forbidden",
     "candidate_4_17_12_g1": "immutable_do_not_modify"
   },
-  "open_release_blockers": [
-    "MGR-DEF-0034"
-  ],
+  "open_release_blockers": ["MGR-DEF-0034"],
   "knowledge": {
     "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
     "hub_relay_research": "HUB_RELAY_RESEARCH.md",
     "knowledge_root": "tests/knowledge",
     "qualification_architecture": "tests/knowledge/architecture/qualification-consolidation-4.17.13.json",
     "qualification_architecture_validator": "tools/Test-ManagerQualificationArchitecture.ps1",
-    "current_risk_audits": [
-      "MHA-4179-001",
-      "MHA-41710-001"
-    ],
+    "current_risk_audits": ["MHA-4179-001", "MHA-41710-001"],
     "strict_pre_freeze_gate": "tools/Invoke-ManagerRiskDefectGate.ps1",
     "risk_context_regression": "tools/Invoke-ManagerRiskContextRegression.ps1",
     "entry_reachability_model": "tests/knowledge/entry-reachability.json",
