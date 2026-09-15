@@ -17,6 +17,7 @@ on:
       - 'tools/Verify-PublicCandidateMetadata.ps1'
       - 'tools/Verify-PublicRepository.ps1'
       - 'tools/Test-ManagerEngineeringKnowledge.ps1'
+      - 'tools/Test-ManagerQualificationArchitecture.ps1'
       - 'tools/Build-ManagerRiskContext.ps1'
       - 'tools/Invoke-ManagerRiskDefectGate.ps1'
       - 'tools/Invoke-ManagerRiskContextRegression.ps1'
@@ -73,6 +74,12 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Verify qualification architecture contract
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerQualificationArchitecture.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Verify public source manifest reproducibility
         shell: powershell
         run: |
@@ -113,7 +120,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
 
-# Engineering knowledge integrity, compact task risk context, public manifest/provenance consistency and the risk-context lifecycle regression are development checks.
-# Invoke-DevelopmentValidation.ps1 owns the permanent Manager review-regression chain, including real disposable registry-active Doctor, CANDIDATE-only UpdateHub, process-entry reachability and release-instruction identity checks. The workflow does not repeat that expensive chain.
-# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run verifies that its observed PASS/FAIL matches repository policy state.
-# Manager 4.17.13 remains unqualified until exact-head validation, full-successor-range Risk/Defect Gate, and pre-freeze adversarial review all pass.
+# Engineering knowledge, qualification architecture, compact task risk context, public manifest/provenance consistency and risk-context lifecycle checks are development checks.
+# The current legacy execution graph still repeats some version-specific and Entry Reachability proofs. MQA-41713-001 makes removal of same-SHA same-boundary duplication and recursive suite invocation a candidate-freeze requirement.
+# The strict Manager Risk/Defect Gate remains fail-closed while MGR-DEF-0034 is open. Source Gate, Full Gate and production acceptance remain separate fresh trust boundaries.
+# Manager 4.17.13 remains unqualified and unfrozen until consolidation, product transaction resolution, exact-head validation, full-successor Risk/Defect assessment and fresh semantic/adversarial review all pass.
