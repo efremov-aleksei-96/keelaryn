@@ -1,0 +1,54 @@
+{
+  "schema": "keelaryn.manager-defects.v1",
+  "scope": "Manager 4.17.13 qualification-consolidation findings",
+  "defects": [
+    {
+      "id": "MGR-DEF-0034",
+      "title": "Unpublished verified stranded-input stage can be deleted after its matching global source is lost",
+      "severity": "P1",
+      "status": "open",
+      "release_blocker": true,
+      "detected_in": "4.17.13",
+      "detected_stage": "qualification_consolidation_architecture_audit",
+      "defect_class": "stage cleanup / known-good-copy preservation / batch transaction rollback complexity",
+      "affected_surfaces": [
+        "S-RUNTIME-INBOX"
+      ],
+      "preconditions": "An existing multi-Hub registry has at least two stranded identity-bound Hub inputs. A later entry has already been copied to and hash-verified in its destination-local stage, then its matching global source changes or disappears before that entry is published, causing fresh commit-boundary source revalidation to fail.",
+      "bad_behavior": "The reconciliation finally block removes every remaining stage unconditionally. If the global source no longer contains the verified bytes and the stage has not yet been published, cleanup can delete the only surviving verified copy while the operation fails.",
+      "root_cause": "Whole-batch staging and rollback make temporary stages part of the data-safety transaction, but final cleanup treats them as disposable scratch files without first proving that another exact verified copy still exists. This is a product transaction-semantics defect, not an Entry Reachability coverage-count defect.",
+      "root_cause_classes": [
+        "RC-COMMIT-001",
+        "RC-PUBLISH-001"
+      ],
+      "violated_invariants": [
+        "MH-INBOX-001",
+        "MH-COMMIT-001",
+        "MH-LIFECYCLE-001"
+      ],
+      "related_defects": [
+        "MGR-DEF-0032",
+        "MGR-DEF-0033"
+      ],
+      "permanent_regressions": [],
+      "planned_regressions": [
+        "tools/Invoke-ManagerStrandedInputTransactionProperties.ps1"
+      ],
+      "fixed_in": "",
+      "evidence": [
+        {
+          "type": "source_symbol",
+          "id": "Reconcile-StrandedGlobalHubInputsForExistingRegistry"
+        },
+        {
+          "type": "source_observation",
+          "id": "finally removes every remaining plan.Stage without proving matching source or durable destination still holds the expected SHA-256"
+        },
+        {
+          "type": "architecture_work_item",
+          "id": "MQA-41713-001"
+        }
+      ]
+    }
+  ]
+}
