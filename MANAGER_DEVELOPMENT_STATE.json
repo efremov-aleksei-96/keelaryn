@@ -24,7 +24,7 @@
     "product_commit": null,
     "product_tree": null,
     "installation_sha256": "acc2b2eeff9b32775dfeaea2d1ca4ee0b8c4293b14acd70efdd8ca08db4eb66b",
-    "managed_content_sha256": "dec7bbb29d035491cba6e7beb8c29ef7720e00e62554902e553df42764da3263",
+    "managed_content_sha256": "1bd685105e1425e44774a3de8f5b9b103d449005027d45e3b150d20f874ddda6",
     "status": "materialized_unqualified_development_qualification_consolidation_in_progress",
     "candidate_issued": false
   },
