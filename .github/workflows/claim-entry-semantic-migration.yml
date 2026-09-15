@@ -1,0 +1,83 @@
+name: Claim-first Entry semantic migration
+
+on:
+  push:
+    branches:
+      - 'dev/manager-4.17.13'
+    paths:
+      - '.github/workflows/claim-entry-semantic-migration.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keelaryn-claim-entry-semantic-migration
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: true
+
+      - name: Verify exact authoritative branch head
+        shell: powershell
+        run: |
+          if ($env:GITHUB_REF_NAME -cne 'dev/manager-4.17.13') { throw "Unexpected branch: $env:GITHUB_REF_NAME" }
+          git fetch origin dev/manager-4.17.13
+          $local=(git rev-parse HEAD).Trim().ToLowerInvariant()
+          $remote=(git rev-parse origin/dev/manager-4.17.13).Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0 -or $local -cne $remote) { throw "Authoritative branch advanced before semantic materialization. local=$local remote=$remote" }
+
+      - name: Verify GitHub Actions supply-chain policy
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply reviewed claim-first Entry semantic migration
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Apply-Manager41713ClaimEntrySemanticMigration.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Validate canonical knowledge and bounded oracle contract
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerQualificationArchitecture.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEntryOracleContract.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEngineeringKnowledge.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify exact diff and commit semantic migration
+        shell: powershell
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $expected=@(
+            'tests/knowledge/entry-reachability-oracles.json',
+            'tests/knowledge/state-machines/multi-hub.json',
+            'tools/Invoke-ManagerBoundedEntryReachability.ps1',
+            'tools/Test-ManagerEntryOracleContract.ps1'
+          ) | Sort-Object
+          $actual=@(git diff --name-only | ForEach-Object { $_.Trim().Replace('\','/') } | Where-Object { $_ } | Sort-Object)
+          if ($actual.Count -ne $expected.Count -or (Compare-Object -ReferenceObject $expected -DifferenceObject $actual)) {
+            throw ('Unexpected semantic migration diff: '+($actual -join ', '))
+          }
+          git config user.name 'keelaryn-ci'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -- @($expected)
+          git commit -m 'Manager 4.17.13: migrate Entry oracle to claim-first semantics'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:dev/manager-4.17.13
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+# One-shot development materializer. The write permission is intentionally scoped to this
+# semantic migration because the connector cannot patch large existing files atomically.
+# Delete this workflow after the migration commit is verified and durable.
