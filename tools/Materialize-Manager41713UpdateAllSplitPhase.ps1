@@ -1,13 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$RepositoryRoot='D:\0\0__Core\keelaryn'
+    [string]$KeelarynRoot='D:\0\0__Core\keelaryn'
 )
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 
 $Branch='dev/manager-4.17.13'
-$RepositoryFullName='efremov-aleksei-96/keelaryn'
+$Origin='https://github.com/efremov-aleksei-96/keelaryn.git'
+$ExpectedRemoteBefore='0ace75da8225699c0763f860b549896b1d64f4c3'
 $ExpectedBaseRuntimeBlob='f4b46f185ae51f1763980a8149d8388771cc1e4b'
 $ExpectedProofHelperBlob='6bef1ce4fa918c14633a2cab7e4cdf130f42676e'
 $ExpectedPatchedRuntimeSha256='4e34b45924de4f50b6c29cf2d9d90a9454f9278cd0c7ed682b67b4e2e368083f'
@@ -15,7 +16,6 @@ $ExpectedPatchedRuntimeBytes=576076L
 $RuntimeRelative='manager/product/runtime/Keelaryn__Manager.ps1'
 $ManifestRelative='PUBLIC_FILE_MANIFEST.json'
 $ProofHelperRelative='tools/Apply-Manager41713UpdateAllSplitPhaseProofPatch.ps1'
-$WorkRoot=Join-Path $RepositoryRoot 'tests\work\manager-4.17.13-mgr-def-0035-materialize'
 $Succeeded=$false
 
 function Fail([string]$Message){ throw $Message }
@@ -31,8 +31,8 @@ function Invoke-Git([string]$WorkingDirectory,[string[]]$Arguments,[switch]$Allo
     if($AllowMany){return @($out)}
     return ([string]$out[0]).Trim()
 }
-function Get-RemoteHead([string]$Repo,[string]$Remote,[string]$Ref){
-    $rows=@(Invoke-Git $Repo @('ls-remote',$Remote,$Ref) -AllowMany)
+function Get-RemoteHead([string]$WorkingDirectory,[string]$Remote,[string]$Ref){
+    $rows=@(Invoke-Git $WorkingDirectory @('ls-remote',$Remote,$Ref) -AllowMany)
     if($rows.Count-ne1-or$rows[0]-notmatch'^([0-9a-fA-F]{40})\s+'){
         Fail('Unable to resolve exact remote ref '+$Ref+'. Output: '+([string]::Join(' | ',$rows)))
     }
@@ -45,19 +45,16 @@ function Get-GitBlob([string]$Repo,[string]$Spec){
 }
 function Get-Sha256([string]$Path){return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()}
 
-$RepositoryRoot=[IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\')
-if(-not(Test-Path -LiteralPath $RepositoryRoot -PathType Container)){Fail('Repository root missing: '+$RepositoryRoot)}
-if(-not(Test-Path -LiteralPath (Join-Path $RepositoryRoot '.git'))){Fail('Repository root is not a Git checkout: '+$RepositoryRoot)}
-$origin=Invoke-Git $RepositoryRoot @('remote','get-url','origin')
-if($origin-notmatch'(?i)(?:github\.com[:/])efremov-aleksei-96/keelaryn(?:\.git)?$'){
-    Fail('Unexpected origin URL: '+$origin)
-}
+$KeelarynRoot=[IO.Path]::GetFullPath($KeelarynRoot).TrimEnd('\')
+if(-not(Test-Path -LiteralPath $KeelarynRoot -PathType Container)){Fail('Keelaryn root missing: '+$KeelarynRoot)}
+$WorkRoot=Join-Path $KeelarynRoot 'tests\work\manager-4.17.13-mgr-def-0035-materialize'
 if(Test-Path -LiteralPath $WorkRoot){Fail('Disposable materialization path already exists: '+$WorkRoot)}
 $workParent=Split-Path -Parent $WorkRoot
 if(-not(Test-Path -LiteralPath $workParent -PathType Container)){[void](New-Item -ItemType Directory -Force -Path $workParent)}
 
 $remoteRef='refs/heads/'+$Branch
-$remoteBefore=Get-RemoteHead $RepositoryRoot 'origin' $remoteRef
+$remoteBefore=Get-RemoteHead $KeelarynRoot $Origin $remoteRef
+if($remoteBefore-cne$ExpectedRemoteBefore){Fail('Authoritative remote HEAD changed; refusing materialization. expected='+$ExpectedRemoteBefore+' actual='+$remoteBefore)}
 Write-Host ('Authoritative remote before: '+$remoteBefore)
 Write-Host ('Cloning disposable materialization checkout: '+$WorkRoot)
 
@@ -65,7 +62,7 @@ try{
     $old=$ErrorActionPreference
     try{
         $ErrorActionPreference='Continue'
-        $cloneOut=@(& git.exe clone --no-tags --single-branch --branch $Branch $origin $WorkRoot 2>&1 | ForEach-Object {[string]$_})
+        $cloneOut=@(& git.exe clone --no-tags --single-branch --branch $Branch $Origin $WorkRoot 2>&1 | ForEach-Object {[string]$_})
         $cloneCode=[int]$LASTEXITCODE
     }finally{$ErrorActionPreference=$old}
     if($cloneCode-ne0){Fail('Disposable clone failed: '+([string]::Join(' | ',$cloneOut)))}
@@ -114,22 +111,22 @@ try{
     $staged=@(Invoke-Git $WorkRoot @('diff','--cached','--name-only') -AllowMany|ForEach-Object{$_.Replace('\','/')}|Sort-Object)
     if(([string]::Join('|',$staged))-cne([string]::Join('|',$expected))){Fail('Unexpected staged diff set: '+($staged-join','))}
 
-    $name=(Invoke-Git $RepositoryRoot @('config','user.name')).Trim()
-    $email=(Invoke-Git $RepositoryRoot @('config','user.email')).Trim()
-    if([string]::IsNullOrWhiteSpace($name)-or[string]::IsNullOrWhiteSpace($email)){Fail('Local Git user.name/user.email must already be configured; refusing to invent commit identity.')}
+    $name=(Invoke-Git $WorkRoot @('log','-1','--format=%an')).Trim()
+    $email=(Invoke-Git $WorkRoot @('log','-1','--format=%ae')).Trim()
+    if([string]::IsNullOrWhiteSpace($name)-or[string]::IsNullOrWhiteSpace($email)){Fail('Unable to derive commit identity from authoritative branch HEAD.')}
     [void](Invoke-Git $WorkRoot @('config','user.name',$name) -AllowMany)
     [void](Invoke-Git $WorkRoot @('config','user.email',$email) -AllowMany)
 
-    [void](Invoke-Git $WorkRoot @('commit','-m','Manager 4.17.13: materialize token-bound UpdateAll split phase') -AllowMany)
+    [void](Invoke-Git $WorkRoot @('-c','commit.gpgsign=false','commit','-m','Manager 4.17.13: materialize token-bound UpdateAll split phase') -AllowMany)
     $commit=(Invoke-Git $WorkRoot @('rev-parse','--verify','HEAD^{commit}')).ToLowerInvariant()
     $tree=(Invoke-Git $WorkRoot @('rev-parse','--verify','HEAD^{tree}')).ToLowerInvariant()
 
-    $remoteAtCommit=Get-RemoteHead $RepositoryRoot 'origin' $remoteRef
+    $remoteAtCommit=Get-RemoteHead $WorkRoot $Origin $remoteRef
     if($remoteAtCommit-cne$remoteBefore){Fail('Authoritative remote advanced during materialization; refusing push. before='+$remoteBefore+' now='+$remoteAtCommit)}
 
     Write-Host ('Pushing non-force commit '+$commit+' to '+$Branch+' ...')
-    [void](Invoke-Git $WorkRoot @('push','origin','HEAD:'+ $remoteRef) -AllowMany)
-    $remoteAfter=Get-RemoteHead $RepositoryRoot 'origin' $remoteRef
+    [void](Invoke-Git $WorkRoot @('push','origin','HEAD:'+$remoteRef) -AllowMany)
+    $remoteAfter=Get-RemoteHead $WorkRoot $Origin $remoteRef
     if($remoteAfter-cne$commit){Fail('Remote post-push identity mismatch. expected='+$commit+' actual='+$remoteAfter)}
 
     Write-Host ''
