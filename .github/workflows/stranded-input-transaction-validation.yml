@@ -1,0 +1,68 @@
+name: Stranded input transaction validation
+
+on:
+  push:
+    branches:
+      - 'dev/**'
+    paths:
+      - 'manager/product/runtime/Keelaryn__Manager.ps1'
+      - 'tests/knowledge/stranded-input-transaction-properties.json'
+      - 'tests/knowledge/invariants/multi-hub.json'
+      - 'tests/knowledge/risk-map.json'
+      - 'tests/knowledge/architecture/stranded-input-reconciliation-4.17.13.json'
+      - 'tools/Invoke-ManagerStrandedInputTransactionProperties.ps1'
+      - 'tools/Test-ManagerQualificationArchitecture.ps1'
+      - '.github/workflows/stranded-input-transaction-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keelaryn-stranded-input-transaction-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  transaction-red:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify GitHub Actions supply-chain policy
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify transaction architecture contract
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerQualificationArchitecture.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Reproduce MGR-DEF-0034 on current product bytes
+        shell: powershell
+        run: |
+          $out=Join-Path $env:RUNNER_TEMP 'STRANDED_INPUT_TRANSACTION_RED.json'
+          "KEELARYN_TRANSACTION_EVIDENCE=$out" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerStrandedInputTransactionProperties.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -ExpectedState Broken -OutputPath "$out"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload compact transaction evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-stranded-input-transaction-red-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_TRANSACTION_EVIDENCE }}
+          if-no-files-found: warn
+          retention-days: 3
+
+# This development-only workflow intentionally expects the current MGR-DEF-0034 failure
+# before product implementation. PASS means the exact forbidden stage-loss trajectory was
+# reproduced in a disposable Manager; it does not mean the product is correct. After the
+# claim-first implementation lands, this workflow must be converted to fixed-state property
+# validation before MGR-DEF-0034 may close.
