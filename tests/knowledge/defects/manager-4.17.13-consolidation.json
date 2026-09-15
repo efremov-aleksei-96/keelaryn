@@ -49,6 +49,64 @@
           "id": "MQA-41713-001"
         }
       ]
+    },
+    {
+      "id": "MGR-DEF-0035",
+      "title": "Token-bound UpdateAll cannot execute its Manager-global phase when the captured active Hub is missing or corrupt",
+      "severity": "P1",
+      "status": "open",
+      "release_blocker": true,
+      "detected_in": "4.17.13",
+      "detected_stage": "bounded_state_machine_entry_reachability_migration",
+      "defect_class": "pre-dispatch reachability / mixed Manager-global and Hub-bound update phase ordering",
+      "affected_surfaces": [
+        "S-RUNTIME-REGISTRY-RESOLUTION",
+        "S-RUNTIME-UPDATE-HANDOFF"
+      ],
+      "preconditions": "A valid multi-Hub registry and active metadata identify the same instance_id captured by an explicit ExpectedInstanceId token, the active Hub path is missing or the Hub is structurally invalid, and UpdateAll has a valid newer Manager package available in the Manager-global inbox.",
+      "bad_behavior": "Resolve-RegisteredInstanceContextEarly validates active Hub health before Invoke-Update. The top-level unresolved-registry catch does not allow UpdateAll to dispatch, so the process aborts before the Manager-global update phase. The valid Manager package remains unconsumed even though canonical rules require the Manager phase to remain independent while the captured Hub phase later fails closed without retargeting.",
+      "root_cause": "Pre-dispatch policy represented UpdateAll only as a Hub-context-dependent action. It did not distinguish a fully captured registry target identity from successful active-Hub health resolution, so a failure in the Hub half of the mixed operation incorrectly suppresses the independent Manager-global half.",
+      "root_cause_classes": [
+        "RC-ENTRY-001",
+        "RC-CONTEXT-001",
+        "RC-REACHABILITY-001"
+      ],
+      "violated_invariants": [
+        "MH-MANAGER-GLOBAL-001",
+        "MH-CONTEXT-001",
+        "MH-REACHABILITY-001"
+      ],
+      "related_defects": [
+        "MGR-DEF-0013",
+        "MGR-DEF-0015"
+      ],
+      "permanent_regressions": [],
+      "planned_regressions": [
+        "tools/Invoke-ManagerBoundedEntryReachability.ps1"
+      ],
+      "fixed_in": "",
+      "evidence": [
+        {
+          "type": "bounded_entry_red_run",
+          "id": "34975280960"
+        },
+        {
+          "type": "bounded_entry_red_artifact",
+          "id": "10399950107"
+        },
+        {
+          "type": "bounded_entry_red_summary",
+          "id": "55 derived edges executed; 53 PASS; only EDGE-033 REGISTRY_ACTIVE_HUB_CORRUPT x UpdateAll and EDGE-034 REGISTRY_ACTIVE_HUB_MISSING x UpdateAll failed; harness_error=false"
+        },
+        {
+          "type": "source_symbol",
+          "id": "Resolve-RegisteredInstanceContextEarly / top-level allowRegistryUnresolved"
+        },
+        {
+          "type": "state_machine_rules",
+          "id": "R-BROKEN-ACTIVE-UPDATE-ALL-CORRUPT,R-BROKEN-ACTIVE-UPDATE-ALL-MISSING"
+        }
+      ]
     }
   ]
 }
