@@ -1,0 +1,142 @@
+{
+  "schema": "keelaryn.manager-qualification-architecture.v1",
+  "work_item_id": "MQA-41713-001",
+  "title": "Manager qualification consolidation before 4.17.13 candidate freeze",
+  "status": "in_progress",
+  "manager_line": "4.17.13",
+  "product_bytes_changed_by_work_item": false,
+  "production_hub_mutation_permitted": false,
+  "candidate_freeze_permitted": false,
+  "semantic_sources": {
+    "multi_hub_state_machine": "tests/knowledge/state-machines/multi-hub.json",
+    "invariants": "tests/knowledge/invariants/multi-hub.json",
+    "risk_map": "tests/knowledge/risk-map.json",
+    "development_state": "MANAGER_DEVELOPMENT_STATE.json",
+    "historical_evidence": "GitHub commits, PRs, workflow runs, artifacts, tags and provenance refs"
+  },
+  "qualification_contract": {
+    "entry_reachability": {
+      "semantic_owner": "tests/knowledge/state-machines/multi-hub.json",
+      "coverage_basis": "winning_rule_and_control_flow_edge_cover",
+      "fixed_scenario_count_is_requirement": false,
+      "supplemental_fault_scenarios_are_entry_reachability": false,
+      "target": "bounded deterministic edge cover of real state-dependent process-entry behavior",
+      "must_preserve_state_dependent_behavior": true
+    },
+    "transaction_fault_properties": {
+      "separate_from_entry_reachability": true,
+      "target": "capability/property suites for commit-boundary revalidation, publication, rollback or replacement semantics, collision handling and durable-partial-result reporting"
+    },
+    "risk_gate": {
+      "role": "select_and_enforce_requirements_then_verify_execution_receipt",
+      "direct_child_execution_target": false
+    },
+    "execution_scheduler": {
+      "role": "execute_each_unique required proof once per exact source identity and trust boundary",
+      "same_sha_same_boundary_duplicate_execution_permitted": false,
+      "receipt_must_bind": [
+        "exact_source_commit",
+        "exact_source_tree",
+        "risk_context_identity",
+        "selected_requirement_ids",
+        "selected_capability_suite_ids",
+        "executed_proof_ids",
+        "result"
+      ]
+    },
+    "fresh_boundaries": [
+      "candidate_freeze",
+      "Source Gate",
+      "Full Gate",
+      "production install/update/rollback acceptance"
+    ],
+    "fresh_validation_at_new_boundary_required": true,
+    "source_gate_full_gate_production_acceptance_deduplication_permitted": false
+  },
+  "capability_suite_direction": {
+    "recursive_suite_invocation_permitted": false,
+    "orchestrator_count": 1,
+    "target_suites": [
+      "registry_recovery",
+      "inbox_handoff",
+      "captured_context",
+      "current_safety",
+      "update_restart",
+      "genesis_registry_transaction",
+      "frontend_recovery",
+      "compatibility",
+      "transaction_fault_properties"
+    ],
+    "legacy_version_scripts": {
+      "status": "migration_only_until_flattened",
+      "freeze_blocker": true,
+      "reason": "Existing version-specific regressions recursively execute predecessors and are also selected independently by orchestration."
+    }
+  },
+  "preserved_safety_invariants": [
+    "immutable_canonical_instance_id",
+    "registry_authority_once_active",
+    "exact_artifact_instance_binding",
+    "cross_instance_fail_closed",
+    "captured_invocation_context",
+    "fresh_commit_boundary_validation",
+    "deterministic_atomic_publication_semantics",
+    "destination_collision_detection",
+    "durable_commit_vs_post_commit_failure_distinction",
+    "downgrade_compatibility_isolation",
+    "Doctor",
+    "actual_update_install_rollback_qualification",
+    "exact_source_and_artifact_identity",
+    "fresh_qualification_at_freeze_and_production_boundaries"
+  ],
+  "stranded_input_transaction_review": {
+    "source_symbol": "Reconcile-StrandedGlobalHubInputsForExistingRegistry",
+    "current_semantic_rule": "R-REGISTRY-PENDING-GLOBAL-INVALID-INIT",
+    "open_defect": "MGR-DEF-0034",
+    "current_batch_semantics": "whole_batch_preflight_stage_publish_with_rollback",
+    "current_problem": "A verified unpublished stage can become the only surviving known-good copy if its global source changes or disappears; unconditional finally cleanup then deletes that stage.",
+    "product_change_deferred_until_state_machine_review": true,
+    "preferred_hypothesis": {
+      "name": "per_artifact_atomic_idempotent_reconciliation",
+      "algorithm": [
+        "validate exact artifact",
+        "resolve exact registered instance",
+        "freshly revalidate source and destination at the artifact commit boundary",
+        "atomically and idempotently publish or move the exact artifact",
+        "verify durable destination",
+        "record completed handoff",
+        "continue with the next artifact"
+      ],
+      "later_failure_semantics": [
+        "already completed exact handoffs remain valid",
+        "failed or unprocessed artifacts remain global",
+        "operation reports explicit partial result and failure",
+        "ordinary Hub operations remain fail_closed while stranded global Hub inputs remain"
+      ],
+      "requires_state_machine_change": true,
+      "must_not_be_implemented_before_review": true
+    }
+  },
+  "known_duplication": {
+    "entry_reachability_execution_sites": [
+      "tools/Invoke-DevelopmentValidation.ps1",
+      "tools/Invoke-ManagerRiskDefectGate.ps1 through applicable regressions",
+      ".github/workflows/entry-reachability-validation.yml"
+    ],
+    "version_regression_recursion_confirmed": true,
+    "development_state_magic_count_drift_confirmed": true
+  },
+  "ordered_acceptance": [
+    "record_and_validate_this_architecture_without_product_byte_change",
+    "separate_entry_reachability_from_transaction_fault_properties",
+    "derive_bounded_entry_coverage_from_state_machine_winning_rules_and_control_flow_classes",
+    "introduce_flat_capability_suite_selection_and_single execution scheduler",
+    "remove same_SHA same_boundary duplicate proof execution",
+    "review stranded_input state_machine semantics and choose batch or per_artifact transaction contract",
+    "implement the chosen product contract and capability/property coverage",
+    "obtain one coherent exact_head Development PASS",
+    "run full_successor Risk/Defect assessment over qualified_base_to_exact_head",
+    "perform fresh semantic_and_adversarial review",
+    "consider candidate freeze only when all blockers are closed"
+  ]
+}
