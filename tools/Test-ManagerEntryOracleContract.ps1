@@ -36,7 +36,7 @@ $allowed=@(
     'global_success','diagnostic_reached','doctor_stranded_global_diagnostic','fail_closed','stranded_global_blocked',
     'active_instance_candidate_visible','updateall_manager_updates_then_hub_fails_closed','captured_context_required_fail_closed',
     'active_instance_candidate_transport_scope','active_instance_candidate_restore_scope','registry_init_rejected_after_dispatch',
-    'registry_init_reconciles_global_input','registry_init_mixed_invalid_rejected_without_partial_handoff'
+    'registry_init_reconciles_global_input','registry_init_mixed_invalid_preserves_completed_handoff_and_failed_claim'
 )
 $oracleByRule=@{}
 foreach($row in @($oracle.rule_oracles)){

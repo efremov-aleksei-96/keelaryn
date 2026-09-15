@@ -1050,13 +1050,14 @@
                                  ],
                       "operation":  "InitializeRegistry",
                       "priority":  190,
-                      "outcome":  "reject_fail_closed",
+                      "outcome":  "reconcile_per_artifact_preserve_completed_handoff_and_failed_claim",
                       "invariants":  [
                                          "MH-INBOX-001",
                                          "MH-COMMIT-001",
-                                         "MH-LIFECYCLE-001"
+                                         "MH-LIFECYCLE-001",
+                                         "MH-HANDOFF-001"
                                      ],
-                      "reason":  "Existing-registry reconciliation must validate the complete stranded-input batch before publishing any per-instance destination; a later invalid input must leave all global sources and per-instance lifecycle state unchanged."
+                      "reason":  "Existing-registry reconciliation is per artifact: earlier exact handoffs remain durable; a later invalid recognized input remains a durable blocking claim and must not roll back completed publications."
                   }
               ]
 }

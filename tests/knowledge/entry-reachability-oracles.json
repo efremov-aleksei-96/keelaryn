@@ -53,7 +53,7 @@
     {"winning_rule":"R-REGISTRY-INSTANCE-PENDING-RESTORE","observation_mode":"active_instance_candidate_restore_scope","action":"RestoreCandidateTransport"},
     {"winning_rule":"R-REGISTRY-INSTANCE-PENDING-UPDATE","observation_mode":"active_instance_candidate_visible","action":"UpdateHub"},
     {"winning_rule":"R-REGISTRY-LIST","observation_mode":"list_success","action":"ListInstances"},
-    {"winning_rule":"R-REGISTRY-PENDING-GLOBAL-INVALID-INIT","observation_mode":"registry_init_mixed_invalid_rejected_without_partial_handoff","action":"InitializeInstanceRegistry"},
+    {"winning_rule":"R-REGISTRY-PENDING-GLOBAL-INVALID-INIT","observation_mode":"registry_init_mixed_invalid_preserves_completed_handoff_and_failed_claim","action":"InitializeInstanceRegistry"},
     {"winning_rule":"R-REGISTRY-SWITCH","observation_mode":"target_success","action":"SwitchInstance"}
   ]
 }

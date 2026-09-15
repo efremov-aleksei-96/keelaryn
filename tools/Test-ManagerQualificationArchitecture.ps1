@@ -160,7 +160,7 @@ $stageLoss=@($allDefects|Where-Object{[string]$_.id-ceq'MGR-DEF-0034'})
 if($stageLoss.Count-ne1){Fail 'MGR-DEF-0034 must exist exactly once.'}
 if([string]$stageLoss[0].status-cne'open'-or[string]$stageLoss[0].severity-cne'P1'-or-not[bool]$stageLoss[0].release_blocker){Fail 'MGR-DEF-0034 must remain an open P1 release blocker until the transaction implementation is corrected and proven.'}
 $splitPhase=@($allDefects|Where-Object{[string]$_.id-ceq'MGR-DEF-0035'})
-if($splitPhase.Count-ne1-or[string]$splitPhase[0].status-cne'closed'-or[bool]$splitPhase[0].release_blocker){Fail 'MGR-DEF-0035 must remain closed and non-blocking after its exact-head 55/55 proof.'}
+if($splitPhase.Count-ne1-or[string]$splitPhase[0].status-cne'fixed'-or[bool]$splitPhase[0].release_blocker){Fail 'MGR-DEF-0035 must remain fixed and non-blocking after its exact-head 55/55 proof.'}
 
 $schedulerText=Read-Text 'tools/Invoke-ManagerQualificationScheduler.ps1'
 $riskGateText=Read-Text 'tools/Invoke-ManagerRiskDefectGate.ps1'
