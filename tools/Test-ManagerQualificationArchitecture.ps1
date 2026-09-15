@@ -75,7 +75,7 @@ Require-True ([bool]$transaction.preferred_hypothesis.must_not_be_implemented_be
 
 $semanticRule=@($machine.rules|Where-Object{[string]$_.id-ceq[string]$transaction.current_semantic_rule})
 if($semanticRule.Count-ne1){Fail 'Stranded-input semantic rule is missing or duplicated.'}
-if([string]$semanticRule[0].operation-cne'InitializeInstanceRegistry'){Fail 'Stranded-input semantic rule no longer governs InitializeInstanceRegistry.'}
+if([string]$semanticRule[0].operation-cne'InitializeRegistry'){Fail 'Stranded-input semantic rule no longer governs InitializeRegistry.'}
 
 $defectFiles=@(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'tests\knowledge\defects') -File -Filter '*.json'|Sort-Object Name)
 $allDefects=New-Object System.Collections.ArrayList
