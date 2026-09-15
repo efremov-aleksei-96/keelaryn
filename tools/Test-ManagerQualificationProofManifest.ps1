@@ -29,6 +29,13 @@ function Get-ScriptParameterNames([string]$RelativePath){
     if($null-eq$ast.ParamBlock){return @()}
     return @($ast.ParamBlock.Parameters|ForEach-Object{[string]$_.Name.VariablePath.UserPath})
 }
+function Assert-SameSet($Expected,$Actual,[string]$Label){
+    $expectedRows=@($Expected|ForEach-Object{([string]$_).Replace('\','/')}|Sort-Object -Unique)
+    $actualRows=@($Actual|ForEach-Object{([string]$_).Replace('\','/')}|Sort-Object -Unique)
+    if(([string]::Join('|',$expectedRows))-cne([string]::Join('|',$actualRows))){
+        Fail($Label+' mismatch. expected='+([string]::Join(',',$expectedRows))+' actual='+([string]::Join(',',$actualRows)))
+    }
+}
 
 $manifestPath='tests/knowledge/qualification/capability-proofs.json'
 $manifest=Read-Json $manifestPath
@@ -78,6 +85,35 @@ if([bool]$contract.fresh_boundary_receipt_reuse_permitted){Fail 'Receipt reuse a
 if(-not[bool]$contract.scheduler_leaf_arguments_are_authoritative){Fail 'Scheduler leaf arguments must remain authoritative.'}
 if(-not[bool]$contract.static_identity_proofs_do_not_claim_behavioral_capabilities){Fail 'Static identity proofs must not claim behavioral capabilities.'}
 if(-not[bool]$contract.pre_scheduler_meta_validation_is_not_reexecuted_by_scheduler){Fail 'Pre-scheduler meta validation must not be re-executed by scheduler.'}
+if([bool]$contract.historical_recursive_sources_execute_directly_in_scheduler){Fail 'Historical recursive source adapters must not execute directly in scheduler.'}
+if([string]$contract.historical_behavior_owner-cne'historical_flat_lineage'){Fail 'Historical behavioral ownership must remain historical_flat_lineage.'}
+
+$flat=$byId['historical_flat_lineage']
+if($null-eq$flat){Fail 'historical_flat_lineage proof is missing.'}
+if((Get-Execution $flat)-cne'executable'){Fail 'historical_flat_lineage must be executable.'}
+if($mandatory-cnotcontains'historical_flat_lineage'){Fail 'historical_flat_lineage must be mandatory development coverage.'}
+$flatSources=@($flat.source_paths|ForEach-Object{([string]$_).Replace('\','/')})
+if($flatSources.Count-eq0){Fail 'historical_flat_lineage has no source_paths.'}
+if($flatSources.Count-ne@($flatSources|Sort-Object -Unique).Count){Fail 'historical_flat_lineage source_paths contain duplicates.'}
+$declaredHistoricalStatic=@($manifest.proofs|Where-Object{
+    ([string]$_.id).StartsWith('historical_',[StringComparison]::Ordinal) -and
+    ([string]$_.id)-cne'historical_flat_lineage' -and
+    (Get-Execution $_)-ceq'static'
+}|ForEach-Object{([string]$_.path).Replace('\','/')}|Where-Object{$_-notlike'*41712*'})
+Assert-SameSet $flatSources $declaredHistoricalStatic 'Flat historical source/static-identity set'
+foreach($path in $flatSources){
+    if(-not$byPath.ContainsKey($path)){Fail('Flat historical source lacks declared static identity proof: '+$path)}
+    if((Get-Execution $byPath[$path])-cne'static'){Fail('Flat historical source is not static in scheduler ownership: '+$path)}
+    if($mandatory-ccontains[string]$byPath[$path].id){Fail('Recursive historical source adapter must not be a mandatory direct proof: '+$path)}
+}
+$flatRunnerPath=Join-Path $RepositoryRoot 'tools\Invoke-ManagerHistoricalFlatRegression.ps1'
+$flatRunner=[IO.File]::ReadAllText($flatRunnerPath,[Text.Encoding]::UTF8)
+foreach($path in $flatSources){
+    $name=[IO.Path]::GetFileName($path)
+    if(-not$flatRunner.Contains($name)){Fail('Flat runner omits declared historical source: '+$name)}
+}
+if(-not$flatRunner.Contains('New-LeafCopy')){Fail 'Flat runner does not materialize disposable leaf copies.'}
+if(-not$flatRunner.Contains('unique_leaf_proofs')){Fail 'Flat runner does not report unique leaf execution count.'}
 
 $riskMeta=$byId['risk_context_meta_identity']
 if($null-eq$riskMeta){Fail 'risk_context_meta_identity proof is missing.'}
