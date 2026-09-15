@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/claim-entry-semantic-migration.yml'
       - 'tools/Invoke-Manager41713ClaimEntrySemanticMigration.ps1'
+      - 'tests/knowledge/defects/manager-4.17.13-consolidation.json'
 
 permissions:
   contents: write
