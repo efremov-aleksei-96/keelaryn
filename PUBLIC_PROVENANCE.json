@@ -130,8 +130,19 @@
                                                                "status":  "unqualified_development",
                                                                "candidate_issued":  false,
                                                                "entry_policy_modes":  29,
-                                                               "entry_reachability_scenarios":  102,
+                                                               "canonical_entry_reachability_scenarios":  102,
+                                                               "supplemental_entry_reachability_scenarios":  1,
+                                                               "entry_reachability_scenarios":  103,
                                                                "exact_head_validation":  "required_before_freeze",
+                                                               "proof_quality_closure":  {
+                                                                                            "status":  "materialized_unqualified_development",
+                                                                                            "trigger":  "fresh Codex review on 4dbb2854 found two P2 qualification gaps",
+                                                                                            "requirements":  [
+                                                                                                                 "ER-103 executes real phase-4 rollback after first verified publication",
+                                                                                                                 "Manager-global global_success cells require action-specific execution evidence"
+                                                                                                             ],
+                                                                                            "exact_green_requalification":  "required_before_freeze"
+                                                                                        },
                                                                "prefreeze_product_fix":  {
                                                                                              "defect_id":  "MGR-DEF-0031",
                                                                                              "status":  "materialized_unqualified_development",
