@@ -1,4 +1,4 @@
-name: Entry reachability model validation
+name: Entry reachability validation
 
 on:
   push:
@@ -12,6 +12,7 @@ on:
       - 'tests/knowledge/state-machines/multi-hub.json'
       - 'tests/knowledge/architecture/qualification-consolidation-4.17.13.json'
       - 'tools/Build-ManagerEntryReachabilityPlan.ps1'
+      - 'tools/Invoke-ManagerBoundedEntryReachability.ps1'
       - 'tools/Test-ManagerEntryOracleMigration.ps1'
       - 'tools/Test-ManagerEntryOracleContract.ps1'
       - 'tools/Test-ManagerQualificationArchitecture.ps1'
@@ -28,7 +29,7 @@ concurrency:
 jobs:
   entry-model:
     runs-on: windows-2025
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,7 +72,16 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEntryOracleMigration.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$oracle"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Upload compact entry model evidence
+      - name: Execute bounded real process-entry cover
+        shell: powershell
+        run: |
+          $bounded=Join-Path $env:RUNNER_TEMP 'MANAGER_BOUNDED_ENTRY_RESULT.json'
+          "KEELARYN_BOUNDED_ENTRY=$bounded" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerBoundedEntryReachability.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$bounded"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload compact entry evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: manager-entry-model-${{ github.sha }}-${{ github.run_attempt }}
@@ -79,12 +89,15 @@ jobs:
             ${{ env.KEELARYN_ENTRY_PLAN }}
             ${{ env.KEELARYN_ENTRY_ORACLE_CONTRACT }}
             ${{ env.KEELARYN_ENTRY_ORACLE }}
-          if-no-files-found: error
+            ${{ env.KEELARYN_BOUNDED_ENTRY }}
+          if-no-files-found: warn
           retention-days: 3
 
-# This workflow validates the declarative process-entry model, the explicit canonical oracle contract,
-# and the legacy migration cross-check only. It intentionally does not execute Manager process-entry actions.
-# The canonical multi-Hub state machine owns semantics; every derived winning rule must have one explicit oracle,
-# fallback is prohibited, and the legacy Cartesian model remains migration-only evidence.
-# Fresh real process-entry execution remains mandatory at the pre-freeze boundary, candidate freeze,
-# Source Gate, Full Gate and production acceptance.
+# The canonical multi-Hub state machine owns process-entry semantics. The plan is a bounded
+# winning-rule/control-flow edge cover and every derived edge resolves to an explicit oracle;
+# fallback and transaction-fault properties are prohibited here.
+# The legacy Cartesian model remains migration-only evidence. This workflow executes the new
+# bounded real process-entry harness as an isolated development proof; scheduler ownership is
+# not changed until this proof passes on Windows.
+# Fresh real process-entry execution remains mandatory at candidate freeze, Source Gate,
+# Full Gate and production acceptance.
