@@ -11,6 +11,7 @@ on:
       - 'tests/knowledge/state-machines/multi-hub.json'
       - 'tests/knowledge/architecture/qualification-consolidation-4.17.13.json'
       - 'tools/Build-ManagerEntryReachabilityPlan.ps1'
+      - 'tools/Test-ManagerEntryOracleMigration.ps1'
       - 'tools/Test-ManagerQualificationArchitecture.ps1'
       - '.github/workflows/entry-reachability-validation.yml'
   workflow_dispatch:
@@ -47,19 +48,32 @@ jobs:
       - name: Derive bounded entry plan
         shell: powershell
         run: |
-          $evidence=Join-Path $env:RUNNER_TEMP 'MANAGER_ENTRY_PLAN.json'
-          "KEELARYN_ENTRY_PLAN=$evidence" >> $env:GITHUB_ENV
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-ManagerEntryReachabilityPlan.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$evidence"
+          $plan=Join-Path $env:RUNNER_TEMP 'MANAGER_ENTRY_PLAN.json'
+          "KEELARYN_ENTRY_PLAN=$plan" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-ManagerEntryReachabilityPlan.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$plan"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Upload compact entry plan
+      - name: Audit legacy observation migration only
+        shell: powershell
+        run: |
+          $oracle=Join-Path $env:RUNNER_TEMP 'MANAGER_ENTRY_ORACLE_MIGRATION.json'
+          "KEELARYN_ENTRY_ORACLE=$oracle" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerEntryOracleMigration.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$oracle"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload compact entry model evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: manager-entry-plan-${{ github.sha }}-${{ github.run_attempt }}
-          path: ${{ env.KEELARYN_ENTRY_PLAN }}
+          name: manager-entry-model-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.KEELARYN_ENTRY_PLAN }}
+            ${{ env.KEELARYN_ENTRY_ORACLE }}
           if-no-files-found: error
           retention-days: 3
 
-# This workflow validates the declarative process-entry model only. It intentionally does not
-# repeat the expensive real process-entry proof already owned by the pre-freeze execution boundary.
-# Fresh execution remains mandatory at candidate freeze, Source Gate, Full Gate and production acceptance.
+# This workflow validates the declarative process-entry model and migration oracle mapping only.
+# It intentionally does not execute Manager process-entry actions and does not treat the legacy Cartesian
+# model as semantic authority. The canonical multi-Hub state machine owns semantics; the legacy model is
+# read only as a migration cross-check for observable harness vocabulary while bounded execution is built.
+# Fresh real process-entry execution remains mandatory at the pre-freeze boundary, candidate freeze,
+# Source Gate, Full Gate and production acceptance.
