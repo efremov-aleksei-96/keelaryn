@@ -21,11 +21,11 @@
   },
   "materialization": {
     "manager_version": "4.17.13",
-    "product_commit": null,
-    "product_tree": null,
+    "product_commit": "9288e7ed7b7fc6ba6290ec50128e2b25ef506079",
+    "product_tree": "bc3de41787edd4d5cbbbfa1291c786cc74a8fe99",
     "installation_sha256": "acc2b2eeff9b32775dfeaea2d1ca4ee0b8c4293b14acd70efdd8ca08db4eb66b",
     "managed_content_sha256": "1bd685105e1425e44774a3de8f5b9b103d449005027d45e3b150d20f874ddda6",
-    "status": "materialized_unqualified_development_qualification_consolidation_in_progress",
+    "status": "materialized_unqualified_development_transaction_fix_in_progress",
     "candidate_issued": false
   },
   "qualification": {
@@ -57,11 +57,21 @@
       "multi_hub_activated": false
     },
     "successor_4_17_13": {
-      "status": "unqualified_development_qualification_consolidation_in_progress",
+      "status": "unqualified_development_transaction_fix_in_progress",
       "development_base": "bdd1fa38ce680304f59764ae7a9482d6b1728053",
       "candidate_issued": false,
       "framework_revision": 24,
       "qualification_architecture_work_item": "MQA-41713-001",
+      "last_coherent_development_pass": {
+        "commit": "3f17df07dd6db72af5b9a3f2b95045cbee97d946",
+        "tree": "5ef0eaa221cafae224d3b29735c7f44bb6b16a0d",
+        "run": "34992352135",
+        "artifact": "10406646609",
+        "artifact_sha256": "1ed1fb0bcf771a2426cc1fca53aee34a575a61ded6fd4f9055943e6331f999ba",
+        "bounded_entry": "55/55 PASS",
+        "duplicate_execution_count": 0,
+        "classification": "development_only"
+      },
       "required_before_freeze": [
         "bounded_state_machine_driven_entry_reachability",
         "transaction_fault_properties_separated_from_entry_reachability",
@@ -70,7 +80,7 @@
         "same_sha_same_boundary_duplicate_execution_removed",
         "MGR-DEF-0034_closed_under_reviewed_transaction_semantics",
         "MGR-DEF-0035_closed_with_token_bound_UpdateAll_split_phase_proof",
-        "clean_exact_head_development_validation",
+        "clean_exact_head_development_validation_after_final_product_bytes",
         "full_successor_range_risk_defect_gate",
         "draft_prefreeze_semantic_PR_review_on_exact_product_tree",
         "zero_unresolved_P1_P2_semantic_review_threads",
@@ -90,7 +100,7 @@
     "production_hub_mutation_from_manager_development": "forbidden",
     "candidate_4_17_12_g1": "immutable_do_not_modify"
   },
-  "open_release_blockers": ["MGR-DEF-0034", "MGR-DEF-0035"],
+  "open_release_blockers": ["MGR-DEF-0034"],
   "knowledge": {
     "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
     "hub_relay_research": "HUB_RELAY_RESEARCH.md",
@@ -100,10 +110,13 @@
     "current_risk_audits": ["MHA-4179-001", "MHA-41710-001"],
     "strict_pre_freeze_gate": "tools/Invoke-ManagerRiskDefectGate.ps1",
     "risk_context_regression": "tools/Invoke-ManagerRiskContextRegression.ps1",
-    "entry_reachability_model": "tests/knowledge/entry-reachability.json",
-    "entry_reachability_supplemental": "tests/knowledge/entry-reachability-supplemental.json",
-    "entry_reachability_model_validator": "tools/Test-ManagerEntryReachabilityKnowledge.ps1",
-    "entry_reachability_regression": "tools/Invoke-ManagerEntryReachabilityMatrix.ps1",
+    "entry_reachability_control_flow": "tests/knowledge/entry-reachability-control-flow.json",
+    "entry_reachability_oracles": "tests/knowledge/entry-reachability-oracles.json",
+    "entry_reachability_planner": "tools/Build-ManagerEntryReachabilityPlan.ps1",
+    "entry_reachability_bounded_executor": "tools/Invoke-ManagerBoundedEntryReachability.ps1",
+    "legacy_entry_reachability_model": "tests/knowledge/entry-reachability.json",
+    "legacy_entry_reachability_supplemental": "tests/knowledge/entry-reachability-supplemental.json",
+    "legacy_entry_reachability_regression": "tools/Invoke-ManagerEntryReachabilityMatrix.ps1",
     "manager_4_17_11_review_regression": "tools/Invoke-Manager41711ReviewRegression.ps1",
     "manager_4_17_12_review_regression": "tools/Invoke-Manager41712ReviewRegression.ps1",
     "release_instruction_identity_guard": "tools/Verify-ManagerReleaseInstructions.ps1",
@@ -114,20 +127,20 @@
     "entry_policy_validator": "tools/Test-ManagerEntryPolicyCompleteness.ps1"
   },
   "next_exact_goal": {
-    "id": "MANAGER-41713-CONSOLIDATION-001",
-    "description": "Consolidate qualification into bounded state-machine-driven Entry Reachability, resolve MGR-DEF-0035 so token-bound UpdateAll preserves its independent Manager-global phase while broken captured Hub state fails closed, separate transaction fault/property suites, and resolve MGR-DEF-0034 under the reviewed per-artifact claim transaction contract before any candidate freeze.",
-    "product_fix_may_start_only_after_state_machine_review": true,
+    "id": "MANAGER-41713-TRANSACTION-001",
+    "description": "Replace stranded global Hub input whole-batch staging/rollback with the reviewed durable per-artifact claim -> validate -> exact publish transaction; add canonical claim-state semantics, Doctor/operation gating and transaction-property coverage; close MGR-DEF-0034 only after committed product bytes pass exact-head Windows validation.",
+    "product_fix_may_start_only_after_state_machine_review": false,
     "candidate_freeze_permitted": false,
     "multi_hub_activation_permitted": false
   },
   "bootstrap": {
-    "ordinary_new_chat_instruction": "Continue Manager 4.17.13 GitHub-first development from the exact remote dev/manager-4.17.13 head. Manager 4.17.12 is installed but public-release rejected; multi-Hub remains disabled. Qualification consolidation is the active work item.",
+    "ordinary_new_chat_instruction": "Continue Manager 4.17.13 GitHub-first development from the exact remote dev/manager-4.17.13 head. Manager 4.17.12 is installed but public-release rejected; multi-Hub remains disabled. MGR-DEF-0035 is closed; MGR-DEF-0034 transaction safety is the remaining release blocker.",
     "required_first_actions": [
       "Resolve dev/manager-4.17.13 live and preserve frozen Manager 4.17.12 g1 identity.",
       "Read and enforce MQA-41713-001; do not reintroduce fixed Entry Reachability scenario counts or duplicate same-SHA proof execution.",
-      "Keep MGR-DEF-0034 open until stranded-input transaction semantics are reviewed and corrected.",
-      "Keep MGR-DEF-0035 open until token-bound UpdateAll proves Manager-global progress with broken captured Hub state and legacy/no-token multi-Hub UpdateAll remains fail-closed.",
-      "Do not freeze 4.17.13 until the consolidated exact-head Development Validation, full-successor Risk/Defect Gate and fresh semantic/adversarial review all pass."
+      "Implement MGR-DEF-0034 only under the reviewed per-artifact durable claim transaction contract and keep the defect open until committed-byte transaction properties pass.",
+      "Keep production Hub untouched and multi-Hub disabled during Manager development.",
+      "Do not freeze 4.17.13 until final exact-head Development Validation, full-successor Risk/Defect Gate and fresh semantic/adversarial review all pass."
     ]
   }
 }
