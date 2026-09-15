@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([string]$RepositoryRoot=(Join-Path $PSScriptRoot '..'))
+param(
+    [string]$RepositoryRoot=(Join-Path $PSScriptRoot '..'),
+    [switch]$LeafOnly
+)
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
@@ -45,6 +48,7 @@ function Copy-ManagedManager([string]$SourceManager,[string]$DestinationManager)
 $currentInstall=Get-Content -LiteralPath (Join-Path $RepositoryRoot 'manager\product\install\INSTALLATION.json') -Raw -Encoding UTF8|ConvertFrom-Json
 $currentVersion=([string]$currentInstall.manager_version).Trim()
 if($currentVersion-ceq'4.17.11'){
+    if($LeafOnly){Fail 'Manager 4.17.10 LeafOnly proof is not valid on exact 4.17.11 source; scheduler must select the 4.17.11 leaf directly.'}
     $successor=Join-Path $RepositoryRoot 'tools\Invoke-Manager41711ReviewRegression.ps1'
     if(-not(Test-Path -LiteralPath $successor -PathType Leaf)){Fail('Manager 4.17.11 successor review regression missing: '+$successor)}
     $null=Invoke-Captured $successor @('-RepositoryRoot',$RepositoryRoot) 'Manager 4.17.11 successor review regression'
@@ -53,10 +57,12 @@ if($currentVersion-ceq'4.17.11'){
 }
 Assert (@('4.17.10','4.17.12','4.17.13')-contains$currentVersion) ('Manager 4.17.10 review regression supports 4.17.10, delegated 4.17.11, or validated 4.17.12/4.17.13 successor source; observed '+$currentVersion)
 
-$inherited=Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1'
-if(-not(Test-Path -LiteralPath $inherited -PathType Leaf)){Fail('Inherited 4.17.9 convergence regression missing: '+$inherited)}
-$null=Invoke-Captured $inherited @('-RepositoryRoot',$RepositoryRoot) 'Inherited Manager 4.17.9 convergence regression'
-Write-Host '  PASS inherited Manager 4.17.9 convergence regression chain'
+if(-not$LeafOnly){
+    $inherited=Join-Path $RepositoryRoot 'tools\Invoke-Manager4179ConvergenceRegression.ps1'
+    if(-not(Test-Path -LiteralPath $inherited -PathType Leaf)){Fail('Inherited 4.17.9 convergence regression missing: '+$inherited)}
+    $null=Invoke-Captured $inherited @('-RepositoryRoot',$RepositoryRoot) 'Inherited Manager 4.17.9 convergence regression'
+    Write-Host '  PASS inherited Manager 4.17.9 convergence regression chain'
+}
 
 $sourceManager=Join-Path $RepositoryRoot 'manager'
 $tempRoot=Join-Path ([IO.Path]::GetTempPath()) ('keelaryn-manager-41710-doctor-'+[guid]::NewGuid().ToString('N'))
