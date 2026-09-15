@@ -444,6 +444,28 @@ function Resolve-RegisteredInstanceContextEarly {
     Set-InstanceScopedOperationalPathsEarly ([string]$row.instance_id)
     return $true
 }
+function Try-BindTokenBoundUpdateAllMetadataContextEarly {
+    if(-not$UpdateAll-or[string]::IsNullOrWhiteSpace([string]$ExpectedInstanceId)){return $false}
+    try{
+        $registry=Read-InstanceRegistryEarly
+        if(-not$registry){return $false}
+        $active=Read-ActiveInstanceEarly
+        if([string]$active.instance_id-cne[string]$ExpectedInstanceId){return $false}
+        $matches=@($registry.instances|Where-Object{[string]$_.instance_id-ceq[string]$active.instance_id})
+        if($matches.Count-ne1){return $false}
+        $row=$matches[0]
+        $path=[IO.Path]::GetFullPath([string]$row.vault_path).TrimEnd('\')
+        if(Test-KeelarynPathOverlap $path $Root){return $false}
+        if($CanonicalLayoutActive-and(Test-KeelarynPathOverlap $path $CanonicalTestsPath)){return $false}
+        $script:InstanceRegistryActive=$true
+        $script:ActiveInstanceId=[string]$row.instance_id
+        $script:ActiveInstanceName=[string]$row.name
+        $script:InvocationInstanceId=[string]$row.instance_id
+        $script:Vault=$path
+        Set-InstanceScopedOperationalPathsEarly ([string]$row.instance_id)
+        return $true
+    }catch{return $false}
+}
 $SkipHubBindingResolution = (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) -or ((-not $BindInstancePath) -and ($SelfTest -or $BuildDistribution -or $BuildRelease -or $BuildAIContext -or $UpdateManager -or $PrepareTests -or $InitializePresentation -or $BuildCandidateTransport -or $RestoreCandidateTransport -or $FinalizeFilesystemLayout -or $ListInstances -or $RegisterInstancePath -or $SwitchInstanceId -or $GenesisInstancePath))
 if (-not $SkipHubBindingResolution) {
 try {
@@ -527,13 +549,17 @@ if (Test-Path -LiteralPath $script:InstanceRegistryFile -PathType Leaf) {
         $null=Resolve-RegisteredInstanceContextEarly
     }
     catch {
+        $registryResolutionFailure=$_.Exception.Message
+        $tokenBoundUpdateAllContextRecovered=Try-BindTokenBoundUpdateAllMetadataContextEarly
         $allowRegistryUnresolved=$Doctor-or$SelfTest-or$BuildDistribution-or$BuildRelease-or$BuildAIContext-or$UpdateManager-or$PrepareTests-or$InitializePresentation-or$InitializeInstanceRegistry-or$ListInstances-or$SwitchInstanceId-or$BindInstancePath-or$FinalizeFilesystemLayout
-        if($allowRegistryUnresolved){
-            $script:BindingResolutionError='Multi-Hub registry: '+$_.Exception.Message
+        if($tokenBoundUpdateAllContextRecovered){
+            $script:BindingResolutionError='Multi-Hub registry: '+$registryResolutionFailure
+        }elseif($allowRegistryUnresolved){
+            $script:BindingResolutionError='Multi-Hub registry: '+$registryResolutionFailure
             $script:InstanceRegistryActive=$false
             $script:Vault=$DefaultVault
             $script:HubInbox=$script:Inbox
-        }else{throw('Invalid Keelaryn multi-Hub registry: '+$_.Exception.Message)}
+        }else{throw('Invalid Keelaryn multi-Hub registry: '+$registryResolutionFailure)}
     }
 }
 
@@ -8138,6 +8164,10 @@ if ($SelfTest) {
 # Multi-Hub compatibility shadow reconciliation is Manager-state recovery, not a Hub transport repair.
 function Test-ActiveCompatibilityShadowReconciliationRequired {
     if(-not$script:InstanceRegistryActive){return $false}
+    # A token-bound UpdateAll whose registry/active metadata was revalidated may run its
+    # Manager-global phase even when the captured Hub itself is missing/corrupt. The
+    # preserved BindingResolutionError keeps the subsequent Hub phase fail-closed.
+    if($UpdateAll-and-not[string]::IsNullOrWhiteSpace([string]$ExpectedInstanceId)-and-not[string]::IsNullOrWhiteSpace([string]$script:BindingResolutionError)){return $false}
     # Diagnostic/target-driven recovery and Manager-global operations must be reachable
     # without validating or repairing the old active Hub CURRENT they do not consume.
     if($Doctor-or$SelfTest-or$ListInstances-or$SwitchInstanceId-or$BindInstancePath-or$InitializeInstanceRegistry-or$UpdateManager-or$BuildDistribution-or$BuildRelease-or$BuildAIContext-or$PrepareTests-or$InitializePresentation-or$FinalizeFilesystemLayout){return $false}
