@@ -62,7 +62,7 @@
                                                       "multi_hub_activated":  false
                                                   },
                           "successor_4_17_13":  {
-                                                    "status":  "materialized_unqualified_development_prefreeze_atomicity_fix",
+                                                    "status":  "materialized_unqualified_development_prefreeze_proof_quality_fix",
                                                     "development_base":  "bdd1fa38ce680304f59764ae7a9482d6b1728053",
                                                     "candidate_issued":  false,
                                                     "framework_revision":  24,
@@ -72,7 +72,7 @@
                                                                                     ],
                                                     "required_before_freeze":  [
                                                                                    "clean_exact_head_development_validation",
-                                                                                   "clean_entry_reachability_matrix",
+                                                                                   "clean_entry_reachability_matrix_103_total",
                                                                                    "full_successor_range_risk_defect_gate",
                                                                                    "draft_prefreeze_semantic_PR_review_on_exact_product_tree",
                                                                                    "zero_unresolved_P1_P2_semantic_review_threads",
@@ -82,7 +82,7 @@
                                                                                ],
                                                     "process_entry_red_proof_run":  "34822083447",
                                                     "process_entry_red_proof_artifact":  "10338886824",
-                                                    "process_entry_green_proof":  "R9 requires exact 102-scenario process-entry PASS including mixed-invalid pending-global atomicity, 29-mode completeness, state-machine/oracle consistency and complete non-default risk mapping"
+                                                    "process_entry_green_proof":  "Requires exact 103-scenario executable process-entry PASS: canonical cross-product 102 plus supplemental ER-103 phase-4 rollback fault proof, action-specific Manager-global execution evidence, 29-mode completeness, state-machine/oracle consistency and complete non-default risk mapping"
                                                 }
                       },
     "production_policy":  {
@@ -106,6 +106,7 @@
                       "strict_pre_freeze_gate":  "tools/Invoke-ManagerRiskDefectGate.ps1",
                       "risk_context_regression":  "tools/Invoke-ManagerRiskContextRegression.ps1",
                       "entry_reachability_model":  "tests/knowledge/entry-reachability.json",
+                      "entry_reachability_supplemental":  "tests/knowledge/entry-reachability-supplemental.json",
                       "entry_reachability_model_validator":  "tools/Test-ManagerEntryReachabilityKnowledge.ps1",
                       "entry_reachability_regression":  "tools/Invoke-ManagerEntryReachabilityMatrix.ps1",
                       "manager_4_17_11_review_regression":  "tools/Invoke-Manager41711ReviewRegression.ps1",
@@ -119,7 +120,7 @@
                   },
     "next_exact_goal":  {
                             "id":  "MANAGER-41713-PREFREEZE-001",
-                            "description":  "Obtain exact-head Development Validation with 29-mode entry-policy completeness, 102-scenario process-entry PASS including MGR-DEF-0032 atomicity, state-machine/oracle consistency and complete non-default state-machine risk mapping; then full-successor Risk/Defect Gate and clean semantic pre-freeze review.",
+                            "description":  "Obtain exact-head Development Validation with 29-mode entry-policy completeness and 103 executable process-entry scenarios (102 canonical + ER-103 phase-4 rollback supplemental) including action-specific Manager-global proofs, MGR-DEF-0032 atomicity, state-machine/oracle consistency and complete non-default state-machine risk mapping; then full-successor Risk/Defect Gate and clean semantic pre-freeze review.",
                             "product_fix_may_start_only_after_red_proof":  false,
                             "candidate_freeze_permitted":  false,
                             "multi_hub_activation_permitted":  false
@@ -128,7 +129,7 @@
                       "ordinary_new_chat_instruction":  "Continue Manager 4.17.13 GitHub-first development from the exact remote dev/manager-4.17.13 head. Manager 4.17.12 is installed but public-release rejected; multi-Hub remains disabled.",
                       "required_first_actions":  [
                                                      "Resolve dev/manager-4.17.13 live and preserve frozen Manager 4.17.12 g1 identity.",
-                                                     "Require red proof that the new entry-reachability matrix detects MGR-DEF-0030 before product correction.",
+                                                     "Require exact-head 103-scenario process-entry proof including ER-103 phase-4 rollback and action-specific Manager-global execution evidence before freeze.",
                                                      "Do not freeze 4.17.13 until an exact product tree has received a pre-freeze semantic PR review with no unresolved P1/P2 findings."
                                                  ]
                   }
