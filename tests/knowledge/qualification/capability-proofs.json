@@ -1,10 +1,10 @@
 {
   "schema": "keelaryn.manager-qualification-proofs.v1",
-  "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Historical version scripts remain migration adapters until their recursive inheritance is fully flattened; scheduler-owned execution uses explicit leaf arguments where supported and executes the older convergence lineage once per exact source identity and trust boundary. Version-bound historical proofs that cannot execute against the current Manager are retained as static identity targets while successor behavioral capabilities are owned by version-independent/current proofs. Meta-validation executed before scheduler selection is represented as static identity if selected by task risk, preventing duplicate execution inside one boundary.",
+  "purpose": "Single-boundary proof ownership used by the Manager qualification scheduler. Current qualification executes historical behavioral coverage through one flat runner that materializes disposable leaf copies while preserving the historical recursive scripts byte-for-byte as static provenance identities. Version-bound historical proofs remain non-executable on successor Manager lines. Meta-validation executed before scheduler selection is represented as static identity if selected by task risk, preventing duplicate execution inside one boundary.",
   "mandatory_development_proofs": [
     "proof_manifest_contract",
     "release_identity",
-    "convergence_4179_lineage_once",
+    "historical_flat_lineage",
     "review_41710_leaf",
     "review_41711_leaf",
     "recovery_behavior_leaf",
@@ -32,10 +32,74 @@
       "capability_suites": []
     },
     {
-      "id": "convergence_4179_lineage_once",
+      "id": "historical_flat_lineage",
+      "path": "tools/Invoke-ManagerHistoricalFlatRegression.ps1",
+      "capability_suites": ["registry_recovery", "inbox_handoff", "captured_context", "genesis_registry_transaction", "frontend_recovery", "update_restart", "compatibility"],
+      "source_paths": [
+        "tools/Invoke-Manager4172ReviewRegression.ps1",
+        "tools/Invoke-Manager4173ReviewRegression.ps1",
+        "tools/Invoke-Manager4174ReviewRegression.ps1",
+        "tools/Invoke-Manager4174BootstrapRegression.ps1",
+        "tools/Invoke-Manager4175ReviewRegression.ps1",
+        "tools/Invoke-Manager4176ReviewRegression.ps1",
+        "tools/Invoke-Manager4177ReviewRegression.ps1",
+        "tools/Invoke-Manager4178ReviewRegression.ps1",
+        "tools/Invoke-Manager4179ConvergenceRegression.ps1"
+      ]
+    },
+    {
+      "id": "historical_4172_static",
+      "path": "tools/Invoke-Manager4172ReviewRegression.ps1",
+      "execution": "static",
+      "capability_suites": []
+    },
+    {
+      "id": "historical_4173_static",
+      "path": "tools/Invoke-Manager4173ReviewRegression.ps1",
+      "execution": "static",
+      "capability_suites": []
+    },
+    {
+      "id": "historical_4174_review_static",
+      "path": "tools/Invoke-Manager4174ReviewRegression.ps1",
+      "execution": "static",
+      "capability_suites": []
+    },
+    {
+      "id": "historical_4174_bootstrap_static",
+      "path": "tools/Invoke-Manager4174BootstrapRegression.ps1",
+      "execution": "static",
+      "capability_suites": []
+    },
+    {
+      "id": "historical_4175_static",
+      "path": "tools/Invoke-Manager4175ReviewRegression.ps1",
+      "execution": "static",
+      "capability_suites": []
+    },
+    {
+      "id": "historical_4176_static",
+      "path": "tools/Invoke-Manager4176ReviewRegression.ps1",
+      "execution": "static",
+      "capability_suites": []
+    },
+    {
+      "id": "historical_4177_static",
+      "path": "tools/Invoke-Manager4177ReviewRegression.ps1",
+      "execution": "static",
+      "capability_suites": []
+    },
+    {
+      "id": "historical_4178_static",
+      "path": "tools/Invoke-Manager4178ReviewRegression.ps1",
+      "execution": "static",
+      "capability_suites": []
+    },
+    {
+      "id": "historical_4179_static",
       "path": "tools/Invoke-Manager4179ConvergenceRegression.ps1",
-      "capability_suites": ["registry_recovery", "inbox_handoff", "captured_context", "genesis_registry_transaction", "compatibility"],
-      "migration_only": true
+      "execution": "static",
+      "capability_suites": []
     },
     {
       "id": "review_41710_leaf",
@@ -97,13 +161,7 @@
     "tools/Invoke-Manager4176ReviewRegression.ps1": ["inbox_handoff", "captured_context"],
     "tools/Invoke-Manager4177ReviewRegression.ps1": ["registry_recovery", "update_restart"],
     "tools/Invoke-Manager4178ReviewRegression.ps1": ["registry_recovery", "update_restart", "genesis_registry_transaction"],
-    "tools/Invoke-Manager4179ConvergenceRegression.ps1": ["registry_recovery", "inbox_handoff", "captured_context", "genesis_registry_transaction", "compatibility"],
-    "tools/Invoke-Manager41710ReviewRegression.ps1": ["registry_recovery"],
-    "tools/Invoke-Manager41711ReviewRegression.ps1": ["inbox_handoff", "captured_context"],
-    "tools/Invoke-Manager41712ReviewRegression.ps1": ["frontend_recovery", "current_safety"],
-    "tools/Invoke-ManagerRecoveryBehaviorRegression.ps1": ["registry_recovery", "frontend_recovery", "current_safety"],
-    "tools/Invoke-Manager41713ReviewRegression.ps1": ["registry_recovery", "compatibility"],
-    "tools/Invoke-ManagerEntryReachabilityMatrix.ps1": ["registry_recovery", "inbox_handoff", "captured_context", "current_safety", "update_restart", "compatibility"]
+    "tools/Invoke-Manager4179ConvergenceRegression.ps1": ["registry_recovery", "inbox_handoff", "captured_context", "genesis_registry_transaction", "compatibility"]
   },
   "execution_contract": {
     "deduplicate_by": "repository-relative canonical proof path plus declared scheduler arguments and execution mode",
@@ -114,6 +172,8 @@
     "scheduler_leaf_arguments_are_authoritative": true,
     "version_bound_historical_proofs_may_be_static_identity_only": true,
     "static_identity_proofs_do_not_claim_behavioral_capabilities": true,
-    "pre_scheduler_meta_validation_is_not_reexecuted_by_scheduler": true
+    "pre_scheduler_meta_validation_is_not_reexecuted_by_scheduler": true,
+    "historical_recursive_sources_execute_directly_in_scheduler": false,
+    "historical_behavior_owner": "historical_flat_lineage"
   }
 }
