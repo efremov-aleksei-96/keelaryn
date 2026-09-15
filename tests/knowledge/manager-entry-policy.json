@@ -206,5 +206,13 @@
                         "entry_action":  null
                     }
                 ],
-    "freeze_rule":  "PrimaryModeCount, centralized compatibility-shadow bypass and unresolved-registry pre-dispatch allowlist must exactly match this policy. Every bypass action requires real process-entry evidence."
+    "conditional_compatibility_shadow_bypass":  {
+        "parameter":  "UpdateAll",
+        "entry_action":  "UpdateAll",
+        "requires_nonblank_expected_instance_id":  true,
+        "requires_preserved_binding_resolution_error":  true,
+        "generic_unresolved_registry_bypass_permitted":  false,
+        "reason":  "A token-bound UpdateAll whose registry and active metadata were revalidated may run its Manager-global phase when captured Hub health resolution failed; the preserved binding error keeps the Hub phase fail-closed on the same captured instance."
+    },
+    "freeze_rule":  "PrimaryModeCount, centralized generic compatibility-shadow bypass, the explicit token-bound UpdateAll conditional exception, and unresolved-registry pre-dispatch allowlist must exactly match this policy. Every generic bypass action requires real process-entry evidence; the conditional UpdateAll exception requires captured-token and preserved-binding-failure evidence."
 }
