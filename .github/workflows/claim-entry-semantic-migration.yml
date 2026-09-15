@@ -47,6 +47,25 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-Manager41713ClaimEntrySemanticMigration.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Normalize canonical fixed-defect validator vocabulary
+        shell: powershell
+        run: |
+          $path=Join-Path $env:GITHUB_WORKSPACE 'tools\Test-ManagerQualificationArchitecture.ps1'
+          $text=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+          $old=@'
+          if($splitPhase.Count-ne1-or[string]$splitPhase[0].status-cne'closed'-or[bool]$splitPhase[0].release_blocker){Fail 'MGR-DEF-0035 must remain closed and non-blocking after its exact-head 55/55 proof.'}
+          '@.Trim()
+          $new=@'
+          if($splitPhase.Count-ne1-or[string]$splitPhase[0].status-cne'fixed'-or[bool]$splitPhase[0].release_blocker){Fail 'MGR-DEF-0035 must remain fixed and non-blocking after its exact-head 55/55 proof.'}
+          '@.Trim()
+          $count=[regex]::Matches($text,[regex]::Escape($old)).Count
+          if($count-ne1){throw "MGR-DEF-0035 validator normalization anchor count=$count"}
+          $utf8=New-Object Text.UTF8Encoding($false)
+          [IO.File]::WriteAllText($path,$text.Replace($old,$new),$utf8)
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+          if(@($errors).Count){throw ('Normalized qualification validator parser failure: '+([string]::Join(' | ',@($errors|ForEach-Object{$_.Message}))))}
+
       - name: Validate canonical knowledge and bounded oracle contract
         shell: powershell
         run: |
@@ -66,7 +85,8 @@ jobs:
             'tests/knowledge/entry-reachability-oracles.json',
             'tests/knowledge/state-machines/multi-hub.json',
             'tools/Invoke-ManagerBoundedEntryReachability.ps1',
-            'tools/Test-ManagerEntryOracleContract.ps1'
+            'tools/Test-ManagerEntryOracleContract.ps1',
+            'tools/Test-ManagerQualificationArchitecture.ps1'
           ) | Sort-Object
           $actual=@(git diff --name-only | ForEach-Object { $_.Trim().Replace('\','/') } | Where-Object { $_ } | Sort-Object)
           if ($actual.Count -ne $expected.Count -or (Compare-Object -ReferenceObject $expected -DifferenceObject $actual)) {
