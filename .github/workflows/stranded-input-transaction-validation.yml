@@ -14,6 +14,7 @@ on:
       - 'tools/Invoke-Manager41713StrandedInputClaimProofPatch.ps1'
       - 'tools/Invoke-ManagerStrandedInputTransactionProperties.ps1'
       - 'tools/Invoke-ManagerStrandedInputClaimProperties.ps1'
+      - 'tools/Invoke-ManagerStrandedInputClaimPropertiesProof.ps1'
       - 'tools/Invoke-ManagerBoundedEntryReachability.ps1'
       - 'tools/Test-ManagerQualificationArchitecture.ps1'
       - '.github/workflows/stranded-input-transaction-validation.yml'
@@ -102,7 +103,7 @@ jobs:
         run: |
           $out=Join-Path $env:RUNNER_TEMP 'STRANDED_INPUT_TRANSACTION_FIXED.json'
           "KEELARYN_CLAIM_EVIDENCE=$out" >> $env:GITHUB_ENV
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerStrandedInputClaimProperties.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$out"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerStrandedInputClaimPropertiesProof.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$out"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run bounded Entry regression on patched runtime
