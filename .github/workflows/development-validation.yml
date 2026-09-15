@@ -11,6 +11,7 @@ on:
       - 'PUBLIC_PROVENANCE.json'
       - 'MANAGER_DEVELOPMENT_STATE.json'
       - 'MANAGER_ENGINEERING_ROADMAP.md'
+      - 'ASTRA_ESCALATION.md'
       - 'tools/Invoke-DevelopmentValidation.ps1'
       - 'tools/Build-PublicFileManifest.ps1'
       - 'tools/Verify-PublicCandidateMetadata.ps1'
