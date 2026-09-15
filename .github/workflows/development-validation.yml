@@ -86,13 +86,6 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Test-ManagerQualificationArchitecture.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Derive bounded process-entry plan
-        shell: powershell
-        run: |
-          $plan = Join-Path $env:RUNNER_TEMP 'MANAGER_ENTRY_PLAN.json'
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-ManagerEntryReachabilityPlan.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputPath "$plan"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
       - name: Verify public source manifest reproducibility
         shell: powershell
         run: |
@@ -134,9 +127,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
 
-# Engineering knowledge, qualification architecture, bounded process-entry planning, compact task risk context, public manifest/provenance consistency and risk-context lifecycle checks are development checks.
-# One qualification scheduler owns same-SHA same-boundary proof execution. The strict Risk/Defect Gate verifies its exact receipt and does not execute child regressions.
+# Engineering knowledge, qualification architecture, compact task risk context, public manifest/provenance consistency and risk-context lifecycle checks are development checks.
+# One qualification scheduler owns same-SHA same-boundary behavioral proof execution, including bounded state-machine-driven Entry Reachability. The strict Risk/Defect Gate verifies its exact receipt and does not execute child regressions.
 # Historical recursive source adapters are retained byte-for-byte as static provenance identities; current behavioral qualification executes their assertion bodies once through the disposable flat historical runner.
-# Legacy count-based Entry artifacts remain migration-only until the explicit canonical-oracle bounded executor replaces their behavioral ownership.
-# The strict Manager Risk/Defect Gate remains fail-closed while MGR-DEF-0034 is open. Source Gate, Full Gate and production acceptance remain separate fresh trust boundaries.
+# Legacy count-based Entry artifacts are static migration provenance only; the bounded executor derives its plan from canonical winning-rule/control-flow semantics and runs each selected edge once.
+# The strict Manager Risk/Defect Gate remains fail-closed while release blockers are open. Source Gate, Full Gate and production acceptance remain separate fresh trust boundaries.
 # Manager 4.17.13 remains unqualified and unfrozen until consolidation, product transaction resolution, exact-head validation, full-successor Risk/Defect assessment and fresh semantic/adversarial review all pass.
