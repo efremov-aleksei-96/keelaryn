@@ -69,6 +69,7 @@
         "single_execution_scheduler_receipt_per_trust_boundary",
         "same_sha_same_boundary_duplicate_execution_removed",
         "MGR-DEF-0034_closed_under_reviewed_transaction_semantics",
+        "MGR-DEF-0035_closed_with_token_bound_UpdateAll_split_phase_proof",
         "clean_exact_head_development_validation",
         "full_successor_range_risk_defect_gate",
         "draft_prefreeze_semantic_PR_review_on_exact_product_tree",
@@ -89,7 +90,7 @@
     "production_hub_mutation_from_manager_development": "forbidden",
     "candidate_4_17_12_g1": "immutable_do_not_modify"
   },
-  "open_release_blockers": ["MGR-DEF-0034"],
+  "open_release_blockers": ["MGR-DEF-0034", "MGR-DEF-0035"],
   "knowledge": {
     "roadmap": "MANAGER_ENGINEERING_ROADMAP.md",
     "hub_relay_research": "HUB_RELAY_RESEARCH.md",
@@ -114,7 +115,7 @@
   },
   "next_exact_goal": {
     "id": "MANAGER-41713-CONSOLIDATION-001",
-    "description": "Consolidate qualification into bounded state-machine-driven Entry Reachability, separate transaction fault/property suites, flat capability suites and one exact-identity execution scheduler; then review and resolve the stranded-input transaction contract including MGR-DEF-0034 before any candidate freeze.",
+    "description": "Consolidate qualification into bounded state-machine-driven Entry Reachability, resolve MGR-DEF-0035 so token-bound UpdateAll preserves its independent Manager-global phase while broken captured Hub state fails closed, separate transaction fault/property suites, and resolve MGR-DEF-0034 under the reviewed per-artifact claim transaction contract before any candidate freeze.",
     "product_fix_may_start_only_after_state_machine_review": true,
     "candidate_freeze_permitted": false,
     "multi_hub_activation_permitted": false
@@ -125,6 +126,7 @@
       "Resolve dev/manager-4.17.13 live and preserve frozen Manager 4.17.12 g1 identity.",
       "Read and enforce MQA-41713-001; do not reintroduce fixed Entry Reachability scenario counts or duplicate same-SHA proof execution.",
       "Keep MGR-DEF-0034 open until stranded-input transaction semantics are reviewed and corrected.",
+      "Keep MGR-DEF-0035 open until token-bound UpdateAll proves Manager-global progress with broken captured Hub state and legacy/no-token multi-Hub UpdateAll remains fail-closed.",
       "Do not freeze 4.17.13 until the consolidated exact-head Development Validation, full-successor Risk/Defect Gate and fresh semantic/adversarial review all pass."
     ]
   }
