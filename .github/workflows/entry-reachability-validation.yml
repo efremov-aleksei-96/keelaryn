@@ -87,7 +87,7 @@ jobs:
 # it derives the bounded winning-rule/control-flow plan, validates explicit canonical oracles and audits legacy
 # observation migration without executing Manager behavior.
 # Real bounded process-entry execution is owned exactly once per Development Validation trust boundary by the
-# qualification scheduler through tools/Invoke-ManagerBoundedEntryReachability.ps1. Legacy count-based Entry
-# artifacts remain static migration provenance and transaction fault properties remain a separate suite.
+# scheduler's mandatory entry_bounded proof. Legacy count-based Entry artifacts remain static migration
+# provenance and transaction fault properties remain a separate suite.
 # Fresh real process-entry execution remains mandatory again at candidate freeze, Source Gate, Full Gate and
 # production acceptance; no development receipt is reused across those boundaries.
