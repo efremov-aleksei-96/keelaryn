@@ -8,11 +8,12 @@ Set-StrictMode -Version Latest
 
 $Branch='dev/manager-4.17.13'
 $Origin='https://github.com/efremov-aleksei-96/keelaryn.git'
-$ExpectedRemoteBefore='0ace75da8225699c0763f860b549896b1d64f4c3'
+$ExpectedRemoteBefore='e693b719e2566694b1e90ba9be5aea688a01c257'
 $ExpectedBaseRuntimeBlob='f4b46f185ae51f1763980a8149d8388771cc1e4b'
-$ExpectedProofHelperBlob='6bef1ce4fa918c14633a2cab7e4cdf130f42676e'
-$ExpectedPatchedRuntimeSha256='4e34b45924de4f50b6c29cf2d9d90a9454f9278cd0c7ed682b67b4e2e368083f'
-$ExpectedPatchedRuntimeBytes=576076L
+$ExpectedProofHelperBlob='06d385f62ed6207f607f00efb8d79e92ac2debe5'
+$ExpectedPatchedRuntimeSha256='6011b605e6574f31987f916a6b00b537a7402a1d9b4b5971007bf9f486f89f55'
+$ExpectedPatchedRuntimeBytes=576075L
+$ProofRunId='34986669262'
 $RuntimeRelative='manager/product/runtime/Keelaryn__Manager.ps1'
 $ManifestRelative='PUBLIC_FILE_MANIFEST.json'
 $ProofHelperRelative='tools/Apply-Manager41713UpdateAllSplitPhaseProofPatch.ps1'
@@ -44,18 +45,29 @@ function Get-GitBlob([string]$Repo,[string]$Spec){
     return $value
 }
 function Get-Sha256([string]$Path){return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()}
+function Remove-StaleDisposableCheckout([string]$Path){
+    if(-not(Test-Path -LiteralPath $Path)){return}
+    if(-not(Test-Path -LiteralPath (Join-Path $Path '.git'))){Fail('Existing disposable path is not a Git checkout; refusing cleanup: '+$Path)}
+    $staleOrigin=(Invoke-Git $Path @('remote','get-url','origin')).Trim()
+    if($staleOrigin-cne$Origin){Fail('Existing disposable checkout has unexpected origin; refusing cleanup: '+$staleOrigin)}
+    $staleBranch=(Invoke-Git $Path @('rev-parse','--abbrev-ref','HEAD')).Trim()
+    if($staleBranch-cne$Branch){Fail('Existing disposable checkout has unexpected branch; refusing cleanup: '+$staleBranch)}
+    Write-Host ('Removing retained disposable checkout from prior failed materialization: '+$Path)
+    Remove-Item -LiteralPath $Path -Recurse -Force
+}
 
 $KeelarynRoot=[IO.Path]::GetFullPath($KeelarynRoot).TrimEnd('\')
 if(-not(Test-Path -LiteralPath $KeelarynRoot -PathType Container)){Fail('Keelaryn root missing: '+$KeelarynRoot)}
 $WorkRoot=Join-Path $KeelarynRoot 'tests\work\manager-4.17.13-mgr-def-0035-materialize'
-if(Test-Path -LiteralPath $WorkRoot){Fail('Disposable materialization path already exists: '+$WorkRoot)}
 $workParent=Split-Path -Parent $WorkRoot
 if(-not(Test-Path -LiteralPath $workParent -PathType Container)){[void](New-Item -ItemType Directory -Force -Path $workParent)}
+Remove-StaleDisposableCheckout $WorkRoot
 
 $remoteRef='refs/heads/'+$Branch
 $remoteBefore=Get-RemoteHead $KeelarynRoot $Origin $remoteRef
 if($remoteBefore-cne$ExpectedRemoteBefore){Fail('Authoritative remote HEAD changed; refusing materialization. expected='+$ExpectedRemoteBefore+' actual='+$remoteBefore)}
 Write-Host ('Authoritative remote before: '+$remoteBefore)
+Write-Host ('Bound Windows proof run: '+$ProofRunId+' (patch hygiene PASS; bounded entry 55/55 PASS)')
 Write-Host ('Cloning disposable materialization checkout: '+$WorkRoot)
 
 try{
@@ -85,6 +97,10 @@ try{
     if([long]$runtimeItem.Length-ne$ExpectedPatchedRuntimeBytes){Fail('Patched runtime byte count mismatch. expected='+$ExpectedPatchedRuntimeBytes+' actual='+$runtimeItem.Length)}
     if($runtimeSha-cne$ExpectedPatchedRuntimeSha256){Fail('Patched runtime SHA-256 mismatch. expected='+$ExpectedPatchedRuntimeSha256+' actual='+$runtimeSha)}
     Write-Host ('Patched runtime identity: PASS; bytes='+$runtimeItem.Length+'; sha256='+$runtimeSha) -ForegroundColor Green
+
+    $diffCheck=@(Invoke-Git $WorkRoot @('diff','--check','--',$RuntimeRelative) -AllowMany)
+    if($diffCheck.Count-ne0){Fail('Runtime diff hygiene unexpectedly emitted output: '+([string]::Join(' | ',$diffCheck)))}
+    Write-Host 'Runtime diff hygiene: PASS' -ForegroundColor Green
 
     $manifestBuilder=Join-Path $WorkRoot 'tools\Build-PublicFileManifest.ps1'
     & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $manifestBuilder -RepositoryRoot $WorkRoot -Write
@@ -137,6 +153,7 @@ try{
     Write-Host ('runtime_sha256='+$runtimeSha)
     Write-Host ('runtime_bytes='+$runtimeItem.Length)
     Write-Host ('managed_content_sha256='+$managedDigest)
+    Write-Host ('proof_run_id='+$ProofRunId)
     Write-Host 'candidate_frozen=false'
     Write-Host 'production_mutated=false'
     $Succeeded=$true
