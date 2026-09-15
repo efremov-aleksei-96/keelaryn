@@ -1,119 +1,115 @@
-name: Development validation
+name: Manager 4.17.13 exact-head requalification b6cdb72
 
 on:
   push:
     branches:
-      - 'dev/**'
-    paths:
-      - 'manager/**'
-      - 'tests/knowledge/**'
-      - 'PUBLIC_FILE_MANIFEST.json'
-      - 'PUBLIC_PROVENANCE.json'
-      - 'MANAGER_DEVELOPMENT_STATE.json'
-      - 'MANAGER_ENGINEERING_ROADMAP.md'
-      - 'ASTRA_ESCALATION.md'
-      - 'tools/Invoke-DevelopmentValidation.ps1'
-      - 'tools/Build-PublicFileManifest.ps1'
-      - 'tools/Verify-PublicCandidateMetadata.ps1'
-      - 'tools/Verify-PublicRepository.ps1'
-      - 'tools/Test-ManagerEngineeringKnowledge.ps1'
-      - 'tools/Build-ManagerRiskContext.ps1'
-      - 'tools/Invoke-ManagerRiskDefectGate.ps1'
-      - 'tools/Invoke-ManagerRiskContextRegression.ps1'
-      - 'tools/Invoke-Manager41711ReviewRegression.ps1'
-      - 'tools/Invoke-Manager41712ReviewRegression.ps1'
-      - 'tools/Invoke-ManagerRecoveryBehaviorRegression.ps1'
-      - 'tools/Invoke-Manager41713ReviewRegression.ps1'
-      - 'tools/Test-ManagerEntryReachabilityKnowledge.ps1'
-      - 'tools/Test-ManagerEntryPolicyCompleteness.ps1'
-      - 'tools/Invoke-ManagerEntryReachabilityMatrix.ps1'
-      - 'tools/Verify-ManagerReleaseInstructions.ps1'
-      - 'tools/Invoke-Manager41710ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4179ConvergenceRegression.ps1'
-      - 'tools/Invoke-Manager4178ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4177ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4176ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4175ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4174ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4174BootstrapRegression.ps1'
-      - 'tools/Invoke-Manager4173ReviewRegression.ps1'
-      - 'tools/Invoke-Manager4172ReviewRegression.ps1'
-      - 'tools/Verify-DevelopmentGovernance.ps1'
-      - 'DEVELOPMENT_GOVERNANCE.json'
-      - '.github/workflows/development-validation.yml'
-      - '.github/workflows/manager-risk-defect-gate.yml'
-  workflow_dispatch:
+      - 'gate/manager-4.17.13-requal-b6cdb72'
 
 permissions:
   contents: read
 
 concurrency:
-  group: keelaryn-development-${{ github.ref }}
-  cancel-in-progress: true
+  group: keelaryn-manager-41713-requal-b6cdb72
+  cancel-in-progress: false
+
+env:
+  TARGET_SHA: b6cdb72bee01d2adda3d88334d96cde2d15261aa
+  BASE_SHA: bdd1fa38ce680304f59764ae7a9482d6b1728053
 
 jobs:
-  development-validation:
+  exact-development-validation:
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout exact target
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify development governance
+      - name: Verify exact target identity
+        shell: powershell
+        run: |
+          $actual=(git rev-parse --verify 'HEAD^{commit}').Trim().ToLowerInvariant()
+          if ($actual -cne $env:TARGET_SHA) { throw "Exact target mismatch: expected=$env:TARGET_SHA actual=$actual" }
+          git merge-base --is-ancestor $env:BASE_SHA $env:TARGET_SHA
+          if ($LASTEXITCODE -ne 0) { throw "Successor base is not an ancestor of exact target." }
+
+      - name: Verify exact-target governance and supply chain
         shell: powershell
         run: |
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-DevelopmentGovernance.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Verify GitHub Actions supply-chain policy
-        shell: powershell
-        run: |
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Verify public source manifest reproducibility
-        shell: powershell
-        run: |
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Build-PublicFileManifest.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -Check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Verify public candidate metadata consistency
-        shell: powershell
-        run: |
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicCandidateMetadata.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-PublicRepository.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Prepare development evidence path
+      - name: Run exact disposable Development Validation
         shell: powershell
         run: |
-          $out = Join-Path $env:RUNNER_TEMP ('keelaryn-development-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
-          "KEELARYN_DEVELOPMENT_ROOT=$out" >> $env:GITHUB_ENV
-          "KEELARYN_DEVELOPMENT_EVIDENCE=$out\evidence" >> $env:GITHUB_ENV
-
-      - name: Run disposable development validation
-        shell: powershell
-        run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$env:KEELARYN_DEVELOPMENT_ROOT"
+          $out=Join-Path $env:RUNNER_TEMP ('keelaryn-exact-development-'+$env:GITHUB_RUN_ID)
+          "EVIDENCE_ROOT=$out\evidence" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-DevelopmentValidation.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -OutputDirectory "$out"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Upload compact development evidence
+      - name: Upload exact development evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: keelaryn-development-${{ github.sha }}-${{ github.run_attempt }}
+          name: manager-4.17.13-exact-development-b6cdb72-${{ github.run_attempt }}
           path: |
-            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\DEVELOPMENT_VALIDATION.json
-            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.json
-            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\MANAGER_RISK_CONTEXT.md
-            ${{ env.KEELARYN_DEVELOPMENT_EVIDENCE }}\RISK_DEFECT_GATE_POLICY_CHECK.json
+            ${{ env.EVIDENCE_ROOT }}\DEVELOPMENT_VALIDATION.json
+            ${{ env.EVIDENCE_ROOT }}\MANAGER_RISK_CONTEXT.json
+            ${{ env.EVIDENCE_ROOT }}\MANAGER_RISK_CONTEXT.md
+            ${{ env.EVIDENCE_ROOT }}\RISK_DEFECT_GATE_POLICY_CHECK.json
           if-no-files-found: warn
           retention-days: 3
 
-# Engineering knowledge integrity, compact task risk context, public manifest/provenance consistency and the risk-context lifecycle regression are development checks.
-# Invoke-DevelopmentValidation.ps1 owns the permanent Manager review-regression chain, including real disposable registry-active Doctor, CANDIDATE-only UpdateHub, process-entry reachability and release-instruction identity checks. The workflow does not repeat that expensive chain.
-# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run verifies that its observed PASS/FAIL matches repository policy state.
-# Manager 4.17.13 remains unqualified until exact-head validation, full-successor-range Risk/Defect Gate, and pre-freeze adversarial review all pass.
+  full-successor-risk-defect-gate:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact target
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact target and successor range
+        shell: powershell
+        run: |
+          $actual=(git rev-parse --verify 'HEAD^{commit}').Trim().ToLowerInvariant()
+          if ($actual -cne $env:TARGET_SHA) { throw "Exact target mismatch: expected=$env:TARGET_SHA actual=$actual" }
+          if ($env:BASE_SHA -ceq $env:TARGET_SHA) { throw 'Full-successor range collapsed to base=head.' }
+          git merge-base --is-ancestor $env:BASE_SHA $env:TARGET_SHA
+          if ($LASTEXITCODE -ne 0) { throw "Successor base is not a proper ancestor of exact target." }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Verify-GitHubActionsPolicy.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run exact full-successor Risk Defect Gate
+        shell: powershell
+        run: |
+          $out=Join-Path $env:RUNNER_TEMP ('keelaryn-full-successor-risk-'+$env:GITHUB_RUN_ID)
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          "RISK_EVIDENCE_ROOT=$out" >> $env:GITHUB_ENV
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\tools\Invoke-ManagerRiskDefectGate.ps1" -RepositoryRoot "$env:GITHUB_WORKSPACE" -BaseCommit "$env:BASE_SHA" -HeadCommit "$env:TARGET_SHA" -OutputDirectory "$out"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload exact full-successor risk evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: manager-4.17.13-full-successor-risk-b6cdb72-${{ github.run_attempt }}
+          path: |
+            ${{ env.RISK_EVIDENCE_ROOT }}\RISK_DEFECT_GATE.json
+            ${{ env.RISK_EVIDENCE_ROOT }}\MANAGER_RISK_CONTEXT.json
+            ${{ env.RISK_EVIDENCE_ROOT }}\MANAGER_RISK_CONTEXT.md
+          if-no-files-found: warn
+          retention-days: 3
