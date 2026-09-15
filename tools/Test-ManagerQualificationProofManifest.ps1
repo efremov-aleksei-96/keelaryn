@@ -120,10 +120,18 @@ if($null-eq$riskMeta){Fail 'risk_context_meta_identity proof is missing.'}
 if((Get-Execution $riskMeta)-cne'static'){Fail 'risk_context_meta_identity must be static in scheduler ownership.'}
 if([string]$riskMeta.meta_validation_owner-cne'tools/Invoke-DevelopmentValidation.ps1:phase2'){Fail 'Risk-context meta-validation owner drifted.'}
 $developmentPath=Join-Path $RepositoryRoot 'tools\Invoke-DevelopmentValidation.ps1'
-$development=[IO.File]::ReadAllText($developmentPath,[Text.Encoding]::UTF8)
-$riskIndex=$development.IndexOf("Invoke-ManagerRiskContextRegression.ps1",[StringComparison]::Ordinal)
-$schedulerIndex=$development.IndexOf("Invoke-ManagerQualificationScheduler.ps1",[StringComparison]::Ordinal)
-if($riskIndex-lt0-or$schedulerIndex-lt0-or$riskIndex-ge$schedulerIndex){Fail 'Development Validation must execute risk-context meta regression exactly before scheduler ownership.'}
+$developmentTokens=$null;$developmentErrors=$null
+$developmentAst=[Management.Automation.Language.Parser]::ParseFile($developmentPath,[ref]$developmentTokens,[ref]$developmentErrors)
+if(@($developmentErrors).Count-ne0){Fail('Development Validation parser failed while checking proof ownership: '+([string]::Join(' | ',@($developmentErrors|ForEach-Object{$_.Message}))))}
+$invokeChildCalls=@($developmentAst.FindAll({
+    param($node)
+    $node-is[Management.Automation.Language.CommandAst] -and $node.GetCommandName()-ceq'Invoke-Child'
+},$true))
+$riskCalls=@($invokeChildCalls|Where-Object{$_.Extent.Text.Contains('$riskContextRegression')})
+$schedulerCalls=@($invokeChildCalls|Where-Object{$_.Extent.Text.Contains('$scheduler')})
+if($riskCalls.Count-ne1){Fail('Development Validation must execute risk-context meta regression exactly once before scheduler ownership; actual='+$riskCalls.Count)}
+if($schedulerCalls.Count-ne1){Fail('Development Validation must execute qualification scheduler exactly once; actual='+$schedulerCalls.Count)}
+if($riskCalls[0].Extent.StartOffset-ge$schedulerCalls[0].Extent.StartOffset){Fail 'Development Validation must execute risk-context meta regression before scheduler ownership.'}
 
 $historical=$byId['review_41712_historical_static']
 if($null-eq$historical){Fail 'Version-bound 4.17.12 historical proof is missing.'}
