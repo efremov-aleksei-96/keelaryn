@@ -70,15 +70,21 @@ Normal zero-based push validation remains the separate **Zero-based Core validat
 
 ## Expected live evidence
 
-A successful live gate creates two fresh child Hubs under the acceptance root and proves, through the real Google Drive REST API path:
+A successful live gate creates two fresh child Hubs under the acceptance root and proves, through the real Google Drive REST API path, all of the following in **both** PASS and FAIL child Hubs:
 
-- fresh Hub bootstrap;
-- ADD + REPLACE + DELETE transaction with semantic PASS → `COMMITTED`;
-- the same operation set with semantic FAIL → `ROLLED_BACK`;
+- fresh Hub bootstrap as SAFE epoch 0;
+- exact deterministic bootstrap `README.md`, `INDEX.md` and initial Reconciliation `STATE.md`;
+- fresh Workspace starts with no Projects;
+- Project creation is exact and idempotent;
+- Workspace list/read returns the exact created Project;
+- Project `STATE.md` update uses the restart-safe copy-on-write work-state path and becomes visible through list/read;
+- ADD + REPLACE + DELETE transaction reaches semantic post-check;
+- semantic PASS → `COMMITTED`;
+- semantic FAIL → `ROLLED_BACK` with OLD canonical state restored;
 - canonical epoch increments exactly once in each child Hub;
 - final Ready Change consumption + locator cleanup;
 - subsequent polling returns clean `IDLE`.
 
-The harness prints only compact status JSON. Hub IDs and credential values are intentionally omitted from normal output.
+The harness prints only compact status JSON. Each case reports `human_surface_verified=true` and `workspace_verified=true`; Hub IDs and credential values are intentionally omitted from normal output.
 
-A PASS here is still **not** production authorization. Production-specific qualification is a later, separate gate.
+A PASS here is still **not** production authorization. It is live disposable Drive development evidence only. Production-specific qualification is a later, separate gate.
