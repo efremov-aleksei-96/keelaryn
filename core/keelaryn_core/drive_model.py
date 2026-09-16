@@ -1,38 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from hashlib import sha256
 from typing import Iterable
 
+from .drive_backend import BLOB_MIME, FOLDER_MIME, DriveItem
 from .protocol import FaultInjector, ProtocolError
-
-
-FOLDER_MIME = "application/vnd.google-apps.folder"
-BLOB_MIME = "application/octet-stream"
-
-
-@dataclass(frozen=True)
-class DriveItem:
-    file_id: str
-    parent_id: str | None
-    name: str
-    mime_type: str
-    version: int
-    trashed: bool
-    content: bytes | None
-    head_revision_id: str | None
-
-    @property
-    def is_folder(self) -> bool:
-        return self.mime_type == FOLDER_MIME
-
-    @property
-    def size(self) -> int | None:
-        return None if self.content is None else len(self.content)
-
-    @property
-    def sha256_checksum(self) -> str | None:
-        return None if self.content is None else sha256(self.content).hexdigest()
 
 
 class DriveModel:
@@ -41,6 +14,10 @@ class DriveModel:
     It deliberately allows duplicate names and non-atomic multi-object sequences.
     Every mutation has a fault checkpoint. Observations can be forced stale once to
     make callers prove that discovery data is not treated as commit authority.
+
+    Metadata and blob content are stored separately so this model obeys the same
+    boundary as a real Drive backend: ``get``/``list`` return metadata while
+    ``download`` returns bytes.
     """
 
     def __init__(self, *, fault: FaultInjector | None = None) -> None:
@@ -55,10 +32,12 @@ class DriveModel:
                 mime_type=FOLDER_MIME,
                 version=1,
                 trashed=False,
-                content=None,
+                size=None,
+                sha256_checksum=None,
                 head_revision_id=None,
             )
         }
+        self._content: dict[str, bytes] = {}
         self._stale_get: dict[str, DriveItem] = {}
         self._stale_list: dict[tuple[str, str | None], list[DriveItem]] = {}
 
@@ -93,12 +72,13 @@ class DriveModel:
             mime_type=FOLDER_MIME,
             version=1,
             trashed=False,
-            content=None,
+            size=None,
+            sha256_checksum=None,
             head_revision_id=None,
         )
         self._items[item.file_id] = item
         self.fault.hit(f"{label}.after")
-        return item
+        return replace(item)
 
     def create_blob(
         self,
@@ -112,6 +92,7 @@ class DriveModel:
         self._require_parent(parent_id)
         if mime_type == FOLDER_MIME:
             raise ProtocolError("blob cannot use folder MIME type")
+        raw = bytes(content)
         item = DriveItem(
             file_id=self._id(),
             parent_id=parent_id,
@@ -119,12 +100,14 @@ class DriveModel:
             mime_type=mime_type,
             version=1,
             trashed=False,
-            content=bytes(content),
+            size=len(raw),
+            sha256_checksum=sha256(raw).hexdigest(),
             head_revision_id=self._revision(),
         )
         self._items[item.file_id] = item
+        self._content[item.file_id] = raw
         self.fault.hit(f"{label}.after")
-        return item
+        return replace(item)
 
     def copy_blob(
         self,
@@ -135,9 +118,15 @@ class DriveModel:
         label: str = "drive.copy_blob",
     ) -> DriveItem:
         source = self._require(source_id)
-        if source.trashed or source.is_folder or source.content is None:
+        if source.trashed or source.is_folder or source.file_id not in self._content:
             raise ProtocolError(f"source is not a live blob: {source_id}")
-        return self.create_blob(parent_id, name, source.content, mime_type=source.mime_type, label=label)
+        return self.create_blob(
+            parent_id,
+            name,
+            self._content[source.file_id],
+            mime_type=source.mime_type,
+            label=label,
+        )
 
     def get(self, file_id: str, *, include_trashed: bool = True) -> DriveItem:
         if file_id in self._stale_get:
@@ -172,9 +161,9 @@ class DriveModel:
 
     def download(self, file_id: str) -> bytes:
         item = self._require(file_id)
-        if item.trashed or item.is_folder or item.content is None:
+        if item.trashed or item.is_folder or file_id not in self._content:
             raise ProtocolError(f"Drive object is not downloadable blob: {file_id}")
-        return bytes(item.content)
+        return bytes(self._content[file_id])
 
     def move_rename(
         self,
@@ -203,13 +192,16 @@ class DriveModel:
         current = self._require(file_id)
         if current.trashed or current.is_folder:
             raise ProtocolError(f"cannot update non-live blob: {file_id}")
+        raw = bytes(content)
         updated = replace(
             current,
-            content=bytes(content),
+            size=len(raw),
+            sha256_checksum=sha256(raw).hexdigest(),
             version=current.version + 1,
             head_revision_id=self._revision(),
         )
         self._items[file_id] = updated
+        self._content[file_id] = raw
         self.fault.hit(f"{label}.after")
         return replace(updated)
 
@@ -231,6 +223,7 @@ class DriveModel:
             if children:
                 raise ProtocolError("cannot delete non-empty model folder")
         del self._items[file_id]
+        self._content.pop(file_id, None)
         self.fault.hit(f"{label}.after")
 
     def exact_name(self, parent_id: str, name: str) -> DriveItem | None:
