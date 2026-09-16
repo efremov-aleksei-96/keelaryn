@@ -40,7 +40,7 @@ The v1 active stages are:
 9. `ABORT_PRECOMMIT`
 10. `RECOVERY_BLOCKED`
 
-`CLAIM`, `SNAPSHOT`, `ENTER_UNSAFE` and `ABORT_PRECOMMIT` are SAFE stages. No canonical target may have been mutated while MASTER is in one of them.
+`CLAIM`, `SNAPSHOT`, `ENTER_UNSAFE` and `ABORT_PRECOMMIT` are SAFE stages. No canonical target may have been mutated by Core while MASTER is in one of them.
 
 `APPLY`, `WAIT_POSTCHECK`, `ROLLBACK`, `FINALIZE_COMMIT`, `FINALIZE_ROLLBACK` and `RECOVERY_BLOCKED` are UNSAFE stages.
 
@@ -61,7 +61,9 @@ Before activating a transaction, Core validates all of the following from the re
 - CHANGE `base_canonical_epoch` equals current MASTER epoch;
 - operation IDs and targets are unique;
 - all paths pass runtime path-safety checks;
+- every canonical target parent already exists as a real non-symlink directory;
 - operation old/new states are legal for their kind;
+- REPLACE operations are not declared no-ops;
 - every prepared new file has the declared hash and size;
 - every canonical target currently matches its declared OLD state;
 - no durable `history/<change_id>` already establishes reuse of that change identity.
@@ -92,6 +94,8 @@ It copies into Core-controlled storage:
 
 Every staged file is re-hashed after copy. Existing staged material may be reused only when it exactly matches the active identity and declared fingerprints.
 
+`CONTROL.json` is written only after exact CHANGE and all prepared bytes have been verified. A restart in CLAIM may therefore rebuild an incomplete claim from the still-immutable reconciliation change, or reuse a complete exact claim.
+
 If CLAIM cannot complete while canonical is still SAFE, Core advances to `ABORT_PRECOMMIT`.
 
 After successful CLAIM, MASTER advances to `SNAPSHOT`.
@@ -112,7 +116,19 @@ After successful SNAPSHOT, MASTER advances to `ENTER_UNSAFE`.
 
 ## 8. ENTER_UNSAFE
 
-Core performs one atomic MASTER replacement that keeps the same active identity and epoch but changes:
+`ENTER_UNSAFE` is the final fresh commit-boundary validation while canonical is still SAFE.
+
+Immediately before changing MASTER to UNSAFE, Core freshly verifies:
+
+- the exact claimed CHANGE / CONTROL identity;
+- every staged new file fingerprint;
+- the verified HISTORY identity and every required old snapshot fingerprint;
+- every canonical target still matches its declared OLD state;
+- every target parent still satisfies the local-filesystem path-safety contract.
+
+If any of these checks fails while canonical is still SAFE, Core advances to `ABORT_PRECOMMIT`; it does not open an UNSAFE window merely to report a stale change.
+
+After successful fresh validation, Core performs one atomic MASTER replacement that keeps the same active identity and epoch but changes:
 
 - `canonical_read_status = UNSAFE`;
 - `current_stage = APPLY`.
@@ -130,6 +146,8 @@ For each operation, Core classifies actual target state from bytes on disk:
 - `UNKNOWN` — neither OLD nor NEW.
 
 For an ABSENT expected state, absence is the matching state. For a PRESENT expected state, both byte length and SHA-256 must match.
+
+A missing/changed parent directory, symlink/reparse target, or non-regular target is also UNKNOWN once the system is UNSAFE.
 
 `UNKNOWN` at any UNSAFE stage immediately transitions to `RECOVERY_BLOCKED`. Core does not overwrite the unknown state automatically.
 
@@ -151,7 +169,7 @@ Publication behavior:
 - `REPLACE`: require OLD PRESENT, atomically publish staged new bytes, verify NEW;
 - `DELETE`: require OLD PRESENT, delete, verify ABSENT.
 
-The local-filesystem backend must use an atomic same-filesystem replacement strategy for ADD/REPLACE publication.
+The local-filesystem backend must use an atomic same-filesystem replacement strategy for ADD/REPLACE publication. Core does not implicitly create canonical target directories in protocol v1.
 
 If an execution error occurs after entering UNSAFE and all affected targets remain classifiable only as OLD or NEW, Core transitions to `ROLLBACK`. If any target is UNKNOWN, Core transitions to `RECOVERY_BLOCKED`.
 
@@ -170,6 +188,10 @@ A usable post-check must:
 - validate against the postcheck schema;
 - bind the exact active `change_id` and `change_sha256`;
 - report the active base canonical epoch.
+
+An absent, malformed or identity-mismatched post-check cannot authorize either commit or rollback and leaves the machine in `WAIT_POSTCHECK`.
+
+Before acting on a valid decision, Core copies the exact accepted post-check bytes to `control/active/POSTCHECK.json` and verifies that copy. This binds the durable semantic decision used by finalization and prevents cleanup from deleting a subsequently modified post-check as though it were the accepted decision.
 
 Decision handling:
 
@@ -207,6 +229,8 @@ Before final success, Core verifies every target is still NEW using HISTORY's re
 - OLD/NEW mixture with no UNKNOWN: transition to `ROLLBACK`;
 - any UNKNOWN: transition to `RECOVERY_BLOCKED`.
 
+Cleanup is itself fail-closed. Before deleting reconciliation work, Core verifies that it is deleting only the exact consumed change material and, when present, the exact semantic post-check previously copied into Core control. Unexpected replacement or additional material is not silently deleted; finalization blocks for diagnosis instead.
+
 Core then removes temporary claimed/staged control material, the exact consumed reconciliation change and its matching post-check material. Durable `history/<change_id>` remains.
 
 Only after cleanup is complete does Core atomically write final MASTER:
@@ -226,7 +250,7 @@ Core verifies every target is OLD using HISTORY.
 
 Any UNKNOWN blocks recovery. Any NEW target returns the machine to `ROLLBACK`.
 
-After verified OLD state, Core removes temporary control, the consumed reconciliation change and matching post-check material. HISTORY remains.
+Cleanup follows the same exact-material rule as commit finalization. After verified OLD state, Core removes temporary control, the consumed reconciliation change and matching post-check material. HISTORY remains.
 
 Only then does Core atomically write final MASTER with:
 
@@ -239,9 +263,11 @@ Only then does Core atomically write final MASTER with:
 
 This stage is valid only while canonical is SAFE and before `ENTER_UNSAFE` completed.
 
-Core removes partial `control/active` and partial unverified history for the active change, verifies that no canonical target differs from its declared OLD state, then atomically returns MASTER to READY/SAFE with the **same epoch** and without changing `last_completed_change`.
+When the exact operation set is available from the claimed CHANGE, verified HISTORY or still-exact reconciliation change, Core verifies that every target remains OLD before aborting. If an exact operation set cannot be recovered during an early CLAIM failure, Core may still discard the transaction because MASTER durably proves that Core never entered UNSAFE and therefore never performed a canonical write for that transaction; it must not claim that unrelated external canonical writes were validated.
 
-If any target is not OLD, precommit abort is no longer safe and the system enters `RECOVERY_BLOCKED` rather than claiming success.
+Core removes partial `control/active` and partial unverified history for the active change, then atomically returns MASTER to READY/SAFE with the **same epoch** and without changing `last_completed_change`.
+
+If an available exact operation set shows any target is not OLD, precommit abort is no longer safe and the system enters `RECOVERY_BLOCKED` rather than claiming success.
 
 ## 16. RECOVERY_BLOCKED
 
