@@ -64,18 +64,18 @@ Normal canonical readers use `DriveCanonicalReader` and accept data only when th
 
 ## VPS development deployment
 
-A hardened systemd development template and secret-free environment example live under:
+The **single canonical** VPS deployment source, including hardened systemd units, secret-free environment template, deterministic payload builder/materializer and rollout/rollback contract, lives under:
 
 ```text
-core/deploy/systemd/
+deploy/zero-based-vps/
 ```
 
-The template uses an unprivileged `keelaryn` user, private runtime directory, read-only system/home protection, a root-owned environment file, and supervisor restart semantics that do not loop automatically on protocol/configuration exit `2`.
+Materialized releases are bound to exact source commit + payload SHA-256 and are published read-only. Do not maintain a second deployment template under `core/` or elsewhere.
 
-It is for disposable/test deployment only until the live Google Drive gate and later production-specific qualification are complete.
+This deployment tooling is for disposable/test deployment until the live Google Drive gate and later production-specific qualification are complete.
 
 ## Development validation
 
-The ordinary zero-based workflow runs compile checks, deterministic model tests, REST-adapter tests, crash matrices, lost-response matrices, process-lock tests and CLI smoke checks. These are development evidence only.
+The ordinary zero-based workflow runs compile checks, deterministic model tests, REST-adapter tests, crash matrices, lost-response matrices, process-lock tests, deployment-contract tests and CLI smoke checks. It also builds the VPS payload twice for the exact `GITHUB_SHA`, proves byte identity, materializes it against the same source/payload identity, validates the read-only runtime without bytecode writes and emits compact short-lived evidence. These are development evidence only.
 
 Real Google Drive acceptance must use a separate disposable Hub and a separately guarded acceptance path. Never point development acceptance at the production/personal Hub.
