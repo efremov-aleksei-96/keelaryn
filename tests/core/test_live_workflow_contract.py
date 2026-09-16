@@ -49,6 +49,23 @@ class LiveWorkflowContractTests(unittest.TestCase):
         )
         self.assertIn("zero-based-drive-disposable-acceptance:", raw)
 
+    def test_live_evidence_is_sanitized_commit_bound_and_short_lived(self) -> None:
+        raw = self.workflow()
+        required = (
+            '"schema": "keelaryn.live-drive-acceptance-evidence.v1"',
+            '"source_commit": os.environ["GITHUB_SHA"]',
+            '"github_run_id": os.environ["GITHUB_RUN_ID"]',
+            '"github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"]',
+            'expected_case_keys = {"outcome", "canonical_epoch", "human_surface_verified", "workspace_verified"}',
+            "Upload compact disposable Drive evidence",
+            "name: zero-based-drive-live-${{ github.sha }}-${{ github.run_attempt }}",
+            "if-no-files-found: error",
+            "retention-days: 3",
+        )
+        for text in required:
+            with self.subTest(text=text):
+                self.assertIn(text, raw)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
