@@ -34,13 +34,15 @@ spec/
     └── work-state-update.schema.json
 ```
 
-`WORKFLOW.md` defines the shared copy-on-write `STATE.md` transition for Project and Reconciliation work, RESULT publication, project-scoped Reconciliation claim authority and the semantic handoff into the existing Ready Change/Core boundary. `DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` defines HTTP/idempotency/failure semantics, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations. `DRIVE_ORCHESTRATION.md` defines immutable transaction authority, copy-on-write MASTER transitions, independent pre-UNSAFE snapshots and state-derived recovery. `DRIVE_DISCOVERY.md` defines restart bootstrap from the active locator to the exact immutable transaction bundle, including zero-MASTER gap recovery without process-local transaction memory. `DRIVE_SERVICE.md` composes bootstrap, Ready Change ingestion, transaction factory, polling, exact Ready-marker consumption and terminal locator cleanup into the Drive MVP service lifecycle.
+`WORKFLOW.md` defines Workspace navigation, the shared copy-on-write `STATE.md` transition for Project and Reconciliation work, RESULT publication, project-scoped Reconciliation claim authority and the semantic handoff into the existing Ready Change/Core boundary. `DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` defines HTTP/idempotency/failure semantics, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations. `DRIVE_ORCHESTRATION.md` defines immutable transaction authority, copy-on-write MASTER transitions, independent pre-UNSAFE snapshots and state-derived recovery. `DRIVE_DISCOVERY.md` defines restart bootstrap from the active locator to the exact immutable transaction bundle, including zero-MASTER gap recovery without process-local transaction memory. `DRIVE_SERVICE.md` composes bootstrap, Ready Change ingestion, transaction factory, polling, exact Ready-marker consumption and terminal locator cleanup into the Drive MVP service lifecycle.
 
 ## Normative logical path layout for the MVP
 
 ```text
 Keelaryn Hub/
+├── README.md
 ├── MASTER.json
+├── INDEX.md
 ├── canonical/
 ├── work/
 │   ├── projects/
@@ -85,9 +87,13 @@ Keelaryn Hub/
         └── master-transitions/
 ```
 
+Fresh Drive bootstrap creates the structural folders plus deterministic human-readable `README.md`, `INDEX.md` and initial `work/reconciliation/STATE.md`, freshly verifies them, and publishes `MASTER.json` last. Lost responses for every bootstrap mutation are recovered by re-observation. Once MASTER exists, bootstrap is verification-only: it never creates a missing required human/structural object. `INDEX.md` and Reconciliation STATE may legitimately change afterward and are therefore required by identity/type, not forced back to bootstrap template bytes.
+
 During an incomplete work STATE transition, `NEW.md` may also exist in the update folder. Between OLD displacement and NEW publication there may intentionally be no current `STATE.md`; reads fail closed during that GAP. `NEW.md` becomes the exact new current `STATE.md`, and `DONE.json` is created only after that publication is verified.
 
-Project and Reconciliation use the same deterministic COW engine. Their durable PLAN/DONE records bind `owner_kind` (`PROJECT` or `RECONCILIATION`), `owner_id` and exact owner folder ID, so authority from one semantic role cannot be replayed as the other.
+Project and Reconciliation use the same deterministic COW engine. Their durable PLAN/DONE records bind `owner_kind` (`PROJECT` or `RECONCILIATION`), `owner_id` and exact owner folder ID, so authority from one semantic role cannot be replayed as the other. Initial Reconciliation STATE publication belongs to bootstrap; the semantic Reconciliation service only verifies those initial bytes and performs later COW updates.
+
+Workspace is an initiator/navigator rather than a new storage authority. Its deterministic service lists, creates, reads and updates Project work areas using the existing Project/work-state protocols. Portfolio listing fails closed on ambiguous or incomplete direct Project structure rather than silently omitting it. `python -m keelaryn_core.workspace_cli` exposes that surface for an initialized Drive Hub and is included in exact-head VPS payload validation.
 
 The local-filesystem backend may materialize equivalent control/history authority differently. A directory or object name does not itself grant trust. Core and workflow layers verify schemas, exact hashes, bound identities, path safety and actual filesystem/Drive state.
 
@@ -127,6 +133,7 @@ Runtime MUST additionally enforce:
 - exact equality between READY, CHANGE, MASTER and backend-specific immutable transaction authority for one active transaction;
 - a REPLACE must actually change the declared fingerprint rather than encode a no-op;
 - Project claim identity is the pair `<project_id>/<result_id>`, not `result_id` alone;
+- Workspace portfolio enumeration requires unique valid Project folder names and mandatory Project STATE/results structure;
 - at most one incomplete work STATE transition may exist for one owner;
 - previous work STATE PLAN/OLD/DONE authority must validate before a later STATE transition begins;
 - work STATE role identity and exact owner folder identity must match before restart continuation.
