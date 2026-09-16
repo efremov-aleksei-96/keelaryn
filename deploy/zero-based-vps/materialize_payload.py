@@ -53,13 +53,13 @@ def _safe_manifest_path(value: Any) -> str:
     return normalized
 
 
-def _sha(value: Any) -> str:
+def _sha(value: Any, label: str = "sha256") -> str:
     if (
         not isinstance(value, str)
         or len(value) != 64
         or any(ch not in "0123456789abcdef" for ch in value)
     ):
-        raise PayloadMaterializeError("manifest contains invalid sha256")
+        raise PayloadMaterializeError(f"invalid {label}")
     return value
 
 
@@ -100,9 +100,20 @@ def _regular_members(raw: bytes) -> dict[str, bytes]:
     return members
 
 
-def verify_payload(raw: bytes, *, expected_source_commit: str | None = None) -> tuple[str, tuple[VerifiedMember, ...]]:
+def verify_payload(
+    raw: bytes,
+    *,
+    expected_source_commit: str | None = None,
+    expected_payload_sha256: str | None = None,
+) -> tuple[str, tuple[VerifiedMember, ...]]:
     if not isinstance(raw, bytes) or not raw:
         raise PayloadMaterializeError("payload bytes are empty")
+    payload_sha256 = hashlib.sha256(raw).hexdigest()
+    if expected_payload_sha256 is not None and payload_sha256 != _sha(
+        expected_payload_sha256, "expected payload sha256"
+    ):
+        raise PayloadMaterializeError("payload SHA-256 does not match expected qualified identity")
+
     members = _regular_members(raw)
     if SOURCE_NAME not in members or MANIFEST_NAME not in members:
         raise PayloadMaterializeError("payload metadata members are missing")
@@ -139,7 +150,7 @@ def verify_payload(raw: bytes, *, expected_source_commit: str | None = None) -> 
         if path in seen_paths:
             raise PayloadMaterializeError(f"duplicate manifest path: {path}")
         seen_paths.add(path)
-        digest = _sha(entry["sha256"])
+        digest = _sha(entry["sha256"], "manifest sha256")
         size = _size(entry["size"])
         archive_name = f"{PAYLOAD_ROOT}/{path}"
         expected_archive_names.add(archive_name)
@@ -156,14 +167,67 @@ def verify_payload(raw: bytes, *, expected_source_commit: str | None = None) -> 
     return source_commit, tuple(verified)
 
 
-def materialize_payload(payload: Path, releases_root: Path, *, expected_source_commit: str | None = None) -> dict[str, object]:
+def _write_exact(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    with path.open("xb") as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def _make_tree_read_only(root: Path) -> None:
+    files: list[Path] = []
+    directories: list[Path] = []
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise PayloadMaterializeError("materialized release unexpectedly contains a symlink")
+        if path.is_file():
+            files.append(path)
+        elif path.is_dir():
+            directories.append(path)
+        else:
+            raise PayloadMaterializeError("materialized release contains an unsupported filesystem object")
+    for path in files:
+        os.chmod(path, 0o444)
+    for path in sorted(directories, key=lambda item: len(item.parts), reverse=True):
+        os.chmod(path, 0o555)
+    os.chmod(root, 0o555)
+
+
+def _make_tree_writable_for_cleanup(root: Path) -> None:
+    if not root.exists() or root.is_symlink():
+        return
+    for path in root.rglob("*"):
+        if path.is_dir() and not path.is_symlink():
+            try:
+                os.chmod(path, 0o755)
+            except OSError:
+                pass
+    try:
+        os.chmod(root, 0o755)
+    except OSError:
+        pass
+
+
+def materialize_payload(
+    payload: Path,
+    releases_root: Path,
+    *,
+    expected_source_commit: str | None = None,
+    expected_payload_sha256: str | None = None,
+) -> dict[str, object]:
     payload = payload.resolve()
     releases_root = releases_root.resolve()
     try:
         raw = payload.read_bytes()
     except OSError as exc:
         raise PayloadMaterializeError("cannot read payload archive") from exc
-    source_commit, members = verify_payload(raw, expected_source_commit=expected_source_commit)
+    payload_sha256 = hashlib.sha256(raw).hexdigest()
+    source_commit, members = verify_payload(
+        raw,
+        expected_source_commit=expected_source_commit,
+        expected_payload_sha256=expected_payload_sha256,
+    )
 
     releases_root.mkdir(parents=True, exist_ok=True)
     destination = releases_root / source_commit
@@ -173,36 +237,40 @@ def materialize_payload(payload: Path, releases_root: Path, *, expected_source_c
     stage = Path(tempfile.mkdtemp(prefix=f".{source_commit}.stage-", dir=releases_root))
     try:
         for member in members:
-            target = stage / PurePosixPath(member.path)
-            target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
-            with target.open("xb") as stream:
-                stream.write(member.data)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.chmod(target, 0o644)
-        (stage / "SOURCE_COMMIT").write_text(source_commit + "\n", encoding="ascii", newline="\n")
-        manifest_copy = {
-            "schema": SCHEMA,
-            "source_commit": source_commit,
-            "files": [
-                {"path": member.path, "sha256": member.sha256, "size": member.size}
-                for member in members
-            ],
-        }
-        manifest_path = stage / "PAYLOAD_MANIFEST.json"
-        manifest_path.write_text(
-            json.dumps(manifest_copy, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+            _write_exact(stage / PurePosixPath(member.path), member.data)
 
-        # Re-read every staged payload member before publication.
+        source_raw = (source_commit + "\n").encode("ascii")
+        manifest_raw = (
+            json.dumps(
+                {
+                    "schema": SCHEMA,
+                    "source_commit": source_commit,
+                    "files": [
+                        {"path": member.path, "sha256": member.sha256, "size": member.size}
+                        for member in members
+                    ],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+        ).encode("utf-8")
+        _write_exact(stage / "SOURCE_COMMIT", source_raw)
+        _write_exact(stage / "PAYLOAD_MANIFEST.json", manifest_raw)
+
+        # Re-read every staged payload member before locking the tree read-only.
         for member in members:
             target = stage / PurePosixPath(member.path)
             data = target.read_bytes()
             if len(data) != member.size or hashlib.sha256(data).hexdigest() != member.sha256:
                 raise PayloadMaterializeError(f"staged release verification failed: {member.path}")
+        if (stage / "SOURCE_COMMIT").read_bytes() != source_raw:
+            raise PayloadMaterializeError("staged SOURCE_COMMIT verification failed")
+        if (stage / "PAYLOAD_MANIFEST.json").read_bytes() != manifest_raw:
+            raise PayloadMaterializeError("staged PAYLOAD_MANIFEST verification failed")
 
+        _make_tree_read_only(stage)
         os.replace(stage, destination)
         try:
             directory_fd = os.open(releases_root, os.O_RDONLY)
@@ -214,6 +282,7 @@ def materialize_payload(payload: Path, releases_root: Path, *, expected_source_c
             pass
     except Exception:
         if stage.exists():
+            _make_tree_writable_for_cleanup(stage)
             shutil.rmtree(stage)
         raise
 
@@ -221,7 +290,7 @@ def materialize_payload(payload: Path, releases_root: Path, *, expected_source_c
         "schema": SCHEMA,
         "source_commit": source_commit,
         "file_count": len(members),
-        "payload_sha256": hashlib.sha256(raw).hexdigest(),
+        "payload_sha256": payload_sha256,
         "payload_size": len(raw),
         "release_directory": str(destination),
     }
@@ -232,6 +301,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--payload", required=True, type=Path)
     parser.add_argument("--releases-root", required=True, type=Path)
     parser.add_argument("--expected-source-commit")
+    parser.add_argument("--expected-payload-sha256")
     return parser
 
 
@@ -242,6 +312,7 @@ def main(argv: list[str] | None = None) -> int:
             args.payload,
             args.releases_root,
             expected_source_commit=args.expected_source_commit,
+            expected_payload_sha256=args.expected_payload_sha256,
         )
     except (PayloadMaterializeError, OSError) as exc:
         print(f"ERROR: {exc}")
