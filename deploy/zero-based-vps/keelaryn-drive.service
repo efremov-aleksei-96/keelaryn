@@ -1,0 +1,49 @@
+[Unit]
+Description=Keelaryn zero-based Google Drive Core poller
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=keelaryn
+Group=keelaryn
+WorkingDirectory=/opt/keelaryn/current
+EnvironmentFile=/etc/keelaryn/drive.env
+Environment=PYTHONPATH=/opt/keelaryn/current/core
+Environment=KEELARYN_RUNTIME_DIR=/run/keelaryn
+RuntimeDirectory=keelaryn
+RuntimeDirectoryMode=0700
+UMask=0077
+ExecStartPre=/usr/bin/test -r /etc/keelaryn/drive.env
+ExecStartPre=/usr/bin/test -f /opt/keelaryn/current/core/keelaryn_core/drive_poller.py
+ExecStart=/usr/bin/python3 -m keelaryn_core.drive_poller serve --interval-seconds 30
+Restart=on-failure
+RestartSec=15s
+RestartPreventExitStatus=2
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectProc=invisible
+ProcSubset=pid
+
+[Install]
+WantedBy=multi-user.target
