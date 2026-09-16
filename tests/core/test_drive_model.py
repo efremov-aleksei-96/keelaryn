@@ -27,7 +27,7 @@ class DriveModelTests(unittest.TestCase):
         self.assertEqual(updated.version, 2)
         self.assertNotEqual(updated.head_revision_id, first_revision)
         self.assertEqual(self.drive.download(item.file_id), b"two")
-        self.assertEqual(updated.sha256_checksum, "3fc4ccfe745870e2c0d99f71f30ff0656c8dedd41cc1d7d3d376b0db6e996e8")
+        self.assertEqual(updated.sha256_checksum, "3fc4ccfe745870e2c0d99f71f30ff0656c8dedd41cc1d7d3d376b0dbe685e2f3")
 
     def test_duplicate_names_are_preserved_and_exact_name_fails_closed(self) -> None:
         self.drive.create_blob(self.hub.file_id, "same.txt", b"a")
