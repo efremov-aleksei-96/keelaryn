@@ -63,6 +63,9 @@ jobs:
       - name: Smoke Workspace CLI surface
         run: PYTHONPATH=core python3 -m keelaryn_core.workspace_cli --help
 
+      - name: Smoke Pilot CLI surface
+        run: PYTHONPATH=core python3 -m keelaryn_core.pilot_cli --help
+
       - name: Smoke VPS release-switch CLI surface
         run: python3 deploy/zero-based-vps/release_switch.py --help
 
@@ -103,6 +106,7 @@ jobs:
           PY
             PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=core python3 -B -m keelaryn_core.drive_poller --help >/dev/null
             PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=core python3 -B -m keelaryn_core.workspace_cli --help >/dev/null
+            PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=core python3 -B -m keelaryn_core.pilot_cli --help >/dev/null
             PYTHONDONTWRITEBYTECODE=1 python3 -B deploy/zero-based-vps/release_switch.py --help >/dev/null
           )
           if find "$release" \( -type d -name '__pycache__' -o -type f -name '*.pyc' -o -type f -name '*.pyo' \) -print -quit | grep -q .; then
@@ -130,6 +134,7 @@ jobs:
                   "release_validation_wrote_no_bytecode": True,
                   "drive_poller_cli_verified": True,
                   "workspace_cli_verified": True,
+                  "pilot_cli_verified": True,
                   "release_switch_cli_verified": True,
                   "github_run_id": os.environ["GITHUB_RUN_ID"],
                   "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
