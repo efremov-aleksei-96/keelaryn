@@ -33,13 +33,17 @@ class DriveDisposableAcceptanceTests(unittest.TestCase):
         fixture = (LIVE / "fixtures" / "README.md").read_bytes()
         self.assertEqual(fixture, SENTINEL_BYTES)
 
-    def test_exact_guarded_root_runs_pass_and_fail_in_fresh_child_hubs(self) -> None:
+    def test_exact_guarded_root_runs_workspace_pass_and_fail_in_fresh_child_hubs(self) -> None:
         drive, root_id = self.guarded_root()
         result = run_disposable_acceptance(drive, root_id, "model-1")
         self.assertEqual(result.pass_case.outcome, "COMMITTED")
         self.assertEqual(result.fail_case.outcome, "ROLLED_BACK")
         self.assertEqual(result.pass_case.canonical_epoch, 1)
         self.assertEqual(result.fail_case.canonical_epoch, 1)
+        self.assertTrue(result.pass_case.human_surface_verified)
+        self.assertTrue(result.fail_case.human_surface_verified)
+        self.assertTrue(result.pass_case.workspace_verified)
+        self.assertTrue(result.fail_case.workspace_verified)
         children = [item for item in drive.list_children(root_id) if item.name != "README.md"]
         self.assertEqual(len(children), 2)
         self.assertTrue(all(item.is_folder and item.name.startswith(CHILD_PREFIX) for item in children))
@@ -47,6 +51,10 @@ class DriveDisposableAcceptanceTests(unittest.TestCase):
         public = json.loads(result.to_json())
         self.assertEqual(public["pass"]["outcome"], "COMMITTED")
         self.assertEqual(public["fail"]["outcome"], "ROLLED_BACK")
+        self.assertTrue(public["pass"]["human_surface_verified"])
+        self.assertTrue(public["fail"]["human_surface_verified"])
+        self.assertTrue(public["pass"]["workspace_verified"])
+        self.assertTrue(public["fail"]["workspace_verified"])
         self.assertNotIn(result.pass_case.hub_id, result.to_json())
         self.assertNotIn(result.fail_case.hub_id, result.to_json())
 
