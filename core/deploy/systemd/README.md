@@ -12,25 +12,34 @@ The template assumes one disposable/test VPS writer and one disposable/test Goog
 /run/keelaryn/                     systemd-created runtime directory
 ```
 
-The service runs as an unprivileged `keelaryn` OS user and reads code from `/opt/keelaryn` without modifying it.
+Both units run as an unprivileged `keelaryn` OS user and read code from `/opt/keelaryn` without modifying it.
+
+## Units
+
+- `keelaryn-drive-bootstrap.service` — explicit one-shot initialize/verify command.
+- `keelaryn-drive.service` — long-running polling service.
+
+The continuous unit does **not** bootstrap automatically. Initialization/verification is a separate operator action and a separate failure boundary.
 
 ## One-time setup outline
 
 1. Create a dedicated `keelaryn` system user/group with no interactive login.
-2. Materialize the exact tested repository commit at `/opt/keelaryn` and make it read-only to the service user except where your deployment tooling explicitly requires otherwise.
+2. Materialize the exact tested repository commit at `/opt/keelaryn` and make it read-only to the service user except where deployment tooling explicitly requires otherwise.
 3. Copy `drive.env.example` to `/etc/keelaryn/drive.env`, populate only disposable/test credentials, set owner `root:root`, mode `0600`.
-4. Copy `keelaryn-drive.service` to `/etc/systemd/system/keelaryn-drive.service`.
-5. Before enabling continuous service, initialize or verify the disposable Hub once with the exact same checkout and environment:
+4. Copy both service files to `/etc/systemd/system/` and run `systemctl daemon-reload`.
+5. Initialize or verify the disposable Hub through systemd:
 
    ```bash
-   set -a
-   . /etc/keelaryn/drive.env
-   set +a
-   PYTHONPATH=/opt/keelaryn/core KEELARYN_RUNTIME_DIR=/run/keelaryn \
-     /usr/bin/python3 -m keelaryn_core.drive_poller bootstrap
+   systemctl start keelaryn-drive-bootstrap.service
+   systemctl status keelaryn-drive-bootstrap.service --no-pager
    ```
 
-6. Only after disposable live acceptance passes for the same development identity should the service be enabled for further disposable/VPS testing.
+   Do not source `/etc/keelaryn/drive.env` into a root shell and do not run the poller bootstrap directly as root. The oneshot unit deliberately runs as `User=keelaryn`, lets systemd create `/run/keelaryn` with the expected ownership/mode, and lets systemd read the root-owned environment file without exposing secrets on the command line.
+6. Only after disposable live acceptance passes for the same development identity should continuous disposable/VPS testing be enabled:
+
+   ```bash
+   systemctl enable --now keelaryn-drive.service
+   ```
 
 ## Supervisor semantics
 
@@ -38,15 +47,17 @@ The service runs as an unprivileged `keelaryn` OS user and reads code from `/opt
 
 The lock is a **local VPS invariant only**. Two different hosts are not serialized by this mechanism. MVP deployment therefore permits exactly one configured writer host per Hub.
 
-The unit uses:
+Both units use:
 
+- `User=keelaryn` / `Group=keelaryn`;
 - `RuntimeDirectory=keelaryn` with mode `0700`;
 - `UMask=0077`;
 - `NoNewPrivileges=true`;
 - `ProtectSystem=strict`;
 - `ProtectHome=true`;
-- `PrivateTmp=true`;
-- `Restart=on-failure`, but exit `2` (protocol/configuration block) and `130` are not restarted automatically.
+- `PrivateTmp=true`.
+
+The long-running unit additionally uses `Restart=on-failure`, but exit `2` (protocol/configuration block) and `130` are not restarted automatically.
 
 Transport uncertainty is handled inside the poll loop by re-observation on a later iteration; mutation requests are not blindly retried.
 
