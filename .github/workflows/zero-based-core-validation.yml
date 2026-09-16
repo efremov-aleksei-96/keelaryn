@@ -6,6 +6,7 @@ on:
       - 'dev/zero-based-keelaryn'
     paths:
       - 'core/**'
+      - 'deploy/**'
       - 'tests/core/**'
       - 'tests/live/**'
       - 'spec/**'
@@ -16,6 +17,7 @@ on:
       - main
     paths:
       - 'core/**'
+      - 'deploy/**'
       - 'tests/core/**'
       - 'tests/live/**'
       - 'spec/**'
