@@ -3,7 +3,7 @@
 **Status:** zero-based MVP development contract.  
 **Architecture baseline:** Zero-Based Architecture r2.
 
-This contract defines the durable boundary between semantic Project work and serialized Reconciliation. It does not change the deterministic Core `CHANGE.json` format.
+This contract defines durable working state for Project/Reconciliation roles and the boundary from semantic Project work to serialized canonical publication. It does not change deterministic Core `CHANGE.json` semantics.
 
 ## 1. Logical layout
 
@@ -22,32 +22,42 @@ work/
 │               ├── RESULT.md
 │               └── RESULT.json          # created last
 └── reconciliation/
+    ├── STATE.md
+    ├── state-history/
+    │   └── <update_id>/
+    │       ├── PLAN.json
+    │       ├── OLD.md
+    │       └── DONE.json
     ├── claims/
     │   └── <project_id>/
     │       └── <result_id>/
-    │           ├── CLAIM_PLAN.json       # durable reserved IDs
-    │           ├── RESULT.md             # exact claimed copy
-    │           ├── RESULT.json           # exact claimed copy
+    │           ├── CLAIM_PLAN.json
+    │           ├── RESULT.md
+    │           ├── RESULT.json
     │           └── CLAIM.json            # created last; authority
     ├── changes/
     └── postcheck/
 ```
 
-`work/projects/` and `work/reconciliation/claims/` are structural Hub folders created and verified by Drive bootstrap. Project `state-history/` is created lazily on the first non-no-op STATE update.
+`work/projects/` and `work/reconciliation/claims/` are structural Hub folders created/verified by Drive bootstrap. Role `STATE.md` is semantic working material. Project state is created with project initialization; Reconciliation state is initialized idempotently by the Reconciliation workflow before use.
 
-Reconciliation's own durable semantic `STATE.md` remains required by Architecture r2 but is not defined by this Project-state transaction contract yet. It should reuse an equivalent safe state primitive rather than introduce an unrelated overwrite mechanism.
+## 2. Shared durable STATE contract
 
-## 2. Project STATE
+Project and Reconciliation both require durable `STATE.md` so a new chat can continue without the previous transcript. They use one shared copy-on-write transition engine and one durable schema family:
 
-Every project owns `STATE.md`. It is mutable working state, not canonical truth and not a publication instruction. It records at minimum the architecture-defined goal, current state, working findings, canonical dependencies, open work, next action and expected canonical effects.
+- `keelaryn.work-state-update-plan.v1`;
+- `keelaryn.work-state-update.v1`.
 
-MVP permits one active writer in one project work area at a time. Additional machine-enforced project locking is deferred.
+Role identity is part of transaction authority:
+
+- Project: `owner_kind = PROJECT`, `owner_id = <project_id>`;
+- Reconciliation: `owner_kind = RECONCILIATION`, `owner_id = reconciliation`.
+
+PLAN also binds the exact owner-folder Drive ID. A PLAN/DONE authority for one role or owner cannot be replayed for another.
 
 ### 2.1 No in-place overwrite
 
-Google Drive backend v1 forbids in-place content replacement. Project `STATE.md` therefore uses a copy-on-write object transition.
-
-For one update identity `<update_id>`, the durable record is:
+Drive backend v1 forbids in-place content replacement. A STATE update uses:
 
 ```text
 state-history/<update_id>/
@@ -57,123 +67,93 @@ state-history/<update_id>/
 └── DONE.json   # created last after verified NEW publication
 ```
 
-A completed update normally has `PLAN.json + OLD.md + DONE.json`; the NEW exact Drive object has become the project's current `STATE.md`.
+A normally completed update contains `PLAN.json + OLD.md + DONE.json`; the exact NEW object is now the owner's current `STATE.md`.
 
-### 2.2 STATE update transaction
+### 2.2 Update transaction
 
-For a new non-no-op STATE update:
+For a new non-no-op update:
 
-1. require one exact current `STATE.md`;
-2. block if another update is incomplete or historical STATE authority is invalid;
+1. require exactly one owner folder and one exact current `STATE.md`;
+2. validate all prior STATE history and block if another update is incomplete;
 3. create/resolve `state-history/<update_id>/`;
 4. publish immutable `PLAN.json` before removing current STATE;
-5. `PLAN.json` binds exact project/update folder IDs, exact OLD ID/fingerprint, reserved NEW ID/fingerprint and reserved DONE marker ID;
-6. create and verify exact `NEW.md` using the reserved NEW ID;
-7. freshly revalidate exact OLD immediately before publication;
-8. move OLD from project `STATE.md` to this update's `OLD.md`;
-9. move exact NEW from `NEW.md` to project `STATE.md`;
-10. verify NEW bytes and exact object identity at the current STATE location;
-11. create `DONE.json` last, binding the exact PLAN digest and old/new identities.
+5. PLAN binds role/owner identity, exact OLD ID/fingerprint, reserved NEW ID/fingerprint and reserved DONE ID;
+6. create/verify exact `NEW.md` with the reserved NEW ID;
+7. freshly verify exact OLD immediately before displacement;
+8. move OLD from current `STATE.md` to this update's `OLD.md`;
+9. move exact NEW from `NEW.md` to current `STATE.md`;
+10. verify NEW bytes and exact object identity;
+11. create `DONE.json` last, binding exact PLAN digest and old/new identities.
 
-No-op updates are rejected before creating `state-history/` or a new update folder when no matching transaction already exists. Repeating the same completed `<update_id>` with the same exact NEW bytes is idempotent and returns the same durable authority.
+A new update with bytes identical to current STATE is rejected before creating new transition material. Repeating an existing completed `<update_id>` with the same exact NEW bytes is idempotent.
 
 ### 2.3 Restart classification
 
-There is no mutable progress counter. Restart derives STATE transition reality only from exact Drive IDs, locations and fingerprints:
+No mutable progress counter exists. Restart derives state only from exact IDs, locations and fingerprints:
 
-- `OLD`: OLD is still project `STATE.md`; NEW is update `NEW.md`;
-- `GAP`: OLD is update `OLD.md`; NEW is update `NEW.md`; no project `STATE.md` exists;
-- `NEW`: OLD is update `OLD.md`; NEW exact object is project `STATE.md`.
+- `OLD`: OLD is current `STATE.md`; NEW is update `NEW.md`;
+- `GAP`: OLD is update `OLD.md`; NEW is update `NEW.md`; current `STATE.md` is absent;
+- `NEW`: OLD is update `OLD.md`; exact NEW is current `STATE.md`.
 
-Any other configuration is ambiguous and blocks automated continuation. Ordinary `STATE.md` reads fail closed during GAP.
+Anything else blocks. Ordinary STATE reads fail closed during GAP.
 
-Lost responses after PLAN creation, NEW creation, OLD displacement, NEW publication or DONE creation are recovered by re-observing exact durable state. The implementation also tolerates restart after pre-authority structural folder creation without treating folder names as transaction authority.
+Lost mutation responses after structural creation, PLAN, NEW, OLD displacement, NEW publication or DONE creation are recovered by re-observing durable state. Existing historical PLAN/OLD/DONE authority is revalidated before a later update begins; a DONE filename alone is never trusted.
 
-### 2.4 Historical chain
+A later transition may move an earlier transition's NEW exact object into its own `OLD.md`. Exact object identity therefore forms a retained state chain without duplicating the same state merely for history.
 
-Old STATE bytes are retained. Before a new update starts, previous update folders must have valid exact PLAN/OLD/DONE authority. A prior DONE marker existing by name is insufficient: PLAN/DONE bytes, bound IDs and old/new fingerprints are revalidated.
+## 3. Project RESULT publication
 
-A later update may move an earlier update's NEW object from current `STATE.md` into the later update's `OLD.md`; the exact object ID and bytes therefore form a retained state chain without duplicating that object merely for history.
+`RESULT.md` is the semantic proposal and contains the architecture-defined findings/evidence/effects/uncertainties.
 
-Tampered historical PLAN, DONE, OLD or referenced NEW material blocks a later STATE update rather than allowing history corruption to be silently bypassed.
+`RESULT.json` is created **after** final `RESULT.md` and binds:
 
-## 3. RESULT publication
-
-`RESULT.md` is the semantic proposal. It contains the architecture-defined project identity, readiness, findings, evidence, canonical inputs, proposed semantic effects, expected canonical targets and unresolved uncertainties.
-
-`RESULT.json` is a small machine-readable marker created **after** final `RESULT.md`. It binds:
-
-- `project_id`;
-- `result_id`;
-- the canonical epoch on which the project's canonical reading was based;
-- exact SHA-256 and size of `RESULT.md`;
-- the canonical input fingerprints observed by the Project;
+- `project_id` and `result_id`;
+- base canonical epoch used by the Project;
+- exact RESULT.md SHA-256 and byte size;
+- canonical input fingerprints observed by the Project;
 - expected canonical target paths.
 
-A stale `base_canonical_epoch` is allowed. Project work may finish after another canonical publication. Reconciliation, not Project, is responsible for re-reading current canonical truth and resolving parallel changes.
+A stale base epoch is allowed because Reconciliation must re-read current canonical truth. A result is claimable only when the project/result folders and RESULT objects are unique/live, marker identity matches enclosing folders and RESULT.md bytes match its marker fingerprint.
 
-A RESULT is discoverable for claim only when:
+## 4. Reconciliation claim
 
-1. the project folder is uniquely named by `project_id`;
-2. the result folder is uniquely named by `result_id` inside that project;
-3. exactly one live `RESULT.md` and one live `RESULT.json` exist;
-4. `RESULT.json` validates and names the enclosing project/result;
-5. downloaded `RESULT.md` bytes exactly match its marker fingerprint.
-
-Duplicate names or ambiguous objects block claim.
-
-## 4. Claim preparation
-
-Claims are scoped by **both** project and result identity:
+Claim namespace is scoped by both identities:
 
 ```text
 work/reconciliation/claims/<project_id>/<result_id>/
 ```
 
-This prevents two projects that legitimately use the same friendly `result_id` from sharing one claim namespace.
+Before copying source RESULT objects, Reconciliation writes immutable `CLAIM_PLAN.json`, binding exact source IDs/fingerprints, exact claim folder and reserved destination IDs for claimed RESULT.md, RESULT.json and final CLAIM.json.
 
-Reconciliation never uses Project bytes as long-lived authority after claim. Before copying the Result, it writes `CLAIM_PLAN.json`. The plan records:
+Using only those reserved identities it then:
 
-- exact source folder/file IDs and fingerprints;
-- exact Project/Result identity and base epoch;
-- exact claim folder ID;
-- pre-reserved destination IDs for claimed `RESULT.md`, claimed `RESULT.json` and final `CLAIM.json`.
+1. freshly verifies source RESULT IDs, locations and bytes;
+2. copies RESULT.md and RESULT.json;
+3. verifies claimed bytes/fingerprints;
+4. creates `CLAIM.json` **last**.
 
-The plan is immutable. It exists so a crash or lost Drive response never forces Reconciliation to allocate replacement identities or infer which copy is authoritative.
+`CLAIM.json` binds exact claim-plan digest plus source/claimed identities. Lost mutation responses are recovered from PLAN-reserved IDs rather than allocating replacements or selecting objects by listing order.
 
-## 5. Claim publication
+## 5. Authority after claim
 
-Using only IDs from the exact claim plan, Reconciliation:
+Before valid `CLAIM.json`, the claim is incomplete and cannot authorize Reconciliation output.
 
-1. freshly verifies source `RESULT.md` and `RESULT.json` IDs, locations and bytes;
-2. copies both files into the claim folder using their reserved destination IDs;
-3. verifies both copied bytes and fingerprints;
-4. creates `CLAIM.json` **last** using the reserved claim-marker ID.
+After CLAIM exists:
 
-`CLAIM.json` binds the exact claim-plan fingerprint and the exact source/claimed object identities and fingerprints.
+- claimed RESULT copies are Reconciliation's immutable input authority;
+- Project source objects remain provenance but are not required for continuation;
+- later Project-source mutation does not change the claim;
+- mutation of claimed copies, CLAIM_PLAN or CLAIM blocks use;
+- same `result_id` in another project is independent;
+- incompatible reuse of the same `<project_id>/<result_id>` claim is forbidden.
 
-If a Drive mutation response is lost, restart re-observes the reserved IDs from `CLAIM_PLAN.json`. It does not allocate replacement IDs in the same claim.
+Logical Project discipline still says a claimed RESULT should not be edited, but claim restart correctness does not depend on that discipline.
 
-## 6. Authority after claim
+## 6. Reconciliation → Core boundary
 
-Before `CLAIM.json`, the claim is incomplete and must not authorize Reconciliation output.
+Reconciliation reads claimed RESULT authority, updates its durable STATE as work progresses, re-reads current canonical truth under SAFE/epoch rules, resolves semantic conflicts and prepares final operations.
 
-After valid `CLAIM.json` exists:
-
-- claimed `RESULT.md` + claimed `RESULT.json` are Reconciliation's immutable input authority;
-- source Project objects remain provenance but are no longer required for continuation;
-- source Project mutation after claim does not rewrite the claim;
-- mutation of claimed copies, claim plan or claim marker blocks use of that claim;
-- a second incompatible claim for the same `<project_id>/<result_id>` is forbidden;
-- the same `result_id` in a different project is an independent claim identity.
-
-The logical rule remains that a claimed Project RESULT should not be edited. Physical permission separation is deferred; exact claim copies ensure Reconciliation does not depend on that logical rule for restart correctness.
-
-## 7. Reconciliation → Core boundary
-
-Reconciliation reads the claimed RESULT, re-reads current canonical truth using the SAFE/epoch reader protocol, uses Router + Search, resolves conflicts and prepares final canonical operations.
-
-The deterministic Core boundary remains unchanged:
+The Core boundary remains:
 
 ```text
 claimed RESULT
@@ -183,45 +163,42 @@ claimed RESULT
   → existing Core Ready Change ingestion
 ```
 
-RESULT/CLAIM provenance is Reconciliation authority. Core does not interpret it and does not gain semantic responsibilities. `CHANGE.json` remains `keelaryn.change.v1`.
+RESULT/CLAIM/work-STATE records are semantic-workflow authority. Core does not interpret them and `CHANGE.json` remains `keelaryn.change.v1`.
 
-The deterministic disposable integration suite proves both outcomes through the full path:
+The deterministic disposable integration suite proves both terminal outcomes:
 
 - Project → RESULT → Claim → Ready Change → Core → PASS → clean READY;
 - Project → RESULT → Claim → Ready Change → Core → FAIL → mandatory rollback → clean READY.
 
-This is development/model evidence, not live Google Drive/VPS or production qualification.
+This remains development/model evidence, not live Google Drive/VPS or production qualification.
 
-## 8. Serialization
+## 7. Serialization
 
-Project work and unclaimed results may exist in parallel. Canonical publication remains serialized by the existing rule that at most one Ready Change may be available to Core.
+Projects and unclaimed Results may exist in parallel. Canonical publication remains serialized by the existing at-most-one-Ready-Change rule.
 
-Reconciliation may claim multiple project/results over time, but each Ready Change is prepared against one current canonical epoch and goes through the existing Core transaction independently.
+Each Project permits at most one incomplete STATE transition. Reconciliation likewise permits at most one incomplete STATE transition. Completed STATE history remains durable.
 
-For Project STATE, MVP permits at most one incomplete STATE transition in one project's `state-history/`. Completed historical transitions may coexist indefinitely.
+## 8. Fail-closed rules
 
-## 9. Fail-closed rules
+Workflow handling blocks on at least:
 
-Project STATE or Reconciliation claim handling blocks on at least:
-
-- duplicate/missing project, result, state-history or claim folders where uniqueness is required;
-- duplicate/missing RESULT files;
+- duplicate/missing structural folders where uniqueness is required;
+- missing/duplicate/mismatched STATE, RESULT or claim objects;
+- no-op STATE update under a new identity;
+- incompatible reuse of STATE `update_id`;
+- malformed/tampered STATE PLAN/DONE or retained OLD/NEW object;
+- STATE owner role/folder identity mismatch;
+- unknown STATE object location or multiple current STATE objects;
+- another incomplete STATE transition;
 - invalid RESULT marker or RESULT.md fingerprint mismatch;
-- no-op STATE update under a new update identity;
-- incompatible reuse of a STATE `update_id`;
-- malformed/tampered STATE PLAN or DONE authority;
-- damaged or missing retained OLD/NEW STATE objects;
-- unknown STATE object location or more than one current `STATE.md`;
-- another incomplete STATE update;
-- claim folder collision with incompatible material;
-- invalid/tampered claim plan;
-- reserved-ID collision with a different object;
-- claimed-copy byte mismatch;
-- duplicate or mismatched `CLAIM.json`;
+- claim collision with incompatible material;
+- invalid/tampered claim plan or reserved-ID collision;
+- claimed-copy mismatch;
+- duplicate/mismatched CLAIM authority;
 - identity disagreement between plan, Result and claim.
 
-No conflict is resolved by choosing the newest object, the first listing result or a friendly-name heuristic.
+No ambiguity is resolved by choosing newest, first-listed or friendly-name objects.
 
-## 10. Non-goals
+## 9. Non-goals
 
-This MVP contract does not automate semantic Reconciliation, decide whether findings are true, rank conflicting evidence, add multi-model review, enforce physical Drive permissions or implement multiple writers per project. Those remain semantic/hardening concerns described elsewhere in the architecture and roadmap.
+This contract does not automate semantic Reconciliation, judge finding truth, rank conflicting evidence, add multi-model review, enforce separate Drive identities or implement multiple simultaneous writers to one semantic work area. Those remain higher-level/hardening concerns in architecture and roadmap.
