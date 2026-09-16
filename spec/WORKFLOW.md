@@ -3,7 +3,7 @@
 **Status:** zero-based MVP development contract.  
 **Architecture baseline:** Zero-Based Architecture r2.
 
-This contract defines durable working state for Project/Reconciliation roles and the boundary from semantic Project work to serialized canonical publication. It does not change deterministic Core `CHANGE.json` semantics.
+This contract defines Workspace navigation, durable working state for Project/Reconciliation roles and the boundary from semantic Project work to serialized canonical publication. It does not change deterministic Core `CHANGE.json` semantics.
 
 ## 1. Logical layout
 
@@ -39,7 +39,7 @@ work/
     └── postcheck/
 ```
 
-`work/projects/` and `work/reconciliation/claims/` are structural Hub folders created/verified by Drive bootstrap. Role `STATE.md` is semantic working material. Project state is created with project initialization; Reconciliation state is initialized idempotently by the Reconciliation workflow before use.
+`work/projects/` and `work/reconciliation/claims/` are structural Hub folders created/verified by Drive bootstrap. Fresh Drive bootstrap also publishes the initial Reconciliation `STATE.md` before `MASTER.json`. After MASTER exists, bootstrap is read-only and a missing Reconciliation STATE is a structural failure; semantic services do not recreate it.
 
 ## 2. Shared durable STATE contract
 
@@ -101,7 +101,24 @@ Lost mutation responses after structural creation, PLAN, NEW, OLD displacement, 
 
 A later transition may move an earlier transition's NEW exact object into its own `OLD.md`. Exact object identity therefore forms a retained state chain without duplicating the same state merely for history.
 
-## 3. Project RESULT publication
+## 3. Workspace surface
+
+Workspace is the Project initiator/navigator. It is not canonical publication authority and introduces no new persistence format.
+
+The deterministic Drive Workspace service exposes four MVP operations:
+
+- `list_projects()` — return all projects sorted by `project_id` with current STATE;
+- `create_project(project_id, initial_state)` — create one exact Project folder, `results/` and initial `STATE.md`; exact replay is idempotent;
+- `read_project(project_id)` — resolve one exact Project and current STATE;
+- `update_project(project_id, update_id, new_state)` — delegate to the shared Project STATE COW transaction.
+
+Workspace listing fails closed rather than returning a partial portfolio when `work/projects/` contains a non-folder, invalid/duplicate project ID or a Project missing mandatory `STATE.md`/`results/` structure.
+
+The machine-facing CLI is `python -m keelaryn_core.workspace_cli` with `list`, `read`, `create` and `update` commands. It uses the same Google credential contract as non-continuous Drive poller commands, accepts STATE input from a UTF-8 file or stdin for mutations, emits JSON and does not expose internal Drive object IDs. Transport uncertainty is surfaced as `REOBSERVE_REQUIRED`; no mutation is retried in place.
+
+One active writer per Project remains an MVP logical invariant. This Workspace surface does not claim distributed multi-writer locking.
+
+## 4. Project RESULT publication
 
 `RESULT.md` is the semantic proposal and contains the architecture-defined findings/evidence/effects/uncertainties.
 
@@ -115,7 +132,7 @@ A later transition may move an earlier transition's NEW exact object into its ow
 
 A stale base epoch is allowed because Reconciliation must re-read current canonical truth. A result is claimable only when the project/result folders and RESULT objects are unique/live, marker identity matches enclosing folders and RESULT.md bytes match its marker fingerprint.
 
-## 4. Reconciliation claim
+## 5. Reconciliation claim
 
 Claim namespace is scoped by both identities:
 
@@ -134,7 +151,7 @@ Using only those reserved identities it then:
 
 `CLAIM.json` binds exact claim-plan digest plus source/claimed identities. Lost mutation responses are recovered from PLAN-reserved IDs rather than allocating replacements or selecting objects by listing order.
 
-## 5. Authority after claim
+## 6. Authority after claim
 
 Before valid `CLAIM.json`, the claim is incomplete and cannot authorize Reconciliation output.
 
@@ -149,7 +166,7 @@ After CLAIM exists:
 
 Logical Project discipline still says a claimed RESULT should not be edited, but claim restart correctness does not depend on that discipline.
 
-## 6. Reconciliation → Core boundary
+## 7. Reconciliation → Core boundary
 
 Reconciliation reads claimed RESULT authority, updates its durable STATE as work progresses, re-reads current canonical truth under SAFE/epoch rules, resolves semantic conflicts and prepares final operations.
 
@@ -172,17 +189,18 @@ The deterministic disposable integration suite proves both terminal outcomes:
 
 This remains development/model evidence, not live Google Drive/VPS or production qualification.
 
-## 7. Serialization
+## 8. Serialization
 
 Projects and unclaimed Results may exist in parallel. Canonical publication remains serialized by the existing at-most-one-Ready-Change rule.
 
 Each Project permits at most one incomplete STATE transition. Reconciliation likewise permits at most one incomplete STATE transition. Completed STATE history remains durable.
 
-## 8. Fail-closed rules
+## 9. Fail-closed rules
 
 Workflow handling blocks on at least:
 
 - duplicate/missing structural folders where uniqueness is required;
+- partial/ambiguous Project portfolio structure during Workspace listing;
 - missing/duplicate/mismatched STATE, RESULT or claim objects;
 - no-op STATE update under a new identity;
 - incompatible reuse of STATE `update_id`;
@@ -199,6 +217,6 @@ Workflow handling blocks on at least:
 
 No ambiguity is resolved by choosing newest, first-listed or friendly-name objects.
 
-## 9. Non-goals
+## 10. Non-goals
 
 This contract does not automate semantic Reconciliation, judge finding truth, rank conflicting evidence, add multi-model review, enforce separate Drive identities or implement multiple simultaneous writers to one semantic work area. Those remain higher-level/hardening concerns in architecture and roadmap.
