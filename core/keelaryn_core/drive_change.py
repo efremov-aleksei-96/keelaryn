@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .drive_backend import DriveBackend
 from .drive_control import DriveControl
-from .drive_model import DriveModel
 from .drive_transaction import DrivePublicationTransaction, DriveRecoveryBlocked
 
 
@@ -28,11 +28,11 @@ class DriveChangeRunner:
     """Sequence/recovery layer for one exact DriveControl record.
 
     The runner has no mutable progress counter. Every call derives progress from
-    durable object identities plus actual DriveModel state, mirroring the outer
-    Core design where process memory is never recovery evidence.
+    durable object identities plus actual backend state, mirroring the outer Core
+    design where process memory is never recovery evidence.
     """
 
-    def __init__(self, drive: DriveModel, control: DriveControl):
+    def __init__(self, drive: DriveBackend, control: DriveControl):
         self.drive = drive
         self.control = control
         self.tx = DrivePublicationTransaction(
