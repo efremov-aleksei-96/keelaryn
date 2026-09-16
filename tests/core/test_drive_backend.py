@@ -8,8 +8,24 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "core"))
 
-from keelaryn_core.drive_backend import DriveBackend
+from keelaryn_core.drive_backend import (
+    DriveAlreadyExists,
+    DriveBackend,
+    DriveTransportError,
+)
 from keelaryn_core.drive_model import DriveModel
+from keelaryn_core.drive_transaction import BlobState, DriveOperation, DrivePublicationTransaction
+
+
+class _ReadFailureProxy:
+    def __init__(self, delegate: DriveModel):
+        self.delegate = delegate
+
+    def __getattr__(self, name: str):
+        return getattr(self.delegate, name)
+
+    def get(self, file_id: str, *, include_trashed: bool = True):
+        raise DriveTransportError(f"simulated read failure for {file_id}")
 
 
 class DriveBackendContractTests(unittest.TestCase):
@@ -44,6 +60,42 @@ class DriveBackendContractTests(unittest.TestCase):
         self.assertEqual(fetched.name, "b.bin")
         self.assertEqual(fetched.version, moved.version)
         self.assertEqual(drive.download(item.file_id), b"abc")
+
+    def test_reserved_file_id_is_exact_and_cannot_create_duplicate(self) -> None:
+        drive = DriveModel()
+        hub = drive.create_folder("root", "Hub")
+        reserved = drive.generate_ids(2)
+
+        blob = drive.create_blob(hub.file_id, "a.bin", b"a", file_id=reserved[0])
+        folder = drive.create_folder(hub.file_id, "folder", file_id=reserved[1])
+        self.assertEqual(blob.file_id, reserved[0])
+        self.assertEqual(folder.file_id, reserved[1])
+
+        with self.assertRaises(DriveAlreadyExists):
+            drive.create_blob(hub.file_id, "duplicate.bin", b"b", file_id=reserved[0])
+
+    def test_transport_failure_is_not_reclassified_as_missing_object(self) -> None:
+        drive = DriveModel()
+        hub = drive.create_folder("root", "Hub")
+        staging = drive.create_folder(hub.file_id, "staging")
+        history = drive.create_folder(hub.file_id, "history")
+        rejected = drive.create_folder(hub.file_id, "rejected")
+        payload = b"new"
+        staged = drive.create_blob(staging.file_id, "new.bin", payload)
+        op = DriveOperation(
+            operation_id="add",
+            kind="ADD",
+            canonical_parent_id=hub.file_id,
+            target_name="target.bin",
+            old=None,
+            new=BlobState.from_bytes(payload),
+            staged_new_id=staged.file_id,
+            staged_parent_id=staging.file_id,
+        )
+        tx = DrivePublicationTransaction(_ReadFailureProxy(drive), history.file_id, rejected.file_id)
+
+        with self.assertRaises(DriveTransportError):
+            tx.classify(op)
 
 
 if __name__ == "__main__":
