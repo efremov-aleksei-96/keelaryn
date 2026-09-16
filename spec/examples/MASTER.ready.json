@@ -1,0 +1,9 @@
+{
+  "schema": "keelaryn.master.v1",
+  "state": "READY",
+  "canonical_read_status": "SAFE",
+  "canonical_epoch": 0,
+  "active_change": null,
+  "current_stage": null,
+  "last_completed_change": null
+}

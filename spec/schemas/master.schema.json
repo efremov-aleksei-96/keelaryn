@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:keelaryn:schema:master:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "state",
+    "canonical_read_status",
+    "canonical_epoch",
+    "active_change",
+    "current_stage",
+    "last_completed_change"
+  ],
+  "properties": {
+    "schema": { "const": "keelaryn.master.v1" },
+    "state": { "enum": ["READY", "ACTIVE", "RECOVERY_BLOCKED"] },
+    "canonical_read_status": { "enum": ["SAFE", "UNSAFE"] },
+    "canonical_epoch": { "type": "integer", "minimum": 0 },
+    "active_change": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["change_id", "change_sha256", "base_canonical_epoch"],
+          "properties": {
+            "change_id": { "$ref": "common.schema.json#/$defs/changeId" },
+            "change_sha256": { "$ref": "common.schema.json#/$defs/sha256" },
+            "base_canonical_epoch": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "current_stage": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "enum": [
+            "CLAIM",
+            "SNAPSHOT",
+            "ENTER_UNSAFE",
+            "APPLY",
+            "WAIT_POSTCHECK",
+            "ROLLBACK",
+            "FINALIZE_COMMIT",
+            "FINALIZE_ROLLBACK",
+            "ABORT_PRECOMMIT",
+            "RECOVERY_BLOCKED"
+          ]
+        }
+      ]
+    },
+    "last_completed_change": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["change_id", "change_sha256", "outcome", "completed_epoch"],
+          "properties": {
+            "change_id": { "$ref": "common.schema.json#/$defs/changeId" },
+            "change_sha256": { "$ref": "common.schema.json#/$defs/sha256" },
+            "outcome": { "enum": ["COMMITTED", "ROLLED_BACK"] },
+            "completed_epoch": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "READY" } }, "required": ["state"] },
+      "then": {
+        "properties": {
+          "canonical_read_status": { "const": "SAFE" },
+          "active_change": { "type": "null" },
+          "current_stage": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "ACTIVE" } }, "required": ["state"] },
+      "then": {
+        "properties": {
+          "active_change": { "type": "object" },
+          "current_stage": {
+            "enum": [
+              "CLAIM",
+              "SNAPSHOT",
+              "ENTER_UNSAFE",
+              "APPLY",
+              "WAIT_POSTCHECK",
+              "ROLLBACK",
+              "FINALIZE_COMMIT",
+              "FINALIZE_ROLLBACK",
+              "ABORT_PRECOMMIT"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "RECOVERY_BLOCKED" } }, "required": ["state"] },
+      "then": {
+        "properties": {
+          "canonical_read_status": { "const": "UNSAFE" },
+          "active_change": { "type": "object" },
+          "current_stage": { "const": "RECOVERY_BLOCKED" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "current_stage": {
+            "enum": ["CLAIM", "SNAPSHOT", "ENTER_UNSAFE", "ABORT_PRECOMMIT"]
+          }
+        },
+        "required": ["current_stage"]
+      },
+      "then": { "properties": { "canonical_read_status": { "const": "SAFE" } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "current_stage": {
+            "enum": [
+              "APPLY",
+              "WAIT_POSTCHECK",
+              "ROLLBACK",
+              "FINALIZE_COMMIT",
+              "FINALIZE_ROLLBACK",
+              "RECOVERY_BLOCKED"
+            ]
+          }
+        },
+        "required": ["current_stage"]
+      },
+      "then": { "properties": { "canonical_read_status": { "const": "UNSAFE" } } }
+    }
+  ]
+}

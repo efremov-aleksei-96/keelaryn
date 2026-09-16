@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:keelaryn:schema:ready:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "state", "change_id", "change_sha256"],
+  "properties": {
+    "schema": { "const": "keelaryn.ready.v1" },
+    "state": { "const": "READY_FOR_COMMIT" },
+    "change_id": { "$ref": "common.schema.json#/$defs/changeId" },
+    "change_sha256": { "$ref": "common.schema.json#/$defs/sha256" }
+  }
+}
