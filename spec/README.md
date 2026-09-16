@@ -10,6 +10,7 @@ The specification is intentionally independent from Manager 4.x. Legacy Manager 
 spec/
 ├── README.md
 ├── STATE_MACHINE.md
+├── WORKFLOW.md
 ├── DRIVE_BACKEND.md
 ├── DRIVE_TRANSPORT.md
 ├── DRIVE_ORCHESTRATION.md
@@ -25,10 +26,15 @@ spec/
     ├── postcheck.schema.json
     ├── control.schema.json
     ├── history.schema.json
-    └── recovery-block.schema.json
+    ├── recovery-block.schema.json
+    ├── result.schema.json
+    ├── drive-result-claim-plan.schema.json
+    ├── drive-result-claim.schema.json
+    ├── project-state-update-plan.schema.json
+    └── project-state-update.schema.json
 ```
 
-`DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` defines HTTP/idempotency/failure semantics, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations. `DRIVE_ORCHESTRATION.md` defines immutable transaction authority, copy-on-write MASTER transitions, independent pre-UNSAFE snapshots and state-derived recovery. `DRIVE_DISCOVERY.md` defines restart bootstrap from the active locator to the exact immutable transaction bundle, including zero-MASTER gap recovery without process-local transaction memory. `DRIVE_SERVICE.md` composes bootstrap, Ready Change ingestion, transaction factory, polling, exact Ready-marker consumption and terminal locator cleanup into the Drive MVP service lifecycle.
+`WORKFLOW.md` defines the Project `STATE.md` copy-on-write transition, RESULT publication, project-scoped Reconciliation claim authority and the semantic handoff into the existing Ready Change/Core boundary. `DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` defines HTTP/idempotency/failure semantics, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations. `DRIVE_ORCHESTRATION.md` defines immutable transaction authority, copy-on-write MASTER transitions, independent pre-UNSAFE snapshots and state-derived recovery. `DRIVE_DISCOVERY.md` defines restart bootstrap from the active locator to the exact immutable transaction bundle, including zero-MASTER gap recovery without process-local transaction memory. `DRIVE_SERVICE.md` composes bootstrap, Ready Change ingestion, transaction factory, polling, exact Ready-marker consumption and terminal locator cleanup into the Drive MVP service lifecycle.
 
 ## Normative logical path layout for the MVP
 
@@ -37,7 +43,22 @@ Keelaryn Hub/
 ├── MASTER.json
 ├── canonical/
 ├── work/
+│   ├── projects/
+│   │   └── <project_id>/
+│   │       ├── STATE.md
+│   │       ├── state-history/<update_id>/
+│   │       │   ├── PLAN.json
+│   │       │   ├── OLD.md
+│   │       │   └── DONE.json
+│   │       └── results/<result_id>/
+│   │           ├── RESULT.md
+│   │           └── RESULT.json
 │   └── reconciliation/
+│       ├── claims/<project_id>/<result_id>/
+│       │   ├── CLAIM_PLAN.json
+│       │   ├── RESULT.md
+│       │   ├── RESULT.json
+│       │   └── CLAIM.json
 │       ├── changes/<change_id>/
 │       │   ├── CHANGE.json
 │       │   ├── READY.json
@@ -59,13 +80,17 @@ Keelaryn Hub/
         └── master-transitions/
 ```
 
-The local-filesystem backend may materialize equivalent control/history authority differently. A directory or object name does not itself grant trust. Core verifies schemas, exact hashes, bound identities, path safety and actual filesystem/Drive state.
+During an incomplete Project STATE transition, `NEW.md` may also exist in the update folder. Between OLD displacement and NEW publication there may intentionally be no current project `STATE.md`; reads fail closed during that GAP. `NEW.md` becomes the exact new current `STATE.md`, and `DONE.json` is created only after that publication is verified.
+
+The local-filesystem backend may materialize equivalent control/history authority differently. A directory or object name does not itself grant trust. Core and workflow layers verify schemas, exact hashes, bound identities, path safety and actual filesystem/Drive state.
 
 ## Fingerprints
 
 All content fingerprints in v1 are lowercase hexadecimal SHA-256 over exact file bytes plus exact byte length.
 
 `CHANGE.json` identity is the SHA-256 of the exact UTF-8 bytes stored on disk. JSON reserialization is therefore a different change identity even when semantic fields are equivalent.
+
+Project RESULT markers, claim plans/claims and Project STATE transition records similarly bind exact byte fingerprints and Drive object identities where their contracts require them.
 
 ## Relative paths
 
@@ -86,15 +111,18 @@ For local-filesystem protocol v1, every canonical target's parent directory MUST
 
 ## Uniqueness rules not expressible cleanly in JSON Schema
 
-Core MUST additionally enforce:
+Runtime MUST additionally enforce:
 
 - unique `operation_id` values within one change;
 - unique canonical `target` values within one change;
-- exactly one unconsumed Ready Change visible when starting a new transaction;
+- exactly one unconsumed Ready Change visible when starting a new Core transaction;
 - global non-reuse of a `change_id` when conflicting durable history already exists;
 - exact equality between READY, CHANGE, MASTER and backend-specific immutable transaction authority for one active transaction;
-- a REPLACE must actually change the declared fingerprint rather than encode a no-op.
+- a REPLACE must actually change the declared fingerprint rather than encode a no-op;
+- Project claim identity is the pair `<project_id>/<result_id>`, not `result_id` alone;
+- at most one incomplete Project STATE transition may exist for one project;
+- previous Project STATE PLAN/OLD/DONE authority must validate before a later STATE transition begins.
 
 ## Schema compatibility
 
-Unknown properties are rejected in v1. A future schema revision must be explicit; Core must never silently interpret unknown fields from a newer schema.
+Unknown properties are rejected in v1. A future schema revision must be explicit; Core and workflow layers must never silently interpret unknown fields from a newer schema.
