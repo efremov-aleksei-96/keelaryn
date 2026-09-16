@@ -1,0 +1,24 @@
+[Unit]
+Description=Keelaryn zero-based Drive bootstrap/verify (development)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=keelaryn
+Group=keelaryn
+WorkingDirectory=/opt/keelaryn
+Environment=PYTHONPATH=/opt/keelaryn/core
+Environment=KEELARYN_RUNTIME_DIR=/run/keelaryn
+EnvironmentFile=/etc/keelaryn/drive.env
+RuntimeDirectory=keelaryn
+RuntimeDirectoryMode=0700
+UMask=0077
+
+ExecStart=/usr/bin/python3 -m keelaryn_core.drive_poller bootstrap
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/keelaryn
