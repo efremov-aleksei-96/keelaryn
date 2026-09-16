@@ -182,7 +182,37 @@ All service mutations inherit the Drive transport rule:
 
 This applies to bootstrap folders, initial MASTER, staging copies, bundle/locator creation, snapshots, canonical publication/rollback, receipts/markers, final MASTER, consumed READY and locator archive.
 
-## 9. Development proof currently required
+## 9. Process-level single-writer invariant
+
+The MVP VPS deployment permits exactly one writer process per Hub on one configured writer host.
+
+`bootstrap`, `once` and `serve` acquire the same local per-Hub advisory lock before OAuth or Drive access. The lock:
+
+- is held for the complete command lifetime;
+- is released by the OS when the process exits/crashes;
+- uses a SHA-256-derived local key rather than exposing the Drive Hub ID in its filename;
+- requires a real private runtime directory owned by the service user;
+- blocks a second local writer before it can create pre-activation Drive material.
+
+This mechanism serializes processes on **one host only**. It does not claim distributed locking across multiple VPS hosts. Running two writer hosts against one Hub is outside the MVP deployment contract and must be prevented operationally.
+
+## 10. OAuth and polling process boundary
+
+The Drive poller supports three commands:
+
+- `bootstrap` — initialize a fresh disposable Hub or verify an initialized Hub;
+- `once` — execute one restart-safe polling iteration;
+- `serve` — execute the MVP polling loop at a bounded interval.
+
+Continuous `serve` requires OAuth refresh credentials supplied through the process environment. Static access tokens are allowed only for disposable `bootstrap`/`once` use and are rejected for continuous service.
+
+Credential values MUST NOT be written into Hub state, history, normal status output, CI evidence or source control.
+
+Transport uncertainty during `serve` does not cause an in-place mutation retry. The iteration reports `REOBSERVE_REQUIRED`; a later top-level iteration re-observes exact Drive state.
+
+Protocol/configuration blocks terminate with exit status 2 so a supervisor can avoid an automatic restart loop. Unexpected process failures may be restarted by the supervisor.
+
+## 11. Development proof currently required
 
 Development CI MUST prove at minimum:
 
@@ -196,17 +226,19 @@ Development CI MUST prove at minimum:
 - changed external Ready material is not silently mutated;
 - `RECOVERY_BLOCKED` retains transaction discovery authority;
 - lost-response recovery after every server-side mutation of the full PASS path;
-- lost-response recovery after every server-side mutation of the full FAIL/rollback path.
+- lost-response recovery after every server-side mutation of the full FAIL/rollback path;
+- OAuth refresh/cache/error handling without secret disclosure;
+- poller configuration/CLI behavior;
+- local same-Hub writer contention blocks before network access;
+- lock release/reacquire and private runtime-directory enforcement;
+- guarded disposable-live acceptance tooling refuses the wrong acceptance root before mutation.
 
 A green simulator/REST-adapter CI line is development evidence only. Real disposable Google Drive acceptance remains a separate gate.
 
-## 10. Remaining live-deployment boundary
+## 12. Remaining external evidence boundary
 
-The deterministic Hub/transaction lifecycle is now independent of process memory. A real long-running VPS process still requires:
+The deterministic Core, real REST adapter, OAuth refresh provider, polling process, local single-writer lock and hardened systemd development template now exist in source and are covered by development CI.
 
-- a Google OAuth credential/token provider with refresh support;
-- a small polling entrypoint and bounded poll interval;
-- disposable live-Drive acceptance using the same `GoogleDriveBackend` and `DrivePollingService` code;
-- operational logging/exit semantics suitable for a service supervisor.
+The next evidence class requires a **real disposable Google Drive** using the same `GoogleDriveBackend` and `DrivePollingService` path. The live gate must use a dedicated test Google identity that has access only to the disposable acceptance root; it must never use credentials capable of reaching the production/personal Hub.
 
-Production Hub use is not authorized by this development contract.
+Passing disposable live Drive acceptance still does not authorize production Hub use. Production-specific qualification remains a later, separate gate.
