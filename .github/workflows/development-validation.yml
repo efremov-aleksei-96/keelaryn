@@ -43,7 +43,7 @@ permissions:
 
 concurrency:
   group: keelaryn-development-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/dev/zero-based-keelaryn' }}
 
 jobs:
   development-validation:
@@ -154,8 +154,9 @@ jobs:
 # dev/zero-based-keelaryn is isolated from the legacy Manager development job.
 # Normal zero-based push validation is owned by zero-based-core-validation.yml.
 # Manual workflow_dispatch on the zero-based branch is reserved for the guarded
-# disposable Drive acceptance job above. Other dev/** branches retain the legacy
-# Manager development-validation behavior.
+# disposable Drive acceptance job above. Zero-based runs are queued rather than
+# canceling a previous live acceptance mid-mutation. Other dev/** branches retain
+# the legacy Manager development-validation behavior and cancel obsolete runs.
 #
 # IMPORTANT: KEELARYN_DISPOSABLE_* credentials must belong to a dedicated test
 # Google identity that has access only to the disposable acceptance root, never to
