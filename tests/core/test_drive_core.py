@@ -18,6 +18,7 @@ from keelaryn_core.drive_execution_rollback import (
 from keelaryn_core.drive_master import DriveMasterTransition
 from keelaryn_core.drive_model import DriveModel
 from keelaryn_core.drive_postcheck import DrivePostcheckBinding
+from keelaryn_core.drive_recovery_block import DriveRecoveryBlockRecord
 from keelaryn_core.drive_snapshot import DriveSnapshotPlan
 from keelaryn_core.drive_transaction import BlobState, DriveOperation
 from keelaryn_core.protocol import (
@@ -320,7 +321,7 @@ class DriveCoreTests(unittest.TestCase):
         self.assert_old(fixture)
         self.assertEqual(self.final_master_value(fixture)["last_completed_change"]["outcome"], "ROLLED_BACK")
 
-    def test_snapshot_corruption_after_unsafe_blocks_commit(self) -> None:
+    def test_snapshot_corruption_after_unsafe_persists_recovery_blocked(self) -> None:
         fixture = self.build()
         runner = DriveCoreRunner(fixture.drive, fixture.bundle)
         self.assertEqual(runner.run_until_quiescent().phase, "WAIT_POSTCHECK")
@@ -332,9 +333,19 @@ class DriveCoreTests(unittest.TestCase):
             postcheck_bytes("PASS"),
             label="external.postcheck.pass",
         )
-        with self.assertRaises(DriveCoreBlocked):
-            DriveCoreRunner(fixture.drive, DriveTransactionBundle.from_bytes(fixture.bundle.to_bytes())).run_until_quiescent()
-        self.assertEqual(DriveCoreRunner(fixture.drive, fixture.bundle).phase(), "ACTIVE_UNSAFE")
+
+        restored = DriveTransactionBundle.from_bytes(fixture.bundle.to_bytes())
+        status = DriveCoreRunner(fixture.drive, restored).run_until_quiescent()
+        self.assertEqual(status.phase, "RECOVERY_BLOCKED")
+        self.assertEqual(DriveCoreRunner(fixture.drive, fixture.bundle).phase(), "RECOVERY_BLOCKED")
+        record = DriveRecoveryBlockRecord(fixture.drive, fixture.bundle.recovery_block_binding).read()
+        self.assertIsNotNone(record)
+        self.assertIn("snapshot", record["reason"].lower())
+        master = self.final_master_value(fixture)
+        self.assertEqual(master["state"], "RECOVERY_BLOCKED")
+        self.assertEqual(master["canonical_read_status"], "UNSAFE")
+        self.assertEqual(master["canonical_epoch"], EPOCH)
+        self.assert_new(fixture)
 
     def test_commit_crash_matrix_recovers_from_bundle_bytes_only(self) -> None:
         points = [
@@ -388,6 +399,34 @@ class DriveCoreTests(unittest.TestCase):
                 status = DriveCoreRunner(fixture.drive, restored).run_until_quiescent()
                 self.assertEqual(status.phase, "ROLLED_BACK")
                 self.assert_old(fixture)
+
+    def test_recovery_block_crash_matrix_recovers_from_bundle_bytes_only(self) -> None:
+        points = [
+            "drive.recovery.change-1.block-record.create.after",
+            "drive.master.change-1.blocked.candidate.create.after",
+            "drive.master.change-1.blocked.displace_old.after",
+            "drive.master.change-1.blocked.publish_candidate.after",
+        ]
+        for point in points:
+            with self.subTest(point=point):
+                fixture = self.build(crash_point=point)
+                raw_bundle = fixture.bundle.to_bytes()
+                runner = DriveCoreRunner(fixture.drive, fixture.bundle)
+                self.assertEqual(runner.run_until_quiescent().phase, "WAIT_POSTCHECK")
+                snapshot_id = fixture.bundle.snapshot_plan.entries[0].snapshot_id
+                fixture.drive.update_content(snapshot_id, b"damaged snapshot", label="external.damage-snapshot")
+
+                with self.assertRaises(InjectedCrash):
+                    DriveCoreRunner(fixture.drive, fixture.bundle).run_until_quiescent()
+
+                restored = DriveTransactionBundle.from_bytes(raw_bundle)
+                status = DriveCoreRunner(fixture.drive, restored).run_until_quiescent()
+                self.assertEqual(status.phase, "RECOVERY_BLOCKED")
+                self.assertEqual(DriveCoreRunner(fixture.drive, restored).phase(), "RECOVERY_BLOCKED")
+                self.assertIsNotNone(DriveRecoveryBlockRecord(fixture.drive, restored.recovery_block_binding).read())
+                master = self.final_master_value(fixture)
+                self.assertEqual(master["state"], "RECOVERY_BLOCKED")
+                self.assertEqual(master["canonical_epoch"], EPOCH)
 
 
 if __name__ == "__main__":
