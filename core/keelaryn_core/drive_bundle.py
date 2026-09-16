@@ -6,7 +6,7 @@ from typing import Any
 
 from .drive_backend import DriveAlreadyExists, DriveBackend, DriveItem, DriveNotFound
 from .drive_control import DriveControl
-from .drive_master import DriveMasterBinding, DriveMasterTransition, MASTER_NAME
+from .drive_master import DriveMasterBinding, DriveMasterTransition
 from .drive_postcheck import DrivePostcheckBinding
 from .drive_snapshot import DriveSnapshotPlan
 from .drive_transaction import BlobState
@@ -86,6 +86,7 @@ class DriveTransactionBundle:
     control_component: ExactJsonComponent
     snapshot_component: ExactJsonComponent
     postcheck_component: ExactJsonComponent
+    starting_ready_master_component: ExactJsonComponent
     activate_binding_component: ExactJsonComponent
     active_safe_master_component: ExactJsonComponent
     unsafe_binding_component: ExactJsonComponent
@@ -220,6 +221,7 @@ class DriveTransactionBundle:
             control_component=ExactJsonComponent(control.to_bytes()),
             snapshot_component=ExactJsonComponent(snapshot_plan.to_bytes()),
             postcheck_component=ExactJsonComponent(postcheck_binding.to_bytes()),
+            starting_ready_master_component=ExactJsonComponent(current_raw),
             activate_binding_component=ExactJsonComponent(activate.to_bytes()),
             active_safe_master_component=ExactJsonComponent(master_raws["active_safe"]),
             unsafe_binding_component=ExactJsonComponent(unsafe.to_bytes()),
@@ -236,6 +238,7 @@ class DriveTransactionBundle:
         return validate_master(strict_json_bytes(component.raw, label=label))
 
     def _require_master_semantics(self) -> None:
+        starting = self._master_value(self.starting_ready_master_component, "MASTER.starting_ready")
         active_safe = self._master_value(self.active_safe_master_component, "MASTER.active_safe")
         active_unsafe = self._master_value(self.active_unsafe_master_component, "MASTER.active_unsafe")
         committed = self._master_value(self.committed_master_component, "MASTER.committed")
@@ -246,11 +249,20 @@ class DriveTransactionBundle:
             "base_canonical_epoch": self.base_canonical_epoch,
         }
         if not (
+            starting["state"] == "READY"
+            and starting["canonical_read_status"] == "SAFE"
+            and starting["canonical_epoch"] == self.base_canonical_epoch
+            and starting["active_change"] is None
+            and starting["current_stage"] is None
+        ):
+            raise DriveBundleBlocked("starting READY MASTER component is inconsistent with bundle identity")
+        if not (
             active_safe["state"] == "ACTIVE"
             and active_safe["canonical_read_status"] == "SAFE"
             and active_safe["canonical_epoch"] == self.base_canonical_epoch
             and active_safe["active_change"] == exact_active
             and active_safe["current_stage"] == "SNAPSHOT"
+            and active_safe["last_completed_change"] == starting["last_completed_change"]
         ):
             raise DriveBundleBlocked("ACTIVE/SAFE MASTER component is inconsistent with bundle identity")
         if not (
@@ -324,6 +336,9 @@ class DriveTransactionBundle:
             if binding.root_id != self.hub_root_id or binding.transition_parent_id != self.master_transition_parent_id:
                 raise DriveBundleBlocked(f"{label} MASTER binding structural root mismatch")
 
+        starting_state = BlobState.from_bytes(self.starting_ready_master_component.raw)
+        if activate.old_state != starting_state:
+            raise DriveBundleBlocked("activation binding does not bind exact starting READY MASTER bytes")
         if activate.new_state != BlobState.from_bytes(self.active_safe_master_component.raw):
             raise DriveBundleBlocked("activation binding/candidate fingerprint mismatch")
         if not (
@@ -377,6 +392,7 @@ class DriveTransactionBundle:
                     "control": self.control_component.to_json(),
                     "snapshot": self.snapshot_component.to_json(),
                     "postcheck": self.postcheck_component.to_json(),
+                    "starting_ready_master": self.starting_ready_master_component.to_json(),
                     "activate_binding": self.activate_binding_component.to_json(),
                     "active_safe_master": self.active_safe_master_component.to_json(),
                     "unsafe_binding": self.unsafe_binding_component.to_json(),
@@ -412,6 +428,7 @@ class DriveTransactionBundle:
             "control",
             "snapshot",
             "postcheck",
+            "starting_ready_master",
             "activate_binding",
             "active_safe_master",
             "unsafe_binding",
@@ -434,6 +451,9 @@ class DriveTransactionBundle:
             control_component=ExactJsonComponent.from_json(components["control"], "components.control"),
             snapshot_component=ExactJsonComponent.from_json(components["snapshot"], "components.snapshot"),
             postcheck_component=ExactJsonComponent.from_json(components["postcheck"], "components.postcheck"),
+            starting_ready_master_component=ExactJsonComponent.from_json(
+                components["starting_ready_master"], "components.starting_ready_master"
+            ),
             activate_binding_component=ExactJsonComponent.from_json(
                 components["activate_binding"], "components.activate_binding"
             ),
