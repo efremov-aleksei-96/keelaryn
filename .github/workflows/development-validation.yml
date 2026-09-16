@@ -47,6 +47,7 @@ concurrency:
 
 jobs:
   development-validation:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/zero-based-keelaryn') }}
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
@@ -107,7 +108,55 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
 
-# Engineering knowledge integrity, compact task risk context, public manifest/provenance consistency and the risk-context lifecycle regression are development checks.
-# Invoke-DevelopmentValidation.ps1 owns the permanent Manager 4.17.10 + 4.17.11 + 4.17.12 regression chain, including real disposable registry-active Doctor and CANDIDATE-only UpdateHub execution plus the managed release-instruction identity guard. The workflow does not repeat that expensive chain.
-# The strict Manager Risk/Defect Gate remains a separate pre-freeze workflow; the development run verifies that its observed PASS/FAIL matches repository policy state.
-# Manager 4.17.12 remains unqualified until exact-head validation, full-successor-range Risk/Defect Gate, and pre-freeze adversarial review all pass.
+  zero-based-drive-disposable-acceptance:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/zero-based-keelaryn' && github.actor == github.repository_owner }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      KEELARYN_DRIVE_ACCEPT_DISPOSABLE: ${{ secrets.KEELARYN_DISPOSABLE_ENABLE }}
+      KEELARYN_GOOGLE_CLIENT_ID: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_ID }}
+      KEELARYN_GOOGLE_CLIENT_SECRET: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_SECRET }}
+      KEELARYN_GOOGLE_REFRESH_TOKEN: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_REFRESH_TOKEN }}
+      KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID: ${{ secrets.KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID }}
+      KEELARYN_ACCEPTANCE_RUN_ID: gh-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Fail closed unless disposable credentials are explicitly enabled
+        shell: bash
+        run: |
+          set -eu
+          test "$GITHUB_REF" = 'refs/heads/dev/zero-based-keelaryn'
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$KEELARYN_DRIVE_ACCEPT_DISPOSABLE" = 'YES'
+          test -n "$KEELARYN_GOOGLE_CLIENT_ID"
+          test -n "$KEELARYN_GOOGLE_CLIENT_SECRET"
+          test -n "$KEELARYN_GOOGLE_REFRESH_TOKEN"
+          test -n "$KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID"
+
+      - name: Show exact zero-based development identity
+        shell: bash
+        run: |
+          python3 --version
+          git rev-parse HEAD
+
+      - name: Compile exact live acceptance code
+        shell: bash
+        run: python3 -m compileall -q core tests/live
+
+      - name: Run guarded disposable Google Drive acceptance
+        shell: bash
+        run: PYTHONPATH=core python3 tests/live/drive_disposable_acceptance.py
+
+# On dev/zero-based-keelaryn, manual workflow_dispatch is reserved for the guarded
+# disposable Drive acceptance job above. The legacy Manager development job is
+# intentionally skipped for that one branch/event combination. Push behavior for
+# Manager development branches remains unchanged.
+#
+# IMPORTANT: KEELARYN_DISPOSABLE_* credentials must belong to a dedicated test
+# Google identity that has access only to the disposable acceptance root, never to
+# the production/personal Hub. The live harness additionally verifies the exact
+# acceptance-root name and sentinel bytes before its first Drive mutation.
