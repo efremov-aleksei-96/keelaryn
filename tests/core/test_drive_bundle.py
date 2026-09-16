@@ -4,7 +4,6 @@ import json
 import sys
 import unittest
 from dataclasses import replace
-from hashlib import sha256
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -20,6 +19,7 @@ from keelaryn_core.drive_bundle import (
     ExactJsonComponent,
 )
 from keelaryn_core.drive_control import DriveControl
+from keelaryn_core.drive_execution_rollback import DriveExecutionRollbackBinding
 from keelaryn_core.drive_model import DriveModel
 from keelaryn_core.drive_postcheck import DrivePostcheckBinding
 from keelaryn_core.drive_rest import GoogleDriveBackend
@@ -97,6 +97,7 @@ class DriveBundleTests(unittest.TestCase):
         transitions = drive.create_folder(hub.file_id, "master-transitions")
         source_postcheck = drive.create_folder(hub.file_id, "postcheck")
         receipt_parent = drive.create_folder(bundle_parent.file_id, "receipts")
+        control_markers = drive.create_folder(bundle_parent.file_id, "control-markers")
 
         previous_completed = {
             "change_id": "previous",
@@ -140,6 +141,13 @@ class DriveBundleTests(unittest.TestCase):
             source_name="change-1.json",
             receipt_parent_id=receipt_parent.file_id,
         )
+        execution_rollback = DriveExecutionRollbackBinding.plan(
+            drive,
+            change_id="change-1",
+            change_sha256=CHANGE_SHA,
+            base_canonical_epoch=EPOCH,
+            marker_parent_id=control_markers.file_id,
+        )
         bundle = DriveTransactionBundle.plan(
             drive,
             change_sha256=CHANGE_SHA,
@@ -149,6 +157,7 @@ class DriveBundleTests(unittest.TestCase):
             control=control,
             snapshot_plan=snapshot_plan,
             postcheck_binding=postcheck,
+            execution_rollback_binding=execution_rollback,
             active_safe_master_bytes=master_active(unsafe=False, completed=previous_completed),
             active_unsafe_master_bytes=master_active(unsafe=True, completed=previous_completed),
             committed_master_bytes=master_completed("COMMITTED"),
@@ -164,6 +173,10 @@ class DriveBundleTests(unittest.TestCase):
         self.assertEqual(restored.control.change_id, "change-1")
         self.assertEqual(restored.snapshot_plan.entries[0].operation_id, "replace-topic")
         self.assertNotEqual(restored.postcheck_binding.pass_receipt_id, restored.postcheck_binding.fail_receipt_id)
+        self.assertNotIn(
+            restored.execution_rollback_binding.marker_id,
+            {restored.postcheck_binding.pass_receipt_id, restored.postcheck_binding.fail_receipt_id},
+        )
         self.assertEqual(restored.unsafe_binding.old_master_id, restored.activate_binding.candidate_master_id)
         self.assertEqual(restored.commit_binding.old_master_id, restored.unsafe_binding.candidate_master_id)
         self.assertEqual(restored.rollback_binding.old_master_id, restored.unsafe_binding.candidate_master_id)
