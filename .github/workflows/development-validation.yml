@@ -11,6 +11,15 @@ on:
       - 'DEVELOPMENT_GOVERNANCE.json'
       - '.github/workflows/development-validation.yml'
   workflow_dispatch:
+    inputs:
+      confirm_disposable_drive:
+        description: 'Type/select YES only when intentionally running the guarded zero-based disposable Drive gate'
+        required: false
+        default: 'NO'
+        type: choice
+        options:
+          - 'NO'
+          - 'YES'
 
 permissions:
   contents: read
