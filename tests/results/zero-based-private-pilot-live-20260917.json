@@ -1,0 +1,27 @@
+{
+  "schema": "keelaryn.development-evidence.v1",
+  "evidence_class": "zero-based-private-pilot-live",
+  "source_sha": "ccadc7ad9cdf274f707640edd5c06dbae09d79d0",
+  "workflow_run_id": 35160194605,
+  "workflow_job_id": 105008942524,
+  "runner": "windows-2025",
+  "sanitized_pack": {
+    "pilot_id": "windows-live-private-pilot",
+    "file_count": 1,
+    "total_bytes": 58,
+    "pack_sha256": "cdf1518bb0769d873f668084352ed9a51dad039e3e59bb6bd4604a19b9e66a05"
+  },
+  "result": {
+    "outcome": "COMMITTED",
+    "canonical_epoch": 1,
+    "safety_root_verified": true,
+    "sentinel_verified": true,
+    "disposable_hub_verified": true
+  },
+  "privacy": {
+    "contains_private_hub_data": false,
+    "contains_drive_ids": false,
+    "contains_oauth_credentials": false
+  },
+  "status": "PASS"
+}
