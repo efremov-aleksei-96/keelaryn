@@ -15,7 +15,7 @@ Recovery authority consists of:
 2. one immutable transaction bundle bound to the exact active change;
 3. exact known Drive object IDs recorded in that bundle;
 4. actual fresh Drive metadata and downloaded bytes;
-5. an immutable accepted post-check receipt when a semantic decision has been accepted.
+5. one decision-specific immutable post-check receipt when a semantic decision has been accepted.
 
 Process memory, request completion history and list-cache state are never recovery evidence.
 
@@ -34,7 +34,7 @@ READY / SAFE
 
 `SNAPSHOT` on Drive means: re-run/verify all idempotent SAFE preparation, including claimed staged objects, independent OLD snapshots and the fresh pre-UNSAFE boundary checks. It may remain the visible coarse stage even after some or all preparation already completed.
 
-`APPLY` on Drive means: recover the active UNSAFE transaction by inspecting actual operation states and any accepted post-check receipt. It covers publication, waiting for post-check, rollback and finalization without requiring a mutable stage counter.
+`APPLY` on Drive means: recover the active UNSAFE transaction by inspecting actual operation states and the decision-specific post-check receipt pair. It covers publication, waiting for post-check, rollback and finalization without requiring a mutable stage counter.
 
 The exact substage is derived from durable objects, never inferred from how far the previous process believed it had progressed.
 
@@ -56,7 +56,7 @@ The bundle binds at least:
 - final COMMITTED READY MASTER candidate ID/fingerprint;
 - final ROLLED_BACK READY MASTER candidate ID/fingerprint;
 - RECOVERY_BLOCKED MASTER candidate ID/fingerprint where the blocked MASTER bytes can be predetermined;
-- one reserved accepted-postcheck receipt ID;
+- one reserved PASS receipt ID and one different reserved FAIL receipt ID;
 - exact history/provenance location for the immutable bundle.
 
 The bundle itself is exact-byte identified and never rewritten during the transaction.
@@ -84,7 +84,7 @@ This includes at least:
 - staged Core-owned NEW objects where Core creates the Drive copy;
 - independent OLD snapshot objects;
 - MASTER transition candidates;
-- accepted post-check receipt;
+- **two mutually exclusive post-check receipt IDs, one bound to PASS and one bound to FAIL**;
 - Core-owned transaction/control/history records that participate in recovery.
 
 A lost create/copy response is resolved by direct observation of the bound ID, never by silently allocating a new identity.
@@ -163,44 +163,68 @@ While the ACTIVE/UNSAFE MASTER is authoritative, Core derives what to do from:
 
 - actual operation states (`OLD`, `NEW`, recoverable Drive-specific substates, or `UNKNOWN`);
 - exact independent snapshot availability;
-- accepted post-check receipt presence/content;
+- decision-specific receipt presence/content;
 - exact known MASTER transition states.
 
 There is no mutable `APPLY -> WAIT_POSTCHECK -> ROLLBACK -> FINALIZE` progress integer/file.
 
-### 10.1 No accepted post-check receipt
+### 10.1 Neither decision receipt exists
 
 If operations are not all NEW, Core continues idempotent APPLY.
 
 If operations are all NEW, Core waits for a valid semantic post-check and performs no further canonical mutation.
 
-### 10.2 Accepted PASS receipt
+### 10.2 Valid PASS-bound receipt exists and FAIL-bound receipt is absent
 
-Core requires all operations to remain NEW and proceeds toward COMMITTED finalization.
+Core requires the PASS receipt bytes to validate as an exact matching post-check whose `decision` is `PASS`.
+
+It then requires all operations to remain NEW and proceeds toward COMMITTED finalization.
 
 If an operation is UNKNOWN, recovery blocks. A deterministic OLD/NEW mixture before final commit cannot be declared committed.
 
-### 10.3 Accepted FAIL receipt
+### 10.3 Valid FAIL-bound receipt exists and PASS-bound receipt is absent
+
+Core requires the FAIL receipt bytes to validate as an exact matching post-check whose `decision` is `FAIL`.
 
 Core performs mandatory reverse-order rollback until every operation is OLD.
 
 Semantic FAIL never authorizes forward repair.
 
-## 11. Accepted post-check receipt
+### 10.4 Both receipt IDs exist, or decision does not match its bound ID
 
-The transaction bundle pre-reserves one exact Core-owned receipt ID.
+Recovery blocks. Core never chooses one arbitrarily.
+
+## 11. Decision-specific post-check receipts
+
+The transaction bundle pre-reserves **two different Core-owned receipt IDs**:
+
+- `pass_receipt_id`, permanently meaning PASS for this exact transaction;
+- `fail_receipt_id`, permanently meaning FAIL for this exact transaction.
+
+This separation is required because the exact future post-check hash/reason is unknown when the immutable bundle is created. A single future receipt ID would not by itself prevent a later content edit from flipping PASS to FAIL or FAIL to PASS. Binding the semantic direction to two distinct precommitted IDs makes a direction flip detectable.
 
 When Reconciliation publishes a candidate post-check, Core:
 
 1. downloads exact post-check bytes;
-2. strictly validates schema and exact change identity/base epoch;
-3. if malformed or mismatched, creates no receipt and remains waiting;
-4. if valid, creates a new immutable Core-owned receipt blob from those exact validated bytes using the pre-reserved ID;
-5. downloads/revalidates the receipt after creation.
+2. strictly validates schema and exact `change_id`, `change_sha256` and base epoch;
+3. validates decision is PASS or FAIL;
+4. if malformed or mismatched, creates no receipt and remains waiting;
+5. selects **only** the pre-bound receipt ID corresponding to that validated decision;
+6. creates a Core-owned receipt blob from the exact validated bytes using that ID;
+7. downloads/revalidates the receipt after creation and requires its decision to match the ID's pre-bound meaning.
 
-After a valid receipt exists, its decision is immutable transaction authority even if the external Reconciliation post-check is later moved or modified.
+Recovery rules:
 
-A lost receipt-create response is recovered by direct observation of the reserved receipt ID.
+- neither ID exists: no accepted decision;
+- exactly PASS ID exists with exact matching PASS bytes: accepted PASS;
+- exactly FAIL ID exists with exact matching FAIL bytes: accepted FAIL;
+- both exist: ambiguity -> block;
+- receipt bytes contain the opposite decision from their ID: block;
+- receipt identity/epoch mismatch or malformed bytes: block once that Core-owned reserved ID exists.
+
+A lost receipt-create response is recovered by direct observation of the selected reserved receipt ID. Core does not create the opposite receipt or allocate a replacement ID.
+
+Changing non-authorizing free-text fields such as `reason` after acceptance cannot flip decision direction because the receipt ID itself is already bound to PASS or FAIL. Exact provenance of accepted source bytes is retained separately in durable history/evidence.
 
 ## 12. COMMITTED finalization
 
@@ -208,7 +232,7 @@ For PASS, Core freshly verifies:
 
 - all canonical operations are exact NEW;
 - required independent history/snapshot objects remain exact;
-- accepted PASS receipt is exact;
+- exactly the PASS-bound receipt is valid and the FAIL-bound receipt is absent;
 - immutable transaction bundle is exact.
 
 Core cleans only exact temporary/work/control material whose identities are bound and whose current state is expected. Durable history/provenance remains.
@@ -227,7 +251,9 @@ Final MASTER recovery remains possible from durable history even if active-contr
 
 For FAIL or deterministic execution failure requiring rollback, Core requires every operation to reach exact OLD.
 
-It freshly verifies independent snapshots/history, accepted FAIL receipt when semantic FAIL caused rollback, and the immutable bundle.
+For semantic FAIL it requires exactly the valid FAIL-bound receipt and absence of the PASS-bound receipt. Execution-error rollback may instead be authorized by deterministic Core failure classification recorded in durable recovery/provenance state; it must never be fabricated as a semantic FAIL receipt.
+
+Core freshly verifies independent snapshots/history and the immutable bundle.
 
 After exact cleanup, the pre-bound ROLLED_BACK READY MASTER is published:
 
@@ -240,7 +266,7 @@ Rollback after an UNSAFE window always increments epoch exactly once.
 
 ## 14. RECOVERY_BLOCKED
 
-UNKNOWN canonical state, unknown MASTER state, bundle identity conflict, damaged required snapshot, or another ambiguity never triggers overwrite/delete.
+UNKNOWN canonical state, unknown MASTER state, bundle identity conflict, damaged required snapshot, receipt ambiguity/corruption, or another ambiguity never triggers overwrite/delete.
 
 When the current MASTER is itself still exactly known and safely replaceable, Core may publish a pre-bound RECOVERY_BLOCKED/UNSAFE MASTER and an immutable detailed recovery-block record.
 
@@ -269,6 +295,7 @@ The Drive backend must preserve the global Core rule:
 - semantic FAIL -> rollback;
 - UNKNOWN -> block;
 - transport uncertainty -> re-observe exact known IDs and classify;
+- both decision receipts -> block;
 - no new identity allocation or arbitrary name-based selection is used to make an ambiguous transaction appear successful.
 
 ## 17. Required proof before live Drive
@@ -286,6 +313,8 @@ Before a real disposable Drive Hub is used, development validation must prove at
 - normal-reader rejection of MASTER swap gaps;
 - independent pre-UNSAFE snapshot creation and restart recovery;
 - snapshot corruption/location conflict fail-closed;
+- mutually exclusive PASS/FAIL receipt authority with lost-response recovery;
+- receipt decision/ID mismatch and dual-receipt ambiguity fail-closed;
 - state-derived outer orchestration without a mutable secondary progress counter.
 
 A green simulator/CI line is development evidence only. Live disposable Drive acceptance and production-specific acceptance remain separate gates.
