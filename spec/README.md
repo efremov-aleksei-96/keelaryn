@@ -14,6 +14,7 @@ spec/
 ├── DRIVE_TRANSPORT.md
 ├── DRIVE_ORCHESTRATION.md
 ├── DRIVE_DISCOVERY.md
+├── DRIVE_SERVICE.md
 ├── examples/
 │   └── MASTER.ready.json
 └── schemas/
@@ -27,9 +28,9 @@ spec/
     └── recovery-block.schema.json
 ```
 
-`DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` refines that design into the HTTP/idempotency/failure contract, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations. `DRIVE_ORCHESTRATION.md` defines the Drive-specific outer Core: immutable transaction authority, copy-on-write MASTER transitions, independent pre-UNSAFE snapshots and state-derived recovery without a mutable secondary progress counter. `DRIVE_DISCOVERY.md` defines restart bootstrap from a single pre-bound active locator to the exact immutable transaction bundle, including zero-MASTER gap recovery without process-local transaction memory.
+`DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` defines HTTP/idempotency/failure semantics, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations. `DRIVE_ORCHESTRATION.md` defines immutable transaction authority, copy-on-write MASTER transitions, independent pre-UNSAFE snapshots and state-derived recovery. `DRIVE_DISCOVERY.md` defines restart bootstrap from the active locator to the exact immutable transaction bundle, including zero-MASTER gap recovery without process-local transaction memory. `DRIVE_SERVICE.md` composes bootstrap, Ready Change ingestion, transaction factory, polling, exact Ready-marker consumption and terminal locator cleanup into the Drive MVP service lifecycle.
 
-## Normative path layout for the MVP
+## Normative logical path layout for the MVP
 
 ```text
 Keelaryn Hub/
@@ -44,19 +45,21 @@ Keelaryn Hub/
 │       └── postcheck/<change_id>.json
 ├── control/
 │   └── active/
-│       ├── ACTIVE_TRANSACTION.json # Drive restart locator
-│       ├── CONTROL.json
-│       ├── CHANGE.json
-│       ├── POSTCHECK.json       # only after an accepted semantic decision
-│       ├── prepared/...
-│       └── RECOVERY_BLOCK.json  # only when blocked
+│       └── ACTIVE_TRANSACTION.json   # Drive restart locator while active/prepared
 └── history/
     └── <change_id>/
-        ├── HISTORY.json
-        └── old/...
+        ├── <change_id>.DRIVE_BUNDLE.json
+        ├── <change_id>.READY.consumed.json   # after terminal publication, when source marker existed
+        ├── stage/
+        ├── originals/
+        ├── rejected/
+        ├── snapshots/
+        ├── receipts/
+        ├── markers/
+        └── master-transitions/
 ```
 
-A directory name does not itself grant trust. Core verifies schemas, exact hashes, path safety and actual filesystem/Drive state.
+The local-filesystem backend may materialize equivalent control/history authority differently. A directory or object name does not itself grant trust. Core verifies schemas, exact hashes, bound identities, path safety and actual filesystem/Drive state.
 
 ## Fingerprints
 
@@ -87,9 +90,9 @@ Core MUST additionally enforce:
 
 - unique `operation_id` values within one change;
 - unique canonical `target` values within one change;
-- exactly one ready change visible when starting a new transaction;
-- global non-reuse of a `change_id` when matching durable history already exists;
-- exact equality between READY, CHANGE, MASTER, CONTROL and HISTORY identities for one active transaction;
+- exactly one unconsumed Ready Change visible when starting a new transaction;
+- global non-reuse of a `change_id` when conflicting durable history already exists;
+- exact equality between READY, CHANGE, MASTER and backend-specific immutable transaction authority for one active transaction;
 - a REPLACE must actually change the declared fingerprint rather than encode a no-op.
 
 ## Schema compatibility
