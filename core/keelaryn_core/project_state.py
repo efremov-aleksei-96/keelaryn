@@ -113,16 +113,6 @@ class DriveProjectStateService:
             material[item.name] = item
         return material
 
-    def _block_other_incomplete(self, history: DriveItem, update_id: str) -> None:
-        for child in self.drive.list_children(history.file_id):
-            if child.trashed or not child.is_folder:
-                raise DriveWorkflowBlocked("state-history contains non-folder material")
-            if child.name == update_id:
-                continue
-            done = self.drive.list_children(child.file_id, name=STATE_DONE_NAME)
-            if len(done) != 1 or done[0].trashed or done[0].is_folder:
-                raise DriveWorkflowBlocked(f"another STATE update is incomplete or ambiguous: {child.name}")
-
     def _load_plan(self, item: DriveItem) -> tuple[bytes, dict[str, Any]]:
         raw = self.drive.download(item.file_id)
         try:
@@ -132,6 +122,84 @@ class DriveProjectStateService:
         if plan["plan_file_id"] != item.file_id:
             raise DriveWorkflowBlocked("STATE PLAN does not bind its exact Drive ID")
         return raw, plan
+
+    def _exact_or_missing(self, file_id: str) -> DriveItem | None:
+        try:
+            return self.drive.get(file_id, include_trashed=False)
+        except DriveNotFound:
+            return None
+
+    def _done_value(self, project_id: str, update_id: str, plan_item: DriveItem, plan_raw: bytes, plan: dict[str, Any]) -> dict[str, Any]:
+        return validate_project_state_update(
+            {
+                "schema": "keelaryn.project-state-update.v1",
+                "state": "APPLIED",
+                "project_id": project_id,
+                "update_id": update_id,
+                "plan_file_id": plan_item.file_id,
+                "plan_sha256": sha256(plan_raw).hexdigest(),
+                "plan_size": len(plan_raw),
+                "old": plan["old"],
+                "new": plan["new"],
+            }
+        )
+
+    def _verify_completed_history(self, project: DriveItem, history: DriveItem, update_folder: DriveItem) -> None:
+        material = self._material(update_folder)
+        required = {STATE_PLAN_NAME, STATE_OLD_NAME, STATE_DONE_NAME}
+        if set(material) != required:
+            raise DriveWorkflowBlocked(
+                f"completed STATE update {update_folder.name} has invalid material: {sorted(material)}"
+            )
+        plan_item = material[STATE_PLAN_NAME]
+        plan_raw, plan = self._load_plan(plan_item)
+        if (
+            plan["project_id"] != project.name
+            or plan["update_id"] != update_folder.name
+            or plan["project_folder_id"] != project.file_id
+            or plan["update_folder_id"] != update_folder.file_id
+        ):
+            raise DriveWorkflowBlocked(f"historical STATE PLAN identity mismatch: {update_folder.name}")
+
+        old_item = material[STATE_OLD_NAME]
+        if old_item.file_id != plan["old"]["file_id"]:
+            raise DriveWorkflowBlocked(f"historical STATE OLD identity mismatch: {update_folder.name}")
+        _verify_item_bytes(self.drive, old_item, plan["old"]["fingerprint"], f"historical STATE OLD {update_folder.name}")
+
+        new_item = self._exact_or_missing(plan["new"]["file_id"])
+        if new_item is None:
+            raise DriveWorkflowBlocked(f"historical STATE NEW object missing: {update_folder.name}")
+        _verify_item_bytes(self.drive, new_item, plan["new"]["fingerprint"], f"historical STATE NEW {update_folder.name}")
+        if new_item.parent_id == project.file_id and new_item.name == PROJECT_STATE_NAME:
+            pass
+        elif new_item.name == STATE_OLD_NAME:
+            parents = {
+                child.file_id
+                for child in self.drive.list_children(history.file_id)
+                if not child.trashed and child.is_folder
+            }
+            if new_item.parent_id not in parents:
+                raise DriveWorkflowBlocked(f"historical STATE NEW moved outside state-history: {update_folder.name}")
+        else:
+            raise DriveWorkflowBlocked(f"historical STATE NEW has unknown location: {update_folder.name}")
+
+        done_item = material[STATE_DONE_NAME]
+        done_raw = self.drive.download(done_item.file_id)
+        try:
+            done = validate_project_state_update(strict_json_bytes(done_raw, label="STATE_DONE.history"))
+        except ProtocolError as exc:
+            raise DriveWorkflowBlocked(str(exc)) from exc
+        expected = self._done_value(plan["project_id"], plan["update_id"], plan_item, plan_raw, plan)
+        if done != expected or done_item.file_id != plan["done_marker_id"]:
+            raise DriveWorkflowBlocked(f"historical STATE DONE identity mismatch: {update_folder.name}")
+
+    def _block_other_incomplete(self, project: DriveItem, history: DriveItem, update_id: str) -> None:
+        for child in self.drive.list_children(history.file_id):
+            if child.trashed or not child.is_folder:
+                raise DriveWorkflowBlocked("state-history contains non-folder material")
+            if child.name == update_id:
+                continue
+            self._verify_completed_history(project, history, child)
 
     def _plan(
         self,
@@ -190,12 +258,6 @@ class DriveProjectStateService:
             raise DriveWorkflowBlocked("STATE PLAN did not become exact")
         return item, raw, plan
 
-    def _exact_or_missing(self, file_id: str) -> DriveItem | None:
-        try:
-            return self.drive.get(file_id, include_trashed=False)
-        except DriveNotFound:
-            return None
-
     def _ensure_new_candidate(self, project_id: str, update_id: str, update_folder: DriveItem, plan: dict[str, Any], new_raw: bytes) -> DriveItem:
         new = plan["new"]
         item = self._exact_or_missing(new["file_id"])
@@ -249,21 +311,6 @@ class DriveProjectStateService:
             return "NEW"
         raise DriveWorkflowBlocked("STATE transition objects are in an unknown configuration")
 
-    def _done_value(self, project_id: str, update_id: str, plan_item: DriveItem, plan_raw: bytes, plan: dict[str, Any]) -> dict[str, Any]:
-        return validate_project_state_update(
-            {
-                "schema": "keelaryn.project-state-update.v1",
-                "state": "APPLIED",
-                "project_id": project_id,
-                "update_id": update_id,
-                "plan_file_id": plan_item.file_id,
-                "plan_sha256": sha256(plan_raw).hexdigest(),
-                "plan_size": len(plan_raw),
-                "old": plan["old"],
-                "new": plan["new"],
-            }
-        )
-
     def _load_done(self, project: DriveItem, update_folder: DriveItem, plan_item: DriveItem, plan_raw: bytes, plan: dict[str, Any], done_item: DriveItem) -> DriveProjectStateUpdate:
         raw = self.drive.download(done_item.file_id)
         try:
@@ -280,14 +327,33 @@ class DriveProjectStateService:
             plan_item.file_id, done_item.file_id, plan_raw, raw, plan, done,
         )
 
+    def _reject_new_noop_without_mutation(self, project: DriveItem, new_state_markdown: bytes) -> None:
+        state = _unique_blob(self.drive, project.file_id, PROJECT_STATE_NAME, f"project {project.name} STATE.md")
+        if _fingerprint(self.drive.download(state.file_id)) == _fingerprint(new_state_markdown):
+            raise DriveWorkflowBlocked("no-op STATE update forbidden")
+
     def update(self, project_id: str, update_id: str, new_state_markdown: bytes) -> DriveProjectStateUpdate:
         project_id = _identifier(project_id, "project_id")
         update_id = _identifier(update_id, "update_id")
         if not isinstance(new_state_markdown, bytes) or not new_state_markdown:
             raise DriveWorkflowBlocked("new STATE.md must be non-empty bytes")
         project = self._project(project_id)
-        history = self._history(project, create=True)
-        self._block_other_incomplete(history, update_id)
+
+        history_matches = self.drive.list_children(project.file_id, name=STATE_HISTORY_NAME)
+        if len(history_matches) > 1:
+            raise DriveWorkflowBlocked("duplicate project state-history folders")
+        if not history_matches:
+            self._reject_new_noop_without_mutation(project, new_state_markdown)
+            history = self._history(project, create=True)
+        else:
+            history = self._history(project, create=False)
+
+        self._block_other_incomplete(project, history, update_id)
+        update_matches = self.drive.list_children(history.file_id, name=update_id)
+        if len(update_matches) > 1:
+            raise DriveWorkflowBlocked(f"duplicate STATE update folders for {update_id}")
+        if not update_matches:
+            self._reject_new_noop_without_mutation(project, new_state_markdown)
         update_folder = self._update_folder(history, project_id, update_id, create=True)
         plan_item, plan_raw, plan = self._plan(project, update_folder, project_id, update_id, new_state_markdown)
 
@@ -299,7 +365,6 @@ class DriveProjectStateService:
         self._ensure_new_candidate(project_id, update_id, update_folder, plan, new_state_markdown)
         state = self._classify(project, update_folder, plan)
         if state == "OLD":
-            # Fresh exact validation immediately before removing current STATE.md.
             old = self.drive.get(plan["old"]["file_id"], include_trashed=False)
             _verify_item_bytes(self.drive, old, plan["old"]["fingerprint"], "STATE old pre-swap")
             self.drive.move_rename(
