@@ -4,7 +4,13 @@ from dataclasses import replace
 from hashlib import sha256
 from typing import Iterable
 
-from .drive_backend import BLOB_MIME, FOLDER_MIME, DriveItem
+from .drive_backend import (
+    BLOB_MIME,
+    FOLDER_MIME,
+    DriveAlreadyExists,
+    DriveItem,
+    DriveNotFound,
+)
 from .protocol import FaultInjector, ProtocolError
 
 
@@ -38,6 +44,7 @@ class DriveModel:
             )
         }
         self._content: dict[str, bytes] = {}
+        self._reserved_ids: set[str] = set()
         self._stale_get: dict[str, DriveItem] = {}
         self._stale_list: dict[tuple[str, str | None], list[DriveItem]] = {}
 
@@ -51,22 +58,49 @@ class DriveModel:
         self._next_revision += 1
         return value
 
+    def generate_ids(self, count: int) -> list[str]:
+        if not isinstance(count, int) or isinstance(count, bool) or count < 1 or count > 1000:
+            raise ProtocolError("Drive ID reservation count must be 1..1000")
+        values = [self._id() for _ in range(count)]
+        self._reserved_ids.update(values)
+        return values
+
+    def _claim_file_id(self, requested: str | None) -> str:
+        if requested is None:
+            return self._id()
+        if requested in self._items:
+            raise DriveAlreadyExists(f"Drive object already exists: {requested}")
+        if requested not in self._reserved_ids:
+            raise ProtocolError(f"Drive file ID was not reserved by this backend: {requested}")
+        self._reserved_ids.remove(requested)
+        return requested
+
     def _require_parent(self, parent_id: str) -> DriveItem:
         parent = self._items.get(parent_id)
-        if parent is None or parent.trashed or not parent.is_folder:
+        if parent is None:
+            raise DriveNotFound(f"Drive parent not found: {parent_id}")
+        if parent.trashed or not parent.is_folder:
             raise ProtocolError(f"invalid Drive parent: {parent_id}")
         return parent
 
     def _require(self, file_id: str) -> DriveItem:
         item = self._items.get(file_id)
         if item is None:
-            raise ProtocolError(f"Drive object not found: {file_id}")
+            raise DriveNotFound(f"Drive object not found: {file_id}")
         return item
 
-    def create_folder(self, parent_id: str, name: str, *, label: str = "drive.create_folder") -> DriveItem:
+    def create_folder(
+        self,
+        parent_id: str,
+        name: str,
+        *,
+        file_id: str | None = None,
+        label: str = "drive.create_folder",
+    ) -> DriveItem:
         self._require_parent(parent_id)
+        object_id = self._claim_file_id(file_id)
         item = DriveItem(
-            file_id=self._id(),
+            file_id=object_id,
             parent_id=parent_id,
             name=name,
             mime_type=FOLDER_MIME,
@@ -87,14 +121,16 @@ class DriveModel:
         content: bytes,
         *,
         mime_type: str = BLOB_MIME,
+        file_id: str | None = None,
         label: str = "drive.create_blob",
     ) -> DriveItem:
         self._require_parent(parent_id)
         if mime_type == FOLDER_MIME:
             raise ProtocolError("blob cannot use folder MIME type")
         raw = bytes(content)
+        object_id = self._claim_file_id(file_id)
         item = DriveItem(
-            file_id=self._id(),
+            file_id=object_id,
             parent_id=parent_id,
             name=name,
             mime_type=mime_type,
@@ -115,6 +151,7 @@ class DriveModel:
         parent_id: str,
         name: str,
         *,
+        file_id: str | None = None,
         label: str = "drive.copy_blob",
     ) -> DriveItem:
         source = self._require(source_id)
@@ -125,6 +162,7 @@ class DriveModel:
             name,
             self._content[source.file_id],
             mime_type=source.mime_type,
+            file_id=file_id,
             label=label,
         )
 
@@ -134,7 +172,7 @@ class DriveModel:
         else:
             item = self._require(file_id)
         if item.trashed and not include_trashed:
-            raise ProtocolError(f"Drive object is trashed: {file_id}")
+            raise DriveNotFound(f"Drive object is not live: {file_id}")
         return replace(item)
 
     def list_children(
