@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import stat
 import sys
 import tarfile
 import tempfile
@@ -55,6 +56,17 @@ def rewrite_archive(raw: bytes, mutate) -> bytes:
     return output.getvalue()
 
 
+def thaw_tree(root: Path) -> None:
+    if not root.exists():
+        return
+    for path in root.rglob("*"):
+        if path.is_dir() and not path.is_symlink():
+            path.chmod(0o755)
+        elif path.is_file() and not path.is_symlink():
+            path.chmod(0o644)
+    root.chmod(0o755)
+
+
 class ZeroBasedVpsMaterializeTests(unittest.TestCase):
     SOURCE = "b" * 40
 
@@ -67,36 +79,64 @@ class ZeroBasedVpsMaterializeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             payload = self.build(root)
+            payload_sha = hashlib.sha256(payload.read_bytes()).hexdigest()
             releases = root / "releases"
-            result = materializer.materialize_payload(
-                payload,
-                releases,
-                expected_source_commit=self.SOURCE,
-            )
             release = releases / self.SOURCE
-            self.assertEqual(Path(result["release_directory"]), release)
-            self.assertTrue(release.is_dir())
-            self.assertEqual((release / "SOURCE_COMMIT").read_text(encoding="ascii"), self.SOURCE + "\n")
-            manifest = json.loads((release / "PAYLOAD_MANIFEST.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["source_commit"], self.SOURCE)
-            self.assertEqual(result["file_count"], len(manifest["files"]))
-            for entry in manifest["files"]:
-                target = release / entry["path"]
-                with self.subTest(path=entry["path"]):
-                    raw = target.read_bytes()
-                    self.assertEqual(len(raw), entry["size"])
-                    self.assertEqual(hashlib.sha256(raw).hexdigest(), entry["sha256"])
+            try:
+                result = materializer.materialize_payload(
+                    payload,
+                    releases,
+                    expected_source_commit=self.SOURCE,
+                    expected_payload_sha256=payload_sha,
+                )
+                self.assertEqual(Path(result["release_directory"]), release)
+                self.assertEqual(result["payload_sha256"], payload_sha)
+                self.assertTrue(release.is_dir())
+                self.assertEqual(stat.S_IMODE(release.stat().st_mode), 0o555)
+                self.assertEqual((release / "SOURCE_COMMIT").read_text(encoding="ascii"), self.SOURCE + "\n")
+                manifest = json.loads((release / "PAYLOAD_MANIFEST.json").read_text(encoding="utf-8"))
+                self.assertEqual(manifest["source_commit"], self.SOURCE)
+                self.assertEqual(result["file_count"], len(manifest["files"]))
+                for path in release.rglob("*"):
+                    with self.subTest(mode_path=str(path.relative_to(release))):
+                        if path.is_file():
+                            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o444)
+                        elif path.is_dir():
+                            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o555)
+                        else:
+                            self.fail("materialized release contains unsupported filesystem object")
+                for entry in manifest["files"]:
+                    target = release / entry["path"]
+                    with self.subTest(path=entry["path"]):
+                        raw = target.read_bytes()
+                        self.assertEqual(len(raw), entry["size"])
+                        self.assertEqual(hashlib.sha256(raw).hexdigest(), entry["sha256"])
 
-            with self.assertRaises(materializer.PayloadMaterializeError):
-                materializer.materialize_payload(payload, releases, expected_source_commit=self.SOURCE)
+                with self.assertRaises(materializer.PayloadMaterializeError):
+                    materializer.materialize_payload(
+                        payload,
+                        releases,
+                        expected_source_commit=self.SOURCE,
+                        expected_payload_sha256=payload_sha,
+                    )
+            finally:
+                thaw_tree(release)
 
-    def test_wrong_expected_source_commit_blocks_before_release_creation(self) -> None:
+    def test_wrong_expected_source_or_payload_identity_blocks_before_release_creation(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             payload = self.build(root)
             releases = root / "releases"
             with self.assertRaises(materializer.PayloadMaterializeError):
                 materializer.materialize_payload(payload, releases, expected_source_commit="c" * 40)
+            self.assertFalse((releases / self.SOURCE).exists())
+            with self.assertRaises(materializer.PayloadMaterializeError):
+                materializer.materialize_payload(
+                    payload,
+                    releases,
+                    expected_source_commit=self.SOURCE,
+                    expected_payload_sha256="0" * 64,
+                )
             self.assertFalse((releases / self.SOURCE).exists())
 
     def test_extra_unbound_regular_member_is_rejected(self) -> None:
