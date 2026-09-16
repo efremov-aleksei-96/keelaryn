@@ -223,20 +223,19 @@ class DriveSnapshotter:
     def ensure_all(self) -> tuple[DriveItem, ...]:
         return tuple(self.ensure_entry(entry) for entry in self.plan.entries)
 
-    def verify_all(self) -> tuple[DriveItem, ...]:
+    def verify_copies(self) -> tuple[DriveItem, ...]:
+        """Verify immutable snapshot copies without requiring OLD sources in canonical.
+
+        This is the post-UNSAFE verifier. Once publication starts, a REPLACE or
+        DELETE OLD source is expected to move out of canonical, while its independent
+        snapshot must remain exact and independently usable for diagnosis/recovery.
+        """
         verified: list[DriveItem] = []
         for entry in self.plan.entries:
-            source = self._get_live(entry.source_id)
             snapshot = self._get_live(entry.snapshot_id)
-            if source is None or snapshot is None:
-                raise DriveSnapshotBlocked(f"source/snapshot missing: {entry.operation_id}")
-            self._verify_exact(
-                source,
-                entry.source_state,
-                parent_id=entry.source_parent_id,
-                name=entry.source_name,
-            )
-            if snapshot.file_id == source.file_id:
+            if snapshot is None:
+                raise DriveSnapshotBlocked(f"snapshot missing: {entry.operation_id}")
+            if snapshot.file_id == entry.source_id:
                 raise DriveSnapshotBlocked("snapshot must have distinct Drive file ID")
             verified.append(
                 self._verify_exact(
@@ -247,6 +246,21 @@ class DriveSnapshotter:
                 )
             )
         return tuple(verified)
+
+    def verify_all(self) -> tuple[DriveItem, ...]:
+        """Pre-UNSAFE verification of both canonical OLD sources and snapshots."""
+        verified = self.verify_copies()
+        for entry in self.plan.entries:
+            source = self._get_live(entry.source_id)
+            if source is None:
+                raise DriveSnapshotBlocked(f"snapshot source missing: {entry.operation_id}")
+            self._verify_exact(
+                source,
+                entry.source_state,
+                parent_id=entry.source_parent_id,
+                name=entry.source_name,
+            )
+        return verified
 
 
 __all__ = [
