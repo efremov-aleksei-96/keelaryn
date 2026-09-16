@@ -108,7 +108,9 @@ class DriveHubBootstrap:
     def _resolve_existing_layout(self) -> DriveBootstrapLayout:
         canonical = self._existing_folder(self.hub_root_id, "canonical")
         work = self._existing_folder(self.hub_root_id, "work")
+        self._existing_folder(work.file_id, "projects")
         reconciliation = self._existing_folder(work.file_id, "reconciliation")
+        self._existing_folder(reconciliation.file_id, "claims")
         changes = self._existing_folder(reconciliation.file_id, "changes")
         postcheck = self._existing_folder(reconciliation.file_id, "postcheck")
         control = self._existing_folder(self.hub_root_id, "control")
@@ -132,17 +134,19 @@ class DriveHubBootstrap:
 
         canonical = self._ensure_fresh_folder(self.hub_root_id, "canonical")
         work = self._ensure_fresh_folder(self.hub_root_id, "work")
+        projects = self._ensure_fresh_folder(work.file_id, "projects")
         reconciliation = self._ensure_fresh_folder(work.file_id, "reconciliation")
+        claims = self._ensure_fresh_folder(reconciliation.file_id, "claims")
         changes = self._ensure_fresh_folder(reconciliation.file_id, "changes")
         postcheck = self._ensure_fresh_folder(reconciliation.file_id, "postcheck")
         control = self._ensure_fresh_folder(self.hub_root_id, "control")
         active = self._ensure_fresh_folder(control.file_id, "active")
         history = self._ensure_fresh_folder(self.hub_root_id, "history")
 
-        allowed_work = {"reconciliation"}
+        allowed_work = {"projects", "reconciliation"}
         if any(child.name not in allowed_work for child in self.drive.list_children(work.file_id)):
             raise DriveBootstrapBlocked("unexpected material in fresh work/")
-        allowed_reconciliation = {"changes", "postcheck"}
+        allowed_reconciliation = {"claims", "changes", "postcheck"}
         if any(child.name not in allowed_reconciliation for child in self.drive.list_children(reconciliation.file_id)):
             raise DriveBootstrapBlocked("unexpected material in fresh work/reconciliation/")
         allowed_control = {"active"}
@@ -151,6 +155,8 @@ class DriveHubBootstrap:
 
         for label, parent_id in (
             ("canonical", canonical.file_id),
+            ("projects", projects.file_id),
+            ("claims", claims.file_id),
             ("changes", changes.file_id),
             ("postcheck", postcheck.file_id),
             ("control/active", active.file_id),
@@ -189,8 +195,15 @@ class DriveHubBootstrap:
         # MASTER or new writable material must stop initial publication.
         if self._master_items():
             raise DriveBootstrapBlocked("MASTER.json appeared during fresh-Hub bootstrap")
+
+        work = self._existing_folder(self.hub_root_id, "work")
+        projects = self._existing_folder(work.file_id, "projects")
+        reconciliation = self._existing_folder(work.file_id, "reconciliation")
+        claims = self._existing_folder(reconciliation.file_id, "claims")
         for label, parent_id in (
             ("canonical", layout.canonical_root_id),
+            ("projects", projects.file_id),
+            ("claims", claims.file_id),
             ("changes", layout.changes_parent_id),
             ("postcheck", layout.postcheck_parent_id),
             ("control/active", layout.control_active_id),
