@@ -59,3 +59,65 @@ jobs:
 
       - name: Smoke Drive poller CLI surface
         run: PYTHONPATH=core python3 -m keelaryn_core.drive_poller --help
+
+      - name: Prove exact-head deterministic VPS payload
+        env:
+          KEELARYN_VPS_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_VPS_PAYLOAD_EVIDENCE.json
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          python3 deploy/zero-based-vps/build_payload.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --source-commit "$GITHUB_SHA" \
+            --output "$tmp/first.tar.gz" > "$tmp/first.json"
+          python3 deploy/zero-based-vps/build_payload.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --source-commit "$GITHUB_SHA" \
+            --output "$tmp/second.tar.gz" > "$tmp/second.json"
+          cmp "$tmp/first.tar.gz" "$tmp/second.tar.gz"
+          python3 deploy/zero-based-vps/materialize_payload.py \
+            --payload "$tmp/first.tar.gz" \
+            --releases-root "$tmp/releases" \
+            --expected-source-commit "$GITHUB_SHA" > "$tmp/materialized.json"
+          release="$tmp/releases/$GITHUB_SHA"
+          test -d "$release"
+          (
+            cd "$release"
+            python3 -m compileall -q core tests/core tests/live
+            PYTHONPATH=core python3 -m keelaryn_core.drive_poller --help >/dev/null
+          )
+          python3 - "$tmp/first.json" "$tmp/second.json" "$tmp/materialized.json" "$KEELARYN_VPS_EVIDENCE" <<'PY'
+          import json
+          import os
+          import sys
+
+          first = json.load(open(sys.argv[1], encoding="utf-8"))
+          second = json.load(open(sys.argv[2], encoding="utf-8"))
+          materialized = json.load(open(sys.argv[3], encoding="utf-8"))
+          keys = ("schema", "source_commit", "file_count", "payload_sha256", "payload_size")
+          if any(first[key] != second[key] for key in keys):
+              raise SystemExit("deterministic payload metadata mismatch")
+          if any(first[key] != materialized[key] for key in keys):
+              raise SystemExit("materialized payload identity mismatch")
+          evidence = {key: first[key] for key in keys}
+          evidence.update(
+              {
+                  "deterministic_rebuild": True,
+                  "materialization_verified": True,
+                  "github_run_id": os.environ["GITHUB_RUN_ID"],
+                  "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              }
+          )
+          with open(sys.argv[4], "w", encoding="utf-8", newline="\n") as stream:
+              json.dump(evidence, stream, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+              stream.write("\n")
+          PY
+
+      - name: Upload compact VPS payload evidence
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: zero-based-vps-payload-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ZERO_BASED_VPS_PAYLOAD_EVIDENCE.json
+          if-no-files-found: error
+          retention-days: 3
