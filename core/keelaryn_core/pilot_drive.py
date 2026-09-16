@@ -5,13 +5,14 @@ from hashlib import sha256
 from typing import Any
 
 from .drive_backend import DriveBackend, DriveItem
-from .drive_bootstrap import DriveBootstrapLayout, DriveHubBootstrap
-from .drive_discovery import DriveDiscoveryBlocked, DriveRestartDiscovery
-from .drive_master import DriveMasterTransition, DriveMasterUnavailable
+from .drive_bootstrap import DriveHubBootstrap
+from .drive_discovery import LOCATOR_NAME, DriveDiscoveryBlocked, DriveRestartDiscovery
+from .drive_factory import DriveHubLayout, DriveTransactionFactory, DriveTransactionFactoryBlocked
+from .drive_master import MASTER_NAME, DriveMasterTransition, DriveMasterUnavailable
 from .drive_service import DrivePollingService, DriveServiceBlocked
 from .drive_transaction import BlobState
 from .pilot_pack import PilotPack, PilotPackBlocked, verify_pilot_pack
-from .protocol import ProtocolError, canonical_json_bytes, fingerprint_bytes, strict_json_bytes, validate_master
+from .protocol import ProtocolError, canonical_json_bytes, strict_json_bytes, validate_master
 
 
 class DrivePilotBlocked(ProtocolError):
@@ -56,9 +57,9 @@ class DrivePilotImportService:
         self.drive = drive
         self.hub_root_id = hub_root_id
 
-    def _bootstrap(self):
+    def _bootstrap(self) -> None:
         try:
-            return DriveHubBootstrap(self.drive, self.hub_root_id).run()
+            DriveHubBootstrap(self.drive, self.hub_root_id).run()
         except ProtocolError as exc:
             raise DrivePilotBlocked(f"pilot Hub bootstrap/verification failed: {exc}") from exc
 
@@ -79,6 +80,53 @@ class DrivePilotImportService:
             and master["current_stage"] is None
             and master["last_completed_change"] is None
         )
+
+    def _active_locator_present(self) -> bool:
+        controls = self.drive.list_children(self.hub_root_id, name="control")
+        if len(controls) > 1:
+            raise DrivePilotBlocked("pilot Hub has ambiguous control/ folder")
+        if not controls:
+            return False
+        control = controls[0]
+        if control.trashed or not control.is_folder:
+            raise DrivePilotBlocked("pilot Hub control path is not a live folder")
+        actives = self.drive.list_children(control.file_id, name="active")
+        if len(actives) > 1:
+            raise DrivePilotBlocked("pilot Hub has ambiguous control/active folder")
+        if not actives:
+            return False
+        active = actives[0]
+        if active.trashed or not active.is_folder:
+            raise DrivePilotBlocked("pilot Hub control/active path is not a live folder")
+        locators = self.drive.list_children(active.file_id, name=LOCATOR_NAME)
+        if len(locators) > 1:
+            raise DrivePilotBlocked("pilot Hub has multiple active transaction locators")
+        if not locators:
+            return False
+        locator = locators[0]
+        if locator.trashed or locator.is_folder:
+            raise DrivePilotBlocked("pilot active transaction locator is not a live blob")
+        return True
+
+    def _resolve_runtime_state(self) -> tuple[DriveHubLayout, Any]:
+        masters = self.drive.list_children(self.hub_root_id, name=MASTER_NAME)
+        if len(masters) > 1:
+            raise DrivePilotBlocked("pilot Hub has multiple root MASTER.json objects")
+
+        # A missing MASTER with an active locator is a legitimate Core COW gap.
+        # Never call bootstrap in that state: bootstrap is for fresh/partial Hub
+        # initialization, not active transaction recovery.
+        if masters:
+            self._bootstrap()
+        elif not self._active_locator_present():
+            self._bootstrap()
+
+        try:
+            layout = DriveTransactionFactory(self.drive, self.hub_root_id).resolve_layout()
+            discovery = DriveRestartDiscovery.from_hub_root(self.drive, self.hub_root_id).discover()
+        except (DriveTransactionFactoryBlocked, DriveDiscoveryBlocked) as exc:
+            raise DrivePilotBlocked(f"pilot runtime discovery failed: {exc}") from exc
+        return layout, discovery
 
     def _ensure_folder(self, parent_id: str, name: str, *, label: str) -> DriveItem:
         matches = self.drive.list_children(parent_id, name=name)
@@ -131,7 +179,7 @@ class DrivePilotImportService:
             raise DrivePilotBlocked(f"pilot blob bytes changed during publication: {parent_id}/{name}")
         return matches[0]
 
-    def _assert_fresh_scope(self, layout: DriveBootstrapLayout, pilot_id: str) -> None:
+    def _assert_fresh_scope(self, layout: DriveHubLayout, pilot_id: str) -> None:
         if self.drive.list_children(layout.canonical_root_id):
             raise DrivePilotBlocked("pilot requires an empty canonical directory")
         changes = self.drive.list_children(layout.changes_parent_id)
@@ -165,7 +213,7 @@ class DrivePilotImportService:
             }
         )
 
-    def _prepare_ready_change(self, pack: PilotPack, layout: DriveBootstrapLayout) -> None:
+    def _prepare_ready_change(self, pack: PilotPack, layout: DriveHubLayout) -> None:
         master = self._master()
         if not self._initial_master(master):
             raise DrivePilotBlocked("pilot Ready Change preparation requires untouched READY/SAFE epoch 0")
@@ -266,7 +314,7 @@ class DrivePilotImportService:
                 return False
         return True
 
-    def _ensure_postcheck(self, pack: PilotPack, layout: DriveBootstrapLayout) -> str:
+    def _ensure_postcheck(self, pack: PilotPack, layout: DriveHubLayout) -> str:
         master = self._master()
         active = master["active_change"]
         if (
@@ -297,7 +345,7 @@ class DrivePilotImportService:
         )
         return decision
 
-    def _final_evidence(self, pack: PilotPack, layout: DriveBootstrapLayout) -> DrivePilotEvidence:
+    def _final_evidence(self, pack: PilotPack, layout: DriveHubLayout) -> DrivePilotEvidence:
         try:
             discovery = DriveRestartDiscovery.from_hub_root(self.drive, self.hub_root_id).discover()
         except DriveDiscoveryBlocked as exc:
@@ -345,18 +393,12 @@ class DrivePilotImportService:
         except PilotPackBlocked as exc:
             raise DrivePilotBlocked(f"private pilot pack verification failed: {exc}") from exc
 
-        bootstrap = self._bootstrap()
-        layout = bootstrap.layout
-        try:
-            discovery = DriveRestartDiscovery.from_hub_root(self.drive, self.hub_root_id).discover()
-        except DriveDiscoveryBlocked as exc:
-            raise DrivePilotBlocked(f"pilot restart discovery failed: {exc}") from exc
-
+        layout, discovery = self._resolve_runtime_state()
         if discovery.bundle is not None and discovery.bundle.change_id != pack.pilot_id:
             raise DrivePilotBlocked("another transaction is active in the disposable pilot Hub")
 
         if discovery.state == "READY_CLEAN":
-            master = bootstrap.master
+            master = self._master()
             completed = master["last_completed_change"]
             if completed is not None:
                 if completed["change_id"] != pack.pilot_id:
