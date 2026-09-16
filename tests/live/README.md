@@ -56,14 +56,18 @@ In GitHub Actions:
 1. Open **Development validation**.
 2. Choose **Run workflow**.
 3. Select branch `dev/zero-based-keelaryn`.
-4. Start the run.
+4. Set `confirm_disposable_drive` to **YES**. The default is **NO**; leaving it at NO makes the disposable job ineligible.
+5. Start the run.
 
 For that exact branch/manual-event combination:
 
 - the legacy Manager development job is skipped;
 - only the guarded zero-based Drive disposable acceptance job is eligible;
 - only the repository owner is allowed by the job condition;
-- missing/disabled disposable secrets fail closed;
+- the explicit workflow input must be `YES`;
+- `KEELARYN_DISPOSABLE_ENABLE` must independently be `YES`;
+- all dedicated disposable credential/root secrets must be non-empty;
+- the live harness still independently verifies the exact acceptance-root name and sentinel bytes before its first Drive mutation;
 - runs are queued rather than canceling an earlier live acceptance mid-mutation.
 
 Normal zero-based push validation remains the separate **Zero-based Core validation** workflow.
