@@ -53,6 +53,10 @@ class DriveOperationalContractTests(unittest.TestCase):
     def test_zero_based_branch_is_excluded_from_legacy_manager_job(self) -> None:
         workflow = (REPO / ".github/workflows/development-validation.yml").read_text(encoding="utf-8")
         self.assertIn("if: ${{ github.ref != 'refs/heads/dev/zero-based-keelaryn' }}", workflow)
+        self.assertIn(
+            "cancel-in-progress: ${{ github.ref != 'refs/heads/dev/zero-based-keelaryn' }}",
+            workflow,
+        )
         self.assertIn("zero-based-drive-disposable-acceptance:", workflow)
         self.assertIn("github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("github.ref == 'refs/heads/dev/zero-based-keelaryn'", workflow)
