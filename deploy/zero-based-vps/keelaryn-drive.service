@@ -13,21 +13,23 @@ WorkingDirectory=/opt/keelaryn/current
 EnvironmentFile=/etc/keelaryn/drive.env
 Environment=PYTHONPATH=/opt/keelaryn/current/core
 Environment=KEELARYN_RUNTIME_DIR=/run/keelaryn
+Environment=PYTHONDONTWRITEBYTECODE=1
 RuntimeDirectory=keelaryn
 RuntimeDirectoryMode=0700
 UMask=0077
 ExecStartPre=/usr/bin/test -r /etc/keelaryn/drive.env
 ExecStartPre=/usr/bin/test -f /opt/keelaryn/current/core/keelaryn_core/drive_poller.py
-ExecStart=/usr/bin/python3 -m keelaryn_core.drive_poller serve --interval-seconds 30
+ExecStart=/usr/bin/python3 -B -m keelaryn_core.drive_poller serve --interval-seconds 30
 Restart=on-failure
 RestartSec=15s
-RestartPreventExitStatus=2
+RestartPreventExitStatus=2 130
 TimeoutStopSec=30s
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
+ReadWritePaths=/run/keelaryn
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
