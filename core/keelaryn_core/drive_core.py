@@ -21,6 +21,7 @@ from .drive_master import (
     MASTER_NAME,
 )
 from .drive_postcheck import DrivePostcheckBlocked, DrivePostcheckReceipts
+from .drive_recovery_block import DriveRecoveryBlockCorrupt, DriveRecoveryBlockRecord
 from .drive_snapshot import DriveSnapshotBlocked, DriveSnapshotter
 from .drive_transaction import DrivePublicationTransaction, DriveRecoveryBlocked, BlobState
 from .protocol import ProtocolError
@@ -37,7 +38,13 @@ class DriveCoreStatus:
 
     @property
     def terminal(self) -> bool:
-        return self.phase in {"WAIT_POSTCHECK", "COMMITTED", "ROLLED_BACK", "ABORTED_SAFE"}
+        return self.phase in {
+            "WAIT_POSTCHECK",
+            "COMMITTED",
+            "ROLLED_BACK",
+            "ABORTED_SAFE",
+            "RECOVERY_BLOCKED",
+        }
 
 
 class DriveCoreRunner:
@@ -84,6 +91,7 @@ class DriveCoreRunner:
             b.unsafe_binding.candidate_master_id: ("ACTIVE_UNSAFE", b.active_unsafe_master_component.raw),
             b.commit_binding.candidate_master_id: ("COMMITTED", b.committed_master_component.raw),
             b.rollback_binding.candidate_master_id: ("ROLLED_BACK", b.rolled_back_master_component.raw),
+            b.blocked_binding.candidate_master_id: ("RECOVERY_BLOCKED", b.blocked_master_component.raw),
         }
         match = known.get(root.file_id)
         if match is None:
@@ -105,6 +113,7 @@ class DriveCoreRunner:
             ("unsafe", DriveMasterTransition(self.drive, b.unsafe_binding)),
             ("commit", DriveMasterTransition(self.drive, b.commit_binding)),
             ("rollback", DriveMasterTransition(self.drive, b.rollback_binding)),
+            ("blocked", DriveMasterTransition(self.drive, b.blocked_binding)),
         )
         matches: list[tuple[str, DriveMasterTransition, str]] = []
         for name, transition in transitions:
@@ -122,6 +131,9 @@ class DriveCoreRunner:
         name, _, state = self._gap_transition()
         return f"GAP_{name.upper()}_{state}"
 
+    def _recovery_record(self) -> DriveRecoveryBlockRecord:
+        return DriveRecoveryBlockRecord(self.drive, self.bundle.recovery_block_binding)
+
     def _recover_master_gap(self) -> DriveCoreStatus:
         self._bundle_required()
         name, transition, state = self._gap_transition()
@@ -134,6 +146,16 @@ class DriveCoreRunner:
                 raise DriveCoreBlocked(f"unexpected activation MASTER gap state: {state}")
             transition.publish()
             return DriveCoreStatus("PROGRESSED", "completed activation MASTER publication gap")
+
+        if name == "blocked":
+            if state != "OLD_DISPLACED":
+                raise DriveCoreBlocked(f"unexpected RECOVERY_BLOCKED MASTER gap state: {state}")
+            if self._recovery_record().read() is None:
+                raise DriveCoreBlocked("blocked MASTER gap has no exact recovery-block record")
+            transition.publish()
+            if self._recovery_record().read() is None:
+                raise DriveCoreBlocked("recovery-block record vanished after blocked MASTER publication")
+            return DriveCoreStatus("RECOVERY_BLOCKED", "completed durable RECOVERY_BLOCKED MASTER publication gap")
 
         if state != "OLD_DISPLACED":
             raise DriveCoreBlocked(f"unexpected {name} MASTER gap state: {state}")
@@ -181,6 +203,7 @@ class DriveCoreRunner:
         control = b.control
         post = b.postcheck_binding
         execution = b.execution_rollback_binding
+        recovery = b.recovery_block_binding
         ids = {
             "hub_root": b.hub_root_id,
             "canonical_root": control.canonical_root_id,
@@ -191,6 +214,7 @@ class DriveCoreRunner:
             "master_transition_parent": b.master_transition_parent_id,
             "postcheck_receipt_parent": post.receipt_parent_id,
             "execution_marker_parent": execution.marker_parent_id,
+            "recovery_block_parent": recovery.record_parent_id,
         }
         if include_external_postcheck:
             ids["postcheck_source_parent"] = post.source_parent_id
@@ -275,10 +299,67 @@ class DriveCoreRunner:
         transition.publish()
         return DriveCoreStatus("PROGRESSED", "published ACTIVE/UNSAFE MASTER")
 
+    def _continue_recovery_block(self) -> DriveCoreStatus:
+        self._bundle_required()
+        record = self._recovery_record().read()
+        if record is None:
+            raise DriveCoreBlocked("RECOVERY_BLOCKED continuation requires exact block record")
+
+        root = self._root_item()
+        if root is None:
+            raise DriveCoreBlocked("RECOVERY_BLOCKED continuation encountered zero-MASTER outside gap recovery")
+        phase = self._phase_with_root(root)
+        if phase == "RECOVERY_BLOCKED":
+            return DriveCoreStatus("RECOVERY_BLOCKED", "durable RECOVERY_BLOCKED state already present")
+        if phase != "ACTIVE_UNSAFE":
+            raise DriveCoreBlocked(f"cannot publish RECOVERY_BLOCKED from {phase}")
+
+        b = self.bundle
+        self._require_folder(b.recovery_block_binding.record_parent_id, "recovery_block_parent")
+        self._require_folder(b.master_transition_parent_id, "master_transition_parent")
+        transition = DriveMasterTransition(self.drive, b.blocked_binding)
+        transition.prepare_candidate(b.blocked_master_component.raw)
+
+        # Fresh commit-boundary proof: the immutable bundle and block record must
+        # still be exact, and the exact ACTIVE/UNSAFE MASTER must still be root.
+        self._bundle_required()
+        if self._recovery_record().read() is None:
+            raise DriveCoreBlocked("recovery-block record missing before blocked MASTER commit")
+        root = self._root_item()
+        if root is None:
+            raise DriveCoreBlocked("ACTIVE/UNSAFE MASTER disappeared before blocked MASTER commit")
+        if self._phase_with_root(root) != "ACTIVE_UNSAFE":
+            raise DriveCoreBlocked("ACTIVE/UNSAFE MASTER changed before blocked MASTER commit")
+
+        transition.publish()
+        root = self._root_item()
+        if root is None or self._phase_with_root(root) != "RECOVERY_BLOCKED":
+            raise DriveCoreBlocked("blocked MASTER publication did not reach RECOVERY_BLOCKED")
+        if self._recovery_record().read() is None:
+            raise DriveCoreBlocked("recovery-block record missing after blocked MASTER publication")
+        return DriveCoreStatus("RECOVERY_BLOCKED", "published durable RECOVERY_BLOCKED/UNSAFE MASTER")
+
+    def _persist_recovery_block(self, reason: str) -> DriveCoreStatus:
+        # Never manufacture a blocked state from ambiguous authority. The exact
+        # bundle and exact ACTIVE/UNSAFE root must both still be provable before
+        # the Core-owned block record is created.
+        self._bundle_required()
+        root = self._root_item()
+        if root is None or self._phase_with_root(root) != "ACTIVE_UNSAFE":
+            raise DriveCoreBlocked(reason)
+        b = self.bundle
+        self._require_folder(b.recovery_block_binding.record_parent_id, "recovery_block_parent")
+        self._require_folder(b.master_transition_parent_id, "master_transition_parent")
+        self._recovery_record().record(reason)
+        return self._continue_recovery_block()
+
     def _final_candidate_conflict(self, wanted: str) -> None:
         b = self.bundle
         commit_item = self._get_live(b.commit_binding.candidate_master_id)
         rollback_item = self._get_live(b.rollback_binding.candidate_master_id)
+        blocked_item = self._get_live(b.blocked_binding.candidate_master_id)
+        if blocked_item is not None:
+            raise DriveCoreBlocked("RECOVERY_BLOCKED MASTER candidate exists during normal finalization")
         if wanted == "commit" and rollback_item is not None:
             raise DriveCoreBlocked("rollback READY MASTER candidate exists during PASS finalization")
         if wanted == "rollback" and commit_item is not None:
@@ -323,6 +404,10 @@ class DriveCoreRunner:
         return DriveCoreStatus("ROLLED_BACK", "published final ROLLED_BACK READY MASTER")
 
     def _unsafe_step(self) -> DriveCoreStatus:
+        existing_block = self._recovery_record().read()
+        if existing_block is not None:
+            return self._continue_recovery_block()
+
         self._postunsafe_verify()
         b = self.bundle
         change = DriveChangeRunner(self.drive, b.control)
@@ -391,6 +476,11 @@ class DriveCoreRunner:
             if phase == "ROLLED_BACK":
                 self._bundle_required()
                 return DriveCoreStatus("ROLLED_BACK", "final ROLLED_BACK READY MASTER already present")
+            if phase == "RECOVERY_BLOCKED":
+                self._bundle_required()
+                if self._recovery_record().read() is None:
+                    raise DriveCoreBlocked("RECOVERY_BLOCKED MASTER has no exact recovery-block record")
+                return DriveCoreStatus("RECOVERY_BLOCKED", "durable RECOVERY_BLOCKED state already present")
             if phase == "BASE_READY":
                 return self._activate()
             if phase == "ACTIVE_SAFE":
@@ -402,7 +492,22 @@ class DriveCoreRunner:
                     return self._abort_safe(str(exc))
                 return self._enter_unsafe()
             if phase == "ACTIVE_UNSAFE":
-                return self._unsafe_step()
+                try:
+                    return self._unsafe_step()
+                except (DriveUncertainMutation, DriveTransportError):
+                    raise
+                except (
+                    DriveCoreBlocked,
+                    DriveBundleBlocked,
+                    DriveSnapshotBlocked,
+                    DrivePostcheckBlocked,
+                    DriveExecutionRollbackBlocked,
+                    DriveMasterRecoveryBlocked,
+                    DriveRecoveryBlocked,
+                    DriveRecoveryBlockCorrupt,
+                    ProtocolError,
+                ) as exc:
+                    return self._persist_recovery_block(str(exc))
             raise DriveCoreBlocked(f"unsupported outer Drive phase: {phase}")
         except (DriveUncertainMutation, DriveTransportError):
             raise
@@ -415,6 +520,7 @@ class DriveCoreRunner:
             DriveExecutionRollbackBlocked,
             DriveMasterRecoveryBlocked,
             DriveRecoveryBlocked,
+            DriveRecoveryBlockCorrupt,
         ) as exc:
             raise DriveCoreBlocked(str(exc)) from exc
 
