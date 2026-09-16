@@ -15,7 +15,7 @@ from keelaryn_core.reconciliation_state import DriveReconciliationStateService
 
 
 class ReconciliationStateTests(unittest.TestCase):
-    INITIAL = b"# Reconciliation State\n\nidle\n"
+    INITIAL = DriveHubBootstrap.initial_reconciliation_state_bytes()
     NEW1 = b"# Reconciliation State\n\nclaiming project-a/result-1\n"
     NEW2 = b"# Reconciliation State\n\npreparing change-1\n"
 
@@ -26,14 +26,14 @@ class ReconciliationStateTests(unittest.TestCase):
         DriveHubBootstrap(drive, hub.file_id).run()
         return drive, hub.file_id
 
-    def test_initialize_is_exact_and_idempotent(self) -> None:
+    def test_initialize_is_exact_read_only_and_idempotent(self) -> None:
         drive, hub_id = self.build()
         service = DriveReconciliationStateService(drive, hub_id)
-        with self.assertRaises(DriveWorkflowBlocked):
-            service.read()
+        before = service.read()
         first = service.initialize(self.INITIAL)
         second = DriveReconciliationStateService(drive, hub_id).initialize(self.INITIAL)
         self.assertEqual(first, second)
+        self.assertEqual(first, before)
         self.assertEqual(first.raw, self.INITIAL)
         with self.assertRaises(DriveWorkflowBlocked):
             service.initialize(b"different initial bytes")
