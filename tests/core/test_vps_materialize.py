@@ -59,12 +59,12 @@ def rewrite_archive(raw: bytes, mutate) -> bytes:
 def thaw_tree(root: Path) -> None:
     if not root.exists():
         return
+    root.chmod(0o755)
     for path in root.rglob("*"):
         if path.is_dir() and not path.is_symlink():
             path.chmod(0o755)
         elif path.is_file() and not path.is_symlink():
             path.chmod(0o644)
-    root.chmod(0o755)
 
 
 class ZeroBasedVpsMaterializeTests(unittest.TestCase):
@@ -79,7 +79,8 @@ class ZeroBasedVpsMaterializeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             payload = self.build(root)
-            payload_sha = hashlib.sha256(payload.read_bytes()).hexdigest()
+            payload_raw = payload.read_bytes()
+            payload_sha = hashlib.sha256(payload_raw).hexdigest()
             releases = root / "releases"
             release = releases / self.SOURCE
             try:
@@ -91,12 +92,25 @@ class ZeroBasedVpsMaterializeTests(unittest.TestCase):
                 )
                 self.assertEqual(Path(result["release_directory"]), release)
                 self.assertEqual(result["payload_sha256"], payload_sha)
+                self.assertEqual(result["payload_size"], len(payload_raw))
                 self.assertTrue(release.is_dir())
                 self.assertEqual(stat.S_IMODE(release.stat().st_mode), 0o555)
                 self.assertEqual((release / "SOURCE_COMMIT").read_text(encoding="ascii"), self.SOURCE + "\n")
                 manifest = json.loads((release / "PAYLOAD_MANIFEST.json").read_text(encoding="utf-8"))
+                identity = json.loads((release / "PAYLOAD_IDENTITY.json").read_text(encoding="utf-8"))
                 self.assertEqual(manifest["source_commit"], self.SOURCE)
+                self.assertEqual(identity["schema"], materializer.RELEASE_SCHEMA)
+                self.assertEqual(identity["source_commit"], self.SOURCE)
+                self.assertEqual(identity["payload_sha256"], payload_sha)
+                self.assertEqual(identity["payload_size"], len(payload_raw))
+                self.assertEqual(identity["file_count"], len(manifest["files"]))
                 self.assertEqual(result["file_count"], len(manifest["files"]))
+                verified = materializer.verify_release_directory(
+                    release,
+                    expected_source_commit=self.SOURCE,
+                    expected_payload_sha256=payload_sha,
+                )
+                self.assertEqual(verified, identity)
                 for path in release.rglob("*"):
                     with self.subTest(mode_path=str(path.relative_to(release))):
                         if path.is_file():
@@ -138,6 +152,73 @@ class ZeroBasedVpsMaterializeTests(unittest.TestCase):
                     expected_payload_sha256="0" * 64,
                 )
             self.assertFalse((releases / self.SOURCE).exists())
+
+    def test_materialized_release_tamper_mode_extra_and_identity_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            payload = self.build(root)
+            payload_sha = hashlib.sha256(payload.read_bytes()).hexdigest()
+            releases = root / "releases"
+            release = releases / self.SOURCE
+            try:
+                materializer.materialize_payload(
+                    payload,
+                    releases,
+                    expected_source_commit=self.SOURCE,
+                    expected_payload_sha256=payload_sha,
+                )
+                manifest = json.loads((release / "PAYLOAD_MANIFEST.json").read_text(encoding="utf-8"))
+                payload_file = release / manifest["files"][0]["path"]
+
+                payload_file.chmod(0o644)
+                with self.assertRaises(materializer.PayloadMaterializeError):
+                    materializer.verify_release_directory(release)
+                payload_file.chmod(0o444)
+
+                release.chmod(0o755)
+                extra = release / "EXTRA.txt"
+                extra.write_bytes(b"extra")
+                extra.chmod(0o444)
+                release.chmod(0o555)
+                with self.assertRaises(materializer.PayloadMaterializeError):
+                    materializer.verify_release_directory(release)
+                release.chmod(0o755)
+                extra.chmod(0o644)
+                extra.unlink()
+                release.chmod(0o555)
+
+                identity_path = release / "PAYLOAD_IDENTITY.json"
+                identity = json.loads(identity_path.read_text(encoding="utf-8"))
+                identity["payload_sha256"] = "0" * 64
+                identity_path.chmod(0o644)
+                identity_path.write_text(
+                    json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+                    encoding="utf-8",
+                )
+                identity_path.chmod(0o444)
+                with self.assertRaises(materializer.PayloadMaterializeError):
+                    materializer.verify_release_directory(
+                        release,
+                        expected_source_commit=self.SOURCE,
+                        expected_payload_sha256=payload_sha,
+                    )
+
+                # Restore identity, then corrupt one manifest-bound file.
+                identity["payload_sha256"] = payload_sha
+                identity_path.chmod(0o644)
+                identity_path.write_text(
+                    json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+                    encoding="utf-8",
+                )
+                identity_path.chmod(0o444)
+                original = payload_file.read_bytes()
+                payload_file.chmod(0o644)
+                payload_file.write_bytes(original + b"tamper")
+                payload_file.chmod(0o444)
+                with self.assertRaises(materializer.PayloadMaterializeError):
+                    materializer.verify_release_directory(release)
+            finally:
+                thaw_tree(release)
 
     def test_extra_unbound_regular_member_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
