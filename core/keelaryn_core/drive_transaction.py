@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 
-from .drive_model import DriveItem, DriveModel
+from .drive_backend import DriveBackend, DriveItem
 from .protocol import ProtocolError
 
 
@@ -44,7 +44,7 @@ class DriveOperation:
 
 
 class DrivePublicationTransaction:
-    """Crash-restartable publication primitive over DriveModel.
+    """Crash-restartable publication primitive over a DriveBackend.
 
     This models canonical object movement and rollback only. MASTER, semantic
     post-check, durable control serialization and REST transport remain later
@@ -52,7 +52,7 @@ class DrivePublicationTransaction:
     mutations; the outer protocol still exposes OLD / NEW / UNKNOWN semantics.
     """
 
-    def __init__(self, drive: DriveModel, history_original_parent_id: str, rejected_parent_id: str):
+    def __init__(self, drive: DriveBackend, history_original_parent_id: str, rejected_parent_id: str):
         self.drive = drive
         self.history_original_parent_id = history_original_parent_id
         self.rejected_parent_id = rejected_parent_id
