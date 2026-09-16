@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .engine_abort import AbortMixin
 from .engine_finalize import FinalizeMixin
 from .engine_mutate import MutationMixin
 from .engine_prepare import PreparationMixin
@@ -19,7 +20,7 @@ from .protocol import (
 from .storage import Observed, StorageRuntime
 
 
-class CoreEngine(PreparationMixin, MutationMixin, FinalizeMixin, StorageRuntime):
+class CoreEngine(AbortMixin, PreparationMixin, MutationMixin, FinalizeMixin, StorageRuntime):
     """Restartable deterministic Core for the disposable local-filesystem MVP."""
 
     def run(self, *, max_steps: int = 100) -> str:
