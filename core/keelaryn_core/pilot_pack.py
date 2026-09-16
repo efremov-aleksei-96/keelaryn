@@ -150,7 +150,10 @@ def _resolve_source(root: Path, relative: str) -> Path:
 def _read_regular_file(path: Path, *, label: str, max_bytes: int) -> bytes:
     if _is_linklike(path):
         raise PilotPackBlocked(f"{label}: symlink/reparse objects are forbidden")
-    flags = os.O_RDONLY
+    # Windows CRT descriptors may otherwise inherit text mode and translate
+    # CRLF to LF in os.read(), breaking exact-byte fingerprints and the
+    # fstat-size guard. O_BINARY is a no-op/absent on POSIX.
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     if nofollow:
         flags |= nofollow
