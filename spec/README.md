@@ -10,6 +10,8 @@ The specification is intentionally independent from Manager 4.x. Legacy Manager 
 spec/
 ├── README.md
 ├── STATE_MACHINE.md
+├── DRIVE_BACKEND.md
+├── DRIVE_TRANSPORT.md
 ├── examples/
 │   └── MASTER.ready.json
 └── schemas/
@@ -22,6 +24,8 @@ spec/
     ├── history.schema.json
     └── recovery-block.schema.json
 ```
+
+`DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` refines that design into the HTTP/idempotency/failure contract, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations.
 
 ## Normative path layout for the MVP
 
