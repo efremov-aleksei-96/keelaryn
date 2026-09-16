@@ -29,6 +29,10 @@ class DriveDisposableAcceptanceTests(unittest.TestCase):
         drive.create_blob(root.file_id, "README.md", SENTINEL_BYTES, label="setup.sentinel")
         return drive, root.file_id
 
+    def test_checked_in_sentinel_fixture_matches_guard_exactly(self) -> None:
+        fixture = (LIVE / "fixtures" / "README.md").read_bytes()
+        self.assertEqual(fixture, SENTINEL_BYTES)
+
     def test_exact_guarded_root_runs_pass_and_fail_in_fresh_child_hubs(self) -> None:
         drive, root_id = self.guarded_root()
         result = run_disposable_acceptance(drive, root_id, "model-1")
