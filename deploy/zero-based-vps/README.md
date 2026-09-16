@@ -4,7 +4,7 @@
 
 `deploy/zero-based-vps/` is the **single canonical deployment source** for the zero-based VPS line. Do not maintain a second systemd/deployment template elsewhere in the repository.
 
-The MVP runtime is one long-lived `keelaryn_core.drive_poller serve` process on one Linux VPS. Drive state remains fail-closed if remote state is ambiguous, and `DriveProcessLock` prevents two local runtime processes from owning one Hub concurrently.
+The MVP runtime is one long-lived `keelaryn_core.drive_poller serve` process on one Linux VPS. Drive state remains fail-closed if remote state is ambiguous, and `DriveProcessLock` prevents two local Core runtime processes from owning one Hub concurrently. Workspace commands are separate short-lived semantic-work operations over `work/projects/`; they do not acquire the Core process lock and may run while the poller is active.
 
 ## Canonical deployment assets
 
@@ -14,6 +14,14 @@ The MVP runtime is one long-lived `keelaryn_core.drive_poller serve` process on 
 - `build_payload.py` — deterministic exact-source payload builder;
 - `materialize_payload.py` — strict payload verifier and immutable release materializer;
 - `release_switch.py` — durable restartable `current` publication/rollback transaction.
+
+The Workspace executable surface is part of the immutable Core payload:
+
+```text
+python3 -B -m keelaryn_core.workspace_cli
+```
+
+It is intentionally not a second daemon.
 
 ## Filesystem contract
 
@@ -44,6 +52,8 @@ Deployment transaction state is separate from `/run/keelaryn`. `/run/keelaryn` i
 Create a dedicated unprivileged `keelaryn` system account/group. The checked-in units clear Linux capabilities, use systemd sandboxing and expose only `/run/keelaryn` as an explicit writable runtime path.
 
 Keep `/etc/keelaryn/drive.env` owned by `root:root` with mode `0600`. Systemd reads it before dropping privileges; the service process does not need filesystem permission to read the file directly. Required variables are shown in `keelaryn-drive.env.example`. Continuous `serve` requires refresh credentials; a static access token is intentionally rejected.
+
+Do not `source /etc/keelaryn/drive.env` into an interactive shell merely to run Workspace commands. Use the transient-systemd pattern below so the service manager reads the root-owned environment file and launches the short-lived command as the unprivileged `keelaryn` identity.
 
 `release_switch.py` is an administrative filesystem tool. It does not read OAuth credentials and does not mutate Google Drive or Hub bytes.
 
@@ -84,6 +94,7 @@ PY
 
 PYTHONPATH=core python3 -B -m unittest discover -s tests/core -p 'test_*.py' -v
 PYTHONPATH=core python3 -B -m keelaryn_core.drive_poller --help >/dev/null
+PYTHONPATH=core python3 -B -m keelaryn_core.workspace_cli --help >/dev/null
 python3 -B deploy/zero-based-vps/release_switch.py --help >/dev/null
 ```
 
@@ -128,6 +139,78 @@ KEELARYN_RUNTIME_DIR=/run/keelaryn
 ```
 
 `Restart=on-failure` is paired with `RestartPreventExitStatus=2 130`. Exit `2` means Core is protocol/configuration blocked and MUST NOT become a restart storm. Transport uncertainty is not blindly retried inside a mutation; a later top-level iteration re-observes Drive state.
+
+## Workspace operations on the VPS
+
+Workspace commands operate only on semantic Project work state. They do not publish canonical data and do not use the Core process lock. One active writer per Project remains the MVP rule; do not intentionally run simultaneous mutating Workspace commands for the same Project.
+
+Run read-only list/read commands through a transient oneshot so secrets stay in the root-owned environment file:
+
+```bash
+systemd-run --quiet --wait --collect --pipe \
+  --unit=keelaryn-workspace-list \
+  --property=User=keelaryn \
+  --property=Group=keelaryn \
+  --property=EnvironmentFile=/etc/keelaryn/drive.env \
+  --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
+  --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 -B -m keelaryn_core.workspace_cli list
+```
+
+For one Project:
+
+```bash
+systemd-run --quiet --wait --collect --pipe \
+  --unit=keelaryn-workspace-read \
+  --property=User=keelaryn \
+  --property=Group=keelaryn \
+  --property=EnvironmentFile=/etc/keelaryn/drive.env \
+  --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
+  --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 -B -m keelaryn_core.workspace_cli read <project_id>
+```
+
+For `create` or `update`, write the intended exact UTF-8 STATE bytes to a temporary file readable by `keelaryn` but not world-readable. Do not place OAuth material in that file. Example administrative preparation:
+
+```bash
+install -o keelaryn -g keelaryn -m 0600 /path/to/STATE.md /run/keelaryn/workspace-state.md
+```
+
+Then create:
+
+```bash
+systemd-run --quiet --wait --collect --pipe \
+  --unit=keelaryn-workspace-create \
+  --property=User=keelaryn \
+  --property=Group=keelaryn \
+  --property=EnvironmentFile=/etc/keelaryn/drive.env \
+  --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
+  --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 -B -m keelaryn_core.workspace_cli \
+  create <project_id> --state-file /run/keelaryn/workspace-state.md
+```
+
+Or update:
+
+```bash
+systemd-run --quiet --wait --collect --pipe \
+  --unit=keelaryn-workspace-update \
+  --property=User=keelaryn \
+  --property=Group=keelaryn \
+  --property=EnvironmentFile=/etc/keelaryn/drive.env \
+  --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
+  --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 -B -m keelaryn_core.workspace_cli \
+  update <project_id> <update_id> --state-file /run/keelaryn/workspace-state.md
+```
+
+After the command returns, remove the temporary semantic input:
+
+```bash
+rm -f /run/keelaryn/workspace-state.md
+```
+
+The CLI emits JSON only and intentionally omits internal Drive IDs. Exit `2` is a protocol/configuration block. Exit `3` means the remote mutation result is uncertain and the caller must re-observe/repeat the same logical operation; do not invent a new Project or update identity merely because the response was lost.
 
 ## Durable atomic update transaction
 
@@ -263,5 +346,5 @@ Crash points after active-record creation, symlink swap, terminal-marker creatio
 - Use `release_switch.py` for every update/rollback after first installation; do not use ad-hoc `ln -sfn` for `current`.
 - Keep durable deployment state private and separate from service runtime state.
 - Do not use `Restart=always`; blocked Core states must remain stopped/observable.
-- MVP allows only one writer host per Hub.
+- MVP allows only one Core writer host per Hub and one active semantic writer per Project.
 - A VPS deployment PASS is development evidence until applicable live Drive and later production-specific gates also pass.
