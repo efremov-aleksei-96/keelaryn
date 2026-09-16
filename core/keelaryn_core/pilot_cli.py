@@ -11,6 +11,7 @@ from .drive_backend import DriveBackend, DriveTransportError, DriveUncertainMuta
 from .drive_poller import DrivePollerConfigError, _token_source_from_environment
 from .drive_rest import GoogleDriveBackend
 from .pilot_drive import DrivePilotBlocked, DrivePilotImportService
+from .pilot_live import DrivePrivatePilotLiveBlocked, DrivePrivatePilotLiveService
 from .pilot_pack import PilotPackBlocked, build_pilot_pack, verify_pilot_pack
 
 
@@ -48,6 +49,16 @@ class DrivePilotCommandSurface:
         return {"pilot": evidence.to_json_value()}
 
 
+class DrivePrivatePilotLiveCommandSurface:
+    def __init__(self, drive: DriveBackend):
+        self.drive = drive
+
+    def import_pack(self, pack_dir: str) -> dict[str, Any]:
+        pack = verify_pilot_pack(pack_dir)
+        evidence = DrivePrivatePilotLiveService(self.drive).run(pack)
+        return {"live_pilot": evidence.to_json_value()}
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keelaryn-pilot")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -60,13 +71,19 @@ def _parser() -> argparse.ArgumentParser:
     verify = sub.add_parser("pack-verify", help="Verify one immutable private pilot pack")
     verify.add_argument("--pack-dir", required=True)
 
-    imp = sub.add_parser("import", help="Import one verified private pack into one fresh disposable Drive Hub")
+    imp = sub.add_parser("import", help="Import one verified private pack into one already-created fresh disposable Drive Hub")
     imp.add_argument("--pack-dir", required=True)
     imp.add_argument(
         "--hub-root-id",
         default=os.environ.get("KEELARYN_HUB_ROOT_ID"),
         help="Exact disposable Google Drive Hub root ID (or KEELARYN_HUB_ROOT_ID)",
     )
+
+    live = sub.add_parser(
+        "live-import",
+        help="Create a fresh disposable safety root + Hub through DriveBackend and import one verified private pack",
+    )
+    live.add_argument("--pack-dir", required=True)
     return parser
 
 
@@ -77,15 +94,25 @@ def main(argv: list[str] | None = None) -> int:
             value = PilotPackCommandSurface.build(args.source_root, args.source_manifest, args.output_dir)
         elif args.command == "pack-verify":
             value = PilotPackCommandSurface.verify(args.pack_dir)
-        else:
+        elif args.command == "import":
             if not args.hub_root_id:
                 raise PilotCliError("--hub-root-id or KEELARYN_HUB_ROOT_ID is required")
             token_source = _token_source_from_environment("once")
             surface = DrivePilotCommandSurface(GoogleDriveBackend(token_source), args.hub_root_id)
             value = surface.import_pack(args.pack_dir)
+        else:
+            token_source = _token_source_from_environment("once")
+            surface = DrivePrivatePilotLiveCommandSurface(GoogleDriveBackend(token_source))
+            value = surface.import_pack(args.pack_dir)
         _emit(value)
         return 0
-    except (PilotCliError, PilotPackBlocked, DrivePilotBlocked, DrivePollerConfigError) as exc:
+    except (
+        PilotCliError,
+        PilotPackBlocked,
+        DrivePilotBlocked,
+        DrivePrivatePilotLiveBlocked,
+        DrivePollerConfigError,
+    ) as exc:
         _emit({"error": "BLOCKED", "detail": str(exc)}, stream=sys.stderr)
         return 2
     except (DriveUncertainMutation, DriveTransportError) as exc:
@@ -97,4 +124,10 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ["DrivePilotCommandSurface", "PilotCliError", "PilotPackCommandSurface", "main"]
+__all__ = [
+    "DrivePilotCommandSurface",
+    "DrivePrivatePilotLiveCommandSurface",
+    "PilotCliError",
+    "PilotPackCommandSurface",
+    "main",
+]
