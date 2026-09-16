@@ -11,6 +11,7 @@ from typing import Mapping
 from .drive_backend import DriveTransportError, DriveUncertainMutation
 from .drive_bootstrap import DriveBootstrapBlocked, DriveBootstrapResult, DriveHubBootstrap
 from .drive_oauth import GoogleOAuthRefreshTokenProvider
+from .drive_process_lock import DriveProcessLock, DriveProcessLockError
 from .drive_rest import GoogleDriveBackend
 from .drive_service import DrivePollingService, DriveServiceBlocked, DriveServiceStatus
 from .protocol import ProtocolError
@@ -120,33 +121,42 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: --hub-root-id or KEELARYN_HUB_ROOT_ID is required", file=sys.stderr)
         return 2
     try:
-        token_source = _token_source_from_environment(args.command)
-        poller = DrivePoller(GoogleDriveBackend(token_source), args.hub_root_id)
-        if args.command == "bootstrap":
-            _emit(poller.bootstrap())
-            return 0
-        if args.command == "once":
-            result = poller.run_once()
-            _emit(result)
-            return 2 if result.phase in {"RECOVERY_BLOCKED", "ABORTED_SAFE"} else 0
-
-        interval = args.interval_seconds
-        if not isinstance(interval, float) or interval < 1.0 or interval > 3600.0:
-            raise DrivePollerConfigError("--interval-seconds must be between 1 and 3600")
-        while True:
-            try:
+        # One local process owns all Drive mutation authority for this Hub for the
+        # complete command lifetime. The lock is acquired before OAuth/Drive access.
+        with DriveProcessLock(args.hub_root_id):
+            token_source = _token_source_from_environment(args.command)
+            poller = DrivePoller(GoogleDriveBackend(token_source), args.hub_root_id)
+            if args.command == "bootstrap":
+                _emit(poller.bootstrap())
+                return 0
+            if args.command == "once":
                 result = poller.run_once()
                 _emit(result)
-                if result.phase in {"RECOVERY_BLOCKED", "ABORTED_SAFE"}:
-                    return 2
-            except (DriveUncertainMutation, DriveTransportError) as exc:
-                # No mutation is retried in place. A later top-level iteration will
-                # re-observe exact Drive state before deciding what to do next.
-                _emit(_fatal_result("transport", "REOBSERVE_REQUIRED", str(exc)), stream=sys.stderr)
-            time.sleep(interval)
+                return 2 if result.phase in {"RECOVERY_BLOCKED", "ABORTED_SAFE"} else 0
+
+            interval = args.interval_seconds
+            if not isinstance(interval, float) or interval < 1.0 or interval > 3600.0:
+                raise DrivePollerConfigError("--interval-seconds must be between 1 and 3600")
+            while True:
+                try:
+                    result = poller.run_once()
+                    _emit(result)
+                    if result.phase in {"RECOVERY_BLOCKED", "ABORTED_SAFE"}:
+                        return 2
+                except (DriveUncertainMutation, DriveTransportError) as exc:
+                    # No mutation is retried in place. A later top-level iteration will
+                    # re-observe exact Drive state before deciding what to do next.
+                    _emit(_fatal_result("transport", "REOBSERVE_REQUIRED", str(exc)), stream=sys.stderr)
+                time.sleep(interval)
     except KeyboardInterrupt:
         return 130
-    except (DrivePollerConfigError, DriveBootstrapBlocked, DriveServiceBlocked, ProtocolError) as exc:
+    except (
+        DrivePollerConfigError,
+        DriveProcessLockError,
+        DriveBootstrapBlocked,
+        DriveServiceBlocked,
+        ProtocolError,
+    ) as exc:
         _emit(_fatal_result("error", "BLOCKED", str(exc)), stream=sys.stderr)
         return 2
     except (DriveUncertainMutation, DriveTransportError) as exc:
