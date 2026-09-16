@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 
-from .drive_backend import DriveBackend, DriveItem
+from .drive_backend import DriveBackend, DriveItem, DriveNotFound
 from .protocol import ProtocolError
 
 
@@ -68,7 +68,7 @@ class DrivePublicationTransaction:
             return None
         try:
             return self.drive.get(file_id, include_trashed=False)
-        except ProtocolError:
+        except DriveNotFound:
             return None
 
     def _require_exact(
