@@ -9,6 +9,7 @@ from .drive_control import DriveControl
 from .drive_execution_rollback import DriveExecutionRollbackBinding
 from .drive_master import DriveMasterBinding, DriveMasterTransition
 from .drive_postcheck import DrivePostcheckBinding
+from .drive_recovery_block import DriveRecoveryBlockBinding
 from .drive_snapshot import DriveSnapshotPlan
 from .drive_transaction import BlobState
 from .protocol import ProtocolError, canonical_json_bytes, strict_json_bytes, validate_master
@@ -88,6 +89,7 @@ class DriveTransactionBundle:
     snapshot_component: ExactJsonComponent
     postcheck_component: ExactJsonComponent
     execution_rollback_component: ExactJsonComponent
+    recovery_block_component: ExactJsonComponent
     starting_ready_master_component: ExactJsonComponent
     activate_binding_component: ExactJsonComponent
     active_safe_master_component: ExactJsonComponent
@@ -97,6 +99,8 @@ class DriveTransactionBundle:
     committed_master_component: ExactJsonComponent
     rollback_binding_component: ExactJsonComponent
     rolled_back_master_component: ExactJsonComponent
+    blocked_binding_component: ExactJsonComponent
+    blocked_master_component: ExactJsonComponent
 
     @property
     def bundle_name(self) -> str:
@@ -119,6 +123,10 @@ class DriveTransactionBundle:
         return DriveExecutionRollbackBinding.from_bytes(self.execution_rollback_component.raw)
 
     @property
+    def recovery_block_binding(self) -> DriveRecoveryBlockBinding:
+        return DriveRecoveryBlockBinding.from_bytes(self.recovery_block_component.raw)
+
+    @property
     def activate_binding(self) -> DriveMasterBinding:
         return DriveMasterBinding.from_bytes(self.activate_binding_component.raw)
 
@@ -133,6 +141,10 @@ class DriveTransactionBundle:
     @property
     def rollback_binding(self) -> DriveMasterBinding:
         return DriveMasterBinding.from_bytes(self.rollback_binding_component.raw)
+
+    @property
+    def blocked_binding(self) -> DriveMasterBinding:
+        return DriveMasterBinding.from_bytes(self.blocked_binding_component.raw)
 
     @classmethod
     def plan(
@@ -163,22 +175,41 @@ class DriveTransactionBundle:
         ):
             raise ProtocolError("bundle planning requires exact READY/SAFE base MASTER")
 
+        active_unsafe_value = validate_master(
+            strict_json_bytes(bytes(active_unsafe_master_bytes), label="MASTER.active_unsafe")
+        )
+        blocked_value = dict(active_unsafe_value)
+        blocked_value["state"] = "RECOVERY_BLOCKED"
+        blocked_value["canonical_read_status"] = "UNSAFE"
+        blocked_value["current_stage"] = "RECOVERY_BLOCKED"
+        blocked_raw = canonical_json_bytes(blocked_value)
+
         master_raws = {
             "active_safe": bytes(active_safe_master_bytes),
             "active_unsafe": bytes(active_unsafe_master_bytes),
             "committed": bytes(committed_master_bytes),
             "rolled_back": bytes(rolled_back_master_bytes),
+            "blocked": blocked_raw,
         }
         for label, raw in master_raws.items():
             validate_master(strict_json_bytes(raw, label=f"MASTER.{label}"))
 
-        reserved = drive.generate_ids(5)
-        bundle_file_id, active_safe_id, active_unsafe_id, committed_id, rolled_back_id = reserved
+        recovery_block_binding = DriveRecoveryBlockBinding.plan(
+            drive,
+            change_id=control.change_id,
+            change_sha256=change_sha256,
+            base_canonical_epoch=base_canonical_epoch,
+            record_parent_id=execution_rollback_binding.marker_parent_id,
+        )
+
+        reserved = drive.generate_ids(6)
+        bundle_file_id, active_safe_id, active_unsafe_id, committed_id, rolled_back_id, blocked_id = reserved
         ready_state = BlobState.from_bytes(current_raw)
         active_safe_state = BlobState.from_bytes(master_raws["active_safe"])
         active_unsafe_state = BlobState.from_bytes(master_raws["active_unsafe"])
         committed_state = BlobState.from_bytes(master_raws["committed"])
         rolled_back_state = BlobState.from_bytes(master_raws["rolled_back"])
+        blocked_state = BlobState.from_bytes(master_raws["blocked"])
 
         activate = DriveMasterBinding(
             transition_id=f"{control.change_id}.activate",
@@ -216,6 +247,15 @@ class DriveTransactionBundle:
             candidate_master_id=rolled_back_id,
             new_state=rolled_back_state,
         )
+        blocked = DriveMasterBinding(
+            transition_id=f"{control.change_id}.blocked",
+            root_id=control.hub_root_id,
+            transition_parent_id=master_transition_parent_id,
+            old_master_id=active_unsafe_id,
+            old_state=active_unsafe_state,
+            candidate_master_id=blocked_id,
+            new_state=blocked_state,
+        )
 
         bundle = cls(
             change_id=control.change_id,
@@ -229,6 +269,7 @@ class DriveTransactionBundle:
             snapshot_component=ExactJsonComponent(snapshot_plan.to_bytes()),
             postcheck_component=ExactJsonComponent(postcheck_binding.to_bytes()),
             execution_rollback_component=ExactJsonComponent(execution_rollback_binding.to_bytes()),
+            recovery_block_component=ExactJsonComponent(recovery_block_binding.to_bytes()),
             starting_ready_master_component=ExactJsonComponent(current_raw),
             activate_binding_component=ExactJsonComponent(activate.to_bytes()),
             active_safe_master_component=ExactJsonComponent(master_raws["active_safe"]),
@@ -238,6 +279,8 @@ class DriveTransactionBundle:
             committed_master_component=ExactJsonComponent(master_raws["committed"]),
             rollback_binding_component=ExactJsonComponent(rollback.to_bytes()),
             rolled_back_master_component=ExactJsonComponent(master_raws["rolled_back"]),
+            blocked_binding_component=ExactJsonComponent(blocked.to_bytes()),
+            blocked_master_component=ExactJsonComponent(master_raws["blocked"]),
         )
         bundle.validate_consistency()
         return bundle
@@ -251,6 +294,7 @@ class DriveTransactionBundle:
         active_unsafe = self._master_value(self.active_unsafe_master_component, "MASTER.active_unsafe")
         committed = self._master_value(self.committed_master_component, "MASTER.committed")
         rolled_back = self._master_value(self.rolled_back_master_component, "MASTER.rolled_back")
+        blocked = self._master_value(self.blocked_master_component, "MASTER.blocked")
         exact_active = {
             "change_id": self.change_id,
             "change_sha256": self.change_sha256,
@@ -282,6 +326,15 @@ class DriveTransactionBundle:
             and active_unsafe["last_completed_change"] == active_safe["last_completed_change"]
         ):
             raise DriveBundleBlocked("ACTIVE/UNSAFE MASTER component is inconsistent with bundle identity")
+        if not (
+            blocked["state"] == "RECOVERY_BLOCKED"
+            and blocked["canonical_read_status"] == "UNSAFE"
+            and blocked["canonical_epoch"] == self.base_canonical_epoch
+            and blocked["active_change"] == exact_active
+            and blocked["current_stage"] == "RECOVERY_BLOCKED"
+            and blocked["last_completed_change"] == active_unsafe["last_completed_change"]
+        ):
+            raise DriveBundleBlocked("RECOVERY_BLOCKED MASTER component is inconsistent with bundle identity")
         for value, outcome, label in (
             (committed, "COMMITTED", "COMMITTED"),
             (rolled_back, "ROLLED_BACK", "ROLLED_BACK"),
@@ -307,10 +360,12 @@ class DriveTransactionBundle:
         snapshots = self.snapshot_plan
         postcheck = self.postcheck_binding
         execution_rollback = self.execution_rollback_binding
+        recovery_block = self.recovery_block_binding
         activate = self.activate_binding
         unsafe = self.unsafe_binding
         commit = self.commit_binding
         rollback = self.rollback_binding
+        blocked = self.blocked_binding
 
         if control.change_id != self.change_id or control.hub_root_id != self.hub_root_id:
             raise DriveBundleBlocked("DriveControl identity/root mismatch")
@@ -328,6 +383,12 @@ class DriveTransactionBundle:
             or execution_rollback.base_canonical_epoch != self.base_canonical_epoch
         ):
             raise DriveBundleBlocked("execution rollback binding transaction identity mismatch")
+        if (
+            recovery_block.change_id != self.change_id
+            or recovery_block.change_sha256 != self.change_sha256
+            or recovery_block.base_canonical_epoch != self.base_canonical_epoch
+        ):
+            raise DriveBundleBlocked("recovery block binding transaction identity mismatch")
 
         expected_snapshot_ops = [op for op in control.operations if op.kind in {"REPLACE", "DELETE"}]
         if len(snapshots.entries) != len(expected_snapshot_ops):
@@ -347,6 +408,7 @@ class DriveTransactionBundle:
             (unsafe, "unsafe"),
             (commit, "commit"),
             (rollback, "rollback"),
+            (blocked, "blocked"),
         ):
             if binding.root_id != self.hub_root_id or binding.transition_parent_id != self.master_transition_parent_id:
                 raise DriveBundleBlocked(f"{label} MASTER binding structural root mismatch")
@@ -365,12 +427,15 @@ class DriveTransactionBundle:
         if not (
             commit.old_master_id == unsafe.candidate_master_id
             and rollback.old_master_id == unsafe.candidate_master_id
+            and blocked.old_master_id == unsafe.candidate_master_id
             and commit.old_state == unsafe.new_state
             and rollback.old_state == unsafe.new_state
+            and blocked.old_state == unsafe.new_state
             and commit.new_state == BlobState.from_bytes(self.committed_master_component.raw)
             and rollback.new_state == BlobState.from_bytes(self.rolled_back_master_component.raw)
+            and blocked.new_state == BlobState.from_bytes(self.blocked_master_component.raw)
         ):
-            raise DriveBundleBlocked("final MASTER transitions do not chain from ACTIVE/UNSAFE")
+            raise DriveBundleBlocked("final/blocked MASTER transitions do not chain from ACTIVE/UNSAFE")
 
         reserved_ids = [
             self.bundle_file_id,
@@ -378,9 +443,11 @@ class DriveTransactionBundle:
             unsafe.candidate_master_id,
             commit.candidate_master_id,
             rollback.candidate_master_id,
+            blocked.candidate_master_id,
             postcheck.pass_receipt_id,
             postcheck.fail_receipt_id,
             execution_rollback.marker_id,
+            recovery_block.record_id,
             *(entry.snapshot_id for entry in snapshots.entries),
             *(op.staged_new_id for op in control.operations if op.staged_new_id is not None),
         ]
@@ -409,6 +476,7 @@ class DriveTransactionBundle:
                     "snapshot": self.snapshot_component.to_json(),
                     "postcheck": self.postcheck_component.to_json(),
                     "execution_rollback": self.execution_rollback_component.to_json(),
+                    "recovery_block": self.recovery_block_component.to_json(),
                     "starting_ready_master": self.starting_ready_master_component.to_json(),
                     "activate_binding": self.activate_binding_component.to_json(),
                     "active_safe_master": self.active_safe_master_component.to_json(),
@@ -418,6 +486,8 @@ class DriveTransactionBundle:
                     "committed_master": self.committed_master_component.to_json(),
                     "rollback_binding": self.rollback_binding_component.to_json(),
                     "rolled_back_master": self.rolled_back_master_component.to_json(),
+                    "blocked_binding": self.blocked_binding_component.to_json(),
+                    "blocked_master": self.blocked_master_component.to_json(),
                 },
             }
         )
@@ -446,6 +516,7 @@ class DriveTransactionBundle:
             "snapshot",
             "postcheck",
             "execution_rollback",
+            "recovery_block",
             "starting_ready_master",
             "activate_binding",
             "active_safe_master",
@@ -455,6 +526,8 @@ class DriveTransactionBundle:
             "committed_master",
             "rollback_binding",
             "rolled_back_master",
+            "blocked_binding",
+            "blocked_master",
         }
         if not isinstance(components, dict) or set(components) != component_names:
             raise ProtocolError("DRIVE_TRANSACTION_BUNDLE.components: invalid set")
@@ -471,6 +544,9 @@ class DriveTransactionBundle:
             postcheck_component=ExactJsonComponent.from_json(components["postcheck"], "components.postcheck"),
             execution_rollback_component=ExactJsonComponent.from_json(
                 components["execution_rollback"], "components.execution_rollback"
+            ),
+            recovery_block_component=ExactJsonComponent.from_json(
+                components["recovery_block"], "components.recovery_block"
             ),
             starting_ready_master_component=ExactJsonComponent.from_json(
                 components["starting_ready_master"], "components.starting_ready_master"
@@ -498,6 +574,12 @@ class DriveTransactionBundle:
             ),
             rolled_back_master_component=ExactJsonComponent.from_json(
                 components["rolled_back_master"], "components.rolled_back_master"
+            ),
+            blocked_binding_component=ExactJsonComponent.from_json(
+                components["blocked_binding"], "components.blocked_binding"
+            ),
+            blocked_master_component=ExactJsonComponent.from_json(
+                components["blocked_master"], "components.blocked_master"
             ),
         )
         bundle.validate_consistency()
