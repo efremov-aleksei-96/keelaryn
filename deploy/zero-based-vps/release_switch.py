@@ -17,6 +17,7 @@ SCHEMA = "keelaryn.zero-vps-release-switch.v1"
 TERMINAL_SCHEMA = "keelaryn.zero-vps-release-switch-terminal.v1"
 ACTIVE_NAME = "ACTIVE_TRANSACTION.json"
 LOCK_NAME = "LOCK"
+TOOL_RELATIVE = Path("deploy/zero-based-vps/release_switch.py")
 
 
 class ReleaseSwitchError(RuntimeError):
@@ -168,6 +169,13 @@ def _read_current(install_root: Path) -> str:
         raise ReleaseSwitchError("cannot read current symlink") from exc
 
 
+def _current_commit(install_root: Path) -> str:
+    value = _read_current(install_root)
+    if not value.startswith("releases/"):
+        raise ReleaseSwitchError("current symlink is not in canonical releases/<commit> form")
+    return _commit(value.removeprefix("releases/"), "current commit")
+
+
 def _classify(install_root: Path, old_commit: str, new_commit: str) -> str:
     try:
         value = _read_current(install_root)
@@ -232,10 +240,18 @@ def _parse_terminal(raw: bytes, record_raw: bytes, record: dict[str, Any]) -> di
 
 
 class ReleaseSwitch:
-    def __init__(self, install_root: Path, state_root: Path, *, fault_hook: FaultHook | None = None):
+    def __init__(
+        self,
+        install_root: Path,
+        state_root: Path,
+        *,
+        fault_hook: FaultHook | None = None,
+        executing_tool: Path | None = None,
+    ):
         self.install_root = _real_dir(install_root, "install root")
         self.state_root = _private_dir(state_root, "deployment state root", create=True)
         self.fault_hook = fault_hook
+        self.executing_tool = executing_tool
         self.active_path = self.state_root / ACTIVE_NAME
         self.terminal_root = self.state_root / "terminal"
         self.history_root = self.state_root / "history"
@@ -278,6 +294,29 @@ class ReleaseSwitch:
             raise ReleaseSwitchError("cannot read active release-switch transaction") from exc
         return raw, _parse_record(raw)
 
+    def _required_tool_commit_unlocked(self) -> str:
+        if self.active_path.exists() or self.active_path.is_symlink():
+            _, record = self._load_active()
+            return record["old"]["source_commit"]
+        return _current_commit(self.install_root)
+
+    def _assert_tool_identity_unlocked(self) -> None:
+        if self.executing_tool is None:
+            return
+        commit = self._required_tool_commit_unlocked()
+        expected = _release_path(self.install_root, commit) / TOOL_RELATIVE
+        if expected.is_symlink() or not expected.is_file():
+            raise ReleaseSwitchError("required release-switch tool is missing/not regular")
+        try:
+            actual_resolved = self.executing_tool.resolve(strict=True)
+            expected_resolved = expected.resolve(strict=True)
+        except OSError as exc:
+            raise ReleaseSwitchError("cannot resolve release-switch tool identity") from exc
+        if actual_resolved != expected_resolved:
+            raise ReleaseSwitchError(
+                f"active deployment transaction must continue with release-switch tool from OLD commit {commit}"
+            )
+
     def _terminal_path(self, txid: str) -> Path:
         return self.terminal_root / f"{txid}.json"
 
@@ -306,12 +345,10 @@ class ReleaseSwitch:
     def prepare(self, new_commit: str) -> dict[str, Any]:
         new_commit = _commit(new_commit, "new commit")
         with self.locked():
+            self._assert_tool_identity_unlocked()
             if self.active_path.exists() or self.active_path.is_symlink():
                 raise ReleaseSwitchError("an active release-switch transaction already exists")
-            current = _read_current(self.install_root)
-            if not current.startswith("releases/"):
-                raise ReleaseSwitchError("current symlink is not in canonical releases/<commit> form")
-            old_commit = _commit(current.removeprefix("releases/"), "current commit")
+            old_commit = _current_commit(self.install_root)
             if old_commit == new_commit:
                 raise ReleaseSwitchError("new commit is already active")
             old_identity = _release_identity(self.install_root, old_commit)
@@ -333,6 +370,7 @@ class ReleaseSwitch:
 
     def apply(self) -> dict[str, Any]:
         with self.locked():
+            self._assert_tool_identity_unlocked()
             record_raw, record = self._load_active()
             terminal = self._load_terminal(record_raw, record)
             if terminal is not None:
@@ -353,6 +391,7 @@ class ReleaseSwitch:
 
     def accept(self) -> dict[str, Any]:
         with self.locked():
+            self._assert_tool_identity_unlocked()
             record_raw, record = self._load_active()
             terminal = self._load_terminal(record_raw, record)
             if terminal is not None:
@@ -371,6 +410,7 @@ class ReleaseSwitch:
 
     def rollback(self) -> dict[str, Any]:
         with self.locked():
+            self._assert_tool_identity_unlocked()
             record_raw, record = self._load_active()
             terminal = self._load_terminal(record_raw, record)
             if terminal is not None:
@@ -442,6 +482,7 @@ class ReleaseSwitch:
 
     def status(self) -> dict[str, Any]:
         with self.locked():
+            self._assert_tool_identity_unlocked()
             return self.status_unlocked()
 
 
@@ -462,7 +503,11 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        switch = ReleaseSwitch(args.install_root, args.state_root)
+        switch = ReleaseSwitch(
+            args.install_root,
+            args.state_root,
+            executing_tool=Path(__file__),
+        )
         result = (
             switch.prepare(args.new_commit)
             if args.command == "prepare"
