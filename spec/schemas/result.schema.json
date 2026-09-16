@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:keelaryn:schema:result:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "state",
+    "project_id",
+    "result_id",
+    "base_canonical_epoch",
+    "result_markdown",
+    "canonical_inputs",
+    "expected_canonical_targets"
+  ],
+  "properties": {
+    "schema": { "const": "keelaryn.result.v1" },
+    "state": { "const": "READY_FOR_RECONCILIATION" },
+    "project_id": { "$ref": "common.schema.json#/$defs/changeId" },
+    "result_id": { "$ref": "common.schema.json#/$defs/changeId" },
+    "base_canonical_epoch": { "type": "integer", "minimum": 0 },
+    "result_markdown": { "$ref": "common.schema.json#/$defs/presentState" },
+    "canonical_inputs": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "observed"],
+        "properties": {
+          "path": { "$ref": "common.schema.json#/$defs/relativePath" },
+          "observed": { "$ref": "common.schema.json#/$defs/fileState" }
+        }
+      }
+    },
+    "expected_canonical_targets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": { "$ref": "common.schema.json#/$defs/relativePath" }
+    }
+  }
+}
