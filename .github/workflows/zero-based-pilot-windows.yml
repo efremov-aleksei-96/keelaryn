@@ -1,0 +1,53 @@
+name: Zero-based Pilot Windows validation
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'core/keelaryn_core/pilot_pack.py'
+      - 'core/keelaryn_core/pilot_cli.py'
+      - 'tests/core/test_pilot_pack*.py'
+      - '.github/workflows/zero-based-pilot-windows.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'core/keelaryn_core/pilot_pack.py'
+      - 'core/keelaryn_core/pilot_cli.py'
+      - 'tests/core/test_pilot_pack*.py'
+      - '.github/workflows/zero-based-pilot-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zero-based-pilot-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pilot-windows:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Show Python runtime
+        shell: pwsh
+        run: python --version
+
+      - name: Run pilot-pack Windows exact-byte tests
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'core'
+          python -m unittest discover -s tests/core -p 'test_pilot_pack*.py' -v
+
+      - name: Smoke Pilot CLI surface
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'core'
+          python -m keelaryn_core.pilot_cli --help
