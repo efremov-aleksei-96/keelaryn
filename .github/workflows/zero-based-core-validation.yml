@@ -1,0 +1,52 @@
+name: Zero-based Core validation
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'core/**'
+      - 'tests/core/**'
+      - 'spec/**'
+      - '.github/workflows/zero-based-core-validation.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'core/**'
+      - 'tests/core/**'
+      - 'spec/**'
+      - '.github/workflows/zero-based-core-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zero-based-core-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Show Python runtime
+        run: python3 --version
+
+      - name: Compile Core
+        run: python3 -m compileall -q core tests/core
+
+      - name: Run deterministic Core tests
+        run: python3 -m unittest discover -s tests/core -p 'test_*.py' -v
+
+      - name: Smoke CLI bootstrap and status
+        run: |
+          tmp="$(mktemp -d)"
+          PYTHONPATH=core python3 -m keelaryn_core.cli --hub "$tmp/hub" bootstrap
+          PYTHONPATH=core python3 -m keelaryn_core.cli --hub "$tmp/hub" status
