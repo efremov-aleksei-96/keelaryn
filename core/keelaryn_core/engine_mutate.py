@@ -39,6 +39,7 @@ class MutationMixin:
                         self._block(master, "TARGET_UNKNOWN", op, self._observe_target(op["target"]), "DELETE target is no longer exact OLD")
                     target.unlink()
                     self._fsync_dir(target.parent)
+                    self.fault.hit(f"apply.{op['operation_id']}.after_delete")
 
                 final, final_observed = self._classify(entry)
                 if final != "NEW":
@@ -129,6 +130,7 @@ class MutationMixin:
                     self._block(master, "TARGET_UNKNOWN", entry, self._observe_target(entry["target"]), "ADD rollback target is not exact NEW")
                 target.unlink()
                 self._fsync_dir(target.parent)
+                self.fault.hit(f"rollback.{entry['operation_id']}.after_delete")
             else:
                 snapshot = self._safe_existing_file(
                     history_dir,
