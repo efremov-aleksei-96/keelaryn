@@ -47,7 +47,7 @@ concurrency:
 
 jobs:
   development-validation:
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/zero-based-keelaryn') }}
+    if: ${{ github.ref != 'refs/heads/dev/zero-based-keelaryn' }}
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
@@ -151,10 +151,11 @@ jobs:
         shell: bash
         run: PYTHONPATH=core python3 tests/live/drive_disposable_acceptance.py
 
-# On dev/zero-based-keelaryn, manual workflow_dispatch is reserved for the guarded
-# disposable Drive acceptance job above. The legacy Manager development job is
-# intentionally skipped for that one branch/event combination. Push behavior for
-# Manager development branches remains unchanged.
+# dev/zero-based-keelaryn is isolated from the legacy Manager development job.
+# Normal zero-based push validation is owned by zero-based-core-validation.yml.
+# Manual workflow_dispatch on the zero-based branch is reserved for the guarded
+# disposable Drive acceptance job above. Other dev/** branches retain the legacy
+# Manager development-validation behavior.
 #
 # IMPORTANT: KEELARYN_DISPOSABLE_* credentials must belong to a dedicated test
 # Google identity that has access only to the disposable acceptance root, never to
