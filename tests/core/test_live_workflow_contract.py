@@ -49,6 +49,15 @@ class LiveWorkflowContractTests(unittest.TestCase):
         )
         self.assertIn("zero-based-drive-disposable-acceptance:", raw)
 
+    def test_live_evidence_path_uses_runner_environment_not_job_expression_context(self) -> None:
+        raw = self.workflow()
+        self.assertNotIn("KEELARYN_LIVE_EVIDENCE: ${{ runner.temp }}", raw)
+        self.assertIn("Prepare compact live evidence path", raw)
+        self.assertIn(
+            'echo "KEELARYN_LIVE_EVIDENCE=$RUNNER_TEMP/ZERO_BASED_DRIVE_LIVE_ACCEPTANCE.json" >> "$GITHUB_ENV"',
+            raw,
+        )
+
     def test_live_evidence_is_sanitized_commit_bound_and_short_lived(self) -> None:
         raw = self.workflow()
         required = (
