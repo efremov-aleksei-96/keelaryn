@@ -27,13 +27,26 @@ class DriveBootstrapTests(unittest.TestCase):
     def assert_layout(self, drive, hub_id) -> None:
         canonical = drive.exact_name(hub_id, "canonical")
         work = drive.exact_name(hub_id, "work")
+        projects = drive.exact_name(work.file_id, "projects")
         reconciliation = drive.exact_name(work.file_id, "reconciliation")
+        claims = drive.exact_name(reconciliation.file_id, "claims")
         changes = drive.exact_name(reconciliation.file_id, "changes")
         postcheck = drive.exact_name(reconciliation.file_id, "postcheck")
         control = drive.exact_name(hub_id, "control")
         active = drive.exact_name(control.file_id, "active")
         history = drive.exact_name(hub_id, "history")
-        for item in (canonical, work, reconciliation, changes, postcheck, control, active, history):
+        for item in (
+            canonical,
+            work,
+            projects,
+            reconciliation,
+            claims,
+            changes,
+            postcheck,
+            control,
+            active,
+            history,
+        ):
             self.assertIsNotNone(item)
             self.assertTrue(item.is_folder)
         masters = drive.list_children(hub_id, name=MASTER_NAME)
@@ -77,6 +90,30 @@ class DriveBootstrapTests(unittest.TestCase):
         self.assertIsNone(drive.exact_name(hub_id, "history"))
         self.assertEqual(len(drive.list_children(hub_id, name=MASTER_NAME)), 1)
 
+    def test_existing_master_missing_projects_or_claims_is_read_only_failure(self) -> None:
+        for missing in ("projects", "claims"):
+            with self.subTest(missing=missing):
+                drive, hub_id = self.fresh()
+                # Build old development layout manually, then publish MASTER.
+                canonical = drive.create_folder(hub_id, "canonical", label="setup.canonical")
+                work = drive.create_folder(hub_id, "work", label="setup.work")
+                if missing != "projects":
+                    drive.create_folder(work.file_id, "projects", label="setup.projects")
+                reconciliation = drive.create_folder(work.file_id, "reconciliation", label="setup.reconciliation")
+                if missing != "claims":
+                    drive.create_folder(reconciliation.file_id, "claims", label="setup.claims")
+                drive.create_folder(reconciliation.file_id, "changes", label="setup.changes")
+                drive.create_folder(reconciliation.file_id, "postcheck", label="setup.postcheck")
+                control = drive.create_folder(hub_id, "control", label="setup.control")
+                drive.create_folder(control.file_id, "active", label="setup.active")
+                drive.create_folder(hub_id, "history", label="setup.history")
+                drive.create_blob(hub_id, MASTER_NAME, DriveHubBootstrap.initial_master_bytes(), label="setup.master")
+
+                with self.assertRaises(DriveBootstrapBlocked):
+                    DriveHubBootstrap(drive, hub_id).run()
+                self.assertEqual(len(drive.list_children(hub_id, name=MASTER_NAME)), 1)
+                self.assertIsNotNone(canonical)
+
     def test_duplicate_structural_folder_blocks_without_master(self) -> None:
         drive, hub_id = self.fresh()
         drive.create_folder(hub_id, "canonical", label="setup.canonical-1")
@@ -95,7 +132,7 @@ class DriveBootstrapTests(unittest.TestCase):
 
     def test_rest_lost_response_after_every_bootstrap_mutation_recovers(self) -> None:
         count = self.mutation_count()
-        self.assertGreaterEqual(count, 9)
+        self.assertGreaterEqual(count, 11)
         for mutation_number in range(1, count + 1):
             with self.subTest(mutation_number=mutation_number, total=count):
                 drive, hub_id = self.fresh()
