@@ -11,11 +11,17 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "core"))
 
 from keelaryn_core.drive_backend import DriveBackend, DriveNotFound
-from keelaryn_core.drive_bootstrap import DriveHubBootstrap
+from keelaryn_core.drive_bootstrap import (
+    INDEX_NAME,
+    README_NAME,
+    RECONCILIATION_STATE_NAME,
+    DriveHubBootstrap,
+)
 from keelaryn_core.drive_oauth import GoogleOAuthRefreshTokenProvider
 from keelaryn_core.drive_rest import GoogleDriveBackend
 from keelaryn_core.drive_service import DrivePollingService
 from keelaryn_core.protocol import ProtocolError, canonical_json_bytes
+from keelaryn_core.workspace import DriveWorkspaceService
 
 
 ACCEPTANCE_ROOT_NAME = "Keelaryn__DISPOSABLE_LIVE_ACCEPTANCE_ROOT"
@@ -37,6 +43,8 @@ class AcceptanceCaseResult:
     outcome: str
     hub_id: str
     canonical_epoch: int
+    human_surface_verified: bool
+    workspace_verified: bool
 
 
 @dataclass(frozen=True)
@@ -52,10 +60,14 @@ class DisposableAcceptanceResult:
                 "pass": {
                     "outcome": self.pass_case.outcome,
                     "canonical_epoch": self.pass_case.canonical_epoch,
+                    "human_surface_verified": self.pass_case.human_surface_verified,
+                    "workspace_verified": self.pass_case.workspace_verified,
                 },
                 "fail": {
                     "outcome": self.fail_case.outcome,
                     "canonical_epoch": self.fail_case.canonical_epoch,
+                    "human_surface_verified": self.fail_case.human_surface_verified,
+                    "workspace_verified": self.fail_case.workspace_verified,
                 },
             },
             ensure_ascii=False,
@@ -109,10 +121,61 @@ def _present(raw: bytes) -> dict[str, object]:
     return {"state": "PRESENT", "sha256": sha256(raw).hexdigest(), "size": len(raw)}
 
 
+def _verify_bootstrap_human_surface(drive: DriveBackend, hub_id: str) -> None:
+    readme = drive.exact_name(hub_id, README_NAME)
+    index = drive.exact_name(hub_id, INDEX_NAME)
+    work = drive.exact_name(hub_id, "work")
+    if readme is None or index is None or work is None or not work.is_folder:
+        raise DisposableAcceptanceBlocked("fresh acceptance Hub is missing bootstrap human surface")
+    reconciliation = drive.exact_name(work.file_id, "reconciliation")
+    if reconciliation is None or not reconciliation.is_folder:
+        raise DisposableAcceptanceBlocked("fresh acceptance Hub is missing work/reconciliation")
+    state = drive.exact_name(reconciliation.file_id, RECONCILIATION_STATE_NAME)
+    if state is None:
+        raise DisposableAcceptanceBlocked("fresh acceptance Hub is missing Reconciliation STATE.md")
+    expected = (
+        (readme, DriveHubBootstrap.initial_readme_bytes(), "README.md"),
+        (index, DriveHubBootstrap.initial_index_bytes(), "INDEX.md"),
+        (state, DriveHubBootstrap.initial_reconciliation_state_bytes(), "Reconciliation STATE.md"),
+    )
+    for item, raw, label in expected:
+        if item.trashed or item.is_folder or drive.download(item.file_id) != raw:
+            raise DisposableAcceptanceBlocked(f"fresh acceptance {label} does not match exact bootstrap bytes")
+
+
+def _verify_workspace(drive: DriveBackend, hub_id: str, decision: str, run_id: str) -> None:
+    workspace = DriveWorkspaceService(drive, hub_id)
+    if workspace.list_projects():
+        raise DisposableAcceptanceBlocked("fresh acceptance Workspace is not empty")
+    project_id = f"accept-{decision.lower()}-{run_id}"
+    initial = (
+        f"# Project State\n\nGoal: live {decision} acceptance\n\nNext action: inspect.\n"
+    ).encode("utf-8")
+    updated = (
+        f"# Project State\n\nGoal: live {decision} acceptance\n\nNext action: ready for result.\n"
+    ).encode("utf-8")
+    created = workspace.create_project(project_id, initial)
+    replay = workspace.create_project(project_id, initial)
+    if replay != created or workspace.read_project(project_id) != created:
+        raise DisposableAcceptanceBlocked("Workspace project creation is not exact/idempotent")
+    listed = workspace.list_projects()
+    if listed != (created,):
+        raise DisposableAcceptanceBlocked("Workspace project listing does not match exact created project")
+    changed = workspace.update_project(project_id, "live-1", updated)
+    if changed.project.state_raw != updated:
+        raise DisposableAcceptanceBlocked("Workspace project STATE update bytes do not match")
+    if changed.project.state_file_id == created.state_file_id:
+        raise DisposableAcceptanceBlocked("Workspace project STATE update did not use copy-on-write identity")
+    if workspace.read_project(project_id) != changed.project or workspace.list_projects() != (changed.project,):
+        raise DisposableAcceptanceBlocked("Workspace project update is not visible through exact navigation")
+
+
 def _seed_ready_change(drive: DriveBackend, hub_id: str, decision: str, run_id: str) -> tuple[str, str]:
     bootstrap = DriveHubBootstrap(drive, hub_id).run()
     if bootstrap.master["canonical_epoch"] != 0 or bootstrap.master["canonical_read_status"] != "SAFE":
         raise DisposableAcceptanceBlocked("fresh acceptance Hub did not bootstrap as SAFE epoch 0")
+    _verify_bootstrap_human_surface(drive, hub_id)
+    _verify_workspace(drive, hub_id, decision, run_id)
 
     canonical = bootstrap.layout.canonical_root_id
     replace_old = f"replace-old-{run_id}".encode("utf-8")
@@ -189,7 +252,6 @@ def _verify_case(drive: DriveBackend, hub_id: str, decision: str, run_id: str) -
     if first.phase != "WAIT_POSTCHECK":
         raise DisposableAcceptanceBlocked(f"{decision} case did not reach WAIT_POSTCHECK: {first.phase}")
 
-    # Discover exact active identity from root MASTER without depending on process-local bundle.
     from keelaryn_core.drive_master import DriveMasterTransition
     from keelaryn_core.protocol import strict_json_bytes, validate_master
 
@@ -245,7 +307,7 @@ def _verify_case(drive: DriveBackend, hub_id: str, decision: str, run_id: str) -
         if added is not None or replaced is None or deleted is None:
             raise DisposableAcceptanceBlocked("FAIL rollback canonical outcome does not restore OLD state")
 
-    return AcceptanceCaseResult(decision, expected, hub_id, final_master["canonical_epoch"])
+    return AcceptanceCaseResult(decision, expected, hub_id, final_master["canonical_epoch"], True, True)
 
 
 def run_disposable_acceptance(drive: DriveBackend, acceptance_root_id: str, run_id: str) -> DisposableAcceptanceResult:
@@ -282,7 +344,6 @@ def main() -> int:
         print(result.to_json(), flush=True)
         return 0
     except Exception as exc:
-        # Credentials are never interpolated into this harness's own messages.
         print(f"ERROR: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         return 2
 
