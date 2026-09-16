@@ -26,6 +26,13 @@ def _text(value: Any, label: str) -> str:
     return value
 
 
+def _transition_id(value: Any) -> str:
+    result = _text(value, "transition_id")
+    if any(ch not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-" for ch in result):
+        raise ProtocolError("transition_id: unsafe transition identifier")
+    return result
+
+
 def _state_json(value: BlobState) -> dict[str, Any]:
     return {"sha256": value.sha256, "size": value.size}
 
@@ -68,7 +75,7 @@ class DriveMasterBinding:
         return canonical_json_bytes(
             {
                 "schema": SCHEMA,
-                "transition_id": self.transition_id,
+                "transition_id": _transition_id(self.transition_id),
                 "root_id": self.root_id,
                 "transition_parent_id": self.transition_parent_id,
                 "old_master_id": self.old_master_id,
@@ -97,11 +104,8 @@ class DriveMasterBinding:
             raise ProtocolError("DRIVE_MASTER_TRANSITION: keys mismatch")
         if value["schema"] != SCHEMA:
             raise ProtocolError("DRIVE_MASTER_TRANSITION.schema: unsupported schema")
-        transition_id = _text(value["transition_id"], "transition_id")
-        if any(ch not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-" for ch in transition_id):
-            raise ProtocolError("transition_id: unsafe transition identifier")
         return cls(
-            transition_id=transition_id,
+            transition_id=_transition_id(value["transition_id"]),
             root_id=_text(value["root_id"], "root_id"),
             transition_parent_id=_text(value["transition_parent_id"], "transition_parent_id"),
             old_master_id=_text(value["old_master_id"], "old_master_id"),
@@ -134,6 +138,7 @@ class DriveMasterTransition:
         expected_old: BlobState,
         new_bytes: bytes,
     ) -> DriveMasterBinding:
+        transition_id = _transition_id(transition_id)
         matches = drive.list_children(root_id, name=MASTER_NAME)
         if len(matches) != 1:
             raise DriveMasterUnavailable(f"expected exactly one {MASTER_NAME}, found {len(matches)}")
@@ -196,7 +201,7 @@ class DriveMasterTransition:
             raise DriveMasterRecoveryBlocked("multiple live MASTER.json objects")
         return matches[0] if matches else None
 
-    def _exact_known(
+    def _exact_at(
         self,
         file_id: str,
         state: BlobState,
@@ -207,31 +212,37 @@ class DriveMasterTransition:
         item = self._get_live(file_id)
         if item is None:
             return None
-        return self._verify_exact_static(self.drive, item, state, parent_id=parent_id, name=name)
+        # The same exact known object legitimately moves during the transition.
+        # Always reject byte/metadata corruption, but a different known location
+        # merely means "not at this position"; classify() evaluates all positions.
+        self._verify_exact_static(self.drive, item, state)
+        if item.parent_id != parent_id or item.name != name:
+            return None
+        return item
 
     def classify(self) -> str:
         b = self.binding
         root = self._root_master()
-        old_root = self._exact_known(b.old_master_id, b.old_state, parent_id=b.root_id, name=MASTER_NAME)
-        old_staged = self._exact_known(
+        old_root = self._exact_at(b.old_master_id, b.old_state, parent_id=b.root_id, name=MASTER_NAME)
+        old_staged = self._exact_at(
             b.old_master_id,
             b.old_state,
             parent_id=b.transition_parent_id,
             name=b.old_name,
         )
-        candidate_staged = self._exact_known(
+        candidate_staged = self._exact_at(
             b.candidate_master_id,
             b.new_state,
             parent_id=b.transition_parent_id,
             name=b.candidate_name,
         )
-        candidate_root = self._exact_known(
+        candidate_root = self._exact_at(
             b.candidate_master_id,
             b.new_state,
             parent_id=b.root_id,
             name=MASTER_NAME,
         )
-        candidate_rejected = self._exact_known(
+        candidate_rejected = self._exact_at(
             b.candidate_master_id,
             b.new_state,
             parent_id=b.transition_parent_id,
@@ -239,7 +250,6 @@ class DriveMasterTransition:
         )
 
         candidate_any = self._get_live(b.candidate_master_id)
-        old_any = self._get_live(b.old_master_id)
 
         if root is not None and root.file_id == b.old_master_id and old_root is not None:
             if candidate_any is None:
@@ -265,10 +275,6 @@ class DriveMasterTransition:
         ):
             return "NEW"
 
-        # A known object disappeared, moved to an unexpected place, changed bytes,
-        # or an unrelated object occupies MASTER.json. Never guess through this.
-        if old_any is None or (candidate_any is None and root is not old_root):
-            return "UNKNOWN"
         return "UNKNOWN"
 
     def prepare_candidate(self, new_bytes: bytes) -> str:
