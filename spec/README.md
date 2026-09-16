@@ -16,6 +16,7 @@ spec/
 ├── DRIVE_ORCHESTRATION.md
 ├── DRIVE_DISCOVERY.md
 ├── DRIVE_SERVICE.md
+├── PILOT.md
 ├── examples/
 │   └── MASTER.ready.json
 └── schemas/
@@ -34,7 +35,7 @@ spec/
     └── work-state-update.schema.json
 ```
 
-`WORKFLOW.md` defines Workspace navigation, the shared copy-on-write `STATE.md` transition for Project and Reconciliation work, RESULT publication, project-scoped Reconciliation claim authority and the semantic handoff into the existing Ready Change/Core boundary. `DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` defines HTTP/idempotency/failure semantics, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations. `DRIVE_ORCHESTRATION.md` defines immutable transaction authority, copy-on-write MASTER transitions, independent pre-UNSAFE snapshots and state-derived recovery. `DRIVE_DISCOVERY.md` defines restart bootstrap from the active locator to the exact immutable transaction bundle, including zero-MASTER gap recovery without process-local transaction memory. `DRIVE_SERVICE.md` composes bootstrap, Ready Change ingestion, transaction factory, polling, exact Ready-marker consumption and terminal locator cleanup into the Drive MVP service lifecycle.
+`WORKFLOW.md` defines Workspace navigation, the shared copy-on-write `STATE.md` transition for Project and Reconciliation work, RESULT publication, project-scoped Reconciliation claim authority and the semantic handoff into the existing Ready Change/Core boundary. `DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` defines HTTP/idempotency/failure semantics, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations. `DRIVE_ORCHESTRATION.md` defines immutable transaction authority, copy-on-write MASTER transitions, independent pre-UNSAFE snapshots and state-derived recovery. `DRIVE_DISCOVERY.md` defines restart bootstrap from the active locator to the exact immutable transaction bundle, including zero-MASTER gap recovery without process-local transaction memory. `DRIVE_SERVICE.md` composes bootstrap, Ready Change ingestion, transaction factory, polling, exact Ready-marker consumption and terminal locator cleanup into the Drive MVP service lifecycle. `PILOT.md` defines the private limited-real-Hub-subset pilot boundary: explicit read-only-copy allowlisting, immutable private pack verification, disposable-only import, ordinary Ready Change/Core publication and sanitized evidence.
 
 ## Normative logical path layout for the MVP
 
@@ -94,6 +95,8 @@ During an incomplete work STATE transition, `NEW.md` may also exist in the updat
 Project and Reconciliation use the same deterministic COW engine. Their durable PLAN/DONE records bind `owner_kind` (`PROJECT` or `RECONCILIATION`), `owner_id` and exact owner folder ID, so authority from one semantic role cannot be replayed as the other. Initial Reconciliation STATE publication belongs to bootstrap; the semantic Reconciliation service only verifies those initial bytes and performs later COW updates.
 
 Workspace is an initiator/navigator rather than a new storage authority. Its deterministic service lists, creates, reads and updates Project work areas using the existing Project/work-state protocols. Portfolio listing fails closed on ambiguous or incomplete direct Project structure rather than silently omitting it. `python -m keelaryn_core.workspace_cli` exposes that surface for an initialized Drive Hub and is included in exact-head VPS payload validation.
+
+The limited-subset pilot does not extend Hub authority. `PILOT_SOURCE.json` and the resulting private pilot pack are local test inputs only. The importer converts the exact verified pack into the existing Ready Change/Core path and may target only a fresh disposable Hub. Private pack bytes never become repository fixtures or development artifacts.
 
 The local-filesystem backend may materialize equivalent control/history authority differently. A directory or object name does not itself grant trust. Core and workflow layers verify schemas, exact hashes, bound identities, path safety and actual filesystem/Drive state.
 
