@@ -60,6 +60,9 @@ jobs:
       - name: Smoke Drive poller CLI surface
         run: PYTHONPATH=core python3 -m keelaryn_core.drive_poller --help
 
+      - name: Smoke VPS release-switch CLI surface
+        run: python3 deploy/zero-based-vps/release_switch.py --help
+
       - name: Prove exact-head deterministic VPS payload
         env:
           KEELARYN_VPS_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_VPS_PAYLOAD_EVIDENCE.json
@@ -96,6 +99,7 @@ jobs:
               compile(path.read_bytes(), str(path), 'exec')
           PY
             PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=core python3 -B -m keelaryn_core.drive_poller --help >/dev/null
+            PYTHONDONTWRITEBYTECODE=1 python3 -B deploy/zero-based-vps/release_switch.py --help >/dev/null
           )
           if find "$release" \( -type d -name '__pycache__' -o -type f -name '*.pyc' -o -type f -name '*.pyo' \) -print -quit | grep -q .; then
             echo "Materialized release was mutated by validation bytecode output." >&2
@@ -120,6 +124,7 @@ jobs:
                   "deterministic_rebuild": True,
                   "materialization_verified": True,
                   "release_validation_wrote_no_bytecode": True,
+                  "release_switch_cli_verified": True,
                   "github_run_id": os.environ["GITHUB_RUN_ID"],
                   "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
               }
