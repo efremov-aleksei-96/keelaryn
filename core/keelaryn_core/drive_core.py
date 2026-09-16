@@ -176,7 +176,7 @@ class DriveCoreRunner:
         if item is None or item.trashed or not item.is_folder:
             raise DriveCoreBlocked(f"required Drive folder missing/invalid: {label}={file_id}")
 
-    def _verify_structural_folders(self) -> None:
+    def _verify_structural_folders(self, *, include_external_postcheck: bool) -> None:
         b = self.bundle
         control = b.control
         post = b.postcheck_binding
@@ -189,10 +189,11 @@ class DriveCoreRunner:
             "bundle_parent": b.bundle_parent_id,
             "snapshot_parent": b.snapshot_plan.snapshot_parent_id,
             "master_transition_parent": b.master_transition_parent_id,
-            "postcheck_source_parent": post.source_parent_id,
             "postcheck_receipt_parent": post.receipt_parent_id,
             "execution_marker_parent": execution.marker_parent_id,
         }
+        if include_external_postcheck:
+            ids["postcheck_source_parent"] = post.source_parent_id
         for label, file_id in ids.items():
             self._require_folder(file_id, label)
 
@@ -210,7 +211,7 @@ class DriveCoreRunner:
 
     def _preunsafe_validate(self) -> None:
         self._bundle_required()
-        self._verify_structural_folders()
+        self._verify_structural_folders(include_external_postcheck=True)
         b = self.bundle
         control = b.control
         tx = DrivePublicationTransaction(
@@ -237,12 +238,16 @@ class DriveCoreRunner:
             tx.capture_old_identity(op)
             tx.verify_staged_new(op)
         snapshots.verify_all()
-        self._verify_structural_folders()
+        self._verify_structural_folders(include_external_postcheck=True)
         self._bundle_required()
 
     def _postunsafe_verify(self) -> None:
         self._bundle_required()
-        self._verify_structural_folders()
+        # Once UNSAFE begins, only Core-owned recovery structure is required.
+        # The external Reconciliation postcheck source is not authority after a
+        # decision-bound receipt exists, and its later removal must not block
+        # commit/rollback recovery.
+        self._verify_structural_folders(include_external_postcheck=False)
         try:
             DriveSnapshotter(self.drive, self.bundle.snapshot_plan).verify_copies()
         except DriveSnapshotBlocked as exc:
@@ -258,7 +263,7 @@ class DriveCoreRunner:
 
     def _activate(self) -> DriveCoreStatus:
         self._ensure_bundle_before_activation()
-        self._verify_structural_folders()
+        self._verify_structural_folders(include_external_postcheck=True)
         transition = DriveMasterTransition(self.drive, self.bundle.activate_binding)
         transition.prepare_candidate(self.bundle.active_safe_master_component.raw)
         transition.publish()
