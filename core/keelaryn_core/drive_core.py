@@ -123,14 +123,53 @@ class DriveCoreRunner:
         return f"GAP_{name.upper()}_{state}"
 
     def _recover_master_gap(self) -> DriveCoreStatus:
+        self._bundle_required()
         name, transition, state = self._gap_transition()
-        if name == "activate" and state == "NEW_REJECTED":
-            transition.rollback()
-            return DriveCoreStatus("PROGRESSED", "completed SAFE activation rollback gap")
+
+        if name == "activate":
+            if state == "NEW_REJECTED":
+                transition.rollback()
+                return DriveCoreStatus("PROGRESSED", "completed SAFE activation rollback gap")
+            if state != "OLD_DISPLACED":
+                raise DriveCoreBlocked(f"unexpected activation MASTER gap state: {state}")
+            transition.publish()
+            return DriveCoreStatus("PROGRESSED", "completed activation MASTER publication gap")
+
         if state != "OLD_DISPLACED":
             raise DriveCoreBlocked(f"unexpected {name} MASTER gap state: {state}")
-        transition.publish()
-        return DriveCoreStatus("PROGRESSED", f"completed {name} MASTER publication gap")
+
+        if name == "unsafe":
+            # Canonical writes have not started yet. Repeat the complete fresh
+            # pre-UNSAFE proof before publishing the UNSAFE MASTER candidate.
+            self._preunsafe_validate()
+            transition.publish()
+            return DriveCoreStatus("PROGRESSED", "completed ENTER_UNSAFE MASTER publication gap")
+
+        self._postunsafe_verify()
+        change_status = DriveChangeRunner(self.drive, self.bundle.control).status()
+        receipts = DrivePostcheckReceipts(self.drive, self.bundle.postcheck_binding)
+        decision = receipts.decision()
+        execution_active = DriveExecutionRollbackMarker(
+            self.drive, self.bundle.execution_rollback_binding
+        ).active()
+
+        if name == "commit":
+            if not change_status.all_new or decision != "PASS" or execution_active:
+                raise DriveCoreBlocked(
+                    f"commit MASTER gap lacks exact PASS/all-NEW authority: states={change_status.states} decision={decision} execution={execution_active}"
+                )
+            transition.publish()
+            return DriveCoreStatus("PROGRESSED", "completed COMMITTED MASTER publication gap")
+
+        if name == "rollback":
+            if not change_status.all_old or decision == "PASS" or not (decision == "FAIL" or execution_active):
+                raise DriveCoreBlocked(
+                    f"rollback MASTER gap lacks exact rollback/all-OLD authority: states={change_status.states} decision={decision} execution={execution_active}"
+                )
+            transition.publish()
+            return DriveCoreStatus("PROGRESSED", "completed ROLLED_BACK MASTER publication gap")
+
+        raise DriveCoreBlocked(f"unsupported MASTER gap transition: {name}")
 
     def _require_folder(self, file_id: str, label: str) -> None:
         item = self._get_live(file_id)
