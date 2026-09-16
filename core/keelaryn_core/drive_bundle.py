@@ -6,6 +6,7 @@ from typing import Any
 
 from .drive_backend import DriveAlreadyExists, DriveBackend, DriveItem, DriveNotFound
 from .drive_control import DriveControl
+from .drive_execution_rollback import DriveExecutionRollbackBinding
 from .drive_master import DriveMasterBinding, DriveMasterTransition
 from .drive_postcheck import DrivePostcheckBinding
 from .drive_snapshot import DriveSnapshotPlan
@@ -86,6 +87,7 @@ class DriveTransactionBundle:
     control_component: ExactJsonComponent
     snapshot_component: ExactJsonComponent
     postcheck_component: ExactJsonComponent
+    execution_rollback_component: ExactJsonComponent
     starting_ready_master_component: ExactJsonComponent
     activate_binding_component: ExactJsonComponent
     active_safe_master_component: ExactJsonComponent
@@ -111,6 +113,10 @@ class DriveTransactionBundle:
     @property
     def postcheck_binding(self) -> DrivePostcheckBinding:
         return DrivePostcheckBinding.from_bytes(self.postcheck_component.raw)
+
+    @property
+    def execution_rollback_binding(self) -> DriveExecutionRollbackBinding:
+        return DriveExecutionRollbackBinding.from_bytes(self.execution_rollback_component.raw)
 
     @property
     def activate_binding(self) -> DriveMasterBinding:
@@ -140,6 +146,7 @@ class DriveTransactionBundle:
         control: DriveControl,
         snapshot_plan: DriveSnapshotPlan,
         postcheck_binding: DrivePostcheckBinding,
+        execution_rollback_binding: DriveExecutionRollbackBinding,
         active_safe_master_bytes: bytes,
         active_unsafe_master_bytes: bytes,
         committed_master_bytes: bytes,
@@ -221,6 +228,7 @@ class DriveTransactionBundle:
             control_component=ExactJsonComponent(control.to_bytes()),
             snapshot_component=ExactJsonComponent(snapshot_plan.to_bytes()),
             postcheck_component=ExactJsonComponent(postcheck_binding.to_bytes()),
+            execution_rollback_component=ExactJsonComponent(execution_rollback_binding.to_bytes()),
             starting_ready_master_component=ExactJsonComponent(current_raw),
             activate_binding_component=ExactJsonComponent(activate.to_bytes()),
             active_safe_master_component=ExactJsonComponent(master_raws["active_safe"]),
@@ -298,6 +306,7 @@ class DriveTransactionBundle:
         control = self.control
         snapshots = self.snapshot_plan
         postcheck = self.postcheck_binding
+        execution_rollback = self.execution_rollback_binding
         activate = self.activate_binding
         unsafe = self.unsafe_binding
         commit = self.commit_binding
@@ -313,6 +322,12 @@ class DriveTransactionBundle:
             or postcheck.base_canonical_epoch != self.base_canonical_epoch
         ):
             raise DriveBundleBlocked("DrivePostcheckBinding transaction identity mismatch")
+        if (
+            execution_rollback.change_id != self.change_id
+            or execution_rollback.change_sha256 != self.change_sha256
+            or execution_rollback.base_canonical_epoch != self.base_canonical_epoch
+        ):
+            raise DriveBundleBlocked("execution rollback binding transaction identity mismatch")
 
         expected_snapshot_ops = [op for op in control.operations if op.kind in {"REPLACE", "DELETE"}]
         if len(snapshots.entries) != len(expected_snapshot_ops):
@@ -365,6 +380,7 @@ class DriveTransactionBundle:
             rollback.candidate_master_id,
             postcheck.pass_receipt_id,
             postcheck.fail_receipt_id,
+            execution_rollback.marker_id,
             *(entry.snapshot_id for entry in snapshots.entries),
             *(op.staged_new_id for op in control.operations if op.staged_new_id is not None),
         ]
@@ -392,6 +408,7 @@ class DriveTransactionBundle:
                     "control": self.control_component.to_json(),
                     "snapshot": self.snapshot_component.to_json(),
                     "postcheck": self.postcheck_component.to_json(),
+                    "execution_rollback": self.execution_rollback_component.to_json(),
                     "starting_ready_master": self.starting_ready_master_component.to_json(),
                     "activate_binding": self.activate_binding_component.to_json(),
                     "active_safe_master": self.active_safe_master_component.to_json(),
@@ -428,6 +445,7 @@ class DriveTransactionBundle:
             "control",
             "snapshot",
             "postcheck",
+            "execution_rollback",
             "starting_ready_master",
             "activate_binding",
             "active_safe_master",
@@ -451,6 +469,9 @@ class DriveTransactionBundle:
             control_component=ExactJsonComponent.from_json(components["control"], "components.control"),
             snapshot_component=ExactJsonComponent.from_json(components["snapshot"], "components.snapshot"),
             postcheck_component=ExactJsonComponent.from_json(components["postcheck"], "components.postcheck"),
+            execution_rollback_component=ExactJsonComponent.from_json(
+                components["execution_rollback"], "components.execution_rollback"
+            ),
             starting_ready_master_component=ExactJsonComponent.from_json(
                 components["starting_ready_master"], "components.starting_ready_master"
             ),
