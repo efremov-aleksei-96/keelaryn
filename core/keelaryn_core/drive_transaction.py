@@ -39,16 +39,17 @@ class DriveOperation:
     old: BlobState | None
     new: BlobState | None
     staged_new_id: str | None = None
+    staged_parent_id: str | None = None
     old_original_id: str | None = None
 
 
 class DrivePublicationTransaction:
     """Crash-restartable publication primitive over DriveModel.
 
-    This intentionally models only canonical object movement and rollback. MASTER,
-    semantic post-check, durable control serialization and REST transport remain the
-    responsibility of later layers. The simulator proves the copy-on-write object
-    choreography required by spec/DRIVE_BACKEND.md.
+    This models canonical object movement and rollback only. MASTER, semantic
+    post-check, durable control serialization and REST transport remain later
+    layers. The internal substates exist only to recover crashes between Drive
+    mutations; the outer protocol still exposes OLD / NEW / UNKNOWN semantics.
     """
 
     def __init__(self, drive: DriveModel, history_original_parent_id: str, rejected_parent_id: str):
@@ -62,11 +63,25 @@ class DrivePublicationTransaction:
             raise DriveRecoveryBlocked(f"ambiguous canonical target {parent_id}/{name}")
         return matches[0] if matches else None
 
-    def _require_exact(self, file_id: str, state: BlobState, *, parent_id: str | None = None, name: str | None = None) -> DriveItem:
+    def _get_live(self, file_id: str | None) -> DriveItem | None:
+        if file_id is None:
+            return None
         try:
-            item = self.drive.get(file_id, include_trashed=False)
-        except ProtocolError as exc:
-            raise DriveRecoveryBlocked(f"expected object missing: {file_id}") from exc
+            return self.drive.get(file_id, include_trashed=False)
+        except ProtocolError:
+            return None
+
+    def _require_exact(
+        self,
+        file_id: str,
+        state: BlobState,
+        *,
+        parent_id: str | None = None,
+        name: str | None = None,
+    ) -> DriveItem:
+        item = self._get_live(file_id)
+        if item is None:
+            raise DriveRecoveryBlocked(f"expected object missing: {file_id}")
         if not state.matches(item):
             raise DriveRecoveryBlocked(f"object bytes changed: {file_id}")
         if parent_id is not None and item.parent_id != parent_id:
@@ -75,36 +90,67 @@ class DrivePublicationTransaction:
             raise DriveRecoveryBlocked(f"object name changed: {file_id}")
         return item
 
+    def _old_in_history(self, op: DriveOperation) -> DriveItem | None:
+        if op.old_original_id is None or op.old is None:
+            return None
+        item = self._get_live(op.old_original_id)
+        if item is None or not op.old.matches(item) or item.parent_id != self.history_original_parent_id:
+            return None
+        return item
+
+    def _new_item(self, op: DriveOperation) -> DriveItem | None:
+        if op.staged_new_id is None or op.new is None:
+            return None
+        item = self._get_live(op.staged_new_id)
+        if item is None or not op.new.matches(item):
+            return None
+        return item
+
     def classify(self, op: DriveOperation) -> str:
+        """Return semantic OLD/NEW/UNKNOWN or an internal recoverable substate."""
         target = self._unique_live(op.canonical_parent_id, op.target_name)
-        old_at_history = None
-        if op.old_original_id is not None and op.old is not None:
-            try:
-                candidate = self.drive.get(op.old_original_id, include_trashed=False)
-            except ProtocolError:
-                candidate = None
-            if candidate is not None and op.old.matches(candidate) and candidate.parent_id == self.history_original_parent_id:
-                old_at_history = candidate
+        old_history = self._old_in_history(op)
+        new_item = self._new_item(op)
 
         if op.kind == "ADD":
             if target is None:
                 return "OLD"
-            if op.new and op.staged_new_id == target.file_id and op.new.matches(target):
+            if new_item is not None and target.file_id == new_item.file_id:
                 return "NEW"
             return "UNKNOWN"
 
         if op.kind == "DELETE":
-            if target is not None and op.old and op.old_original_id in {None, target.file_id} and op.old.matches(target):
+            if (
+                target is not None
+                and op.old is not None
+                and op.old_original_id in {None, target.file_id}
+                and op.old.matches(target)
+            ):
                 return "OLD"
-            if target is None and old_at_history is not None:
+            if target is None and old_history is not None:
                 return "NEW"
             return "UNKNOWN"
 
         if op.kind == "REPLACE":
-            if target is not None and op.old and op.old_original_id in {None, target.file_id} and op.old.matches(target):
+            if (
+                target is not None
+                and op.old is not None
+                and op.old_original_id in {None, target.file_id}
+                and op.old.matches(target)
+            ):
                 return "OLD"
-            if target is not None and op.new and op.staged_new_id == target.file_id and op.new.matches(target) and old_at_history is not None:
+            if (
+                target is not None
+                and new_item is not None
+                and target.file_id == new_item.file_id
+                and old_history is not None
+            ):
                 return "NEW"
+            if target is None and old_history is not None and new_item is not None:
+                if op.staged_parent_id is not None and new_item.parent_id == op.staged_parent_id:
+                    return "OLD_DISPLACED"
+                if new_item.parent_id == self.rejected_parent_id:
+                    return "NEW_REJECTED"
             return "UNKNOWN"
 
         raise ProtocolError(f"unsupported Drive operation kind: {op.kind}")
@@ -124,15 +170,15 @@ class DrivePublicationTransaction:
     def verify_staged_new(self, op: DriveOperation) -> None:
         if op.kind == "DELETE":
             return
-        if op.staged_new_id is None or op.new is None:
-            raise ProtocolError("new object identity missing")
-        self._require_exact(op.staged_new_id, op.new)
+        if op.staged_new_id is None or op.staged_parent_id is None or op.new is None:
+            raise ProtocolError("new object identity or staging parent missing")
+        self._require_exact(op.staged_new_id, op.new, parent_id=op.staged_parent_id)
 
     def apply(self, op: DriveOperation) -> None:
         state = self.classify(op)
         if state == "NEW":
             return
-        if state != "OLD":
+        if state not in {"OLD", "OLD_DISPLACED"}:
             raise DriveRecoveryBlocked(f"cannot apply from {state}")
 
         if op.kind == "ADD":
@@ -148,7 +194,12 @@ class DrivePublicationTransaction:
         elif op.kind == "DELETE":
             if op.old is None or op.old_original_id is None:
                 raise ProtocolError("DELETE old identity missing")
-            self._require_exact(op.old_original_id, op.old, parent_id=op.canonical_parent_id, name=op.target_name)
+            self._require_exact(
+                op.old_original_id,
+                op.old,
+                parent_id=op.canonical_parent_id,
+                name=op.target_name,
+            )
             self.drive.move_rename(
                 op.old_original_id,
                 self.history_original_parent_id,
@@ -159,16 +210,26 @@ class DrivePublicationTransaction:
         elif op.kind == "REPLACE":
             if op.old is None or op.new is None or op.old_original_id is None or op.staged_new_id is None:
                 raise ProtocolError("REPLACE identities incomplete")
-            self._require_exact(op.old_original_id, op.old, parent_id=op.canonical_parent_id, name=op.target_name)
-            self.verify_staged_new(op)
-            self.drive.move_rename(
-                op.old_original_id,
-                self.history_original_parent_id,
-                f"{op.operation_id}.old",
-                label=f"drive.tx.{op.operation_id}.replace.displace_old",
-            )
+            if state == "OLD":
+                self._require_exact(
+                    op.old_original_id,
+                    op.old,
+                    parent_id=op.canonical_parent_id,
+                    name=op.target_name,
+                )
+                self.verify_staged_new(op)
+                self.drive.move_rename(
+                    op.old_original_id,
+                    self.history_original_parent_id,
+                    f"{op.operation_id}.old",
+                    label=f"drive.tx.{op.operation_id}.replace.displace_old",
+                )
+            # Crash restart may arrive here with OLD already displaced.
             if self._unique_live(op.canonical_parent_id, op.target_name) is not None:
                 raise DriveRecoveryBlocked("canonical target unexpectedly occupied after OLD displacement")
+            if op.staged_parent_id is None:
+                raise ProtocolError("REPLACE staging parent missing")
+            self._require_exact(op.staged_new_id, op.new, parent_id=op.staged_parent_id)
             self.drive.move_rename(
                 op.staged_new_id,
                 op.canonical_parent_id,
@@ -183,12 +244,18 @@ class DrivePublicationTransaction:
         state = self.classify(op)
         if state == "OLD":
             return
-        if state != "NEW":
+        if state not in {"NEW", "OLD_DISPLACED", "NEW_REJECTED"}:
             raise DriveRecoveryBlocked(f"cannot rollback from {state}")
 
         if op.kind == "ADD":
-            assert op.staged_new_id is not None and op.new is not None
-            self._require_exact(op.staged_new_id, op.new, parent_id=op.canonical_parent_id, name=op.target_name)
+            if state != "NEW" or op.staged_new_id is None or op.new is None:
+                raise DriveRecoveryBlocked(f"invalid ADD rollback state: {state}")
+            self._require_exact(
+                op.staged_new_id,
+                op.new,
+                parent_id=op.canonical_parent_id,
+                name=op.target_name,
+            )
             self.drive.move_rename(
                 op.staged_new_id,
                 self.rejected_parent_id,
@@ -197,7 +264,8 @@ class DrivePublicationTransaction:
             )
 
         elif op.kind == "DELETE":
-            assert op.old_original_id is not None and op.old is not None
+            if op.old_original_id is None or op.old is None:
+                raise ProtocolError("DELETE old identity missing")
             self._require_exact(op.old_original_id, op.old, parent_id=self.history_original_parent_id)
             if self._unique_live(op.canonical_parent_id, op.target_name) is not None:
                 raise DriveRecoveryBlocked("DELETE rollback target occupied")
@@ -209,16 +277,30 @@ class DrivePublicationTransaction:
             )
 
         elif op.kind == "REPLACE":
-            assert op.old_original_id is not None and op.old is not None
-            assert op.staged_new_id is not None and op.new is not None
-            self._require_exact(op.staged_new_id, op.new, parent_id=op.canonical_parent_id, name=op.target_name)
+            if op.old_original_id is None or op.old is None or op.staged_new_id is None or op.new is None:
+                raise ProtocolError("REPLACE identities incomplete")
             self._require_exact(op.old_original_id, op.old, parent_id=self.history_original_parent_id)
-            self.drive.move_rename(
-                op.staged_new_id,
-                self.rejected_parent_id,
-                f"{op.operation_id}.rejected",
-                label=f"drive.tx.{op.operation_id}.replace.reject_new",
-            )
+            if state == "NEW":
+                self._require_exact(
+                    op.staged_new_id,
+                    op.new,
+                    parent_id=op.canonical_parent_id,
+                    name=op.target_name,
+                )
+                self.drive.move_rename(
+                    op.staged_new_id,
+                    self.rejected_parent_id,
+                    f"{op.operation_id}.rejected",
+                    label=f"drive.tx.{op.operation_id}.replace.reject_new",
+                )
+            elif state == "OLD_DISPLACED":
+                # Apply crashed before NEW publication: OLD can be restored directly.
+                if op.staged_parent_id is None:
+                    raise ProtocolError("REPLACE staging parent missing")
+                self._require_exact(op.staged_new_id, op.new, parent_id=op.staged_parent_id)
+            elif state == "NEW_REJECTED":
+                self._require_exact(op.staged_new_id, op.new, parent_id=self.rejected_parent_id)
+
             if self._unique_live(op.canonical_parent_id, op.target_name) is not None:
                 raise DriveRecoveryBlocked("REPLACE rollback target occupied")
             self.drive.move_rename(
