@@ -54,7 +54,7 @@ def _safe_regular_file(path: Path, repo_root: Path) -> PayloadFile:
     if path.is_symlink():
         raise PayloadBuildError(f"symlinks are forbidden in VPS payload: {relative}")
     try:
-        info = path.stat()
+        path.stat()
     except OSError as exc:
         raise PayloadBuildError(f"cannot stat payload file: {relative}") from exc
     if not path.is_file():
@@ -76,11 +76,18 @@ def collect_files(repo_root: Path) -> tuple[PayloadFile, ...]:
             raise PayloadBuildError(f"required payload root is missing/not a real directory: {root_name}")
         for current, dirs, names in os.walk(root, followlinks=False):
             current_path = Path(current)
-            dirs[:] = sorted(
-                name
-                for name in dirs
-                if name not in EXCLUDED_DIR_NAMES and not (current_path / name).is_symlink()
-            )
+            retained_dirs: list[str] = []
+            for name in sorted(dirs):
+                candidate = current_path / name
+                try:
+                    relative = candidate.relative_to(repo_root).as_posix()
+                except ValueError as exc:
+                    raise PayloadBuildError("payload directory escapes repository root") from exc
+                if candidate.is_symlink():
+                    raise PayloadBuildError(f"symlink directories are forbidden in VPS payload: {relative}")
+                if name not in EXCLUDED_DIR_NAMES:
+                    retained_dirs.append(name)
+            dirs[:] = retained_dirs
             for name in sorted(names):
                 candidate = current_path / name
                 if name.endswith(EXCLUDED_SUFFIXES):
