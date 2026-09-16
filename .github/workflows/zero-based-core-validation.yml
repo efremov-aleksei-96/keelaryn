@@ -75,17 +75,32 @@ jobs:
             --source-commit "$GITHUB_SHA" \
             --output "$tmp/second.tar.gz" > "$tmp/second.json"
           cmp "$tmp/first.tar.gz" "$tmp/second.tar.gz"
+          payload_sha="$(python3 - "$tmp/first.json" <<'PY'
+          import json
+          import sys
+          print(json.load(open(sys.argv[1], encoding='utf-8'))['payload_sha256'])
+          PY
+          )"
           python3 deploy/zero-based-vps/materialize_payload.py \
             --payload "$tmp/first.tar.gz" \
             --releases-root "$tmp/releases" \
-            --expected-source-commit "$GITHUB_SHA" > "$tmp/materialized.json"
+            --expected-source-commit "$GITHUB_SHA" \
+            --expected-payload-sha256 "$payload_sha" > "$tmp/materialized.json"
           release="$tmp/releases/$GITHUB_SHA"
           test -d "$release"
           (
             cd "$release"
-            python3 -m compileall -q core tests/core tests/live
-            PYTHONPATH=core python3 -m keelaryn_core.drive_poller --help >/dev/null
+            PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+          from pathlib import Path
+          for path in sorted(Path('.').rglob('*.py')):
+              compile(path.read_bytes(), str(path), 'exec')
+          PY
+            PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=core python3 -B -m keelaryn_core.drive_poller --help >/dev/null
           )
+          if find "$release" \( -type d -name '__pycache__' -o -type f -name '*.pyc' -o -type f -name '*.pyo' \) -print -quit | grep -q .; then
+            echo "Materialized release was mutated by validation bytecode output." >&2
+            exit 1
+          fi
           python3 - "$tmp/first.json" "$tmp/second.json" "$tmp/materialized.json" "$KEELARYN_VPS_EVIDENCE" <<'PY'
           import json
           import os
@@ -104,6 +119,7 @@ jobs:
               {
                   "deterministic_rebuild": True,
                   "materialization_verified": True,
+                  "release_validation_wrote_no_bytecode": True,
                   "github_run_id": os.environ["GITHUB_RUN_ID"],
                   "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
               }
