@@ -35,7 +35,6 @@ class DriveServiceRestTests(unittest.TestCase):
                 "reason": f"full service REST {decision}",
             }
         )
-        factory_fixture.DriveFactoryTests.postcheck_parent(fixture).drive if False else None
         fixture.drive.create_blob(
             factory_fixture.DriveFactoryTests.postcheck_parent(fixture).file_id,
             "change-1.json",
