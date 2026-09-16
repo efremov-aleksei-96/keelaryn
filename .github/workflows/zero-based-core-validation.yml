@@ -7,16 +7,20 @@ on:
     paths:
       - 'core/**'
       - 'tests/core/**'
+      - 'tests/live/**'
       - 'spec/**'
       - '.github/workflows/zero-based-core-validation.yml'
+      - '.github/workflows/zero-based-drive-disposable-acceptance.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'core/**'
       - 'tests/core/**'
+      - 'tests/live/**'
       - 'spec/**'
       - '.github/workflows/zero-based-core-validation.yml'
+      - '.github/workflows/zero-based-drive-disposable-acceptance.yml'
   workflow_dispatch:
 
 permissions:
@@ -39,14 +43,17 @@ jobs:
       - name: Show Python runtime
         run: python3 --version
 
-      - name: Compile Core
-        run: python3 -m compileall -q core tests/core
+      - name: Compile Core and live acceptance tooling
+        run: python3 -m compileall -q core tests/core tests/live
 
       - name: Run deterministic Core tests
         run: python3 -m unittest discover -s tests/core -p 'test_*.py' -v
 
-      - name: Smoke CLI bootstrap and status
+      - name: Smoke local CLI bootstrap and status
         run: |
           tmp="$(mktemp -d)"
           PYTHONPATH=core python3 -m keelaryn_core.cli --hub "$tmp/hub" bootstrap
           PYTHONPATH=core python3 -m keelaryn_core.cli --hub "$tmp/hub" status
+
+      - name: Smoke Drive poller CLI surface
+        run: PYTHONPATH=core python3 -m keelaryn_core.drive_poller --help
