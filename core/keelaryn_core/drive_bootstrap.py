@@ -6,6 +6,10 @@ from .drive_backend import DriveBackend, DriveItem, DriveNotFound
 from .drive_master import MASTER_NAME
 from .protocol import ProtocolError, canonical_json_bytes, strict_json_bytes, validate_master
 
+README_NAME = "README.md"
+INDEX_NAME = "INDEX.md"
+RECONCILIATION_STATE_NAME = "STATE.md"
+
 
 class DriveBootstrapBlocked(ProtocolError):
     """A Drive Hub root cannot be initialized or verified without ambiguity."""
@@ -33,14 +37,14 @@ class DriveHubBootstrap:
     """Initialize a fresh disposable Drive Hub or verify an initialized one.
 
     Existing initialized Hubs are read-only to this layer: once MASTER.json exists,
-    bootstrap never creates missing folders or repairs structure. For a fresh Hub
-    with no MASTER, deterministic folder names may be created idempotently. The
-    initial READY/SAFE MASTER is published only after all protocol-owned writable
-    areas are proven empty, so bootstrap cannot bless unknown canonical/work/history
-    bytes as a clean Hub.
+    bootstrap never creates missing folders/files or repairs structure. For a fresh
+    Hub with no MASTER, deterministic structural folders and human-readable bootstrap
+    files may be created idempotently. The initial READY/SAFE MASTER is published
+    only after all protocol-owned writable areas and bootstrap files are freshly
+    verified, so bootstrap cannot bless unknown bytes as a clean Hub.
     """
 
-    ROOT_ALLOWED = {"canonical", "work", "control", "history", "README.md", "INDEX.md"}
+    ROOT_ALLOWED = {"canonical", "work", "control", "history", README_NAME, INDEX_NAME}
 
     def __init__(self, drive: DriveBackend, hub_root_id: str):
         self.drive = drive
@@ -59,6 +63,44 @@ class DriveHubBootstrap:
                 "last_completed_change": None,
             }
         )
+
+    @staticmethod
+    def initial_readme_bytes() -> bytes:
+        return (
+            "# Keelaryn Hub\n\n"
+            "This folder is the portable, human-readable Keelaryn knowledge Hub.\n\n"
+            "- `MASTER.json` is Core-owned transaction state.\n"
+            "- `INDEX.md` routes readers to canonical topics and working areas.\n"
+            "- `canonical/` contains canonical truth.\n"
+            "- `work/` contains Project and Reconciliation working state.\n"
+            "- `history/` retains transaction and rollback provenance.\n\n"
+            "Canonical readers must obey the SAFE/epoch protocol before using canonical data.\n"
+        ).encode("utf-8")
+
+    @staticmethod
+    def initial_index_bytes() -> bytes:
+        return (
+            "# Keelaryn Index\n\n"
+            "## Canonical\n\n"
+            "No canonical topics have been published yet.\n\n"
+            "## Work\n\n"
+            "- Projects: `work/projects/`\n"
+            "- Reconciliation: `work/reconciliation/`\n\n"
+            "Add canonical topic routes here when Reconciliation publishes new canonical material.\n"
+        ).encode("utf-8")
+
+    @staticmethod
+    def initial_reconciliation_state_bytes() -> bytes:
+        return (
+            "# Reconciliation State\n\n"
+            "Status: IDLE\n\n"
+            "## Claimed inputs\n\n"
+            "None.\n\n"
+            "## Current work\n\n"
+            "No active reconciliation.\n\n"
+            "## Next action\n\n"
+            "Wait for a valid Project RESULT to claim.\n"
+        ).encode("utf-8")
 
     def _require_root(self) -> DriveItem:
         try:
@@ -84,6 +126,15 @@ class DriveHubBootstrap:
             raise DriveBootstrapBlocked(f"initialized path is not a live folder: {parent_id}/{name}")
         return item
 
+    def _existing_blob(self, parent_id: str, name: str) -> DriveItem:
+        matches = self.drive.list_children(parent_id, name=name)
+        if len(matches) != 1:
+            raise DriveBootstrapBlocked(f"expected exactly one initialized file {parent_id}/{name}, found {len(matches)}")
+        item = matches[0]
+        if item.trashed or item.is_folder:
+            raise DriveBootstrapBlocked(f"initialized path is not a live blob: {parent_id}/{name}")
+        return item
+
     def _ensure_fresh_folder(self, parent_id: str, name: str) -> DriveItem:
         matches = self.drive.list_children(parent_id, name=name)
         if len(matches) > 1:
@@ -105,11 +156,41 @@ class DriveHubBootstrap:
             raise DriveBootstrapBlocked(f"fresh-Hub folder did not become exact: {parent_id}/{name}")
         return matches[0]
 
+    def _ensure_fresh_blob(self, parent_id: str, name: str, raw: bytes, *, label: str) -> DriveItem:
+        matches = self.drive.list_children(parent_id, name=name)
+        if len(matches) > 1:
+            raise DriveBootstrapBlocked(f"duplicate fresh-Hub file {parent_id}/{name}")
+        if matches:
+            item = matches[0]
+            if item.trashed or item.is_folder:
+                raise DriveBootstrapBlocked(f"fresh-Hub path is not a live blob: {parent_id}/{name}")
+            if self.drive.download(item.file_id) != raw:
+                raise DriveBootstrapBlocked(f"fresh-Hub file has unexpected bytes: {parent_id}/{name}")
+            return item
+        reserved = self.drive.generate_ids(1)[0]
+        self.drive.create_blob(
+            parent_id,
+            name,
+            raw,
+            mime_type="text/markdown",
+            file_id=reserved,
+            label=label,
+        )
+        matches = self.drive.list_children(parent_id, name=name)
+        if len(matches) != 1 or matches[0].file_id != reserved or matches[0].trashed or matches[0].is_folder:
+            raise DriveBootstrapBlocked(f"fresh-Hub file did not become exact: {parent_id}/{name}")
+        if self.drive.download(matches[0].file_id) != raw:
+            raise DriveBootstrapBlocked(f"fresh-Hub file bytes changed during publication: {parent_id}/{name}")
+        return matches[0]
+
     def _resolve_existing_layout(self) -> DriveBootstrapLayout:
+        self._existing_blob(self.hub_root_id, README_NAME)
+        self._existing_blob(self.hub_root_id, INDEX_NAME)
         canonical = self._existing_folder(self.hub_root_id, "canonical")
         work = self._existing_folder(self.hub_root_id, "work")
         self._existing_folder(work.file_id, "projects")
         reconciliation = self._existing_folder(work.file_id, "reconciliation")
+        self._existing_blob(reconciliation.file_id, RECONCILIATION_STATE_NAME)
         self._existing_folder(reconciliation.file_id, "claims")
         changes = self._existing_folder(reconciliation.file_id, "changes")
         postcheck = self._existing_folder(reconciliation.file_id, "postcheck")
@@ -143,10 +224,32 @@ class DriveHubBootstrap:
         active = self._ensure_fresh_folder(control.file_id, "active")
         history = self._ensure_fresh_folder(self.hub_root_id, "history")
 
+        self._ensure_fresh_blob(
+            self.hub_root_id,
+            README_NAME,
+            self.initial_readme_bytes(),
+            label="drive.bootstrap.readme.create",
+        )
+        self._ensure_fresh_blob(
+            self.hub_root_id,
+            INDEX_NAME,
+            self.initial_index_bytes(),
+            label="drive.bootstrap.index.create",
+        )
+        self._ensure_fresh_blob(
+            reconciliation.file_id,
+            RECONCILIATION_STATE_NAME,
+            self.initial_reconciliation_state_bytes(),
+            label="drive.bootstrap.reconciliation-state.create",
+        )
+
+        allowed_root = {"canonical", "work", "control", "history", README_NAME, INDEX_NAME}
+        if any(child.name not in allowed_root for child in self.drive.list_children(self.hub_root_id)):
+            raise DriveBootstrapBlocked("unexpected material in fresh Hub root")
         allowed_work = {"projects", "reconciliation"}
         if any(child.name not in allowed_work for child in self.drive.list_children(work.file_id)):
             raise DriveBootstrapBlocked("unexpected material in fresh work/")
-        allowed_reconciliation = {"claims", "changes", "postcheck"}
+        allowed_reconciliation = {"claims", "changes", "postcheck", RECONCILIATION_STATE_NAME}
         if any(child.name not in allowed_reconciliation for child in self.drive.list_children(reconciliation.file_id)):
             raise DriveBootstrapBlocked("unexpected material in fresh work/reconciliation/")
         allowed_control = {"active"}
@@ -174,6 +277,19 @@ class DriveHubBootstrap:
             history.file_id,
         )
 
+    def _verify_fresh_human_surface(self) -> None:
+        readme = self._existing_blob(self.hub_root_id, README_NAME)
+        index = self._existing_blob(self.hub_root_id, INDEX_NAME)
+        if self.drive.download(readme.file_id) != self.initial_readme_bytes():
+            raise DriveBootstrapBlocked("fresh README.md changed before MASTER publication")
+        if self.drive.download(index.file_id) != self.initial_index_bytes():
+            raise DriveBootstrapBlocked("fresh INDEX.md changed before MASTER publication")
+        work = self._existing_folder(self.hub_root_id, "work")
+        reconciliation = self._existing_folder(work.file_id, "reconciliation")
+        state = self._existing_blob(reconciliation.file_id, RECONCILIATION_STATE_NAME)
+        if self.drive.download(state.file_id) != self.initial_reconciliation_state_bytes():
+            raise DriveBootstrapBlocked("fresh Reconciliation STATE.md changed before MASTER publication")
+
     def _parse_master(self, item: DriveItem) -> dict:
         if item.trashed or item.is_folder:
             raise DriveBootstrapBlocked("MASTER.json is not a live blob")
@@ -191,11 +307,12 @@ class DriveHubBootstrap:
             return DriveBootstrapResult("EXISTING", layout, masters[0].file_id, master)
 
         layout = self._ensure_fresh_layout()
-        # Re-check after all failure-prone folder creation. An externally-created
-        # MASTER or new writable material must stop initial publication.
+        # Re-check after all failure-prone folder/file creation. An externally-created
+        # MASTER or changed human/bootstrap material must stop initial publication.
         if self._master_items():
             raise DriveBootstrapBlocked("MASTER.json appeared during fresh-Hub bootstrap")
 
+        self._verify_fresh_human_surface()
         work = self._existing_folder(self.hub_root_id, "work")
         projects = self._existing_folder(work.file_id, "projects")
         reconciliation = self._existing_folder(work.file_id, "reconciliation")
@@ -236,4 +353,7 @@ __all__ = [
     "DriveBootstrapLayout",
     "DriveBootstrapResult",
     "DriveHubBootstrap",
+    "INDEX_NAME",
+    "README_NAME",
+    "RECONCILIATION_STATE_NAME",
 ]
