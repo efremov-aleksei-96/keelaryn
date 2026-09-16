@@ -5,6 +5,7 @@ import fcntl
 import hashlib
 import json
 import os
+import stat
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -77,12 +78,27 @@ def _fsync_dir(path: Path) -> None:
         pass
 
 
-def _real_dir(path: Path, label: str, *, create: bool = False) -> Path:
+def _real_dir(path: Path, label: str) -> Path:
+    path = path.absolute()
+    if path.is_symlink() or not path.is_dir():
+        raise ReleaseSwitchError(f"{label} must be a real directory")
+    return path
+
+
+def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
     path = path.absolute()
     if create and not path.exists():
         path.mkdir(parents=True, mode=0o700)
     if path.is_symlink() or not path.is_dir():
         raise ReleaseSwitchError(f"{label} must be a real directory")
+    try:
+        info = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise ReleaseSwitchError(f"cannot stat {label}") from exc
+    if info.st_uid != os.geteuid():
+        raise ReleaseSwitchError(f"{label} must be owned by the current effective user")
+    if stat.S_IMODE(info.st_mode) != 0o700:
+        raise ReleaseSwitchError(f"{label} must have mode 0700")
     return path
 
 
@@ -218,28 +234,40 @@ def _parse_terminal(raw: bytes, record_raw: bytes, record: dict[str, Any]) -> di
 class ReleaseSwitch:
     def __init__(self, install_root: Path, state_root: Path, *, fault_hook: FaultHook | None = None):
         self.install_root = _real_dir(install_root, "install root")
-        self.state_root = _real_dir(state_root, "deployment state root", create=True)
+        self.state_root = _private_dir(state_root, "deployment state root", create=True)
         self.fault_hook = fault_hook
         self.active_path = self.state_root / ACTIVE_NAME
         self.terminal_root = self.state_root / "terminal"
         self.history_root = self.state_root / "history"
         self.terminal_root.mkdir(mode=0o700, exist_ok=True)
         self.history_root.mkdir(mode=0o700, exist_ok=True)
-        if self.terminal_root.is_symlink() or self.history_root.is_symlink():
-            raise ReleaseSwitchError("deployment state subdirectories must be real")
+        self.terminal_root = _private_dir(self.terminal_root, "deployment terminal directory")
+        self.history_root = _private_dir(self.history_root, "deployment history directory")
+        _fsync_dir(self.state_root)
 
     @contextmanager
     def locked(self) -> Iterator[None]:
-        fd = os.open(self.state_root / LOCK_NAME, os.O_RDWR | os.O_CREAT, 0o600)
+        flags = os.O_RDWR | os.O_CREAT
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
         try:
+            fd = os.open(self.state_root / LOCK_NAME, flags, 0o600)
+        except OSError as exc:
+            raise ReleaseSwitchError("cannot open deployment lock without following symlinks") from exc
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600:
+                raise ReleaseSwitchError("deployment lock must be owner-controlled regular file mode 0600")
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:
                 raise ReleaseSwitchError("another local release-switch process holds the deployment lock") from exc
             yield
         finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-            os.close(fd)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
 
     def _load_active(self) -> tuple[bytes, dict[str, Any]]:
         if self.active_path.is_symlink() or not self.active_path.is_file():
