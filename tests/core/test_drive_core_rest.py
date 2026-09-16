@@ -105,7 +105,7 @@ class RestFixture:
 
 
 class DriveCoreRestTests(unittest.TestCase):
-    def build(self, decision: str, *, fail_after_mutation: int | None = None) -> RestFixture:
+    def build(self, decision: str | None, *, fail_after_mutation: int | None = None) -> RestFixture:
         drive = DriveModel()
         hub = drive.create_folder("root", "Hub")
         canonical = drive.create_folder(hub.file_id, "canonical")
@@ -206,7 +206,8 @@ class DriveCoreRestTests(unittest.TestCase):
             committed_master_bytes=final_master("COMMITTED"),
             rolled_back_master_bytes=final_master("ROLLED_BACK"),
         )
-        drive.create_blob(postcheck_parent.file_id, "rest-change.json", postcheck_bytes(decision))
+        if decision is not None:
+            drive.create_blob(postcheck_parent.file_id, "rest-change.json", postcheck_bytes(decision))
         return RestFixture(
             drive=drive,
             backend=backend,
@@ -266,6 +267,36 @@ class DriveCoreRestTests(unittest.TestCase):
                 status = DriveCoreRunner(restarted, restored).run_until_quiescent()
                 self.assertEqual(status.phase, "ROLLED_BACK")
                 self.assert_rolled_back(fixture)
+
+    def test_rest_recovery_block_uncertain_response_matrix_recovers_every_block_mutation(self) -> None:
+        baseline = self.build(None)
+        self.assertEqual(DriveCoreRunner(baseline.backend, baseline.bundle).run_until_quiescent().phase, "WAIT_POSTCHECK")
+        before_block = baseline.http.mutation_count
+        snapshot_id = baseline.bundle.snapshot_plan.entries[0].snapshot_id
+        baseline.drive.update_content(snapshot_id, b"damaged snapshot")
+        self.assertEqual(DriveCoreRunner(baseline.backend, baseline.bundle).run_until_quiescent().phase, "RECOVERY_BLOCKED")
+        after_block = baseline.http.mutation_count
+        self.assertEqual(after_block - before_block, 4)
+
+        for mutation_number in range(before_block + 1, after_block + 1):
+            with self.subTest(mutation_number=mutation_number, block_start=before_block + 1, block_end=after_block):
+                fixture = self.build(None, fail_after_mutation=mutation_number)
+                raw_bundle = fixture.bundle.to_bytes()
+                self.assertEqual(
+                    DriveCoreRunner(fixture.backend, fixture.bundle).run_until_quiescent().phase,
+                    "WAIT_POSTCHECK",
+                )
+                snapshot_id = fixture.bundle.snapshot_plan.entries[0].snapshot_id
+                fixture.drive.update_content(snapshot_id, b"damaged snapshot")
+
+                with self.assertRaises(DriveUncertainMutation):
+                    DriveCoreRunner(fixture.backend, fixture.bundle).run_until_quiescent()
+
+                restarted = GoogleDriveBackend("token", http=ModelDriveHttp(fixture.drive))
+                restored = DriveTransactionBundle.from_bytes(raw_bundle)
+                status = DriveCoreRunner(restarted, restored).run_until_quiescent()
+                self.assertEqual(status.phase, "RECOVERY_BLOCKED")
+                self.assertEqual(DriveCoreRunner(restarted, restored).phase(), "RECOVERY_BLOCKED")
 
 
 if __name__ == "__main__":
