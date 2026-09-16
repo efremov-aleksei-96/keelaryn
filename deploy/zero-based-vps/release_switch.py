@@ -5,14 +5,12 @@ import fcntl
 import hashlib
 import json
 import os
-import stat
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from materialize_payload import PayloadMaterializeError, verify_release_directory
-
 
 SCHEMA = "keelaryn.zero-vps-release-switch.v1"
 TERMINAL_SCHEMA = "keelaryn.zero-vps-release-switch-terminal.v1"
@@ -33,21 +31,13 @@ def _fault(hook: FaultHook | None, point: str) -> None:
 
 
 def _commit(value: Any, label: str = "commit") -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) != 40
-        or any(ch not in "0123456789abcdef" for ch in value)
-    ):
+    if not isinstance(value, str) or len(value) != 40 or any(ch not in "0123456789abcdef" for ch in value):
         raise ReleaseSwitchError(f"invalid {label}")
     return value
 
 
 def _sha256(value: Any, label: str = "sha256") -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) != 64
-        or any(ch not in "0123456789abcdef" for ch in value)
-    ):
+    if not isinstance(value, str) or len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value):
         raise ReleaseSwitchError(f"invalid {label}")
     return value
 
@@ -58,7 +48,7 @@ def _strict_json(raw: bytes, label: str) -> Any:
     except UnicodeDecodeError as exc:
         raise ReleaseSwitchError(f"{label} is not UTF-8") from exc
 
-    def pairs_hook(pairs):
+    def hook(pairs):
         result: dict[str, Any] = {}
         for key, value in pairs:
             if key in result:
@@ -67,12 +57,12 @@ def _strict_json(raw: bytes, label: str) -> Any:
         return result
 
     try:
-        return json.loads(text, object_pairs_hook=pairs_hook)
+        return json.loads(text, object_pairs_hook=hook)
     except json.JSONDecodeError as exc:
         raise ReleaseSwitchError(f"{label} is invalid JSON") from exc
 
 
-def _canonical_json(value: Any) -> bytes:
+def _json(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 
@@ -87,26 +77,20 @@ def _fsync_dir(path: Path) -> None:
         pass
 
 
-def _real_dir(path: Path, label: str, *, create: bool = False, mode: int = 0o700) -> Path:
+def _real_dir(path: Path, label: str, *, create: bool = False) -> Path:
     path = path.absolute()
     if create and not path.exists():
-        path.mkdir(parents=True, mode=mode)
+        path.mkdir(parents=True, mode=0o700)
     if path.is_symlink() or not path.is_dir():
         raise ReleaseSwitchError(f"{label} must be a real directory")
     return path
 
 
 def _atomic_create(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() or path.is_symlink():
-        try:
-            existing = path.read_bytes()
-        except OSError as exc:
-            raise ReleaseSwitchError(f"cannot read existing immutable file: {path.name}") from exc
-        if existing == data:
-            return
-        raise ReleaseSwitchError(f"immutable file already exists with different bytes: {path.name}")
-
+        if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+            raise ReleaseSwitchError(f"immutable file already exists with different identity: {path.name}")
+        return
     temp = path.parent / f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
     try:
         with temp.open("xb") as stream:
@@ -116,15 +100,11 @@ def _atomic_create(path: Path, data: bytes) -> None:
         try:
             os.link(temp, path)
         except FileExistsError:
-            existing = path.read_bytes()
-            if existing != data:
-                raise ReleaseSwitchError(f"immutable file raced with different bytes: {path.name}")
+            if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+                raise ReleaseSwitchError(f"immutable file raced with different identity: {path.name}")
         _fsync_dir(path.parent)
     finally:
-        try:
-            temp.unlink()
-        except FileNotFoundError:
-            pass
+        temp.unlink(missing_ok=True)
 
 
 def _atomic_symlink(current: Path, target: str) -> None:
@@ -134,15 +114,22 @@ def _atomic_symlink(current: Path, target: str) -> None:
         os.replace(temp, current)
         _fsync_dir(current.parent)
     finally:
-        try:
-            temp.unlink()
-        except FileNotFoundError:
-            pass
+        temp.unlink(missing_ok=True)
 
 
-def _identity(release: Path, commit: str) -> dict[str, Any]:
+def _release_path(install_root: Path, commit: str) -> Path:
+    releases = install_root / "releases"
+    if releases.is_symlink() or not releases.is_dir():
+        raise ReleaseSwitchError("install releases directory is missing/not real")
+    release = releases / _commit(commit)
+    if release.is_symlink() or not release.is_dir():
+        raise ReleaseSwitchError(f"release directory missing/not real: {commit}")
+    return release
+
+
+def _release_identity(install_root: Path, commit: str) -> dict[str, Any]:
     try:
-        identity = verify_release_directory(release, expected_source_commit=commit)
+        identity = verify_release_directory(_release_path(install_root, commit), expected_source_commit=commit)
     except PayloadMaterializeError as exc:
         raise ReleaseSwitchError(f"release verification failed for {commit}: {exc}") from exc
     required = {"schema", "source_commit", "payload_sha256", "payload_size", "file_count"}
@@ -151,59 +138,42 @@ def _identity(release: Path, commit: str) -> dict[str, Any]:
     return identity
 
 
-def _release_path(install_root: Path, commit: str) -> Path:
-    releases = install_root / "releases"
-    if releases.is_symlink() or not releases.is_dir():
-        raise ReleaseSwitchError("install releases directory is missing/not real")
-    release = releases / commit
-    if release.is_symlink() or not release.is_dir():
-        raise ReleaseSwitchError(f"release directory missing/not real: {commit}")
-    return release
-
-
-def _expected_link(commit: str) -> str:
+def _link(commit: str) -> str:
     return f"releases/{_commit(commit)}"
 
 
-def _read_current_link(install_root: Path) -> str:
+def _read_current(install_root: Path) -> str:
     current = install_root / "current"
     if not current.is_symlink():
         raise ReleaseSwitchError("current must be a symlink")
     try:
-        value = os.readlink(current)
+        return os.readlink(current)
     except OSError as exc:
         raise ReleaseSwitchError("cannot read current symlink") from exc
-    return value
 
 
-def _classify_current(install_root: Path, old_commit: str, new_commit: str) -> str:
+def _classify(install_root: Path, old_commit: str, new_commit: str) -> str:
     try:
-        value = _read_current_link(install_root)
+        value = _read_current(install_root)
     except ReleaseSwitchError:
         return "UNKNOWN"
-    if value == _expected_link(old_commit):
+    if value == _link(old_commit):
         return "OLD"
-    if value == _expected_link(new_commit):
+    if value == _link(new_commit):
         return "NEW"
     return "UNKNOWN"
 
 
-def _record_bytes(record: dict[str, Any]) -> bytes:
-    return _canonical_json(record)
-
-
 def _parse_record(raw: bytes) -> dict[str, Any]:
     value = _strict_json(raw, ACTIVE_NAME)
-    required = {"schema", "transaction_id", "old", "new"}
-    if not isinstance(value, dict) or set(value) != required or value["schema"] != SCHEMA:
+    if not isinstance(value, dict) or set(value) != {"schema", "transaction_id", "old", "new"} or value["schema"] != SCHEMA:
         raise ReleaseSwitchError("active transaction has invalid root/schema")
     txid = value["transaction_id"]
     if not isinstance(txid, str) or len(txid) != 32 or any(ch not in "0123456789abcdef" for ch in txid):
         raise ReleaseSwitchError("active transaction has invalid transaction_id")
     for side in ("old", "new"):
         item = value[side]
-        required_identity = {"source_commit", "payload_sha256", "payload_size", "file_count"}
-        if not isinstance(item, dict) or set(item) != required_identity:
+        if not isinstance(item, dict) or set(item) != {"source_commit", "payload_sha256", "payload_size", "file_count"}:
             raise ReleaseSwitchError(f"active transaction {side} identity invalid")
         _commit(item["source_commit"], f"{side} source_commit")
         _sha256(item["payload_sha256"], f"{side} payload_sha256")
@@ -219,28 +189,19 @@ def _parse_record(raw: bytes) -> dict[str, Any]:
 def _terminal_bytes(record_raw: bytes, record: dict[str, Any], outcome: str) -> bytes:
     if outcome not in {"ACCEPTED", "ROLLED_BACK"}:
         raise ReleaseSwitchError("invalid terminal outcome")
-    return _canonical_json(
-        {
-            "schema": TERMINAL_SCHEMA,
-            "transaction_id": record["transaction_id"],
-            "active_transaction_sha256": hashlib.sha256(record_raw).hexdigest(),
-            "outcome": outcome,
-            "old_commit": record["old"]["source_commit"],
-            "new_commit": record["new"]["source_commit"],
-        }
-    )
+    return _json({
+        "schema": TERMINAL_SCHEMA,
+        "transaction_id": record["transaction_id"],
+        "active_transaction_sha256": hashlib.sha256(record_raw).hexdigest(),
+        "outcome": outcome,
+        "old_commit": record["old"]["source_commit"],
+        "new_commit": record["new"]["source_commit"],
+    })
 
 
 def _parse_terminal(raw: bytes, record_raw: bytes, record: dict[str, Any]) -> dict[str, Any]:
     value = _strict_json(raw, "terminal marker")
-    required = {
-        "schema",
-        "transaction_id",
-        "active_transaction_sha256",
-        "outcome",
-        "old_commit",
-        "new_commit",
-    }
+    required = {"schema", "transaction_id", "active_transaction_sha256", "outcome", "old_commit", "new_commit"}
     if not isinstance(value, dict) or set(value) != required or value["schema"] != TERMINAL_SCHEMA:
         raise ReleaseSwitchError("terminal marker has invalid root/schema")
     if value["transaction_id"] != record["transaction_id"]:
@@ -257,7 +218,7 @@ def _parse_terminal(raw: bytes, record_raw: bytes, record: dict[str, Any]) -> di
 class ReleaseSwitch:
     def __init__(self, install_root: Path, state_root: Path, *, fault_hook: FaultHook | None = None):
         self.install_root = _real_dir(install_root, "install root")
-        self.state_root = _real_dir(state_root, "deployment state root", create=True, mode=0o700)
+        self.state_root = _real_dir(state_root, "deployment state root", create=True)
         self.fault_hook = fault_hook
         self.active_path = self.state_root / ACTIVE_NAME
         self.terminal_root = self.state_root / "terminal"
@@ -269,8 +230,7 @@ class ReleaseSwitch:
 
     @contextmanager
     def locked(self) -> Iterator[None]:
-        lock_path = self.state_root / LOCK_NAME
-        fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        fd = os.open(self.state_root / LOCK_NAME, os.O_RDWR | os.O_CREAT, 0o600)
         try:
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -278,10 +238,8 @@ class ReleaseSwitch:
                 raise ReleaseSwitchError("another local release-switch process holds the deployment lock") from exc
             yield
         finally:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_UN)
-            finally:
-                os.close(fd)
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
 
     def _load_active(self) -> tuple[bytes, dict[str, Any]]:
         if self.active_path.is_symlink() or not self.active_path.is_file():
@@ -306,54 +264,42 @@ class ReleaseSwitch:
             raise ReleaseSwitchError("terminal marker path is not a regular file")
         return _parse_terminal(path.read_bytes(), record_raw, record)
 
-    def _verify_bound_releases(self, record: dict[str, Any]) -> None:
-        for side in ("old", "new"):
-            expected = record[side]
-            commit = expected["source_commit"]
-            identity = _identity(_release_path(self.install_root, commit), commit)
-            for key in ("payload_sha256", "payload_size", "file_count"):
-                if identity[key] != expected[key]:
-                    raise ReleaseSwitchError(f"{side} release identity changed after prepare: {key}")
+    def _verify_side(self, record: dict[str, Any], side: str) -> None:
+        expected = record[side]
+        identity = _release_identity(self.install_root, expected["source_commit"])
+        for key in ("payload_sha256", "payload_size", "file_count"):
+            if identity[key] != expected[key]:
+                raise ReleaseSwitchError(f"{side} release identity changed after prepare: {key}")
+
+    def _verify_both(self, record: dict[str, Any]) -> None:
+        self._verify_side(record, "old")
+        self._verify_side(record, "new")
 
     def prepare(self, new_commit: str) -> dict[str, Any]:
         new_commit = _commit(new_commit, "new commit")
         with self.locked():
             if self.active_path.exists() or self.active_path.is_symlink():
                 raise ReleaseSwitchError("an active release-switch transaction already exists")
-            current_link = _read_current_link(self.install_root)
-            prefix = "releases/"
-            if not current_link.startswith(prefix):
+            current = _read_current(self.install_root)
+            if not current.startswith("releases/"):
                 raise ReleaseSwitchError("current symlink is not in canonical releases/<commit> form")
-            old_commit = _commit(current_link[len(prefix) :], "current commit")
+            old_commit = _commit(current.removeprefix("releases/"), "current commit")
             if old_commit == new_commit:
                 raise ReleaseSwitchError("new commit is already active")
-
-            old_identity = _identity(_release_path(self.install_root, old_commit), old_commit)
-            new_identity = _identity(_release_path(self.install_root, new_commit), new_commit)
+            old_identity = _release_identity(self.install_root, old_commit)
+            new_identity = _release_identity(self.install_root, new_commit)
             record = {
                 "schema": SCHEMA,
                 "transaction_id": uuid.uuid4().hex,
-                "old": {
-                    "source_commit": old_commit,
-                    "payload_sha256": old_identity["payload_sha256"],
-                    "payload_size": old_identity["payload_size"],
-                    "file_count": old_identity["file_count"],
-                },
-                "new": {
-                    "source_commit": new_commit,
-                    "payload_sha256": new_identity["payload_sha256"],
-                    "payload_size": new_identity["payload_size"],
-                    "file_count": new_identity["file_count"],
-                },
+                "old": {key: old_identity[key] for key in ("source_commit", "payload_sha256", "payload_size", "file_count")},
+                "new": {key: new_identity[key] for key in ("source_commit", "payload_sha256", "payload_size", "file_count")},
             }
-            raw = _record_bytes(record)
-            history = self._history_path(record["transaction_id"])
-            terminal = self._terminal_path(record["transaction_id"])
-            if history.exists() or history.is_symlink() or terminal.exists() or terminal.is_symlink():
+            raw = _json(record)
+            if self._history_path(record["transaction_id"]).exists() or self._terminal_path(record["transaction_id"]).exists():
                 raise ReleaseSwitchError("new transaction identity collides with existing durable state")
             _atomic_create(self.active_path, raw)
             _fault(self.fault_hook, "prepare.after_active_create")
-            if _classify_current(self.install_root, old_commit, new_commit) != "OLD":
+            if _classify(self.install_root, old_commit, new_commit) != "OLD":
                 raise ReleaseSwitchError("current changed while preparing deployment")
             return self.status_unlocked()
 
@@ -362,81 +308,77 @@ class ReleaseSwitch:
             record_raw, record = self._load_active()
             terminal = self._load_terminal(record_raw, record)
             if terminal is not None:
-                self._finalize_unlocked(record_raw, record, terminal)
+                self._finalize(record_raw, record, terminal)
                 return self.status_unlocked()
-            self._verify_bound_releases(record)
+            self._verify_both(record)
             old_commit = record["old"]["source_commit"]
             new_commit = record["new"]["source_commit"]
-            state = _classify_current(self.install_root, old_commit, new_commit)
+            state = _classify(self.install_root, old_commit, new_commit)
             if state == "OLD":
-                _atomic_symlink(self.install_root / "current", _expected_link(new_commit))
+                _atomic_symlink(self.install_root / "current", _link(new_commit))
                 _fault(self.fault_hook, "apply.after_current_swap")
-                state = _classify_current(self.install_root, old_commit, new_commit)
+                state = _classify(self.install_root, old_commit, new_commit)
             if state != "NEW":
                 raise ReleaseSwitchError("cannot apply release switch: current identity is UNKNOWN")
-            self._verify_bound_releases(record)
+            self._verify_both(record)
             return self.status_unlocked()
 
     def accept(self) -> dict[str, Any]:
         with self.locked():
             record_raw, record = self._load_active()
-            existing = self._load_terminal(record_raw, record)
-            if existing is not None:
-                if existing["outcome"] != "ACCEPTED":
+            terminal = self._load_terminal(record_raw, record)
+            if terminal is not None:
+                if terminal["outcome"] != "ACCEPTED":
                     raise ReleaseSwitchError("transaction already has ROLLED_BACK terminal authority")
-                self._finalize_unlocked(record_raw, record, existing)
+                self._finalize(record_raw, record, terminal)
                 return self.status_unlocked()
-            self._verify_bound_releases(record)
-            old_commit = record["old"]["source_commit"]
-            new_commit = record["new"]["source_commit"]
-            if _classify_current(self.install_root, old_commit, new_commit) != "NEW":
+            self._verify_both(record)
+            if _classify(self.install_root, record["old"]["source_commit"], record["new"]["source_commit"]) != "NEW":
                 raise ReleaseSwitchError("accept requires current to be exact NEW release")
             terminal_raw = _terminal_bytes(record_raw, record, "ACCEPTED")
             _atomic_create(self._terminal_path(record["transaction_id"]), terminal_raw)
             _fault(self.fault_hook, "accept.after_terminal_create")
-            terminal = _parse_terminal(terminal_raw, record_raw, record)
-            self._finalize_unlocked(record_raw, record, terminal)
+            self._finalize(record_raw, record, _parse_terminal(terminal_raw, record_raw, record))
             return self.status_unlocked()
 
     def rollback(self) -> dict[str, Any]:
         with self.locked():
             record_raw, record = self._load_active()
-            existing = self._load_terminal(record_raw, record)
-            if existing is not None:
-                if existing["outcome"] != "ROLLED_BACK":
+            terminal = self._load_terminal(record_raw, record)
+            if terminal is not None:
+                if terminal["outcome"] != "ROLLED_BACK":
                     raise ReleaseSwitchError("transaction already has ACCEPTED terminal authority")
-                self._finalize_unlocked(record_raw, record, existing)
+                self._finalize(record_raw, record, terminal)
                 return self.status_unlocked()
-            self._verify_bound_releases(record)
+            # NEW may be corrupt; that can be exactly why post-publication verification failed.
+            # Rollback therefore requires the durable transaction plus exact OLD only.
+            self._verify_side(record, "old")
             old_commit = record["old"]["source_commit"]
             new_commit = record["new"]["source_commit"]
-            state = _classify_current(self.install_root, old_commit, new_commit)
+            state = _classify(self.install_root, old_commit, new_commit)
             if state == "NEW":
-                _atomic_symlink(self.install_root / "current", _expected_link(old_commit))
+                _atomic_symlink(self.install_root / "current", _link(old_commit))
                 _fault(self.fault_hook, "rollback.after_current_swap")
-                state = _classify_current(self.install_root, old_commit, new_commit)
+                state = _classify(self.install_root, old_commit, new_commit)
             if state != "OLD":
                 raise ReleaseSwitchError("cannot rollback release switch: current identity is UNKNOWN")
-            self._verify_bound_releases(record)
+            self._verify_side(record, "old")
             terminal_raw = _terminal_bytes(record_raw, record, "ROLLED_BACK")
             _atomic_create(self._terminal_path(record["transaction_id"]), terminal_raw)
             _fault(self.fault_hook, "rollback.after_terminal_create")
-            terminal = _parse_terminal(terminal_raw, record_raw, record)
-            self._finalize_unlocked(record_raw, record, terminal)
+            self._finalize(record_raw, record, _parse_terminal(terminal_raw, record_raw, record))
             return self.status_unlocked()
 
-    def _finalize_unlocked(self, record_raw: bytes, record: dict[str, Any], terminal: dict[str, Any]) -> None:
-        old_commit = record["old"]["source_commit"]
-        new_commit = record["new"]["source_commit"]
+    def _finalize(self, record_raw: bytes, record: dict[str, Any], terminal: dict[str, Any]) -> None:
         expected = "NEW" if terminal["outcome"] == "ACCEPTED" else "OLD"
-        if _classify_current(self.install_root, old_commit, new_commit) != expected:
+        if _classify(self.install_root, record["old"]["source_commit"], record["new"]["source_commit"]) != expected:
             raise ReleaseSwitchError("terminal authority conflicts with current symlink identity")
         history = self._history_path(record["transaction_id"])
         if history.exists() or history.is_symlink():
             if history.is_symlink() or not history.is_file() or history.read_bytes() != record_raw:
                 raise ReleaseSwitchError("deployment history identity conflict")
             if self.active_path.exists() or self.active_path.is_symlink():
-                if self.active_path.is_symlink() or self.active_path.read_bytes() != record_raw:
+                if self.active_path.is_symlink() or not self.active_path.is_file() or self.active_path.read_bytes() != record_raw:
                     raise ReleaseSwitchError("active/history deployment identity conflict")
                 self.active_path.unlink()
                 _fsync_dir(self.state_root)
@@ -453,25 +395,21 @@ class ReleaseSwitch:
             return {"status": "IDLE"}
         record_raw, record = self._load_active()
         terminal = self._load_terminal(record_raw, record)
-        old_commit = record["old"]["source_commit"]
-        new_commit = record["new"]["source_commit"]
-        state = _classify_current(self.install_root, old_commit, new_commit)
+        state = _classify(self.install_root, record["old"]["source_commit"], record["new"]["source_commit"])
         if terminal is not None:
             expected = "NEW" if terminal["outcome"] == "ACCEPTED" else "OLD"
-            status = "FINALIZE_PENDING" if state == expected else "BLOCKED"
             return {
-                "status": status,
+                "status": "FINALIZE_PENDING" if state == expected else "BLOCKED",
                 "transaction_id": record["transaction_id"],
                 "current_state": state,
                 "terminal": terminal["outcome"],
             }
-        status = {"OLD": "PREPARED", "NEW": "APPLIED", "UNKNOWN": "BLOCKED"}[state]
         return {
-            "status": status,
+            "status": {"OLD": "PREPARED", "NEW": "APPLIED", "UNKNOWN": "BLOCKED"}[state],
             "transaction_id": record["transaction_id"],
             "current_state": state,
-            "old_commit": old_commit,
-            "new_commit": new_commit,
+            "old_commit": record["old"]["source_commit"],
+            "new_commit": record["new"]["source_commit"],
         }
 
     def status(self) -> dict[str, Any]:
@@ -497,16 +435,17 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         switch = ReleaseSwitch(args.install_root, args.state_root)
-        if args.command == "prepare":
-            result = switch.prepare(args.new_commit)
-        elif args.command == "apply":
-            result = switch.apply()
-        elif args.command == "accept":
-            result = switch.accept()
-        elif args.command == "rollback":
-            result = switch.rollback()
-        else:
-            result = switch.status()
+        result = (
+            switch.prepare(args.new_commit)
+            if args.command == "prepare"
+            else switch.apply()
+            if args.command == "apply"
+            else switch.accept()
+            if args.command == "accept"
+            else switch.rollback()
+            if args.command == "rollback"
+            else switch.status()
+        )
     except (ReleaseSwitchError, OSError) as exc:
         print(f"ERROR: {exc}")
         return 2
