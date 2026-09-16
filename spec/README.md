@@ -12,6 +12,7 @@ spec/
 ├── STATE_MACHINE.md
 ├── DRIVE_BACKEND.md
 ├── DRIVE_TRANSPORT.md
+├── DRIVE_ORCHESTRATION.md
 ├── examples/
 │   └── MASTER.ready.json
 └── schemas/
@@ -25,7 +26,7 @@ spec/
     └── recovery-block.schema.json
 ```
 
-`DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` refines that design into the HTTP/idempotency/failure contract, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations.
+`DRIVE_BACKEND.md` defines the backend-level copy-on-write object model. `DRIVE_TRANSPORT.md` refines that design into the HTTP/idempotency/failure contract, including pre-generated Drive IDs and the rule that transport failures are never canonical-state observations. `DRIVE_ORCHESTRATION.md` defines the Drive-specific outer Core: immutable transaction authority, copy-on-write MASTER transitions, independent pre-UNSAFE snapshots and state-derived recovery without a mutable secondary progress counter.
 
 ## Normative path layout for the MVP
 
