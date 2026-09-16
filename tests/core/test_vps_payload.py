@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ BUILDER_PATH = REPO / "deploy" / "zero-based-vps" / "build_payload.py"
 spec = importlib.util.spec_from_file_location("zero_vps_payload_builder", BUILDER_PATH)
 assert spec is not None and spec.loader is not None
 builder = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = builder
 spec.loader.exec_module(builder)
 
 
