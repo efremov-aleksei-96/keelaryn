@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .drive_backend import DriveBackend
-from .drive_project import PROJECT_STATE_NAME, DriveWorkflowBlocked, _ensure_named_blob, _unique_folder
+from .drive_project import DriveWorkflowBlocked, _unique_folder
 from .work_state import DriveWorkStateService
 
 RECONCILIATION_OWNER_ID = "reconciliation"
@@ -30,7 +30,13 @@ class DriveReconciliationStateUpdate:
 
 
 class DriveReconciliationStateService:
-    """Durable semantic Reconciliation STATE using the shared work-state COW engine."""
+    """Durable semantic Reconciliation STATE using the shared work-state COW engine.
+
+    Fresh STATE.md publication belongs exclusively to DriveHubBootstrap. This
+    service never repairs or creates a missing initialized STATE after MASTER has
+    been published. ``initialize`` is retained as a compatibility verifier for
+    callers that want to assert exact initial bytes without mutating Drive.
+    """
 
     def __init__(self, drive: DriveBackend, hub_root_id: str):
         self.drive = drive
@@ -53,15 +59,10 @@ class DriveReconciliationStateService:
     def initialize(self, initial_state_markdown: bytes) -> DriveReconciliationState:
         if not isinstance(initial_state_markdown, bytes) or not initial_state_markdown:
             raise DriveWorkflowBlocked("Reconciliation STATE.md must be non-empty bytes")
-        folder = self._reconciliation()
-        _ensure_named_blob(
-            self.drive,
-            folder.file_id,
-            PROJECT_STATE_NAME,
-            initial_state_markdown,
-            "drive.reconciliation-state.initialize",
-        )
-        return self.read()
+        state = self.read()
+        if state.raw != initial_state_markdown:
+            raise DriveWorkflowBlocked("existing Reconciliation STATE.md does not match expected initial bytes")
+        return state
 
     def read(self) -> DriveReconciliationState:
         state = self._engine().read()
