@@ -33,11 +33,7 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
         for commit in (self.OLD, self.NEW):
             payload = root / f"{commit}.tar.gz"
             builder.build_payload(REPO, commit, payload)
-            materializer.materialize_payload(
-                payload,
-                releases,
-                expected_source_commit=commit,
-            )
+            materializer.materialize_payload(payload, releases, expected_source_commit=commit)
         os.symlink(f"releases/{self.OLD}", install / "current")
         return install, state
 
@@ -51,8 +47,8 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
     def current(self, install: Path) -> str:
         return os.readlink(install / "current")
 
-    def tamper_new_release(self, install: Path) -> None:
-        release = install / "releases" / self.NEW
+    def tamper_release(self, install: Path, commit: str) -> None:
+        release = install / "releases" / commit
         manifest = json.loads((release / "PAYLOAD_MANIFEST.json").read_text(encoding="utf-8"))
         target = release / manifest["files"][0]["path"]
         os.chmod(target, 0o644)
@@ -89,11 +85,7 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             install, state = self.layout(Path(temp))
             with self.assertRaises(Crash):
-                switchmod.ReleaseSwitch(
-                    install,
-                    state,
-                    fault_hook=self.hook("prepare.after_active_create"),
-                ).prepare(self.NEW)
+                switchmod.ReleaseSwitch(install, state, fault_hook=self.hook("prepare.after_active_create")).prepare(self.NEW)
             recovered = switchmod.ReleaseSwitch(install, state)
             self.assertEqual(recovered.status()["status"], "PREPARED")
             self.assertEqual(recovered.apply()["status"], "APPLIED")
@@ -103,11 +95,7 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
             install, state = self.layout(Path(temp))
             switchmod.ReleaseSwitch(install, state).prepare(self.NEW)
             with self.assertRaises(Crash):
-                switchmod.ReleaseSwitch(
-                    install,
-                    state,
-                    fault_hook=self.hook("apply.after_current_swap"),
-                ).apply()
+                switchmod.ReleaseSwitch(install, state, fault_hook=self.hook("apply.after_current_swap")).apply()
             recovered = switchmod.ReleaseSwitch(install, state)
             self.assertEqual(recovered.status()["status"], "APPLIED")
             self.assertEqual(recovered.accept(), {"status": "IDLE"})
@@ -119,11 +107,7 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
             base.prepare(self.NEW)
             base.apply()
             with self.assertRaises(Crash):
-                switchmod.ReleaseSwitch(
-                    install,
-                    state,
-                    fault_hook=self.hook("accept.after_terminal_create"),
-                ).accept()
+                switchmod.ReleaseSwitch(install, state, fault_hook=self.hook("accept.after_terminal_create")).accept()
             recovered = switchmod.ReleaseSwitch(install, state)
             status = recovered.status()
             self.assertEqual(status["status"], "FINALIZE_PENDING")
@@ -143,8 +127,7 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
                 with self.assertRaises(Crash):
                     switchmod.ReleaseSwitch(install, state, fault_hook=self.hook(point)).rollback()
                 recovered = switchmod.ReleaseSwitch(install, state)
-                status = recovered.status()
-                self.assertIn(status["status"], {"PREPARED", "FINALIZE_PENDING"})
+                self.assertIn(recovered.status()["status"], {"PREPARED", "FINALIZE_PENDING"})
                 self.assertEqual(recovered.rollback(), {"status": "IDLE"})
                 self.assertEqual(self.current(install), f"releases/{self.OLD}")
 
@@ -155,11 +138,7 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
             base.prepare(self.NEW)
             base.apply()
             with self.assertRaises(Crash):
-                switchmod.ReleaseSwitch(
-                    install,
-                    state,
-                    fault_hook=self.hook("finalize.after_active_archive"),
-                ).accept()
+                switchmod.ReleaseSwitch(install, state, fault_hook=self.hook("finalize.after_active_archive")).accept()
             self.assertEqual(switchmod.ReleaseSwitch(install, state).status(), {"status": "IDLE"})
             self.assertEqual(self.current(install), f"releases/{self.NEW}")
 
@@ -182,7 +161,7 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
             switch = switchmod.ReleaseSwitch(install, state)
             switch.prepare(self.NEW)
             switch.apply()
-            self.tamper_new_release(install)
+            self.tamper_release(install, self.NEW)
             with self.assertRaises(switchmod.ReleaseSwitchError):
                 switch.accept()
             self.assertEqual(self.current(install), f"releases/{self.NEW}")
@@ -195,15 +174,60 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
             switch = switchmod.ReleaseSwitch(install, state)
             switch.prepare(self.NEW)
             switch.apply()
-            release = install / "releases" / self.OLD
-            manifest = json.loads((release / "PAYLOAD_MANIFEST.json").read_text(encoding="utf-8"))
-            target = release / manifest["files"][0]["path"]
-            os.chmod(target, 0o644)
-            target.write_bytes(target.read_bytes() + b"tamper")
-            os.chmod(target, 0o444)
+            self.tamper_release(install, self.OLD)
             with self.assertRaises(switchmod.ReleaseSwitchError):
                 switch.rollback()
             self.assertEqual(self.current(install), f"releases/{self.NEW}")
+
+    def test_world_readable_state_root_is_rejected_before_current_change(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            install, state = self.layout(Path(temp))
+            state.mkdir(parents=True, mode=0o700)
+            os.chmod(state, 0o755)
+            before = self.current(install)
+            with self.assertRaises(switchmod.ReleaseSwitchError):
+                switchmod.ReleaseSwitch(install, state)
+            self.assertEqual(self.current(install), before)
+
+    def test_symlink_state_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            install, state = self.layout(root)
+            real = root / "real-state"
+            real.mkdir(mode=0o700)
+            state.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(real, state)
+            with self.assertRaises(switchmod.ReleaseSwitchError):
+                switchmod.ReleaseSwitch(install, state)
+            self.assertEqual(self.current(install), f"releases/{self.OLD}")
+
+    def test_symlink_or_wrong_mode_lock_is_rejected(self) -> None:
+        for kind in ("symlink", "mode"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                install, state = self.layout(root)
+                switch = switchmod.ReleaseSwitch(install, state)
+                lock = state / switchmod.LOCK_NAME
+                if kind == "symlink":
+                    outside = root / "outside-lock"
+                    outside.write_text("x", encoding="utf-8")
+                    os.symlink(outside, lock)
+                else:
+                    lock.write_text("x", encoding="utf-8")
+                    os.chmod(lock, 0o644)
+                with self.assertRaises(switchmod.ReleaseSwitchError):
+                    switch.status()
+                self.assertEqual(self.current(install), f"releases/{self.OLD}")
+
+    def test_terminal_or_history_mode_drift_is_rejected(self) -> None:
+        for name in ("terminal", "history"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                install, state = self.layout(Path(temp))
+                switchmod.ReleaseSwitch(install, state)
+                os.chmod(state / name, 0o755)
+                with self.assertRaises(switchmod.ReleaseSwitchError):
+                    switchmod.ReleaseSwitch(install, state)
+                self.assertEqual(self.current(install), f"releases/{self.OLD}")
 
 
 if __name__ == "__main__":
