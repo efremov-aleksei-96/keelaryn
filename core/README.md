@@ -62,6 +62,32 @@ DriveHubBootstrap
 
 Normal canonical readers use `DriveCanonicalReader` and accept data only when the pre/post MASTER observations are both SAFE with the same canonical epoch.
 
+## Limited real-Hub subset pilot
+
+The pilot path is deliberately private and disposable. It never writes the production/personal Hub and never uploads selected source bytes to GitHub or CI artifacts.
+
+Build and verify one immutable private pack from an explicit allowlist over a read-only local copy:
+
+```bash
+PYTHONPATH=core python3 -m keelaryn_core.pilot_cli pack-build \
+  --source-root <read-only-copy-root> \
+  --source-manifest <PILOT_SOURCE.json> \
+  --output-dir <new-private-pack-dir>
+
+PYTHONPATH=core python3 -m keelaryn_core.pilot_cli pack-verify \
+  --pack-dir <private-pack-dir>
+```
+
+Import the verified pack into one exact fresh disposable Drive Hub:
+
+```bash
+PYTHONPATH=core python3 -m keelaryn_core.pilot_cli import \
+  --pack-dir <private-pack-dir> \
+  --hub-root-id <disposable-drive-hub-id>
+```
+
+Normal pilot CLI output is sanitized: it contains hashes/counts/outcomes rather than private payload bytes or source/target names. The complete protocol and privacy boundary are defined in `spec/PILOT.md`.
+
 ## VPS development deployment
 
 The **single canonical** VPS deployment source, including hardened systemd units, secret-free environment template, deterministic payload builder/materializer and rollout/rollback contract, lives under:
