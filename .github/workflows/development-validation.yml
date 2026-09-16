@@ -128,7 +128,6 @@ jobs:
       KEELARYN_GOOGLE_REFRESH_TOKEN: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_REFRESH_TOKEN }}
       KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID: ${{ secrets.KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID }}
       KEELARYN_ACCEPTANCE_RUN_ID: gh-${{ github.run_id }}-${{ github.run_attempt }}
-      KEELARYN_LIVE_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_DRIVE_LIVE_ACCEPTANCE.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -147,6 +146,10 @@ jobs:
           test -n "$KEELARYN_GOOGLE_CLIENT_SECRET"
           test -n "$KEELARYN_GOOGLE_REFRESH_TOKEN"
           test -n "$KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID"
+
+      - name: Prepare compact live evidence path
+        shell: bash
+        run: echo "KEELARYN_LIVE_EVIDENCE=$RUNNER_TEMP/ZERO_BASED_DRIVE_LIVE_ACCEPTANCE.json" >> "$GITHUB_ENV"
 
       - name: Show exact zero-based development identity
         shell: bash
