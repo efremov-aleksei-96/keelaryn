@@ -14,11 +14,12 @@ from keelaryn_core.drive_backend import DriveUncertainMutation
 from keelaryn_core.drive_bootstrap import DriveHubBootstrap
 from keelaryn_core.drive_model import DriveModel
 from keelaryn_core.drive_rest import GoogleDriveBackend
+from keelaryn_core.drive_workflow import DriveWorkflowBlocked
 from keelaryn_core.reconciliation_state import DriveReconciliationStateService
 
 
 class ReconciliationStateRestTests(unittest.TestCase):
-    INITIAL = b"# Reconciliation State\n\nidle\n"
+    INITIAL = DriveHubBootstrap.initial_reconciliation_state_bytes()
     NEW = b"# Reconciliation State\n\nworking\n"
 
     @staticmethod
@@ -28,15 +29,16 @@ class ReconciliationStateRestTests(unittest.TestCase):
         DriveHubBootstrap(drive, hub.file_id).run()
         return drive, hub.file_id
 
-    def test_initialize_recovers_after_uncertain_create(self) -> None:
+    def test_initialize_is_read_only_over_rest(self) -> None:
         drive, hub_id = self.build()
-        failing = GoogleDriveBackend("token", http=ModelDriveHttp(drive, fail_after_mutation=1))
-        with self.assertRaises(DriveUncertainMutation):
-            DriveReconciliationStateService(failing, hub_id).initialize(self.INITIAL)
-
-        restarted = GoogleDriveBackend("token", http=ModelDriveHttp(drive))
-        state = DriveReconciliationStateService(restarted, hub_id).initialize(self.INITIAL)
+        http = ModelDriveHttp(drive)
+        backend = GoogleDriveBackend("token", http=http)
+        state = DriveReconciliationStateService(backend, hub_id).initialize(self.INITIAL)
         self.assertEqual(state.raw, self.INITIAL)
+        self.assertEqual(http.mutation_count, 0)
+        with self.assertRaises(DriveWorkflowBlocked):
+            DriveReconciliationStateService(backend, hub_id).initialize(b"different")
+        self.assertEqual(http.mutation_count, 0)
 
     def mutation_count(self) -> int:
         drive, hub_id = self.build()
