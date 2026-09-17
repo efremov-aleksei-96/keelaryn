@@ -1,0 +1,57 @@
+name: Zero-based Migration Windows validation
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'core/keelaryn_core/migration_*.py'
+      - 'tests/core/test_migration_pack.py'
+      - 'spec/MIGRATION.md'
+      - 'spec/schemas/migration-*.schema.json'
+      - '.github/workflows/zero-based-migration-windows.yml'
+      - '.github/workflows/zero-based-core-validation.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'core/keelaryn_core/migration_*.py'
+      - 'tests/core/test_migration_pack.py'
+      - 'spec/MIGRATION.md'
+      - 'spec/schemas/migration-*.schema.json'
+      - '.github/workflows/zero-based-migration-windows.yml'
+      - '.github/workflows/zero-based-core-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zero-based-migration-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migration-windows:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Show Python runtime
+        shell: pwsh
+        run: python --version
+
+      - name: Run migration Windows exact-byte and adversarial tests
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'core'
+          python -m unittest discover -s tests/core -p 'test_migration_pack.py' -v
+
+      - name: Smoke Migration CLI surface
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'core'
+          python -m keelaryn_core.migration_cli --help
