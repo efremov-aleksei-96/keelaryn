@@ -20,21 +20,31 @@
       "minItems": 1,
       "maxItems": 10000,
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["source", "classification"],
-        "properties": {
-          "source": { "$ref": "common.schema.json#/$defs/relativePath" },
-          "classification": {
-            "enum": [
-              "CANONICAL_IMPORT",
-              "ROUTER_SOURCE",
-              "PROJECT_WORK_IMPORT",
-              "ARCHIVE_ONLY",
-              "DROP_TECHNICAL"
-            ]
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "classification"],
+            "properties": {
+              "source": { "$ref": "common.schema.json#/$defs/relativePath" },
+              "classification": {
+                "enum": ["CANONICAL_IMPORT", "ROUTER_SOURCE", "DROP_TECHNICAL"]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "classification", "destination"],
+            "properties": {
+              "source": { "$ref": "common.schema.json#/$defs/relativePath" },
+              "classification": {
+                "enum": ["PROJECT_WORK_IMPORT", "ARCHIVE_ONLY"]
+              },
+              "destination": { "$ref": "common.schema.json#/$defs/relativePath" }
+            }
           }
-        }
+        ]
       }
     },
     "canonical_outputs": {
