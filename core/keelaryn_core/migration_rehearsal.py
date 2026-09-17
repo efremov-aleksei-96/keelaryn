@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from .drive_backend import DriveBackend
@@ -100,9 +101,16 @@ class DriveMigrationDisposableRehearsal:
     production cutover mechanism and it does not select or replace a production Hub.
     """
 
-    def __init__(self, drive: DriveBackend, hub_root_id: str):
+    def __init__(
+        self,
+        drive: DriveBackend,
+        hub_root_id: str,
+        *,
+        progress: Callable[[str, int | None, int | None], None] | None = None,
+    ):
         self.drive = drive
         self.hub_root_id = hub_root_id
+        self.progress = progress
 
     @staticmethod
     def _same_pack(initial, current) -> None:
@@ -271,6 +279,7 @@ class DriveMigrationDisposableRehearsal:
             publication = DriveMigrationCanonicalPublication(
                 self.drive,
                 self.hub_root_id,
+                progress=self.progress,
             ).run(pack.root)
         except DriveMigrationPublicationBlocked as exc:
             raise DriveMigrationRehearsalBlocked(

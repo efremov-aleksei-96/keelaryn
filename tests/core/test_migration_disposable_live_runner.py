@@ -161,7 +161,7 @@ class MigrationDisposableLiveRunnerTests(unittest.TestCase):
         captured: dict[str, object] = {}
 
         class FakeRehearsal:
-            def __init__(self, drive, hub_id):
+            def __init__(self, drive, hub_id, *, progress=None):
                 captured["drive"] = drive
                 captured["hub_id"] = hub_id
 
@@ -307,7 +307,7 @@ class MigrationDisposableLiveRunnerTests(unittest.TestCase):
         captured: dict[str, object] = {}
 
         class FakeRehearsal:
-            def __init__(self, drive, hub_id):
+            def __init__(self, drive, hub_id, *, progress=None):
                 captured["drive"] = drive
                 captured["hub_id"] = hub_id
 
@@ -362,7 +362,7 @@ class MigrationDisposableLiveRunnerTests(unittest.TestCase):
         )
 
         class FailingRehearsal:
-            def __init__(self, drive, hub_id):
+            def __init__(self, drive, hub_id, *, progress=None):
                 pass
 
             def run(self, pack_dir):

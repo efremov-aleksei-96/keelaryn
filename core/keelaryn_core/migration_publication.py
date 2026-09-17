@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from .drive_backend import DriveBackend, DriveItem
@@ -57,9 +58,16 @@ class DriveMigrationCanonicalPublication:
     Change and are never written directly to ``canonical/`` by this service.
     """
 
-    def __init__(self, drive: DriveBackend, hub_root_id: str):
+    def __init__(
+        self,
+        drive: DriveBackend,
+        hub_root_id: str,
+        *,
+        progress: Callable[[str, int | None, int | None], None] | None = None,
+    ):
         self.drive = drive
         self.hub_root_id = hub_root_id
+        self._progress_callback = progress
 
     def _progress(
         self,
@@ -67,7 +75,8 @@ class DriveMigrationCanonicalPublication:
         current: int | None = None,
         total: int | None = None,
     ) -> None:
-        return None
+        if self._progress_callback is not None:
+            self._progress_callback(phase, current, total)
 
     def _bootstrap(self) -> None:
         try:

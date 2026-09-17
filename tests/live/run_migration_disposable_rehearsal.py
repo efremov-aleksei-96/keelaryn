@@ -25,6 +25,43 @@ class LiveMigrationDisposableRehearsalError(RuntimeError):
     pass
 
 
+
+def _emit_progress(
+    phase: str,
+    current: int | None = None,
+    total: int | None = None,
+) -> None:
+    value = {
+        "schema": "keelaryn.migration-disposable-live-progress.v1",
+        "phase": phase,
+    }
+    if current is not None or total is not None:
+        if (
+            not isinstance(current, int)
+            or isinstance(current, bool)
+            or not isinstance(total, int)
+            or isinstance(total, bool)
+            or current < 1
+            or total < 1
+            or current > total
+        ):
+            raise LiveMigrationDisposableRehearsalError(
+                "migration progress counters are invalid"
+            )
+        value["current"] = current
+        value["total"] = total
+    print(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 def _required(name: str) -> str:
     value = os.environ.get(name, "")
     if not value:
@@ -135,6 +172,7 @@ def main() -> int:
         evidence = DriveMigrationDisposableRehearsal(
             drive,
             child.file_id,
+            progress=_emit_progress,
         ).run(pack_dir)
 
         phase = "evidence"
