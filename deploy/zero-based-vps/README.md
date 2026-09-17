@@ -10,10 +10,13 @@ The MVP runtime is one long-lived `keelaryn_core.drive_poller serve` process on 
 
 - `keelaryn-drive.service` — long-running poller;
 - `keelaryn-drive-bootstrap.service` — explicit unprivileged bootstrap/verify oneshot;
-- `keelaryn-drive.env.example` — secret-free refresh-auth template;
+- `keelaryn-drive.env.example` — OAuth refresh-auth template only;
+- `keelaryn-hub.env.example` — single Hub-selector template only;
 - `build_payload.py` — deterministic exact-source payload builder;
 - `materialize_payload.py` — strict payload verifier and immutable release materializer;
-- `release_switch.py` — durable restartable `current` publication/rollback transaction.
+- `release_switch.py` — durable restartable `current` source publication/rollback transaction;
+- `hub_cutover.py` — durable restartable production Hub-selector cutover/rollback transaction;
+- `HUB_CUTOVER.md` — exact production selector and cutover contract.
 
 The Workspace executable surface is part of the immutable Core payload:
 
@@ -31,31 +34,40 @@ It is intentionally not a second daemon.
 │   └── <exact-source-commit>/   # manifest-bound read-only release tree
 └── current -> releases/<exact-source-commit>
 
-/var/lib/keelaryn/deployment/    # durable deployment transaction state; owner-only 0700
-├── ACTIVE_TRANSACTION.json
+/var/lib/keelaryn/deployment/    # shared durable admin transaction state; owner-only 0700
+├── ACTIVE_TRANSACTION.json      # at most one release-switch OR Hub-cutover transaction
 ├── LOCK                         # regular owner-controlled 0600
 ├── terminal/
 └── history/
 
 /etc/keelaryn/
-└── drive.env                    # root:root 0600; never stored in Git
+├── drive.env                    # root:root 0600; OAuth credentials only
+└── hub.env                      # root:root 0600; single KEELARYN_HUB_ROOT_ID selector
 
 /run/keelaryn/                   # disposable systemd runtime directory
 ```
 
 A materialized release uses mode `0444` for files and `0555` for directories. Updating a release means materializing a different exact commit and changing `current` only through `release_switch.py`; never edit or enrich a materialized release in place.
 
-Deployment transaction state is separate from `/run/keelaryn`. `/run/keelaryn` is disposable process-lock state. `/var/lib/keelaryn/deployment` is durable publication provenance. The switch tool requires its state root, `terminal/`, and `history/` to be real directories owned by the effective deployment user with mode `0700`; its lock is opened without following symlinks and must be a regular owner-controlled `0600` file.
+Deployment transaction state is separate from `/run/keelaryn`. `/run/keelaryn` is disposable process-lock state. `/var/lib/keelaryn/deployment` is durable administrative publication/cutover provenance. `release_switch.py` and `hub_cutover.py` deliberately share its `LOCK` and `ACTIVE_TRANSACTION.json`, so a source switch and Hub cutover cannot be active concurrently. The state root, `terminal/`, and `history/` must be real directories owned by the effective administrative identity with mode `0700`; the lock is opened without following symlinks and must be a regular owner-controlled `0600` file.
 
-## Service identity and secrets
+## Service identity, credentials and selector
 
 Create a dedicated unprivileged `keelaryn` system account/group. The checked-in units clear Linux capabilities, use systemd sandboxing and expose only `/run/keelaryn` as an explicit writable runtime path.
 
-Keep `/etc/keelaryn/drive.env` owned by `root:root` with mode `0600`. Systemd reads it before dropping privileges; the service process does not need filesystem permission to read the file directly. Required variables are shown in `keelaryn-drive.env.example`. Continuous `serve` requires refresh credentials; a static access token is intentionally rejected.
+Keep both `/etc/keelaryn/drive.env` and `/etc/keelaryn/hub.env` owned by `root:root` with mode `0600`. Systemd reads them before dropping privileges; the service process does not need filesystem permission to read either file directly.
 
-Do not `source /etc/keelaryn/drive.env` into an interactive shell merely to run Workspace commands. Use the transient-systemd pattern below so the service manager reads the root-owned environment file and launches the short-lived command as the unprivileged `keelaryn` identity.
+`drive.env` contains only Google OAuth refresh credentials. `hub.env` contains exactly one authoritative selector assignment:
 
-`release_switch.py` is an administrative filesystem tool. It does not read OAuth credentials and does not mutate Google Drive or Hub bytes.
+```text
+KEELARYN_HUB_ROOT_ID=<exact-approved-drive-hub-root-id>
+```
+
+Do not duplicate `KEELARYN_HUB_ROOT_ID` in `drive.env`, units, shell profiles or Workspace wrappers. After initial installation, change `hub.env` only through the qualified `hub_cutover.py` transaction.
+
+Do not `source` either root-owned environment file into an interactive shell merely to run Workspace commands. Use the transient-systemd pattern below so the service manager reads both files and launches the short-lived command as the unprivileged `keelaryn` identity.
+
+`release_switch.py` and `hub_cutover.py` are administrative filesystem tools. Neither reads OAuth credentials or mutates Google Drive/Hub bytes.
 
 ## Exact payload provenance
 
@@ -96,6 +108,7 @@ PYTHONPATH=core python3 -B -m unittest discover -s tests/core -p 'test_*.py' -v
 PYTHONPATH=core python3 -B -m keelaryn_core.drive_poller --help >/dev/null
 PYTHONPATH=core python3 -B -m keelaryn_core.workspace_cli --help >/dev/null
 python3 -B deploy/zero-based-vps/release_switch.py --help >/dev/null
+python3 -B deploy/zero-based-vps/hub_cutover.py --help >/dev/null
 ```
 
 After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material in the release. A development-CI PASS is not production qualification; target-host validation is a separate evidence class.
@@ -108,9 +121,10 @@ After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material
 4. Create `/opt/keelaryn/current` as a **relative** symlink exactly `current -> releases/<exact-source-commit>`.
 5. Create `/var/lib/keelaryn/deployment` for the administrative deployment identity with mode `0700`.
 6. Install both checked-in systemd units under `/etc/systemd/system/`.
-7. Create `/etc/keelaryn/drive.env` from the example and set `root:root 0600`.
-8. Run `systemctl daemon-reload`.
-9. Initialize or verify the **disposable/test Hub** through the unprivileged oneshot:
+7. Create `/etc/keelaryn/drive.env` from its example and set `root:root 0600`.
+8. Create `/etc/keelaryn/hub.env` from its example, replace the placeholder with the exact approved disposable/test Hub ID, and set `root:root 0600`.
+9. Run `systemctl daemon-reload`.
+10. Initialize or verify the **disposable/test Hub** through the unprivileged oneshot:
 
    ```bash
    systemctl start keelaryn-drive-bootstrap.service
@@ -118,9 +132,9 @@ After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material
    ```
 
    Do not source the secret env file into a root shell and **do not run the poller bootstrap directly as root**.
-10. Continuous disposable/VPS polling is enabled only after the applicable live-Drive gate passes. Production/personal Hub migration is a later gate.
+11. Continuous disposable/VPS polling is enabled only after the applicable live-Drive gate passes. Production/personal Hub migration is a later gate.
 
-The initial creation of `current` is installation bootstrap. Every later source identity change uses the durable switch protocol.
+The initial creation of `current` and initial selector file are installation bootstrap. Every later source identity change uses `release_switch.py`; every later Hub-selector change uses `hub_cutover.py`.
 
 ## Runtime behavior
 
@@ -130,7 +144,7 @@ The continuous unit runs:
 /usr/bin/python3 -B -m keelaryn_core.drive_poller serve --interval-seconds 30
 ```
 
-with:
+with both root-owned EnvironmentFiles plus:
 
 ```text
 PYTHONPATH=/opt/keelaryn/current/core
@@ -144,7 +158,9 @@ KEELARYN_RUNTIME_DIR=/run/keelaryn
 
 Workspace commands operate only on semantic Project work state. They do not publish canonical data and do not use the Core process lock. One active writer per Project remains the MVP rule; do not intentionally run simultaneous mutating Workspace commands for the same Project.
 
-Run read-only list/read commands through a transient oneshot so secrets stay in the root-owned environment file:
+Every transient Workspace command must load the same credentials and Hub selector as the poller.
+
+Run read-only list/read commands through a transient oneshot:
 
 ```bash
 systemd-run --quiet --wait --collect --pipe \
@@ -152,6 +168,7 @@ systemd-run --quiet --wait --collect --pipe \
   --property=User=keelaryn \
   --property=Group=keelaryn \
   --property=EnvironmentFile=/etc/keelaryn/drive.env \
+  --property=EnvironmentFile=/etc/keelaryn/hub.env \
   --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
   --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
   /usr/bin/python3 -B -m keelaryn_core.workspace_cli list
@@ -165,6 +182,7 @@ systemd-run --quiet --wait --collect --pipe \
   --property=User=keelaryn \
   --property=Group=keelaryn \
   --property=EnvironmentFile=/etc/keelaryn/drive.env \
+  --property=EnvironmentFile=/etc/keelaryn/hub.env \
   --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
   --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
   /usr/bin/python3 -B -m keelaryn_core.workspace_cli read <project_id>
@@ -184,6 +202,7 @@ systemd-run --quiet --wait --collect --pipe \
   --property=User=keelaryn \
   --property=Group=keelaryn \
   --property=EnvironmentFile=/etc/keelaryn/drive.env \
+  --property=EnvironmentFile=/etc/keelaryn/hub.env \
   --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
   --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
   /usr/bin/python3 -B -m keelaryn_core.workspace_cli \
@@ -198,6 +217,7 @@ systemd-run --quiet --wait --collect --pipe \
   --property=User=keelaryn \
   --property=Group=keelaryn \
   --property=EnvironmentFile=/etc/keelaryn/drive.env \
+  --property=EnvironmentFile=/etc/keelaryn/hub.env \
   --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
   --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
   /usr/bin/python3 -B -m keelaryn_core.workspace_cli \
@@ -212,7 +232,23 @@ rm -f /run/keelaryn/workspace-state.md
 
 The CLI emits JSON only and intentionally omits internal Drive IDs. Exit `2` is a protocol/configuration block. Exit `3` means the remote mutation result is uncertain and the caller must re-observe/repeat the same logical operation; do not invent a new Project or update identity merely because the response was lost.
 
-## Durable atomic update transaction
+## Durable Hub selector cutover
+
+The exact migration cutover protocol is defined in `HUB_CUTOVER.md`. In summary:
+
+- production cutover changes only `/etc/keelaryn/hub.env`;
+- `hub_cutover.py` shares `/var/lib/keelaryn/deployment/LOCK` and `ACTIVE_TRANSACTION.json` with `release_switch.py`, preventing concurrent source and Hub-selection transactions;
+- `prepare` durably records exact OLD/NEW Hub identities before mutation;
+- the writer must be stopped and proven inactive before `apply`;
+- `apply` atomically replaces the selector and a restart re-observes OLD/NEW rather than trusting process-local progress;
+- post-cutover read-only acceptance is external to the selector tool;
+- `accept` terminally records PASS only when NEW remains exact;
+- `rollback` atomically restores OLD and never copies or rewrites Hub data;
+- a selector outside exact OLD/NEW blocks fail-closed.
+
+Do not perform a real production cutover merely because development selector tests pass.
+
+## Durable atomic source update transaction
 
 A source-publication transaction is executed by **one immutable tool identity from start to terminal completion**. NEW bytes must never take over their own deployment transaction after `current` changes.
 
@@ -275,7 +311,7 @@ Keep using that exact `$SWITCH_TOOL` for `prepare`, `apply`, `status`, `accept` 
 
 `accept` requires exact NEW `current`, exact bound release identities, then writes an immutable ACCEPTED marker before archival cleanup. OLD is retained as rollback/provenance material; release retention is outside this MVP transaction.
 
-## Rollback
+## Source rollback
 
 If post-publication verification fails, stop NEW first:
 
@@ -299,7 +335,7 @@ After rollback, start the restored service and verify its exact source identity 
 
 ## Crash/restart recovery
 
-Do not choose an executor from `current` after a crash: `current` may already be NEW while the active transaction remains bound to OLD.
+Do not choose a release-switch executor from `current` after a source-switch crash: `current` may already be NEW while the active transaction remains bound to OLD.
 
 If the shell that captured `$SWITCH_TOOL` was lost, recover the exact OLD commit from owner-only durable authority:
 
@@ -316,7 +352,7 @@ SWITCH_TOOL="/opt/keelaryn/releases/$OLD_COMMIT/deploy/zero-based-vps/release_sw
 test -f "$SWITCH_TOOL"
 ```
 
-Then inspect state with that OLD tool:
+Then inspect source-switch state with that OLD tool:
 
 ```bash
 python3 -B "$SWITCH_TOOL" \
@@ -325,26 +361,31 @@ python3 -B "$SWITCH_TOOL" \
   status
 ```
 
-Status meanings:
+Release-switch status meanings:
 
-- `IDLE` — no active publication transaction; the tool from current release is authoritative for the next transaction;
+- `IDLE` — no active administrative transaction; the tool from current release is authoritative for the next transaction;
 - `PREPARED` — `current` is exact OLD; continue `apply` or finish as rollback;
 - `APPLIED` — `current` is exact NEW; continue post-check then `accept` or `rollback` using OLD tool;
 - `FINALIZE_PENDING` — immutable terminal decision already exists; repeat matching `accept` or `rollback` using OLD tool to finish archival cleanup;
 - `BLOCKED` — durable authority and observed `current` disagree or the symlink is UNKNOWN; do not use ad-hoc `ln`, delete control files, or select a release heuristically.
 
-Crash points after active-record creation, symlink swap, terminal-marker creation, rollback swap and active-record archival are covered by development fault tests. Terminal authority binds SHA-256 of the exact active transaction and prevents a later opposite decision.
+Hub-cutover recovery uses the same durable-state principles but its strict schema is different; use `hub_cutover.py status` as documented in `HUB_CUTOVER.md`. Encountering the other transaction schema is a fail-closed signal, not permission to overwrite `ACTIVE_TRANSACTION.json`.
+
+Crash points after active-record creation, selector/symlink swap, terminal-marker creation, rollback swap and active-record archival are covered by development fault tests. Terminal authority binds SHA-256 of the exact active transaction and prevents a later opposite decision.
 
 ## Security and provenance rules
 
-- Never place OAuth secrets, Hub IDs or environment-file contents in repository commits, CI artifacts, issue/PR text or generic handoffs.
-- Do not run development deployment against the production/personal Hub.
+- Never place OAuth secrets, Hub IDs or installed environment-file contents in repository commits, CI artifacts, issue/PR text or generic handoffs.
+- Do not run development deployment or cutover against the production/personal Hub.
 - `deploy/zero-based-vps/` is the only deployment source-of-truth for this line.
 - Keep release directories manifest-bound/read-only; never install from a moving branch checkout.
 - Bind deployment to exact source commit and exact qualified payload SHA-256.
-- Capture and pin the OLD `release_switch.py` before `prepare`; one transaction never changes executor identity midway.
-- Use `release_switch.py` for every update/rollback after first installation; do not use ad-hoc `ln -sfn` for `current`.
+- Keep `/etc/keelaryn/hub.env` as the only production Hub selector; do not duplicate its value elsewhere.
+- Use `hub_cutover.py` for every selector change after initial installation; do not edit/replace `hub.env` ad hoc.
+- Capture and pin the OLD `release_switch.py` before source `prepare`; one source transaction never changes executor identity midway.
+- Use `release_switch.py` for every source update/rollback after first installation; do not use ad-hoc `ln -sfn` for `current`.
+- Never run source switching and Hub cutover concurrently; shared durable transaction authority enforces this fail-closed.
 - Keep durable deployment state private and separate from service runtime state.
 - Do not use `Restart=always`; blocked Core states must remain stopped/observable.
 - MVP allows only one Core writer host per Hub and one active semantic writer per Project.
-- A VPS deployment PASS is development evidence until applicable live Drive and later production-specific gates also pass.
+- A VPS deployment/cutover PASS is development evidence until applicable live Drive and later production-specific gates also pass.
