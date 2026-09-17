@@ -115,6 +115,7 @@ class MigrationPackTests(unittest.TestCase):
             self.assertEqual(summary["candidate_id"], "migration-001")
             self.assertEqual(summary["source_file_count"], 3)
             self.assertEqual(summary["canonical_file_count"], 2)
+            self.assertEqual(summary["project_state_count"], 0)
             self.assertEqual(summary["preserved_file_count"], 0)
             self.assertNotIn("alpha.md", encoded)
             self.assertNotIn("data/beta.md", encoded)
@@ -226,6 +227,9 @@ class MigrationPackTests(unittest.TestCase):
                         "destination": "archive/migration/migration-dest/tech.txt",
                     },
                 ],
+                "project_initial_states": [
+                    {"project_id": "project-1", "prepared_path": "project-1-STATE.md"}
+                ],
                 "canonical_outputs": [
                     {
                         "target": "identity/alpha.md",
@@ -246,6 +250,24 @@ class MigrationPackTests(unittest.TestCase):
                     ("tech.txt", "archive/migration/migration-dest/tech.txt"),
                 ),
             )
+            self.assertEqual(
+                [(item.project_id, item.prepared_path) for item in parsed.project_initial_states],
+                [("project-1", "project-1-STATE.md")],
+            )
+
+            missing_state = json.loads(json.dumps(base))
+            del missing_state["project_initial_states"]
+            mapping.write_bytes(canonical_json_bytes(missing_state))
+            with self.assertRaisesRegex(MigrationPackBlocked, "state coverage"):
+                verify_migration_mapping(source_manifest, mapping)
+
+            extra_state = json.loads(json.dumps(base))
+            extra_state["project_initial_states"].append(
+                {"project_id": "project-2", "prepared_path": "project-2-STATE.md"}
+            )
+            mapping.write_bytes(canonical_json_bytes(extra_state))
+            with self.assertRaisesRegex(MigrationPackBlocked, "state coverage"):
+                verify_migration_mapping(source_manifest, mapping)
 
             missing = json.loads(json.dumps(base))
             del missing["source_actions"][1]["destination"]
@@ -283,6 +305,8 @@ class MigrationPackTests(unittest.TestCase):
             source, _, source_manifest, prepared, mapping = self._fixture(root)
             project = source / "project-note.md"
             project.write_bytes(b"project-work\r\n")
+            state_raw = b"# Imported Project\r\n\r\nStatus: MIGRATED\r\n"
+            (prepared / "project-1-STATE.md").write_bytes(state_raw)
 
             selection = root / "selection-preserved.json"
             selection.write_bytes(
@@ -318,6 +342,9 @@ class MigrationPackTests(unittest.TestCase):
                     ),
                 }
             )
+            value["project_initial_states"] = [
+                {"project_id": "project-1", "prepared_path": "project-1-STATE.md"}
+            ]
             mapping = root / "mapping-preserved.json"
             mapping.write_bytes(canonical_json_bytes(value))
 
@@ -329,6 +356,12 @@ class MigrationPackTests(unittest.TestCase):
             )
 
             self.assertEqual(first.manifest_raw, second.manifest_raw)
+            self.assertEqual(len(first.project_initial_states), 1)
+            self.assertEqual(first.project_initial_states[0].project_id, "project-1")
+            self.assertEqual(
+                (first.root / "project-state" / "project-state-00001.bin").read_bytes(),
+                state_raw,
+            )
             self.assertEqual(len(first.preserved_outputs), 2)
             self.assertEqual(
                 [item.classification for item in first.preserved_outputs],
@@ -343,16 +376,68 @@ class MigrationPackTests(unittest.TestCase):
                 b"legacy-runtime\r\n",
             )
             summary = first.public_summary()
+            self.assertEqual(summary["project_state_count"], 1)
+            self.assertEqual(summary["project_state_total_bytes"], len(state_raw))
             self.assertEqual(summary["preserved_file_count"], 2)
             self.assertEqual(summary["preservation_counts"]["PROJECT_WORK_IMPORT"], 1)
             self.assertEqual(summary["preservation_counts"]["ARCHIVE_ONLY"], 1)
             encoded = json.dumps(summary, sort_keys=True)
             self.assertNotIn("project-note.md", encoded)
+            self.assertNotIn("project-1", encoded)
+            self.assertNotIn("project-1-STATE.md", encoded)
             self.assertNotIn("tech.txt", encoded)
 
             (first.root / "preserved" / "preserved-00001.bin").write_bytes(b"tampered\n")
             with self.assertRaisesRegex(MigrationPackBlocked, "preserved payload fingerprint mismatch"):
                 verify_migration_pack(first.root)
+
+            (second.root / "project-state" / "project-state-00001.bin").write_bytes(b"tampered\n")
+            with self.assertRaisesRegex(MigrationPackBlocked, "Project STATE payload fingerprint mismatch"):
+                verify_migration_pack(second.root)
+
+    def test_empty_project_state_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, _, source_manifest, prepared, mapping = self._fixture(root)
+            (source / "project-note.md").write_bytes(b"project-work\n")
+            (prepared / "project-1-STATE.md").write_bytes(b"")
+
+            selection = root / "selection-project-state.json"
+            selection.write_bytes(
+                canonical_json_bytes(
+                    {
+                        "schema": "keelaryn.migration-selection.v1",
+                        "candidate_id": "migration-empty-state",
+                        "sources": ["alpha.md", "nested/beta.json", "tech.txt", "project-note.md"],
+                    }
+                )
+            )
+            source_manifest = root / "source-project-state.json"
+            capture_migration_source(source, selection, source_manifest)
+            value = json.loads(mapping.read_text(encoding="utf-8"))
+            value["candidate_id"] = "migration-empty-state"
+            value["source_manifest_sha256"] = verify_migration_source(source_manifest).digest
+            value["source_actions"][2] = {"source": "tech.txt", "classification": "DROP_TECHNICAL"}
+            value["source_actions"].append(
+                {
+                    "source": "project-note.md",
+                    "classification": "PROJECT_WORK_IMPORT",
+                    "destination": "work/projects/project-1/migration-import/project-note.md",
+                }
+            )
+            value["project_initial_states"] = [
+                {"project_id": "project-1", "prepared_path": "project-1-STATE.md"}
+            ]
+            mapping = root / "mapping-empty-state.json"
+            mapping.write_bytes(canonical_json_bytes(value))
+            with self.assertRaisesRegex(MigrationPackBlocked, "Project STATE is empty"):
+                build_migration_pack(
+                    source,
+                    source_manifest,
+                    mapping,
+                    root / "pack-empty-state",
+                    prepared_root=prepared,
+                )
 
     def test_verify_rejects_payload_tamper(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
