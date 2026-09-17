@@ -25,6 +25,8 @@ class DriveOperationalContractTests(unittest.TestCase):
             "Environment=KEELARYN_RUNTIME_DIR=/run/keelaryn",
             "Environment=PYTHONDONTWRITEBYTECODE=1",
             "EnvironmentFile=/etc/keelaryn/drive.env",
+            "EnvironmentFile=/etc/keelaryn/hub.env",
+            "ExecStartPre=/usr/bin/test -r /etc/keelaryn/hub.env",
             "RuntimeDirectory=keelaryn",
             "RuntimeDirectoryMode=0700",
             "UMask=0077",
@@ -73,6 +75,8 @@ class DriveOperationalContractTests(unittest.TestCase):
             "Environment=KEELARYN_RUNTIME_DIR=/run/keelaryn",
             "Environment=PYTHONDONTWRITEBYTECODE=1",
             "EnvironmentFile=/etc/keelaryn/drive.env",
+            "EnvironmentFile=/etc/keelaryn/hub.env",
+            "ExecStartPre=/usr/bin/test -r /etc/keelaryn/hub.env",
             "RuntimeDirectory=keelaryn",
             "RuntimeDirectoryMode=0700",
             "UMask=0077",
@@ -117,23 +121,44 @@ class DriveOperationalContractTests(unittest.TestCase):
         self.assertNotIn(". /etc/keelaryn/drive.env", readme)
         self.assertNotIn("set -a", readme)
 
-    def test_environment_template_contains_placeholders_only(self) -> None:
-        example = (DEPLOY / "keelaryn-drive.env.example").read_text(encoding="utf-8")
-        names = (
-            "KEELARYN_HUB_ROOT_ID",
+    def test_environment_templates_contain_placeholders_only(self) -> None:
+        credentials = (DEPLOY / "keelaryn-drive.env.example").read_text(encoding="utf-8")
+        credential_names = (
             "KEELARYN_GOOGLE_CLIENT_ID",
             "KEELARYN_GOOGLE_CLIENT_SECRET",
             "KEELARYN_GOOGLE_REFRESH_TOKEN",
         )
-        lines = [line.strip() for line in example.splitlines() if line.strip() and not line.startswith("#")]
-        self.assertEqual([line.split("=", 1)[0] for line in lines], list(names))
-        for name in names:
+        credential_lines = [
+            line.strip()
+            for line in credentials.splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+        self.assertEqual(
+            [line.split("=", 1)[0] for line in credential_lines],
+            list(credential_names),
+        )
+        for name in credential_names:
             with self.subTest(name=name):
-                line = next(line for line in lines if line.startswith(name + "="))
+                line = next(line for line in credential_lines if line.startswith(name + "="))
                 self.assertIn("REPLACE_WITH_", line)
-        self.assertNotIn("KEELARYN_GOOGLE_ACCESS_TOKEN=", example)
-        self.assertNotIn("ya29.", example)
-        self.assertNotIn("1//", example)
+        self.assertNotIn("KEELARYN_HUB_ROOT_ID=", credentials)
+        self.assertNotIn("KEELARYN_GOOGLE_ACCESS_TOKEN=", credentials)
+        self.assertNotIn("ya29.", credentials)
+        self.assertNotIn("1//", credentials)
+
+        selector = (DEPLOY / "keelaryn-hub.env.example").read_text(encoding="utf-8")
+        selector_lines = [
+            line.strip()
+            for line in selector.splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+        self.assertEqual(
+            selector_lines,
+            ["KEELARYN_HUB_ROOT_ID=REPLACE_WITH_APPROVED_GOOGLE_DRIVE_HUB_ROOT_ID"],
+        )
+        self.assertNotIn("KEELARYN_GOOGLE_CLIENT_ID=", selector)
+        self.assertNotIn("KEELARYN_GOOGLE_CLIENT_SECRET=", selector)
+        self.assertNotIn("KEELARYN_GOOGLE_REFRESH_TOKEN=", selector)
 
     def test_legacy_core_deployment_source_is_absent(self) -> None:
         self.assertFalse((REPO / "core/deploy/systemd").exists())
