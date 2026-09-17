@@ -72,6 +72,14 @@ For that exact branch/manual-event combination:
 
 Normal zero-based push validation remains the separate **Zero-based Core validation** workflow.
 
+## Execution budget and interrupted-run recovery
+
+The guarded GitHub live job has a **45-minute** execution budget. External VPS/systemd wrappers for the same official harness must allow at least the same 45-minute budget unless a separately qualified tighter bound exists. This is an orchestration ceiling, not a transaction timeout: Drive latency can make a valid PASS+ROLLBACK run substantially slower than deterministic CI.
+
+If the process, transport, shell, CI job, or wrapper times out after Drive mutation may have begun, the result is incomplete evidence rather than permission to rerun blindly. Preserve the failed execution evidence, inspect the durable PASS/FAIL child Hub state and service safety read-only, and classify whether Core or only the gate wrapper failed. A retry **must not reuse the same run ID**; use a fresh run ID only after reconciliation proves the prior run's durable state and it is safe to start another independent disposable run.
+
+A timeout does not convert already durable COMMITTED/ROLLED_BACK state into PASS evidence by itself. The successful gate still requires the official harness to return its complete compact PASS JSON and exit successfully.
+
 ## Expected live evidence
 
 A successful live gate creates two fresh child Hubs under the acceptance root and proves, through the real Google Drive REST API path, all of the following in **both** PASS and FAIL child Hubs:

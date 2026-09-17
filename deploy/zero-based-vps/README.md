@@ -14,6 +14,7 @@ The MVP runtime is one long-lived `keelaryn_core.drive_poller serve` process on 
 - `keelaryn-hub.env.example` — single Hub-selector template only;
 - `build_payload.py` — deterministic exact-source payload builder;
 - `materialize_payload.py` — strict payload verifier and immutable release materializer;
+- `target_host_validate.py` — root-safe, bytecode-free target-host/release validation surface;
 - `release_switch.py` — durable restartable `current` source publication/rollback transaction;
 - `hub_cutover.py` — durable restartable production Hub-selector cutover/rollback transaction;
 - `HUB_CUTOVER.md` — exact production selector and cutover contract.
@@ -57,13 +58,13 @@ Create a dedicated unprivileged `keelaryn` system account/group. The checked-in 
 
 Keep both `/etc/keelaryn/drive.env` and `/etc/keelaryn/hub.env` owned by `root:root` with mode `0600`. Systemd reads them before dropping privileges; the service process does not need filesystem permission to read either file directly.
 
-`drive.env` contains only Google OAuth refresh credentials. `hub.env` contains exactly one authoritative selector assignment:
+`drive.env` contains only Google OAuth refresh credentials. `hub.env` contains exactly one authoritative selector assignment, encoded as exact ASCII bytes with one LF terminator:
 
 ```text
 KEELARYN_HUB_ROOT_ID=<exact-approved-drive-hub-root-id>
 ```
 
-Do not duplicate `KEELARYN_HUB_ROOT_ID` in `drive.env`, units, shell profiles or Workspace wrappers. After initial installation, change `hub.env` only through the qualified `hub_cutover.py` transaction.
+The raw selector is intentionally stricter than generic systemd `EnvironmentFile=` syntax. Quotes, comments, CRLF, whitespace variants, duplicate/extra assignments and additional lines are forbidden even if systemd would parse them. `target_host_validate.py` and `hub_cutover.py` enforce the same canonical selector contract before qualification/cutover. Do not duplicate `KEELARYN_HUB_ROOT_ID` in `drive.env`, units, shell profiles or Workspace wrappers. After initial installation, change `hub.env` only through the qualified `hub_cutover.py` transaction.
 
 Do not `source` either root-owned environment file into an interactive shell merely to run Workspace commands. Use the transient-systemd pattern below so the service manager reads both files and launches the short-lived command as the unprivileged `keelaryn` identity.
 
@@ -90,41 +91,58 @@ python3 materialize_payload.py \
 
 The materializer rejects unsafe/non-regular tar members, duplicate or unbound members, manifest/hash/size mismatches, source mismatch, payload-digest mismatch and an already-existing release destination. It stages and re-reads all bytes before atomic publication, then makes the release read-only. Materialized payload identity is revalidated by `release_switch.py` before source publication.
 
-## Validation without modifying release bytes
+## Target-host validation without modifying release bytes
 
-Do **not** use compile commands that write `__pycache__` inside a materialized release. Validate with bytecode writes disabled:
+Target-host validation is deliberately narrower than repository development CI. A materialized runtime host **must not run the full `tests/core` development suite**: those tests include repository-layout and harness assumptions that are valid in development CI but are not part of the installed-host contract.
+
+Use the dedicated validator from the exact materialized release. It revalidates the manifest-bound release, compiles every Python source in memory, exercises the supported runtime/deployment CLI surfaces with `-B`, revalidates the release after execution, and writes no bytecode/cache material:
 
 ```bash
-cd /opt/keelaryn/releases/<exact-source-commit>
-export PYTHONDONTWRITEBYTECODE=1
-
-python3 -B - <<'PY'
-from pathlib import Path
-for path in sorted(Path('.').rglob('*.py')):
-    compile(path.read_bytes(), str(path), 'exec')
-PY
-
-PYTHONPATH=core python3 -B -m unittest discover -s tests/core -p 'test_*.py' -v
-PYTHONPATH=core python3 -B -m keelaryn_core.drive_poller --help >/dev/null
-PYTHONPATH=core python3 -B -m keelaryn_core.workspace_cli --help >/dev/null
-python3 -B deploy/zero-based-vps/release_switch.py --help >/dev/null
-python3 -B deploy/zero-based-vps/hub_cutover.py --help >/dev/null
+RELEASE=/opt/keelaryn/releases/<exact-source-commit>
+PYTHONDONTWRITEBYTECODE=1 python3 -B \
+  "$RELEASE/deploy/zero-based-vps/target_host_validate.py" \
+  --release "$RELEASE" \
+  --expected-source-commit <exact-source-commit> \
+  --expected-payload-sha256 <exact-qualified-payload-sha256>
 ```
 
-After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material in the release. A development-CI PASS is not production qualification; target-host validation is a separate evidence class.
+Once host configuration exists, use the same validator to bind the exact canonical selector and exact installed systemd unit bytes to the qualified release:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -B \
+  "$RELEASE/deploy/zero-based-vps/target_host_validate.py" \
+  --release "$RELEASE" \
+  --expected-source-commit <exact-source-commit> \
+  --expected-payload-sha256 <exact-qualified-payload-sha256> \
+  --selector-path /etc/keelaryn/hub.env \
+  --installed-unit-dir /etc/systemd/system
+```
+
+The host-config form is an administrative/root validation because `/etc/keelaryn/hub.env` is intentionally root-only. After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material in the release. Deterministic `tests/core` still run in development CI; the dedicated target-host validator does not replace or weaken them. A development-CI PASS is not production qualification; target-host validation is a separate evidence class.
 
 ## First installation
 
 1. Create the dedicated `keelaryn` account/group with no interactive login.
 2. Create `/opt/keelaryn/releases` and materialize the exact approved payload using both qualified identities.
-3. Validate the read-only release without bytecode writes.
+3. Run release-only `target_host_validate.py` with the exact source commit and payload SHA-256.
 4. Create `/opt/keelaryn/current` as a **relative** symlink exactly `current -> releases/<exact-source-commit>`.
 5. Create `/var/lib/keelaryn/deployment` for the administrative deployment identity with mode `0700`.
 6. Install both checked-in systemd units under `/etc/systemd/system/`.
 7. Create `/etc/keelaryn/drive.env` from its example and set `root:root 0600`.
-8. Create `/etc/keelaryn/hub.env` from its example, replace the placeholder with the exact approved disposable/test Hub ID, and set `root:root 0600`.
-9. Run `systemctl daemon-reload`.
-10. Initialize or verify the **disposable/test Hub** through the unprivileged oneshot:
+8. Create `/etc/keelaryn/hub.env` as exact canonical bytes. Do not quote the value or copy generic shell/systemd quoting into this file:
+
+   ```bash
+   HUB_ROOT_ID=<exact-approved-disposable-test-hub-id>
+   umask 077
+   printf 'KEELARYN_HUB_ROOT_ID=%s\n' "$HUB_ROOT_ID" > /etc/keelaryn/hub.env
+   chown root:root /etc/keelaryn/hub.env
+   chmod 0600 /etc/keelaryn/hub.env
+   ```
+
+   The resulting file must contain only that one assignment with LF framing: no quotes, comments, CRLF, whitespace variants or extra assignments.
+9. Run the host-config form of `target_host_validate.py` against `/etc/keelaryn/hub.env` and `/etc/systemd/system`. This must PASS **before any OAuth/Drive bootstrap or live acceptance use**.
+10. Run `systemctl daemon-reload`.
+11. Initialize or verify the **disposable/test Hub** through the unprivileged oneshot:
 
    ```bash
    systemctl start keelaryn-drive-bootstrap.service
@@ -132,9 +150,15 @@ After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material
    ```
 
    Do not source the secret env file into a root shell and **do not run the poller bootstrap directly as root**.
-11. Continuous disposable/VPS polling is enabled only after the applicable live-Drive gate passes. Production/personal Hub migration is a later gate.
+12. Continuous disposable/VPS polling is enabled only after the applicable live-Drive gate passes. Production/personal Hub migration is a later gate.
 
 The initial creation of `current` and initial selector file are installation bootstrap. Every later source identity change uses `release_switch.py`; every later Hub-selector change uses `hub_cutover.py`.
+
+## Disposable live-Drive execution budget
+
+The official disposable Drive harness is mutation-bearing and may require many sequential Google Drive operations. CI and external target-host wrappers must provide a bounded **45-minute** execution budget unless a separately qualified tighter bound exists. A wrapper timeout is gate/execution evidence, not proof of a Core product failure and not proof of success.
+
+If response loss or timeout occurs after mutations may have begun, do not retry the same logical execution blindly. First perform read-only reconciliation of the exact run's durable PASS/FAIL child Hub state and service safety. Preserve the failed evidence. Any later independent retry must use a fresh run ID; never reuse a run ID that may already have Drive material. Official PASS still requires the harness to return complete PASS JSON and exit successfully.
 
 ## Runtime behavior
 
@@ -380,7 +404,8 @@ Crash points after active-record creation, selector/symlink swap, terminal-marke
 - `deploy/zero-based-vps/` is the only deployment source-of-truth for this line.
 - Keep release directories manifest-bound/read-only; never install from a moving branch checkout.
 - Bind deployment to exact source commit and exact qualified payload SHA-256.
-- Keep `/etc/keelaryn/hub.env` as the only production Hub selector; do not duplicate its value elsewhere.
+- Validate the materialized release and, once present, exact canonical selector/systemd unit bytes through `target_host_validate.py`; do not substitute full repository `tests/core` execution on the target host.
+- Keep `/etc/keelaryn/hub.env` as the only production Hub selector; its raw bytes must be canonical and unquoted.
 - Use `hub_cutover.py` for every selector change after initial installation; do not edit/replace `hub.env` ad hoc.
 - Capture and pin the OLD `release_switch.py` before source `prepare`; one source transaction never changes executor identity midway.
 - Use `release_switch.py` for every source update/rollback after first installation; do not use ad-hoc `ln -sfn` for `current`.

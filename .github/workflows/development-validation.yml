@@ -120,7 +120,7 @@ jobs:
   zero-based-drive-disposable-acceptance:
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/zero-based-keelaryn' && github.actor == github.repository_owner && inputs.confirm_disposable_drive == 'YES' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     env:
       KEELARYN_DRIVE_ACCEPT_DISPOSABLE: ${{ secrets.KEELARYN_DISPOSABLE_ENABLE }}
       KEELARYN_GOOGLE_CLIENT_ID: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_ID }}

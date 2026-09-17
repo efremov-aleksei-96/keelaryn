@@ -75,6 +75,16 @@ class LiveWorkflowContractTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn(text, raw)
 
+    def test_live_job_has_realistic_bounded_execution_budget(self) -> None:
+        raw = self.workflow()
+        live = raw.split("zero-based-drive-disposable-acceptance:", 1)[1]
+        self.assertIn("timeout-minutes: 45", live)
+        self.assertNotIn("timeout-minutes: 15", live)
+
+        contract = (REPO / "tests" / "live" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("45-minute", contract)
+        self.assertIn("must not reuse the same run ID", contract)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
