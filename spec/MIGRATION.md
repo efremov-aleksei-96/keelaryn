@@ -200,22 +200,33 @@ Cutover is separate from data publication.
 
 The migration publication may complete successfully while the legacy Hub is still the active production Hub. A successful publication therefore means **new target constructed**, not **production switched**.
 
-Cutover may occur only after all production-target acceptance checks PASS.
+Cutover may occur only after all production-target acceptance checks PASS and explicit production cutover approval has been given.
 
-The cutover transaction is logically:
+The authoritative production selector is `/etc/keelaryn/hub.env`. It contains exactly one canonical `KEELARYN_HUB_ROOT_ID=<exact-root-id>` assignment. Google OAuth credentials remain in `/etc/keelaryn/drive.env`; production Hub selection must not be duplicated there or in another runtime convention.
+
+`hub_cutover.py` owns the durable selector transaction. It shares `/var/lib/keelaryn/deployment/LOCK` and `ACTIVE_TRANSACTION.json` with release switching so source-release and Hub-cutover transactions cannot proceed concurrently. The active cutover record binds exact OLD Hub identity, exact NEW Hub identity, exact qualified source commit and exact cutover-tool bytes.
+
+The production cutover sequence is:
 
 1. confirm legacy source identity still matches the frozen migration source boundary or an explicitly accepted final-delta procedure;
-2. confirm new zero-based target is READY/SAFE and exact;
-3. confirm qualified runtime/Core identity;
-4. record the old production Hub identity as rollback target;
-5. atomically or unambiguously change the external production pointer/convention to the new zero-based Hub;
-6. verify the new pointer resolves to the exact expected Hub;
-7. run post-cutover read-only acceptance;
-8. declare cutover accepted only after verification PASS.
+2. confirm the new zero-based target is the exact target bound by private production-target authority and qualification evidence;
+3. confirm qualified runtime/Core/source identity;
+4. `prepare` one Hub-selector transaction while selector is exact OLD;
+5. stop and prove the production writer inactive;
+6. `apply` atomically replaces the selector with exact NEW and re-observes the durable result;
+7. keep the writer stopped and run fresh post-cutover read-only acceptance through `tests/live/run_migration_post_cutover_acceptance.py`;
+8. require that acceptance to bind exact active transaction, exact source commit and exact NEW selector identity;
+9. publish/verify the private finalization receipt and revalidate transaction/selector identity at the terminal commit boundary;
+10. only the finalizer may invoke low-level terminal `accept`, after which immutable terminal/history authority must prove `ACCEPTED`;
+11. only after finalizer PASS may the NEW writer be started.
 
-If durable pointer change succeeds but post-cutover verification fails, evidence must state that the durable cutover occurred and rollback must use the preserved old production Hub identity. It must not pretend cutover never happened.
+Direct manual `hub_cutover.py accept` is not an accepted production procedure. It is a low-level transaction primitive used by the transaction-bound finalizer after fresh acceptance and commit-boundary revalidation.
 
-The exact physical production-pointer mechanism is intentionally not assumed here and must be specified before implementation. It may be a documented Drive location/convention, local sync root, launcher configuration or another single authoritative selector, but ambiguity is forbidden.
+The finalization receipt remains private and binds at minimum the transaction ID, SHA-256 of exact active transaction bytes, exact source commit, selector identity hash and SHA-256 of fresh post-cutover acceptance evidence. Public output exposes only sanitized hashes/outcomes and must not reveal Hub IDs or private paths.
+
+If process response is lost after durable terminal acceptance, repeating the same finalizer with the same qualified source/runtime and private receipt must recover from immutable terminal/history authority without inventing a new transaction.
+
+If durable selector `apply` succeeds but fresh post-cutover acceptance fails before terminal `ACCEPTED`, evidence must state that the durable cutover occurred. With the NEW writer still stopped, rollback restores the preserved OLD selector identity through the same cutover transaction; the system must not pretend selector mutation never happened.
 
 ## 10. Source drift between rehearsal and cutover
 
@@ -236,13 +247,15 @@ Rollback exists at two layers.
 
 Before cutover, any migration publication failure uses the ordinary zero-based Core rollback rules on the new target. The legacy production Hub remains untouched and active.
 
-### Cutover rollback
+### Cutover rollback before terminal acceptance
 
-After cutover, rollback means restoring the external production pointer/convention to the preserved legacy production Hub identity.
+After selector `apply` but before durable terminal `ACCEPTED`, rollback means restoring `/etc/keelaryn/hub.env` to the preserved legacy production Hub identity while the NEW writer is stopped.
 
 Cutover rollback must not copy zero-based target bytes back into the legacy Hub and must not rewrite the legacy Hub to resemble the new structure.
 
-The failed zero-based target and all qualification evidence are preserved for diagnosis until explicitly cleaned up.
+The failed zero-based target, private target authority, qualification evidence and finalization diagnostics are preserved for diagnosis until explicitly cleaned up.
+
+If terminal `ACCEPTED` is already durable, the same cutover transaction cannot later become `ROLLED_BACK`. Any later production reversal requires a new, separately authorized selector transaction and fresh validation of the intended target; it is not recovery of the already accepted transaction.
 
 ## 12. Acceptance gates
 
@@ -260,8 +273,11 @@ Production migration is not approved until all applicable gates PASS against exa
 - restart/recovery verification;
 - reader SAFE/epoch verification;
 - production-target Doctor/SelfTest equivalent appropriate to zero-based architecture;
-- cutover-pointer rollback rehearsal on a disposable selector;
-- final production-specific acceptance.
+- cutover-pointer switch/rollback rehearsal on a disposable selector;
+- transaction-bound post-cutover finalizer regression, including stale/mismatched evidence rejection and response-loss recovery;
+- target-host selector/state filesystem and ownership checks;
+- final fresh production-specific read-only acceptance bound to exact active cutover transaction;
+- immutable terminal `ACCEPTED` verification before the NEW writer is started.
 
 Development CI and disposable rehearsal are necessary evidence but are not production qualification by themselves.
 
@@ -279,8 +295,12 @@ Migration evidence must bind at minimum:
 - Core/runtime identity;
 - disposable rehearsal run identity;
 - production construction evidence identity;
-- cutover selector identity/revision when implemented;
-- terminal outcomes and canonical epochs.
+- cutover selector identity hash;
+- SHA-256 of exact active cutover transaction authority;
+- SHA-256 of fresh post-cutover acceptance evidence;
+- terminal outcome and canonical epoch.
+
+The private finalization receipt additionally binds real transaction-local authority but remains private on the target host.
 
 Private source paths, payload bytes, Google Drive object IDs, account email addresses, OAuth credentials and local workstation paths are excluded from public repository evidence.
 
@@ -304,7 +324,8 @@ The migration implementation must proceed in this order:
 8. freeze a migration candidate only after coherent development PASS;
 9. run production-target qualification;
 10. request explicit production cutover approval;
-11. perform cutover and production acceptance;
-12. retain rollback source until separate retirement approval.
+11. perform selector apply and transaction-bound production acceptance;
+12. start the NEW writer only after terminal acceptance PASS;
+13. retain rollback source until separate retirement approval.
 
 No earlier step implies permission to perform a later production step.
