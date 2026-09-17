@@ -203,6 +203,73 @@ class MigrationDisposableLiveRunnerTests(unittest.TestCase):
         self.assertNotIn("drive-existing-secret-id", combined)
         self.assertNotIn(env["KEELARYN_MIGRATION_PACK_DIR"], combined)
 
+    def test_resume_streams_sanitized_progress_json_to_stderr(self) -> None:
+        module = _load_runner()
+        env = self._resume_env()
+        child_name = f"{module.CHILD_PREFIX}Migration_{env['KEELARYN_MIGRATION_REHEARSAL_RUN_ID']}"
+        fake_drive = Mock()
+        fake_drive.list_children.return_value = [
+            SimpleNamespace(
+                trashed=False,
+                is_folder=True,
+                file_id="drive-existing-secret-id",
+                name=child_name,
+            )
+        ]
+        captured: dict[str, object] = {}
+
+        class ProgressRehearsal:
+            def __init__(self, drive, hub_id, *, progress=None):
+                captured["progress"] = progress
+
+            def run(self, pack_dir):
+                progress = captured["progress"]
+                if callable(progress):
+                    progress("topology")
+                    progress("ready-change-prepared", 1, 2)
+                return _FakeEvidence()
+
+        with patch.object(module, "verify_migration_pack", return_value=_FakePack()), patch.object(
+            module.GoogleOAuthRefreshTokenProvider,
+            "from_environment",
+            return_value=object(),
+        ), patch.object(module, "GoogleDriveBackend", return_value=fake_drive), patch.object(
+            module,
+            "verify_acceptance_root",
+        ), patch.object(
+            module,
+            "DriveMigrationDisposableRehearsal",
+            ProgressRehearsal,
+        ):
+            code, stdout, stderr = self._run(module, env)
+
+        self.assertEqual(code, 0)
+        self.assertTrue(callable(captured.get("progress")))
+        public = json.loads(stdout)
+        self.assertEqual(public["schema"], "keelaryn.migration-disposable-live-run.v1")
+
+        progress_lines = [json.loads(line) for line in stderr.splitlines() if line]
+        self.assertEqual(
+            progress_lines,
+            [
+                {
+                    "schema": "keelaryn.migration-disposable-live-progress.v1",
+                    "phase": "topology",
+                },
+                {
+                    "schema": "keelaryn.migration-disposable-live-progress.v1",
+                    "phase": "ready-change-prepared",
+                    "current": 1,
+                    "total": 2,
+                },
+            ],
+        )
+
+        combined = stdout + stderr
+        self.assertNotIn("drive-acceptance-secret-id", combined)
+        self.assertNotIn("drive-existing-secret-id", combined)
+        self.assertNotIn(env["KEELARYN_MIGRATION_PACK_DIR"], combined)
+
     def test_resume_missing_exact_child_fails_closed_without_creation(self) -> None:
         module = _load_runner()
         env = self._resume_env()
