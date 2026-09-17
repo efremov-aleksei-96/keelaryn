@@ -61,6 +61,14 @@ class DriveMigrationCanonicalPublication:
         self.drive = drive
         self.hub_root_id = hub_root_id
 
+    def _progress(
+        self,
+        phase: str,
+        current: int | None = None,
+        total: int | None = None,
+    ) -> None:
+        return None
+
     def _bootstrap(self) -> None:
         try:
             DriveHubBootstrap(self.drive, self.hub_root_id).run()
@@ -323,7 +331,9 @@ class DriveMigrationCanonicalPublication:
         )
 
         expected_prepared: set[str] = set()
-        for entry in pack.canonical_outputs:
+        total_prepared = len(pack.canonical_outputs)
+        for current, entry in enumerate(pack.canonical_outputs, start=1):
+            self._progress("ready-change-prepared", current, total_prepared)
             raw = source_file(
                 pack.root,
                 entry.payload,
@@ -369,7 +379,9 @@ class DriveMigrationCanonicalPublication:
             raise DriveMigrationPublicationBlocked(
                 "migration pack identity changed before Ready publication"
             )
-        for entry in refreshed.canonical_outputs:
+        total_reverify = len(refreshed.canonical_outputs)
+        for current, entry in enumerate(refreshed.canonical_outputs, start=1):
+            self._progress("ready-change-reverify", current, total_reverify)
             raw = source_file(
                 refreshed.root,
                 entry.payload,
@@ -551,16 +563,19 @@ class DriveMigrationCanonicalPublication:
                     raise DriveMigrationPublicationBlocked(
                         "migration target Hub was already used by another change"
                     )
+                self._progress("final-verification")
                 return self._final_evidence(pack, layout)
             if not self._initial_master(master):
                 raise DriveMigrationPublicationBlocked(
                     "migration target Hub is not untouched READY/SAFE epoch 0"
                 )
             try:
+                self._progress("topology")
                 DriveMigrationTopologyPreparation(
                     self.drive,
                     self.hub_root_id,
                 ).prepare(pack.root)
+                self._progress("projects")
                 DriveMigrationProjectPreparation(
                     self.drive,
                     self.hub_root_id,
@@ -570,10 +585,12 @@ class DriveMigrationCanonicalPublication:
                     f"migration epoch-0 preparation failed: {exc}"
                 ) from exc
             layout = DriveTransactionFactory(self.drive, self.hub_root_id).resolve_layout()
+            self._progress("ready-change")
             self._prepare_ready_change(pack, layout)
 
         service = DrivePollingService(self.drive, self.hub_root_id)
-        for _ in range(max_iterations):
+        for current_iteration in range(1, max_iterations + 1):
+            self._progress("core-iteration", current_iteration, max_iterations)
             try:
                 status = service.run_once()
             except DriveServiceBlocked as exc:
@@ -586,6 +603,7 @@ class DriveMigrationCanonicalPublication:
             if status.phase in {"COMMITTED", "ROLLED_BACK"}:
                 continue
             if status.phase == "IDLE":
+                self._progress("final-verification")
                 return self._final_evidence(pack, layout)
             if status.phase in {"RECOVERY_BLOCKED", "ABORTED_SAFE"}:
                 raise DriveMigrationPublicationBlocked(
