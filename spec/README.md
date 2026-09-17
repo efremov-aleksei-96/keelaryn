@@ -54,9 +54,10 @@ Keelaryn Hub/
 │   │       │   ├── PLAN.json
 │   │       │   ├── OLD.md
 │   │       │   └── DONE.json
-│   │       └── results/<result_id>/
-│   │           ├── RESULT.md
-│   │           └── RESULT.json
+│   │       ├── results/<result_id>/
+│   │       │   ├── RESULT.md
+│   │       │   └── RESULT.json
+│   │       └── migration-import/...       # optional, migration-only non-authoritative preserved material
 │   └── reconciliation/
 │       ├── STATE.md
 │       ├── state-history/<update_id>/
@@ -76,20 +77,24 @@ Keelaryn Hub/
 ├── control/
 │   └── active/
 │       └── ACTIVE_TRANSACTION.json   # Drive restart locator while active/prepared
-└── history/
-    └── <change_id>/
-        ├── <change_id>.DRIVE_BUNDLE.json
-        ├── <change_id>.READY.consumed.json   # after terminal publication, when source marker existed
-        ├── stage/
-        ├── originals/
-        ├── rejected/
-        ├── snapshots/
-        ├── receipts/
-        ├── markers/
-        └── master-transitions/
+├── history/
+│   └── <change_id>/
+│       ├── <change_id>.DRIVE_BUNDLE.json
+│       ├── <change_id>.READY.consumed.json   # after terminal publication, when source marker existed
+│       ├── stage/
+│       ├── originals/
+│       ├── rejected/
+│       ├── snapshots/
+│       ├── receipts/
+│       ├── markers/
+│       └── master-transitions/
+└── archive/
+    └── migration/<candidate_id>/...  # optional, migration-only historical material outside active work/canonical authority
 ```
 
 Fresh Drive bootstrap creates the structural folders plus deterministic human-readable `README.md`, `INDEX.md` and initial `work/reconciliation/STATE.md`, freshly verifies them, and publishes `MASTER.json` last. Lost responses for every bootstrap mutation are recovered by re-observation. Once MASTER exists, bootstrap is verification-only: it never creates a missing required human/structural object. `INDEX.md` and Reconciliation STATE may legitimately change afterward and are therefore required by identity/type, not forced back to bootstrap template bytes.
+
+`work/projects/<project_id>/migration-import/` and `archive/migration/<candidate_id>/` are optional migration-only preservation namespaces. They are not created by ordinary fresh bootstrap and never become canonical truth merely by existing. Project preservation remains subordinate to an explicitly initialized Project but is outside Project STATE/RESULT authority; archive preservation is outside active canonical/work authority. Migration mapping must bind every preserved source to one exact Hub-relative destination in the appropriate namespace before any target materialization occurs.
 
 During an incomplete work STATE transition, `NEW.md` may also exist in the update folder. Between OLD displacement and NEW publication there may intentionally be no current `STATE.md`; reads fail closed during that GAP. `NEW.md` becomes the exact new current `STATE.md`, and `DONE.json` is created only after that publication is verified.
 
@@ -124,7 +129,7 @@ Schema validation is only the first path-safety layer. Runtime validation MUST a
 - any resolved target outside its declared root;
 - symlink/reparse-style escapes where the backend exposes them.
 
-`target` paths in `CHANGE.json` are relative to `canonical/`. `prepared_path` paths are relative to the change directory. Snapshot paths in `HISTORY.json` are relative to that history directory.
+`target` paths in `CHANGE.json` are relative to `canonical/`. `prepared_path` paths are relative to the change directory. Snapshot paths in `HISTORY.json` are relative to that history directory. Migration preservation `destination` paths are Hub-relative and are valid only within the migration namespaces defined above.
 
 For local-filesystem protocol v1, every canonical target's parent directory MUST already exist, be a real directory, and contain no symlink/reparse-style traversal component. ADD/REPLACE/DELETE operate on files only. Core does not implicitly create or delete canonical directories in v1. This keeps directory topology outside the file transaction until a separately specified directory operation is justified.
 
@@ -142,7 +147,10 @@ Runtime MUST additionally enforce:
 - Workspace portfolio enumeration requires unique valid Project folder names and mandatory Project STATE/results structure;
 - at most one incomplete work STATE transition may exist for one owner;
 - previous work STATE PLAN/OLD/DONE authority must validate before a later STATE transition begins;
-- work STATE role identity and exact owner folder identity must match before restart continuation.
+- work STATE role identity and exact owner folder identity must match before restart continuation;
+- every preservation-classified migration source has exactly one explicit destination and no two such sources share one destination;
+- `PROJECT_WORK_IMPORT` destinations remain under `work/projects/<project_id>/migration-import/`;
+- `ARCHIVE_ONLY` destinations remain under `archive/migration/<candidate_id>/`.
 
 ## Schema compatibility
 
