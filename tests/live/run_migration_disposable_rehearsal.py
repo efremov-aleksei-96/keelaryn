@@ -55,6 +55,17 @@ def _same_pack(first, second) -> None:
         )
 
 
+def _resume_requested() -> bool:
+    value = os.environ.get("KEELARYN_MIGRATION_DISPOSABLE_REHEARSAL_RESUME", "")
+    if not value:
+        return False
+    if value != "YES":
+        raise LiveMigrationDisposableRehearsalError(
+            "disposable migration rehearsal resume is not explicitly enabled"
+        )
+    return True
+
+
 def main() -> int:
     phase = "preflight"
     try:
@@ -63,6 +74,7 @@ def main() -> int:
                 "disposable migration rehearsal is not explicitly enabled"
             )
 
+        resume = _resume_requested()
         run_id = _safe_run_id(_required("KEELARYN_MIGRATION_REHEARSAL_RUN_ID"))
         acceptance_root_id = _required("KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID")
         pack_dir = _private_pack_path()
@@ -83,7 +95,20 @@ def main() -> int:
             for item in drive.list_children(acceptance_root_id, name=child_name)
             if not item.trashed
         ]
-        if existing:
+
+        child = None
+        if resume:
+            if len(existing) != 1:
+                raise LiveMigrationDisposableRehearsalError(
+                    "resume requires exactly one existing disposable migration child"
+                )
+            candidate_child = existing[0]
+            if not candidate_child.is_folder or candidate_child.name != child_name:
+                raise LiveMigrationDisposableRehearsalError(
+                    "existing disposable migration child identity is invalid"
+                )
+            child = candidate_child
+        elif existing:
             raise LiveMigrationDisposableRehearsalError(
                 "disposable migration rehearsal run ID already has Drive material"
             )
@@ -92,18 +117,19 @@ def main() -> int:
         boundary_pack = verify_migration_pack(pack_dir)
         _same_pack(initial_pack, boundary_pack)
 
-        phase = "child-create"
-        reserved_id = drive.generate_ids(1)[0]
-        child = drive.create_folder(
-            acceptance_root_id,
-            child_name,
-            file_id=reserved_id,
-            label="migration disposable rehearsal Hub",
-        )
-        if child.file_id != reserved_id or child.name != child_name or not child.is_folder:
-            raise LiveMigrationDisposableRehearsalError(
-                "created disposable migration child identity is invalid"
+        if child is None:
+            phase = "child-create"
+            reserved_id = drive.generate_ids(1)[0]
+            child = drive.create_folder(
+                acceptance_root_id,
+                child_name,
+                file_id=reserved_id,
+                label="migration disposable rehearsal Hub",
             )
+            if child.file_id != reserved_id or child.name != child_name or not child.is_folder:
+                raise LiveMigrationDisposableRehearsalError(
+                    "created disposable migration child identity is invalid"
+                )
 
         phase = "migration-rehearsal"
         evidence = DriveMigrationDisposableRehearsal(
@@ -142,7 +168,7 @@ def main() -> int:
             "schema": "keelaryn.migration-disposable-live-run.v1",
             "run_id": run_id,
             "rehearsal": value,
-            "existing_hub_reused": False,
+            "existing_hub_reused": resume,
             "production_selector_mutated": False,
         }
         rendered = json.dumps(
