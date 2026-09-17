@@ -9,11 +9,14 @@
     "source_manifest",
     "mapping_manifest",
     "canonical_outputs",
+    "preserved_outputs",
     "root_index",
     "source_file_count",
     "source_total_bytes",
     "canonical_file_count",
-    "canonical_total_bytes"
+    "canonical_total_bytes",
+    "preserved_file_count",
+    "preserved_total_bytes"
   ],
   "properties": {
     "schema": { "const": "keelaryn.migration-pack.v1" },
@@ -45,19 +48,9 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "operation_id",
-          "target",
-          "semantic_sources",
-          "payload",
-          "sha256",
-          "size"
-        ],
+        "required": ["operation_id", "target", "semantic_sources", "payload", "sha256", "size"],
         "properties": {
-          "operation_id": {
-            "type": "string",
-            "pattern": "^canonical-[0-9]{5}$"
-          },
+          "operation_id": { "type": "string", "pattern": "^canonical-[0-9]{5}$" },
           "target": { "$ref": "common.schema.json#/$defs/relativePath" },
           "semantic_sources": {
             "type": "array",
@@ -66,10 +59,24 @@
             "uniqueItems": true,
             "items": { "$ref": "common.schema.json#/$defs/relativePath" }
           },
-          "payload": {
-            "type": "string",
-            "pattern": "^canonical/canonical-[0-9]{5}\\.bin$"
-          },
+          "payload": { "type": "string", "pattern": "^canonical/canonical-[0-9]{5}\\.bin$" },
+          "sha256": { "$ref": "common.schema.json#/$defs/sha256" },
+          "size": { "type": "integer", "minimum": 0, "maximum": 134217728 }
+        }
+      }
+    },
+    "preserved_outputs": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["operation_id", "source", "classification", "payload", "sha256", "size"],
+        "properties": {
+          "operation_id": { "type": "string", "pattern": "^preserved-[0-9]{5}$" },
+          "source": { "$ref": "common.schema.json#/$defs/relativePath" },
+          "classification": { "enum": ["PROJECT_WORK_IMPORT", "ARCHIVE_ONLY"] },
+          "payload": { "type": "string", "pattern": "^preserved/preserved-[0-9]{5}\\.bin$" },
           "sha256": { "$ref": "common.schema.json#/$defs/sha256" },
           "size": { "type": "integer", "minimum": 0, "maximum": 134217728 }
         }
@@ -100,6 +107,8 @@
     "source_file_count": { "type": "integer", "minimum": 1, "maximum": 10000 },
     "source_total_bytes": { "type": "integer", "minimum": 0, "maximum": 2147483648 },
     "canonical_file_count": { "type": "integer", "minimum": 1, "maximum": 10000 },
-    "canonical_total_bytes": { "type": "integer", "minimum": 0, "maximum": 2147483648 }
+    "canonical_total_bytes": { "type": "integer", "minimum": 0, "maximum": 2147483648 },
+    "preserved_file_count": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "preserved_total_bytes": { "type": "integer", "minimum": 0, "maximum": 2147483648 }
   }
 }
