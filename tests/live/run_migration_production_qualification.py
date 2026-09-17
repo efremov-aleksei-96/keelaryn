@@ -10,8 +10,8 @@ sys.path.insert(0, str(REPO / "core"))
 
 from keelaryn_core.drive_oauth import GoogleOAuthRefreshTokenProvider  # noqa: E402
 from keelaryn_core.drive_rest import GoogleDriveBackend  # noqa: E402
-from keelaryn_core.migration_production_qualification import (  # noqa: E402
-    DriveMigrationProductionTargetQualification,
+from keelaryn_core.migration_production_drive_qualification import (  # noqa: E402
+    DriveAuthoritativeMigrationProductionTargetQualification,
 )
 
 
@@ -41,7 +41,7 @@ def main() -> int:
         pack_dir = _path("KEELARYN_MIGRATION_PACK_DIR")
         freeze_receipt = _path("KEELARYN_MIGRATION_FREEZE_RECEIPT")
         repo_root = _path("KEELARYN_MIGRATION_REPO_ROOT")
-        legacy_source_root = _path("KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT")
+        legacy_source_root_id = _required("KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT_ID")
         target_authority = _path("KEELARYN_MIGRATION_TARGET_AUTHORITY")
         qualification_evidence = _path("KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE")
         staging_root_id = _required("KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID")
@@ -51,14 +51,14 @@ def main() -> int:
         drive = GoogleDriveBackend(token_provider)
 
         phase = "production-target-qualification"
-        evidence = DriveMigrationProductionTargetQualification(
+        evidence = DriveAuthoritativeMigrationProductionTargetQualification(
             drive,
             staging_root_id,
-        ).run(
+            legacy_source_root_id,
+        ).run_drive(
             pack_dir,
             freeze_receipt,
             repo_root,
-            legacy_source_root,
             target_authority,
             qualification_evidence,
         )
@@ -87,15 +87,15 @@ def main() -> int:
             separators=(",", ":"),
         )
 
-        # The qualification contract publishes only hashed Drive identities and
-        # frozen provenance. Real Drive IDs and local paths are intentionally not
-        # echoed. Guard against accidental wrapper-level leakage as well.
+        # The qualification contract publishes only frozen content provenance and
+        # hashed target/staging identities. Raw legacy/staging Drive IDs and local
+        # private paths must never be emitted by the live wrapper.
         forbidden = (
+            legacy_source_root_id,
             staging_root_id,
             str(pack_dir),
             str(freeze_receipt),
             str(repo_root),
-            str(legacy_source_root),
             str(target_authority),
             str(qualification_evidence),
         )

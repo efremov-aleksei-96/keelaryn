@@ -40,7 +40,7 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
             "KEELARYN_MIGRATION_PACK_DIR": "/private/migration/pack",
             "KEELARYN_MIGRATION_FREEZE_RECEIPT": "/private/migration/freeze.json",
             "KEELARYN_MIGRATION_REPO_ROOT": "/private/source/repo",
-            "KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT": "/private/legacy/hub",
+            "KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT_ID": "drive-legacy-source-secret-id",
             "KEELARYN_MIGRATION_TARGET_AUTHORITY": "/private/evidence/target-authority.json",
             "KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE": "/private/evidence/qualification.json",
             "KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID": "drive-staging-secret-id",
@@ -65,9 +65,8 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
 
         self.assertEqual(code, 1)
         self.assertEqual(stdout, "")
-        failure = json.loads(stderr)
         self.assertEqual(
-            failure,
+            json.loads(stderr),
             {
                 "schema": "keelaryn.migration-production-live-failure.v1",
                 "phase": "preflight",
@@ -82,11 +81,12 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
         captured: dict[str, object] = {}
 
         class FakeQualification:
-            def __init__(self, drive, staging_root_id):
+            def __init__(self, drive, staging_root_id, legacy_source_root_id):
                 captured["drive"] = drive
                 captured["staging_root_id"] = staging_root_id
+                captured["legacy_source_root_id"] = legacy_source_root_id
 
-            def run(self, *args):
+            def run_drive(self, *args):
                 captured["args"] = args
                 return _FakeEvidence(
                     {
@@ -110,7 +110,7 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
             return_value=fake_provider,
         ), patch.object(module, "GoogleDriveBackend", return_value=fake_drive), patch.object(
             module,
-            "DriveMigrationProductionTargetQualification",
+            "DriveAuthoritativeMigrationProductionTargetQualification",
             FakeQualification,
         ):
             code, stdout, stderr = self._run(module, env)
@@ -124,15 +124,22 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
         self.assertEqual(public["qualification"]["outcome"], "TARGET_QUALIFICATION_PASS")
         self.assertFalse(public["qualification"]["cutover_authorized"])
         self.assertIs(captured["drive"], fake_drive)
-        self.assertEqual(captured["staging_root_id"], env["KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID"])
+        self.assertEqual(
+            captured["staging_root_id"],
+            env["KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID"],
+        )
+        self.assertEqual(
+            captured["legacy_source_root_id"],
+            env["KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT_ID"],
+        )
 
         combined = stdout + stderr
         for secret in (
+            env["KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT_ID"],
             env["KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID"],
             env["KEELARYN_MIGRATION_PACK_DIR"],
             env["KEELARYN_MIGRATION_FREEZE_RECEIPT"],
             env["KEELARYN_MIGRATION_REPO_ROOT"],
-            env["KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT"],
             env["KEELARYN_MIGRATION_TARGET_AUTHORITY"],
             env["KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE"],
         ):
@@ -143,12 +150,12 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
         env = self._base_env()
 
         class FailingQualification:
-            def __init__(self, drive, staging_root_id):
+            def __init__(self, drive, staging_root_id, legacy_source_root_id):
                 pass
 
-            def run(self, *args):
+            def run_drive(self, *args):
                 raise RuntimeError(
-                    "transport failed for drive-staging-secret-id at /private/legacy/hub"
+                    "transport failed for drive-legacy-source-secret-id and drive-staging-secret-id"
                 )
 
         with patch.object(
@@ -157,7 +164,7 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
             return_value=object(),
         ), patch.object(module, "GoogleDriveBackend", return_value=object()), patch.object(
             module,
-            "DriveMigrationProductionTargetQualification",
+            "DriveAuthoritativeMigrationProductionTargetQualification",
             FailingQualification,
         ):
             code, stdout, stderr = self._run(module, env)
@@ -168,8 +175,8 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
         self.assertEqual(failure["schema"], "keelaryn.migration-production-live-failure.v1")
         self.assertEqual(failure["phase"], "production-target-qualification")
         self.assertEqual(failure["error_class"], "RuntimeError")
+        self.assertNotIn("drive-legacy-source-secret-id", stderr)
         self.assertNotIn("drive-staging-secret-id", stderr)
-        self.assertNotIn("/private/legacy/hub", stderr)
         self.assertNotIn("transport failed", stderr)
 
     def test_wrapper_detects_private_identity_leak_before_printing_success(self) -> None:
@@ -177,15 +184,15 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
         env = self._base_env()
 
         class LeakingQualification:
-            def __init__(self, drive, staging_root_id):
+            def __init__(self, drive, staging_root_id, legacy_source_root_id):
                 pass
 
-            def run(self, *args):
+            def run_drive(self, *args):
                 return _FakeEvidence(
                     {
                         "outcome": "TARGET_QUALIFICATION_PASS",
                         "cutover_authorized": False,
-                        "unexpected": env["KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID"],
+                        "unexpected": env["KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT_ID"],
                     }
                 )
 
@@ -195,7 +202,7 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
             return_value=object(),
         ), patch.object(module, "GoogleDriveBackend", return_value=object()), patch.object(
             module,
-            "DriveMigrationProductionTargetQualification",
+            "DriveAuthoritativeMigrationProductionTargetQualification",
             LeakingQualification,
         ):
             code, stdout, stderr = self._run(module, env)
@@ -205,7 +212,7 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
         failure = json.loads(stderr)
         self.assertEqual(failure["phase"], "evidence")
         self.assertEqual(failure["error_class"], "LiveProductionQualificationError")
-        self.assertNotIn(env["KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID"], stderr)
+        self.assertNotIn(env["KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT_ID"], stderr)
 
 
 if __name__ == "__main__":
