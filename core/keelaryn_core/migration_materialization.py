@@ -15,7 +15,6 @@ from .migration_common import (
     MIGRATION_SOURCE_NAME,
     MigrationPackBlocked,
     PreservedEntry,
-    canonical_json_bytes,
     small_file,
     source_file,
 )
@@ -23,7 +22,12 @@ from .migration_mapping import parse_mapping
 from .migration_pack import verify_migration_pack
 from .migration_publication import DriveMigrationCanonicalPublication
 from .migration_source import parse_source
-from .protocol import ProtocolError, strict_json_bytes, validate_master
+from .protocol import (
+    ProtocolError,
+    canonical_json_bytes,
+    strict_json_bytes,
+    validate_master,
+)
 
 
 class DriveMigrationMaterializationBlocked(ProtocolError):
