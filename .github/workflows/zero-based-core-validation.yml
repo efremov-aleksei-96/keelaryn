@@ -11,6 +11,7 @@ on:
       - 'tests/live/**'
       - 'spec/**'
       - '.github/workflows/zero-based-core-validation.yml'
+      - '.github/workflows/zero-based-migration-windows.yml'
       - '.github/workflows/development-validation.yml'
   pull_request:
     branches:
@@ -22,6 +23,7 @@ on:
       - 'tests/live/**'
       - 'spec/**'
       - '.github/workflows/zero-based-core-validation.yml'
+      - '.github/workflows/zero-based-migration-windows.yml'
       - '.github/workflows/development-validation.yml'
   workflow_dispatch:
 
