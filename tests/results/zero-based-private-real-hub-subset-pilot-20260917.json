@@ -1,0 +1,22 @@
+{
+  "schema": "keelaryn.private-real-hub-subset-pilot-evidence.v1",
+  "date": "2026-09-17",
+  "branch": "dev/zero-based-keelaryn",
+  "exact_branch_head": "0470f4f2aa8abd7d32a38984c80084b3de0f772c",
+  "live_tested_core_sha": "ccadc7ad9cdf274f707640edd5c06dbae09d79d0",
+  "pilot_id": "real-subset-20260917-030943",
+  "source_class": "read-only structural root subset from production Hub",
+  "selected_source_file_count": 1,
+  "pack_sha256": "28e35f7342d6ab88b825f13d22c3a4acb3cda02d99475eb8a6c1a308a8613836",
+  "outcome": "COMMITTED",
+  "canonical_epoch": 1,
+  "production_source_bytes_unchanged": true,
+  "safety_properties": {
+    "production_hub_targeted_for_mutation": false,
+    "private_source_content_published_to_github": false,
+    "google_ids_recorded": false,
+    "oauth_credentials_recorded": false,
+    "local_paths_recorded": false
+  },
+  "qualification_scope": "development private-subset pilot evidence; not production qualification"
+}
