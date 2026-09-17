@@ -341,5 +341,76 @@ class DriveMigrationProjectPreparationTests(unittest.TestCase):
             self.assertEqual(drive.list_children(self._projects_parent(drive).file_id), [])
 
 
+class DriveMigrationProjectPreparationPerformanceTests(DriveMigrationProjectPreparationTests):
+    def test_repeat_prepare_does_not_reinitialize_exact_project(self) -> None:
+        class CountingDrive(DriveModel):
+            def __init__(self) -> None:
+                super().__init__()
+                self.list_calls: list[tuple[str, str | None]] = []
+                self.download_calls: list[str] = []
+
+            def list_children(
+                self,
+                parent_id: str,
+                *,
+                name: str | None = None,
+                include_trashed: bool = False,
+            ):
+                self.list_calls.append((parent_id, name))
+                return super().list_children(
+                    parent_id,
+                    name=name,
+                    include_trashed=include_trashed,
+                )
+
+            def download(self, file_id: str) -> bytes:
+                self.download_calls.append(file_id)
+                return super().download(file_id)
+
+            def reset_observation_counts(self) -> None:
+                self.list_calls.clear()
+                self.download_calls.clear()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pack_dir, _ = self._pack(Path(tmp))
+            drive = CountingDrive()
+            service = DriveMigrationProjectPreparation(drive, "root")
+
+            service.prepare(pack_dir)
+
+            projects = self._projects_parent(drive)
+            project = drive.exact_name(projects.file_id, "project-1")
+            assert project is not None
+            state = drive.exact_name(project.file_id, "STATE.md")
+            assert state is not None
+
+            drive.reset_observation_counts()
+            service.prepare(pack_dir)
+
+            project_child_lists = [
+                call
+                for call in drive.list_calls
+                if call[0] == project.file_id
+            ]
+            state_downloads = [
+                file_id
+                for file_id in drive.download_calls
+                if file_id == state.file_id
+            ]
+
+            self.assertLessEqual(
+                len(project_child_lists),
+                2,
+                "exact Projects must be freshly observed before and after preparation "
+                "without re-entering the initialization path",
+            )
+            self.assertLessEqual(
+                len(state_downloads),
+                2,
+                "exact STATE.md bytes must be validated at the two observation boundaries "
+                "without a redundant initialization-path download",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
