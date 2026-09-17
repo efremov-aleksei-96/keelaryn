@@ -26,7 +26,6 @@ class DriveOperationalContractTests(unittest.TestCase):
             "Environment=PYTHONDONTWRITEBYTECODE=1",
             "EnvironmentFile=/etc/keelaryn/drive.env",
             "EnvironmentFile=/etc/keelaryn/hub.env",
-            "ExecStartPre=/usr/bin/test -r /etc/keelaryn/hub.env",
             "RuntimeDirectory=keelaryn",
             "RuntimeDirectoryMode=0700",
             "UMask=0077",
@@ -76,7 +75,6 @@ class DriveOperationalContractTests(unittest.TestCase):
             "Environment=PYTHONDONTWRITEBYTECODE=1",
             "EnvironmentFile=/etc/keelaryn/drive.env",
             "EnvironmentFile=/etc/keelaryn/hub.env",
-            "ExecStartPre=/usr/bin/test -r /etc/keelaryn/hub.env",
             "RuntimeDirectory=keelaryn",
             "RuntimeDirectoryMode=0700",
             "UMask=0077",
@@ -95,6 +93,17 @@ class DriveOperationalContractTests(unittest.TestCase):
         self.assertNotIn("GOOGLE_CLIENT_SECRET=", unit)
         self.assertNotIn("GOOGLE_REFRESH_TOKEN=", unit)
         self.assertNotIn("KEELARYN_HUB_ROOT_ID=", unit)
+
+    def test_systemd_units_do_not_probe_root_only_environment_files_as_service_user(self) -> None:
+        forbidden = (
+            "ExecStartPre=/usr/bin/test -r /etc/keelaryn/drive.env",
+            "ExecStartPre=/usr/bin/test -r /etc/keelaryn/hub.env",
+        )
+        for unit_name in ("keelaryn-drive.service", "keelaryn-drive-bootstrap.service"):
+            unit = self._unit(unit_name)
+            for value in forbidden:
+                with self.subTest(unit=unit_name, value=value):
+                    self.assertNotIn(value, unit)
 
     def test_deployment_readme_enforces_immutable_payload_and_unprivileged_bootstrap(self) -> None:
         readme = (DEPLOY / "README.md").read_text(encoding="utf-8")

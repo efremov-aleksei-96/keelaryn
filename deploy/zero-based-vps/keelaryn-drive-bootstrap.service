@@ -16,8 +16,6 @@ Environment=PYTHONDONTWRITEBYTECODE=1
 RuntimeDirectory=keelaryn
 RuntimeDirectoryMode=0700
 UMask=0077
-ExecStartPre=/usr/bin/test -r /etc/keelaryn/drive.env
-ExecStartPre=/usr/bin/test -r /etc/keelaryn/hub.env
 ExecStartPre=/usr/bin/test -f /opt/keelaryn/current/core/keelaryn_core/drive_poller.py
 ExecStart=/usr/bin/python3 -B -m keelaryn_core.drive_poller bootstrap
 NoNewPrivileges=true
