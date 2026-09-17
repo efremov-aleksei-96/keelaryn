@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNNER = ROOT / "tests" / "live" / "run_migration_disposable_rehearsal.py"
+LAUNCHER = ROOT / "tests" / "live" / "run_migration_disposable_rehearsal.ps1"
 
 
 def _load_runner():
@@ -78,6 +79,26 @@ class MigrationDisposableLiveRunnerTests(unittest.TestCase):
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 code = module.main()
         return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_powershell_launcher_streams_progress_without_buffering_stderr(self) -> None:
+        self.assertTrue(
+            LAUNCHER.is_file(),
+            "checked-in PowerShell launcher is required for reproducible guarded live resume",
+        )
+        raw = LAUNCHER.read_text(encoding="utf-8")
+        required = (
+            'run_migration_disposable_rehearsal.py',
+            'RedirectStandardOutput = $true',
+            'RedirectStandardError = $false',
+            'StandardOutput.ReadToEnd()',
+            'WaitForExit()',
+            'exit $Process.ExitCode',
+        )
+        for text in required:
+            with self.subTest(text=text):
+                self.assertIn(text, raw)
+        self.assertNotIn("2>&1", raw)
+        self.assertNotIn("$RunnerOutput = & python", raw)
 
     def test_requires_exact_enable_before_pack_oauth_or_drive_use(self) -> None:
         module = _load_runner()
