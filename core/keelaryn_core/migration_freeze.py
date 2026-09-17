@@ -237,6 +237,8 @@ def _outside_authorities(output: Path, repo: Path, pack_root: Path) -> None:
     candidate = output.absolute().resolve(strict=False)
     repo_resolved = repo.resolve()
     pack_resolved = pack_root.resolve()
+    if pack_resolved == repo_resolved or repo_resolved in pack_resolved.parents:
+        raise MigrationPackBlocked("private migration pack must remain outside the Git worktree")
     if candidate == repo_resolved or repo_resolved in candidate.parents:
         raise MigrationPackBlocked("migration freeze receipt must remain outside the Git worktree")
     if candidate == pack_resolved or pack_resolved in candidate.parents:

@@ -39,18 +39,20 @@ class MigrationCandidateFreezeTests(unittest.TestCase):
         )
         return result.stdout.strip()
 
-    def _repo(self, root: Path) -> tuple[Path, str, str]:
+    def _repo(self, root: Path, *, ignore_private_pack: bool = False) -> tuple[Path, str, str]:
         repo = root / "repo"
         repo.mkdir()
         self._git(repo, "init")
         self._git(repo, "config", "user.name", "Keelaryn Test")
         self._git(repo, "config", "user.email", "keelaryn-test@example.invalid")
         (repo / "tracked.txt").write_bytes(b"exact source\n")
-        self._git(repo, "add", "tracked.txt")
+        if ignore_private_pack:
+            (repo / ".gitignore").write_bytes(b"private-pack/\n")
+        self._git(repo, "add", ".")
         self._git(repo, "commit", "-m", "exact source")
         return repo, self._git(repo, "rev-parse", "HEAD"), self._git(repo, "rev-parse", "HEAD^{tree}")
 
-    def _pack(self, root: Path):
+    def _pack(self, root: Path, *, output_dir: Path | None = None):
         source = root / "source"
         source.mkdir()
         (source / "canonical.md").write_bytes(b"canonical\r\n")
@@ -118,7 +120,7 @@ class MigrationCandidateFreezeTests(unittest.TestCase):
             source,
             source_manifest,
             mapping,
-            root / "pack",
+            output_dir or (root / "pack"),
             prepared_root=prepared,
         )
 
@@ -182,6 +184,17 @@ class MigrationCandidateFreezeTests(unittest.TestCase):
 
             with self.assertRaisesRegex(MigrationPackBlocked, "source tree mismatch"):
                 freeze_migration_candidate(pack.root, repo, commit, "0" * 40, receipt)
+            self.assertFalse(receipt.exists())
+
+    def test_private_pack_is_forbidden_inside_git_even_when_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, commit, tree = self._repo(root, ignore_private_pack=True)
+            pack = self._pack(root, output_dir=repo / "private-pack")
+            self.assertEqual(self._git(repo, "status", "--porcelain=v1", "--untracked-files=all"), "")
+            receipt = root / "candidate-freeze.json"
+            with self.assertRaisesRegex(MigrationPackBlocked, "private migration pack.*outside"):
+                freeze_migration_candidate(pack.root, repo, commit, tree, receipt)
             self.assertFalse(receipt.exists())
 
     def test_receipt_cannot_contaminate_repo_or_immutable_pack(self) -> None:

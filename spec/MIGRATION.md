@@ -125,6 +125,31 @@ The rehearsal must prove:
 
 The disposable rehearsal target is destroyed or archived as test evidence according to test policy; it is never promoted by renaming or substituting unqualified bytes after the fact.
 
+### Candidate freeze boundary
+
+After coherent development PASS and before any production-target qualification, the exact private migration candidate must be issued through one explicit freeze operation.
+
+Candidate freeze is an **identity/provenance freeze only**. Its terminal receipt status is exactly `FROZEN_UNQUALIFIED`; creating or verifying that receipt does not claim production qualification, cutover approval, or permission to mutate the production Hub.
+
+The freeze operation must:
+
+- require one exact clean Git worktree root;
+- bind the exact source commit and exact source tree;
+- freshly verify the complete private migration pack;
+- require the private pack to be physically outside the Git worktree even when Git ignore rules would otherwise hide it;
+- keep the freeze receipt outside both the Git worktree and the immutable private pack;
+- bind the candidate ID, pack digest, source-manifest digest and mapping-manifest digest;
+- bind deterministic canonical, Project-initial-state and preservation-destination inventory digests;
+- bind the prepared root `INDEX.md` digest when present;
+- publish the sanitized receipt atomically and never overwrite a conflicting prior receipt;
+- freshly reverify source and pack identity after durable receipt publication.
+
+If the process is lost after durable receipt publication, repeating the same freeze operation must recover idempotently by exact receipt identity. If durable receipt publication succeeded but the post-publication verification fails, evidence must report that distinction explicitly rather than claiming no freeze occurred.
+
+Once a candidate is frozen, any change to source commit/tree, mapping authority, pack manifest, canonical payload, Project initial state, preservation payload/destination or root router bytes invalidates that frozen identity. Do not regenerate replacement bytes under the same frozen receipt; issue a new migration candidate/freeze identity instead.
+
+The private pack remains private after freeze. The sanitized freeze receipt may expose only non-secret identities, hashes, counts and booleans; it must not expose private source paths, canonical target paths, preservation destinations, payload bytes, Drive IDs, account identities or workstation paths.
+
 ## 8. Production target construction
 
 Production migration creates a new zero-based Hub target using the same exact qualified Core/product bytes and the exact qualified migration candidate.
