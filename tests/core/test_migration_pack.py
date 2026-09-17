@@ -191,6 +191,92 @@ class MigrationPackTests(unittest.TestCase):
             with self.assertRaisesRegex(MigrationPackBlocked, "multiple canonical owners"):
                 verify_migration_mapping(source_manifest, mapping)
 
+    def test_preservation_destination_authority_is_explicit_and_namespaced(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, _, _, _, _ = self._fixture(root)
+            (source / "project-note.md").write_bytes(b"project-work\n")
+            selection = root / "selection.json"
+            selection.write_bytes(
+                canonical_json_bytes(
+                    {
+                        "schema": "keelaryn.migration-selection.v1",
+                        "candidate_id": "migration-dest",
+                        "sources": ["alpha.md", "project-note.md", "tech.txt"],
+                    }
+                )
+            )
+            source_manifest = root / "source.json"
+            capture_migration_source(source, selection, source_manifest)
+
+            base = {
+                "schema": "keelaryn.migration-mapping.v1",
+                "candidate_id": "migration-dest",
+                "source_manifest_sha256": verify_migration_source(source_manifest).digest,
+                "source_actions": [
+                    {"source": "alpha.md", "classification": "CANONICAL_IMPORT"},
+                    {
+                        "source": "project-note.md",
+                        "classification": "PROJECT_WORK_IMPORT",
+                        "destination": "work/projects/project-1/migration-import/project-note.md",
+                    },
+                    {
+                        "source": "tech.txt",
+                        "classification": "ARCHIVE_ONLY",
+                        "destination": "archive/migration/migration-dest/tech.txt",
+                    },
+                ],
+                "canonical_outputs": [
+                    {
+                        "target": "identity/alpha.md",
+                        "semantic_sources": ["alpha.md"],
+                        "payload": {"kind": "SOURCE", "source": "alpha.md"},
+                    }
+                ],
+                "root_index": None,
+            }
+
+            mapping = root / "mapping.json"
+            mapping.write_bytes(canonical_json_bytes(base))
+            parsed = verify_migration_mapping(source_manifest, mapping)
+            self.assertEqual(
+                parsed.preservation_destinations,
+                (
+                    ("project-note.md", "work/projects/project-1/migration-import/project-note.md"),
+                    ("tech.txt", "archive/migration/migration-dest/tech.txt"),
+                ),
+            )
+
+            missing = json.loads(json.dumps(base))
+            del missing["source_actions"][1]["destination"]
+            mapping.write_bytes(canonical_json_bytes(missing))
+            with self.assertRaisesRegex(MigrationPackBlocked, "requires destination"):
+                verify_migration_mapping(source_manifest, mapping)
+
+            wrong_project = json.loads(json.dumps(base))
+            wrong_project["source_actions"][1]["destination"] = "work/projects/project-1/results/raw.md"
+            mapping.write_bytes(canonical_json_bytes(wrong_project))
+            with self.assertRaisesRegex(MigrationPackBlocked, "PROJECT_WORK_IMPORT must be under"):
+                verify_migration_mapping(source_manifest, mapping)
+
+            wrong_archive = json.loads(json.dumps(base))
+            wrong_archive["source_actions"][2]["destination"] = "archive/migration/other/tech.txt"
+            mapping.write_bytes(canonical_json_bytes(wrong_archive))
+            with self.assertRaisesRegex(MigrationPackBlocked, "ARCHIVE_ONLY must be under"):
+                verify_migration_mapping(source_manifest, mapping)
+
+            forbidden = json.loads(json.dumps(base))
+            forbidden["source_actions"][0]["destination"] = "identity/alpha.md"
+            mapping.write_bytes(canonical_json_bytes(forbidden))
+            with self.assertRaisesRegex(MigrationPackBlocked, "destination only allowed"):
+                verify_migration_mapping(source_manifest, mapping)
+
+            collision = json.loads(json.dumps(base))
+            collision["source_actions"][2]["destination"] = collision["source_actions"][1]["destination"]
+            mapping.write_bytes(canonical_json_bytes(collision))
+            with self.assertRaises(MigrationPackBlocked):
+                verify_migration_mapping(source_manifest, mapping)
+
     def test_archive_and_project_work_are_preserved_byte_exact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -220,8 +306,17 @@ class MigrationPackTests(unittest.TestCase):
             value["candidate_id"] = "migration-preserved"
             value["source_manifest_sha256"] = verify_migration_source(source_manifest).digest
             value["source_actions"][2]["classification"] = "ARCHIVE_ONLY"
+            value["source_actions"][2]["destination"] = (
+                "archive/migration/migration-preserved/tech.txt"
+            )
             value["source_actions"].append(
-                {"source": "project-note.md", "classification": "PROJECT_WORK_IMPORT"}
+                {
+                    "source": "project-note.md",
+                    "classification": "PROJECT_WORK_IMPORT",
+                    "destination": (
+                        "work/projects/project-1/migration-import/project-note.md"
+                    ),
+                }
             )
             mapping = root / "mapping-preserved.json"
             mapping.write_bytes(canonical_json_bytes(value))
