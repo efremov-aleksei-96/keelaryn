@@ -282,7 +282,7 @@ class DriveMigrationProjectPreparation:
         state_raw: bytes,
         *,
         allow_partial: bool,
-    ) -> None:
+    ) -> bool:
         if project.trashed or not project.is_folder:
             raise DriveMigrationPreparationBlocked(
                 f"migration Project is not a live folder: {project.name}"
@@ -331,6 +331,7 @@ class DriveMigrationProjectPreparation:
                 raise DriveMigrationPreparationBlocked(
                     f"migration Project results must be empty during initial preparation: {project.name}"
                 )
+        return len(state_matches) == 1 and len(results_matches) == 1
 
     def _observe_projects(
         self,
@@ -338,8 +339,9 @@ class DriveMigrationProjectPreparation:
         expected: dict[str, bytes],
         *,
         allow_partial: bool,
-    ) -> dict[str, DriveItem]:
+    ) -> tuple[dict[str, DriveItem], set[str]]:
         observed: dict[str, DriveItem] = {}
+        incomplete: set[str] = set()
         for project in self.drive.list_children(projects_parent_id):
             if project.name in observed:
                 raise DriveMigrationPreparationBlocked(
@@ -349,13 +351,15 @@ class DriveMigrationProjectPreparation:
                 raise DriveMigrationPreparationBlocked(
                     f"migration Projects area contains unexpected project: {project.name}"
                 )
-            self._verify_project(
+            complete = self._verify_project(
                 project,
                 expected[project.name],
                 allow_partial=allow_partial,
             )
             observed[project.name] = project
-        return observed
+            if not complete:
+                incomplete.add(project.name)
+        return observed, incomplete
 
     def prepare(self, pack_dir: str | Path) -> DriveMigrationProjectEvidence:
         try:
@@ -394,13 +398,15 @@ class DriveMigrationProjectPreparation:
                 )
             expected[entry.project_id] = raw
 
-        self._observe_projects(
+        observed, incomplete = self._observe_projects(
             layout.projects_parent_id,
             expected,
             allow_partial=True,
         )
         workflow = DriveProjectWorkflow(self.drive, layout.projects_parent_id)
         for project_id in sorted(expected):
+            if project_id in observed and project_id not in incomplete:
+                continue
             try:
                 workflow.initialize_project(project_id, expected[project_id])
             except DriveWorkflowBlocked as exc:
@@ -412,12 +418,12 @@ class DriveMigrationProjectPreparation:
             raise DriveMigrationPreparationBlocked(
                 "migration target MASTER changed during Project preparation"
             )
-        final = self._observe_projects(
+        final, incomplete_final = self._observe_projects(
             layout.projects_parent_id,
             expected,
             allow_partial=False,
         )
-        if set(final) != set(expected):
+        if incomplete_final or set(final) != set(expected):
             raise DriveMigrationPreparationBlocked(
                 "migration Project set is incomplete after preparation"
             )
