@@ -8,6 +8,7 @@ on:
       - 'core/keelaryn_core/migration_*.py'
       - 'tests/core/test_migration_*.py'
       - 'tests/live/run_migration_*.py'
+      - 'tests/live/run_migration_*.ps1'
       - 'spec/MIGRATION.md'
       - 'spec/schemas/migration-*.schema.json'
       - '.github/workflows/zero-based-migration-windows.yml'
@@ -19,6 +20,7 @@ on:
       - 'core/keelaryn_core/migration_*.py'
       - 'tests/core/test_migration_*.py'
       - 'tests/live/run_migration_*.py'
+      - 'tests/live/run_migration_*.ps1'
       - 'spec/MIGRATION.md'
       - 'spec/schemas/migration-*.schema.json'
       - '.github/workflows/zero-based-migration-windows.yml'
@@ -45,6 +47,21 @@ jobs:
       - name: Show Python runtime
         shell: pwsh
         run: python --version
+
+      - name: Parse migration PowerShell launcher
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $env:GITHUB_WORKSPACE 'tests\live\run_migration_disposable_rehearsal.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -ne 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
 
       - name: Run migration Windows exact-byte and adversarial tests
         shell: pwsh
