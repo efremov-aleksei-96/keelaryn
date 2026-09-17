@@ -115,6 +115,7 @@ class MigrationPackTests(unittest.TestCase):
             self.assertEqual(summary["candidate_id"], "migration-001")
             self.assertEqual(summary["source_file_count"], 3)
             self.assertEqual(summary["canonical_file_count"], 2)
+            self.assertEqual(summary["preserved_file_count"], 0)
             self.assertNotIn("alpha.md", encoded)
             self.assertNotIn("data/beta.md", encoded)
             self.assertNotIn("target", encoded)
@@ -190,18 +191,73 @@ class MigrationPackTests(unittest.TestCase):
             with self.assertRaisesRegex(MigrationPackBlocked, "multiple canonical owners"):
                 verify_migration_mapping(source_manifest, mapping)
 
-    def test_archive_only_is_fail_closed_until_preservation_is_implemented(self) -> None:
+    def test_archive_and_project_work_are_preserved_byte_exact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source, _, source_manifest, prepared, mapping = self._fixture(root)
-            value = json.loads(mapping.read_text(encoding="utf-8"))
-            value["source_actions"][2]["classification"] = "ARCHIVE_ONLY"
-            mapping.write_bytes(canonical_json_bytes(value))
-            verify_migration_mapping(source_manifest, mapping)
-            with self.assertRaisesRegex(MigrationPackBlocked, "does not yet materialize"):
-                build_migration_pack(
-                    source, source_manifest, mapping, root / "pack", prepared_root=prepared
+            project = source / "project-note.md"
+            project.write_bytes(b"project-work\r\n")
+
+            selection = root / "selection-preserved.json"
+            selection.write_bytes(
+                canonical_json_bytes(
+                    {
+                        "schema": "keelaryn.migration-selection.v1",
+                        "candidate_id": "migration-preserved",
+                        "sources": [
+                            "alpha.md",
+                            "nested/beta.json",
+                            "tech.txt",
+                            "project-note.md",
+                        ],
+                    }
                 )
+            )
+            source_manifest = root / "source-preserved.json"
+            capture_migration_source(source, selection, source_manifest)
+
+            value = json.loads(mapping.read_text(encoding="utf-8"))
+            value["candidate_id"] = "migration-preserved"
+            value["source_manifest_sha256"] = verify_migration_source(source_manifest).digest
+            value["source_actions"][2]["classification"] = "ARCHIVE_ONLY"
+            value["source_actions"].append(
+                {"source": "project-note.md", "classification": "PROJECT_WORK_IMPORT"}
+            )
+            mapping = root / "mapping-preserved.json"
+            mapping.write_bytes(canonical_json_bytes(value))
+
+            first = build_migration_pack(
+                source, source_manifest, mapping, root / "pack-preserved-a", prepared_root=prepared
+            )
+            second = build_migration_pack(
+                source, source_manifest, mapping, root / "pack-preserved-b", prepared_root=prepared
+            )
+
+            self.assertEqual(first.manifest_raw, second.manifest_raw)
+            self.assertEqual(len(first.preserved_outputs), 2)
+            self.assertEqual(
+                [item.classification for item in first.preserved_outputs],
+                ["PROJECT_WORK_IMPORT", "ARCHIVE_ONLY"],
+            )
+            self.assertEqual(
+                (first.root / "preserved" / "preserved-00001.bin").read_bytes(),
+                b"project-work\r\n",
+            )
+            self.assertEqual(
+                (first.root / "preserved" / "preserved-00002.bin").read_bytes(),
+                b"legacy-runtime\r\n",
+            )
+            summary = first.public_summary()
+            self.assertEqual(summary["preserved_file_count"], 2)
+            self.assertEqual(summary["preservation_counts"]["PROJECT_WORK_IMPORT"], 1)
+            self.assertEqual(summary["preservation_counts"]["ARCHIVE_ONLY"], 1)
+            encoded = json.dumps(summary, sort_keys=True)
+            self.assertNotIn("project-note.md", encoded)
+            self.assertNotIn("tech.txt", encoded)
+
+            (first.root / "preserved" / "preserved-00001.bin").write_bytes(b"tampered\n")
+            with self.assertRaisesRegex(MigrationPackBlocked, "preserved payload fingerprint mismatch"):
+                verify_migration_pack(first.root)
 
     def test_verify_rejects_payload_tamper(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
