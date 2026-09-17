@@ -10,6 +10,10 @@ from .migration_freeze import (
     freeze_migration_candidate,
     verify_migration_candidate_freeze,
 )
+from .migration_inventory import (
+    inventory_migration_source,
+    verify_migration_source_inventory,
+)
 from .migration_pack import (
     MigrationPackBlocked,
     build_migration_pack,
@@ -32,6 +36,23 @@ def _emit(value: Mapping[str, Any], *, stream=None) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keelaryn-migration")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    inventory = sub.add_parser(
+        "source-inventory",
+        help=(
+            "Build one private read-only inventory of a legacy source root "
+            "for explicit migration review"
+        ),
+    )
+    inventory.add_argument("--source-root", required=True)
+    inventory.add_argument("--candidate-id", required=True)
+    inventory.add_argument("--output-manifest", required=True)
+
+    inventory_verify = sub.add_parser(
+        "source-inventory-verify",
+        help="Verify one private migration source inventory manifest",
+    )
+    inventory_verify.add_argument("--inventory-manifest", required=True)
 
     capture = sub.add_parser(
         "capture-source",
@@ -93,7 +114,19 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        if args.command == "capture-source":
+        if args.command == "source-inventory":
+            summary = inventory_migration_source(
+                args.source_root,
+                args.candidate_id,
+                args.output_manifest,
+            ).public_summary()
+            _emit({"inventory": summary})
+        elif args.command == "source-inventory-verify":
+            summary = verify_migration_source_inventory(
+                args.inventory_manifest
+            ).public_summary()
+            _emit({"inventory": summary})
+        elif args.command == "capture-source":
             summary = capture_migration_source(
                 args.source_root,
                 args.selection_manifest,
