@@ -51,6 +51,12 @@ class DriveMigrationProductionQualificationEvidence:
     pack_sha256: str
     source_commit: str
     source_tree: str
+    source_manifest_sha256: str
+    mapping_manifest_sha256: str
+    frozen_canonical_inventory_sha256: str
+    frozen_project_state_inventory_sha256: str
+    frozen_preservation_inventory_sha256: str
+    frozen_root_index_sha256: str | None
     target_identity_sha256: str
     staging_identity_sha256: str
     canonical_epoch: int
@@ -76,6 +82,12 @@ class DriveMigrationProductionQualificationEvidence:
             "pack_sha256": self.pack_sha256,
             "source_commit": self.source_commit,
             "source_tree": self.source_tree,
+            "source_manifest_sha256": self.source_manifest_sha256,
+            "mapping_manifest_sha256": self.mapping_manifest_sha256,
+            "frozen_canonical_inventory_sha256": self.frozen_canonical_inventory_sha256,
+            "frozen_project_state_inventory_sha256": self.frozen_project_state_inventory_sha256,
+            "frozen_preservation_inventory_sha256": self.frozen_preservation_inventory_sha256,
+            "frozen_root_index_sha256": self.frozen_root_index_sha256,
             "target_identity_sha256": self.target_identity_sha256,
             "staging_identity_sha256": self.staging_identity_sha256,
             "canonical_epoch": self.canonical_epoch,
@@ -100,7 +112,7 @@ class DriveMigrationProductionQualificationEvidence:
 class DriveMigrationProductionTargetQualification:
     """Construct and qualify one new production *target* without selecting it.
 
-    The service is deliberately not a cutover mechanism.  It accepts only a guarded
+    The service is deliberately not a cutover mechanism. It accepts only a guarded
     staging root, persists the reserved Drive target ID in private local authority
     before creation, constructs the target through the existing restart-safe
     migration rehearsal path, and publishes sanitized qualification evidence only
@@ -244,6 +256,10 @@ class DriveMigrationProductionTargetQualification:
         try:
             item = self.drive.get(target_id, include_trashed=True)
         except DriveNotFound:
+            # Fresh validation at the mutation boundary is required even on restart
+            # from an already durable target authority. A conflicting staging child
+            # appearing after authority publication must block before target create.
+            self._verify_staging_root()
             try:
                 self.drive.create_folder(
                     self.staging_root_id,
@@ -270,6 +286,22 @@ class DriveMigrationProductionTargetQualification:
             )
         self._verify_staging_root(target_id)
         return item
+
+    @staticmethod
+    def _publish_evidence(path: Path, raw: bytes) -> None:
+        try:
+            if path.exists() or path.is_symlink():
+                existing = small_file(path, "migration production qualification evidence")
+                if existing != raw:
+                    raise MigrationPackBlocked(
+                        "production qualification evidence already exists with different identity"
+                    )
+            else:
+                atomic_write_new(path, raw)
+        except (MigrationPackBlocked, OSError) as exc:
+            raise DriveMigrationProductionPostConstructionBlocked(
+                "production target is durably constructed, but qualification evidence publication failed"
+            ) from exc
 
     def run(
         self,
@@ -333,6 +365,12 @@ class DriveMigrationProductionTargetQualification:
             pack_sha256=pack.pack_sha256,
             source_commit=freeze["source_commit"],
             source_tree=freeze["source_tree"],
+            source_manifest_sha256=freeze["source_manifest_sha256"],
+            mapping_manifest_sha256=freeze["mapping_manifest_sha256"],
+            frozen_canonical_inventory_sha256=freeze["canonical_inventory_sha256"],
+            frozen_project_state_inventory_sha256=freeze["project_state_inventory_sha256"],
+            frozen_preservation_inventory_sha256=freeze["preservation_inventory_sha256"],
+            frozen_root_index_sha256=freeze["root_index_sha256"],
             target_identity_sha256=sha256(target.file_id.encode("utf-8")).hexdigest(),
             staging_identity_sha256=sha256(self.staging_root_id.encode("utf-8")).hexdigest(),
             canonical_epoch=rehearsal.canonical_epoch,
@@ -351,15 +389,7 @@ class DriveMigrationProductionTargetQualification:
             restart_state=rehearsal.restart_state,
             outcome="TARGET_QUALIFICATION_PASS",
         )
-        raw = canonical_json_bytes(evidence.to_json_value())
-        if evidence_path.exists() or evidence_path.is_symlink():
-            existing = small_file(evidence_path, "migration production qualification evidence")
-            if existing != raw:
-                raise DriveMigrationProductionQualificationBlocked(
-                    "production qualification evidence already exists with different identity"
-                )
-        else:
-            atomic_write_new(evidence_path, raw)
+        self._publish_evidence(evidence_path, canonical_json_bytes(evidence.to_json_value()))
         return evidence
 
 
