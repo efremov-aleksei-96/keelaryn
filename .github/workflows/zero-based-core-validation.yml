@@ -71,6 +71,9 @@ jobs:
       - name: Smoke VPS release-switch CLI surface
         run: python3 deploy/zero-based-vps/release_switch.py --help
 
+      - name: Smoke VPS Hub-cutover CLI surface
+        run: python3 deploy/zero-based-vps/hub_cutover.py --help
+
       - name: Prove exact-head deterministic VPS payload
         env:
           KEELARYN_VPS_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_VPS_PAYLOAD_EVIDENCE.json
@@ -110,6 +113,7 @@ jobs:
             PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=core python3 -B -m keelaryn_core.workspace_cli --help >/dev/null
             PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=core python3 -B -m keelaryn_core.pilot_cli --help >/dev/null
             PYTHONDONTWRITEBYTECODE=1 python3 -B deploy/zero-based-vps/release_switch.py --help >/dev/null
+            PYTHONDONTWRITEBYTECODE=1 python3 -B deploy/zero-based-vps/hub_cutover.py --help >/dev/null
           )
           if find "$release" \( -type d -name '__pycache__' -o -type f -name '*.pyc' -o -type f -name '*.pyo' \) -print -quit | grep -q .; then
             echo "Materialized release was mutated by validation bytecode output." >&2
@@ -138,6 +142,7 @@ jobs:
                   "workspace_cli_verified": True,
                   "pilot_cli_verified": True,
                   "release_switch_cli_verified": True,
+                  "hub_cutover_cli_verified": True,
                   "github_run_id": os.environ["GITHUB_RUN_ID"],
                   "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
               }
