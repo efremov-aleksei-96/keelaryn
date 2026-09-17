@@ -74,6 +74,41 @@ jobs:
       - name: Smoke VPS Hub-cutover CLI surface
         run: python3 deploy/zero-based-vps/hub_cutover.py --help
 
+      - name: Run disposable Hub-selector cutover rehearsal
+        env:
+          KEELARYN_HUB_CUTOVER_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_HUB_CUTOVER_REHEARSAL_EVIDENCE.json
+        run: |
+          set -euo pipefail
+          python3 -B deploy/zero-based-vps/hub_cutover_rehearsal.py \
+            --source-commit "$GITHUB_SHA" \
+            --output "$KEELARYN_HUB_CUTOVER_EVIDENCE"
+          python3 - "$KEELARYN_HUB_CUTOVER_EVIDENCE" "$GITHUB_SHA" <<'PY'
+          import json
+          import sys
+
+          evidence = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected = {
+              "schema": "keelaryn.zero-vps-hub-cutover-rehearsal.v1",
+              "source_commit": sys.argv[2],
+              "accept_path_verified": True,
+              "rollback_path_verified": True,
+              "restart_recovery_verified": True,
+              "terminal_history_verified": True,
+              "selector_bytes_verified": True,
+              "hub_bytes_touched": False,
+          }
+          if evidence != expected:
+              raise SystemExit("Hub cutover rehearsal evidence mismatch")
+          PY
+
+      - name: Upload compact Hub-cutover rehearsal evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: zero-based-hub-cutover-rehearsal-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ZERO_BASED_HUB_CUTOVER_REHEARSAL_EVIDENCE.json
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Prove exact-head deterministic VPS payload
         env:
           KEELARYN_VPS_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_VPS_PAYLOAD_EVIDENCE.json
@@ -114,6 +149,7 @@ jobs:
             PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=core python3 -B -m keelaryn_core.pilot_cli --help >/dev/null
             PYTHONDONTWRITEBYTECODE=1 python3 -B deploy/zero-based-vps/release_switch.py --help >/dev/null
             PYTHONDONTWRITEBYTECODE=1 python3 -B deploy/zero-based-vps/hub_cutover.py --help >/dev/null
+            PYTHONDONTWRITEBYTECODE=1 python3 -B deploy/zero-based-vps/hub_cutover_rehearsal.py --help >/dev/null
           )
           if find "$release" \( -type d -name '__pycache__' -o -type f -name '*.pyc' -o -type f -name '*.pyo' \) -print -quit | grep -q .; then
             echo "Materialized release was mutated by validation bytecode output." >&2
@@ -143,6 +179,7 @@ jobs:
                   "pilot_cli_verified": True,
                   "release_switch_cli_verified": True,
                   "hub_cutover_cli_verified": True,
+                  "hub_cutover_rehearsal_cli_verified": True,
                   "github_run_id": os.environ["GITHUB_RUN_ID"],
                   "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
               }
