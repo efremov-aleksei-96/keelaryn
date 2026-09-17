@@ -71,6 +71,15 @@ Each selected legacy source item is classified as exactly one of:
 - `ARCHIVE_ONLY` — retained outside active zero-based canonical/work authority for historical reference;
 - `DROP_TECHNICAL` — legacy technical/runtime artifact intentionally not imported.
 
+Every `PROJECT_WORK_IMPORT` and `ARCHIVE_ONLY` action must additionally bind one exact Hub-relative `destination`. Destination authority is classification-specific:
+
+- `PROJECT_WORK_IMPORT` must be under `work/projects/<project_id>/migration-import/...`, where `<project_id>` is a valid Project identifier;
+- `ARCHIVE_ONLY` must be under `archive/migration/<candidate_id>/...` for the same migration candidate;
+- all other classifications must omit `destination` entirely;
+- no two preservation-classified source items may share one destination.
+
+The preservation namespaces are deliberately outside canonical authority. A file under `work/projects/<project_id>/migration-import/` is preserved Project material, not Project `STATE.md`, not a RESULT and not canonical truth. A file under `archive/migration/<candidate_id>/` is historical migration material outside active work/canonical authority. Ordinary fresh bootstrap does not create either optional namespace.
+
 A migration plan must never silently map one legacy file to multiple canonical owners or multiple legacy truths to one canonical target without an explicitly prepared replacement file.
 
 Canonical target names and contents are frozen in the migration candidate before Core publication.
@@ -83,8 +92,9 @@ At minimum the pack binds:
 
 - migration candidate ID;
 - source manifest fingerprint;
-- exact mapping manifest fingerprint;
+- exact mapping manifest fingerprint, including preservation destinations;
 - every prepared canonical payload by target name, byte length and SHA-256;
+- every preserved payload by source classification, exact bytes and the mapping authority that defines its destination;
 - prepared root `INDEX.md` bytes when the migration changes routing;
 - expected initial canonical inventory;
 - total selected/imported byte counts.
@@ -106,11 +116,12 @@ The rehearsal must prove:
 5. terminal `COMMITTED`;
 6. canonical epoch progression exactly as specified;
 7. exact target canonical inventory and hashes;
-8. clean READY/SAFE completion;
-9. Workspace/Project/Reconciliation structural validity after migration;
-10. ordinary consistent-reader protocol can read the migrated canonical set;
-11. a subsequent no-op service iteration is IDLE;
-12. restart recovery remains valid from the migrated state.
+8. exact materialization and byte verification of every preservation destination;
+9. clean READY/SAFE completion;
+10. Workspace/Project/Reconciliation structural validity after migration;
+11. ordinary consistent-reader protocol can read the migrated canonical set;
+12. a subsequent no-op service iteration is IDLE;
+13. restart recovery remains valid from the migrated state.
 
 The disposable rehearsal target is destroyed or archived as test evidence according to test policy; it is never promoted by renaming or substituting unqualified bytes after the fact.
 
@@ -121,6 +132,10 @@ Production migration creates a new zero-based Hub target using the same exact qu
 The target is distinct from the legacy production Hub and begins as a fresh zero-based Hub at canonical epoch 0.
 
 No canonical payload is written directly. Migration publication must use the ordinary Ready Change/Core transaction path.
+
+Migration-specific topology preparation may create only deterministic empty parent directories required by the frozen canonical target set before Ready Change publication. It must not write canonical payload bytes, must fail closed on ambiguity, and must be independently revalidated before the Core transaction begins.
+
+Preservation materialization is non-canonical and must use only the exact destinations frozen in the verified mapping. Project preservation may be materialized only beneath an explicitly initialized Project. Archive preservation may be materialized only beneath `archive/migration/<candidate_id>/`. Exact bytes and fingerprints must be re-observed after creation; ambiguous or pre-existing conflicting material blocks the migration target.
 
 The migration-specific postcheck must verify the entire expected migrated canonical inventory rather than only changed targets because the new target begins empty.
 
@@ -185,6 +200,7 @@ Production migration is not approved until all applicable gates PASS against exa
 - exact Core/source commit qualification;
 - real Google Drive target construction;
 - migrated canonical inventory verification;
+- preservation destination inventory verification;
 - Workspace/Project/Reconciliation structural verification;
 - restart/recovery verification;
 - reader SAFE/epoch verification;
@@ -204,6 +220,7 @@ Migration evidence must bind at minimum:
 - mapping-manifest digest;
 - private migration-pack digest;
 - managed/imported canonical inventory digest;
+- preservation destination inventory digest;
 - Core/runtime identity;
 - disposable rehearsal run identity;
 - production construction evidence identity;
