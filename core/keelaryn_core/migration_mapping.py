@@ -8,6 +8,7 @@ from .migration_common import (
     CanonicalOutput,
     MigrationMapping,
     MigrationPackBlocked,
+    ProjectStateOutput,
     RootIndexOutput,
     digest_hex,
     identifier,
@@ -53,18 +54,20 @@ def parse_mapping(raw: bytes, source) -> MigrationMapping:
         raise MigrationPackBlocked(str(exc)) from exc
     if not isinstance(value, dict):
         raise MigrationPackBlocked("MIGRATION_MAPPING: must be object")
-    keys_exact(
-        value,
-        {
-            "schema",
-            "candidate_id",
-            "source_manifest_sha256",
-            "source_actions",
-            "canonical_outputs",
-            "root_index",
-        },
-        "MIGRATION_MAPPING",
-    )
+    required_keys = {
+        "schema",
+        "candidate_id",
+        "source_manifest_sha256",
+        "source_actions",
+        "canonical_outputs",
+        "root_index",
+    }
+    allowed_keys = required_keys | {"project_initial_states"}
+    if not required_keys.issubset(value) or not set(value).issubset(allowed_keys):
+        raise MigrationPackBlocked(
+            f"MIGRATION_MAPPING: keys mismatch missing={sorted(required_keys-set(value))} "
+            f"extra={sorted(set(value)-allowed_keys)}"
+        )
     if value["schema"] != "keelaryn.migration-mapping.v1":
         raise MigrationPackBlocked("MIGRATION_MAPPING: unsupported schema")
     candidate = identifier(value["candidate_id"], "MIGRATION_MAPPING.candidate_id")
@@ -114,6 +117,36 @@ def parse_mapping(raw: bytes, source) -> MigrationMapping:
         raise MigrationPackBlocked("MIGRATION_MAPPING: source action coverage mismatch")
     if len(set(preservation_destinations.values())) != len(preservation_destinations):
         raise MigrationPackBlocked("MIGRATION_MAPPING: duplicate preservation destination")
+
+    required_project_ids = {
+        destination.split("/")[2]
+        for source_name, destination in preservation_destinations.items()
+        if actions[source_name] == "PROJECT_WORK_IMPORT"
+    }
+    raw_project_states = value.get("project_initial_states", [])
+    if not isinstance(raw_project_states, list) or len(raw_project_states) > MAX_MIGRATION_FILES:
+        raise MigrationPackBlocked("MIGRATION_MAPPING.project_initial_states: invalid count")
+    project_states: list[ProjectStateOutput] = []
+    project_ids: set[str] = set()
+    prepared_paths: set[str] = set()
+    for index, item in enumerate(raw_project_states):
+        label = f"MIGRATION_MAPPING.project_initial_states[{index}]"
+        if not isinstance(item, dict):
+            raise MigrationPackBlocked(f"{label}: must be object")
+        keys_exact(item, {"project_id", "prepared_path"}, label)
+        project_id = identifier(item["project_id"], f"{label}.project_id")
+        prepared_path = relative_path(item["prepared_path"], f"{label}.prepared_path")
+        if project_id in project_ids:
+            raise MigrationPackBlocked("MIGRATION_MAPPING: duplicate project initial state")
+        if prepared_path in prepared_paths:
+            raise MigrationPackBlocked("MIGRATION_MAPPING: duplicate project state prepared_path")
+        project_ids.add(project_id)
+        prepared_paths.add(prepared_path)
+        project_states.append(ProjectStateOutput(project_id, prepared_path))
+    if project_ids != required_project_ids:
+        raise MigrationPackBlocked(
+            "MIGRATION_MAPPING: project initial state coverage must exactly match PROJECT_WORK_IMPORT projects"
+        )
 
     raw_outputs = value["canonical_outputs"]
     if not isinstance(raw_outputs, list) or not 1 <= len(raw_outputs) <= MAX_MIGRATION_FILES:
@@ -237,6 +270,7 @@ def parse_mapping(raw: bytes, source) -> MigrationMapping:
         source_digest,
         tuple(sorted(actions.items())),
         tuple(sorted(preservation_destinations.items())),
+        tuple(sorted(project_states, key=lambda item: item.project_id)),
         tuple(outputs),
         root_index,
         raw,
