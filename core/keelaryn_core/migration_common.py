@@ -34,6 +34,7 @@ CLASSIFICATIONS = frozenset(
         "DROP_TECHNICAL",
     }
 )
+PRESERVATION_CLASSIFICATIONS = frozenset({"PROJECT_WORK_IMPORT", "ARCHIVE_ONLY"})
 
 MAX_MIGRATION_FILES = 10_000
 MAX_MIGRATION_FILE_BYTES = 128 * 1024 * 1024
@@ -138,6 +139,16 @@ class PackEntry:
 
 
 @dataclass(frozen=True)
+class PreservedEntry:
+    operation_id: str
+    source: str
+    classification: str
+    payload: str
+    sha256: str
+    size: int
+
+
+@dataclass(frozen=True)
 class MigrationPack:
     root: Path
     candidate_id: str
@@ -146,6 +157,7 @@ class MigrationPack:
     source_file_count: int
     source_total_bytes: int
     canonical_outputs: tuple[PackEntry, ...]
+    preserved_outputs: tuple[PreservedEntry, ...]
     root_index_size: int
     manifest_raw: bytes
 
@@ -161,7 +173,14 @@ class MigrationPack:
     def canonical_total_bytes(self) -> int:
         return sum(item.size for item in self.canonical_outputs)
 
+    @property
+    def preserved_total_bytes(self) -> int:
+        return sum(item.size for item in self.preserved_outputs)
+
     def public_summary(self) -> dict[str, Any]:
+        preservation_counts = {name: 0 for name in sorted(PRESERVATION_CLASSIFICATIONS)}
+        for item in self.preserved_outputs:
+            preservation_counts[item.classification] += 1
         return {
             "schema": MIGRATION_PACK_SCHEMA,
             "candidate_id": self.candidate_id,
@@ -172,6 +191,9 @@ class MigrationPack:
             "source_total_bytes": self.source_total_bytes,
             "canonical_file_count": len(self.canonical_outputs),
             "canonical_total_bytes": self.canonical_total_bytes,
+            "preserved_file_count": len(self.preserved_outputs),
+            "preserved_total_bytes": self.preserved_total_bytes,
+            "preservation_counts": preservation_counts,
             "has_root_index": self.root_index_size >= 0,
             "root_index_bytes": max(self.root_index_size, 0),
         }
