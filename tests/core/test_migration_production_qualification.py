@@ -11,8 +11,12 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "core"))
 
+from keelaryn_core.drive_backend import DriveNotFound  # noqa: E402
 from keelaryn_core.drive_model import DriveModel  # noqa: E402
-from keelaryn_core.migration_freeze import freeze_migration_candidate  # noqa: E402
+from keelaryn_core.migration_freeze import (  # noqa: E402
+    freeze_migration_candidate,
+    verify_migration_candidate_freeze,
+)
 from keelaryn_core.migration_pack import (  # noqa: E402
     build_migration_pack,
     capture_migration_source,
@@ -127,6 +131,23 @@ class MigrationProductionQualificationTests(unittest.TestCase):
             self.assertEqual(first.canonical_file_count, 1)
             self.assertEqual(first.preserved_file_count, 0)
 
+            frozen = verify_migration_candidate_freeze(pack.root, freeze, repo)
+            self.assertEqual(first.source_manifest_sha256, frozen["source_manifest_sha256"])
+            self.assertEqual(first.mapping_manifest_sha256, frozen["mapping_manifest_sha256"])
+            self.assertEqual(
+                first.frozen_canonical_inventory_sha256,
+                frozen["canonical_inventory_sha256"],
+            )
+            self.assertEqual(
+                first.frozen_project_state_inventory_sha256,
+                frozen["project_state_inventory_sha256"],
+            )
+            self.assertEqual(
+                first.frozen_preservation_inventory_sha256,
+                frozen["preservation_inventory_sha256"],
+            )
+            self.assertEqual(first.frozen_root_index_sha256, frozen["root_index_sha256"])
+
             authority_value = json.loads(authority.read_text(encoding="utf-8"))
             target_id = authority_value["target_id"]
             target = drive.get(target_id, include_trashed=False)
@@ -138,7 +159,12 @@ class MigrationProductionQualificationTests(unittest.TestCase):
             self.assertNotIn(staging, public)
             self.assertNotIn("identity.md", public)
             self.assertNotIn("identity/profile.md", public)
-            self.assertFalse(json.loads(public)["cutover_authorized"])
+            public_value = json.loads(public)
+            self.assertFalse(public_value["cutover_authorized"])
+            self.assertEqual(
+                public_value["frozen_canonical_inventory_sha256"],
+                frozen["canonical_inventory_sha256"],
+            )
 
             first_raw = evidence.read_bytes()
             second = gate.run(pack.root, freeze, repo, source, authority, evidence)
@@ -181,6 +207,24 @@ class MigrationProductionQualificationTests(unittest.TestCase):
                     pack.root, freeze, repo, source, authority, evidence
                 )
             self.assertFalse(authority.exists())
+            self.assertFalse(evidence.exists())
+
+    def test_restart_revalidates_staging_before_reserved_target_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, source, pack, freeze, drive, staging, authority, evidence = self._fixture(root)
+            gate = DriveMigrationProductionTargetQualification(drive, staging)
+            saved = gate._target_authority(pack, authority)
+            target_id = saved["target_id"]
+            drive.create_blob(staging, "appeared-after-authority.txt", b"conflict\n")
+
+            with self.assertRaisesRegex(
+                DriveMigrationProductionQualificationBlocked,
+                "unexpected object exists",
+            ):
+                gate.run(pack.root, freeze, repo, source, authority, evidence)
+            with self.assertRaises(DriveNotFound):
+                drive.get(target_id)
             self.assertFalse(evidence.exists())
 
     def test_crash_after_target_creation_recovers_from_private_reserved_id_authority(self) -> None:
@@ -241,6 +285,30 @@ class MigrationProductionQualificationTests(unittest.TestCase):
             profile_parent = drive.exact_name(canonical.file_id, "identity")
             self.assertIsNotNone(profile_parent)
             self.assertIsNotNone(drive.exact_name(profile_parent.file_id, "profile.md"))
+
+    def test_conflicting_evidence_after_construction_is_post_construction_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, source, pack, freeze, drive, staging, authority, evidence = self._fixture(root)
+            evidence.write_bytes(b"conflicting prior evidence\n")
+
+            with self.assertRaisesRegex(
+                DriveMigrationProductionPostConstructionBlocked,
+                "evidence publication failed",
+            ):
+                DriveMigrationProductionTargetQualification(drive, staging).run(
+                    pack.root, freeze, repo, source, authority, evidence
+                )
+
+            target_id = json.loads(authority.read_text(encoding="utf-8"))["target_id"]
+            target = drive.get(target_id, include_trashed=False)
+            self.assertTrue(target.is_folder)
+            canonical = drive.exact_name(target_id, "canonical")
+            self.assertIsNotNone(canonical)
+            identity = drive.exact_name(canonical.file_id, "identity")
+            self.assertIsNotNone(identity)
+            self.assertIsNotNone(drive.exact_name(identity.file_id, "profile.md"))
+            self.assertEqual(evidence.read_bytes(), b"conflicting prior evidence\n")
 
     def test_authority_and_evidence_cannot_be_written_into_repo_or_pack(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
