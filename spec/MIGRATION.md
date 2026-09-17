@@ -164,6 +164,36 @@ Preservation materialization is non-canonical and must use only the exact destin
 
 The migration-specific postcheck must verify the entire expected migrated canonical inventory rather than only changed targets because the new target begins empty.
 
+### Production-target qualification boundary
+
+Production target construction is performed only beneath one deliberately guarded staging root. The gate must never accept an arbitrary existing Hub root as the target of migration writes.
+
+The staging root must have the exact expected name and exact sentinel bytes. Before the target is created, the root may contain only that sentinel. The gate reserves one Drive target ID, durably records that ID in private local authority, and only then creates the fresh target beneath the guarded staging root. On restart, the same reserved ID is authoritative; name-based rediscovery is not a substitute.
+
+Fresh staging validation is required again immediately before a missing reserved target is created. If an unrelated child appears after the private authority was published, creation fails closed rather than assuming the staging root is still safe.
+
+Before target authority/creation and again after construction, the live legacy source bytes must still match the frozen migration source manifest. Source drift invalidates qualification; it must not be silently treated as an acceptable delta.
+
+The production-target gate then runs the same restart-safe migration construction and acceptance proofs used by the disposable full rehearsal. Qualification PASS requires, at minimum:
+
+- exact frozen candidate/pack verification;
+- exact live legacy source revalidation;
+- exact guarded staging-root verification;
+- canonical `COMMITTED` epoch 1;
+- exact canonical inventory and bytes;
+- exact preservation inventory;
+- Workspace/Project/Reconciliation structural validity;
+- consistent-reader epoch/inventory verification;
+- subsequent Core iteration `IDLE`;
+- restart discovery `READY_CLEAN`;
+- final fresh pack/freeze/source/staging revalidation.
+
+The private target authority contains the real staging and target Drive IDs and therefore stays private. Sanitized production qualification evidence contains only hashes of those identities. It additionally binds the exact source commit/tree, source-manifest digest, mapping-manifest digest, private-pack digest, frozen canonical/Project/preservation inventory digests, frozen root-router digest when present, observed target inventory digests and terminal outcomes. It must explicitly state `cutover_authorized=false`.
+
+If target construction has durably completed but any later source/freeze/staging revalidation or qualification-evidence publication fails, the failure is classified as **post-construction**. Evidence must not claim that no target exists. The constructed target is preserved for diagnosis and must not become active production merely because construction succeeded.
+
+A production-target qualification PASS proves only that an exact new target has been constructed and accepted. It does not mutate the production selector and does not authorize cutover.
+
 ## 9. Cutover transaction boundary
 
 Cutover is separate from data publication.
