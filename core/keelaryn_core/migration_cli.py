@@ -5,6 +5,11 @@ import json
 import sys
 from typing import Any, Mapping
 
+from .migration_freeze import (
+    MigrationFreezePostCommitBlocked,
+    freeze_migration_candidate,
+    verify_migration_candidate_freeze,
+)
 from .migration_pack import (
     MigrationPackBlocked,
     build_migration_pack,
@@ -64,6 +69,24 @@ def _parser() -> argparse.ArgumentParser:
         help="Verify one immutable private migration pack",
     )
     verify.add_argument("--pack-dir", required=True)
+
+    freeze = sub.add_parser(
+        "candidate-freeze",
+        help="Issue one immutable sanitized FROZEN_UNQUALIFIED receipt for an exact private candidate",
+    )
+    freeze.add_argument("--pack-dir", required=True)
+    freeze.add_argument("--repo-root", required=True)
+    freeze.add_argument("--expected-source-commit", required=True)
+    freeze.add_argument("--expected-source-tree", required=True)
+    freeze.add_argument("--output-receipt", required=True)
+
+    freeze_verify = sub.add_parser(
+        "candidate-freeze-verify",
+        help="Verify one frozen candidate receipt against the exact private pack and clean source checkout",
+    )
+    freeze_verify.add_argument("--pack-dir", required=True)
+    freeze_verify.add_argument("--repo-root", required=True)
+    freeze_verify.add_argument("--receipt", required=True)
     return parser
 
 
@@ -91,9 +114,34 @@ def main(argv: list[str] | None = None) -> int:
                 prepared_root=args.prepared_root,
             )
             _emit({"pack": pack.public_summary()})
-        else:
+        elif args.command == "pack-verify":
             _emit({"pack": verify_migration_pack(args.pack_dir).public_summary()})
+        elif args.command == "candidate-freeze":
+            _emit(
+                {
+                    "freeze": freeze_migration_candidate(
+                        args.pack_dir,
+                        args.repo_root,
+                        args.expected_source_commit,
+                        args.expected_source_tree,
+                        args.output_receipt,
+                    )
+                }
+            )
+        else:
+            _emit(
+                {
+                    "freeze": verify_migration_candidate_freeze(
+                        args.pack_dir,
+                        args.receipt,
+                        args.repo_root,
+                    )
+                }
+            )
         return 0
+    except MigrationFreezePostCommitBlocked as exc:
+        _emit({"error": "POST_COMMIT_BLOCKED", "detail": str(exc)}, stream=sys.stderr)
+        return 3
     except MigrationPackBlocked as exc:
         _emit({"error": "BLOCKED", "detail": str(exc)}, stream=sys.stderr)
         return 2
