@@ -56,7 +56,7 @@ Terminal authority binds SHA-256 of the exact active transaction and records onl
 
 `hub_cutover.py` changes only the selector file. It never mutates Google Drive, either Hub, canonical data, Project state, OAuth credentials or source releases.
 
-The caller owns service stop/start and read-only production acceptance.
+`hub_cutover.py accept` is a low-level transaction primitive, not the production operator acceptance path. Production terminal acceptance must be performed only by the transaction-bound post-cutover finalizer described below.
 
 Before `prepare`:
 
@@ -66,14 +66,15 @@ Before `prepare`:
 4. no release-switch or Hub-cutover transaction may already be active;
 5. the writer service must be stopped and proven inactive before selector `apply`.
 
-A successful `apply` means **the durable production selector changed to NEW**. It does not mean cutover acceptance passed.
+The writer remains stopped through fresh post-cutover read-only acceptance and terminal finalization. A successful `apply` means **the durable production selector changed to NEW**. It does not mean cutover acceptance passed.
 
-## 4. Commands
+## 4. Prepare and apply
 
 Use the exact cutover tool from the qualified active release and its exact source commit:
 
 ```bash
 CUTOVER_TOOL=/opt/keelaryn/current/deploy/zero-based-vps/hub_cutover.py
+FINALIZER=/opt/keelaryn/current/tests/live/run_migration_post_cutover_acceptance.py
 SOURCE_COMMIT=<exact-qualified-40-hex-source-commit>
 SELECTOR=/etc/keelaryn/hub.env
 STATE=/var/lib/keelaryn/deployment
@@ -112,23 +113,70 @@ python3 -B "$CUTOVER_TOOL" \
 
 A crash or response loss after replacement is recovered by observation: the next `status` reports `APPLIED` when NEW is exact. The tool must not blindly write NEW again.
 
-Start the writer and run the required read-only post-cutover acceptance against the selected NEW Hub. Starting the service successfully is not sufficient acceptance by itself.
+Do **not** start the NEW writer and do **not** invoke `hub_cutover.py accept` directly after `apply`.
 
-On PASS:
+## 5. Transaction-bound post-cutover acceptance
 
-```bash
-python3 -B "$CUTOVER_TOOL" \
-  --selector-path "$SELECTOR" \
-  --state-root "$STATE" \
-  --source-commit "$SOURCE_COMMIT" \
-  accept
+Production acceptance is performed by the exact finalizer from the qualified active release:
+
+```text
+tests/live/run_migration_post_cutover_acceptance.py
 ```
 
-`accept` requires exact NEW, publishes immutable terminal `ACCEPTED`, then archives the exact active transaction. A crash after terminal creation cannot later become rollback.
+It requires exact explicit enablement:
 
-## 5. Rollback
+```text
+KEELARYN_POST_CUTOVER_ACCEPTANCE_ENABLE=YES
+```
 
-If post-cutover verification fails, first stop and prove the NEW writer is inactive. Then run:
+Required private/local bindings are:
+
+- `KEELARYN_HUB_SELECTOR_PATH`
+- `KEELARYN_DEPLOYMENT_STATE_ROOT`
+- `KEELARYN_SOURCE_COMMIT`
+- `KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT`
+- `KEELARYN_MIGRATION_PACK_DIR`
+- `KEELARYN_MIGRATION_FREEZE_RECEIPT`
+- `KEELARYN_MIGRATION_REPO_ROOT`
+- `KEELARYN_MIGRATION_TARGET_AUTHORITY`
+- `KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE`
+- the Google OAuth environment required by the Drive backend.
+
+The finalization receipt must live in a private owner-controlled mode-`0700` directory. The receipt itself is mode `0600` and remains private.
+
+Run the finalizer while the writer is still stopped and the cutover transaction is exact `APPLIED`:
+
+```bash
+python3 -B "$FINALIZER"
+```
+
+The finalizer:
+
+1. requires the exact active Hub-cutover transaction and exact NEW selector;
+2. runs fresh read-only migration acceptance against the selected NEW Hub;
+3. requires `POST_CUTOVER_READ_ONLY_PASS`, `drive_mutations_performed=false` and `hub_cutover_accept_allowed=true`;
+4. binds the acceptance to SHA-256 of the exact active transaction, exact source commit and exact NEW selector identity;
+5. durably writes or verifies the private finalization receipt;
+6. revalidates active transaction and selector identity at the terminal commit boundary;
+7. invokes the low-level terminal `accept` primitive;
+8. verifies immutable `ACCEPTED` terminal/history authority;
+9. emits only sanitized hashes/identities, never real Hub IDs or private paths.
+
+A fresh successful run returns `PRODUCTION_CUTOVER_ACCEPTED` and terminal outcome `ACCEPTED`.
+
+If process response is lost after durable terminal acceptance, re-run the **same finalizer** with the same qualified release/source identity and the same private receipt. It recovers from terminal/history authority and must not invent a new acceptance transaction. Once terminal `ACCEPTED` exists, rollback is forbidden for that transaction.
+
+Only after finalizer PASS may the NEW writer be started:
+
+```bash
+systemctl start keelaryn-drive.service
+```
+
+Starting the writer is not a substitute for finalizer PASS.
+
+## 6. Rollback before terminal acceptance
+
+If fresh post-cutover acceptance fails before terminal `ACCEPTED`, keep/prove the NEW writer inactive and run:
 
 ```bash
 python3 -B "$CUTOVER_TOOL" \
@@ -144,7 +192,9 @@ Rollback does not copy zero-based bytes into the legacy Hub and does not rewrite
 
 If the selector is neither exact OLD nor exact NEW, rollback fails closed.
 
-## 6. Status and recovery
+A transaction with durable terminal `ACCEPTED` cannot later be rolled back by `hub_cutover.py`; any future production reversal would require a new separately authorized transaction.
+
+## 7. Status and recovery
 
 `status` returns only non-secret transaction state; it does not print OLD or NEW Hub IDs.
 
@@ -154,11 +204,13 @@ If the selector is neither exact OLD nor exact NEW, rollback fails closed.
 - `FINALIZE_PENDING` — immutable terminal decision exists and matching archival cleanup remains;
 - `BLOCKED` — durable transaction authority and selector identity disagree or selector state is unknown.
 
-Recovery always re-runs the same logical command with the same qualified tool/source identity. Never invent a new transaction because a process response was lost.
+Recovery always re-runs the same logical operation with the same qualified source/tool identity. Never invent a new transaction because a process response was lost.
 
-Fault coverage includes interruption after active-record creation, before/after selector replacement, after terminal publication, during rollback replacement and during final history publication.
+For `APPLIED` production acceptance, recovery re-runs the transaction-bound finalizer, not raw `hub_cutover.py accept`. For rollback, recovery re-runs `rollback`. For an accepted finalizer response loss, the private receipt plus terminal/history authority prove the prior decision without another Drive acceptance mutation.
 
-## 7. Evidence boundary
+Fault coverage includes interruption after active-record creation, before/after selector replacement, after private finalization receipt publication, after terminal publication, during rollback replacement and during final history publication.
+
+## 8. Evidence boundary
 
 Private Hub root IDs are necessary local transaction authority but must not be copied into public CI artifacts, GitHub issues/PRs, SOURCE, DISTRIBUTION, UPDATE or AI_CONTEXT.
 
@@ -166,25 +218,31 @@ Public/sanitized qualification evidence may bind:
 
 - exact source commit;
 - exact cutover-tool SHA-256;
-- transaction/evidence identity where safe;
+- SHA-256 of exact active cutover transaction;
+- SHA-256 of fresh post-cutover acceptance evidence;
+- selector identity hash;
 - selector protocol revision/schema;
 - terminal outcome;
 - PASS/FAIL of disposable switch/rollback rehearsal;
 - PASS/FAIL of production-specific acceptance.
 
-The production selector file and durable transaction files stay private on the target host.
+The production selector, private finalization receipt and durable transaction files stay private on the target host.
 
-## 8. Qualification sequence
+## 9. Qualification sequence
 
 Before production use:
 
-1. deterministic unit/fault tests PASS;
-2. exact-head VPS payload build/materialization PASS and contains `hub_cutover.py`;
-3. disposable selector `OLD -> NEW -> ACCEPTED` rehearsal PASS;
-4. disposable selector `OLD -> NEW -> OLD/ROLLED_BACK` rehearsal PASS;
-5. release-switch versus Hub-cutover mutual-exclusion regression PASS;
-6. target-host filesystem/ownership/mode checks PASS;
-7. production target construction and read-only acceptance PASS;
-8. explicit human production cutover approval is obtained.
+1. deterministic Core/unit/fault tests PASS;
+2. transaction-bound finalizer regressions PASS, including stale/mismatched acceptance rejection and terminal response-loss recovery;
+3. exact-head VPS payload build/materialization PASS and contains the cutover/finalizer source used for qualification;
+4. disposable selector `OLD -> NEW -> ACCEPTED` rehearsal PASS;
+5. disposable selector `OLD -> NEW -> OLD/ROLLED_BACK` rehearsal PASS;
+6. release-switch versus Hub-cutover mutual-exclusion regression PASS;
+7. target-host filesystem/ownership/mode checks PASS;
+8. production target construction/qualification PASS with `cutover_authorized=false`;
+9. explicit human production cutover approval is obtained;
+10. selector `apply` completes with the writer stopped;
+11. transaction-bound fresh post-cutover finalizer PASS;
+12. only then the NEW writer is started and normal production operation resumes.
 
-No development PASS authorizes step 8.
+No development PASS authorizes steps 9-12.
