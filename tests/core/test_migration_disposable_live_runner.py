@@ -65,6 +65,11 @@ class MigrationDisposableLiveRunnerTests(unittest.TestCase):
             "KEELARYN_MIGRATION_PACK_DIR": "/private/migration/candidate-001",
         }
 
+    def _resume_env(self) -> dict[str, str]:
+        env = self._base_env()
+        env["KEELARYN_MIGRATION_DISPOSABLE_REHEARSAL_RESUME"] = "YES"
+        return env
+
     @staticmethod
     def _run(module, env: dict[str, str]):
         stdout = io.StringIO()
@@ -122,6 +127,87 @@ class MigrationDisposableLiveRunnerTests(unittest.TestCase):
         fake_drive.list_children.return_value = [
             SimpleNamespace(trashed=False, is_folder=True, file_id="existing", name="existing")
         ]
+
+        with patch.object(module, "verify_migration_pack", return_value=_FakePack()), patch.object(
+            module.GoogleOAuthRefreshTokenProvider,
+            "from_environment",
+            return_value=object(),
+        ), patch.object(module, "GoogleDriveBackend", return_value=fake_drive), patch.object(
+            module,
+            "verify_acceptance_root",
+        ), patch.object(module, "DriveMigrationDisposableRehearsal") as rehearsal:
+            code, stdout, stderr = self._run(module, env)
+
+        self.assertEqual(code, 1)
+        self.assertEqual(stdout, "")
+        self.assertEqual(json.loads(stderr)["phase"], "acceptance-root-guard")
+        fake_drive.generate_ids.assert_not_called()
+        fake_drive.create_folder.assert_not_called()
+        rehearsal.assert_not_called()
+
+    def test_resume_requires_existing_exact_child_and_never_creates_a_new_one(self) -> None:
+        module = _load_runner()
+        env = self._resume_env()
+        child_name = f"{module.CHILD_PREFIX}Migration_{env['KEELARYN_MIGRATION_REHEARSAL_RUN_ID']}"
+        fake_drive = Mock()
+        fake_drive.list_children.return_value = [
+            SimpleNamespace(
+                trashed=False,
+                is_folder=True,
+                file_id="drive-existing-secret-id",
+                name=child_name,
+            )
+        ]
+        captured: dict[str, object] = {}
+
+        class FakeRehearsal:
+            def __init__(self, drive, hub_id):
+                captured["drive"] = drive
+                captured["hub_id"] = hub_id
+
+            def run(self, pack_dir):
+                captured["pack_dir"] = pack_dir
+                return _FakeEvidence()
+
+        with patch.object(module, "verify_migration_pack", return_value=_FakePack()) as pack, patch.object(
+            module.GoogleOAuthRefreshTokenProvider,
+            "from_environment",
+            return_value=object(),
+        ), patch.object(module, "GoogleDriveBackend", return_value=fake_drive), patch.object(
+            module,
+            "verify_acceptance_root",
+        ) as root_guard, patch.object(
+            module,
+            "DriveMigrationDisposableRehearsal",
+            FakeRehearsal,
+        ):
+            code, stdout, stderr = self._run(module, env)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr, "")
+        self.assertGreaterEqual(pack.call_count, 2)
+        root_guard.assert_called_once_with(fake_drive, env["KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID"])
+        fake_drive.generate_ids.assert_not_called()
+        fake_drive.create_folder.assert_not_called()
+        public = json.loads(stdout)
+        self.assertEqual(public["schema"], "keelaryn.migration-disposable-live-run.v1")
+        self.assertEqual(public["run_id"], env["KEELARYN_MIGRATION_REHEARSAL_RUN_ID"])
+        self.assertEqual(public["rehearsal"]["outcome"], "PASS")
+        self.assertTrue(public["existing_hub_reused"])
+        self.assertFalse(public["production_selector_mutated"])
+        self.assertIs(captured["drive"], fake_drive)
+        self.assertEqual(captured["hub_id"], "drive-existing-secret-id")
+
+        combined = stdout + stderr
+        self.assertNotIn("drive-acceptance-secret-id", combined)
+        self.assertNotIn("drive-existing-secret-id", combined)
+        self.assertNotIn(env["KEELARYN_MIGRATION_PACK_DIR"], combined)
+
+    def test_resume_missing_exact_child_fails_closed_without_creation(self) -> None:
+        module = _load_runner()
+        env = self._resume_env()
+        fake_drive = Mock()
+        fake_drive.list_children.return_value = []
 
         with patch.object(module, "verify_migration_pack", return_value=_FakePack()), patch.object(
             module.GoogleOAuthRefreshTokenProvider,
