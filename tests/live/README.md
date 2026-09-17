@@ -100,3 +100,25 @@ A successful live gate creates two fresh child Hubs under the acceptance root an
 The harness prints only compact status JSON. Each case reports `human_surface_verified=true` and `workspace_verified=true`; Hub IDs and credential values are intentionally omitted from normal output.
 
 A PASS here is still **not** production authorization. It is live disposable Drive development evidence only. Production-specific qualification is a later, separate gate.
+
+## Exact migration-candidate disposable rehearsal
+
+The generic PASS/FAIL acceptance above proves the normal Core transaction path. Before production-target qualification, an **exact private migration candidate** also requires its own full disposable rehearsal through `DriveMigrationDisposableRehearsal`.
+
+Use `tests/live/run_migration_disposable_rehearsal.py` on a controlled operator host that has the private migration pack. Do not upload the private pack to GitHub Actions or place it inside the Git worktree.
+
+The runner requires:
+
+- `KEELARYN_MIGRATION_DISPOSABLE_REHEARSAL_ENABLE=YES`;
+- `KEELARYN_MIGRATION_REHEARSAL_RUN_ID=<fresh-safe-run-id>`;
+- `KEELARYN_MIGRATION_PACK_DIR=<private-pack-outside-repository>`;
+- `KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID=<dedicated-test-root-id>`;
+- the normal `KEELARYN_GOOGLE_CLIENT_ID`, `KEELARYN_GOOGLE_CLIENT_SECRET`, and `KEELARYN_GOOGLE_REFRESH_TOKEN` for the dedicated disposable test identity.
+
+Before mutation it verifies the exact private pack, initializes OAuth, reuses the same exact acceptance-root/sentinel guard as the generic live gate, proves that the requested run ID has no existing child, and re-verifies the pack at the mutation boundary. It then creates one **fresh** child named with the normal disposable prefix and runs the complete migration rehearsal against that child only.
+
+PASS evidence requires the exact pack/candidate identity, `canonical_epoch=1`, final `IDLE`, restart discovery `READY_CLEAN`, and the complete migration rehearsal evidence. Raw Drive IDs and private paths are excluded from stdout. The runner never receives or changes the production selector and never reuses an existing Hub as the rehearsal target.
+
+If execution is interrupted after the child may have been created, do not rerun the same run ID. Reconcile that child read-only, preserve the incomplete evidence, then use a fresh run ID for an independent retry. The prior child may remain under the acceptance root because its name uses the accepted disposable prefix.
+
+This rehearsal is still development/candidate evidence only. It does not freeze the candidate, construct the production target, authorize cutover, or mutate the personal/production Hub.
