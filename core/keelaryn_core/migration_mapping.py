@@ -19,6 +19,33 @@ from .migration_source import verify_migration_source
 from .protocol import ProtocolError, strict_json_bytes
 
 
+def _preservation_destination(
+    classification: str,
+    destination_value,
+    *,
+    candidate_id: str,
+    label: str,
+) -> str:
+    destination = relative_path(destination_value, f"{label}.destination")
+    parts = destination.split("/")
+    if classification == "PROJECT_WORK_IMPORT":
+        if len(parts) < 5 or parts[0:2] != ["work", "projects"] or parts[3] != "migration-import":
+            raise MigrationPackBlocked(
+                f"{label}.destination: PROJECT_WORK_IMPORT must be under "
+                "work/projects/<project_id>/migration-import/"
+            )
+        identifier(parts[2], f"{label}.destination project_id")
+    elif classification == "ARCHIVE_ONLY":
+        if len(parts) < 4 or parts[0:2] != ["archive", "migration"] or parts[2] != candidate_id:
+            raise MigrationPackBlocked(
+                f"{label}.destination: ARCHIVE_ONLY must be under "
+                f"archive/migration/{candidate_id}/"
+            )
+    else:
+        raise MigrationPackBlocked(f"{label}: destination is not allowed for classification")
+    return destination
+
+
 def parse_mapping(raw: bytes, source) -> MigrationMapping:
     try:
         value = strict_json_bytes(raw, label="MIGRATION_MAPPING")
@@ -55,11 +82,13 @@ def parse_mapping(raw: bytes, source) -> MigrationMapping:
     if not isinstance(raw_actions, list) or len(raw_actions) != len(source_set):
         raise MigrationPackBlocked("MIGRATION_MAPPING: must classify every source exactly once")
     actions: dict[str, str] = {}
+    preservation_destinations: dict[str, str] = {}
     for index, item in enumerate(raw_actions):
         label = f"MIGRATION_MAPPING.source_actions[{index}]"
         if not isinstance(item, dict):
             raise MigrationPackBlocked(f"{label}: must be object")
-        keys_exact(item, {"source", "classification"}, label)
+        if set(item) not in ({"source", "classification"}, {"source", "classification", "destination"}):
+            raise MigrationPackBlocked(f"{label}: invalid keys")
         name = relative_path(item["source"], f"{label}.source")
         classification = item["classification"]
         if name not in source_set:
@@ -68,9 +97,23 @@ def parse_mapping(raw: bytes, source) -> MigrationMapping:
             raise MigrationPackBlocked(f"{label}: invalid classification")
         if name in actions:
             raise MigrationPackBlocked("MIGRATION_MAPPING: duplicate source action")
+        has_destination = "destination" in item
+        if classification in {"PROJECT_WORK_IMPORT", "ARCHIVE_ONLY"}:
+            if not has_destination:
+                raise MigrationPackBlocked(f"{label}: preservation classification requires destination")
+            preservation_destinations[name] = _preservation_destination(
+                classification,
+                item["destination"],
+                candidate_id=candidate,
+                label=label,
+            )
+        elif has_destination:
+            raise MigrationPackBlocked(f"{label}: destination only allowed for preservation classification")
         actions[name] = classification
     if set(actions) != source_set:
         raise MigrationPackBlocked("MIGRATION_MAPPING: source action coverage mismatch")
+    if len(set(preservation_destinations.values())) != len(preservation_destinations):
+        raise MigrationPackBlocked("MIGRATION_MAPPING: duplicate preservation destination")
 
     raw_outputs = value["canonical_outputs"]
     if not isinstance(raw_outputs, list) or not 1 <= len(raw_outputs) <= MAX_MIGRATION_FILES:
@@ -193,6 +236,7 @@ def parse_mapping(raw: bytes, source) -> MigrationMapping:
         candidate,
         source_digest,
         tuple(sorted(actions.items())),
+        tuple(sorted(preservation_destinations.items())),
         tuple(outputs),
         root_index,
         raw,
