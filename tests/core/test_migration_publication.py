@@ -188,6 +188,39 @@ class DriveMigrationCanonicalPublicationTests(unittest.TestCase):
             self.assertEqual(drive.download(current_index.file_id), bootstrap_index_raw)
             self.assertIsNotNone(bootstrap.layout.canonical_root_id)
 
+
+    def test_publication_emits_bounded_progress_across_long_drive_phases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pack, _, _ = self.build_pack(Path(tmp), candidate_id="migration-progress")
+            drive, hub_id = self.build_drive()
+            events: list[tuple[str, int | None, int | None]] = []
+
+            class ObservedPublication(DriveMigrationCanonicalPublication):
+                def _progress(
+                    self,
+                    phase: str,
+                    current: int | None = None,
+                    total: int | None = None,
+                ) -> None:
+                    events.append((phase, current, total))
+
+            evidence = ObservedPublication(drive, hub_id).run(pack.root)
+
+            self.assertEqual(evidence.outcome, "COMMITTED")
+            self.assertIn(("topology", None, None), events)
+            self.assertIn(("projects", None, None), events)
+            self.assertIn(("ready-change", None, None), events)
+            self.assertIn(("ready-change-prepared", 1, 2), events)
+            self.assertIn(("ready-change-prepared", 2, 2), events)
+            self.assertIn(("ready-change-reverify", 1, 2), events)
+            self.assertIn(("ready-change-reverify", 2, 2), events)
+            self.assertTrue(
+                any(phase == "core-iteration" for phase, _, _ in events),
+                "Core orchestration must expose progress while polling the transaction",
+            )
+            self.assertEqual(events[-1], ("final-verification", None, None))
+
+
     def test_publication_specific_mutation_crash_matrix_recovers_from_drive_state(self) -> None:
         points = (
             "drive.migration.change-folder.create.after",
