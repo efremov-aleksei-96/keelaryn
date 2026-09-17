@@ -12,6 +12,7 @@ from keelaryn_core.drive_bootstrap import DriveHubBootstrap  # noqa: E402
 from keelaryn_core.drive_model import DriveModel  # noqa: E402
 from keelaryn_core.migration_drive import (  # noqa: E402
     DriveMigrationPreparationBlocked,
+    DriveMigrationProjectPreparation,
     DriveMigrationTopologyPreparation,
 )
 from keelaryn_core.migration_pack import (  # noqa: E402
@@ -164,6 +165,180 @@ class DriveMigrationTopologyTests(unittest.TestCase):
             ):
                 DriveMigrationTopologyPreparation(drive, "root").prepare(pack_dir)
             self.assertIsNotNone(bootstrap.layout.canonical_root_id)
+
+
+class DriveMigrationProjectPreparationTests(unittest.TestCase):
+    def _pack(self, root: Path) -> tuple[Path, bytes]:
+        source = root / "source"
+        source.mkdir()
+        (source / "canonical.md").write_bytes(b"canonical\r\n")
+        (source / "project-note.md").write_bytes(b"legacy project note\r\n")
+
+        selection = root / "MIGRATION_SELECTION.json"
+        selection.write_bytes(
+            canonical_json_bytes(
+                {
+                    "schema": "keelaryn.migration-selection.v1",
+                    "candidate_id": "migration-projects",
+                    "sources": ["canonical.md", "project-note.md"],
+                }
+            )
+        )
+        source_manifest = root / "MIGRATION_SOURCE.json"
+        capture_migration_source(source, selection, source_manifest)
+
+        state_raw = b"# Project 1\r\n\r\nInitial migrated state.\r\n"
+        prepared = root / "prepared"
+        prepared.mkdir()
+        states = prepared / "states"
+        states.mkdir()
+        (states / "project-1.md").write_bytes(state_raw)
+
+        mapping = root / "MIGRATION_MAPPING.json"
+        mapping.write_bytes(
+            canonical_json_bytes(
+                {
+                    "schema": "keelaryn.migration-mapping.v1",
+                    "candidate_id": "migration-projects",
+                    "source_manifest_sha256": verify_migration_source(source_manifest).digest,
+                    "source_actions": [
+                        {"source": "canonical.md", "classification": "CANONICAL_IMPORT"},
+                        {
+                            "source": "project-note.md",
+                            "classification": "PROJECT_WORK_IMPORT",
+                            "destination": "work/projects/project-1/migration-import/project-note.md",
+                        },
+                    ],
+                    "project_initial_states": [
+                        {"project_id": "project-1", "prepared_path": "states/project-1.md"}
+                    ],
+                    "canonical_outputs": [
+                        {
+                            "target": "identity/canonical.md",
+                            "semantic_sources": ["canonical.md"],
+                            "payload": {"kind": "SOURCE", "source": "canonical.md"},
+                        }
+                    ],
+                    "root_index": None,
+                }
+            )
+        )
+        pack = build_migration_pack(
+            source,
+            source_manifest,
+            mapping,
+            root / "pack",
+            prepared_root=prepared,
+        )
+        return pack.root, state_raw
+
+    @staticmethod
+    def _projects_parent(drive: DriveModel):
+        work = drive.exact_name("root", "work")
+        assert work is not None
+        projects = drive.exact_name(work.file_id, "projects")
+        assert projects is not None
+        return projects
+
+    def test_prepare_initializes_exact_project_state_and_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pack_dir, state_raw = self._pack(Path(tmp))
+            drive = DriveModel()
+            service = DriveMigrationProjectPreparation(drive, "root")
+
+            first = service.prepare(pack_dir)
+            second = service.prepare(pack_dir)
+
+            self.assertEqual(first, second)
+            self.assertEqual(first.candidate_id, "migration-projects")
+            self.assertEqual(first.project_count, 1)
+            self.assertEqual(first.project_state_total_bytes, len(state_raw))
+
+            projects = self._projects_parent(drive)
+            project = drive.exact_name(projects.file_id, "project-1")
+            assert project is not None
+            self.assertTrue(project.is_folder)
+            self.assertEqual(
+                {item.name for item in drive.list_children(project.file_id)},
+                {"STATE.md", "results"},
+            )
+            state = drive.exact_name(project.file_id, "STATE.md")
+            results = drive.exact_name(project.file_id, "results")
+            assert state is not None and results is not None
+            self.assertEqual(drive.download(state.file_id), state_raw)
+            self.assertEqual(drive.list_children(results.file_id), [])
+            self.assertIsNone(drive.exact_name(project.file_id, "migration-import"))
+
+    def test_prepare_recovers_after_crash_post_state_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pack_dir, state_raw = self._pack(Path(tmp))
+            fault = FaultInjector("drive.project.project-1.state.create.after")
+            drive = DriveModel(fault=fault)
+            service = DriveMigrationProjectPreparation(drive, "root")
+
+            with self.assertRaises(InjectedCrash):
+                service.prepare(pack_dir)
+            self.assertTrue(fault.fired)
+
+            evidence = service.prepare(pack_dir)
+            self.assertEqual(evidence.project_count, 1)
+            project = drive.exact_name(self._projects_parent(drive).file_id, "project-1")
+            assert project is not None
+            state = drive.exact_name(project.file_id, "STATE.md")
+            assert state is not None
+            self.assertEqual(drive.download(state.file_id), state_raw)
+
+    def test_prepare_rejects_unexpected_project_or_child_material(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pack_dir, _ = self._pack(Path(tmp))
+
+            with self.subTest("unexpected project"):
+                drive = DriveModel()
+                DriveHubBootstrap(drive, "root").run()
+                projects = self._projects_parent(drive)
+                drive.create_folder(projects.file_id, "other-project")
+                with self.assertRaisesRegex(
+                    DriveMigrationPreparationBlocked,
+                    "unexpected project",
+                ):
+                    DriveMigrationProjectPreparation(drive, "root").prepare(pack_dir)
+
+            with self.subTest("unexpected child"):
+                drive = DriveModel()
+                DriveHubBootstrap(drive, "root").run()
+                projects = self._projects_parent(drive)
+                project_id = drive.generate_ids(1)[0]
+                drive.create_folder(projects.file_id, "project-1", file_id=project_id)
+                drive.create_blob(project_id, "intruder.bin", b"x")
+                with self.assertRaisesRegex(
+                    DriveMigrationPreparationBlocked,
+                    "unexpected material before preservation",
+                ):
+                    DriveMigrationProjectPreparation(drive, "root").prepare(pack_dir)
+
+    def test_prepare_rejects_conflicting_existing_state_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pack_dir, _ = self._pack(Path(tmp))
+            drive = DriveModel()
+            DriveHubBootstrap(drive, "root").run()
+            projects = self._projects_parent(drive)
+            project_id = drive.generate_ids(1)[0]
+            drive.create_folder(projects.file_id, "project-1", file_id=project_id)
+            drive.create_blob(project_id, "STATE.md", b"wrong\r\n")
+
+            with self.assertRaisesRegex(
+                DriveMigrationPreparationBlocked,
+                "bytes do not match migration pack",
+            ):
+                DriveMigrationProjectPreparation(drive, "root").prepare(pack_dir)
+
+    def test_prepare_empty_project_authority_requires_empty_projects_area(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pack_dir = DriveMigrationTopologyTests()._pack(Path(tmp))
+            drive = DriveModel()
+            evidence = DriveMigrationProjectPreparation(drive, "root").prepare(pack_dir)
+            self.assertEqual(evidence.project_count, 0)
+            self.assertEqual(drive.list_children(self._projects_parent(drive).file_id), [])
 
 
 if __name__ == "__main__":
