@@ -6,7 +6,7 @@ on:
       - 'dev/zero-based-keelaryn'
     paths:
       - 'core/keelaryn_core/migration_*.py'
-      - 'tests/core/test_migration_pack.py'
+      - 'tests/core/test_migration_*.py'
       - 'spec/MIGRATION.md'
       - 'spec/schemas/migration-*.schema.json'
       - '.github/workflows/zero-based-migration-windows.yml'
@@ -16,7 +16,7 @@ on:
       - main
     paths:
       - 'core/keelaryn_core/migration_*.py'
-      - 'tests/core/test_migration_pack.py'
+      - 'tests/core/test_migration_*.py'
       - 'spec/MIGRATION.md'
       - 'spec/schemas/migration-*.schema.json'
       - '.github/workflows/zero-based-migration-windows.yml'
@@ -48,7 +48,7 @@ jobs:
         shell: pwsh
         run: |
           $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'core'
-          python -m unittest discover -s tests/core -p 'test_migration_pack.py' -v
+          python -m unittest discover -s tests/core -p 'test_migration_*.py' -v
 
       - name: Smoke Migration CLI surface
         shell: pwsh
