@@ -100,6 +100,7 @@ class MigrationMapping:
     candidate_id: str
     source_manifest_sha256: str
     actions: tuple[tuple[str, str], ...]
+    preservation_destinations: tuple[tuple[str, str], ...]
     canonical_outputs: tuple[CanonicalOutput, ...]
     root_index: RootIndexOutput | None
     raw: bytes
