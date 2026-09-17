@@ -20,8 +20,10 @@ from .migration_common import (
     MigrationPackBlocked,
     PackEntry,
     PreservedEntry,
+    ProjectStateEntry,
     bounded_int,
     digest_hex,
+    identifier,
     keys_exact,
     real_directory,
     relative_path,
@@ -55,6 +57,7 @@ def build_migration_pack(
     prepared = None
     if (
         any(item.payload_kind == "PREPARED" for item in mapping.canonical_outputs)
+        or mapping.project_initial_states
         or mapping.root_index
     ):
         if prepared_root is None:
@@ -131,6 +134,43 @@ def build_migration_pack(
                     "size": len(raw),
                 }
             )
+
+        packed_project_states: list[dict[str, Any]] = []
+        project_state_total = 0
+        if mapping.project_initial_states:
+            assert prepared is not None
+            project_state_dir = staging / "project-state"
+            project_state_dir.mkdir(mode=0o700)
+            for index, item in enumerate(
+                sorted(mapping.project_initial_states, key=lambda value: value.project_id),
+                start=1,
+            ):
+                operation_id = f"project-state-{index:05d}"
+                payload = f"project-state/{operation_id}.bin"
+                raw = source_file(
+                    prepared,
+                    item.prepared_path,
+                    f"migration prepared Project STATE {item.project_id}",
+                )
+                if not raw:
+                    raise MigrationPackBlocked(
+                        f"migration prepared Project STATE is empty: {item.project_id}"
+                    )
+                project_state_total += len(raw)
+                if project_state_total > MAX_MIGRATION_TOTAL_BYTES:
+                    raise MigrationPackBlocked(
+                        "migration Project STATE payload exceeds total size limit"
+                    )
+                write_new(project_state_dir / f"{operation_id}.bin", raw)
+                packed_project_states.append(
+                    {
+                        "operation_id": operation_id,
+                        "project_id": item.project_id,
+                        "payload": payload,
+                        "sha256": sha256(raw).hexdigest(),
+                        "size": len(raw),
+                    }
+                )
 
         preserved_actions = sorted(
             (source_name, classification)
@@ -225,12 +265,15 @@ def build_migration_pack(
                     "size": len(mapping_raw),
                 },
                 "canonical_outputs": packed_outputs,
+                "project_initial_states": packed_project_states,
                 "preserved_outputs": packed_preserved,
                 "root_index": packed_index,
                 "source_file_count": len(source.entries),
                 "source_total_bytes": source.total_bytes,
                 "canonical_file_count": len(packed_outputs),
                 "canonical_total_bytes": canonical_total,
+                "project_state_count": len(packed_project_states),
+                "project_state_total_bytes": project_state_total,
                 "preserved_file_count": len(packed_preserved),
                 "preserved_total_bytes": preserved_total,
             }
@@ -251,6 +294,8 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
     expected = {MIGRATION_PACK_NAME, "authority", "canonical"}
     if "root" in names:
         expected.add("root")
+    if "project-state" in names:
+        expected.add("project-state")
     if "preserved" in names:
         expected.add("preserved")
     if names != expected:
@@ -293,12 +338,15 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
             "source_manifest",
             "mapping_manifest",
             "canonical_outputs",
+            "project_initial_states",
             "preserved_outputs",
             "root_index",
             "source_file_count",
             "source_total_bytes",
             "canonical_file_count",
             "canonical_total_bytes",
+            "project_state_count",
+            "project_state_total_bytes",
             "preserved_file_count",
             "preserved_total_bytes",
         },
@@ -420,6 +468,84 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
         )
     if canonical_file_count != len(entries) or canonical_total_declared != total:
         raise MigrationPackBlocked("MIGRATION_PACK: canonical summary mismatch")
+
+    mapping_project_states = sorted(
+        mapping.project_initial_states,
+        key=lambda item: item.project_id,
+    )
+    raw_project_states = value["project_initial_states"]
+    if not isinstance(raw_project_states, list) or len(raw_project_states) != len(mapping_project_states):
+        raise MigrationPackBlocked("MIGRATION_PACK: Project STATE output count mismatch")
+    project_state_count = bounded_int(
+        value["project_state_count"],
+        "MIGRATION_PACK.project_state_count",
+        MAX_MIGRATION_FILES,
+    )
+    project_state_total_declared = bounded_int(
+        value["project_state_total_bytes"],
+        "MIGRATION_PACK.project_state_total_bytes",
+        MAX_MIGRATION_TOTAL_BYTES,
+    )
+    project_state_entries: list[ProjectStateEntry] = []
+    project_state_total = 0
+    if mapping_project_states:
+        project_state_dir = real_directory(
+            root / "project-state",
+            "migration Project STATE payload directory",
+        )
+        project_state_expected_files: set[str] = set()
+        for index, (packed, mapped) in enumerate(
+            zip(raw_project_states, mapping_project_states),
+            start=1,
+        ):
+            label = f"MIGRATION_PACK.project_initial_states[{index-1}]"
+            if not isinstance(packed, dict):
+                raise MigrationPackBlocked(f"{label}: must be object")
+            keys_exact(
+                packed,
+                {"operation_id", "project_id", "payload", "sha256", "size"},
+                label,
+            )
+            operation_id = f"project-state-{index:05d}"
+            payload = f"project-state/{operation_id}.bin"
+            if packed["operation_id"] != operation_id or packed["payload"] != payload:
+                raise MigrationPackBlocked(f"{label}: deterministic payload identity mismatch")
+            project_id = identifier(packed["project_id"], f"{label}.project_id")
+            if project_id != mapped.project_id:
+                raise MigrationPackBlocked("MIGRATION_PACK: Project STATE authority mismatch")
+            digest = digest_hex(packed["sha256"], f"{label}.sha256")
+            size = bounded_int(
+                packed["size"],
+                f"{label}.size",
+                MAX_MIGRATION_FILE_BYTES,
+                minimum=1,
+            )
+            raw = source_file(
+                project_state_dir,
+                f"{operation_id}.bin",
+                f"migration Project STATE payload {operation_id}",
+            )
+            if sha256(raw).hexdigest() != digest or len(raw) != size:
+                raise MigrationPackBlocked(
+                    f"migration Project STATE payload fingerprint mismatch: {operation_id}"
+                )
+            project_state_total += size
+            project_state_expected_files.add(f"{operation_id}.bin")
+            project_state_entries.append(
+                ProjectStateEntry(operation_id, project_id, payload, digest, size)
+            )
+        if {item.name for item in project_state_dir.iterdir()} != project_state_expected_files:
+            raise MigrationPackBlocked(
+                "migration Project STATE payload directory contains unexpected material"
+            )
+    elif (root / "project-state").exists():
+        raise MigrationPackBlocked("MIGRATION_PACK: unexpected Project STATE payload directory")
+
+    if (
+        project_state_count != len(project_state_entries)
+        or project_state_total_declared != project_state_total
+    ):
+        raise MigrationPackBlocked("MIGRATION_PACK: Project STATE summary mismatch")
 
     preserved_actions = sorted(
         (source_name, classification)
@@ -567,6 +693,7 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
         source_file_count=len(source.entries),
         source_total_bytes=source.total_bytes,
         canonical_outputs=tuple(entries),
+        project_initial_states=tuple(project_state_entries),
         preserved_outputs=tuple(preserved_entries),
         root_index_size=root_index_size,
         manifest_raw=pack_raw,
