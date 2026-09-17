@@ -90,6 +90,12 @@ class CanonicalOutput:
 
 
 @dataclass(frozen=True)
+class ProjectStateOutput:
+    project_id: str
+    prepared_path: str
+
+
+@dataclass(frozen=True)
 class RootIndexOutput:
     semantic_sources: tuple[str, ...]
     prepared_path: str
@@ -101,6 +107,7 @@ class MigrationMapping:
     source_manifest_sha256: str
     actions: tuple[tuple[str, str], ...]
     preservation_destinations: tuple[tuple[str, str], ...]
+    project_initial_states: tuple[ProjectStateOutput, ...]
     canonical_outputs: tuple[CanonicalOutput, ...]
     root_index: RootIndexOutput | None
     raw: bytes
@@ -124,6 +131,7 @@ class MigrationMapping:
             "mapping_manifest_sha256": self.digest,
             "source_count": len(self.actions),
             "canonical_output_count": len(self.canonical_outputs),
+            "project_state_count": len(self.project_initial_states),
             "has_root_index": self.root_index is not None,
             "classification_counts": counts,
         }
@@ -134,6 +142,15 @@ class PackEntry:
     operation_id: str
     target: str
     semantic_sources: tuple[str, ...]
+    payload: str
+    sha256: str
+    size: int
+
+
+@dataclass(frozen=True)
+class ProjectStateEntry:
+    operation_id: str
+    project_id: str
     payload: str
     sha256: str
     size: int
@@ -158,6 +175,7 @@ class MigrationPack:
     source_file_count: int
     source_total_bytes: int
     canonical_outputs: tuple[PackEntry, ...]
+    project_initial_states: tuple[ProjectStateEntry, ...]
     preserved_outputs: tuple[PreservedEntry, ...]
     root_index_size: int
     manifest_raw: bytes
@@ -173,6 +191,10 @@ class MigrationPack:
     @property
     def canonical_total_bytes(self) -> int:
         return sum(item.size for item in self.canonical_outputs)
+
+    @property
+    def project_state_total_bytes(self) -> int:
+        return sum(item.size for item in self.project_initial_states)
 
     @property
     def preserved_total_bytes(self) -> int:
@@ -192,6 +214,8 @@ class MigrationPack:
             "source_total_bytes": self.source_total_bytes,
             "canonical_file_count": len(self.canonical_outputs),
             "canonical_total_bytes": self.canonical_total_bytes,
+            "project_state_count": len(self.project_initial_states),
+            "project_state_total_bytes": self.project_state_total_bytes,
             "preserved_file_count": len(self.preserved_outputs),
             "preserved_total_bytes": self.preserved_total_bytes,
             "preservation_counts": preservation_counts,
