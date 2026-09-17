@@ -47,6 +47,19 @@
         ]
       }
     },
+    "project_initial_states": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_id", "prepared_path"],
+        "properties": {
+          "project_id": { "$ref": "common.schema.json#/$defs/changeId" },
+          "prepared_path": { "$ref": "common.schema.json#/$defs/relativePath" }
+        }
+      }
+    },
     "canonical_outputs": {
       "type": "array",
       "minItems": 1,
