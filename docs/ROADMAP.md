@@ -9,15 +9,17 @@ This roadmap records deliberately deferred work so that it survives chat boundar
 
 The active implementation sequence is:
 
-1. freeze the zero-based architecture and roadmap in repository documentation;
-2. define strict machine-readable schemas and a deterministic state machine;
-3. implement Keelaryn Core against a disposable local filesystem;
-4. build fault-injection and restart/recovery coverage before remote storage integration;
-5. add a Google Drive backend;
-6. deploy the Core poller on Linux VPS;
-7. prove a disposable Project → RESULT → Reconciliation → Core end-to-end cycle;
-8. pilot only on a copy of a limited real-Hub subset;
-9. design production-Hub migration after the pilot.
+1. freeze the zero-based architecture and roadmap in repository documentation — COMPLETE;
+2. define strict machine-readable schemas and a deterministic state machine — COMPLETE;
+3. implement Keelaryn Core against a disposable local filesystem — COMPLETE;
+4. build fault-injection and restart/recovery coverage before remote storage integration — COMPLETE;
+5. add a Google Drive backend — COMPLETE;
+6. deploy the Core poller on Linux VPS — COMPLETE;
+7. prove a disposable Project → RESULT → Reconciliation → Core end-to-end cycle — COMPLETE;
+8. pilot only on a copy of a limited real-Hub subset — COMPLETE; sanitized evidence: `tests/results/zero-based-private-real-hub-subset-pilot-20260917.json`;
+9. design production-Hub migration after the pilot — NEXT.
+
+Step 8 proved a read-only structural subset from the real production Hub could be copied into a private immutable pilot pack, published through the zero-based Google Drive/Core transaction path to `COMMITTED` at canonical epoch 1, and leave the selected production source bytes unchanged. The pilot remains development evidence; it is not production qualification and does not authorize production Hub mutation.
 
 Production Manager 4.17.12 and the production Hub remain outside this implementation path until migration is separately designed and qualified.
 
