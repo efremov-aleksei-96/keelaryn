@@ -14,10 +14,12 @@ from .migration_common import (
     MIGRATION_PACK_NAME,
     MIGRATION_PACK_SCHEMA,
     MIGRATION_SOURCE_NAME,
+    PRESERVATION_CLASSIFICATIONS,
     MigrationMapping,
     MigrationPack,
     MigrationPackBlocked,
     PackEntry,
+    PreservedEntry,
     bounded_int,
     digest_hex,
     keys_exact,
@@ -36,17 +38,6 @@ from .migration_source import (
 from .protocol import ProtocolError, canonical_json_bytes, strict_json_bytes
 
 
-def _block_unimplemented_preservation(mapping: MigrationMapping) -> None:
-    if any(
-        classification in {"PROJECT_WORK_IMPORT", "ARCHIVE_ONLY"}
-        for _, classification in mapping.actions
-    ):
-        raise MigrationPackBlocked(
-            "migration pack v1 does not yet materialize "
-            "PROJECT_WORK_IMPORT/ARCHIVE_ONLY"
-        )
-
-
 def build_migration_pack(
     source_root: str | Path,
     source_manifest: str | Path,
@@ -60,7 +51,6 @@ def build_migration_pack(
     source = parse_source(source_raw)
     mapping_raw = small_file(Path(mapping_manifest), "migration mapping manifest")
     mapping = parse_mapping(mapping_raw, source)
-    _block_unimplemented_preservation(mapping)
 
     prepared = None
     if (
@@ -73,7 +63,6 @@ def build_migration_pack(
 
     source_by_name = {item.source: item for item in source.entries}
 
-    # Fresh source-boundary validation immediately before pack materialization.
     for item in source.entries:
         raw = source_file(root, item.source, f"frozen migration source {item.source}")
         if (sha256(raw).hexdigest(), len(raw)) != (item.sha256, item.size):
@@ -143,6 +132,52 @@ def build_migration_pack(
                 }
             )
 
+        preserved_actions = sorted(
+            (source_name, classification)
+            for source_name, classification in mapping.actions
+            if classification in PRESERVATION_CLASSIFICATIONS
+        )
+        packed_preserved: list[dict[str, Any]] = []
+        preserved_total = 0
+        if preserved_actions:
+            preserved = staging / "preserved"
+            preserved.mkdir(mode=0o700)
+            for index, (source_name, classification) in enumerate(
+                preserved_actions,
+                start=1,
+            ):
+                operation_id = f"preserved-{index:05d}"
+                payload = f"preserved/{operation_id}.bin"
+                source_entry = source_by_name[source_name]
+                raw = source_file(
+                    root,
+                    source_entry.source,
+                    f"migration preserved payload {source_entry.source}",
+                )
+                if (sha256(raw).hexdigest(), len(raw)) != (
+                    source_entry.sha256,
+                    source_entry.size,
+                ):
+                    raise MigrationPackBlocked(
+                        f"migration source drift during preservation copy: {source_entry.source}"
+                    )
+                preserved_total += len(raw)
+                if preserved_total > MAX_MIGRATION_TOTAL_BYTES:
+                    raise MigrationPackBlocked(
+                        "migration preserved payload exceeds total size limit"
+                    )
+                write_new(preserved / f"{operation_id}.bin", raw)
+                packed_preserved.append(
+                    {
+                        "operation_id": operation_id,
+                        "source": source_name,
+                        "classification": classification,
+                        "payload": payload,
+                        "sha256": sha256(raw).hexdigest(),
+                        "size": len(raw),
+                    }
+                )
+
         packed_index = None
         if mapping.root_index:
             assert prepared is not None
@@ -161,8 +196,6 @@ def build_migration_pack(
                 "size": len(raw),
             }
 
-        # Re-observe every selected source after pack preparation. A candidate is
-        # invalid if any selected source drifts anywhere across the build window.
         for source_entry in source.entries:
             raw = source_file(
                 root,
@@ -192,11 +225,14 @@ def build_migration_pack(
                     "size": len(mapping_raw),
                 },
                 "canonical_outputs": packed_outputs,
+                "preserved_outputs": packed_preserved,
                 "root_index": packed_index,
                 "source_file_count": len(source.entries),
                 "source_total_bytes": source.total_bytes,
                 "canonical_file_count": len(packed_outputs),
                 "canonical_total_bytes": canonical_total,
+                "preserved_file_count": len(packed_preserved),
+                "preserved_total_bytes": preserved_total,
             }
         )
         write_new(staging / MIGRATION_PACK_NAME, pack_raw)
@@ -215,6 +251,8 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
     expected = {MIGRATION_PACK_NAME, "authority", "canonical"}
     if "root" in names:
         expected.add("root")
+    if "preserved" in names:
+        expected.add("preserved")
     if names != expected:
         raise MigrationPackBlocked(
             "migration pack root contains missing or unexpected material"
@@ -239,7 +277,6 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
     )
     source = parse_source(source_raw)
     mapping = parse_mapping(mapping_raw, source)
-    _block_unimplemented_preservation(mapping)
 
     pack_raw = small_file(root / MIGRATION_PACK_NAME, "migration pack manifest")
     try:
@@ -256,11 +293,14 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
             "source_manifest",
             "mapping_manifest",
             "canonical_outputs",
+            "preserved_outputs",
             "root_index",
             "source_file_count",
             "source_total_bytes",
             "canonical_file_count",
             "canonical_total_bytes",
+            "preserved_file_count",
+            "preserved_total_bytes",
         },
         "MIGRATION_PACK",
     )
@@ -319,10 +359,7 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
         raise MigrationPackBlocked("MIGRATION_PACK: source summary mismatch")
 
     raw_outputs = value["canonical_outputs"]
-    mapping_outputs = sorted(
-        mapping.canonical_outputs,
-        key=lambda item: item.target,
-    )
+    mapping_outputs = sorted(mapping.canonical_outputs, key=lambda item: item.target)
     if not isinstance(raw_outputs, list) or len(raw_outputs) != len(mapping_outputs):
         raise MigrationPackBlocked("MIGRATION_PACK: canonical output count mismatch")
     canonical_file_count = bounded_int(
@@ -337,41 +374,23 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
         MAX_MIGRATION_TOTAL_BYTES,
     )
 
-    canonical = real_directory(
-        root / "canonical",
-        "migration canonical payload directory",
-    )
+    canonical = real_directory(root / "canonical", "migration canonical payload directory")
     entries: list[PackEntry] = []
     expected_files: set[str] = set()
     total = 0
-    for index, (packed, mapped) in enumerate(
-        zip(raw_outputs, mapping_outputs),
-        start=1,
-    ):
+    for index, (packed, mapped) in enumerate(zip(raw_outputs, mapping_outputs), start=1):
         label = f"MIGRATION_PACK.canonical_outputs[{index-1}]"
         if not isinstance(packed, dict):
             raise MigrationPackBlocked(f"{label}: must be object")
         keys_exact(
             packed,
-            {
-                "operation_id",
-                "target",
-                "semantic_sources",
-                "payload",
-                "sha256",
-                "size",
-            },
+            {"operation_id", "target", "semantic_sources", "payload", "sha256", "size"},
             label,
         )
         operation_id = f"canonical-{index:05d}"
         payload = f"canonical/{operation_id}.bin"
-        if (
-            packed["operation_id"] != operation_id
-            or packed["payload"] != payload
-        ):
-            raise MigrationPackBlocked(
-                f"{label}: deterministic payload identity mismatch"
-            )
+        if packed["operation_id"] != operation_id or packed["payload"] != payload:
+            raise MigrationPackBlocked(f"{label}: deterministic payload identity mismatch")
         target = relative_path(packed["target"], f"{label}.target")
         packed_semantic = packed["semantic_sources"]
         if not isinstance(packed_semantic, list) or not packed_semantic:
@@ -383,46 +402,112 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
         if len(semantic) != len(set(semantic)):
             raise MigrationPackBlocked(f"{label}.semantic_sources: duplicates")
         if target != mapped.target or semantic != mapped.semantic_sources:
-            raise MigrationPackBlocked(
-                "MIGRATION_PACK: canonical output authority mismatch"
-            )
+            raise MigrationPackBlocked("MIGRATION_PACK: canonical output authority mismatch")
         digest = digest_hex(packed["sha256"], f"{label}.sha256")
-        size = bounded_int(
-            packed["size"],
-            f"{label}.size",
-            MAX_MIGRATION_FILE_BYTES,
-        )
-        raw = source_file(
-            canonical,
-            f"{operation_id}.bin",
-            f"migration pack payload {operation_id}",
-        )
+        size = bounded_int(packed["size"], f"{label}.size", MAX_MIGRATION_FILE_BYTES)
+        raw = source_file(canonical, f"{operation_id}.bin", f"migration pack payload {operation_id}")
         if sha256(raw).hexdigest() != digest or len(raw) != size:
             raise MigrationPackBlocked(
                 f"migration canonical payload fingerprint mismatch: {operation_id}"
             )
         total += size
         expected_files.add(f"{operation_id}.bin")
-        entries.append(
-            PackEntry(
-                operation_id,
-                target,
-                semantic,
-                payload,
-                digest,
-                size,
-            )
-        )
+        entries.append(PackEntry(operation_id, target, semantic, payload, digest, size))
 
     if {item.name for item in canonical.iterdir()} != expected_files:
         raise MigrationPackBlocked(
             "migration canonical payload directory contains unexpected material"
         )
-    if (
-        canonical_file_count != len(entries)
-        or canonical_total_declared != total
-    ):
+    if canonical_file_count != len(entries) or canonical_total_declared != total:
         raise MigrationPackBlocked("MIGRATION_PACK: canonical summary mismatch")
+
+    preserved_actions = sorted(
+        (source_name, classification)
+        for source_name, classification in mapping.actions
+        if classification in PRESERVATION_CLASSIFICATIONS
+    )
+    raw_preserved = value["preserved_outputs"]
+    if not isinstance(raw_preserved, list) or len(raw_preserved) != len(preserved_actions):
+        raise MigrationPackBlocked("MIGRATION_PACK: preserved output count mismatch")
+    preserved_file_count = bounded_int(
+        value["preserved_file_count"],
+        "MIGRATION_PACK.preserved_file_count",
+        MAX_MIGRATION_FILES,
+    )
+    preserved_total_declared = bounded_int(
+        value["preserved_total_bytes"],
+        "MIGRATION_PACK.preserved_total_bytes",
+        MAX_MIGRATION_TOTAL_BYTES,
+    )
+    preserved_entries: list[PreservedEntry] = []
+    preserved_total = 0
+    if preserved_actions:
+        preserved = real_directory(root / "preserved", "migration preserved payload directory")
+        preserved_expected_files: set[str] = set()
+        for index, (packed, expected_action) in enumerate(
+            zip(raw_preserved, preserved_actions),
+            start=1,
+        ):
+            label = f"MIGRATION_PACK.preserved_outputs[{index-1}]"
+            if not isinstance(packed, dict):
+                raise MigrationPackBlocked(f"{label}: must be object")
+            keys_exact(
+                packed,
+                {"operation_id", "source", "classification", "payload", "sha256", "size"},
+                label,
+            )
+            operation_id = f"preserved-{index:05d}"
+            payload = f"preserved/{operation_id}.bin"
+            if packed["operation_id"] != operation_id or packed["payload"] != payload:
+                raise MigrationPackBlocked(f"{label}: deterministic payload identity mismatch")
+            source_name = relative_path(packed["source"], f"{label}.source")
+            classification = packed["classification"]
+            if (
+                (source_name, classification) != expected_action
+                or classification not in PRESERVATION_CLASSIFICATIONS
+            ):
+                raise MigrationPackBlocked("MIGRATION_PACK: preserved output authority mismatch")
+            digest = digest_hex(packed["sha256"], f"{label}.sha256")
+            size = bounded_int(packed["size"], f"{label}.size", MAX_MIGRATION_FILE_BYTES)
+            raw = source_file(
+                preserved,
+                f"{operation_id}.bin",
+                f"migration preserved payload {operation_id}",
+            )
+            source_entry = next(item for item in source.entries if item.source == source_name)
+            if (
+                sha256(raw).hexdigest() != digest
+                or len(raw) != size
+                or digest != source_entry.sha256
+                or size != source_entry.size
+            ):
+                raise MigrationPackBlocked(
+                    f"migration preserved payload fingerprint mismatch: {operation_id}"
+                )
+            preserved_total += size
+            preserved_expected_files.add(f"{operation_id}.bin")
+            preserved_entries.append(
+                PreservedEntry(
+                    operation_id,
+                    source_name,
+                    classification,
+                    payload,
+                    digest,
+                    size,
+                )
+            )
+        if {item.name for item in preserved.iterdir()} != preserved_expected_files:
+            raise MigrationPackBlocked(
+                "migration preserved payload directory contains unexpected material"
+            )
+    elif (root / "preserved").exists():
+        raise MigrationPackBlocked("MIGRATION_PACK: unexpected preserved payload directory")
+
+    if (
+        preserved_file_count != len(preserved_entries)
+        or preserved_total_declared != preserved_total
+    ):
+        raise MigrationPackBlocked("MIGRATION_PACK: preserved summary mismatch")
 
     packed_index = value["root_index"]
     if mapping.root_index is None:
@@ -457,35 +542,21 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
             semantic != mapping.root_index.semantic_sources
             or packed_index["payload"] != "root/INDEX.md"
         ):
-            raise MigrationPackBlocked(
-                "MIGRATION_PACK: root INDEX authority mismatch"
-            )
-        root_digest = digest_hex(
-            packed_index["sha256"],
-            "MIGRATION_PACK.root_index.sha256",
-        )
+            raise MigrationPackBlocked("MIGRATION_PACK: root INDEX authority mismatch")
+        root_digest = digest_hex(packed_index["sha256"], "MIGRATION_PACK.root_index.sha256")
         root_size = bounded_int(
             packed_index["size"],
             "MIGRATION_PACK.root_index.size",
             MAX_MIGRATION_FILE_BYTES,
         )
-        root_dir = real_directory(
-            root / "root",
-            "migration root payload directory",
-        )
+        root_dir = real_directory(root / "root", "migration root payload directory")
         if {item.name for item in root_dir.iterdir()} != {"INDEX.md"}:
             raise MigrationPackBlocked(
                 "migration root payload directory contains unexpected material"
             )
-        raw = source_file(
-            root_dir,
-            "INDEX.md",
-            "migration pack root INDEX",
-        )
+        raw = source_file(root_dir, "INDEX.md", "migration pack root INDEX")
         if root_digest != sha256(raw).hexdigest() or root_size != len(raw):
-            raise MigrationPackBlocked(
-                "migration root INDEX fingerprint mismatch"
-            )
+            raise MigrationPackBlocked("migration root INDEX fingerprint mismatch")
         root_index_size = len(raw)
 
     return MigrationPack(
@@ -496,6 +567,7 @@ def verify_migration_pack(pack_dir: str | Path) -> MigrationPack:
         source_file_count=len(source.entries),
         source_total_bytes=source.total_bytes,
         canonical_outputs=tuple(entries),
+        preserved_outputs=tuple(preserved_entries),
         root_index_size=root_index_size,
         manifest_raw=pack_raw,
     )
