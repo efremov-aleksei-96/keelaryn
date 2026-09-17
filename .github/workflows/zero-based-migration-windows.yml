@@ -7,6 +7,7 @@ on:
     paths:
       - 'core/keelaryn_core/migration_*.py'
       - 'tests/core/test_migration_*.py'
+      - 'tests/live/run_migration_*.py'
       - 'spec/MIGRATION.md'
       - 'spec/schemas/migration-*.schema.json'
       - '.github/workflows/zero-based-migration-windows.yml'
@@ -17,6 +18,7 @@ on:
     paths:
       - 'core/keelaryn_core/migration_*.py'
       - 'tests/core/test_migration_*.py'
+      - 'tests/live/run_migration_*.py'
       - 'spec/MIGRATION.md'
       - 'spec/schemas/migration-*.schema.json'
       - '.github/workflows/zero-based-migration-windows.yml'
