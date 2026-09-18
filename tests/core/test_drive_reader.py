@@ -160,6 +160,40 @@ class DriveReaderTests(unittest.TestCase):
         with self.assertRaisesRegex(DriveReadBlocked, "metadata/content mismatch"):
             DriveCanonicalReader(backend, hub.file_id).read_path("root.txt")
 
+    def test_multi_path_read_bounds_parent_listing_amplification(self) -> None:
+        class CountingListBackend:
+            def __init__(self, inner):
+                self.inner = inner
+                self.list_calls = 0
+
+            def __getattr__(self, name):
+                return getattr(self.inner, name)
+
+            def list_children(self, parent_id, *, name=None, include_trashed=False):
+                self.list_calls += 1
+                return self.inner.list_children(
+                    parent_id,
+                    name=name,
+                    include_trashed=include_trashed,
+                )
+
+        drive, hub, canonical, _, _, _, _ = self.build()
+        paths = ["root.txt", "profile/name.txt"]
+        for index in range(20):
+            name = f"sibling-{index:02d}.txt"
+            drive.create_blob(canonical.file_id, name, f"value-{index}".encode("utf-8"))
+            paths.append(name)
+
+        backend = CountingListBackend(drive)
+        result = DriveCanonicalReader(backend, hub.file_id).read_paths(paths)
+
+        self.assertEqual(len(result.items), len(paths))
+        self.assertLessEqual(
+            backend.list_calls,
+            10,
+            "multi-path reader must reuse parent listings within each pre/post snapshot",
+        )
+
     def test_reader_works_through_real_rest_adapter_mapping(self) -> None:
         drive, hub, _, _, _, _, _ = self.build()
         backend = GoogleDriveBackend("token", http=ModelDriveHttp(drive))
