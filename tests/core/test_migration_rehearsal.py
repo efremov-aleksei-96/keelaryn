@@ -6,7 +6,9 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+LIVE = ROOT / "tests" / "live"
 sys.path.insert(0, str(ROOT / "core"))
+sys.path.insert(0, str(LIVE))
 
 from keelaryn_core.drive_bootstrap import DriveHubBootstrap  # noqa: E402
 from keelaryn_core.drive_model import DriveModel  # noqa: E402
@@ -23,6 +25,7 @@ from keelaryn_core.migration_rehearsal import (  # noqa: E402
     DriveMigrationRehearsalBlocked,
 )
 from keelaryn_core.protocol import FaultInjector, InjectedCrash, canonical_json_bytes  # noqa: E402
+from run_migration_disposable_read_only_finalizer import ReadOnlyDriveProxy  # noqa: E402
 
 
 class DriveMigrationDisposableRehearsalTests(unittest.TestCase):
@@ -216,6 +219,38 @@ class DriveMigrationDisposableRehearsalTests(unittest.TestCase):
             self.assertEqual(master["canonical_epoch"], 1)
             self.assertEqual(master["last_completed_change"]["change_id"], pack.candidate_id)
             self.assertEqual(master["last_completed_change"]["outcome"], "COMMITTED")
+
+    def test_completed_rehearsal_replay_is_strictly_read_only_under_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pack, _, _ = self.build_pack(
+                Path(tmp),
+                candidate_id="migration-rehearsal-read-only-finalizer",
+            )
+            drive, hub_id = self.build_drive()
+            first = DriveMigrationDisposableRehearsal(drive, hub_id).run(pack.root)
+
+            def snapshot():
+                return (
+                    drive._next_id,
+                    drive._next_revision,
+                    dict(drive._items),
+                    dict(drive._content),
+                    set(drive._reserved_ids),
+                    dict(drive._stale_get),
+                    {key: list(value) for key, value in drive._stale_list.items()},
+                )
+
+            before = snapshot()
+            guarded = ReadOnlyDriveProxy(drive)
+            second = DriveMigrationDisposableRehearsal(
+                guarded,
+                hub_id,
+            ).run(pack.root)
+            after = snapshot()
+
+            self.assertEqual(second, first)
+            self.assertEqual(guarded.mutation_attempt_count, 0)
+            self.assertEqual(after, before)
 
     def test_post_commit_replay_bounds_canonical_payload_download_amplification(self) -> None:
         class CountingDrive(DriveModel):

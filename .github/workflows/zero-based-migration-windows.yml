@@ -52,19 +52,25 @@ jobs:
         shell: pwsh
         run: python --version
 
-      - name: Parse migration PowerShell launcher
+      - name: Parse migration PowerShell launchers
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $env:GITHUB_WORKSPACE 'tests\\live\\run_migration_disposable_rehearsal.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          )
-          if ($errors.Count -ne 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          $launchers = Get-ChildItem -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'tests\\live') -Filter 'run_migration_*.ps1' -File
+          if ($launchers.Count -lt 1) {
+            throw 'No migration PowerShell launchers found.'
+          }
+          foreach ($launcher in $launchers) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $launcher.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -ne 0) {
+              $errors | ForEach-Object { Write-Error "$($launcher.Name): $($_.Message)" }
+              exit 1
+            }
           }
 
       - name: Run migration Windows exact-byte and adversarial tests

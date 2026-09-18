@@ -125,6 +125,18 @@ The rehearsal must prove:
 
 The disposable rehearsal target is destroyed or archived as test evidence according to test policy; it is never promoted by renaming or substituting unqualified bytes after the fact.
 
+If the mutation-bearing rehearsal durably reaches its terminal migrated state but final sanitized PASS delivery fails during a later read-only acceptance observation, do **not** blindly resume or recreate the disposable target. Reconcile the exact existing child through `tests/live/run_migration_disposable_read_only_finalizer.py`. That finalizer must:
+
+- require the exact existing rehearsal child; it never creates a replacement child;
+- verify the exact private migration pack before OAuth and again after acceptance;
+- bind the original rehearsal construction source commit to the current source commit by requiring byte-identical Git blob identities for the complete mutation-bearing rehearsal closure;
+- wrap the live Drive backend in a fail-closed read-only guard that permits only observation operations and rejects every mutation-capable backend method before transport;
+- replay the ordinary rehearsal acceptance logic only under that read-only guard;
+- require exact PASS, canonical/reader epoch 1, IDLE and READY_CLEAN;
+- emit only sanitized evidence and explicitly record `drive_mutations_performed=false` and `read_only_guard_enforced=true`.
+
+A read-only finalization PASS is evidence recovery for an already durable rehearsal target, not a second rehearsal mutation and not permission to skip the original fresh-target construction.
+
 ### Candidate freeze boundary
 
 After coherent development PASS and before any production-target qualification, the exact private migration candidate must be issued through one explicit freeze operation.
