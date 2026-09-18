@@ -28,3 +28,10 @@ The interactive Manager frontend owns Genesis input and the commit confirmation.
 The frontend classifies startup before offering automatic onboarding. A fresh setup requires canonical layout, no valid Hub, no existing canonical `hub` path, no CURRENT baseline, no binding file and no Hub environment override. Any pre-existing state routes to recovery instead of Genesis. This preserves fail-closed behavior for moved/broken installations and for repository source checkouts whose public `hub/README.md` is a boundary marker rather than a user Hub.
 
 After interactive Genesis or a successful first-run bind, the frontend runs Doctor immediately. Doctor remains authoritative; setup is reported ready only when that diagnostic path returns success.
+
+<!-- multi-hub-genesis-v1 -->
+## Additional Hub Genesis
+
+After multi-Hub is initialized, additional Genesis Hubs use a direct child of the canonical `hubs` directory, for example `hubs/vova`.
+
+The operation stages both the Hub and its instance-owned state, validates the generated `instance_id`, ARTIFACT and CURRENT, publishes the two trees, and commits the registry last. The previously active Hub remains active until an explicit switch.

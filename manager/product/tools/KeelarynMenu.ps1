@@ -4,7 +4,7 @@ param(
         'Menu','Status','OpenHub','Doctor','UpdateAll','UpdateManager','UpdateHub',
         'InstanceInfo','ImportPackage','PrepareTests','UnpackTest','RunFullGate','BuildAIContext',
         'BuildRelease','BuildDistribution','BuildCandidateTransport','RestoreCandidateTransport',
-        'RepairCurrentTransport','CheckMigrations','ApplyMigrations','BindInstance','Genesis',
+        'RepairCurrentTransport','CheckMigrations','ApplyMigrations','BindInstance','InitializeInstanceRegistry','ListInstances','SwitchInstance','RegisterInstance','Genesis',
         'MigrateInstanceIdentity','MigrateLegacyNamespace','MigrateLayout','FinalizeLayout','FinalizeFilesystemLayout',
         'PrepareWorkspaceSession','PrepareChatManagerSession','OpenChatGPTExchange','OpenChatGPTGuide','ImportLegacyExchange',
         'StorageReport','CleanTestsWork','CompactQualificationEvidence',
@@ -13,6 +13,7 @@ param(
     )]
     [string]$Action='Menu',
     [string]$Path,
+    [string]$InstanceName,
     [switch]$Replace,
     [switch]$ConfirmChanges,
     [switch]$NoAutoRun,
@@ -157,11 +158,61 @@ function Refresh-FrontendOperationalPaths {
 }
 Refresh-FrontendOperationalPaths
 
+function Get-FrontendInstanceContext {
+    $legacyCurrent=if($StateLayoutActive){Join-Path $StateRoot 'baseline\Keelaryn__Hub_CURRENT.zip'}else{Join-Path $ManagerRoot 'Keelaryn__Hub_CURRENT.zip'}
+    $legacy=[pscustomobject]@{
+        RegistryActive=$false;InstanceId=$null;Name=$null;HubPath=$HubRoot
+        HubInbox=$Inbox;CurrentZip=$legacyCurrent
+        ExchangeRoot=(Join-Path $ExchangeParent 'chatgpt')
+    }
+    if(-not$StateLayoutActive){return $legacy}
+    $registryPath=Join-Path $StateRoot 'instances.json'
+    $activePath=Join-Path $StateRoot 'active_instance.json'
+    if(-not(Test-Path -LiteralPath $registryPath -PathType Leaf)){return $legacy}
+    try{
+        $ri=Get-Item -LiteralPath $registryPath -Force -ErrorAction Stop
+        $ai=Get-Item -LiteralPath $activePath -Force -ErrorAction Stop
+        if(($ri.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0-or($ai.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0-or$ri.Length-gt1MB-or$ai.Length-gt64KB){throw 'unsafe registry metadata'}
+        $registry=Get-Content -LiteralPath $registryPath -Raw -Encoding UTF8|ConvertFrom-Json
+        $active=Get-Content -LiteralPath $activePath -Raw -Encoding UTF8|ConvertFrom-Json
+        if([string]$registry.schema-ne'keelaryn.manager.instances.v1'-or[string]$active.schema-ne'keelaryn.manager.active-instance.v1'){throw 'unsupported registry schema'}
+        $id=([string]$active.instance_id).Trim().ToLowerInvariant()
+        $rows=@($registry.instances|Where-Object{([string]$_.instance_id).Trim().ToLowerInvariant()-eq$id})
+        if($rows.Count-ne1){throw 'active instance does not resolve'}
+        $row=$rows[0]
+        $state=Join-Path $StateRoot ('instances\'+$id)
+        return [pscustomobject]@{
+            RegistryActive=$true;InstanceId=$id;Name=[string]$row.name;HubPath=[System.IO.Path]::GetFullPath([string]$row.vault_path)
+            HubInbox=Join-Path $state 'inbox';CurrentZip=Join-Path $state 'baseline\Keelaryn__Hub_CURRENT.zip'
+            ExchangeRoot=Join-Path $ExchangeParent ('instances\'+$id+'\chatgpt')
+        }
+    }catch{
+        return [pscustomobject]@{
+            RegistryActive=$true;InstanceId=$null;Name='<registry error>';HubPath=$HubRoot
+            HubInbox=$Inbox;CurrentZip=$legacyCurrent;ExchangeRoot=(Join-Path $ExchangeParent 'chatgpt')
+        }
+    }
+}
+
+function Refresh-FrontendInstanceContext {
+    $ctx=Get-FrontendInstanceContext
+    $script:ExchangeRoot=[string]$ctx.ExchangeRoot
+    return $ctx
+}
+
+function Get-RequiredFrontendInstanceContext {
+    $ctx=Refresh-FrontendInstanceContext
+    if($ctx.RegistryActive-and-not$ctx.InstanceId){
+        Fail 'Multi-Hub registry exists but the active instance cannot be resolved. ChatGPT exchange action refused.'
+    }
+    return $ctx
+}
 function Get-ChatGPTExchangeDirectoryNames {
     return @('workspace-input','workspace-checkouts','chat-returns','chat-manager-input','chat-manager-results','development')
 }
 
 function Ensure-ChatGPTExchangeLayout {
+    $null=Get-RequiredFrontendInstanceContext
     Ensure-DirectorySafe $ExchangeParent 'Keelaryn exchange root'
     Ensure-DirectorySafe $ExchangeRoot 'ChatGPT exchange root'
     foreach($name in @(Get-ChatGPTExchangeDirectoryNames)){
@@ -170,7 +221,7 @@ function Ensure-ChatGPTExchangeLayout {
 }
 
 function Get-CurrentHubTransportPath {
-    $path=if($StateLayoutActive){Join-Path $StateRoot 'baseline\Keelaryn__Hub_CURRENT.zip'}else{Join-Path $ManagerRoot 'Keelaryn__Hub_CURRENT.zip'}
+    $path=[string](Get-FrontendInstanceContext).CurrentZip
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){return $null}
     $item=Get-Item -LiteralPath $path -Force -ErrorAction Stop
     if(($item.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){Fail('CURRENT transport must not be a reparse point: '+$path)}
@@ -471,6 +522,10 @@ function Test-QuickHubCandidate([string]$CandidatePath) {
 }
 
 function Get-QuickHubBinding {
+    $multi=Get-FrontendInstanceContext
+    if($multi.RegistryActive-and$multi.InstanceId-and(Test-QuickHubCandidate ([string]$multi.HubPath))){
+        return [pscustomobject]@{Path=[string]$multi.HubPath;Source='instance_registry';InstanceId=[string]$multi.InstanceId;Name=[string]$multi.Name}
+    }
     $envPath=([string]$env:KEELARYN_HUB_PATH).Trim()
     if($envPath -and (Test-QuickHubCandidate $envPath)){
         return [pscustomobject]@{Path=[System.IO.Path]::GetFullPath($envPath);Source='environment'}
@@ -568,19 +623,19 @@ function Get-QuickStatus {
         }catch{$doctor='unreadable'}
     }
 
-    $managerUpdates=0;$hubApproved=0;$hubCandidate=0
+    $managerUpdates=0;$hubApproved=0;$hubCandidate=0;$instanceContext=Get-FrontendInstanceContext;$activeHubInbox=[string]$instanceContext.HubInbox
     if(Test-Path -LiteralPath $Inbox -PathType Container){
         $managerUpdates=@(Get-ChildItem -LiteralPath $Inbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
             Where-Object{$_.Name-match'(?i)^Keelaryn__Manager_Update_'}).Count
-        $hubApproved=@(Get-ChildItem -LiteralPath $Inbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
-            Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_APPROVED_'}).Count
-        $hubCandidate=@(Get-ChildItem -LiteralPath $Inbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
-            Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_CANDIDATE_'}).Count
+        $hubApproved=if(Test-Path -LiteralPath $activeHubInbox -PathType Container){@(Get-ChildItem -LiteralPath $activeHubInbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
+            Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_APPROVED_'}).Count}else{0}
+        $hubCandidate=if(Test-Path -LiteralPath $activeHubInbox -PathType Container){@(Get-ChildItem -LiteralPath $activeHubInbox -File -Filter '*.zip' -ErrorAction SilentlyContinue|
+            Where-Object{$_.Name-match'(?i)^(Keelaryn__Hub|Core__Hub)_CANDIDATE_'}).Count}else{0}
     }
 
     $rootExtras=@()
     if(Test-Path -LiteralPath $LayoutRoot -PathType Container){
-        $allowed=@('manager','hub','tests','exchange','Inputs_outputs','Keelaryn.cmd')
+        $allowed=@('manager','hub','hubs','tests','exchange','Inputs_outputs','Keelaryn.cmd')
         $rootExtras=@(Get-ChildItem -LiteralPath $LayoutRoot -Force -ErrorAction SilentlyContinue|
             Where-Object{$allowed-notcontains$_.Name}|Sort-Object Name|ForEach-Object{$_.Name})
     }
@@ -600,6 +655,8 @@ function Get-QuickStatus {
         ArtifactId=$artifactId
         HubPath=$effectiveHubRoot
         HubBindingSource=[string]$hubBinding.Source
+        InstanceId=[string]$instanceContext.InstanceId
+        InstanceName=[string]$instanceContext.Name
         LastDoctor=$doctor
         LastDoctorGenerated=$doctorGenerated
         ManagerUpdates=$managerUpdates
@@ -615,6 +672,7 @@ function Show-QuickStatus([switch]$DetailedWorkspace) {
     Write-UiHost ''
     Write-UiHost ('Keelaryn Manager '+$s.ManagerVersion) -ForegroundColor Cyan
     Write-UiHost ('Hub '+$s.HubVersion+' | '+$s.HubRevisionTime)
+    if($s.InstanceId){Write-UiHost ('Instance: '+$s.InstanceName+' | '+$s.InstanceId.Substring(0,8)) -ForegroundColor DarkGray}
     Write-UiHost ('Health: '+$s.LastDoctor)
     $updates=if(($s.ManagerUpdates+$s.HubApproved)-eq0){'none'}else{('Manager='+$s.ManagerUpdates+' | Hub='+$s.HubApproved)}
     Write-UiHost ('Updates: '+$updates)
@@ -728,8 +786,10 @@ function Import-Package([string]$PackagePath) {
         Fail('Unsupported install package name. Select a Manager UPDATE or Hub APPROVED ZIP. CANDIDATE ZIPs are never installed.')
     }
 
-    Ensure-DirectorySafe $Inbox 'Manager inbox'
-    $dest=Join-Path $Inbox $name
+    $destinationInbox=$Inbox
+    if($mode-eq'hub'){$ctx=Get-FrontendInstanceContext;$destinationInbox=[string]$ctx.HubInbox;if($ctx.RegistryActive-and-not$ctx.InstanceId){Fail('Multi-Hub registry is unresolved; Hub package import refused.')}}
+    Ensure-DirectorySafe $destinationInbox $(if($mode-eq'hub'){'Active Hub inbox'}else{'Manager inbox'})
+    $dest=Join-Path $destinationInbox $name
     if(Test-Path -LiteralPath $dest){
         $destItem=Get-Item -LiteralPath $dest -Force
         if($destItem.PSIsContainer-or($destItem.Attributes-band[System.IO.FileAttributes]::ReparsePoint)-ne0){
@@ -880,10 +940,10 @@ function Invoke-BindInstanceUi([string]$TargetPath) {
     return Invoke-Manager @('-BindInstancePath',$target)
 }
 
-function Invoke-GenesisUi([string]$ConfigPath) {
+function Invoke-GenesisUi([string]$ConfigPath,[string]$NewInstancePath=$null,[string]$NewInstanceName=$null) {
     $binding=Get-QuickHubBinding
-    $target=[string]$binding.Path
-    $current=if($StateLayoutActive){Join-Path $StateRoot 'baseline\Keelaryn__Hub_CURRENT.zip'}else{Join-Path $ManagerRoot 'Keelaryn__Hub_CURRENT.zip'}
+    $target=if($NewInstancePath){[System.IO.Path]::GetFullPath($NewInstancePath).TrimEnd('\')}else{[string]$binding.Path}
+    $current=if($NewInstancePath){'<per-instance CURRENT assigned after Genesis>'}else{[string](Get-FrontendInstanceContext).CurrentZip}
     Write-UiHost ('Target Hub: '+$target)
     Write-UiHost ('CURRENT transport: '+$current)
 
@@ -896,6 +956,11 @@ function Invoke-GenesisUi([string]$ConfigPath) {
             Set-ActionSemantic 'cancelled'
             return 2
         }
+        if($NewInstancePath){
+            $args=@('-GenesisInstancePath',$target,'-GenesisConfigPath',$full,'-GenesisConfirmed')
+            if($NewInstanceName){$args+=@('-GenesisInstanceName',$NewInstanceName)}
+            return Invoke-Manager $args
+        }
         return Invoke-Manager @('-Genesis','-GenesisConfigPath',$full,'-GenesisConfirmed')
     }
 
@@ -904,7 +969,7 @@ function Invoke-GenesisUi([string]$ConfigPath) {
         Set-ActionSemantic 'cancelled'
         return 2
     }
-    if((Test-Path -LiteralPath $target) -or (Test-Path -LiteralPath $current)){
+    if((Test-Path -LiteralPath $target) -or ((-not$NewInstancePath)-and(Test-Path -LiteralPath $current))){
         Write-UiHost 'Genesis target or CURRENT transport already exists.' -ForegroundColor Yellow
         Set-ActionSemantic 'failed'
         return 1
@@ -932,6 +997,11 @@ function Invoke-GenesisUi([string]$ConfigPath) {
     $doc=[ordered]@{schema='keelaryn.genesis-input.v1';language=$language;purpose=$purpose;timezone=$timezone;areas=@($areas);projects=@($projects)}
     try{
         [System.IO.File]::WriteAllText($tmp,(($doc|ConvertTo-Json -Depth 6)+"`n"),(New-Object System.Text.UTF8Encoding($false)))
+        if($NewInstancePath){
+            $args=@('-GenesisInstancePath',$target,'-GenesisConfigPath',$tmp,'-GenesisConfirmed')
+            if($NewInstanceName){$args+=@('-GenesisInstanceName',$NewInstanceName)}
+            return Invoke-Manager $args
+        }
         return Invoke-Manager @('-Genesis','-GenesisConfigPath',$tmp,'-GenesisConfirmed')
     }finally{Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}
 }
@@ -953,10 +1023,10 @@ function Invoke-Action([string]$Name,[string]$ActionPath) {
         'BuildRelease' { return Invoke-Manager @('-BuildRelease') }
         'BuildDistribution' { return Invoke-Manager @('-BuildDistribution') }
         'BuildCandidateTransport' { $q=Get-QuickStatus;if($q.HubCandidate-eq0){Write-UiHost 'No Hub CANDIDATE is available. Nothing to build.';Set-ActionSemantic 'no_changes';return 0};return Invoke-Manager @('-BuildCandidateTransport') }
-        'RestoreCandidateTransport' { $count=if(Test-Path -LiteralPath $Inbox -PathType Container){@(Get-ChildItem -LiteralPath $Inbox -File -Filter 'Keelaryn__Hub_CANDIDATE_TRANSPORT_*.json' -ErrorAction SilentlyContinue).Count}else{0};if($count-eq0){Write-UiHost 'No Hub CANDIDATE transport is available. Nothing to restore.';Set-ActionSemantic 'no_changes';return 0};return Invoke-Manager @('-RestoreCandidateTransport') }
-        'PrepareWorkspaceSession' { return Copy-CurrentForChatGPT (Join-Path $ExchangeRoot 'workspace-input') }
-        'PrepareChatManagerSession' { return Copy-CurrentForChatGPT (Join-Path $ExchangeRoot 'chat-manager-input') }
-        'OpenChatGPTExchange' { Ensure-ChatGPTExchangeLayout; return Open-Folder $ExchangeRoot }
+        'RestoreCandidateTransport' { $hubInbox=[string](Get-FrontendInstanceContext).HubInbox;$count=if(Test-Path -LiteralPath $hubInbox -PathType Container){@(Get-ChildItem -LiteralPath $hubInbox -File -Filter 'Keelaryn__Hub_CANDIDATE_TRANSPORT_*.json' -ErrorAction SilentlyContinue).Count}else{0};if($count-eq0){Write-UiHost 'No Hub CANDIDATE transport is available. Nothing to restore.';Set-ActionSemantic 'no_changes';return 0};return Invoke-Manager @('-RestoreCandidateTransport') }
+        'PrepareWorkspaceSession' { $ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT (Join-Path ([string]$ctx.ExchangeRoot) 'workspace-input') }
+        'PrepareChatManagerSession' { $ctx=Get-RequiredFrontendInstanceContext; return Copy-CurrentForChatGPT (Join-Path ([string]$ctx.ExchangeRoot) 'chat-manager-input') }
+        'OpenChatGPTExchange' { $ctx=Get-RequiredFrontendInstanceContext; Ensure-ChatGPTExchangeLayout; return Open-Folder ([string]$ctx.ExchangeRoot) }
         'OpenChatGPTGuide' { return Open-ChatGPTGuide }
         'ImportLegacyExchange' { return Invoke-LegacyExchangeMigration -Apply:$ConfirmChanges }
         'StorageReport' { return Show-StorageReport }
@@ -966,6 +1036,10 @@ function Invoke-Action([string]$Name,[string]$ActionPath) {
         'CheckMigrations' { return Invoke-Manager @('-CheckMigrations') }
         'ApplyMigrations' { return Invoke-ApplyMigrationsUi }
         'BindInstance' { return Invoke-BindInstanceUi $ActionPath }
+        'InitializeInstanceRegistry' { $args=@('-InitializeInstanceRegistry');if($InstanceName){$args+=@('-RegisterInstanceName',$InstanceName)};return Invoke-Manager $args }
+        'ListInstances' { return Invoke-Manager @('-ListInstances') }
+        'SwitchInstance' { if(-not$ActionPath){Fail('SwitchInstance requires -Path <instance_id>.')};return Invoke-Manager @('-SwitchInstanceId',$ActionPath) }
+        'RegisterInstance' { if(-not$ActionPath){Fail('RegisterInstance requires -Path <Hub directory>.')};$args=@('-RegisterInstancePath',$ActionPath);if($InstanceName){$args+=@('-RegisterInstanceName',$InstanceName)};return Invoke-Manager $args }
         'Genesis' { return Invoke-GenesisUi $ActionPath }
         'MigrateInstanceIdentity' { return Invoke-Manager @('-AdoptInstanceIdentity') }
         'MigrateLegacyNamespace' { return Invoke-Manager @('-MigrateLegacyNamespace') }
@@ -1079,6 +1153,111 @@ function Show-ChatGPTMenu {
     }
 }
 
+function Invoke-NewRegisteredHubGenesisUi {
+    $ctx=Get-FrontendInstanceContext
+    if(-not$ctx.RegistryActive-or-not$ctx.InstanceId){
+        Write-UiHost 'Multi-Hub registry must be valid before creating another Hub.' -ForegroundColor Yellow
+        Set-ActionSemantic 'failed'
+        return 1
+    }
+    $name=(Read-UiInput 'Display name for new Hub').Trim()
+    if(-not$name){Write-UiHost 'Display name is required.' -ForegroundColor Yellow;Set-ActionSemantic 'cancelled';return 2}
+    $folder=(Read-UiInput 'Folder name under keelaryn\hubs (for example: vova)').Trim()
+    if(-not$folder){Write-UiHost 'Folder name is required.' -ForegroundColor Yellow;Set-ActionSemantic 'cancelled';return 2}
+    if($folder.Length-gt64-or$folder.EndsWith(' ')-or$folder.EndsWith('.')-or$folder-match'[<>:"/\\|?*\x00-\x1F]'){
+        Write-UiHost 'Folder name is not Win32-safe.' -ForegroundColor Yellow;Set-ActionSemantic 'failed';return 1
+    }
+    $target=Join-Path (Join-Path $LayoutRoot 'hubs') $folder
+    Write-UiHost ('New Hub path: '+$target)
+    $rc=Invoke-GenesisUi $null $target $name
+    if($rc-ne0){return $rc}
+    $registry=Get-Content -LiteralPath (Join-Path $StateRoot 'instances.json') -Raw -Encoding UTF8|ConvertFrom-Json
+    $targetFull=[System.IO.Path]::GetFullPath($target).TrimEnd('\')
+    $row=@($registry.instances|Where-Object{[System.IO.Path]::GetFullPath([string]$_.vault_path).TrimEnd('\')-ceq$targetFull})
+    if($row.Count-ne1){Fail('Newly created Hub did not resolve to exactly one registry row.')}
+    if(Confirm ('Switch active Hub to '+$name+' now?')){
+        return Invoke-Manager @('-SwitchInstanceId',[string]$row[0].instance_id)
+    }
+    return 0
+}
+function Get-FrontendRegistryRows {
+    $ctx=Get-FrontendInstanceContext
+    if(-not$ctx.RegistryActive-or-not$ctx.InstanceId){return @()}
+    $registryPath=Join-Path $StateRoot 'instances.json'
+    $registry=Get-Content -LiteralPath $registryPath -Raw -Encoding UTF8|ConvertFrom-Json
+    return @($registry.instances|Sort-Object name,instance_id)
+}
+
+function Show-HubManagementMenu {
+    while($true){
+        Clear-Ui
+        $ctx=Get-FrontendInstanceContext
+        Write-UiHost 'Manage Hubs' -ForegroundColor Cyan
+        if(-not$ctx.RegistryActive){
+            Write-UiHost 'Multi-Hub registry is not initialized. Current installation remains in single-Hub compatibility mode.' -ForegroundColor DarkGray
+            Write-UiHost '  [1] Enable multi-Hub for the current Hub'
+            Write-UiHost '  [0] Back'
+            $choice=(Read-UiInput 'Select').Trim()
+            if($choice-eq'1'){
+                $name=(Read-UiInput 'Display name for current Hub [Primary]').Trim();if(-not$name){$name='Primary'}
+                if(Confirm 'Initialize multi-Hub registry without changing Hub content?'){
+                    $rc=Invoke-Manager @('-InitializeInstanceRegistry','-RegisterInstanceName',$name)
+                    if($rc-ne0){Pause-Menu}else{Write-UiHost 'Registry initialized.' -ForegroundColor Green;Pause-Menu}
+                }
+            }elseif($choice-eq'0'){return}else{Write-UiHost 'Unknown selection.' -ForegroundColor Yellow;Pause-Menu}
+            continue
+        }
+        if(-not$ctx.InstanceId){
+            Write-UiHost 'Registry exists but is invalid/unresolved. Run Doctor; switching is disabled.' -ForegroundColor Red
+            Write-UiHost '  [0] Back'
+            if((Read-UiInput 'Select').Trim()-eq'0'){return}
+            continue
+        }
+        Write-UiHost ('Active: '+$ctx.Name+' | '+$ctx.InstanceId) -ForegroundColor Green
+        Write-UiHost ''
+        Write-UiHost '  [1] List registered Hubs'
+        Write-UiHost '  [2] Switch active Hub'
+        Write-UiHost '  [3] Create new Hub'
+        Write-UiHost '  [4] Connect existing Hub'
+        Write-UiHost '  [5] Active Hub info'
+        Write-UiHost '  [0] Back'
+        $choice=(Read-UiInput 'Select').Trim()
+        switch($choice){
+            '1' {$null=Invoke-Manager @('-ListInstances');Pause-Menu}
+            '2' {
+                $rows=@(Get-FrontendRegistryRows)
+                for($i=0;$i-lt$rows.Count;$i++){
+                    $mark=if([string]$rows[$i].instance_id-eq[string]$ctx.InstanceId){'*'}else{' '}
+                    Write-UiHost ('  [{0}] {1} {2} | {3}' -f ($i+1),$mark,[string]$rows[$i].name,([string]$rows[$i].instance_id).Substring(0,8))
+                }
+                $raw=(Read-UiInput 'Select Hub number').Trim();$n=0
+                if([int]::TryParse($raw,[ref]$n)-and$n-ge1-and$n-le$rows.Count){
+                    $target=$rows[$n-1]
+                    if([string]$target.instance_id-eq[string]$ctx.InstanceId){Write-UiHost 'Already active.' -ForegroundColor DarkGray;Pause-Menu}
+                    elseif(Confirm ('Switch active Hub to '+[string]$target.name+'?')){
+                        $null=Invoke-Manager @('-SwitchInstanceId',[string]$target.instance_id);Pause-Menu
+                    }
+                }else{Write-UiHost 'Invalid selection.' -ForegroundColor Yellow;Pause-Menu}
+            }
+            '3' {
+                $null=Invoke-NewRegisteredHubGenesisUi
+                Pause-Menu
+            }
+            '4' {
+                $target=Select-Folder 'Select existing Keelaryn Hub directory' $LayoutRoot
+                if($target){
+                    $name=(Read-UiInput ('Display name ['+(Split-Path $target -Leaf)+']')).Trim();if(-not$name){$name=Split-Path $target -Leaf}
+                    if(Confirm ('Register this Hub without copying or modifying its content? '+$target)){
+                        $null=Invoke-Manager @('-RegisterInstancePath',$target,'-RegisterInstanceName',$name);Pause-Menu
+                    }
+                }
+            }
+            '5' {$null=Invoke-Manager @('-InstanceInfo');Pause-Menu}
+            '0' {return}
+            default {Write-UiHost 'Unknown selection.' -ForegroundColor Yellow;Pause-Menu}
+        }
+    }
+}
 function Show-MaintenanceMenu {
     while($true){
         Clear-Ui
@@ -1088,7 +1267,7 @@ function Show-MaintenanceMenu {
         Write-UiHost '  [1] Repair Hub CURRENT'
         Write-UiHost '  [2] Check migrations'
         Write-UiHost '  [3] Apply pending migrations'
-        Write-UiHost '  [4] Bind existing Hub...'
+        Write-UiHost '  [4] Manage Hubs...'
         Write-UiHost '  [5] Open update inbox'
         Write-UiHost '  [6] Open logs'
         Write-UiHost '  [7] Storage report'
@@ -1100,7 +1279,7 @@ function Show-MaintenanceMenu {
             '^1$' {if(Confirm 'Run explicit CURRENT transport repair?'){$null=Invoke-MenuAction 'RepairCurrentTransport' $null 'Repair Hub CURRENT';Pause-Menu}}
             '^2$' {$null=Invoke-MenuAction 'CheckMigrations' $null 'Check migrations';Pause-Menu}
             '^3$' {$null=Invoke-MenuAction 'ApplyMigrations' $null 'Apply pending migrations';Pause-Menu}
-            '^4$' {$null=Invoke-MenuAction 'BindInstance' $null 'Bind existing Hub';Pause-Menu}
+            '^4$' {Show-HubManagementMenu}
             '^5$' {$null=Invoke-MenuAction 'OpenInbox' $null 'Open update inbox'}
             '^6$' {$null=Invoke-MenuAction 'OpenLogs' $null 'Open logs'}
             '^7$' {$null=Invoke-MenuAction 'StorageReport' $null 'Storage report';Pause-Menu}

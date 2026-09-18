@@ -69,3 +69,14 @@ Candidate transport is a secondary, non-canonical resilience channel. `keelaryn.
 The interactive frontend lives under `product/tools` and delegates every operational action back to the single Manager runtime. The optional root `Keelaryn.cmd` is generated local convenience state and is intentionally outside the managed product set.
 
 Installed production state and public repository source are related but not identical views. The repository's managed `manager/` tree is release source; installed Manager adds local runtime state, while the personal Hub remains outside generic source.
+
+<!-- multi-hub-v1 -->
+## Multi-Hub instance model
+
+One Manager installation may register multiple independent Hub instances. `instance_id` is the immutable Hub identity; the registry display name is presentation only.
+
+Manager-global state remains global: Manager update inbox, logs, release bundles and generic work state. Hub lineage state is instance-owned under `state/instances/<instance_id>/`: CURRENT baseline, Hub inbox, checkpoints and rollback history.
+
+`state/instances.json` is the registry and `state/active_instance.json` selects the interactive default. Every Hub mutation resolves an instance context and rechecks the active identity after the Manager mutation lock is acquired. Hub packages are accepted only for the matching `instance_id`.
+
+ChatGPT exchange data is separated by instance under `exchange/instances/<instance_id>/chatgpt/`.
