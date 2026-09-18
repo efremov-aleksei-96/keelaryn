@@ -377,7 +377,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 def __init__(self, drive, selected_hub_root_id):
                     self.selected = selected_hub_root_id
 
-                def run(self, *args):
+                def run_qualified_identity(self, *args):
                     raise RuntimeError(
                         f"secret {self.selected} {env['KEELARYN_MIGRATION_PACK_DIR']}"
                     )
