@@ -16,6 +16,7 @@ from keelaryn_core.migration_freeze import (  # noqa: E402
     MigrationFreezePostCommitBlocked,
     freeze_migration_candidate,
     verify_migration_candidate_freeze,
+    verify_migration_candidate_freeze_identity,
 )
 from keelaryn_core.migration_pack import (  # noqa: E402
     MigrationPackBlocked,
@@ -168,6 +169,32 @@ class MigrationCandidateFreezeTests(unittest.TestCase):
             first_raw = receipt.read_bytes()
             self.assertEqual(freeze_migration_candidate(pack.root, repo, commit, tree, receipt), value)
             self.assertEqual(receipt.read_bytes(), first_raw)
+
+    def test_identity_verifier_uses_qualified_source_without_git_worktree_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, commit, tree = self._repo(root)
+            pack = self._pack(root)
+            receipt = root / "candidate-freeze.json"
+            value = freeze_migration_candidate(pack.root, repo, commit, tree, receipt)
+
+            (repo / "runtime-dirty.txt").write_bytes(b"runtime checkout no longer authoritative\n")
+            self.assertEqual(
+                verify_migration_candidate_freeze_identity(
+                    pack.root,
+                    receipt,
+                    commit,
+                    tree,
+                ),
+                value,
+            )
+            with self.assertRaisesRegex(MigrationPackBlocked, "source tree mismatch"):
+                verify_migration_candidate_freeze_identity(
+                    pack.root,
+                    receipt,
+                    commit,
+                    "0" * 40,
+                )
 
     def test_dirty_or_wrong_git_identity_blocks_before_receipt_publication(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

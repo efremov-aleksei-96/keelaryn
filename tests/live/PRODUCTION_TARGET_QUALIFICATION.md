@@ -36,6 +36,8 @@ Required local/private environment:
 - `KEELARYN_MIGRATION_PACK_DIR`
 - `KEELARYN_MIGRATION_FREEZE_RECEIPT`
 - `KEELARYN_MIGRATION_REPO_ROOT`
+
+`KEELARYN_MIGRATION_REPO_ROOT` is required **only at this Git-backed production-target qualification boundary**. Transaction-bound pre-apply and post-cutover finalizers consume the already-qualified source commit/tree and do not require a repository checkout.
 - `KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT_ID`
 - `KEELARYN_MIGRATION_TARGET_AUTHORITY`
 - `KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE`

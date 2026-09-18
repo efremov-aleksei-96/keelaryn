@@ -125,7 +125,6 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             "KEELARYN_PRE_APPLY_CUTOVER_RECEIPT": str(pre_apply_path),
             "KEELARYN_MIGRATION_PACK_DIR": str(private / "pack"),
             "KEELARYN_MIGRATION_FREEZE_RECEIPT": str(private / "freeze.json"),
-            "KEELARYN_MIGRATION_REPO_ROOT": str(private / "repo"),
             "KEELARYN_MIGRATION_TARGET_AUTHORITY": str(
                 private / "target-authority.json"
             ),
@@ -179,7 +178,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             def __init__(self, drive, selected_hub_root_id):
                 self.selected = selected_hub_root_id
 
-            def run(self, *args):
+            def run_qualified_identity(self, *args):
                 if mutate is not None:
                     mutate()
                 value = outer._acceptance_value(self.selected)

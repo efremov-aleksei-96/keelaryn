@@ -20,7 +20,7 @@ from keelaryn_core.drive_oauth import GoogleOAuthRefreshTokenProvider  # noqa: E
 from keelaryn_core.drive_rest import GoogleDriveBackend  # noqa: E402
 from keelaryn_core.migration_common import MIGRATION_SOURCE_NAME, small_file  # noqa: E402
 from keelaryn_core.migration_drive_source import verify_migration_source_against_drive  # noqa: E402
-from keelaryn_core.migration_freeze import verify_migration_candidate_freeze  # noqa: E402
+from keelaryn_core.migration_freeze import verify_migration_candidate_freeze_identity  # noqa: E402
 from keelaryn_core.migration_pack import verify_migration_pack  # noqa: E402
 from keelaryn_core.migration_post_cutover_acceptance import (  # noqa: E402
     DriveMigrationPostCutoverReadOnlyAcceptance,
@@ -294,14 +294,14 @@ def _verify_local_provenance(
     receipt: dict[str, Any],
     pack_dir: Path,
     freeze_receipt: Path,
-    repo_root: Path,
     qualification_evidence: Path,
 ) -> None:
     pack = verify_migration_pack(pack_dir)
-    freeze = verify_migration_candidate_freeze(
+    freeze = verify_migration_candidate_freeze_identity(
         pack.root,
         freeze_receipt,
-        repo_root,
+        receipt["source_commit"],
+        receipt["source_tree"],
     )
     if pack.pack_sha256 != receipt["pack_sha256"]:
         raise LivePreApplyCutoverError(
@@ -365,7 +365,6 @@ def main() -> int:
         receipt_path = _path("KEELARYN_PRE_APPLY_CUTOVER_RECEIPT")
         pack_dir = _path("KEELARYN_MIGRATION_PACK_DIR")
         freeze_receipt = _path("KEELARYN_MIGRATION_FREEZE_RECEIPT")
-        repo_root = _path("KEELARYN_MIGRATION_REPO_ROOT")
         target_authority = _path("KEELARYN_MIGRATION_TARGET_AUTHORITY")
         qualification_evidence = _path(
             "KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE"
@@ -377,7 +376,6 @@ def main() -> int:
             str(receipt_path),
             str(pack_dir),
             str(freeze_receipt),
-            str(repo_root),
             str(target_authority),
             str(qualification_evidence),
         )
@@ -398,7 +396,6 @@ def main() -> int:
                 receipt,
                 pack_dir,
                 freeze_receipt,
-                repo_root,
                 qualification_evidence,
             )
             print(_render(_public(receipt), forbidden), flush=True)
@@ -423,10 +420,10 @@ def main() -> int:
         phase = "target-verification"
         acceptance = DriveMigrationPostCutoverReadOnlyAcceptance(
             drive, record["new_hub_root_id"]
-        ).run(
+        ).run_qualified_identity(
             pack_dir,
             freeze_receipt,
-            repo_root,
+            record["tool"]["source_commit"],
             target_authority,
             qualification_evidence,
         )
@@ -455,7 +452,6 @@ def main() -> int:
             receipt,
             pack_dir,
             freeze_receipt,
-            repo_root,
             qualification_evidence,
         )
 

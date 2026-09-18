@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .drive_backend import DriveBackend, DriveNotFound
 from .drive_bootstrap import DriveHubBootstrap, INDEX_NAME
@@ -12,7 +12,10 @@ from .drive_master import DriveMasterTransition, DriveMasterUnavailable
 from .drive_reader import DriveCanonicalReader, DriveReadBlocked
 from .drive_transaction import BlobState
 from .migration_common import MigrationPackBlocked, small_file, source_file
-from .migration_freeze import verify_migration_candidate_freeze
+from .migration_freeze import (
+    verify_migration_candidate_freeze,
+    verify_migration_candidate_freeze_identity,
+)
 from .migration_materialization import (
     DriveMigrationMaterializationBlocked,
     DriveMigrationPreservationMaterialization,
@@ -542,17 +545,17 @@ class DriveMigrationPostCutoverReadOnlyAcceptance:
                     f"fresh post-cutover observation disagrees with production qualification: {key}"
                 )
 
-    def run(
+    def _run_with_freeze_verifier(
         self,
         pack_dir: str | Path,
         freeze_receipt: str | Path,
-        repo_root: str | Path,
         target_authority_path: str | Path,
         qualification_evidence_path: str | Path,
+        freeze_verifier: Callable[[Path], dict[str, Any]],
     ) -> DriveMigrationPostCutoverAcceptanceEvidence:
         try:
             pack = verify_migration_pack(pack_dir)
-            freeze = verify_migration_candidate_freeze(pack.root, freeze_receipt, repo_root)
+            freeze = freeze_verifier(pack.root)
         except MigrationPackBlocked as exc:
             raise DriveMigrationPostCutoverAcceptanceBlocked(
                 f"post-cutover frozen candidate verification failed: {exc}"
@@ -589,14 +592,9 @@ class DriveMigrationPostCutoverReadOnlyAcceptance:
         }
         self._require_qualification_match(qualification, observed)
 
-        # Freshly reverify immutable local authority at the acceptance boundary.
         try:
             final_pack = verify_migration_pack(pack.root)
-            final_freeze = verify_migration_candidate_freeze(
-                final_pack.root,
-                freeze_receipt,
-                repo_root,
-            )
+            final_freeze = freeze_verifier(final_pack.root)
         except MigrationPackBlocked as exc:
             raise DriveMigrationPostCutoverAcceptanceBlocked(
                 f"frozen candidate changed during post-cutover acceptance: {exc}"
@@ -616,10 +614,6 @@ class DriveMigrationPostCutoverReadOnlyAcceptance:
                 "production target authority/evidence changed during acceptance"
             )
 
-        # Re-observe remote topology after every potentially expensive acceptance
-        # read and all local provenance checks. A target/staging move, rename,
-        # sentinel change or unexpected staging child must fail closed before this
-        # process can authorize terminal Hub cutover acceptance.
         self._verify_target_and_staging(final_authority)
 
         selected_digest = sha256(self.selected_hub_root_id.encode("utf-8")).hexdigest()
@@ -644,6 +638,62 @@ class DriveMigrationPostCutoverReadOnlyAcceptance:
             root_index_sha256=root_index_digest,
             restart_state=restart_state,
             outcome="POST_CUTOVER_READ_ONLY_PASS",
+        )
+
+    def run(
+        self,
+        pack_dir: str | Path,
+        freeze_receipt: str | Path,
+        repo_root: str | Path,
+        target_authority_path: str | Path,
+        qualification_evidence_path: str | Path,
+    ) -> DriveMigrationPostCutoverAcceptanceEvidence:
+        return self._run_with_freeze_verifier(
+            pack_dir,
+            freeze_receipt,
+            target_authority_path,
+            qualification_evidence_path,
+            lambda pack_root: verify_migration_candidate_freeze(
+                pack_root,
+                freeze_receipt,
+                repo_root,
+            ),
+        )
+
+    def run_qualified_identity(
+        self,
+        pack_dir: str | Path,
+        freeze_receipt: str | Path,
+        expected_source_commit: str,
+        target_authority_path: str | Path,
+        qualification_evidence_path: str | Path,
+    ) -> DriveMigrationPostCutoverAcceptanceEvidence:
+        source_commit = _oid(
+            expected_source_commit,
+            "runtime expected source_commit",
+        )
+        qualification = _strict_qualification(
+            small_file(
+                Path(qualification_evidence_path),
+                "production qualification evidence for runtime acceptance",
+            )
+        )
+        if qualification["source_commit"] != source_commit:
+            raise DriveMigrationPostCutoverAcceptanceBlocked(
+                "runtime source commit disagrees with production qualification"
+            )
+        source_tree = qualification["source_tree"]
+        return self._run_with_freeze_verifier(
+            pack_dir,
+            freeze_receipt,
+            target_authority_path,
+            qualification_evidence_path,
+            lambda pack_root: verify_migration_candidate_freeze_identity(
+                pack_root,
+                freeze_receipt,
+                source_commit,
+                source_tree,
+            ),
         )
 
 

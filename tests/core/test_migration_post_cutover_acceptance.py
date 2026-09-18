@@ -230,6 +230,29 @@ class MigrationPostCutoverAcceptanceTests(unittest.TestCase):
             self.assertNotIn(str(pack.root), public)
             self.assertEqual(self._drive_snapshot(drive), before)
 
+    def test_qualified_identity_acceptance_does_not_require_git_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, pack, freeze, drive, _, authority, qualification, target_id = self._fixture(root)
+            before = self._drive_snapshot(drive)
+            freeze_value = json.loads(freeze.read_text(encoding="utf-8"))
+            (repo / "runtime-dirty.txt").write_bytes(b"not runtime authority\n")
+
+            result = DriveMigrationPostCutoverReadOnlyAcceptance(
+                drive,
+                target_id,
+            ).run_qualified_identity(
+                pack.root,
+                freeze,
+                freeze_value["source_commit"],
+                authority,
+                qualification,
+            )
+
+            self.assertEqual(result.outcome, "POST_CUTOVER_READ_ONLY_PASS")
+            self.assertEqual(result.source_tree, freeze_value["source_tree"])
+            self.assertEqual(self._drive_snapshot(drive), before)
+
     def test_selected_identity_mismatch_blocks_before_any_drive_observation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

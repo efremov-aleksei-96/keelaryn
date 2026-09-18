@@ -233,6 +233,15 @@ def _strict_receipt(raw: bytes) -> dict[str, Any]:
     return value
 
 
+def _outside_pack_authority(output: Path, pack_root: Path) -> None:
+    candidate = output.absolute().resolve(strict=False)
+    pack_resolved = pack_root.resolve()
+    if candidate == pack_resolved or pack_resolved in candidate.parents:
+        raise MigrationPackBlocked(
+            "migration freeze receipt must remain outside the immutable migration pack"
+        )
+
+
 def _outside_authorities(output: Path, repo: Path, pack_root: Path) -> None:
     candidate = output.absolute().resolve(strict=False)
     repo_resolved = repo.resolve()
@@ -243,6 +252,37 @@ def _outside_authorities(output: Path, repo: Path, pack_root: Path) -> None:
         raise MigrationPackBlocked("migration freeze receipt must remain outside the Git worktree")
     if candidate == pack_resolved or pack_resolved in candidate.parents:
         raise MigrationPackBlocked("migration freeze receipt must remain outside the immutable migration pack")
+
+
+def verify_migration_candidate_freeze_identity(
+    pack_dir: str | Path,
+    receipt_path: str | Path,
+    expected_source_commit: str,
+    expected_source_tree: str,
+) -> dict[str, Any]:
+    raw = small_file(Path(receipt_path), "migration candidate freeze receipt")
+    receipt = _strict_receipt(raw)
+    source_commit = _git_oid(
+        expected_source_commit,
+        "expected migration freeze source commit",
+    )
+    source_tree = _git_oid(
+        expected_source_tree,
+        "expected migration freeze source tree",
+    )
+    if receipt["source_commit"] != source_commit:
+        raise MigrationPackBlocked("migration freeze source commit mismatch")
+    if receipt["source_tree"] != source_tree:
+        raise MigrationPackBlocked("migration freeze source tree mismatch")
+
+    pack = verify_migration_pack(pack_dir)
+    _outside_pack_authority(Path(receipt_path), pack.root)
+    expected = _receipt_value(pack, source_commit, source_tree)
+    if raw != canonical_json_bytes(expected):
+        raise MigrationPackBlocked(
+            "migration candidate freeze receipt no longer matches exact qualified source/pack identity"
+        )
+    return expected
 
 
 def verify_migration_candidate_freeze(
@@ -323,4 +363,5 @@ __all__ = [
     "MigrationFreezePostCommitBlocked",
     "freeze_migration_candidate",
     "verify_migration_candidate_freeze",
+    "verify_migration_candidate_freeze_identity",
 ]

@@ -194,6 +194,8 @@ If target construction has durably completed but any later source/freeze/staging
 
 A production-target qualification PASS proves only that an exact new target has been constructed and accepted. It does not mutate the production selector and does not authorize cutover.
 
+The exact clean Git worktree remains mandatory for candidate freeze and production-target qualification, where source commit/tree authority is established. After qualification PASS, transaction-bound pre-apply and post-cutover runtime verification must not depend on a Git checkout: it revalidates the immutable pack/freeze receipt against the source commit/tree already bound by production qualification and subsequent private cutover receipts.
+
 ## 9. Cutover transaction boundary
 
 Cutover is separate from data publication.

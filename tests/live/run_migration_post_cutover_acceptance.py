@@ -440,7 +440,6 @@ def main() -> int:
         pre_apply_receipt_path = _path("KEELARYN_PRE_APPLY_CUTOVER_RECEIPT")
         pack_dir = _path("KEELARYN_MIGRATION_PACK_DIR")
         freeze_receipt = _path("KEELARYN_MIGRATION_FREEZE_RECEIPT")
-        repo_root = _path("KEELARYN_MIGRATION_REPO_ROOT")
         target_authority = _path("KEELARYN_MIGRATION_TARGET_AUTHORITY")
         qualification_evidence = _path(
             "KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE"
@@ -454,7 +453,6 @@ def main() -> int:
             str(pre_apply_receipt_path),
             str(pack_dir),
             str(freeze_receipt),
-            str(repo_root),
             str(target_authority),
             str(qualification_evidence),
         )
@@ -542,10 +540,10 @@ def main() -> int:
         phase = "read-only-acceptance"
         acceptance = DriveMigrationPostCutoverReadOnlyAcceptance(
             drive, selected_hub_root_id
-        ).run(
+        ).run_qualified_identity(
             pack_dir,
             freeze_receipt,
-            repo_root,
+            pre_apply_receipt["source_commit"],
             target_authority,
             qualification_evidence,
         )

@@ -115,13 +115,15 @@ export KEELARYN_DEPLOYMENT_STATE_ROOT="$STATE"
 export KEELARYN_MUTATION_GATE_ROOT="$MUTATION_GATE"
 export KEELARYN_SOURCE_COMMIT="$SOURCE_COMMIT"
 export KEELARYN_PRE_APPLY_CUTOVER_RECEIPT=<private-mode-0600-path>
-# Also export the exact migration pack/freeze/repository/target-authority/
+# Also export the exact migration pack/freeze/target-authority/
 # qualification-evidence and OAuth bindings from the qualified candidate.
 
 python3 -B "$PRE_APPLY_FINALIZER"
 ```
 
 The pre-apply finalizer requires exact `PREPARED` transaction + inhibit authority, freshly read-only verifies the qualified NEW target, freshly verifies OLD legacy Drive bytes against the frozen migration source, durably publishes one private transaction-bound pre-apply receipt, revalidates transaction/inhibit identity at the commit boundary, and only then calls the low-level selector `apply` primitive.
+
+The cutover finalizers do **not** require a Git checkout. The clean Git worktree is authoritative at candidate freeze and production-target qualification; after qualification, exact source commit/tree from qualification evidence plus the immutable frozen pack/freeze receipt are the local source-provenance boundary for pre-apply and post-cutover runtime verification.
 
 Raw `hub_cutover.py apply` is intentionally not exposed by the production CLI. A crash or response loss after selector replacement is recovered by re-running the same pre-apply finalizer with the same private receipt: exact `APPLIED` is observed without repeating OAuth/Drive verification or blindly rewriting NEW.
 
@@ -151,7 +153,6 @@ Required private/local bindings are:
 - `KEELARYN_PRE_APPLY_CUTOVER_RECEIPT`
 - `KEELARYN_MIGRATION_PACK_DIR`
 - `KEELARYN_MIGRATION_FREEZE_RECEIPT`
-- `KEELARYN_MIGRATION_REPO_ROOT`
 - `KEELARYN_MIGRATION_TARGET_AUTHORITY`
 - `KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE`
 - the Google OAuth environment required by the Drive backend.

@@ -86,7 +86,6 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
             "KEELARYN_PRE_APPLY_CUTOVER_RECEIPT": str(private / "pre-apply.json"),
             "KEELARYN_MIGRATION_PACK_DIR": str(private / "pack"),
             "KEELARYN_MIGRATION_FREEZE_RECEIPT": str(private / "freeze.json"),
-            "KEELARYN_MIGRATION_REPO_ROOT": str(private / "repo"),
             "KEELARYN_MIGRATION_TARGET_AUTHORITY": str(private / "target.json"),
             "KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE": str(qualification),
         }
@@ -100,7 +99,7 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
                 if selected != new:
                     raise AssertionError("wrong NEW target")
 
-            def run(self, *args):
+            def run_qualified_identity(self, *args):
                 digest = hashlib.sha256(new.encode("utf-8")).hexdigest()
                 return _Evidence(
                     {
@@ -169,7 +168,7 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
             ),
             patch.object(
                 module,
-                "verify_migration_candidate_freeze",
+                "verify_migration_candidate_freeze_identity",
                 return_value={
                     "source_commit": self.SOURCE,
                     "source_tree": "b" * 40,
@@ -227,7 +226,7 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
                 ),
             ), patch.object(
                 module,
-                "verify_migration_candidate_freeze",
+                "verify_migration_candidate_freeze_identity",
                 return_value={
                     "source_commit": self.SOURCE,
                     "source_tree": "b" * 40,
