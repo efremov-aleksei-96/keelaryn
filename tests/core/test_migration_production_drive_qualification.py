@@ -170,6 +170,54 @@ class MigrationProductionDriveQualificationTests(unittest.TestCase):
             self.assertFalse(authority.exists())
             self.assertFalse(evidence.exists())
 
+    def test_post_construction_target_reparent_blocks_qualification_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, pack, freeze, drive, _, _, authority, evidence, gate = self._fixture(root)
+            original = DriveMigrationDisposableRehearsal.run
+
+            def run_then_reparent(service, pack_dir):
+                value = original(service, pack_dir)
+                target_id = json.loads(authority.read_text(encoding="utf-8"))["target_id"]
+                drive.move_rename(target_id, "root", "escaped-production-target")
+                return value
+
+            with patch.object(DriveMigrationDisposableRehearsal, "run", new=run_then_reparent):
+                with self.assertRaisesRegex(
+                    DriveMigrationProductionPostConstructionBlocked,
+                    "durably constructed",
+                ):
+                    gate.run_drive(pack.root, freeze, repo, authority, evidence)
+
+            self.assertTrue(authority.is_file())
+            self.assertFalse(evidence.exists())
+            target_id = json.loads(authority.read_text(encoding="utf-8"))["target_id"]
+            self.assertEqual(drive.get(target_id).parent_id, "root")
+
+    def test_post_construction_target_rename_blocks_qualification_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, pack, freeze, drive, _, staging, authority, evidence, gate = self._fixture(root)
+            original = DriveMigrationDisposableRehearsal.run
+
+            def run_then_rename(service, pack_dir):
+                value = original(service, pack_dir)
+                target_id = json.loads(authority.read_text(encoding="utf-8"))["target_id"]
+                drive.move_rename(target_id, staging, "renamed-production-target")
+                return value
+
+            with patch.object(DriveMigrationDisposableRehearsal, "run", new=run_then_rename):
+                with self.assertRaisesRegex(
+                    DriveMigrationProductionPostConstructionBlocked,
+                    "durably constructed",
+                ):
+                    gate.run_drive(pack.root, freeze, repo, authority, evidence)
+
+            self.assertTrue(authority.is_file())
+            self.assertFalse(evidence.exists())
+            target_id = json.loads(authority.read_text(encoding="utf-8"))["target_id"]
+            self.assertEqual(drive.get(target_id).name, "renamed-production-target")
+
     def test_post_construction_drive_source_drift_is_distinguished(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

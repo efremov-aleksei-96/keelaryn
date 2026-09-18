@@ -138,7 +138,11 @@ class DriveMigrationProductionTargetQualification:
             )
         return candidate
 
-    def _verify_staging_root(self, target_id: str | None = None) -> None:
+    def _verify_staging_root(
+        self,
+        target_id: str | None = None,
+        target_name: str | None = None,
+    ) -> None:
         try:
             root = self.drive.get(self.staging_root_id, include_trashed=False)
         except DriveNotFound as exc:
@@ -161,10 +165,30 @@ class DriveMigrationProductionTargetQualification:
             raise DriveMigrationProductionQualificationBlocked(
                 "production migration staging sentinel bytes do not match"
             )
+        children = self.drive.list_children(self.staging_root_id)
         allowed = {sentinels[0].file_id}
         if target_id is not None:
+            if not isinstance(target_name, str) or not target_name:
+                raise DriveMigrationProductionQualificationBlocked(
+                    "exact production target name is required with target identity"
+                )
+            target = next((child for child in children if child.file_id == target_id), None)
+            if (
+                target is None
+                or target.trashed
+                or not target.is_folder
+                or target.parent_id != self.staging_root_id
+                or target.name != target_name
+            ):
+                raise DriveMigrationProductionQualificationBlocked(
+                    "reserved production target is no longer the exact staging child"
+                )
             allowed.add(target_id)
-        for child in self.drive.list_children(self.staging_root_id):
+        elif target_name is not None:
+            raise DriveMigrationProductionQualificationBlocked(
+                "production target name cannot be verified without target identity"
+            )
+        for child in children:
             if child.file_id not in allowed:
                 raise DriveMigrationProductionQualificationBlocked(
                     "unexpected object exists in production migration staging root"
@@ -284,7 +308,7 @@ class DriveMigrationProductionTargetQualification:
             raise DriveMigrationProductionQualificationBlocked(
                 "reserved production target ID resolves to conflicting Drive object"
             )
-        self._verify_staging_root(target_id)
+        self._verify_staging_root(target_id, target_name)
         return item
 
     @staticmethod
@@ -350,7 +374,7 @@ class DriveMigrationProductionTargetQualification:
                 repo,
             )
             self._verify_live_source(final_pack, legacy_source_root)
-            self._verify_staging_root(target.file_id)
+            self._verify_staging_root(target.file_id, authority["target_name"])
         except (MigrationPackBlocked, DriveMigrationProductionQualificationBlocked) as exc:
             raise DriveMigrationProductionPostConstructionBlocked(
                 "production target is durably constructed, but fresh post-construction qualification failed"
