@@ -431,6 +431,7 @@ Crash points after active-record creation, selector/symlink swap, terminal-marke
 - Validate the materialized release and, once present, exact canonical selector/systemd unit bytes through `target_host_validate.py`; do not substitute full repository `tests/core` execution on the target host.
 - Keep `/etc/keelaryn/hub.env` as the only production Hub selector; its raw bytes must be canonical and unquoted.
 - Use `hub_cutover.py prepare/rollback` plus the transaction-bound migration pre-apply finalizer for every selector change after initial installation; raw CLI `apply` is intentionally unavailable and `hub.env` must never be edited/replaced ad hoc.
+- Hub-cutover `prepare` pins SHA-256 of both migration finalizers from the qualified release; forward cutover/finalization fails closed if either runner changes, while rollback to OLD remains available through the exact prepared cutover tool.
 - Capture and pin the OLD `release_switch.py` before source `prepare`; one source transaction never changes executor identity midway.
 - Use `release_switch.py` for every source update/rollback after first installation; do not use ad-hoc `ln -sfn` for `current`.
 - Never run source switching and Hub cutover concurrently; shared durable transaction authority enforces this fail-closed.

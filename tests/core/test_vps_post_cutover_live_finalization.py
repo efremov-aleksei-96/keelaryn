@@ -75,7 +75,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
         active = json.loads(active_raw.decode("utf-8"))
         acceptance_value = self._acceptance_value(self.NEW)
         pre_apply = {
-            "schema": "keelaryn.migration-pre-apply-private-receipt.v1",
+            "schema": "keelaryn.migration-pre-apply-private-receipt.v2",
             "transaction_id": active["transaction_id"],
             "active_transaction_sha256": hashlib.sha256(active_raw).hexdigest(),
             "source_commit": self.SOURCE,
@@ -99,6 +99,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                     + "\n"
                 ).encode("utf-8")
             ).hexdigest(),
+            "pre_apply_finalizer_sha256": active["finalizers"]["pre_apply_sha256"],
             "outcome": "PRE_APPLY_VERIFIED",
         }
         pre_apply_path = private / "pre-apply.json"
@@ -228,6 +229,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             self.assertEqual(len(public["active_transaction_sha256"]), 64)
             self.assertEqual(len(public["acceptance_evidence_sha256"]), 64)
             self.assertEqual(len(public["pre_apply_receipt_sha256"]), 64)
+            self.assertEqual(len(public["post_cutover_finalizer_sha256"]), 64)
             self.assertEqual(len(public["selector_identity_sha256"]), 64)
             rendered = json.dumps(public, sort_keys=True)
             self.assertNotIn(self.OLD, rendered)
@@ -281,6 +283,57 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 executing_tool=DEPLOY / "hub_cutover.py",
             )
             self.assertEqual(switch.status()["status"], "APPLIED")
+
+    def test_post_finalizer_identity_mismatch_blocks_before_oauth(self) -> None:
+        module = _load_runner()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            selector_parent = root / "etc"
+            selector_parent.mkdir(mode=0o700)
+            selector = selector_parent / "hub.env"
+            selector.write_bytes(hub_cutover._selector_bytes(self.OLD))
+            os.chmod(selector, 0o600)
+            state = root / "deployment"
+            gate = root / "mutation-gate"
+            gate.mkdir(mode=0o2750)
+            os.chmod(gate, 0o2750)
+            lock = gate / "LOCK"
+            lock.write_bytes(b"")
+            os.chmod(lock, 0o640)
+
+            finalizer_root = root / "release"
+            pre = finalizer_root / "tests/live/run_migration_pre_apply_cutover.py"
+            post = finalizer_root / "tests/live/run_migration_post_cutover_acceptance.py"
+            pre.parent.mkdir(parents=True)
+            pre.write_bytes(
+                (ROOT / "tests/live/run_migration_pre_apply_cutover.py").read_bytes()
+            )
+            post.write_bytes(b"altered post-cutover finalizer\n")
+
+            switch = hub_cutover.HubSelectorCutover(
+                selector,
+                state,
+                self.SOURCE,
+                mutation_gate_root=gate,
+                executing_tool=DEPLOY / "hub_cutover.py",
+                finalizer_root=finalizer_root,
+            )
+            switch.prepare(self.NEW)
+            switch.apply()
+            env = self._env(root, selector, state)
+
+            with patch.object(
+                module.GoogleOAuthRefreshTokenProvider,
+                "from_environment",
+            ) as oauth:
+                code, stdout, stderr = self._run(module, env)
+
+            self.assertEqual(code, 1)
+            self.assertEqual(stdout, "")
+            self.assertEqual(json.loads(stderr)["phase"], "transaction-binding")
+            oauth.assert_not_called()
+            self.assertEqual(switch.status()["status"], "APPLIED")
+            self.assertEqual(switch.rollback(), {"status": "IDLE"})
 
     def test_acceptance_identity_mismatch_never_creates_terminal_or_receipt(self) -> None:
         module = _load_runner()

@@ -141,6 +141,45 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
             txid = recovered.status()["transaction_id"]
             self.accept_and_release(recovered, state, txid)
 
+    def test_prepare_binds_exact_migration_finalizer_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            selector, state = self.layout(Path(temp))
+            switch = self.switch(selector, state)
+            switch.prepare(self.NEW)
+            record = json.loads(
+                (state / cutovermod.ACTIVE_NAME).read_text(encoding="utf-8")
+            )
+            self.assertEqual(record["schema"], cutovermod.SCHEMA)
+            self.assertEqual(
+                record["finalizers"]["pre_apply_sha256"],
+                hashlib.sha256(
+                    (REPO / "tests/live/run_migration_pre_apply_cutover.py").read_bytes()
+                ).hexdigest(),
+            )
+            self.assertEqual(
+                record["finalizers"]["post_cutover_sha256"],
+                hashlib.sha256(
+                    (REPO / "tests/live/run_migration_post_cutover_acceptance.py").read_bytes()
+                ).hexdigest(),
+            )
+
+            altered = Path(temp) / "altered-pre-apply.py"
+            altered.write_bytes(
+                (REPO / "tests/live/run_migration_pre_apply_cutover.py").read_bytes()
+                + b"\n# altered finalizer\n"
+            )
+            with self.assertRaisesRegex(
+                cutovermod.HubCutoverError,
+                "finalizer bytes changed after prepare",
+            ):
+                cutovermod._verify_finalizer_identity(
+                    record,
+                    "pre_apply",
+                    altered,
+                )
+            self.assertEqual(switch.status()["status"], "PREPARED")
+            self.assertEqual(switch.rollback(), {"status": "IDLE"})
+
     def test_apply_expected_transaction_hash_and_inhibit_are_commit_boundary_authority(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             selector, state = self.layout(Path(temp))

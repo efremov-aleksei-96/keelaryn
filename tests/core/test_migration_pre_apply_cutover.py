@@ -236,6 +236,57 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
             self.assertEqual(second[0], 0)
             self.assertEqual(json.loads(second[1]), json.loads(first[1]))
 
+    def test_finalizer_identity_mismatch_blocks_before_oauth(self):
+        module = _load_runner()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            selector_parent = root / "etc"
+            selector_parent.mkdir(mode=0o700)
+            selector = selector_parent / "hub.env"
+            selector.write_bytes(hub_cutover._selector_bytes(self.OLD))
+            os.chmod(selector, 0o600)
+            state = root / "deployment"
+            gate = root / "mutation-gate"
+            gate.mkdir(mode=0o2750)
+            os.chmod(gate, 0o2750)
+            lock = gate / "LOCK"
+            lock.write_bytes(b"")
+            os.chmod(lock, 0o640)
+
+            finalizer_root = root / "release"
+            pre = finalizer_root / "tests/live/run_migration_pre_apply_cutover.py"
+            post = finalizer_root / "tests/live/run_migration_post_cutover_acceptance.py"
+            pre.parent.mkdir(parents=True)
+            pre.write_bytes(b"altered pre-apply finalizer\n")
+            post.write_bytes(RUNNER.with_name("run_migration_post_cutover_acceptance.py").read_bytes())
+
+            switch = hub_cutover.HubSelectorCutover(
+                selector,
+                state,
+                self.SOURCE,
+                mutation_gate_root=gate,
+                executing_tool=DEPLOY / "hub_cutover.py",
+                finalizer_root=finalizer_root,
+            )
+            switch.prepare(self.NEW)
+            env = self._env(root, selector, state, gate)
+
+            with patch.object(
+                module.GoogleOAuthRefreshTokenProvider,
+                "from_environment",
+            ) as oauth:
+                code, stdout, stderr = self._run(module, env)
+
+            self.assertEqual(code, 1)
+            self.assertEqual(stdout, "")
+            self.assertEqual(json.loads(stderr)["phase"], "transaction-binding")
+            oauth.assert_not_called()
+            self.assertEqual(
+                hub_cutover._parse_selector(selector.read_bytes()),
+                self.OLD,
+            )
+            self.assertEqual(switch.rollback(), {"status": "IDLE"})
+
     def test_source_drift_blocks_before_receipt_or_apply(self):
         module = _load_runner()
         with tempfile.TemporaryDirectory() as temp:

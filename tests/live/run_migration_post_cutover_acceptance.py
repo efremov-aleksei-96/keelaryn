@@ -27,8 +27,8 @@ from keelaryn_core.migration_post_cutover_acceptance import (  # noqa: E402
 )
 from run_migration_pre_apply_cutover import strict_pre_apply_receipt  # noqa: E402
 
-SCHEMA = "keelaryn.migration-post-cutover-live-finalization.v2"
-RECEIPT_SCHEMA = "keelaryn.migration-post-cutover-private-finalization-receipt.v2"
+SCHEMA = "keelaryn.migration-post-cutover-live-finalization.v3"
+RECEIPT_SCHEMA = "keelaryn.migration-post-cutover-private-finalization-receipt.v3"
 
 
 class LivePostCutoverFinalizationError(RuntimeError):
@@ -101,6 +101,7 @@ def _strict_receipt(path: Path) -> dict[str, Any]:
         "selector_identity_sha256",
         "acceptance_evidence_sha256",
         "pre_apply_receipt_sha256",
+        "post_cutover_finalizer_sha256",
     }
     if not isinstance(value, dict) or set(value) != expected:
         raise LivePostCutoverFinalizationError(
@@ -124,6 +125,7 @@ def _strict_receipt(path: Path) -> dict[str, Any]:
         "selector_identity_sha256",
         "acceptance_evidence_sha256",
         "pre_apply_receipt_sha256",
+        "post_cutover_finalizer_sha256",
     ):
         digest = value[key]
         if (
@@ -209,6 +211,14 @@ def _active_binding(
             raise LivePostCutoverFinalizationError(
                 "fresh acceptance requires exact NEW selector"
             )
+        try:
+            hub_cutover._verify_finalizer_identity(
+                record,
+                "post_cutover",
+                Path(__file__),
+            )
+        except hub_cutover.HubCutoverError as exc:
+            raise LivePostCutoverFinalizationError(str(exc)) from exc
         return record_raw, record, selected
 
 
@@ -228,6 +238,13 @@ def _verify_pre_apply_against_record(
     if pre_apply["source_commit"] != record["tool"]["source_commit"]:
         raise LivePostCutoverFinalizationError(
             "pre-apply receipt source commit does not match cutover"
+        )
+    if (
+        pre_apply["pre_apply_finalizer_sha256"]
+        != record["finalizers"]["pre_apply_sha256"]
+    ):
+        raise LivePostCutoverFinalizationError(
+            "pre-apply receipt finalizer identity does not match cutover"
         )
     if pre_apply["old_selector_identity_sha256"] != _sha256_bytes(
         record["old_hub_root_id"].encode("utf-8")
@@ -303,6 +320,7 @@ def _receipt_for(
         "selector_identity_sha256": selected_sha,
         "acceptance_evidence_sha256": _sha256_json(acceptance_value),
         "pre_apply_receipt_sha256": pre_apply_receipt_sha256,
+        "post_cutover_finalizer_sha256": record["finalizers"]["post_cutover_sha256"],
     }
 
 
@@ -325,6 +343,21 @@ def _verify_receipt_against_active(
             raise LivePostCutoverFinalizationError(
                 "active cutover source identity changed after acceptance"
             )
+        if (
+            record["finalizers"]["post_cutover_sha256"]
+            != receipt["post_cutover_finalizer_sha256"]
+        ):
+            raise LivePostCutoverFinalizationError(
+                "active cutover post-finalizer identity changed after acceptance"
+            )
+        try:
+            hub_cutover._verify_finalizer_identity(
+                record,
+                "post_cutover",
+                Path(__file__),
+            )
+        except hub_cutover.HubCutoverError as exc:
+            raise LivePostCutoverFinalizationError(str(exc)) from exc
         if selected != record["new_hub_root_id"]:
             raise LivePostCutoverFinalizationError(
                 "selector is no longer exact NEW after acceptance"
@@ -380,6 +413,21 @@ def _verify_terminal_recovery(
         raise LivePostCutoverFinalizationError(
             "accepted cutover history tool identity does not match current finalizer tool"
         )
+    if (
+        record["finalizers"]["post_cutover_sha256"]
+        != receipt["post_cutover_finalizer_sha256"]
+    ):
+        raise LivePostCutoverFinalizationError(
+            "accepted cutover history post-finalizer identity mismatch"
+        )
+    try:
+        hub_cutover._verify_finalizer_identity(
+            record,
+            "post_cutover",
+            Path(__file__),
+        )
+    except hub_cutover.HubCutoverError as exc:
+        raise LivePostCutoverFinalizationError(str(exc)) from exc
     if terminal["outcome"] != "ACCEPTED":
         raise LivePostCutoverFinalizationError(
             "accepted cutover recovery terminal is not ACCEPTED"
@@ -402,6 +450,7 @@ def _public_result(receipt: dict[str, Any]) -> dict[str, Any]:
         "active_transaction_sha256": receipt["active_transaction_sha256"],
         "acceptance_evidence_sha256": receipt["acceptance_evidence_sha256"],
         "pre_apply_receipt_sha256": receipt["pre_apply_receipt_sha256"],
+        "post_cutover_finalizer_sha256": receipt["post_cutover_finalizer_sha256"],
         "selector_identity_sha256": receipt["selector_identity_sha256"],
         "outcome": "PRODUCTION_CUTOVER_ACCEPTED",
         "drive_mutations_performed": False,

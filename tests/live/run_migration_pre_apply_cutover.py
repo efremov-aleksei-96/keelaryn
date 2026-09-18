@@ -27,8 +27,8 @@ from keelaryn_core.migration_post_cutover_acceptance import (  # noqa: E402
 )
 
 
-SCHEMA = "keelaryn.migration-pre-apply-live.v1"
-RECEIPT_SCHEMA = "keelaryn.migration-pre-apply-private-receipt.v1"
+SCHEMA = "keelaryn.migration-pre-apply-live.v2"
+RECEIPT_SCHEMA = "keelaryn.migration-pre-apply-private-receipt.v2"
 
 
 class LivePreApplyCutoverError(RuntimeError):
@@ -112,6 +112,7 @@ def strict_pre_apply_receipt(path: Path) -> dict[str, Any]:
         "new_selector_identity_sha256",
         "qualification_evidence_sha256",
         "target_acceptance_evidence_sha256",
+        "pre_apply_finalizer_sha256",
         "outcome",
     }
     if not isinstance(value, dict) or set(value) != expected:
@@ -128,6 +129,7 @@ def strict_pre_apply_receipt(path: Path) -> dict[str, Any]:
         "new_selector_identity_sha256",
         "qualification_evidence_sha256",
         "target_acceptance_evidence_sha256",
+        "pre_apply_finalizer_sha256",
     ):
         _hex(value[key], 64, f"pre-apply {key}")
     if raw != _canonical_json(value):
@@ -205,6 +207,14 @@ def _prepared_binding(
                 raise LivePreApplyCutoverError(
                     "production mutation inhibit does not bind exact PREPARED transaction"
                 )
+        try:
+            hub_cutover._verify_finalizer_identity(
+                record,
+                "pre_apply",
+                Path(__file__),
+            )
+        except hub_cutover.HubCutoverError as exc:
+            raise LivePreApplyCutoverError(str(exc)) from exc
         return record_raw, record
 
 
@@ -228,6 +238,21 @@ def _verify_receipt_for_status(
             raise LivePreApplyCutoverError("pre-apply receipt active authority mismatch")
         if record["tool"]["source_commit"] != receipt["source_commit"]:
             raise LivePreApplyCutoverError("pre-apply receipt source commit mismatch")
+        if (
+            record["finalizers"]["pre_apply_sha256"]
+            != receipt["pre_apply_finalizer_sha256"]
+        ):
+            raise LivePreApplyCutoverError(
+                "pre-apply receipt finalizer identity mismatch"
+            )
+        try:
+            hub_cutover._verify_finalizer_identity(
+                record,
+                "pre_apply",
+                Path(__file__),
+            )
+        except hub_cutover.HubCutoverError as exc:
+            raise LivePreApplyCutoverError(str(exc)) from exc
         if selected != expected_selector:
             raise LivePreApplyCutoverError(
                 f"pre-apply recovery selector is not exact {expected_status}"
@@ -286,6 +311,7 @@ def _receipt_for(
         "new_selector_identity_sha256": new_sha,
         "qualification_evidence_sha256": _sha256(qualification_evidence),
         "target_acceptance_evidence_sha256": _sha256_json(acceptance_value),
+        "pre_apply_finalizer_sha256": record["finalizers"]["pre_apply_sha256"],
         "outcome": "PRE_APPLY_VERIFIED",
     }
 
@@ -333,6 +359,7 @@ def _public(receipt: dict[str, Any]) -> dict[str, Any]:
         "target_acceptance_evidence_sha256": receipt[
             "target_acceptance_evidence_sha256"
         ],
+        "pre_apply_finalizer_sha256": receipt["pre_apply_finalizer_sha256"],
         "outcome": "PRODUCTION_CUTOVER_APPLIED",
         "production_selector_mutated": True,
         "drive_mutations_performed": False,

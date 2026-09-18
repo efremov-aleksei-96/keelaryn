@@ -106,6 +106,8 @@ python3 -B "$CUTOVER_TOOL" \
 
 `prepare` first obtains the exclusive mutation gate, proving all gate-participating production mutations have exited, durably publishes `INHIBIT.json`, and only then writes active Hub-selector authority. A crash after inhibit publication but before active authority is restart-recovered by repeating exact `prepare`; a different OLD/NEW/tool identity fails closed.
 
+The active Hub-cutover transaction also records SHA-256 of the exact qualified pre-apply and post-cutover finalizer files from the same release. Both finalizers re-check their own current bytes before live verification and again at commit/recovery boundaries. Finalizer drift therefore blocks selector `apply` or terminal `accept`; rollback remains available through the exact prepared low-level cutover tool so recovery to OLD is not made dependent on finalizer integrity.
+
 Freshly verify the quiesced legacy source and qualified NEW target, then atomically publish NEW **only through the transaction-bound pre-apply finalizer**:
 
 ```bash

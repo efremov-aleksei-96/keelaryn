@@ -23,12 +23,16 @@ from keelaryn_core.drive_mutation_gate import (  # noqa: E402
     INHIBIT_SCHEMA,
 )
 
-SCHEMA = "keelaryn.zero-vps-hub-cutover.v1"
+SCHEMA = "keelaryn.zero-vps-hub-cutover.v2"
 TERMINAL_SCHEMA = "keelaryn.zero-vps-hub-cutover-terminal.v1"
 ACTIVE_NAME = "ACTIVE_TRANSACTION.json"
 LOCK_NAME = "LOCK"
 SELECTOR_KEY = "KEELARYN_HUB_ROOT_ID"
 HUB_ID_RE = re.compile(r"[A-Za-z0-9_-]{10,256}")
+FINALIZER_RELATIVES = {
+    "pre_apply": Path("tests/live/run_migration_pre_apply_cutover.py"),
+    "post_cutover": Path("tests/live/run_migration_post_cutover_acceptance.py"),
+}
 
 
 class HubCutoverError(RuntimeError):
@@ -223,9 +227,60 @@ def _tool_identity(source_commit: str, executing_tool: Path) -> dict[str, str]:
     return {"source_commit": source_commit, "sha256": hashlib.sha256(raw).hexdigest()}
 
 
+def _regular_file_sha256(path: Path, label: str) -> str:
+    path = path.absolute()
+    if path.is_symlink() or not path.is_file():
+        raise HubCutoverError(f"{label} must be a regular file")
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise HubCutoverError(f"cannot read {label}") from exc
+
+
+def _finalizer_identities(root: Path) -> dict[str, str]:
+    root = root.absolute()
+    return {
+        "pre_apply_sha256": _regular_file_sha256(
+            root / FINALIZER_RELATIVES["pre_apply"],
+            "pre-apply migration finalizer",
+        ),
+        "post_cutover_sha256": _regular_file_sha256(
+            root / FINALIZER_RELATIVES["post_cutover"],
+            "post-cutover migration finalizer",
+        ),
+    }
+
+
+def _verify_finalizer_identity(
+    record: dict[str, Any],
+    role: str,
+    executing_finalizer: Path,
+) -> str:
+    if role not in FINALIZER_RELATIVES:
+        raise HubCutoverError("unknown migration finalizer role")
+    key = f"{role}_sha256"
+    expected = record["finalizers"][key]
+    actual = _regular_file_sha256(
+        executing_finalizer,
+        f"{role.replace('_', '-')} migration finalizer",
+    )
+    if actual != expected:
+        raise HubCutoverError(
+            f"{role.replace('_', '-')} migration finalizer bytes changed after prepare"
+        )
+    return actual
+
+
 def _parse_record(raw: bytes) -> dict[str, Any]:
     value = _strict_json(raw, ACTIVE_NAME)
-    required = {"schema", "transaction_id", "tool", "old_hub_root_id", "new_hub_root_id"}
+    required = {
+        "schema",
+        "transaction_id",
+        "tool",
+        "finalizers",
+        "old_hub_root_id",
+        "new_hub_root_id",
+    }
     if not isinstance(value, dict) or set(value) != required or value["schema"] != SCHEMA:
         raise HubCutoverError("active Hub cutover transaction has invalid root/schema")
     txid = value["transaction_id"]
@@ -241,6 +296,22 @@ def _parse_record(raw: bytes) -> dict[str, Any]:
         or any(ch not in "0123456789abcdef" for ch in tool["sha256"])
     ):
         raise HubCutoverError("active Hub cutover tool SHA-256 is invalid")
+    finalizers = value["finalizers"]
+    if not isinstance(finalizers, dict) or set(finalizers) != {
+        "pre_apply_sha256",
+        "post_cutover_sha256",
+    }:
+        raise HubCutoverError("active Hub cutover finalizer identity is invalid")
+    for key in ("pre_apply_sha256", "post_cutover_sha256"):
+        digest = finalizers[key]
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(ch not in "0123456789abcdef" for ch in digest)
+        ):
+            raise HubCutoverError(
+                f"active Hub cutover finalizer SHA-256 is invalid: {key}"
+            )
     old_id = _hub_id(value["old_hub_root_id"], "old Hub root ID")
     new_id = _hub_id(value["new_hub_root_id"], "new Hub root ID")
     if old_id == new_id:
@@ -294,6 +365,7 @@ class HubSelectorCutover:
         *,
         mutation_gate_root: Path | None = None,
         executing_tool: Path | None = None,
+        finalizer_root: Path | None = None,
         fault_hook: FaultHook | None = None,
     ):
         self.selector_path = selector_path.absolute()
@@ -309,6 +381,10 @@ class HubSelectorCutover:
         self.active_path = self.state_root / ACTIVE_NAME
         self.executing_tool = (executing_tool or Path(__file__)).absolute()
         self.tool_identity = _tool_identity(source_commit, self.executing_tool)
+        self.finalizer_root = (
+            finalizer_root
+            or Path(__file__).resolve().parents[2]
+        ).absolute()
         self.mutation_gate = (
             DriveMutationGateAdmin(mutation_gate_root)
             if mutation_gate_root is not None
@@ -510,6 +586,7 @@ class HubSelectorCutover:
                     "schema": SCHEMA,
                     "transaction_id": transaction_id,
                     "tool": self.tool_identity,
+                    "finalizers": _finalizer_identities(self.finalizer_root),
                     "old_hub_root_id": old_hub_root_id,
                     "new_hub_root_id": new_hub_root_id,
                 }
@@ -529,6 +606,7 @@ class HubSelectorCutover:
                     "schema": SCHEMA,
                     "transaction_id": transaction_id,
                     "tool": self.tool_identity,
+                    "finalizers": _finalizer_identities(self.finalizer_root),
                     "old_hub_root_id": old_hub_root_id,
                     "new_hub_root_id": new_hub_root_id,
                 }
