@@ -324,6 +324,38 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             self.assertEqual(second_stderr, "")
             self.assertEqual(json.loads(second_stdout), json.loads(first_stdout))
 
+    def test_terminal_recovery_rejects_different_current_cutover_tool_bytes(self) -> None:
+        module = _load_runner()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            selector, state = self._layout(root)
+            env = self._env(root, selector, state)
+            acceptance = self._acceptance_factory()
+            patches = self._patch_success_dependencies(module, acceptance)
+            with patches[0], patches[1], patches[2]:
+                code, _, stderr = self._run(module, env)
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+
+            receipt = module._strict_receipt(
+                Path(env["KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT"])
+            )
+            altered_tool = root / "altered-hub-cutover.py"
+            altered_tool.write_bytes(
+                (DEPLOY / "hub_cutover.py").read_bytes() + b"\n# altered recovery tool bytes\n"
+            )
+            wrong_switch = hub_cutover.HubSelectorCutover(
+                selector,
+                state,
+                self.SOURCE,
+                executing_tool=altered_tool,
+            )
+            with self.assertRaisesRegex(
+                module.LivePostCutoverFinalizationError,
+                "tool identity",
+            ):
+                module._verify_terminal_recovery(wrong_switch, receipt)
+
     def test_conflicting_private_receipt_blocks_terminal_acceptance(self) -> None:
         module = _load_runner()
         with tempfile.TemporaryDirectory() as temp:

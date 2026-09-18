@@ -315,6 +315,10 @@ def _verify_terminal_recovery(
         raise LivePostCutoverFinalizationError(
             "accepted cutover history source mismatch"
         )
+    if record["tool"] != switch.tool_identity:
+        raise LivePostCutoverFinalizationError(
+            "accepted cutover history tool identity does not match current finalizer tool"
+        )
     if terminal["outcome"] != "ACCEPTED":
         raise LivePostCutoverFinalizationError(
             "accepted cutover recovery terminal is not ACCEPTED"
