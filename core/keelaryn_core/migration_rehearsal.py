@@ -112,6 +112,15 @@ class DriveMigrationDisposableRehearsal:
         self.hub_root_id = hub_root_id
         self.progress = progress
 
+    def _progress(
+        self,
+        phase: str,
+        current: int | None = None,
+        total: int | None = None,
+    ) -> None:
+        if self.progress is not None:
+            self.progress(phase, current, total)
+
     @staticmethod
     def _same_pack(initial, current) -> None:
         if (
