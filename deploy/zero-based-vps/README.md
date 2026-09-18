@@ -52,6 +52,8 @@ A materialized release uses mode `0444` for files and `0555` for directories. Up
 
 Deployment transaction state is separate from `/run/keelaryn`. `/run/keelaryn` is disposable process-lock state. `/var/lib/keelaryn/deployment` is durable administrative publication/cutover provenance. `release_switch.py` and `hub_cutover.py` deliberately share its `LOCK` and `ACTIVE_TRANSACTION.json`, so a source switch and Hub cutover cannot be active concurrently. The state root, `terminal/`, and `history/` must be real directories owned by the effective administrative identity with mode `0700`; the lock is opened without following symlinks and must be a regular owner-controlled `0600` file.
 
+Immutable active/terminal/history transaction authority files are also owner-controlled mode `0600`. Target-host qualification acquires the shared lock non-blocking, requires no active transaction, rejects unexpected state-root objects, and verifies every retained terminal/history record as a private regular file before claiming host-config PASS.
+
 ## Service identity, credentials and selector
 
 Create a dedicated unprivileged `keelaryn` system account/group. The checked-in units clear Linux capabilities, use systemd sandboxing and expose only `/run/keelaryn` as an explicit writable runtime path.
@@ -115,10 +117,12 @@ PYTHONDONTWRITEBYTECODE=1 python3 -B \
   --expected-source-commit <exact-source-commit> \
   --expected-payload-sha256 <exact-qualified-payload-sha256> \
   --selector-path /etc/keelaryn/hub.env \
-  --installed-unit-dir /etc/systemd/system
+  --installed-unit-dir /etc/systemd/system \
+  --install-root /opt/keelaryn \
+  --deployment-state-root /var/lib/keelaryn/deployment
 ```
 
-The host-config form is an administrative/root validation because `/etc/keelaryn/hub.env` is intentionally root-only. After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material in the release. Deterministic `tests/core` still run in development CI; the dedicated target-host validator does not replace or weaken them. A development-CI PASS is not production qualification; target-host validation is a separate evidence class.
+The host-config form is an administrative/root validation because `/etc/keelaryn/hub.env` and deployment transaction state are intentionally administrative. It additionally requires `/opt/keelaryn/current` to be the exact canonical relative symlink to the validated source commit and requires the shared deployment state root to be secure, lockable and IDLE. After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material in the release. Deterministic `tests/core` still run in development CI; the dedicated target-host validator does not replace or weaken them. A development-CI PASS is not production qualification; target-host validation is a separate evidence class.
 
 ## First installation
 
@@ -126,7 +130,15 @@ The host-config form is an administrative/root validation because `/etc/keelaryn
 2. Create `/opt/keelaryn/releases` and materialize the exact approved payload using both qualified identities.
 3. Run release-only `target_host_validate.py` with the exact source commit and payload SHA-256.
 4. Create `/opt/keelaryn/current` as a **relative** symlink exactly `current -> releases/<exact-source-commit>`.
-5. Create `/var/lib/keelaryn/deployment` for the administrative deployment identity with mode `0700`.
+5. Create the shared deployment transaction layout for the administrative identity before host-config qualification. The root plus `terminal/` and `history/` are mode `0700`; pre-create the lock as a private regular mode-`0600` file. For a root-administered installation:
+
+   ```bash
+   install -d -o root -g root -m 0700 \
+     /var/lib/keelaryn/deployment \
+     /var/lib/keelaryn/deployment/terminal \
+     /var/lib/keelaryn/deployment/history
+   install -o root -g root -m 0600 /dev/null /var/lib/keelaryn/deployment/LOCK
+   ```
 6. Install both checked-in systemd units under `/etc/systemd/system/`.
 7. Create `/etc/keelaryn/drive.env` from its example and set `root:root 0600`.
 8. Create `/etc/keelaryn/hub.env` as exact canonical bytes. Do not quote the value or copy generic shell/systemd quoting into this file:
@@ -140,7 +152,7 @@ The host-config form is an administrative/root validation because `/etc/keelaryn
    ```
 
    The resulting file must contain only that one assignment with LF framing: no quotes, comments, CRLF, whitespace variants or extra assignments.
-9. Run the host-config form of `target_host_validate.py` against `/etc/keelaryn/hub.env` and `/etc/systemd/system`. This must PASS **before any OAuth/Drive bootstrap or live acceptance use**.
+9. Run the host-config form of `target_host_validate.py` against the exact selector, installed units, `/opt/keelaryn` active-release root and `/var/lib/keelaryn/deployment`. This must prove exact active release plus secure IDLE transaction state and PASS **before any OAuth/Drive bootstrap or live acceptance use**.
 10. Run `systemctl daemon-reload`.
 11. Initialize or verify the **disposable/test Hub** through the unprivileged oneshot:
 

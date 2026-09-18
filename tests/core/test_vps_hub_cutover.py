@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import sys
 import tempfile
 import unittest
@@ -242,6 +243,45 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
                     "accept",
                 ]
             )
+
+    def test_transaction_authority_files_remain_owner_private(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            old_umask = os.umask(0)
+            try:
+                selector, state = self.layout(Path(temp))
+                switch = self.switch(selector, state)
+                txid = switch.prepare(self.NEW)["transaction_id"]
+                active = state / cutovermod.ACTIVE_NAME
+                self.assertEqual(stat.S_IMODE(active.stat().st_mode), 0o600)
+                self.assertEqual(active.stat().st_uid, os.geteuid())
+                switch.apply()
+                switch.accept()
+                history = state / "history" / f"{txid}.json"
+                terminal = state / "terminal" / f"{txid}.json"
+                self.assertEqual(stat.S_IMODE(history.stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE(terminal.stat().st_mode), 0o600)
+            finally:
+                os.umask(old_umask)
+
+    def test_active_or_terminal_mode_drift_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            selector, state = self.layout(Path(temp))
+            switch = self.switch(selector, state)
+            switch.prepare(self.NEW)
+            os.chmod(state / cutovermod.ACTIVE_NAME, 0o644)
+            with self.assertRaises(cutovermod.HubCutoverError):
+                switch.status()
+
+        with tempfile.TemporaryDirectory() as temp:
+            selector, state = self.layout(Path(temp))
+            switch = self.switch(selector, state)
+            txid = switch.prepare(self.NEW)["transaction_id"]
+            switch.apply()
+            with self.assertRaises(Crash):
+                self.switch(selector, state, fault_hook=self.hook("accept.after_terminal_create")).accept()
+            os.chmod(state / "terminal" / f"{txid}.json", 0o644)
+            with self.assertRaises(cutovermod.HubCutoverError):
+                self.switch(selector, state).status()
 
     def test_insecure_state_or_lock_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

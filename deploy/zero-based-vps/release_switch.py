@@ -103,22 +103,40 @@ def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
     return path
 
 
+def _private_regular_file(path: Path, label: str) -> Path:
+    path = path.absolute()
+    if path.is_symlink() or not path.is_file():
+        raise ReleaseSwitchError(f"{label} must be a regular file")
+    info = path.stat(follow_symlinks=False)
+    if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600:
+        raise ReleaseSwitchError(f"{label} must be owner-controlled mode 0600")
+    return path
+
+
 def _atomic_create(path: Path, data: bytes) -> None:
     if path.exists() or path.is_symlink():
-        if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+        _private_regular_file(path, f"immutable file {path.name}")
+        if path.read_bytes() != data:
             raise ReleaseSwitchError(f"immutable file already exists with different identity: {path.name}")
         return
     temp = path.parent / f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
     try:
-        with temp.open("xb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "wb", closefd=False) as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(fd)
         try:
             os.link(temp, path)
         except FileExistsError:
-            if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+            _private_regular_file(path, f"immutable raced file {path.name}")
+            if path.read_bytes() != data:
                 raise ReleaseSwitchError(f"immutable file raced with different identity: {path.name}")
+        _private_regular_file(path, f"immutable file {path.name}")
         _fsync_dir(path.parent)
     finally:
         temp.unlink(missing_ok=True)
@@ -286,8 +304,10 @@ class ReleaseSwitch:
                 os.close(fd)
 
     def _load_active(self) -> tuple[bytes, dict[str, Any]]:
-        if self.active_path.is_symlink() or not self.active_path.is_file():
-            raise ReleaseSwitchError("no valid active release-switch transaction")
+        try:
+            _private_regular_file(self.active_path, "active release-switch transaction")
+        except ReleaseSwitchError as exc:
+            raise ReleaseSwitchError("no valid private active release-switch transaction") from exc
         try:
             raw = self.active_path.read_bytes()
         except OSError as exc:
@@ -327,8 +347,7 @@ class ReleaseSwitch:
         path = self._terminal_path(record["transaction_id"])
         if not path.exists() and not path.is_symlink():
             return None
-        if path.is_symlink() or not path.is_file():
-            raise ReleaseSwitchError("terminal marker path is not a regular file")
+        _private_regular_file(path, "deployment terminal marker")
         return _parse_terminal(path.read_bytes(), record_raw, record)
 
     def _verify_side(self, record: dict[str, Any], side: str) -> None:
@@ -443,10 +462,12 @@ class ReleaseSwitch:
             raise ReleaseSwitchError("terminal authority conflicts with current symlink identity")
         history = self._history_path(record["transaction_id"])
         if history.exists() or history.is_symlink():
-            if history.is_symlink() or not history.is_file() or history.read_bytes() != record_raw:
+            _private_regular_file(history, "deployment history record")
+            if history.read_bytes() != record_raw:
                 raise ReleaseSwitchError("deployment history identity conflict")
             if self.active_path.exists() or self.active_path.is_symlink():
-                if self.active_path.is_symlink() or not self.active_path.is_file() or self.active_path.read_bytes() != record_raw:
+                _private_regular_file(self.active_path, "active release-switch transaction")
+                if self.active_path.read_bytes() != record_raw:
                     raise ReleaseSwitchError("active/history deployment identity conflict")
                 self.active_path.unlink()
                 _fsync_dir(self.state_root)

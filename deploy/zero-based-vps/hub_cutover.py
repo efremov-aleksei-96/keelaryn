@@ -96,6 +96,16 @@ def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
     return path
 
 
+def _private_regular_file(path: Path, label: str) -> Path:
+    path = path.absolute()
+    if path.is_symlink() or not path.is_file():
+        raise HubCutoverError(f"{label} must be a regular file")
+    info = path.stat(follow_symlinks=False)
+    if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600:
+        raise HubCutoverError(f"{label} must be owner-controlled mode 0600")
+    return path
+
+
 def _selector_parent(path: Path) -> Path:
     parent = path.absolute().parent
     if parent.is_symlink() or not parent.is_dir():
@@ -133,7 +143,8 @@ def _read_selector(path: Path) -> tuple[str, bytes]:
 
 def _atomic_create(path: Path, data: bytes) -> None:
     if path.exists() or path.is_symlink():
-        if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+        _private_regular_file(path, f"immutable file {path.name}")
+        if path.read_bytes() != data:
             raise HubCutoverError(f"immutable file already exists with different identity: {path.name}")
         return
     temp = path.parent / f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
@@ -150,8 +161,10 @@ def _atomic_create(path: Path, data: bytes) -> None:
         try:
             os.link(temp, path)
         except FileExistsError:
-            if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+            _private_regular_file(path, f"immutable raced file {path.name}")
+            if path.read_bytes() != data:
                 raise HubCutoverError(f"immutable file raced with different identity: {path.name}")
+        _private_regular_file(path, f"immutable file {path.name}")
         _fsync_dir(path.parent)
     finally:
         temp.unlink(missing_ok=True)
@@ -313,8 +326,10 @@ class HubSelectorCutover:
                 os.close(fd)
 
     def _load_active(self) -> tuple[bytes, dict[str, Any]]:
-        if self.active_path.is_symlink() or not self.active_path.is_file():
-            raise HubCutoverError("no valid active Hub cutover transaction")
+        try:
+            _private_regular_file(self.active_path, "active Hub cutover transaction")
+        except HubCutoverError as exc:
+            raise HubCutoverError("no valid private active Hub cutover transaction") from exc
         raw = self.active_path.read_bytes()
         record = _parse_record(raw)
         if record["tool"] != self.tool_identity:
@@ -331,8 +346,7 @@ class HubSelectorCutover:
         path = self._terminal_path(record["transaction_id"])
         if not path.exists() and not path.is_symlink():
             return None
-        if path.is_symlink() or not path.is_file():
-            raise HubCutoverError("Hub cutover terminal marker path is not a regular file")
+        _private_regular_file(path, "Hub cutover terminal marker")
         return _parse_terminal(path.read_bytes(), record_raw, record)
 
     def _classify(self, record: dict[str, Any]) -> str:

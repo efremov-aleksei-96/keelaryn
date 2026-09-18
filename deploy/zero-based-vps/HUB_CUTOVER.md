@@ -238,7 +238,7 @@ Before production use:
 4. disposable selector `OLD -> NEW -> ACCEPTED` rehearsal PASS;
 5. disposable selector `OLD -> NEW -> OLD/ROLLED_BACK` rehearsal PASS;
 6. release-switch versus Hub-cutover mutual-exclusion regression PASS;
-7. target-host filesystem/ownership/mode checks PASS;
+7. target-host qualification proves the exact active `current` release, canonical selector/units and secure IDLE shared deployment-state filesystem/ownership/modes;
 8. production target construction/qualification PASS with `cutover_authorized=false`;
 9. explicit human production cutover approval is obtained;
 10. selector `apply` completes with the writer stopped;

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import sys
 import tempfile
 import unittest
@@ -218,6 +219,36 @@ class ZeroBasedVpsReleaseSwitchTests(unittest.TestCase):
                 with self.assertRaises(switchmod.ReleaseSwitchError):
                     switch.status()
                 self.assertEqual(self.current(install), f"releases/{self.OLD}")
+
+    def test_transaction_authority_files_are_private_even_with_umask_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            old_umask = os.umask(0)
+            try:
+                install, state = self.layout(Path(temp))
+                switch = switchmod.ReleaseSwitch(install, state)
+                txid = switch.prepare(self.NEW)["transaction_id"]
+                active = state / switchmod.ACTIVE_NAME
+                self.assertEqual(stat.S_IMODE(active.stat().st_mode), 0o600)
+                self.assertEqual(active.stat().st_uid, os.geteuid())
+                switch.apply()
+                switch.accept()
+                history = state / "history" / f"{txid}.json"
+                terminal = state / "terminal" / f"{txid}.json"
+                self.assertEqual(stat.S_IMODE(history.stat().st_mode), 0o600)
+                self.assertEqual(stat.S_IMODE(terminal.stat().st_mode), 0o600)
+                self.assertEqual(history.stat().st_uid, os.geteuid())
+                self.assertEqual(terminal.stat().st_uid, os.geteuid())
+            finally:
+                os.umask(old_umask)
+
+    def test_active_transaction_mode_drift_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            install, state = self.layout(Path(temp))
+            switch = switchmod.ReleaseSwitch(install, state)
+            switch.prepare(self.NEW)
+            os.chmod(state / switchmod.ACTIVE_NAME, 0o644)
+            with self.assertRaises(switchmod.ReleaseSwitchError):
+                switch.status()
 
     def test_terminal_or_history_mode_drift_is_rejected(self) -> None:
         for name in ("terminal", "history"):
