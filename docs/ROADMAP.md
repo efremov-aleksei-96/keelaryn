@@ -61,6 +61,12 @@ Automated review of Hub structure, duplicate truth, routing quality, stale index
 
 Additional machine-enforced locking for concurrent writers to one project work area is deferred unless practical use shows protocol-level single-writer discipline is insufficient.
 
+### Remote-first execution
+
+Move as much Keelaryn development, validation, qualification and routine operation as practical off the maintainer's local Windows workstation into managed or disposable environments, primarily GitHub Actions and the Linux VPS. Keep local Windows execution only where evidence materially depends on private artifacts, DPAPI/OAuth, workstation or production integration, Windows-specific filesystem/ACL/desktop behavior, or other host-local state.
+
+This is a future engineering and operational direction, not an MVP requirement. It must preserve Keelaryn's transaction-safety and qualification rules rather than trading validation for convenience.
+
 ## Explicitly not implied by the roadmap
 
 A roadmap item is not automatically approved for implementation, does not reserve a product version and does not become an MVP requirement merely by appearing here. Each item must be re-justified against current needs, safety, complexity and operating evidence before implementation.
