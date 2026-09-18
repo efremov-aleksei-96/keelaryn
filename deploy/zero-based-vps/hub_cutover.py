@@ -423,9 +423,29 @@ class HubSelectorCutover:
             _fault(self.fault_hook, "apply.after_selector_replace")
             return {"status": "APPLIED", "transaction_id": record["transaction_id"]}
 
-    def accept(self) -> dict[str, Any]:
+    def accept(
+        self,
+        *,
+        expected_active_transaction_sha256: str | None = None,
+    ) -> dict[str, Any]:
         with self.locked():
             record_raw, record = self._load_active()
+            if expected_active_transaction_sha256 is not None:
+                if (
+                    not isinstance(expected_active_transaction_sha256, str)
+                    or len(expected_active_transaction_sha256) != 64
+                    or any(
+                        ch not in "0123456789abcdef"
+                        for ch in expected_active_transaction_sha256
+                    )
+                ):
+                    raise HubCutoverError(
+                        "expected active Hub cutover transaction SHA-256 is invalid"
+                    )
+                if hashlib.sha256(record_raw).hexdigest() != expected_active_transaction_sha256:
+                    raise HubCutoverError(
+                        "active Hub cutover transaction changed at terminal accept boundary"
+                    )
             terminal = self._load_terminal(record_raw, record)
             if terminal is not None:
                 if terminal["outcome"] != "ACCEPTED":

@@ -114,6 +114,32 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
             self.assertEqual(recovered.status()["status"], "APPLIED")
             self.assertEqual(recovered.accept(), {"status": "IDLE"})
 
+    def test_accept_expected_transaction_hash_blocks_replaced_active_transaction(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            selector, state = self.layout(Path(temp))
+            first = self.switch(selector, state)
+            first.prepare(self.NEW)
+            first.apply()
+            first_raw = (state / cutovermod.ACTIVE_NAME).read_bytes()
+            first_sha = __import__("hashlib").sha256(first_raw).hexdigest()
+
+            first.rollback()
+            second = self.switch(selector, state)
+            second.prepare(self.OTHER)
+            second.apply()
+
+            with self.assertRaisesRegex(
+                cutovermod.HubCutoverError,
+                "changed at terminal accept boundary",
+            ):
+                second.accept(expected_active_transaction_sha256=first_sha)
+
+            self.assertEqual(second.status()["status"], "APPLIED")
+            self.assertEqual(self.selected(selector), self.OTHER)
+            self.assertEqual(list((state / "terminal").glob("*.json"))[-1].name.endswith(".json"), True)
+            second_txid = json.loads((state / cutovermod.ACTIVE_NAME).read_text(encoding="utf-8"))["transaction_id"]
+            self.assertFalse((state / "terminal" / f"{second_txid}.json").exists())
+
     def test_crash_after_accept_terminal_cannot_be_changed_to_rollback(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             selector, state = self.layout(Path(temp))

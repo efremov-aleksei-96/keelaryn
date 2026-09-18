@@ -412,7 +412,9 @@ def main() -> int:
             phase = "terminal-recovery"
             receipt = _strict_receipt(receipt_path)
             _verify_receipt_against_active(switch, receipt)
-            switch.accept()
+            switch.accept(
+                expected_active_transaction_sha256=receipt["active_transaction_sha256"]
+            )
             _verify_terminal_recovery(switch, receipt)
             print(_render_sanitized(_public_result(receipt), forbidden), flush=True)
             return 0
@@ -460,7 +462,9 @@ def main() -> int:
         _verify_receipt_against_active(switch, receipt)
 
         phase = "terminal-accept"
-        result = switch.accept()
+        result = switch.accept(
+            expected_active_transaction_sha256=receipt["active_transaction_sha256"]
+        )
         if result != {"status": "IDLE"}:
             raise LivePostCutoverFinalizationError(
                 "Hub cutover terminal acceptance did not settle to IDLE"
