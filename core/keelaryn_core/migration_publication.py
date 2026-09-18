@@ -237,7 +237,14 @@ class DriveMigrationCanonicalPublication:
                 required.add("/".join(parts[:end]))
         return required
 
-    def _canonical_matches(self, pack, canonical_root_id: str, *, include_payloads: bool) -> bool:
+    def _canonical_matches(
+        self,
+        pack,
+        canonical_root_id: str,
+        *,
+        include_payloads: bool,
+        verify_payload_bytes: bool = True,
+    ) -> bool:
         expected_directories = self._required_directories(pack)
         expected_files = {entry.target: entry for entry in pack.canonical_outputs}
         seen_directories: set[str] = set()
@@ -261,10 +268,13 @@ class DriveMigrationCanonicalPublication:
                 if not include_payloads or logical not in expected_files:
                     return False
                 entry = expected_files[logical]
-                raw = self.drive.download(item.file_id)
                 expected = BlobState(entry.sha256, entry.size)
-                if BlobState.from_bytes(raw) != expected or not expected.matches(item):
+                if not expected.matches(item):
                     return False
+                if verify_payload_bytes:
+                    raw = self.drive.download(item.file_id)
+                    if BlobState.from_bytes(raw) != expected:
+                        return False
                 seen_files.add(logical)
             return True
 

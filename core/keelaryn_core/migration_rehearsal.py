@@ -291,6 +291,7 @@ class DriveMigrationDisposableRehearsal:
                 f"{publication.outcome} epoch {publication.canonical_epoch}"
             )
 
+        self._progress("preservation")
         try:
             preservation = DriveMigrationPreservationMaterialization(
                 self.drive,
@@ -305,6 +306,7 @@ class DriveMigrationDisposableRehearsal:
             router = DriveMigrationRootIndexPublication(
                 self.drive,
                 self.hub_root_id,
+                progress=self.progress,
             ).run(pack.root)
         except DriveMigrationRouterPublicationBlocked as exc:
             raise DriveMigrationRehearsalBlocked(
@@ -321,8 +323,11 @@ class DriveMigrationDisposableRehearsal:
         pack = refreshed
 
         self._verify_master(pack)
+        self._progress("canonical-reader")
         reader_epoch, canonical_inventory_sha256 = self._verify_canonical_reader(pack)
+        self._progress("workflow-verification")
         project_count, reconciliation_sha256 = self._verify_workflow_structure(pack)
+        self._progress("idle-restart")
         no_op_phase, restart_state = self._prove_idle_and_restart()
 
         try:
@@ -332,6 +337,7 @@ class DriveMigrationDisposableRehearsal:
                 f"private migration pack verification failed after acceptance checks: {exc}"
             ) from exc
         self._same_pack(pack, final_pack)
+        self._progress("final-master")
         self._verify_master(final_pack)
 
         return DriveMigrationRehearsalEvidence(

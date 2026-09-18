@@ -134,6 +134,7 @@ class DriveMigrationPreservationMaterialization:
             pack,
             layout.canonical_root_id,
             include_payloads=True,
+            verify_payload_bytes=False,
         ):
             raise DriveMigrationMaterializationBlocked(
                 "migration committed canonical inventory no longer matches private pack"

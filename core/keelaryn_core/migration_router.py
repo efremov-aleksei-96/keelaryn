@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from .drive_backend import DriveBackend, DriveItem
@@ -61,9 +62,20 @@ class DriveMigrationRootIndexPublication:
     namespaces, MASTER.json, README.md, or Reconciliation state.
     """
 
-    def __init__(self, drive: DriveBackend, hub_root_id: str):
+    def __init__(
+        self,
+        drive: DriveBackend,
+        hub_root_id: str,
+        *,
+        progress: Callable[[str, int | None, int | None], None] | None = None,
+    ):
         self.drive = drive
         self.hub_root_id = hub_root_id
+        self.progress = progress
+
+    def _progress(self, phase: str) -> None:
+        if self.progress is not None:
+            self.progress(phase, None, None)
 
     @staticmethod
     def _reload_same_pack(pack):
@@ -187,6 +199,7 @@ class DriveMigrationRootIndexPublication:
         # The router is the final migration-target data-construction surface.  It
         # may not point at a target whose canonical or preservation material is
         # incomplete, rolled back, ambiguous, or changed after COMMIT.
+        self._progress("router-precheck")
         pack = self._verify_preservation_complete(pack)
         target_raw = self._packed_index(pack)
         bootstrap_raw = DriveHubBootstrap.initial_index_bytes()
@@ -236,6 +249,7 @@ class DriveMigrationRootIndexPublication:
                 "migration root INDEX identity changed before router commit"
             )
 
+        self._progress("router-commit")
         self.drive.replace_blob_content(
             commit_item,
             target_raw,
@@ -251,6 +265,7 @@ class DriveMigrationRootIndexPublication:
         # A failure below is explicitly post-commit: the INDEX update has already
         # become durable.  Do not pretend it did not happen or overwrite it with
         # guessed rollback state; a rerun re-observes COMMITTED bytes safely.
+        self._progress("router-postcheck")
         try:
             pack = self._verify_preservation_complete(pack)
             final_item, final_raw, _ = self._observe_index()
