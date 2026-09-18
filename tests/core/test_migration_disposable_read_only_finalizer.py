@@ -60,7 +60,7 @@ class _FakeEvidence:
 
 class MigrationDisposableReadOnlyFinalizerTests(unittest.TestCase):
     CURRENT = "a" * 40
-    CONSTRUCTION = "b" * 40
+    MUTATION = "b" * 40
 
     def _env(self):
         return {
@@ -69,7 +69,7 @@ class MigrationDisposableReadOnlyFinalizerTests(unittest.TestCase):
             "KEELARYN_DISPOSABLE_ACCEPTANCE_ROOT_ID": "drive-acceptance-secret-id",
             "KEELARYN_MIGRATION_PACK_DIR": "/private/migration/candidate-001",
             "KEELARYN_SOURCE_COMMIT": self.CURRENT,
-            "KEELARYN_MIGRATION_REHEARSAL_CONSTRUCTION_SOURCE_COMMIT": self.CONSTRUCTION,
+            "KEELARYN_MIGRATION_REHEARSAL_MUTATION_SOURCE_COMMIT": self.MUTATION,
         }
 
     @staticmethod
@@ -83,9 +83,9 @@ class MigrationDisposableReadOnlyFinalizerTests(unittest.TestCase):
 
     def _provenance(self):
         return {
-            "construction_source_commit": self.CONSTRUCTION,
+            "mutation_source_commit": self.MUTATION,
             "current_source_commit": self.CURRENT,
-            "mutation_closure_file_count": 49,
+            "mutation_closure_file_count": 48,
             "mutation_closure_sha256": "f" * 64,
         }
 
@@ -144,7 +144,7 @@ class MigrationDisposableReadOnlyFinalizerTests(unittest.TestCase):
                 return self.CURRENT
             if args == ("status", "--porcelain=v1", "--untracked-files=all"):
                 return ""
-            if args == ("cat-file", "-e", f"{self.CONSTRUCTION}^{{commit}}"):
+            if args == ("cat-file", "-e", f"{self.MUTATION}^{{commit}}"):
                 return ""
             if args[0] == "rev-parse" and ":" in args[1]:
                 path = args[1].split(":", 1)[1]
@@ -156,7 +156,7 @@ class MigrationDisposableReadOnlyFinalizerTests(unittest.TestCase):
         ):
             value = module._verify_git_provenance()
 
-        self.assertEqual(value["construction_source_commit"], self.CONSTRUCTION)
+        self.assertEqual(value["mutation_source_commit"], self.MUTATION)
         self.assertEqual(value["current_source_commit"], self.CURRENT)
         self.assertEqual(
             value["mutation_closure_file_count"],
@@ -173,7 +173,7 @@ class MigrationDisposableReadOnlyFinalizerTests(unittest.TestCase):
                 return self.CURRENT
             if args == ("status", "--porcelain=v1", "--untracked-files=all"):
                 return ""
-            if args == ("cat-file", "-e", f"{self.CONSTRUCTION}^{{commit}}"):
+            if args == ("cat-file", "-e", f"{self.MUTATION}^{{commit}}"):
                 return ""
             if args[0] == "rev-parse" and ":" in args[1]:
                 commit, path = args[1].split(":", 1)

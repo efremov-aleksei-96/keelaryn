@@ -25,8 +25,8 @@ from keelaryn_core.migration_rehearsal import DriveMigrationDisposableRehearsal 
 from keelaryn_core.protocol import ProtocolError  # noqa: E402
 
 
-SCHEMA = "keelaryn.migration-disposable-read-only-finalization.v1"
-CLOSURE_SCHEMA = "keelaryn.migration-disposable-construction-closure.v1"
+SCHEMA = "keelaryn.migration-disposable-read-only-finalization.v2"
+CLOSURE_SCHEMA = "keelaryn.migration-disposable-mutation-closure.v1"
 MUTATION_CLOSURE_PATHS = (
     "tests/live/run_migration_disposable_rehearsal.py",
     "tests/live/drive_disposable_acceptance.py",
@@ -46,7 +46,6 @@ MUTATION_CLOSURE_PATHS = (
     "core/keelaryn_core/drive_oauth.py",
     "core/keelaryn_core/drive_postcheck.py",
     "core/keelaryn_core/drive_project.py",
-    "core/keelaryn_core/drive_reader.py",
     "core/keelaryn_core/drive_recovery_block.py",
     "core/keelaryn_core/drive_rest.py",
     "core/keelaryn_core/drive_runtime.py",
@@ -262,9 +261,9 @@ def _verify_git_provenance() -> dict[str, Any]:
         _required("KEELARYN_SOURCE_COMMIT"),
         "current source commit",
     )
-    construction = _commit(
-        _required("KEELARYN_MIGRATION_REHEARSAL_CONSTRUCTION_SOURCE_COMMIT"),
-        "rehearsal construction source commit",
+    mutation_source = _commit(
+        _required("KEELARYN_MIGRATION_REHEARSAL_MUTATION_SOURCE_COMMIT"),
+        "rehearsal mutation source commit",
     )
     current = _commit(_git("rev-parse", "HEAD"), "observed Git HEAD")
     if current != expected_current:
@@ -275,15 +274,15 @@ def _verify_git_provenance() -> dict[str, Any]:
         raise LiveMigrationDisposableReadOnlyFinalizationError(
             "read-only finalization requires a clean Git worktree"
         )
-    _git("cat-file", "-e", f"{construction}^{{commit}}")
+    _git("cat-file", "-e", f"{mutation_source}^{{commit}}")
 
     entries: list[dict[str, str]] = []
     for path in MUTATION_CLOSURE_PATHS:
-        construction_blob = _blob_oid(construction, path)
+        mutation_blob = _blob_oid(mutation_source, path)
         current_blob = _blob_oid(current, path)
-        if construction_blob != current_blob:
+        if mutation_blob != current_blob:
             raise LiveMigrationDisposableReadOnlyFinalizationError(
-                "mutation-bearing rehearsal closure changed since construction"
+                "mutation-bearing rehearsal closure changed since final mutation source"
             )
         entries.append({"path": path, "blob_oid": current_blob})
 
@@ -291,7 +290,7 @@ def _verify_git_provenance() -> dict[str, Any]:
         json.dumps(
             {
                 "schema": CLOSURE_SCHEMA,
-                "construction_source_commit": construction,
+                "mutation_source_commit": mutation_source,
                 "current_source_commit": current,
                 "entries": entries,
             },
@@ -302,7 +301,7 @@ def _verify_git_provenance() -> dict[str, Any]:
         + "\n"
     ).encode("utf-8")
     return {
-        "construction_source_commit": construction,
+        "mutation_source_commit": mutation_source,
         "current_source_commit": current,
         "mutation_closure_file_count": len(entries),
         "mutation_closure_sha256": hashlib.sha256(raw).hexdigest(),

@@ -49,11 +49,11 @@ class MigrationCandidateFreezeLiveRunnerTests(unittest.TestCase):
 
     def _rehearsal(self, *, source_commit: str | None = None):
         return {
-            "schema": "keelaryn.migration-disposable-read-only-finalization.v1",
+            "schema": "keelaryn.migration-disposable-read-only-finalization.v2",
             "run_id": "private-run-id",
-            "construction_source_commit": "d" * 40,
+            "mutation_source_commit": "d" * 40,
             "current_source_commit": source_commit or self.SOURCE,
-            "mutation_closure_file_count": 49,
+            "mutation_closure_file_count": 48,
             "mutation_closure_sha256": "e" * 64,
             "rehearsal": {
                 "schema": "keelaryn.migration-rehearsal-evidence.v1",

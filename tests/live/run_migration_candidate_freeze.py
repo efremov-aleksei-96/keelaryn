@@ -27,7 +27,7 @@ from keelaryn_core.protocol import ProtocolError, strict_json_bytes  # noqa: E40
 
 SCHEMA = "keelaryn.migration-candidate-freeze-live.v1"
 FAILURE_SCHEMA = "keelaryn.migration-candidate-freeze-live-failure.v1"
-READ_ONLY_REHEARSAL_SCHEMA = "keelaryn.migration-disposable-read-only-finalization.v1"
+READ_ONLY_REHEARSAL_SCHEMA = "keelaryn.migration-disposable-read-only-finalization.v2"
 REHEARSAL_SCHEMA = "keelaryn.migration-rehearsal-evidence.v1"
 
 
@@ -101,7 +101,7 @@ def _strict_rehearsal_evidence(
     expected = {
         "schema",
         "run_id",
-        "construction_source_commit",
+        "mutation_source_commit",
         "current_source_commit",
         "mutation_closure_file_count",
         "mutation_closure_sha256",
@@ -120,8 +120,8 @@ def _strict_rehearsal_evidence(
             "read-only rehearsal evidence schema mismatch"
         )
     _commit(
-        value["construction_source_commit"],
-        "read-only rehearsal construction source commit",
+        value["mutation_source_commit"],
+        "read-only rehearsal mutation source commit",
     )
     current = _commit(
         value["current_source_commit"],

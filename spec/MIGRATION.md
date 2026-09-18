@@ -129,7 +129,7 @@ If the mutation-bearing rehearsal durably reaches its terminal migrated state bu
 
 - require the exact existing rehearsal child; it never creates a replacement child;
 - verify the exact private migration pack before OAuth and again after acceptance;
-- bind the original rehearsal construction source commit to the current source commit by requiring byte-identical Git blob identities for the complete mutation-bearing rehearsal closure;
+- bind the exact source commit that performed the final durable rehearsal mutation to the current source commit by requiring byte-identical Git blob identities for the complete mutation-bearing rehearsal closure; later read-only acceptance/reader fixes are not part of this mutation provenance closure;
 - wrap the live Drive backend in a fail-closed read-only guard that permits only observation operations and rejects every mutation-capable backend method before transport;
 - replay the ordinary rehearsal acceptance logic only under that read-only guard;
 - require exact PASS, canonical/reader epoch 1, IDLE and READY_CLEAN;
@@ -143,7 +143,7 @@ After coherent development PASS and before any production-target qualification, 
 
 Candidate freeze is an **identity/provenance freeze only**. Its terminal receipt status is exactly `FROZEN_UNQUALIFIED`; creating or verifying that receipt does not claim production qualification, cutover approval, or permission to mutate the production Hub.
 
-The supported executable boundary is `tests/live/run_migration_candidate_freeze.py` (or its checked-in PowerShell launcher). It must not issue a freeze until it has validated an exact `keelaryn.migration-disposable-read-only-finalization.v1` PASS for the same current source commit, candidate ID and private-pack digest. This makes the final no-mutation rehearsal reconciliation a technical prerequisite for freeze rather than an operator convention.
+The supported executable boundary is `tests/live/run_migration_candidate_freeze.py` (or its checked-in PowerShell launcher). It must not issue a freeze until it has validated an exact `keelaryn.migration-disposable-read-only-finalization.v2` PASS for the same current source commit, candidate ID and private-pack digest. This makes the final no-mutation rehearsal reconciliation a technical prerequisite for freeze rather than an operator convention.
 
 The freeze operation must:
 
