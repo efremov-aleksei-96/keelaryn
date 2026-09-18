@@ -616,6 +616,12 @@ class DriveMigrationPostCutoverReadOnlyAcceptance:
                 "production target authority/evidence changed during acceptance"
             )
 
+        # Re-observe remote topology after every potentially expensive acceptance
+        # read and all local provenance checks. A target/staging move, rename,
+        # sentinel change or unexpected staging child must fail closed before this
+        # process can authorize terminal Hub cutover acceptance.
+        self._verify_target_and_staging(final_authority)
+
         selected_digest = sha256(self.selected_hub_root_id.encode("utf-8")).hexdigest()
         return DriveMigrationPostCutoverAcceptanceEvidence(
             candidate_id=pack.candidate_id,

@@ -278,6 +278,61 @@ class MigrationPostCutoverAcceptanceTests(unittest.TestCase):
                         pack.root, freeze, repo, authority, qualification
                     )
 
+    def test_remote_topology_drift_during_acceptance_is_rejected_at_final_boundary(self) -> None:
+        cases = ("target-reparent", "target-rename", "sentinel-tamper", "unexpected-child")
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                repo, pack, freeze, drive, staging, authority, qualification, target_id = self._fixture(root)
+                original = DriveMigrationPostCutoverReadOnlyAcceptance._verify_workflow_and_router
+
+                def verify_then_drift(service, current_pack):
+                    value = original(service, current_pack)
+                    if case == "target-reparent":
+                        drive.move_rename(
+                            target_id,
+                            "root",
+                            "escaped-production-target",
+                            label="test.post-cutover-target-reparent",
+                        )
+                    elif case == "target-rename":
+                        drive.move_rename(
+                            target_id,
+                            staging,
+                            "renamed-production-target",
+                            label="test.post-cutover-target-rename",
+                        )
+                    elif case == "sentinel-tamper":
+                        sentinel = drive.exact_name(staging, STAGING_SENTINEL_NAME)
+                        assert sentinel is not None
+                        drive.update_content(
+                            sentinel.file_id,
+                            b"tampered staging sentinel\n",
+                            label="test.post-cutover-sentinel-tamper",
+                        )
+                    else:
+                        drive.create_blob(
+                            staging,
+                            "unexpected-after-observation.txt",
+                            b"unexpected\n",
+                            label="test.post-cutover-unexpected-child",
+                        )
+                    return value
+
+                with patch.object(
+                    DriveMigrationPostCutoverReadOnlyAcceptance,
+                    "_verify_workflow_and_router",
+                    new=verify_then_drift,
+                ):
+                    with self.assertRaises(DriveMigrationPostCutoverAcceptanceBlocked):
+                        DriveMigrationPostCutoverReadOnlyAcceptance(drive, target_id).run(
+                            pack.root,
+                            freeze,
+                            repo,
+                            authority,
+                            qualification,
+                        )
+
     def test_master_not_ready_clean_and_preservation_tamper_are_rejected(self) -> None:
         cases = ("master", "preservation")
         for case in cases:
