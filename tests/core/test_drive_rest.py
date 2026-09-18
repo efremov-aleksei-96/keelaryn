@@ -226,6 +226,96 @@ class GoogleDriveRestTests(unittest.TestCase):
             {"id": "copy-id", "name": "copy.bin", "parents": ["dest-parent"]},
         )
 
+    def test_exact_blob_replacement_rechecks_identity_then_uses_media_patch(self) -> None:
+        old = b"bootstrap index"
+        replacement = b"migrated index"
+        old_metadata = _blob_metadata(
+            "index-id",
+            "hub-root",
+            "INDEX.md",
+            old,
+            version=7,
+        )
+        old_metadata["mimeType"] = "text/markdown"
+        new_metadata = _blob_metadata(
+            "index-id",
+            "hub-root",
+            "INDEX.md",
+            replacement,
+            version=8,
+        )
+        new_metadata["mimeType"] = "text/markdown"
+        expected = GoogleDriveBackend._item(old_metadata, label="TEST_INDEX")
+
+        http = _ScriptedHttp(
+            _json_response(old_metadata),
+            _json_response(new_metadata),
+        )
+        drive = GoogleDriveBackend("token", http=http)
+
+        result = drive.replace_blob_content(
+            expected,
+            replacement,
+            label="drive.migration.router.candidate.index.replace",
+        )
+
+        self.assertEqual(result.file_id, expected.file_id)
+        self.assertEqual(result.parent_id, expected.parent_id)
+        self.assertEqual(result.name, expected.name)
+        self.assertEqual(result.mime_type, expected.mime_type)
+        self.assertEqual(result.sha256_checksum, hashlib.sha256(replacement).hexdigest())
+        self.assertEqual(result.size, len(replacement))
+        self.assertGreater(result.version, expected.version)
+        self.assertEqual(len(http.calls), 2)
+
+        preflight = http.calls[0]
+        self.assertEqual(preflight["method"], "GET")
+        self.assertEqual(urlsplit(str(preflight["url"])).path, "/drive/v3/files/index-id")
+
+        update = http.calls[1]
+        self.assertEqual(update["method"], "PATCH")
+        split = urlsplit(str(update["url"]))
+        self.assertEqual(split.path, "/upload/drive/v3/files/index-id")
+        query = parse_qs(split.query)
+        self.assertEqual(query["uploadType"], ["media"])
+        self.assertEqual(query["supportsAllDrives"], ["true"])
+        self.assertEqual(update["body"], replacement)
+        headers = update["headers"]
+        assert isinstance(headers, dict)
+        self.assertEqual(headers["Content-Type"], "text/markdown")
+
+    def test_exact_blob_replacement_rejects_stale_observation_before_mutation(self) -> None:
+        expected_metadata = _blob_metadata(
+            "index-id",
+            "hub-root",
+            "INDEX.md",
+            b"old",
+            version=7,
+        )
+        expected_metadata["mimeType"] = "text/markdown"
+        changed_metadata = _blob_metadata(
+            "index-id",
+            "hub-root",
+            "INDEX.md",
+            b"externally changed",
+            version=8,
+        )
+        changed_metadata["mimeType"] = "text/markdown"
+        expected = GoogleDriveBackend._item(expected_metadata, label="TEST_INDEX")
+
+        http = _ScriptedHttp(_json_response(changed_metadata))
+        drive = GoogleDriveBackend("token", http=http)
+
+        with self.assertRaises(ProtocolError):
+            drive.replace_blob_content(
+                expected,
+                b"migrated index",
+                label="drive.migration.router.candidate.index.replace",
+            )
+
+        self.assertEqual(len(http.calls), 1)
+        self.assertEqual(http.calls[0]["method"], "GET")
+
     def test_in_place_content_update_is_forbidden_without_http(self) -> None:
         http = _ScriptedHttp()
         drive = GoogleDriveBackend("token", http=http)

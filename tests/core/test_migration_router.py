@@ -25,7 +25,7 @@ from keelaryn_core.migration_router import (  # noqa: E402
     DriveMigrationRootIndexPublication,
     DriveMigrationRouterPublicationBlocked,
 )
-from keelaryn_core.protocol import FaultInjector, InjectedCrash, canonical_json_bytes  # noqa: E402
+from keelaryn_core.protocol import FaultInjector, InjectedCrash, ProtocolError, canonical_json_bytes  # noqa: E402
 
 
 class DriveMigrationRootIndexPublicationTests(unittest.TestCase):
@@ -212,6 +212,43 @@ class DriveMigrationRootIndexPublicationTests(unittest.TestCase):
             self.assertEqual(drive.download(profile.file_id), profile_raw)
             self.assertEqual(drive.download(project_note.file_id), project_note_raw)
             self.assertEqual(drive.download(archive.file_id), archive_raw)
+
+    def test_router_uses_exact_blob_replacement_not_generic_update(self) -> None:
+        class ExactReplacementDrive(DriveModel):
+            def update_content(self, file_id, content, *, label="drive.update_content"):
+                raise ProtocolError("generic in-place update is forbidden")
+
+            def replace_blob_content(self, expected, content, *, label="drive.replace_blob_content"):
+                current = self.get(expected.file_id, include_trashed=False)
+                if current != expected:
+                    raise ProtocolError("exact blob observation changed before replacement")
+                return DriveModel.update_content(
+                    self,
+                    expected.file_id,
+                    content,
+                    label=label,
+                )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pack, target_index_raw = self.build_pack(
+                Path(tmp),
+                candidate_id="migration-router-exact-replace",
+            )
+            drive = ExactReplacementDrive(fault=FaultInjector())
+            hub = drive.create_folder("root", "Disposable Migration Hub", label="setup.hub")
+            hub_id = hub.file_id
+            DriveHubBootstrap(drive, hub_id).run()
+            self.construct_data_target(drive, hub_id, pack)
+
+            before = drive.exact_name(hub_id, "INDEX.md")
+            assert before is not None
+            evidence = DriveMigrationRootIndexPublication(drive, hub_id).run(pack.root)
+            after = drive.exact_name(hub_id, "INDEX.md")
+            assert after is not None
+
+            self.assertEqual(evidence.outcome, "COMMITTED")
+            self.assertEqual(after.file_id, before.file_id)
+            self.assertEqual(drive.download(after.file_id), target_index_raw)
 
     def test_requires_complete_preservation_before_router_commit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
