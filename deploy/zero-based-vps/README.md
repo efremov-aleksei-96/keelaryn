@@ -15,6 +15,7 @@ The MVP runtime is one long-lived `keelaryn_core.drive_poller serve` process on 
 - `build_payload.py` — deterministic exact-source payload builder;
 - `materialize_payload.py` — strict payload verifier and immutable release materializer;
 - `target_host_validate.py` — root-safe, bytecode-free target-host/release validation surface;
+- `deployment_state_normalize.py` — explicit fail-closed upgrade normalization for legacy deployment provenance permissions;
 - `release_switch.py` — durable restartable `current` source publication/rollback transaction;
 - `hub_cutover.py` — durable restartable production Hub-selector cutover/rollback transaction;
 - `HUB_CUTOVER.md` — exact production selector and cutover contract.
@@ -130,6 +131,45 @@ PYTHONDONTWRITEBYTECODE=1 python3 -B \
 ```
 
 The host-config form is an administrative/root validation because `/etc/keelaryn/hub.env` and deployment transaction state are intentionally administrative. It additionally requires `/opt/keelaryn/current` to be the exact canonical relative symlink to the validated source commit and requires the shared deployment state root to be secure, lockable and IDLE. After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material in the release. Deterministic `tests/core` still run in development CI; the dedicated target-host validator does not replace or weaken them. A development-CI PASS is not production qualification; target-host validation is a separate evidence class.
+
+## Existing-installation deployment provenance normalization
+
+Older zero-based releases could create otherwise-valid retained `terminal/*.json` and
+`history/*.json` provenance as mode `0644` because their atomic-create helper inherited
+the administrative shell umask. Current target-host qualification intentionally requires
+every retained authority record to be private mode `0600`.
+
+Do **not** repair these records with ad-hoc `chmod` and do not weaken
+`target_host_validate.py`. After materializing and release-only validating the exact NEW
+release, but while the shared deployment transaction root is IDLE, use the normalization
+tool from that exact NEW release:
+
+```bash
+NEW_RELEASE=/opt/keelaryn/releases/<exact-new-source-commit>
+
+PYTHONDONTWRITEBYTECODE=1 python3 -B \
+  "$NEW_RELEASE/deploy/zero-based-vps/deployment_state_normalize.py" \
+  --state-root /var/lib/keelaryn/deployment \
+  check
+
+PYTHONDONTWRITEBYTECODE=1 python3 -B \
+  "$NEW_RELEASE/deploy/zero-based-vps/deployment_state_normalize.py" \
+  --state-root /var/lib/keelaryn/deployment \
+  apply
+```
+
+The tool takes the deployment `LOCK` exclusively, requires no
+`ACTIVE_TRANSACTION.json`, validates the complete root before any chmod, accepts only
+already-private `0600` or the exact legacy `0644` mode, rejects symlinks, unknown
+schemas, transaction-ID mismatches and any other mode, and changes only `0644 -> 0600`.
+It revalidates inode/size/SHA-256 at the mutation boundary and proves every retained
+record has the same bytes and SHA-256 afterward. A partially completed run is safe to
+reconcile and repeat because permission tightening is monotonic and the operation is
+idempotent.
+
+Preserve the emitted JSON as production upgrade evidence. A normalization PASS repairs
+deployment metadata only; it does not qualify a candidate, mutate `current`, touch the
+Hub selector, access Google Drive or authorize Hub cutover.
 
 ## First installation
 
@@ -300,7 +340,7 @@ Do not perform a real production cutover merely because development selector tes
 
 A source-publication transaction is executed by **one immutable tool identity from start to terminal completion**. NEW bytes must never take over their own deployment transaction after `current` changes.
 
-First materialize and validate `/opt/keelaryn/releases/<new-commit>`. Before `prepare`, capture the exact OLD release and its switch tool:
+First materialize and validate `/opt/keelaryn/releases/<new-commit>`. On an existing installation, run the exact NEW `deployment_state_normalize.py check` and, when required, `apply` while deployment state is IDLE; do not substitute manual chmod. Before `prepare`, capture the exact OLD release and its switch tool:
 
 ```bash
 OLD_RELEASE="$(readlink -f /opt/keelaryn/current)"
@@ -436,7 +476,7 @@ Crash points after active-record creation, selector/symlink swap, terminal-marke
 - Capture and pin the OLD `release_switch.py` before source `prepare`; one source transaction never changes executor identity midway.
 - Use `release_switch.py` for every source update/rollback after first installation; do not use ad-hoc `ln -sfn` for `current`.
 - Never run source switching and Hub cutover concurrently; shared durable transaction authority enforces this fail-closed.
-- Keep durable deployment state private and separate from service runtime state.
+- Keep durable deployment state private and separate from service runtime state; normalize legacy `0644` retained provenance only through the exact qualified `deployment_state_normalize.py` upgrade tool, never ad-hoc chmod.
 - Do not use `Restart=always`; blocked Core states must remain stopped/observable.
 - MVP allows only one Core writer host per Hub and one active semantic writer per Project.
 - A VPS deployment/cutover PASS is development evidence until applicable live Drive and later production-specific gates also pass.

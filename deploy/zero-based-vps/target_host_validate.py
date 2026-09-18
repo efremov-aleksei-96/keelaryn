@@ -36,6 +36,7 @@ CLI_SURFACES = (
     "release_switch",
     "hub_cutover",
     "hub_cutover_rehearsal",
+    "deployment_state_normalize",
 )
 
 
@@ -224,6 +225,12 @@ def _cli_commands(release: Path) -> dict[str, list[str]]:
             sys.executable,
             "-B",
             str(deploy / "hub_cutover_rehearsal.py"),
+            "--help",
+        ],
+        "deployment_state_normalize": [
+            sys.executable,
+            "-B",
+            str(deploy / "deployment_state_normalize.py"),
             "--help",
         ],
     }
