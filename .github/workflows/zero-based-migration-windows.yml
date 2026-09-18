@@ -6,7 +6,9 @@ on:
       - 'dev/zero-based-keelaryn'
     paths:
       - 'core/keelaryn_core/migration_*.py'
+      - 'core/keelaryn_core/drive_*.py'
       - 'tests/core/test_migration_*.py'
+      - 'tests/core/test_drive_*.py'
       - 'tests/live/run_migration_*.py'
       - 'tests/live/run_migration_*.ps1'
       - 'spec/MIGRATION.md'
@@ -18,7 +20,9 @@ on:
       - main
     paths:
       - 'core/keelaryn_core/migration_*.py'
+      - 'core/keelaryn_core/drive_*.py'
       - 'tests/core/test_migration_*.py'
+      - 'tests/core/test_drive_*.py'
       - 'tests/live/run_migration_*.py'
       - 'tests/live/run_migration_*.ps1'
       - 'spec/MIGRATION.md'
@@ -54,7 +58,7 @@ jobs:
           $tokens = $null
           $errors = $null
           [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $env:GITHUB_WORKSPACE 'tests\live\run_migration_disposable_rehearsal.ps1'),
+            (Join-Path $env:GITHUB_WORKSPACE 'tests\\live\\run_migration_disposable_rehearsal.ps1'),
             [ref]$tokens,
             [ref]$errors
           )
