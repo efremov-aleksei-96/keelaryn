@@ -44,13 +44,19 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
             "KEELARYN_MIGRATION_TARGET_AUTHORITY": "/private/evidence/target-authority.json",
             "KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE": "/private/evidence/qualification.json",
             "KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID": "drive-staging-secret-id",
+            "KEELARYN_MUTATION_GATE_ROOT": "/private/deployment/mutation-gate",
         }
 
     @staticmethod
-    def _run(module, env: dict[str, str]):
+    def _run(module, env: dict[str, str], *, gate_context=None):
         stdout = io.StringIO()
         stderr = io.StringIO()
-        with patch.dict(os.environ, env, clear=True):
+        gate = contextlib.nullcontext() if gate_context is None else gate_context
+        with patch.dict(os.environ, env, clear=True), patch.object(
+            module.DriveMutationGate,
+            "from_environment",
+            return_value=gate,
+        ):
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 code = module.main()
         return code, stdout.getvalue(), stderr.getvalue()
@@ -142,8 +148,42 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
             env["KEELARYN_MIGRATION_REPO_ROOT"],
             env["KEELARYN_MIGRATION_TARGET_AUTHORITY"],
             env["KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE"],
+            env["KEELARYN_MUTATION_GATE_ROOT"],
         ):
             self.assertNotIn(secret, combined)
+
+    def test_mutation_gate_blocks_before_oauth_or_drive_use(self) -> None:
+        module = _load_runner()
+        env = self._base_env()
+
+        class BlockingGate:
+            def __enter__(self):
+                raise RuntimeError("mutation gate blocked")
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        with patch.object(
+            module.GoogleOAuthRefreshTokenProvider,
+            "from_environment",
+        ) as oauth:
+            code, stdout, stderr = self._run(
+                module,
+                env,
+                gate_context=BlockingGate(),
+            )
+
+        self.assertEqual(code, 1)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            json.loads(stderr),
+            {
+                "schema": "keelaryn.migration-production-live-failure.v1",
+                "phase": "mutation-gate",
+                "error_class": "RuntimeError",
+            },
+        )
+        oauth.assert_not_called()
 
     def test_failure_never_echoes_exception_text_drive_id_or_private_path(self) -> None:
         module = _load_runner()
