@@ -70,8 +70,22 @@ class DriveCanonicalReader:
             raise DriveReadBlocked("canonical root is not a live folder")
         return item
 
-    def _unique_child(self, parent_id: str, name: str, *, folder: bool) -> DriveItem:
-        matches = self.drive.list_children(parent_id, name=name)
+    def _unique_child(
+        self,
+        parent_id: str,
+        name: str,
+        *,
+        folder: bool,
+        cache: dict[str, tuple[DriveItem, ...]] | None = None,
+    ) -> DriveItem:
+        if cache is None:
+            matches = self.drive.list_children(parent_id, name=name)
+        else:
+            children = cache.get(parent_id)
+            if children is None:
+                children = tuple(self.drive.list_children(parent_id))
+                cache[parent_id] = children
+            matches = [item for item in children if item.name == name]
         if len(matches) != 1:
             raise DriveReadBlocked(
                 f"canonical path component {parent_id}/{name} is not unique: {len(matches)} matches"
@@ -82,7 +96,13 @@ class DriveCanonicalReader:
             raise DriveReadBlocked(f"canonical path component {parent_id}/{name} is not a live {expected}")
         return item
 
-    def _resolve_path(self, canonical_root_id: str, path: str) -> DriveItem:
+    def _resolve_path(
+        self,
+        canonical_root_id: str,
+        path: str,
+        *,
+        cache: dict[str, tuple[DriveItem, ...]] | None = None,
+    ) -> DriveItem:
         try:
             normalized = validate_relative_path(path, "canonical read path")
         except ProtocolError as exc:
@@ -90,11 +110,27 @@ class DriveCanonicalReader:
         parts = normalized.split("/")
         parent = canonical_root_id
         for segment in parts[:-1]:
-            parent = self._unique_child(parent, segment, folder=True).file_id
-        return self._unique_child(parent, parts[-1], folder=False)
+            parent = self._unique_child(
+                parent,
+                segment,
+                folder=True,
+                cache=cache,
+            ).file_id
+        return self._unique_child(
+            parent,
+            parts[-1],
+            folder=False,
+            cache=cache,
+        )
 
-    def _read_item(self, canonical_root_id: str, path: str) -> DriveReadItem:
-        item = self._resolve_path(canonical_root_id, path)
+    def _read_item(
+        self,
+        canonical_root_id: str,
+        path: str,
+        *,
+        cache: dict[str, tuple[DriveItem, ...]] | None = None,
+    ) -> DriveReadItem:
+        item = self._resolve_path(canonical_root_id, path, cache=cache)
         raw = self.drive.download(item.file_id)
         state = BlobState.from_bytes(raw)
         if not state.matches(item):
@@ -112,13 +148,26 @@ class DriveCanonicalReader:
 
         before_epoch = self._safe_master_epoch()
         before_root = self._canonical_root()
-        items = tuple(self._read_item(before_root.file_id, path) for path in requested)
+        before_cache: dict[str, tuple[DriveItem, ...]] = {}
+        items = tuple(
+            self._read_item(
+                before_root.file_id,
+                path,
+                cache=before_cache,
+            )
+            for path in requested
+        )
 
-        # Re-resolve all path mappings after payload reads. This catches external
-        # rename/move/replace activity even if it bypassed Core and therefore did
-        # not correctly increment canonical epoch.
+        # Re-resolve all path mappings after payload reads from a fresh snapshot.
+        # Parent listings are reused only within each observation pass; pre/post
+        # caches are deliberately separate so out-of-band edits remain visible.
+        after_cache: dict[str, tuple[DriveItem, ...]] = {}
         for read in items:
-            current = self._resolve_path(before_root.file_id, read.path)
+            current = self._resolve_path(
+                before_root.file_id,
+                read.path,
+                cache=after_cache,
+            )
             if (
                 current.file_id != read.file_id
                 or current.sha256_checksum != read.sha256
