@@ -16,9 +16,11 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = ROOT / "deploy" / "zero-based-vps"
 RUNNER = ROOT / "tests" / "live" / "run_migration_pre_apply_cutover.py"
-sys.path.insert(0, str(DEPLOY))
-
-import hub_cutover  # noqa: E402
+if os.name == "posix":
+    sys.path.insert(0, str(DEPLOY))
+    import hub_cutover  # noqa: E402
+else:
+    hub_cutover = None
 
 
 def _load_runner():
@@ -216,6 +218,20 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
                 module.GoogleOAuthRefreshTokenProvider,
                 "from_environment",
                 side_effect=AssertionError("OAuth must not repeat after durable apply"),
+            ), patch.object(
+                module,
+                "verify_migration_pack",
+                return_value=SimpleNamespace(
+                    pack_sha256="1" * 64,
+                    root=Path("/private/frozen-pack"),
+                ),
+            ), patch.object(
+                module,
+                "verify_migration_candidate_freeze",
+                return_value={
+                    "source_commit": self.SOURCE,
+                    "source_tree": "b" * 40,
+                },
             ):
                 second = self._run(module, env)
             self.assertEqual(second[0], 0)
