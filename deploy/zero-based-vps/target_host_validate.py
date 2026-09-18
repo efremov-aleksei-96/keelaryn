@@ -15,7 +15,7 @@ from hub_cutover import HubCutoverError, _read_selector, _selector_parent
 from materialize_payload import PayloadMaterializeError, verify_release_directory
 
 SCHEMA = "keelaryn.zero-vps-target-host-validation.v2"
-TRANSACTION_RECORD_RE = re.compile(r"[0-9a-f]{32}\\.json")
+TRANSACTION_RECORD_RE = re.compile(r"[0-9a-f]{32}\.json")
 UNIT_NAMES = (
     "keelaryn-drive.service",
     "keelaryn-drive-bootstrap.service",
