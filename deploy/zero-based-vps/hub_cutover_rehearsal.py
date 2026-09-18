@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import stat
@@ -52,11 +53,23 @@ def _load_single_json(root: Path, label: str) -> dict[str, Any]:
     return value
 
 
+def _mutation_gate(root: Path) -> Path:
+    gate = root / "mutation-gate"
+    gate.mkdir(mode=0o2750, exist_ok=True)
+    os.chmod(gate, 0o2750)
+    lock = gate / "LOCK"
+    if not lock.exists():
+        lock.write_bytes(b"")
+    os.chmod(lock, 0o640)
+    return gate
+
+
 def _new_switch(selector: Path, state: Path, source_commit: str) -> hub_cutover.HubSelectorCutover:
     return hub_cutover.HubSelectorCutover(
         selector,
         state,
         source_commit,
+        mutation_gate_root=_mutation_gate(state.parent),
         executing_tool=Path(hub_cutover.__file__),
     )
 
@@ -76,6 +89,9 @@ def _verify_terminal_state(
         raise HubCutoverRehearsalError("terminal selector is not regular mode 0600")
     if (state / hub_cutover.ACTIVE_NAME).exists() or (state / hub_cutover.ACTIVE_NAME).is_symlink():
         raise HubCutoverRehearsalError("terminal rehearsal left active transaction authority")
+    inhibit = state.parent / "mutation-gate" / "INHIBIT.json"
+    if inhibit.exists() or inhibit.is_symlink():
+        raise HubCutoverRehearsalError("terminal rehearsal left production mutation inhibit")
 
     history = _load_single_json(state / "history", "history")
     terminal = _load_single_json(state / "terminal", "terminal")
@@ -104,8 +120,20 @@ def _run_accept_path(root: Path, source_commit: str) -> None:
     restarted = _new_switch(selector, state, source_commit)
     if restarted.status().get("status") != "APPLIED":
         raise HubCutoverRehearsalError("accept path restart did not recover APPLIED")
-    if restarted.accept() != {"status": "IDLE"}:
-        raise HubCutoverRehearsalError("accept path did not settle to IDLE")
+    active_raw = (state / hub_cutover.ACTIVE_NAME).read_bytes()
+    active_sha = hashlib.sha256(active_raw).hexdigest()
+    result = restarted.accept(
+        expected_active_transaction_sha256=active_sha
+    )
+    if result.get("status") != "INHIBITED_IDLE":
+        raise HubCutoverRehearsalError(
+            "accept path did not retain mutation inhibit after terminal settlement"
+        )
+    if restarted.release_mutation_inhibit_after_accept(
+        prepared["transaction_id"],
+        active_sha,
+    ) != {"status": "IDLE"}:
+        raise HubCutoverRehearsalError("accept path did not release mutation inhibit")
     if _new_switch(selector, state, source_commit).status() != {"status": "IDLE"}:
         raise HubCutoverRehearsalError("accepted path did not remain IDLE after restart")
 

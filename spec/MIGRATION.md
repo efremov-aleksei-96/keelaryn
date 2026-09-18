@@ -211,16 +211,18 @@ The production cutover sequence is:
 1. confirm legacy source identity still matches the frozen migration source boundary or an explicitly accepted final-delta procedure;
 2. confirm the new zero-based target is the exact target bound by private production-target authority and qualification evidence;
 3. confirm qualified runtime/Core/source identity;
-4. `prepare` one Hub-selector transaction while selector is exact OLD;
-5. stop and prove the production writer inactive;
+4. stop and prove the production writer inactive;
+5. `prepare` one Hub-selector transaction while selector is exact OLD; `prepare` must exclusively quiesce the production Drive mutation gate and durably inhibit all gate-participating mutations before active selector authority is published;
 6. `apply` atomically replaces the selector with exact NEW and re-observes the durable result;
-7. keep the writer stopped and run fresh post-cutover read-only acceptance through `tests/live/run_migration_post_cutover_acceptance.py`;
+7. keep the mutation inhibit active and run fresh post-cutover read-only acceptance through `tests/live/run_migration_post_cutover_acceptance.py`;
 8. require that acceptance to bind exact active transaction, exact source commit and exact NEW selector identity;
 9. publish/verify the private finalization receipt and revalidate transaction/selector identity at the terminal commit boundary;
-10. only the finalizer may invoke low-level terminal `accept`, after which immutable terminal/history authority must prove `ACCEPTED`;
-11. only after finalizer PASS may the NEW writer be started.
+10. only the finalizer may invoke low-level terminal `accept`; immutable terminal/history authority must prove `ACCEPTED` before the exact mutation inhibit is released;
+11. only after inhibit release and finalizer PASS may the NEW writer be started.
 
 Direct manual `hub_cutover.py accept` is not an accepted production procedure. It is a low-level transaction primitive used by the transaction-bound finalizer after fresh acceptance and commit-boundary revalidation.
+
+The production mutation gate is a separate root-controlled filesystem boundary. Poller `bootstrap/once/serve`, Workspace `create/update` and production-target qualification hold a shared lock for their entire live mutation lifetime. Hub `prepare` takes the exclusive lock, publishes one canonical sanitized inhibit bound to the exact Hub transaction, and only then publishes active cutover authority. The inhibit remains after low-level `ACCEPTED` settlement until terminal/history recovery has been verified; rollback releases it only after exact OLD plus durable `ROLLED_BACK`. Missing, malformed, mismatched or orphaned inhibit state fails closed.
 
 The finalization receipt remains private and binds at minimum the transaction ID, SHA-256 of exact active transaction bytes, exact source commit, selector identity hash and SHA-256 of fresh post-cutover acceptance evidence. Public output exposes only sanitized hashes/outcomes and must not reveal Hub IDs or private paths.
 

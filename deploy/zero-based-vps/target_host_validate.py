@@ -11,10 +11,19 @@ import sys
 from pathlib import Path
 from typing import Any
 
+CORE_ROOT = Path(__file__).resolve().parents[2] / "core"
+if str(CORE_ROOT) not in sys.path:
+    sys.path.insert(0, str(CORE_ROOT))
+
+from keelaryn_core.drive_mutation_gate import (  # noqa: E402
+    DriveMutationGateAdmin,
+    DriveMutationGateError,
+)
+
 from hub_cutover import HubCutoverError, _read_selector, _selector_parent
 from materialize_payload import PayloadMaterializeError, verify_release_directory
 
-SCHEMA = "keelaryn.zero-vps-target-host-validation.v2"
+SCHEMA = "keelaryn.zero-vps-target-host-validation.v3"
 TRANSACTION_RECORD_RE = re.compile(r"[0-9a-f]{32}\.json")
 UNIT_NAMES = (
     "keelaryn-drive.service",
@@ -130,6 +139,25 @@ def validate_deployment_state(state_root: Path) -> None:
         os.close(fd)
 
 
+def validate_mutation_gate(root: Path) -> None:
+    try:
+        admin = DriveMutationGateAdmin(root)
+        with admin.locked():
+            if admin.read() is not None:
+                raise TargetHostValidationError(
+                    "production Drive mutation gate is inhibited"
+                )
+            observed = {item.name for item in root.absolute().iterdir()}
+            if observed != {"LOCK"}:
+                raise TargetHostValidationError(
+                    "production Drive mutation gate contains unexpected objects"
+                )
+    except DriveMutationGateError as exc:
+        raise TargetHostValidationError(
+            f"production Drive mutation gate validation failed: {exc}"
+        ) from exc
+
+
 def validate_selector_file(path: Path) -> None:
     path = path.absolute()
     try:
@@ -237,14 +265,21 @@ def validate_target_host(
     installed_unit_dir: Path | None = None,
     install_root: Path | None = None,
     deployment_state_root: Path | None = None,
+    mutation_gate_root: Path | None = None,
 ) -> dict[str, Any]:
     release = release.absolute()
-    host_arguments = (selector_path, installed_unit_dir, install_root, deployment_state_root)
+    host_arguments = (
+        selector_path,
+        installed_unit_dir,
+        install_root,
+        deployment_state_root,
+        mutation_gate_root,
+    )
     provided = sum(value is not None for value in host_arguments)
     if provided not in {0, len(host_arguments)}:
         raise TargetHostValidationError(
-            "selector-path, installed-unit-dir, install-root, and deployment-state-root "
-            "must be supplied together for host-config validation"
+            "selector-path, installed-unit-dir, install-root, deployment-state-root, "
+            "and mutation-gate-root must be supplied together for host-config validation"
         )
 
     identity = verify_release_directory(
@@ -261,10 +296,12 @@ def validate_target_host(
         assert installed_unit_dir is not None
         assert install_root is not None
         assert deployment_state_root is not None
+        assert mutation_gate_root is not None
         validate_selector_file(selector_path)
         validate_installed_units(release, installed_unit_dir)
         validate_active_release(release, install_root, identity["source_commit"])
         validate_deployment_state(deployment_state_root)
+        validate_mutation_gate(mutation_gate_root)
 
     # Re-read the immutable release after every validation action. Any bytecode,
     # cache material or other accidental target-host mutation fails closed here.
@@ -290,6 +327,8 @@ def validate_target_host(
         "active_release_verified": host_config_verified,
         "deployment_state_verified": host_config_verified,
         "deployment_state_idle": host_config_verified,
+        "mutation_gate_verified": host_config_verified,
+        "mutation_gate_idle": host_config_verified,
         "release_remained_exact": True,
         "development_test_suite_executed": False,
     }
@@ -304,6 +343,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--installed-unit-dir", type=Path)
     parser.add_argument("--install-root", type=Path)
     parser.add_argument("--deployment-state-root", type=Path)
+    parser.add_argument("--mutation-gate-root", type=Path)
     return parser
 
 
@@ -318,6 +358,7 @@ def main(argv: list[str] | None = None) -> int:
             installed_unit_dir=args.installed_unit_dir,
             install_root=args.install_root,
             deployment_state_root=args.deployment_state_root,
+            mutation_gate_root=args.mutation_gate_root,
         )
     except (TargetHostValidationError, PayloadMaterializeError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

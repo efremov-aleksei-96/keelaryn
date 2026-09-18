@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import json
 import os
 import sys
@@ -9,6 +10,7 @@ from typing import Any, Mapping
 
 from .drive_backend import DriveTransportError, DriveUncertainMutation
 from .drive_poller import DrivePollerConfigError, _token_source_from_environment
+from .drive_mutation_gate import DriveMutationGate, DriveMutationGateError
 from .drive_rest import GoogleDriveBackend
 from .drive_workflow import DriveWorkflowBlocked
 from .protocol import ProtocolError
@@ -107,19 +109,31 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: --hub-root-id or KEELARYN_HUB_ROOT_ID is required", file=sys.stderr)
         return 2
     try:
-        token_source = _token_source_from_environment("once")
-        surface = DriveWorkspaceCommandSurface(GoogleDriveBackend(token_source), args.hub_root_id)
-        if args.command == "list":
-            value = surface.list()
-        elif args.command == "read":
-            value = surface.read(args.project_id)
-        elif args.command == "create":
-            value = surface.create(args.project_id, _read_state_file(args.state_file))
-        else:
-            value = surface.update(args.project_id, args.update_id, _read_state_file(args.state_file))
+        gate = (
+            DriveMutationGate.from_environment()
+            if args.command in {"create", "update"}
+            else nullcontext()
+        )
+        with gate:
+            token_source = _token_source_from_environment("once")
+            surface = DriveWorkspaceCommandSurface(GoogleDriveBackend(token_source), args.hub_root_id)
+            if args.command == "list":
+                value = surface.list()
+            elif args.command == "read":
+                value = surface.read(args.project_id)
+            elif args.command == "create":
+                value = surface.create(args.project_id, _read_state_file(args.state_file))
+            else:
+                value = surface.update(args.project_id, args.update_id, _read_state_file(args.state_file))
         _emit(value)
         return 0
-    except (WorkspaceCliError, DrivePollerConfigError, DriveWorkflowBlocked, ProtocolError) as exc:
+    except (
+        WorkspaceCliError,
+        DrivePollerConfigError,
+        DriveMutationGateError,
+        DriveWorkflowBlocked,
+        ProtocolError,
+    ) as exc:
         _emit({"error": "BLOCKED", "detail": str(exc)}, stream=sys.stderr)
         return 2
     except (DriveUncertainMutation, DriveTransportError) as exc:

@@ -149,6 +149,9 @@ jobs:
           state_root="$tmp/deployment"
           install -d -m 0700 "$state_root" "$state_root/terminal" "$state_root/history"
           install -m 0600 /dev/null "$state_root/LOCK"
+          mutation_gate_root="$tmp/mutation-gate"
+          install -d -m 2750 "$mutation_gate_root"
+          install -m 0640 /dev/null "$mutation_gate_root/LOCK"
           selector_parent="$tmp/etc-keelaryn"
           install -d -m 0700 "$selector_parent"
           selector="$selector_parent/hub.env"
@@ -167,6 +170,7 @@ jobs:
             --installed-unit-dir "$unit_dir" \
             --install-root "$install_root" \
             --deployment-state-root "$state_root" \
+            --mutation-gate-root "$mutation_gate_root" \
             > "$tmp/target-host-config.json"
           if find "$release" \( -type d -name '__pycache__' -o -type f -name '*.pyc' -o -type f -name '*.pyo' \) -print -quit | grep -q .; then
             echo "Materialized release was mutated by validation bytecode output." >&2
@@ -195,7 +199,7 @@ jobs:
               "hub_cutover",
               "hub_cutover_rehearsal",
           ]
-          if target.get("schema") != "keelaryn.zero-vps-target-host-validation.v2":
+          if target.get("schema") != "keelaryn.zero-vps-target-host-validation.v3":
               raise SystemExit("target-host validation schema mismatch")
           if target.get("source_commit") != first["source_commit"]:
               raise SystemExit("target-host validation source mismatch")
@@ -209,14 +213,14 @@ jobs:
               raise SystemExit("target-host validation did not preserve exact release identity")
           if target.get("host_config_verified") is not False:
               raise SystemExit("release-only target-host proof unexpectedly claimed host config validation")
-          for key in ("selector_verified", "installed_units_verified", "active_release_verified", "deployment_state_verified", "deployment_state_idle"):
+          for key in ("selector_verified", "installed_units_verified", "active_release_verified", "deployment_state_verified", "deployment_state_idle", "mutation_gate_verified", "mutation_gate_idle"):
               if target.get(key) is not False:
                   raise SystemExit(f"release-only target-host proof unexpectedly claimed {key}")
-          if host.get("schema") != "keelaryn.zero-vps-target-host-validation.v2":
+          if host.get("schema") != "keelaryn.zero-vps-target-host-validation.v3":
               raise SystemExit("host-config target-host validation schema mismatch")
           if host.get("source_commit") != first["source_commit"] or host.get("payload_sha256") != first["payload_sha256"]:
               raise SystemExit("host-config target-host validation identity mismatch")
-          for key in ("host_config_verified", "selector_verified", "installed_units_verified", "active_release_verified", "deployment_state_verified", "deployment_state_idle", "release_remained_exact"):
+          for key in ("host_config_verified", "selector_verified", "installed_units_verified", "active_release_verified", "deployment_state_verified", "deployment_state_idle", "mutation_gate_verified", "mutation_gate_idle", "release_remained_exact"):
               if host.get(key) is not True:
                   raise SystemExit(f"host-config target-host proof did not establish {key}")
           evidence = {key: first[key] for key in keys}
@@ -233,6 +237,7 @@ jobs:
                   "hub_cutover_rehearsal_cli_verified": True,
                   "target_host_validator_verified": True,
                   "target_host_config_validator_verified": True,
+                  "mutation_gate_validator_verified": True,
                   "development_test_suite_executed": target["development_test_suite_executed"],
                   "github_run_id": os.environ["GITHUB_RUN_ID"],
                   "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],

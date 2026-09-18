@@ -39,6 +39,7 @@ Required local/private environment:
 - `KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT_ID`
 - `KEELARYN_MIGRATION_TARGET_AUTHORITY`
 - `KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE`
+- `KEELARYN_MUTATION_GATE_ROOT`
 - `KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID`
 - `KEELARYN_GOOGLE_CLIENT_ID`
 - `KEELARYN_GOOGLE_CLIENT_SECRET`
@@ -47,6 +48,8 @@ Required local/private environment:
 The target authority and qualification evidence paths must remain outside both the Git worktree and the immutable migration pack.
 
 ## Safety contract
+
+Before OAuth/Drive access the live wrapper acquires the shared production mutation gate for the complete target-qualification mutation lifetime. An active Hub-cutover inhibit or exclusive quiescence boundary blocks qualification fail-closed.
 
 The runner delegates construction to `DriveMigrationProductionTargetQualification`, which:
 

@@ -9,6 +9,7 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "core"))
 
 from keelaryn_core.drive_oauth import GoogleOAuthRefreshTokenProvider  # noqa: E402
+from keelaryn_core.drive_mutation_gate import DriveMutationGate  # noqa: E402
 from keelaryn_core.drive_rest import GoogleDriveBackend  # noqa: E402
 from keelaryn_core.migration_production_drive_qualification import (  # noqa: E402
     DriveAuthoritativeMigrationProductionTargetQualification,
@@ -45,23 +46,26 @@ def main() -> int:
         target_authority = _path("KEELARYN_MIGRATION_TARGET_AUTHORITY")
         qualification_evidence = _path("KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE")
         staging_root_id = _required("KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID")
+        mutation_gate_root = _path("KEELARYN_MUTATION_GATE_ROOT")
 
-        phase = "oauth"
-        token_provider = GoogleOAuthRefreshTokenProvider.from_environment()
-        drive = GoogleDriveBackend(token_provider)
+        phase = "mutation-gate"
+        with DriveMutationGate.from_environment():
+            phase = "oauth"
+            token_provider = GoogleOAuthRefreshTokenProvider.from_environment()
+            drive = GoogleDriveBackend(token_provider)
 
-        phase = "production-target-qualification"
-        evidence = DriveAuthoritativeMigrationProductionTargetQualification(
-            drive,
-            staging_root_id,
-            legacy_source_root_id,
-        ).run_drive(
-            pack_dir,
-            freeze_receipt,
-            repo_root,
-            target_authority,
-            qualification_evidence,
-        )
+            phase = "production-target-qualification"
+            evidence = DriveAuthoritativeMigrationProductionTargetQualification(
+                drive,
+                staging_root_id,
+                legacy_source_root_id,
+            ).run_drive(
+                pack_dir,
+                freeze_receipt,
+                repo_root,
+                target_authority,
+                qualification_evidence,
+            )
 
         phase = "evidence"
         value = evidence.to_json_value()
@@ -98,6 +102,7 @@ def main() -> int:
             str(repo_root),
             str(target_authority),
             str(qualification_evidence),
+            str(mutation_gate_root),
         )
         if any(secret and secret in rendered for secret in forbidden):
             raise LiveProductionQualificationError(

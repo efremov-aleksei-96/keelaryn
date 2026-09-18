@@ -36,6 +36,10 @@ Hub cutover and source-release switching share the existing administrative trans
 ├── LOCK
 ├── terminal/
 └── history/
+
+/var/lib/keelaryn/mutation-gate/
+├── LOCK
+└── INHIBIT.json   # only while production Drive mutations are blocked
 ```
 
 This is deliberate. `release_switch.py` and `hub_cutover.py` use the same `LOCK` and the same `ACTIVE_TRANSACTION.json` name with different strict schemas. Therefore only one release-switch or Hub-cutover transaction may be active at a time. A tool encountering the other transaction schema fails closed rather than guessing ownership.
@@ -64,9 +68,9 @@ Before `prepare`:
 2. the new zero-based target must have passed all required construction/acceptance gates;
 3. the exact qualified Core/source release must already be active;
 4. no release-switch or Hub-cutover transaction may already be active;
-5. the writer service must be stopped and proven inactive before selector `apply`.
+5. the writer service must be stopped before `prepare`; `prepare` must obtain the exclusive production mutation gate after all shared mutators have exited.
 
-The writer remains stopped through fresh post-cutover read-only acceptance and terminal finalization. A successful `apply` means **the durable production selector changed to NEW**. It does not mean cutover acceptance passed.
+`prepare` durably publishes a sanitized mutation inhibit before the active Hub transaction. From that point through selector apply, fresh read-only acceptance and terminal verification, poller mutations, Workspace create/update and production-target qualification are blocked before OAuth/Drive access. A successful `apply` means **the durable production selector changed to NEW**. It does not mean cutover acceptance passed.
 
 ## 4. Prepare and apply
 
@@ -78,6 +82,14 @@ FINALIZER=/opt/keelaryn/current/tests/live/run_migration_post_cutover_acceptance
 SOURCE_COMMIT=<exact-qualified-40-hex-source-commit>
 SELECTOR=/etc/keelaryn/hub.env
 STATE=/var/lib/keelaryn/deployment
+MUTATION_GATE=/var/lib/keelaryn/mutation-gate
+```
+
+Stop and prove the old writer is inactive before `prepare`:
+
+```bash
+systemctl stop keelaryn-drive.service
+systemctl is-active --quiet keelaryn-drive.service && exit 1 || true
 ```
 
 Prepare while selector is exact OLD:
@@ -86,18 +98,12 @@ Prepare while selector is exact OLD:
 python3 -B "$CUTOVER_TOOL" \
   --selector-path "$SELECTOR" \
   --state-root "$STATE" \
+  --mutation-gate-root "$MUTATION_GATE" \
   --source-commit "$SOURCE_COMMIT" \
   prepare <new-hub-root-id>
 ```
 
-`prepare` writes durable authority before selector mutation.
-
-Stop and prove the old writer is inactive before `apply`:
-
-```bash
-systemctl stop keelaryn-drive.service
-systemctl is-active --quiet keelaryn-drive.service && exit 1 || true
-```
+`prepare` first obtains the exclusive mutation gate, proving all gate-participating production mutations have exited, durably publishes `INHIBIT.json`, and only then writes active Hub-selector authority. A crash after inhibit publication but before active authority is restart-recovered by repeating exact `prepare`; a different OLD/NEW/tool identity fails closed.
 
 Atomically publish NEW:
 
@@ -105,6 +111,7 @@ Atomically publish NEW:
 python3 -B "$CUTOVER_TOOL" \
   --selector-path "$SELECTOR" \
   --state-root "$STATE" \
+  --mutation-gate-root "$MUTATION_GATE" \
   --source-commit "$SOURCE_COMMIT" \
   apply
 ```
@@ -133,6 +140,7 @@ Required private/local bindings are:
 
 - `KEELARYN_HUB_SELECTOR_PATH`
 - `KEELARYN_DEPLOYMENT_STATE_ROOT`
+- `KEELARYN_MUTATION_GATE_ROOT`
 - `KEELARYN_SOURCE_COMMIT`
 - `KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT`
 - `KEELARYN_MIGRATION_PACK_DIR`
@@ -160,7 +168,8 @@ The finalizer:
 6. revalidates active transaction and selector identity at the terminal commit boundary;
 7. invokes the low-level terminal `accept` primitive;
 8. verifies immutable `ACCEPTED` terminal/history authority;
-9. emits only sanitized hashes/identities, never real Hub IDs or private paths.
+9. releases the exact bound production mutation inhibit and verifies ordinary `IDLE`;
+10. emits only sanitized hashes/identities, never real Hub IDs or private paths.
 
 A fresh successful run returns `PRODUCTION_CUTOVER_ACCEPTED` and terminal outcome `ACCEPTED`.
 
@@ -182,6 +191,7 @@ If fresh post-cutover acceptance fails before terminal `ACCEPTED`, keep/prove th
 python3 -B "$CUTOVER_TOOL" \
   --selector-path "$SELECTOR" \
   --state-root "$STATE" \
+  --mutation-gate-root "$MUTATION_GATE" \
   --source-commit "$SOURCE_COMMIT" \
   rollback
 ```
@@ -199,6 +209,7 @@ A transaction with durable terminal `ACCEPTED` cannot later be rolled back by `h
 `status` returns only non-secret transaction state; it does not print OLD or NEW Hub IDs.
 
 - `IDLE` — no active administrative transaction;
+- `INHIBITED_IDLE` — active Hub transaction has settled but the production mutation inhibit remains; only exact finalizer recovery may release an accepted inhibit;
 - `PREPARED` — active Hub-cutover transaction and selector is exact OLD;
 - `APPLIED` — active Hub-cutover transaction and selector is exact NEW;
 - `FINALIZE_PENDING` — immutable terminal decision exists and matching archival cleanup remains;
@@ -241,8 +252,8 @@ Before production use:
 7. target-host qualification proves the exact active `current` release, canonical selector/units and secure IDLE shared deployment-state filesystem/ownership/modes;
 8. production target construction/qualification PASS with `cutover_authorized=false`;
 9. explicit human production cutover approval is obtained;
-10. selector `apply` completes with the writer stopped;
-11. transaction-bound fresh post-cutover finalizer PASS;
+10. writer is stopped, Hub `prepare` quiesces the mutation gate and publishes the durable inhibit, then selector `apply` completes;
+11. transaction-bound fresh post-cutover finalizer verifies `ACCEPTED`, releases the exact inhibit and returns PASS;
 12. only then the NEW writer is started and normal production operation resumes.
 
 No development PASS authorizes steps 9-12.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import stat
@@ -11,8 +12,13 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 DEPLOY = REPO / "deploy" / "zero-based-vps"
 sys.path.insert(0, str(DEPLOY))
+sys.path.insert(0, str(REPO / "core"))
 
 import hub_cutover as cutovermod  # noqa: E402
+from keelaryn_core.drive_mutation_gate import (  # noqa: E402
+    DriveMutationGate,
+    DriveMutationGateError,
+)
 
 
 class Crash(RuntimeError):
@@ -40,6 +46,12 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
         selector.write_bytes(cutovermod._selector_bytes(self.OLD))
         os.chmod(selector, 0o600)
         state = root / "var" / "lib" / "keelaryn" / "hub-cutover"
+        gate = state.parent / "mutation-gate"
+        gate.mkdir(parents=True, mode=0o2750)
+        os.chmod(gate, 0o2750)
+        lock = gate / "LOCK"
+        lock.write_bytes(b"")
+        os.chmod(lock, 0o640)
         return selector, state
 
     def switch(self, selector: Path, state: Path, **kwargs):
@@ -47,6 +59,7 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
             selector,
             state,
             self.SOURCE,
+            mutation_gate_root=state.parent / "mutation-gate",
             executing_tool=DEPLOY / "hub_cutover.py",
             **kwargs,
         )
@@ -54,6 +67,18 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
     @staticmethod
     def selected(selector: Path) -> str:
         return cutovermod._parse_selector(selector.read_bytes())
+
+    def accept_and_release(self, switch, state: Path, txid: str) -> None:
+        raw = (state / cutovermod.ACTIVE_NAME).read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()
+        result = switch.accept(expected_active_transaction_sha256=digest)
+        self.assertEqual(result["status"], "INHIBITED_IDLE")
+        self.assertEqual(switch.status()["status"], "INHIBITED_IDLE")
+        self.assertEqual(
+            switch.release_mutation_inhibit_after_accept(txid, digest),
+            {"status": "IDLE"},
+        )
+        self.assertEqual(switch.status(), {"status": "IDLE"})
 
     def test_prepare_apply_accept_archives_exact_transaction(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -67,7 +92,7 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
 
             self.assertEqual(switch.apply()["status"], "APPLIED")
             self.assertEqual(self.selected(selector), self.NEW)
-            self.assertEqual(switch.accept(), {"status": "IDLE"})
+            self.accept_and_release(switch, state, txid)
 
             self.assertFalse((state / cutovermod.ACTIVE_NAME).exists())
             history = state / "history" / f"{txid}.json"
@@ -113,7 +138,8 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
             self.assertEqual(self.selected(selector), self.NEW)
             recovered = self.switch(selector, state)
             self.assertEqual(recovered.status()["status"], "APPLIED")
-            self.assertEqual(recovered.accept(), {"status": "IDLE"})
+            txid = recovered.status()["transaction_id"]
+            self.accept_and_release(recovered, state, txid)
 
     def test_accept_expected_transaction_hash_blocks_replaced_active_transaction(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -155,7 +181,19 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
             self.assertEqual(status["terminal"], "ACCEPTED")
             with self.assertRaises(cutovermod.HubCutoverError):
                 recovered.rollback()
-            self.assertEqual(recovered.accept(), {"status": "IDLE"})
+            active_raw = (state / cutovermod.ACTIVE_NAME).read_bytes()
+            active_sha = hashlib.sha256(active_raw).hexdigest()
+            result = recovered.accept(
+                expected_active_transaction_sha256=active_sha
+            )
+            self.assertEqual(result["status"], "INHIBITED_IDLE")
+            self.assertEqual(
+                recovered.release_mutation_inhibit_after_accept(
+                    status["transaction_id"],
+                    active_sha,
+                ),
+                {"status": "IDLE"},
+            )
             self.assertEqual(self.selected(selector), self.NEW)
 
     def test_rollback_crash_matrix_recovers(self) -> None:
@@ -181,8 +219,21 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
             with self.assertRaises(Crash):
                 self.switch(selector, state, fault_hook=self.hook("finalize.after_history_create")).accept()
             recovered = self.switch(selector, state)
-            self.assertEqual(recovered.status()["status"], "FINALIZE_PENDING")
-            self.assertEqual(recovered.accept(), {"status": "IDLE"})
+            pending = recovered.status()
+            self.assertEqual(pending["status"], "FINALIZE_PENDING")
+            active_raw = (state / cutovermod.ACTIVE_NAME).read_bytes()
+            active_sha = hashlib.sha256(active_raw).hexdigest()
+            result = recovered.accept(
+                expected_active_transaction_sha256=active_sha
+            )
+            self.assertEqual(result["status"], "INHIBITED_IDLE")
+            self.assertEqual(
+                recovered.release_mutation_inhibit_after_accept(
+                    pending["transaction_id"],
+                    active_sha,
+                ),
+                {"status": "IDLE"},
+            )
 
     def test_unknown_selector_blocks_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -204,6 +255,7 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
                 selector,
                 state,
                 self.OTHER_SOURCE,
+                mutation_gate_root=state.parent / "mutation-gate",
                 executing_tool=DEPLOY / "hub_cutover.py",
             )
             with self.assertRaises(cutovermod.HubCutoverError):
@@ -282,6 +334,38 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
             os.chmod(state / "terminal" / f"{txid}.json", 0o644)
             with self.assertRaises(cutovermod.HubCutoverError):
                 self.switch(selector, state).status()
+
+    def test_mutation_gate_quiesces_prepare_and_blocks_new_mutations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            selector, state = self.layout(Path(temp))
+            gate = state.parent / "mutation-gate"
+            switch = self.switch(selector, state)
+            with DriveMutationGate(gate):
+                with self.assertRaises(DriveMutationGateError):
+                    switch.prepare(self.NEW)
+
+            prepared = switch.prepare(self.NEW)
+            with self.assertRaisesRegex(DriveMutationGateError, "inhibited"):
+                DriveMutationGate(gate).acquire()
+            self.assertEqual(switch.rollback(), {"status": "IDLE"})
+            with DriveMutationGate(gate):
+                pass
+            self.assertEqual(prepared["status"], "PREPARED")
+
+    def test_prepare_recovers_orphan_inhibit_before_active_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            selector, state = self.layout(Path(temp))
+            with self.assertRaises(Crash):
+                self.switch(
+                    selector,
+                    state,
+                    fault_hook=self.hook("prepare.after_mutation_inhibit_create"),
+                ).prepare(self.NEW)
+            self.assertFalse((state / cutovermod.ACTIVE_NAME).exists())
+            recovered = self.switch(selector, state)
+            prepared = recovered.prepare(self.NEW)
+            self.assertEqual(prepared["status"], "PREPARED")
+            self.assertEqual(recovered.rollback(), {"status": "IDLE"})
 
     def test_insecure_state_or_lock_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

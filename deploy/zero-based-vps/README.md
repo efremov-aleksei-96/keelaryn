@@ -41,6 +41,10 @@ It is intentionally not a second daemon.
 ├── terminal/
 └── history/
 
+/var/lib/keelaryn/mutation-gate/ # root:keelaryn 2750; production Drive mutation interlock
+├── LOCK                         # root:keelaryn 0640; shared mutator / exclusive cutover flock
+└── INHIBIT.json                 # present only while production Hub mutations are inhibited
+
 /etc/keelaryn/
 ├── drive.env                    # root:root 0600; OAuth credentials only
 └── hub.env                      # root:root 0600; single KEELARYN_HUB_ROOT_ID selector
@@ -53,6 +57,8 @@ A materialized release uses mode `0444` for files and `0555` for directories. Up
 Deployment transaction state is separate from `/run/keelaryn`. `/run/keelaryn` is disposable process-lock state. `/var/lib/keelaryn/deployment` is durable administrative publication/cutover provenance. `release_switch.py` and `hub_cutover.py` deliberately share its `LOCK` and `ACTIVE_TRANSACTION.json`, so a source switch and Hub cutover cannot be active concurrently. The state root, `terminal/`, and `history/` must be real directories owned by the effective administrative identity with mode `0700`; the lock is opened without following symlinks and must be a regular owner-controlled `0600` file.
 
 Immutable active/terminal/history transaction authority files are also owner-controlled mode `0600`. Target-host qualification acquires the shared lock non-blocking, requires no active transaction, rejects unexpected state-root objects, and verifies every retained terminal/history record as a private regular file before claiming host-config PASS.
+
+Production Drive mutation exclusion uses a separate root-controlled gate. Poller `bootstrap/once/serve`, Workspace `create/update` and production-target qualification hold a shared gate lock for their complete live mutation lifetime. Hub-cutover `prepare` requires the exclusive lock and publishes a sanitized durable `INHIBIT.json` before active selector authority; new production mutations then fail closed before OAuth/Drive access. The inhibit survives terminal `ACCEPTED` until the transaction-bound finalizer verifies terminal/history authority, and rollback releases it only after durable `ROLLED_BACK` on exact OLD.
 
 ## Service identity, credentials and selector
 
@@ -119,7 +125,8 @@ PYTHONDONTWRITEBYTECODE=1 python3 -B \
   --selector-path /etc/keelaryn/hub.env \
   --installed-unit-dir /etc/systemd/system \
   --install-root /opt/keelaryn \
-  --deployment-state-root /var/lib/keelaryn/deployment
+  --deployment-state-root /var/lib/keelaryn/deployment \
+  --mutation-gate-root /var/lib/keelaryn/mutation-gate
 ```
 
 The host-config form is an administrative/root validation because `/etc/keelaryn/hub.env` and deployment transaction state are intentionally administrative. It additionally requires `/opt/keelaryn/current` to be the exact canonical relative symlink to the validated source commit and requires the shared deployment state root to be secure, lockable and IDLE. After validation there must still be no `__pycache__`, `.pyc` or `.pyo` material in the release. Deterministic `tests/core` still run in development CI; the dedicated target-host validator does not replace or weaken them. A development-CI PASS is not production qualification; target-host validation is a separate evidence class.
@@ -138,6 +145,8 @@ The host-config form is an administrative/root validation because `/etc/keelaryn
      /var/lib/keelaryn/deployment/terminal \
      /var/lib/keelaryn/deployment/history
    install -o root -g root -m 0600 /dev/null /var/lib/keelaryn/deployment/LOCK
+   install -d -o root -g keelaryn -m 2750 /var/lib/keelaryn/mutation-gate
+   install -o root -g keelaryn -m 0640 /dev/null /var/lib/keelaryn/mutation-gate/LOCK
    ```
 6. Install both checked-in systemd units under `/etc/systemd/system/`.
 7. Create `/etc/keelaryn/drive.env` from its example and set `root:root 0600`.
@@ -152,7 +161,7 @@ The host-config form is an administrative/root validation because `/etc/keelaryn
    ```
 
    The resulting file must contain only that one assignment with LF framing: no quotes, comments, CRLF, whitespace variants or extra assignments.
-9. Run the host-config form of `target_host_validate.py` against the exact selector, installed units, `/opt/keelaryn` active-release root and `/var/lib/keelaryn/deployment`. This must prove exact active release plus secure IDLE transaction state and PASS **before any OAuth/Drive bootstrap or live acceptance use**.
+9. Run the host-config form of `target_host_validate.py` against the exact selector, installed units, `/opt/keelaryn` active-release root, `/var/lib/keelaryn/deployment` and `/var/lib/keelaryn/mutation-gate`. This must prove exact active release, secure IDLE transaction state and an uninhibited mutation gate with no active mutator before any OAuth/Drive bootstrap or live acceptance use.
 10. Run `systemctl daemon-reload`.
 11. Initialize or verify the **disposable/test Hub** through the unprivileged oneshot:
 
@@ -241,6 +250,7 @@ systemd-run --quiet --wait --collect --pipe \
   --property=EnvironmentFile=/etc/keelaryn/hub.env \
   --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
   --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
+  --property=Environment=KEELARYN_MUTATION_GATE_ROOT=/var/lib/keelaryn/mutation-gate \
   /usr/bin/python3 -B -m keelaryn_core.workspace_cli \
   create <project_id> --state-file /run/keelaryn/workspace-state.md
 ```
@@ -256,6 +266,7 @@ systemd-run --quiet --wait --collect --pipe \
   --property=EnvironmentFile=/etc/keelaryn/hub.env \
   --property=Environment=PYTHONPATH=/opt/keelaryn/current/core \
   --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
+  --property=Environment=KEELARYN_MUTATION_GATE_ROOT=/var/lib/keelaryn/mutation-gate \
   /usr/bin/python3 -B -m keelaryn_core.workspace_cli \
   update <project_id> <update_id> --state-file /run/keelaryn/workspace-state.md
 ```
@@ -275,7 +286,8 @@ The exact migration cutover protocol is defined in `HUB_CUTOVER.md`. In summary:
 - production cutover changes only `/etc/keelaryn/hub.env`;
 - `hub_cutover.py` shares `/var/lib/keelaryn/deployment/LOCK` and `ACTIVE_TRANSACTION.json` with `release_switch.py`, preventing concurrent source and Hub-selection transactions;
 - `prepare` durably records exact OLD/NEW Hub identities before mutation;
-- the writer must be stopped and proven inactive before `apply`;
+- the writer must be stopped before Hub-cutover `prepare`; `prepare` exclusively quiesces the production mutation gate and publishes a durable inhibit before selector authority;
+- the inhibit blocks poller, Workspace mutations and production-target qualification until verified acceptance or rollback;
 - `apply` atomically replaces the selector and a restart re-observes OLD/NEW rather than trusting process-local progress;
 - post-cutover read-only acceptance is external to the selector tool;
 - `accept` terminally records PASS only when NEW remains exact;

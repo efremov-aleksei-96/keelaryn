@@ -51,10 +51,17 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
         selector.write_bytes(hub_cutover._selector_bytes(self.OLD))
         os.chmod(selector, 0o600)
         state = root / "deployment"
+        gate = root / "mutation-gate"
+        gate.mkdir(mode=0o2750)
+        os.chmod(gate, 0o2750)
+        lock = gate / "LOCK"
+        lock.write_bytes(b"")
+        os.chmod(lock, 0o640)
         switch = hub_cutover.HubSelectorCutover(
             selector,
             state,
             self.SOURCE,
+            mutation_gate_root=root / "mutation-gate",
             executing_tool=DEPLOY / "hub_cutover.py",
         )
         switch.prepare(self.NEW)
@@ -68,6 +75,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             "KEELARYN_POST_CUTOVER_ACCEPTANCE_ENABLE": "YES",
             "KEELARYN_HUB_SELECTOR_PATH": str(selector),
             "KEELARYN_DEPLOYMENT_STATE_ROOT": str(state),
+            "KEELARYN_MUTATION_GATE_ROOT": str(root / "mutation-gate"),
             "KEELARYN_SOURCE_COMMIT": self.SOURCE,
             "KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT": str(
                 private / "finalization-receipt.json"
@@ -179,6 +187,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 selector,
                 state,
                 self.SOURCE,
+                mutation_gate_root=root / "mutation-gate",
                 executing_tool=DEPLOY / "hub_cutover.py",
             )
             self.assertEqual(switch.status(), {"status": "IDLE"})
@@ -213,6 +222,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 selector,
                 state,
                 self.SOURCE,
+                mutation_gate_root=root / "mutation-gate",
                 executing_tool=DEPLOY / "hub_cutover.py",
             )
             self.assertEqual(switch.status()["status"], "APPLIED")
@@ -241,6 +251,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 selector,
                 state,
                 self.SOURCE,
+                mutation_gate_root=root / "mutation-gate",
                 executing_tool=DEPLOY / "hub_cutover.py",
             )
             self.assertEqual(switch.status()["status"], "APPLIED")
@@ -348,6 +359,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 selector,
                 state,
                 self.SOURCE,
+                mutation_gate_root=root / "mutation-gate",
                 executing_tool=altered_tool,
             )
             with self.assertRaisesRegex(

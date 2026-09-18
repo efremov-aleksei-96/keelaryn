@@ -11,6 +11,7 @@ from typing import Mapping
 from .drive_backend import DriveTransportError, DriveUncertainMutation
 from .drive_bootstrap import DriveBootstrapBlocked, DriveBootstrapResult, DriveHubBootstrap
 from .drive_oauth import GoogleOAuthRefreshTokenProvider
+from .drive_mutation_gate import DriveMutationGate, DriveMutationGateError
 from .drive_process_lock import DriveProcessLock, DriveProcessLockError
 from .drive_rest import GoogleDriveBackend
 from .drive_service import DrivePollingService, DriveServiceBlocked, DriveServiceStatus
@@ -123,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         # One local process owns all Drive mutation authority for this Hub for the
         # complete command lifetime. The lock is acquired before OAuth/Drive access.
-        with DriveProcessLock(args.hub_root_id):
+        with DriveMutationGate.from_environment(), DriveProcessLock(args.hub_root_id):
             token_source = _token_source_from_environment(args.command)
             poller = DrivePoller(GoogleDriveBackend(token_source), args.hub_root_id)
             if args.command == "bootstrap":
@@ -152,6 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         return 130
     except (
         DrivePollerConfigError,
+        DriveMutationGateError,
         DriveProcessLockError,
         DriveBootstrapBlocked,
         DriveServiceBlocked,

@@ -32,6 +32,12 @@ class ZeroBasedVpsHubSelectorContractTests(unittest.TestCase):
                 raw = (DEPLOY / name).read_text(encoding="utf-8")
                 self.assertEqual(raw.count("EnvironmentFile=/etc/keelaryn/drive.env"), 1)
                 self.assertEqual(raw.count("EnvironmentFile=/etc/keelaryn/hub.env"), 1)
+                self.assertEqual(
+                    raw.count(
+                        "Environment=KEELARYN_MUTATION_GATE_ROOT=/var/lib/keelaryn/mutation-gate"
+                    ),
+                    1,
+                )
                 self.assertNotIn("ExecStartPre=/usr/bin/test -r /etc/keelaryn/drive.env", raw)
                 self.assertNotIn("ExecStartPre=/usr/bin/test -r /etc/keelaryn/hub.env", raw)
                 self.assertNotIn("KEELARYN_HUB_ROOT_ID=", raw)

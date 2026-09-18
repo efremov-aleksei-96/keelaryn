@@ -12,6 +12,7 @@ EnvironmentFile=/etc/keelaryn/drive.env
 EnvironmentFile=/etc/keelaryn/hub.env
 Environment=PYTHONPATH=/opt/keelaryn/current/core
 Environment=KEELARYN_RUNTIME_DIR=/run/keelaryn
+Environment=KEELARYN_MUTATION_GATE_ROOT=/var/lib/keelaryn/mutation-gate
 Environment=PYTHONDONTWRITEBYTECODE=1
 RuntimeDirectory=keelaryn
 RuntimeDirectoryMode=0700

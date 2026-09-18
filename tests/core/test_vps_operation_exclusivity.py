@@ -42,6 +42,12 @@ class ZeroBasedVpsOperationExclusivityTests(unittest.TestCase):
         # root, ACTIVE_TRANSACTION.json and LOCK. This is the global deployment
         # serialization boundary.
         state = root / "var" / "lib" / "keelaryn" / "deployment"
+        gate = state.parent / "mutation-gate"
+        gate.mkdir(parents=True, mode=0o2750)
+        os.chmod(gate, 0o2750)
+        lock = gate / "LOCK"
+        lock.write_bytes(b"")
+        os.chmod(lock, 0o640)
         return install, selector, state
 
     def hub_switch(self, selector: Path, state: Path):
@@ -49,6 +55,7 @@ class ZeroBasedVpsOperationExclusivityTests(unittest.TestCase):
             selector,
             state,
             self.OLD_COMMIT,
+            mutation_gate_root=state.parent / "mutation-gate",
             executing_tool=DEPLOY / "hub_cutover.py",
         )
 

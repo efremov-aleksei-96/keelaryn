@@ -52,6 +52,15 @@ class ZeroBasedVpsTargetHostValidationTests(unittest.TestCase):
         os.chmod(lock, 0o600)
         return state
 
+    def _mutation_gate(self, root: Path):
+        gate = root / "mutation-gate"
+        gate.mkdir(mode=0o2750)
+        os.chmod(gate, 0o2750)
+        lock = gate / "LOCK"
+        lock.write_bytes(b"")
+        os.chmod(lock, 0o640)
+        return gate
+
     def test_selector_accepts_only_exact_canonical_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -163,6 +172,51 @@ class ZeroBasedVpsTargetHostValidationTests(unittest.TestCase):
                 fcntl.flock(fd, fcntl.LOCK_UN)
                 os.close(fd)
 
+    def test_mutation_gate_requires_idle_exact_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            gate = self._mutation_gate(root)
+            targetmod.validate_mutation_gate(gate)
+
+            fd = os.open(gate / "LOCK", os.O_RDWR)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                with self.assertRaisesRegex(
+                    targetmod.TargetHostValidationError,
+                    "active Drive mutation",
+                ):
+                    targetmod.validate_mutation_gate(gate)
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+                os.close(fd)
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            gate = self._mutation_gate(root)
+            admin = targetmod.DriveMutationGateAdmin(gate)
+            value = {
+                "schema": "keelaryn.drive-mutation-inhibit.v1",
+                "transaction_id": "1" * 32,
+                "active_transaction_sha256": "2" * 64,
+                "source_commit": "3" * 40,
+                "tool_sha256": "4" * 64,
+                "old_selector_sha256": "5" * 64,
+                "new_selector_sha256": "6" * 64,
+            }
+            with admin.locked():
+                admin.publish(value)
+            with self.assertRaisesRegex(
+                targetmod.TargetHostValidationError,
+                "inhibited",
+            ):
+                targetmod.validate_mutation_gate(gate)
+
+        with tempfile.TemporaryDirectory() as td:
+            gate = self._mutation_gate(Path(td))
+            (gate / "unexpected").write_text("x", encoding="utf-8")
+            with self.assertRaises(targetmod.TargetHostValidationError):
+                targetmod.validate_mutation_gate(gate)
+
     def test_host_config_arguments_are_all_or_nothing(self) -> None:
         with self.assertRaisesRegex(targetmod.TargetHostValidationError, "must be supplied together"):
             targetmod.validate_target_host(
@@ -186,6 +240,7 @@ class ZeroBasedVpsTargetHostValidationTests(unittest.TestCase):
         self.assertIn('"target_host_validator_verified": True', raw)
         self.assertIn('"target_host_config_validator_verified": True', raw)
         self.assertIn("--deployment-state-root", raw)
+        self.assertIn("--mutation-gate-root", raw)
         self.assertIn("--install-root", raw)
         self.assertIn('"development_test_suite_executed"', raw)
 

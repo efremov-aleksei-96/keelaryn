@@ -22,7 +22,16 @@ class DriveProcessLockTests(unittest.TestCase):
     def runtime(self, base: str) -> dict[str, str]:
         path = Path(base) / "runtime"
         path.mkdir(mode=0o700)
-        return {"KEELARYN_RUNTIME_DIR": str(path)}
+        gate = Path(base) / "mutation-gate"
+        gate.mkdir(mode=0o2750)
+        os.chmod(gate, 0o2750)
+        lock = gate / "LOCK"
+        lock.write_bytes(b"")
+        os.chmod(lock, 0o640)
+        return {
+            "KEELARYN_RUNTIME_DIR": str(path),
+            "KEELARYN_MUTATION_GATE_ROOT": str(gate),
+        }
 
     def test_same_hub_has_exactly_one_local_writer(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

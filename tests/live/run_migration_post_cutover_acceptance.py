@@ -372,6 +372,7 @@ def main() -> int:
 
         selector_path = _path("KEELARYN_HUB_SELECTOR_PATH")
         state_root = _path("KEELARYN_DEPLOYMENT_STATE_ROOT")
+        mutation_gate_root = _path("KEELARYN_MUTATION_GATE_ROOT")
         source_commit = _required("KEELARYN_SOURCE_COMMIT")
         receipt_path = _path("KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT")
         pack_dir = _path("KEELARYN_MIGRATION_PACK_DIR")
@@ -385,6 +386,7 @@ def main() -> int:
         forbidden = (
             str(selector_path),
             str(state_root),
+            str(mutation_gate_root),
             str(receipt_path),
             str(pack_dir),
             str(freeze_receipt),
@@ -397,14 +399,25 @@ def main() -> int:
             selector_path,
             state_root,
             source_commit,
+            mutation_gate_root=mutation_gate_root,
             executing_tool=Path(hub_cutover.__file__),
         )
         status = switch.status()
 
-        if status.get("status") == "IDLE":
+        if status.get("status") in {"IDLE", "INHIBITED_IDLE"}:
             phase = "terminal-recovery"
             receipt = _strict_receipt(receipt_path)
             _verify_terminal_recovery(switch, receipt)
+            phase = "mutation-inhibit-release"
+            switch.release_mutation_inhibit_after_accept(
+                receipt["transaction_id"],
+                receipt["active_transaction_sha256"],
+                allow_absent=status.get("status") == "IDLE",
+            )
+            if switch.status() != {"status": "IDLE"}:
+                raise LivePostCutoverFinalizationError(
+                    "accepted recovery did not release production mutation inhibit"
+                )
             print(_render_sanitized(_public_result(receipt), forbidden), flush=True)
             return 0
 
@@ -412,10 +425,23 @@ def main() -> int:
             phase = "terminal-recovery"
             receipt = _strict_receipt(receipt_path)
             _verify_receipt_against_active(switch, receipt)
-            switch.accept(
+            result = switch.accept(
                 expected_active_transaction_sha256=receipt["active_transaction_sha256"]
             )
+            if result.get("status") != "INHIBITED_IDLE":
+                raise LivePostCutoverFinalizationError(
+                    "terminal recovery did not retain production mutation inhibit"
+                )
             _verify_terminal_recovery(switch, receipt)
+            phase = "mutation-inhibit-release"
+            switch.release_mutation_inhibit_after_accept(
+                receipt["transaction_id"],
+                receipt["active_transaction_sha256"],
+            )
+            if switch.status() != {"status": "IDLE"}:
+                raise LivePostCutoverFinalizationError(
+                    "terminal recovery did not release production mutation inhibit"
+                )
             print(_render_sanitized(_public_result(receipt), forbidden), flush=True)
             return 0
 
@@ -465,13 +491,23 @@ def main() -> int:
         result = switch.accept(
             expected_active_transaction_sha256=receipt["active_transaction_sha256"]
         )
-        if result != {"status": "IDLE"}:
+        if result.get("status") != "INHIBITED_IDLE":
             raise LivePostCutoverFinalizationError(
-                "Hub cutover terminal acceptance did not settle to IDLE"
+                "Hub cutover terminal acceptance did not retain production mutation inhibit"
             )
 
         phase = "terminal-verification"
         _verify_terminal_recovery(switch, receipt)
+
+        phase = "mutation-inhibit-release"
+        switch.release_mutation_inhibit_after_accept(
+            receipt["transaction_id"],
+            receipt["active_transaction_sha256"],
+        )
+        if switch.status() != {"status": "IDLE"}:
+            raise LivePostCutoverFinalizationError(
+                "terminal acceptance did not release production mutation inhibit"
+            )
 
         print(_render_sanitized(_public_result(receipt), forbidden), flush=True)
         return 0

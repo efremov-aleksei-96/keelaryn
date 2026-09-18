@@ -13,6 +13,16 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+CORE_ROOT = Path(__file__).resolve().parents[2] / "core"
+if str(CORE_ROOT) not in sys.path:
+    sys.path.insert(0, str(CORE_ROOT))
+
+from keelaryn_core.drive_mutation_gate import (  # noqa: E402
+    DriveMutationGateAdmin,
+    DriveMutationGateError,
+    INHIBIT_SCHEMA,
+)
+
 SCHEMA = "keelaryn.zero-vps-hub-cutover.v1"
 TERMINAL_SCHEMA = "keelaryn.zero-vps-hub-cutover-terminal.v1"
 ACTIVE_NAME = "ACTIVE_TRANSACTION.json"
@@ -282,6 +292,7 @@ class HubSelectorCutover:
         state_root: Path,
         source_commit: str,
         *,
+        mutation_gate_root: Path | None = None,
         executing_tool: Path | None = None,
         fault_hook: FaultHook | None = None,
     ):
@@ -298,6 +309,11 @@ class HubSelectorCutover:
         self.active_path = self.state_root / ACTIVE_NAME
         self.executing_tool = (executing_tool or Path(__file__)).absolute()
         self.tool_identity = _tool_identity(source_commit, self.executing_tool)
+        self.mutation_gate = (
+            DriveMutationGateAdmin(mutation_gate_root)
+            if mutation_gate_root is not None
+            else None
+        )
         self.fault_hook = fault_hook
         _fsync_dir(self.state_root)
 
@@ -342,6 +358,110 @@ class HubSelectorCutover:
     def _history_path(self, txid: str) -> Path:
         return self.history_root / f"{txid}.json"
 
+    def _mutation_inhibit_value(
+        self,
+        record_raw: bytes,
+        record: dict[str, Any],
+    ) -> dict[str, str]:
+        return {
+            "schema": INHIBIT_SCHEMA,
+            "transaction_id": record["transaction_id"],
+            "active_transaction_sha256": hashlib.sha256(record_raw).hexdigest(),
+            "source_commit": record["tool"]["source_commit"],
+            "tool_sha256": record["tool"]["sha256"],
+            "old_selector_sha256": hashlib.sha256(
+                _selector_bytes(record["old_hub_root_id"])
+            ).hexdigest(),
+            "new_selector_sha256": hashlib.sha256(
+                _selector_bytes(record["new_hub_root_id"])
+            ).hexdigest(),
+        }
+
+    def _release_rollback_inhibit(
+        self,
+        record_raw: bytes,
+        record: dict[str, Any],
+        *,
+        allow_absent: bool,
+    ) -> None:
+        if self.mutation_gate is None:
+            return
+        expected = self._mutation_inhibit_value(record_raw, record)
+        with self.mutation_gate.locked():
+            observed = self.mutation_gate.read()
+            if observed is None:
+                if allow_absent:
+                    return
+                raise HubCutoverError(
+                    "production mutation inhibit disappeared before rollback settled"
+                )
+            if observed != expected:
+                raise HubCutoverError(
+                    "production mutation inhibit identity disagrees with rollback transaction"
+                )
+            self.mutation_gate.clear(expected)
+
+    def release_mutation_inhibit_after_accept(
+        self,
+        transaction_id: str,
+        expected_active_transaction_sha256: str,
+        *,
+        allow_absent: bool = False,
+    ) -> dict[str, str]:
+        if (
+            not isinstance(transaction_id, str)
+            or not re.fullmatch(r"[0-9a-f]{32}", transaction_id)
+        ):
+            raise HubCutoverError("accepted Hub cutover transaction ID is invalid")
+        if (
+            not isinstance(expected_active_transaction_sha256, str)
+            or not re.fullmatch(
+                r"[0-9a-f]{64}", expected_active_transaction_sha256
+            )
+        ):
+            raise HubCutoverError(
+                "accepted Hub cutover transaction SHA-256 is invalid"
+            )
+        with self.locked():
+            if self.active_path.exists() or self.active_path.is_symlink():
+                raise HubCutoverError(
+                    "cannot release production mutation inhibit while Hub cutover remains active"
+                )
+            history = self._history_path(transaction_id)
+            _private_regular_file(history, "accepted Hub cutover history record")
+            record_raw = history.read_bytes()
+            record = _parse_record(record_raw)
+            if record["transaction_id"] != transaction_id:
+                raise HubCutoverError("accepted Hub cutover history transaction mismatch")
+            if record["tool"] != self.tool_identity:
+                raise HubCutoverError("accepted Hub cutover history tool identity mismatch")
+            if hashlib.sha256(record_raw).hexdigest() != expected_active_transaction_sha256:
+                raise HubCutoverError("accepted Hub cutover history authority mismatch")
+            terminal = self._load_terminal(record_raw, record)
+            if terminal is None or terminal["outcome"] != "ACCEPTED":
+                raise HubCutoverError("accepted Hub cutover terminal authority is missing")
+            if self._classify(record) != "NEW":
+                raise HubCutoverError("accepted Hub cutover selector is not exact NEW")
+
+            if self.mutation_gate is None:
+                return {"status": "IDLE"}
+            expected = self._mutation_inhibit_value(record_raw, record)
+            with self.mutation_gate.locked():
+                observed = self.mutation_gate.read()
+                if observed is None:
+                    if allow_absent:
+                        return {"status": "IDLE"}
+                    raise HubCutoverError(
+                        "production mutation inhibit disappeared before accepted finalization"
+                    )
+                if observed != expected:
+                    raise HubCutoverError(
+                        "production mutation inhibit identity disagrees with accepted transaction"
+                    )
+                self.mutation_gate.clear(expected)
+            _fault(self.fault_hook, "accept.after_mutation_inhibit_release")
+            return {"status": "IDLE"}
+
     def _load_terminal(self, record_raw: bytes, record: dict[str, Any]) -> dict[str, Any] | None:
         path = self._terminal_path(record["transaction_id"])
         if not path.exists() and not path.is_symlink():
@@ -383,21 +503,57 @@ class HubSelectorCutover:
             old_hub_root_id, _ = _read_selector(self.selector_path)
             if old_hub_root_id == new_hub_root_id:
                 raise HubCutoverError("new Hub root ID is already selected")
-            record = {
-                "schema": SCHEMA,
-                "transaction_id": uuid.uuid4().hex,
-                "tool": self.tool_identity,
-                "old_hub_root_id": old_hub_root_id,
-                "new_hub_root_id": new_hub_root_id,
-            }
-            raw = _json(record)
-            _atomic_create(self.active_path, raw)
-            _fault(self.fault_hook, "prepare.after_active_create")
-            return {"status": "PREPARED", "transaction_id": record["transaction_id"]}
+
+            if self.mutation_gate is None:
+                transaction_id = uuid.uuid4().hex
+                record = {
+                    "schema": SCHEMA,
+                    "transaction_id": transaction_id,
+                    "tool": self.tool_identity,
+                    "old_hub_root_id": old_hub_root_id,
+                    "new_hub_root_id": new_hub_root_id,
+                }
+                raw = _json(record)
+                _atomic_create(self.active_path, raw)
+                _fault(self.fault_hook, "prepare.after_active_create")
+                return {"status": "PREPARED", "transaction_id": transaction_id}
+
+            with self.mutation_gate.locked():
+                existing = self.mutation_gate.read()
+                transaction_id = (
+                    existing["transaction_id"]
+                    if existing is not None
+                    else uuid.uuid4().hex
+                )
+                record = {
+                    "schema": SCHEMA,
+                    "transaction_id": transaction_id,
+                    "tool": self.tool_identity,
+                    "old_hub_root_id": old_hub_root_id,
+                    "new_hub_root_id": new_hub_root_id,
+                }
+                raw = _json(record)
+                expected = self._mutation_inhibit_value(raw, record)
+                if existing is not None and existing != expected:
+                    raise HubCutoverError(
+                        "existing production mutation inhibit belongs to a different transaction"
+                    )
+                self.mutation_gate.publish(expected)
+                _fault(self.fault_hook, "prepare.after_mutation_inhibit_create")
+                _atomic_create(self.active_path, raw)
+                _fault(self.fault_hook, "prepare.after_active_create")
+                return {"status": "PREPARED", "transaction_id": transaction_id}
 
     def status(self) -> dict[str, Any]:
         with self.locked():
             if not self.active_path.exists() and not self.active_path.is_symlink():
+                if self.mutation_gate is not None:
+                    inhibit = self.mutation_gate.read()
+                    if inhibit is not None:
+                        return {
+                            "status": "INHIBITED_IDLE",
+                            "transaction_id": inhibit["transaction_id"],
+                        }
                 return {"status": "IDLE"}
             record_raw, record = self._load_active()
             terminal = self._load_terminal(record_raw, record)
@@ -460,20 +616,42 @@ class HubSelectorCutover:
                     raise HubCutoverError(
                         "active Hub cutover transaction changed at terminal accept boundary"
                     )
-            terminal = self._load_terminal(record_raw, record)
-            if terminal is not None:
-                if terminal["outcome"] != "ACCEPTED":
-                    raise HubCutoverError("Hub cutover was already terminally rolled back")
-                self._settle_terminal(record_raw, record, terminal)
+
+            def finalize_under_gate() -> dict[str, Any]:
+                if self.mutation_gate is not None:
+                    expected_inhibit = self._mutation_inhibit_value(record_raw, record)
+                    observed_inhibit = self.mutation_gate.read()
+                    if observed_inhibit != expected_inhibit:
+                        raise HubCutoverError(
+                            "production mutation inhibit does not bind exact terminal accept transaction"
+                        )
+                terminal = self._load_terminal(record_raw, record)
+                if terminal is not None:
+                    if terminal["outcome"] != "ACCEPTED":
+                        raise HubCutoverError("Hub cutover was already terminally rolled back")
+                    self._settle_terminal(record_raw, record, terminal)
+                else:
+                    if self._classify(record) != "NEW":
+                        raise HubCutoverError(
+                            "Hub cutover acceptance requires exact NEW selector"
+                        )
+                    raw = _terminal_bytes(record_raw, record, "ACCEPTED")
+                    _atomic_create(self._terminal_path(record["transaction_id"]), raw)
+                    _fault(self.fault_hook, "accept.after_terminal_create")
+                    terminal = _parse_terminal(raw, record_raw, record)
+                    self._settle_terminal(record_raw, record, terminal)
+
+                if self.mutation_gate is not None:
+                    return {
+                        "status": "INHIBITED_IDLE",
+                        "transaction_id": record["transaction_id"],
+                    }
                 return {"status": "IDLE"}
-            if self._classify(record) != "NEW":
-                raise HubCutoverError("Hub cutover acceptance requires exact NEW selector")
-            raw = _terminal_bytes(record_raw, record, "ACCEPTED")
-            _atomic_create(self._terminal_path(record["transaction_id"]), raw)
-            _fault(self.fault_hook, "accept.after_terminal_create")
-            terminal = _parse_terminal(raw, record_raw, record)
-            self._settle_terminal(record_raw, record, terminal)
-            return {"status": "IDLE"}
+
+            if self.mutation_gate is None:
+                return finalize_under_gate()
+            with self.mutation_gate.locked():
+                return finalize_under_gate()
 
     def rollback(self) -> dict[str, Any]:
         with self.locked():
@@ -482,6 +660,15 @@ class HubSelectorCutover:
             if terminal is not None:
                 if terminal["outcome"] != "ROLLED_BACK":
                     raise HubCutoverError("Hub cutover was already terminally accepted")
+                if self._classify(record) != "OLD":
+                    raise HubCutoverError(
+                        "rolled-back Hub cutover terminal does not match exact OLD selector"
+                    )
+                self._release_rollback_inhibit(
+                    record_raw,
+                    record,
+                    allow_absent=True,
+                )
                 self._settle_terminal(record_raw, record, terminal)
                 return {"status": "IDLE"}
             observed = self._classify(record)
@@ -498,6 +685,12 @@ class HubSelectorCutover:
             _atomic_create(self._terminal_path(record["transaction_id"]), raw)
             _fault(self.fault_hook, "rollback.after_terminal_create")
             terminal = _parse_terminal(raw, record_raw, record)
+            self._release_rollback_inhibit(
+                record_raw,
+                record,
+                allow_absent=False,
+            )
+            _fault(self.fault_hook, "rollback.after_mutation_inhibit_release")
             self._settle_terminal(record_raw, record, terminal)
             return {"status": "IDLE"}
 
@@ -506,6 +699,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keelaryn-hub-cutover")
     parser.add_argument("--selector-path", required=True, type=Path)
     parser.add_argument("--state-root", required=True, type=Path)
+    parser.add_argument("--mutation-gate-root", required=True, type=Path)
     parser.add_argument("--source-commit", required=True)
     sub = parser.add_subparsers(dest="command", required=True)
     prepare = sub.add_parser("prepare")
@@ -523,6 +717,7 @@ def main(argv: list[str] | None = None) -> int:
             args.selector_path,
             args.state_root,
             args.source_commit,
+            mutation_gate_root=args.mutation_gate_root,
             executing_tool=Path(__file__),
         )
         if args.command == "prepare":
@@ -533,7 +728,7 @@ def main(argv: list[str] | None = None) -> int:
             result = switch.apply()
         else:
             result = switch.rollback()
-    except (HubCutoverError, OSError) as exc:
+    except (HubCutoverError, DriveMutationGateError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
