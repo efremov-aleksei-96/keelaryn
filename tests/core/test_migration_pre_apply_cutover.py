@@ -135,7 +135,11 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
     def _run(module, env):
         out = io.StringIO()
         err = io.StringIO()
-        with patch.dict(os.environ, env, clear=True):
+        with patch.dict(os.environ, env, clear=True), patch.object(
+            module.hub_cutover,
+            "_infer_install_root",
+            return_value=None,
+        ):
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 code = module.main()
         return code, out.getvalue(), err.getvalue()

@@ -108,6 +108,8 @@ python3 -B "$CUTOVER_TOOL" \
 
 The active Hub-cutover transaction also records SHA-256 of the exact qualified pre-apply and post-cutover finalizer files from the same release. Both finalizers re-check their own current bytes before live verification and again at commit/recovery boundaries. Finalizer drift therefore blocks selector `apply` or terminal `accept`; rollback remains available through the exact prepared low-level cutover tool so recovery to OLD is not made dependent on finalizer integrity.
 
+Production `prepare` also proves that the executing `hub_cutover.py` is the exact member of the canonical active materialized release, that `/opt/keelaryn/current` is exactly the relative symlink `releases/<source_commit>`, and that the full release passes fresh payload verification. The same active-release assertion is repeated on forward `apply` and terminal `accept`. A drifted `current`, altered release payload or executor outside that release fails closed before forward mutation. Rollback deliberately does not require the active release to remain selected.
+
 Freshly verify the quiesced legacy source and qualified NEW target, then atomically publish NEW **only through the transaction-bound pre-apply finalizer**:
 
 ```bash

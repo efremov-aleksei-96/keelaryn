@@ -23,6 +23,11 @@ from keelaryn_core.drive_mutation_gate import (  # noqa: E402
     INHIBIT_SCHEMA,
 )
 
+from materialize_payload import (  # noqa: E402
+    PayloadMaterializeError,
+    verify_release_directory,
+)
+
 SCHEMA = "keelaryn.zero-vps-hub-cutover.v2"
 TERMINAL_SCHEMA = "keelaryn.zero-vps-hub-cutover-terminal.v1"
 ACTIVE_NAME = "ACTIVE_TRANSACTION.json"
@@ -33,6 +38,7 @@ FINALIZER_RELATIVES = {
     "pre_apply": Path("tests/live/run_migration_pre_apply_cutover.py"),
     "post_cutover": Path("tests/live/run_migration_post_cutover_acceptance.py"),
 }
+TOOL_RELATIVE = Path("deploy/zero-based-vps/hub_cutover.py")
 
 
 class HubCutoverError(RuntimeError):
@@ -218,6 +224,39 @@ def _atomic_replace_selector(path: Path, expected_id: str, target_id: str) -> No
         raise HubCutoverError("durable Hub selector replacement did not become exact")
 
 
+def _owned_runtime_directory(path: Path, label: str) -> Path:
+    path = path.absolute()
+    if path.is_symlink() or not path.is_dir():
+        raise HubCutoverError(f"{label} must be a real directory")
+    info = path.stat(follow_symlinks=False)
+    if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) & 0o022:
+        raise HubCutoverError(
+            f"{label} must be owned by the current user and not group/world-writable"
+        )
+    return path
+
+
+def _infer_install_root(executing_tool: Path) -> Path:
+    try:
+        resolved = executing_tool.resolve(strict=True)
+    except OSError as exc:
+        raise HubCutoverError("cannot resolve active Hub cutover tool") from exc
+    try:
+        release = resolved.parents[2]
+        releases = resolved.parents[3]
+        install_root = resolved.parents[4]
+    except IndexError as exc:
+        raise HubCutoverError(
+            "Hub cutover tool is not inside a materialized release layout"
+        ) from exc
+    if releases.name != "releases" or release.parent != releases:
+        raise HubCutoverError(
+            "Hub cutover tool is not inside canonical releases/<commit> layout"
+        )
+    _source_commit(release.name)
+    return install_root
+
+
 def _tool_identity(source_commit: str, executing_tool: Path) -> dict[str, str]:
     source_commit = _source_commit(source_commit)
     tool = executing_tool.absolute()
@@ -366,6 +405,7 @@ class HubSelectorCutover:
         mutation_gate_root: Path | None = None,
         executing_tool: Path | None = None,
         finalizer_root: Path | None = None,
+        install_root: Path | None = None,
         fault_hook: FaultHook | None = None,
     ):
         self.selector_path = selector_path.absolute()
@@ -385,6 +425,11 @@ class HubSelectorCutover:
             finalizer_root
             or Path(__file__).resolve().parents[2]
         ).absolute()
+        self.install_root = (
+            install_root.absolute()
+            if install_root is not None
+            else None
+        )
         self.mutation_gate = (
             DriveMutationGateAdmin(mutation_gate_root)
             if mutation_gate_root is not None
@@ -392,6 +437,85 @@ class HubSelectorCutover:
         )
         self.fault_hook = fault_hook
         _fsync_dir(self.state_root)
+
+    def _verify_active_release(self) -> dict[str, Any] | None:
+        if self.install_root is None:
+            return None
+        install_root = _owned_runtime_directory(
+            self.install_root,
+            "Keelaryn install root",
+        )
+        releases = _owned_runtime_directory(
+            install_root / "releases",
+            "Keelaryn releases root",
+        )
+        source_commit = self.tool_identity["source_commit"]
+        release = releases / source_commit
+        if release.is_symlink() or not release.is_dir():
+            raise HubCutoverError("qualified active release directory is missing/not real")
+
+        current = install_root / "current"
+        if not current.is_symlink():
+            raise HubCutoverError("current must be one canonical relative symlink")
+        if current.lstat().st_uid != os.geteuid():
+            raise HubCutoverError("current symlink must be owned by the current user")
+        try:
+            target = os.readlink(current)
+        except OSError as exc:
+            raise HubCutoverError("cannot read current release selector") from exc
+        if target != f"releases/{source_commit}":
+            raise HubCutoverError(
+                "current does not select the exact Hub-cutover source release"
+            )
+
+        try:
+            identity = verify_release_directory(
+                release,
+                expected_source_commit=source_commit,
+            )
+        except PayloadMaterializeError as exc:
+            raise HubCutoverError(
+                f"active release verification failed: {exc}"
+            ) from exc
+
+        expected_tool = release / TOOL_RELATIVE
+        try:
+            if not os.path.samefile(self.executing_tool, expected_tool):
+                raise HubCutoverError(
+                    "Hub cutover executor is not the exact active release member"
+                )
+            if not os.path.samefile(self.finalizer_root, release):
+                raise HubCutoverError(
+                    "migration finalizer root is not the exact active release"
+                )
+        except OSError as exc:
+            raise HubCutoverError(
+                "cannot bind Hub cutover executor/finalizers to active release"
+            ) from exc
+
+        expected_finalizers = _finalizer_identities(release)
+        if expected_finalizers != _finalizer_identities(self.finalizer_root):
+            raise HubCutoverError(
+                "migration finalizer bytes disagree with active release"
+            )
+        return identity
+
+    def _verify_forward_release(self, record: dict[str, Any]) -> None:
+        identity = self._verify_active_release()
+        if identity is None:
+            return
+        if identity["source_commit"] != record["tool"]["source_commit"]:
+            raise HubCutoverError(
+                "active release source identity disagrees with Hub cutover transaction"
+            )
+        if self.tool_identity != record["tool"]:
+            raise HubCutoverError(
+                "active release cutover tool identity disagrees with transaction"
+            )
+        if _finalizer_identities(self.finalizer_root) != record["finalizers"]:
+            raise HubCutoverError(
+                "active release finalizer identity disagrees with transaction"
+            )
 
     @contextmanager
     def locked(self) -> Iterator[None]:
@@ -573,6 +697,7 @@ class HubSelectorCutover:
 
     def prepare(self, new_hub_root_id: str) -> dict[str, Any]:
         new_hub_root_id = _hub_id(new_hub_root_id, "new Hub root ID")
+        self._verify_active_release()
         with self.locked():
             if self.active_path.exists() or self.active_path.is_symlink():
                 raise HubCutoverError("an active Hub cutover transaction already exists")
@@ -582,6 +707,7 @@ class HubSelectorCutover:
 
             if self.mutation_gate is None:
                 transaction_id = uuid.uuid4().hex
+                self._verify_active_release()
                 record = {
                     "schema": SCHEMA,
                     "transaction_id": transaction_id,
@@ -602,6 +728,7 @@ class HubSelectorCutover:
                     if existing is not None
                     else uuid.uuid4().hex
                 )
+                self._verify_active_release()
                 record = {
                     "schema": SCHEMA,
                     "transaction_id": transaction_id,
@@ -677,6 +804,7 @@ class HubSelectorCutover:
                     )
 
             def apply_under_gate() -> dict[str, Any]:
+                self._verify_forward_release(record)
                 if self._load_terminal(record_raw, record) is not None:
                     raise HubCutoverError("terminal Hub cutover decision already exists")
                 if self.mutation_gate is not None:
@@ -737,6 +865,7 @@ class HubSelectorCutover:
                     )
 
             def finalize_under_gate() -> dict[str, Any]:
+                self._verify_forward_release(record)
                 if self.mutation_gate is not None:
                     expected_inhibit = self._mutation_inhibit_value(record_raw, record)
                     observed_inhibit = self.mutation_gate.read()
@@ -831,12 +960,14 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        executing_tool = Path(__file__)
         switch = HubSelectorCutover(
             args.selector_path,
             args.state_root,
             args.source_commit,
             mutation_gate_root=args.mutation_gate_root,
-            executing_tool=Path(__file__),
+            executing_tool=executing_tool,
+            install_root=_infer_install_root(executing_tool),
         )
         if args.command == "prepare":
             result = switch.prepare(args.new_hub_root_id)

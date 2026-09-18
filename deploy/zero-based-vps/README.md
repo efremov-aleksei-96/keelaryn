@@ -432,6 +432,7 @@ Crash points after active-record creation, selector/symlink swap, terminal-marke
 - Keep `/etc/keelaryn/hub.env` as the only production Hub selector; its raw bytes must be canonical and unquoted.
 - Use `hub_cutover.py prepare/rollback` plus the transaction-bound migration pre-apply finalizer for every selector change after initial installation; raw CLI `apply` is intentionally unavailable and `hub.env` must never be edited/replaced ad hoc.
 - Hub-cutover `prepare` pins SHA-256 of both migration finalizers from the qualified release; forward cutover/finalization fails closed if either runner changes, while rollback to OLD remains available through the exact prepared cutover tool.
+- Production Hub cutover derives the install root from the executing materialized tool and freshly requires canonical `current -> releases/<source_commit>`, a valid immutable release payload, and exact executor/finalizer membership on `prepare/apply/accept`; rollback intentionally does not depend on `current`.
 - Capture and pin the OLD `release_switch.py` before source `prepare`; one source transaction never changes executor identity midway.
 - Use `release_switch.py` for every source update/rollback after first installation; do not use ad-hoc `ln -sfn` for `current`.
 - Never run source switching and Hub cutover concurrently; shared durable transaction authority enforces this fail-closed.

@@ -188,6 +188,7 @@ def _prepared_binding(
 ) -> tuple[bytes, dict[str, Any]]:
     with switch.locked():
         record_raw, record = switch._load_active()
+        switch._verify_forward_release(record)
         if switch._load_terminal(record_raw, record) is not None:
             raise LivePreApplyCutoverError(
                 "pre-apply verification cannot use a terminal transaction"
@@ -226,6 +227,7 @@ def _verify_receipt_for_status(
 ) -> None:
     with switch.locked():
         record_raw, record = switch._load_active()
+        switch._verify_forward_release(record)
         selected, _ = hub_cutover._read_selector(switch.selector_path)
         expected_selector = (
             record["old_hub_root_id"]
@@ -407,12 +409,14 @@ def main() -> int:
             str(qualification_evidence),
         )
 
+        executing_tool = Path(hub_cutover.__file__)
         switch = hub_cutover.HubSelectorCutover(
             selector,
             state_root,
             source_commit,
             mutation_gate_root=mutation_gate_root,
-            executing_tool=Path(hub_cutover.__file__),
+            executing_tool=executing_tool,
+            install_root=hub_cutover._infer_install_root(executing_tool),
         )
         status = switch.status()
         if status.get("status") == "APPLIED":

@@ -138,7 +138,11 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
     def _run(module, env: dict[str, str]):
         stdout = io.StringIO()
         stderr = io.StringIO()
-        with patch.dict(os.environ, env, clear=True):
+        with patch.dict(os.environ, env, clear=True), patch.object(
+            module.hub_cutover,
+            "_infer_install_root",
+            return_value=None,
+        ):
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 code = module.main()
         return code, stdout.getvalue(), stderr.getvalue()

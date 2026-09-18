@@ -50,20 +50,97 @@ class ZeroBasedVpsOperationExclusivityTests(unittest.TestCase):
         os.chmod(lock, 0o640)
         return install, selector, state
 
-    def hub_switch(self, selector: Path, state: Path):
+    def hub_switch(self, install: Path, selector: Path, state: Path):
+        release = install / "releases" / self.OLD_COMMIT
         return cutovermod.HubSelectorCutover(
             selector,
             state,
             self.OLD_COMMIT,
             mutation_gate_root=state.parent / "mutation-gate",
-            executing_tool=DEPLOY / "hub_cutover.py",
+            executing_tool=release / "deploy/zero-based-vps/hub_cutover.py",
+            finalizer_root=release,
+            install_root=install,
         )
+
+    def test_hub_cutover_requires_exact_active_materialized_release(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            install, selector, state = self.layout(Path(temp))
+            hub = self.hub_switch(install, selector, state)
+            prepared = hub.prepare(self.NEW_HUB)
+            self.assertEqual(prepared["status"], "PREPARED")
+
+            current = install / "current"
+            current.unlink()
+            os.symlink(f"releases/{self.NEW_COMMIT}", current)
+
+            with self.assertRaisesRegex(
+                cutovermod.HubCutoverError,
+                "current does not select",
+            ):
+                hub.apply()
+            self.assertEqual(
+                cutovermod._parse_selector(selector.read_bytes()),
+                self.OLD_HUB,
+            )
+
+            # Forward provenance may fail, but rollback must still settle OLD.
+            self.assertEqual(hub.rollback(), {"status": "IDLE"})
+            self.assertEqual(
+                cutovermod._parse_selector(selector.read_bytes()),
+                self.OLD_HUB,
+            )
+
+    def test_hub_accept_blocks_on_release_drift_but_rollback_remains_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            install, selector, state = self.layout(Path(temp))
+            hub = self.hub_switch(install, selector, state)
+            hub.prepare(self.NEW_HUB)
+            self.assertEqual(hub.apply()["status"], "APPLIED")
+
+            current = install / "current"
+            current.unlink()
+            os.symlink(f"releases/{self.NEW_COMMIT}", current)
+
+            with self.assertRaisesRegex(
+                cutovermod.HubCutoverError,
+                "current does not select",
+            ):
+                hub.accept()
+            self.assertEqual(
+                cutovermod._parse_selector(selector.read_bytes()),
+                self.NEW_HUB,
+            )
+            self.assertEqual(hub.rollback(), {"status": "IDLE"})
+            self.assertEqual(
+                cutovermod._parse_selector(selector.read_bytes()),
+                self.OLD_HUB,
+            )
+
+    def test_hub_prepare_rejects_executor_outside_active_release(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            install, selector, state = self.layout(Path(temp))
+            release = install / "releases" / self.OLD_COMMIT
+            hub = cutovermod.HubSelectorCutover(
+                selector,
+                state,
+                self.OLD_COMMIT,
+                mutation_gate_root=state.parent / "mutation-gate",
+                executing_tool=DEPLOY / "hub_cutover.py",
+                finalizer_root=release,
+                install_root=install,
+            )
+            with self.assertRaisesRegex(
+                cutovermod.HubCutoverError,
+                "executor is not the exact active release member",
+            ):
+                hub.prepare(self.NEW_HUB)
+            self.assertFalse((state / cutovermod.ACTIVE_NAME).exists())
 
     def test_release_and_hub_cutover_transactions_are_mutually_exclusive(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             install, selector, state = self.layout(Path(temp))
 
-            hub = self.hub_switch(selector, state)
+            hub = self.hub_switch(install, selector, state)
             hub.prepare(self.NEW_HUB)
             with self.assertRaises(releasemod.ReleaseSwitchError):
                 releasemod.ReleaseSwitch(install, state).prepare(self.NEW_COMMIT)
@@ -72,7 +149,7 @@ class ZeroBasedVpsOperationExclusivityTests(unittest.TestCase):
             release = releasemod.ReleaseSwitch(install, state)
             release.prepare(self.NEW_COMMIT)
             with self.assertRaises(cutovermod.HubCutoverError):
-                self.hub_switch(selector, state).prepare(self.NEW_HUB)
+                self.hub_switch(install, selector, state).prepare(self.NEW_HUB)
             self.assertEqual(release.rollback(), {"status": "IDLE"})
 
 

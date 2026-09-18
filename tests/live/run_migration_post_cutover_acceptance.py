@@ -201,6 +201,7 @@ def _active_binding(
 ) -> tuple[bytes, dict[str, Any], str]:
     with switch.locked():
         record_raw, record = switch._load_active()
+        switch._verify_forward_release(record)
         terminal = switch._load_terminal(record_raw, record)
         if terminal is not None:
             raise LivePostCutoverFinalizationError(
@@ -330,6 +331,7 @@ def _verify_receipt_against_active(
 ) -> None:
     with switch.locked():
         record_raw, record = switch._load_active()
+        switch._verify_forward_release(record)
         selected, _ = hub_cutover._read_selector(switch.selector_path)
         if record["transaction_id"] != receipt["transaction_id"]:
             raise LivePostCutoverFinalizationError(
@@ -509,12 +511,14 @@ def main() -> int:
         pre_apply_receipt = strict_pre_apply_receipt(pre_apply_receipt_path)
         pre_apply_receipt_sha256 = _sha256_bytes(pre_apply_receipt_path.read_bytes())
 
+        executing_tool = Path(hub_cutover.__file__)
         switch = hub_cutover.HubSelectorCutover(
             selector_path,
             state_root,
             source_commit,
             mutation_gate_root=mutation_gate_root,
-            executing_tool=Path(hub_cutover.__file__),
+            executing_tool=executing_tool,
+            install_root=hub_cutover._infer_install_root(executing_tool),
         )
         status = switch.status()
 
