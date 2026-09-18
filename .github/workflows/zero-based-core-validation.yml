@@ -198,6 +198,7 @@ jobs:
               "release_switch",
               "hub_cutover",
               "hub_cutover_rehearsal",
+              "deployment_state_normalize",
           ]
           if target.get("schema") != "keelaryn.zero-vps-target-host-validation.v3":
               raise SystemExit("target-host validation schema mismatch")
@@ -235,6 +236,7 @@ jobs:
                   "release_switch_cli_verified": True,
                   "hub_cutover_cli_verified": True,
                   "hub_cutover_rehearsal_cli_verified": True,
+                  "deployment_state_normalizer_cli_verified": True,
                   "target_host_validator_verified": True,
                   "target_host_config_validator_verified": True,
                   "mutation_gate_validator_verified": True,
