@@ -143,6 +143,8 @@ After coherent development PASS and before any production-target qualification, 
 
 Candidate freeze is an **identity/provenance freeze only**. Its terminal receipt status is exactly `FROZEN_UNQUALIFIED`; creating or verifying that receipt does not claim production qualification, cutover approval, or permission to mutate the production Hub.
 
+The supported executable boundary is `tests/live/run_migration_candidate_freeze.py` (or its checked-in PowerShell launcher). It must not issue a freeze until it has validated an exact `keelaryn.migration-disposable-read-only-finalization.v1` PASS for the same current source commit, candidate ID and private-pack digest. This makes the final no-mutation rehearsal reconciliation a technical prerequisite for freeze rather than an operator convention.
+
 The freeze operation must:
 
 - require one exact clean Git worktree root;
@@ -157,6 +159,8 @@ The freeze operation must:
 - freshly reverify source and pack identity after durable receipt publication.
 
 If the process is lost after durable receipt publication, repeating the same freeze operation must recover idempotently by exact receipt identity. If durable receipt publication succeeded but the post-publication verification fails, evidence must report that distinction explicitly rather than claiming no freeze occurred.
+
+The guarded runner emits only sanitized hashes/identities and must explicitly distinguish `durable_receipt_published=true` after a successful atomic receipt publication (including post-commit verification failure) from failures that occurred before this transaction boundary. Raw private-pack paths, rehearsal-evidence paths, receipt paths and local repository paths must never appear in portable output.
 
 Once a candidate is frozen, any change to source commit/tree, mapping authority, pack manifest, canonical payload, Project initial state, preservation payload/destination or root router bytes invalidates that frozen identity. Do not regenerate replacement bytes under the same frozen receipt; issue a new migration candidate/freeze identity instead.
 
