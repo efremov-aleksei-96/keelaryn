@@ -71,6 +71,48 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
     def _env(self, root: Path, selector: Path, state: Path) -> dict[str, str]:
         private = root / "private"
         private.mkdir(mode=0o700)
+        active_raw = (state / hub_cutover.ACTIVE_NAME).read_bytes()
+        active = json.loads(active_raw.decode("utf-8"))
+        acceptance_value = self._acceptance_value(self.NEW)
+        pre_apply = {
+            "schema": "keelaryn.migration-pre-apply-private-receipt.v1",
+            "transaction_id": active["transaction_id"],
+            "active_transaction_sha256": hashlib.sha256(active_raw).hexdigest(),
+            "source_commit": self.SOURCE,
+            "source_tree": acceptance_value["source_tree"],
+            "pack_sha256": acceptance_value["pack_sha256"],
+            "old_selector_identity_sha256": hashlib.sha256(
+                self.OLD.encode("utf-8")
+            ).hexdigest(),
+            "new_selector_identity_sha256": hashlib.sha256(
+                self.NEW.encode("utf-8")
+            ).hexdigest(),
+            "qualification_evidence_sha256": "7" * 64,
+            "target_acceptance_evidence_sha256": hashlib.sha256(
+                (
+                    json.dumps(
+                        acceptance_value,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    + "\n"
+                ).encode("utf-8")
+            ).hexdigest(),
+            "outcome": "PRE_APPLY_VERIFIED",
+        }
+        pre_apply_path = private / "pre-apply.json"
+        pre_apply_path.write_text(
+            json.dumps(
+                pre_apply,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        os.chmod(pre_apply_path, 0o600)
         return {
             "KEELARYN_POST_CUTOVER_ACCEPTANCE_ENABLE": "YES",
             "KEELARYN_HUB_SELECTOR_PATH": str(selector),
@@ -80,6 +122,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             "KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT": str(
                 private / "finalization-receipt.json"
             ),
+            "KEELARYN_PRE_APPLY_CUTOVER_RECEIPT": str(pre_apply_path),
             "KEELARYN_MIGRATION_PACK_DIR": str(private / "pack"),
             "KEELARYN_MIGRATION_FREEZE_RECEIPT": str(private / "freeze.json"),
             "KEELARYN_MIGRATION_REPO_ROOT": str(private / "repo"),
@@ -100,8 +143,36 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 code = module.main()
         return code, stdout.getvalue(), stderr.getvalue()
 
+    def _acceptance_value(self, selected: str) -> dict:
+        selected_sha = hashlib.sha256(selected.encode("utf-8")).hexdigest()
+        return {
+            "schema": "keelaryn.migration-post-cutover-read-only-acceptance.v1",
+            "candidate_id": "candidate",
+            "pack_sha256": "1" * 64,
+            "source_commit": self.SOURCE,
+            "source_tree": "b" * 40,
+            "selector_identity_sha256": selected_sha,
+            "target_identity_sha256": selected_sha,
+            "staging_identity_sha256": "2" * 64,
+            "canonical_epoch": 1,
+            "canonical_file_count": 1,
+            "canonical_total_bytes": 1,
+            "canonical_inventory_sha256": "3" * 64,
+            "preserved_file_count": 0,
+            "preserved_total_bytes": 0,
+            "preservation_inventory_sha256": "4" * 64,
+            "project_count": 0,
+            "reconciliation_state_sha256": "5" * 64,
+            "router_outcome": "NOT_REQUIRED",
+            "root_index_sha256": "6" * 64,
+            "restart_state": "READY_CLEAN",
+            "outcome": "POST_CUTOVER_READ_ONLY_PASS",
+            "drive_mutations_performed": False,
+            "hub_cutover_accept_allowed": True,
+        }
+
     def _acceptance_factory(self, *, mutate=None, overrides=None):
-        source = self.SOURCE
+        outer = self
         overrides = dict(overrides or {})
 
         class Acceptance:
@@ -111,32 +182,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             def run(self, *args):
                 if mutate is not None:
                     mutate()
-                selected_sha = hashlib.sha256(self.selected.encode("utf-8")).hexdigest()
-                value = {
-                    "schema": "keelaryn.migration-post-cutover-read-only-acceptance.v1",
-                    "candidate_id": "candidate",
-                    "pack_sha256": "1" * 64,
-                    "source_commit": source,
-                    "source_tree": "b" * 40,
-                    "selector_identity_sha256": selected_sha,
-                    "target_identity_sha256": selected_sha,
-                    "staging_identity_sha256": "2" * 64,
-                    "canonical_epoch": 1,
-                    "canonical_file_count": 1,
-                    "canonical_total_bytes": 1,
-                    "canonical_inventory_sha256": "3" * 64,
-                    "preserved_file_count": 0,
-                    "preserved_total_bytes": 0,
-                    "preservation_inventory_sha256": "4" * 64,
-                    "project_count": 0,
-                    "reconciliation_state_sha256": "5" * 64,
-                    "router_outcome": "NOT_REQUIRED",
-                    "root_index_sha256": "6" * 64,
-                    "restart_state": "READY_CLEAN",
-                    "outcome": "POST_CUTOVER_READ_ONLY_PASS",
-                    "drive_mutations_performed": False,
-                    "hub_cutover_accept_allowed": True,
-                }
+                value = outer._acceptance_value(self.selected)
                 value.update(overrides)
                 return _FakeEvidence(value)
 
@@ -155,6 +201,11 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 "DriveMigrationPostCutoverReadOnlyAcceptance",
                 acceptance,
             ),
+            patch.object(
+                module,
+                "verify_migration_source_against_drive",
+                return_value=object(),
+            ),
         )
 
     def test_exact_live_acceptance_binds_transaction_and_terminal_accepts(self) -> None:
@@ -165,7 +216,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             env = self._env(root, selector, state)
             acceptance = self._acceptance_factory()
             patches = self._patch_success_dependencies(module, acceptance)
-            with patches[0], patches[1], patches[2]:
+            with patches[0], patches[1], patches[2], patches[3]:
                 code, stdout, stderr = self._run(module, env)
 
             self.assertEqual(code, 0)
@@ -177,6 +228,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             self.assertEqual(public["source_commit"], self.SOURCE)
             self.assertEqual(len(public["active_transaction_sha256"]), 64)
             self.assertEqual(len(public["acceptance_evidence_sha256"]), 64)
+            self.assertEqual(len(public["pre_apply_receipt_sha256"]), 64)
             self.assertEqual(len(public["selector_identity_sha256"]), 64)
             rendered = json.dumps(public, sort_keys=True)
             self.assertNotIn(self.OLD, rendered)
@@ -195,6 +247,10 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 Path(env["KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT"]).read_text(
                     encoding="utf-8"
                 )
+            )
+            self.assertEqual(
+                receipt["pre_apply_receipt_sha256"],
+                public["pre_apply_receipt_sha256"],
             )
             txid = receipt["transaction_id"]
             terminal = json.loads(
@@ -237,7 +293,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 overrides={"selector_identity_sha256": "0" * 64}
             )
             patches = self._patch_success_dependencies(module, acceptance)
-            with patches[0], patches[1], patches[2]:
+            with patches[0], patches[1], patches[2], patches[3]:
                 code, stdout, stderr = self._run(module, env)
 
             self.assertEqual(code, 1)
@@ -271,7 +327,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
 
             acceptance = self._acceptance_factory(mutate=mutate_selector)
             patches = self._patch_success_dependencies(module, acceptance)
-            with patches[0], patches[1], patches[2]:
+            with patches[0], patches[1], patches[2], patches[3]:
                 code, stdout, stderr = self._run(module, env)
 
             self.assertEqual(code, 1)
@@ -282,6 +338,34 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                 {"private-receipt", "commit-boundary-revalidation"},
             )
             self.assertEqual(list((state / "terminal").glob("*.json")), [])
+
+    def test_legacy_source_drift_blocks_before_terminal_acceptance(self) -> None:
+        module = _load_runner()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            selector, state = self._layout(root)
+            env = self._env(root, selector, state)
+            acceptance = self._acceptance_factory()
+            patches = self._patch_success_dependencies(module, acceptance)
+            with patches[0], patches[1], patches[2], patch.object(
+                module,
+                "verify_migration_source_against_drive",
+                side_effect=RuntimeError("legacy source drift"),
+            ):
+                code, stdout, stderr = self._run(module, env)
+
+            self.assertEqual(code, 1)
+            self.assertEqual(stdout, "")
+            self.assertEqual(json.loads(stderr)["phase"], "legacy-source-revalidation")
+            self.assertEqual(list((state / "terminal").glob("*.json")), [])
+            switch = hub_cutover.HubSelectorCutover(
+                selector,
+                state,
+                self.SOURCE,
+                mutation_gate_root=root / "mutation-gate",
+                executing_tool=DEPLOY / "hub_cutover.py",
+            )
+            self.assertEqual(switch.status()["status"], "APPLIED")
 
     def test_exception_text_with_private_values_is_never_emitted(self) -> None:
         module = _load_runner()
@@ -300,7 +384,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
                     )
 
             patches = self._patch_success_dependencies(module, FailingAcceptance)
-            with patches[0], patches[1], patches[2]:
+            with patches[0], patches[1], patches[2], patches[3]:
                 code, stdout, stderr = self._run(module, env)
 
             self.assertEqual(code, 1)
@@ -319,7 +403,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             env = self._env(root, selector, state)
             acceptance = self._acceptance_factory()
             patches = self._patch_success_dependencies(module, acceptance)
-            with patches[0], patches[1], patches[2]:
+            with patches[0], patches[1], patches[2], patches[3]:
                 first_code, first_stdout, first_stderr = self._run(module, env)
             self.assertEqual(first_code, 0)
             self.assertEqual(first_stderr, "")
@@ -343,7 +427,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             env = self._env(root, selector, state)
             acceptance = self._acceptance_factory()
             patches = self._patch_success_dependencies(module, acceptance)
-            with patches[0], patches[1], patches[2]:
+            with patches[0], patches[1], patches[2], patches[3]:
                 code, _, stderr = self._run(module, env)
             self.assertEqual(code, 0)
             self.assertEqual(stderr, "")
@@ -380,7 +464,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
 
             acceptance = self._acceptance_factory()
             patches = self._patch_success_dependencies(module, acceptance)
-            with patches[0], patches[1], patches[2]:
+            with patches[0], patches[1], patches[2], patches[3]:
                 code, stdout, stderr = self._run(module, env)
 
             self.assertEqual(code, 1)

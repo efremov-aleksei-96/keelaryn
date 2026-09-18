@@ -78,6 +78,7 @@ Use the exact cutover tool from the qualified active release and its exact sourc
 
 ```bash
 CUTOVER_TOOL=/opt/keelaryn/current/deploy/zero-based-vps/hub_cutover.py
+PRE_APPLY_FINALIZER=/opt/keelaryn/current/tests/live/run_migration_pre_apply_cutover.py
 FINALIZER=/opt/keelaryn/current/tests/live/run_migration_post_cutover_acceptance.py
 SOURCE_COMMIT=<exact-qualified-40-hex-source-commit>
 SELECTOR=/etc/keelaryn/hub.env
@@ -105,22 +106,26 @@ python3 -B "$CUTOVER_TOOL" \
 
 `prepare` first obtains the exclusive mutation gate, proving all gate-participating production mutations have exited, durably publishes `INHIBIT.json`, and only then writes active Hub-selector authority. A crash after inhibit publication but before active authority is restart-recovered by repeating exact `prepare`; a different OLD/NEW/tool identity fails closed.
 
-Atomically publish NEW:
+Freshly verify the quiesced legacy source and qualified NEW target, then atomically publish NEW **only through the transaction-bound pre-apply finalizer**:
 
 ```bash
-python3 -B "$CUTOVER_TOOL" \
-  --selector-path "$SELECTOR" \
-  --state-root "$STATE" \
-  --mutation-gate-root "$MUTATION_GATE" \
-  --source-commit "$SOURCE_COMMIT" \
-  apply
+export KEELARYN_PRODUCTION_CUTOVER_ENABLE=YES
+export KEELARYN_HUB_SELECTOR_PATH="$SELECTOR"
+export KEELARYN_DEPLOYMENT_STATE_ROOT="$STATE"
+export KEELARYN_MUTATION_GATE_ROOT="$MUTATION_GATE"
+export KEELARYN_SOURCE_COMMIT="$SOURCE_COMMIT"
+export KEELARYN_PRE_APPLY_CUTOVER_RECEIPT=<private-mode-0600-path>
+# Also export the exact migration pack/freeze/repository/target-authority/
+# qualification-evidence and OAuth bindings from the qualified candidate.
+
+python3 -B "$PRE_APPLY_FINALIZER"
 ```
 
-`apply` re-observes exact OLD at the durable commit boundary, writes a mode-`0600` temporary selector in the same directory, fsyncs it, atomically replaces `hub.env`, fsyncs the parent directory, then requires exact NEW bytes on re-observation.
+The pre-apply finalizer requires exact `PREPARED` transaction + inhibit authority, freshly read-only verifies the qualified NEW target, freshly verifies OLD legacy Drive bytes against the frozen migration source, durably publishes one private transaction-bound pre-apply receipt, revalidates transaction/inhibit identity at the commit boundary, and only then calls the low-level selector `apply` primitive.
 
-A crash or response loss after replacement is recovered by observation: the next `status` reports `APPLIED` when NEW is exact. The tool must not blindly write NEW again.
+Raw `hub_cutover.py apply` is intentionally not exposed by the production CLI. A crash or response loss after selector replacement is recovered by re-running the same pre-apply finalizer with the same private receipt: exact `APPLIED` is observed without repeating OAuth/Drive verification or blindly rewriting NEW.
 
-Do **not** start the NEW writer and do **not** invoke `hub_cutover.py accept` directly after `apply`.
+Do **not** start the NEW writer and do **not** invoke low-level terminal `accept` directly after pre-apply PASS.
 
 ## 5. Transaction-bound post-cutover acceptance
 
@@ -143,6 +148,7 @@ Required private/local bindings are:
 - `KEELARYN_MUTATION_GATE_ROOT`
 - `KEELARYN_SOURCE_COMMIT`
 - `KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT`
+- `KEELARYN_PRE_APPLY_CUTOVER_RECEIPT`
 - `KEELARYN_MIGRATION_PACK_DIR`
 - `KEELARYN_MIGRATION_FREEZE_RECEIPT`
 - `KEELARYN_MIGRATION_REPO_ROOT`
@@ -160,16 +166,17 @@ python3 -B "$FINALIZER"
 
 The finalizer:
 
-1. requires the exact active Hub-cutover transaction and exact NEW selector;
-2. runs fresh read-only migration acceptance against the selected NEW Hub;
-3. requires `POST_CUTOVER_READ_ONLY_PASS`, `drive_mutations_performed=false` and `hub_cutover_accept_allowed=true`;
-4. binds the acceptance to SHA-256 of the exact active transaction, exact source commit and exact NEW selector identity;
-5. durably writes or verifies the private finalization receipt;
-6. revalidates active transaction and selector identity at the terminal commit boundary;
-7. invokes the low-level terminal `accept` primitive;
-8. verifies immutable `ACCEPTED` terminal/history authority;
-9. releases the exact bound production mutation inhibit and verifies ordinary `IDLE`;
-10. emits only sanitized hashes/identities, never real Hub IDs or private paths.
+1. requires the exact active Hub-cutover transaction, exact NEW selector and exact private pre-apply receipt;
+2. requires pre-apply transaction/source/OLD/NEW provenance to bind the same active transaction;
+3. runs fresh read-only migration acceptance against the selected NEW Hub and requires it to match the pre-apply target-acceptance digest;
+4. freshly re-verifies OLD legacy Drive bytes against the frozen migration source;
+5. requires `POST_CUTOVER_READ_ONLY_PASS`, `drive_mutations_performed=false` and `hub_cutover_accept_allowed=true`;
+6. durably writes or verifies the private finalization receipt including SHA-256 of the pre-apply receipt;
+7. revalidates active transaction and selector identity again at the terminal commit boundary;
+8. invokes the low-level terminal `accept` primitive;
+9. verifies immutable `ACCEPTED` terminal/history authority;
+10. releases the exact bound production mutation inhibit and verifies ordinary `IDLE`;
+11. emits only sanitized hashes/identities, never real Hub IDs or private paths.
 
 A fresh successful run returns `PRODUCTION_CUTOVER_ACCEPTED` and terminal outcome `ACCEPTED`.
 
@@ -217,7 +224,7 @@ A transaction with durable terminal `ACCEPTED` cannot later be rolled back by `h
 
 Recovery always re-runs the same logical operation with the same qualified source/tool identity. Never invent a new transaction because a process response was lost.
 
-For `APPLIED` production acceptance, recovery re-runs the transaction-bound finalizer, not raw `hub_cutover.py accept`. For rollback, recovery re-runs `rollback`. For an accepted finalizer response loss, the private receipt plus terminal/history authority prove the prior decision without another Drive acceptance mutation.
+For `PREPARED` or response loss around selector publication, recovery re-runs the same pre-apply finalizer; raw CLI `apply` does not exist. For `APPLIED` production acceptance, recovery re-runs the transaction-bound post-cutover finalizer, not low-level `accept`. For rollback, recovery re-runs `rollback`. For an accepted finalizer response loss, the private pre-apply/finalization receipts plus terminal/history authority prove the prior decisions without inventing a new transaction.
 
 Fault coverage includes interruption after active-record creation, before/after selector replacement, after private finalization receipt publication, after terminal publication, during rollback replacement and during final history publication.
 

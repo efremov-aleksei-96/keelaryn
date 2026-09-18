@@ -12,18 +12,23 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[2]
 CORE = REPO / "core"
 DEPLOY = REPO / "deploy" / "zero-based-vps"
+LIVE = REPO / "tests" / "live"
 sys.path.insert(0, str(CORE))
 sys.path.insert(0, str(DEPLOY))
+sys.path.insert(0, str(LIVE))
 
 import hub_cutover  # noqa: E402
 from keelaryn_core.drive_oauth import GoogleOAuthRefreshTokenProvider  # noqa: E402
 from keelaryn_core.drive_rest import GoogleDriveBackend  # noqa: E402
+from keelaryn_core.migration_common import MIGRATION_SOURCE_NAME  # noqa: E402
+from keelaryn_core.migration_drive_source import verify_migration_source_against_drive  # noqa: E402
 from keelaryn_core.migration_post_cutover_acceptance import (  # noqa: E402
     DriveMigrationPostCutoverReadOnlyAcceptance,
 )
+from run_migration_pre_apply_cutover import strict_pre_apply_receipt  # noqa: E402
 
-SCHEMA = "keelaryn.migration-post-cutover-live-finalization.v1"
-RECEIPT_SCHEMA = "keelaryn.migration-post-cutover-private-finalization-receipt.v1"
+SCHEMA = "keelaryn.migration-post-cutover-live-finalization.v2"
+RECEIPT_SCHEMA = "keelaryn.migration-post-cutover-private-finalization-receipt.v2"
 
 
 class LivePostCutoverFinalizationError(RuntimeError):
@@ -95,6 +100,7 @@ def _strict_receipt(path: Path) -> dict[str, Any]:
         "source_commit",
         "selector_identity_sha256",
         "acceptance_evidence_sha256",
+        "pre_apply_receipt_sha256",
     }
     if not isinstance(value, dict) or set(value) != expected:
         raise LivePostCutoverFinalizationError(
@@ -117,6 +123,7 @@ def _strict_receipt(path: Path) -> dict[str, Any]:
         "active_transaction_sha256",
         "selector_identity_sha256",
         "acceptance_evidence_sha256",
+        "pre_apply_receipt_sha256",
     ):
         digest = value[key]
         if (
@@ -205,11 +212,64 @@ def _active_binding(
         return record_raw, record, selected
 
 
+def _verify_pre_apply_against_record(
+    pre_apply: dict[str, Any],
+    record_raw: bytes,
+    record: dict[str, Any],
+) -> None:
+    if pre_apply["transaction_id"] != record["transaction_id"]:
+        raise LivePostCutoverFinalizationError(
+            "pre-apply receipt transaction does not match active cutover"
+        )
+    if pre_apply["active_transaction_sha256"] != _sha256_bytes(record_raw):
+        raise LivePostCutoverFinalizationError(
+            "pre-apply receipt active authority does not match cutover"
+        )
+    if pre_apply["source_commit"] != record["tool"]["source_commit"]:
+        raise LivePostCutoverFinalizationError(
+            "pre-apply receipt source commit does not match cutover"
+        )
+    if pre_apply["old_selector_identity_sha256"] != _sha256_bytes(
+        record["old_hub_root_id"].encode("utf-8")
+    ):
+        raise LivePostCutoverFinalizationError(
+            "pre-apply receipt OLD identity does not match cutover"
+        )
+    if pre_apply["new_selector_identity_sha256"] != _sha256_bytes(
+        record["new_hub_root_id"].encode("utf-8")
+    ):
+        raise LivePostCutoverFinalizationError(
+            "pre-apply receipt NEW identity does not match cutover"
+        )
+
+
+def _verify_pre_apply_against_acceptance(
+    pre_apply: dict[str, Any],
+    acceptance_value: dict[str, Any],
+) -> None:
+    if pre_apply["source_tree"] != acceptance_value.get("source_tree"):
+        raise LivePostCutoverFinalizationError(
+            "pre-apply receipt source tree disagrees with fresh NEW acceptance"
+        )
+    if pre_apply["pack_sha256"] != acceptance_value.get("pack_sha256"):
+        raise LivePostCutoverFinalizationError(
+            "pre-apply receipt pack identity disagrees with fresh NEW acceptance"
+        )
+    if (
+        pre_apply["target_acceptance_evidence_sha256"]
+        != _sha256_json(acceptance_value)
+    ):
+        raise LivePostCutoverFinalizationError(
+            "fresh NEW acceptance changed since pre-apply verification"
+        )
+
+
 def _receipt_for(
     record_raw: bytes,
     record: dict[str, Any],
     selected_hub_root_id: str,
     acceptance_value: dict[str, Any],
+    pre_apply_receipt_sha256: str,
 ) -> dict[str, Any]:
     selected_sha = _sha256_bytes(selected_hub_root_id.encode("utf-8"))
     if acceptance_value.get("outcome") != "POST_CUTOVER_READ_ONLY_PASS":
@@ -242,6 +302,7 @@ def _receipt_for(
         "source_commit": record["tool"]["source_commit"],
         "selector_identity_sha256": selected_sha,
         "acceptance_evidence_sha256": _sha256_json(acceptance_value),
+        "pre_apply_receipt_sha256": pre_apply_receipt_sha256,
     }
 
 
@@ -340,6 +401,7 @@ def _public_result(receipt: dict[str, Any]) -> dict[str, Any]:
         "source_commit": receipt["source_commit"],
         "active_transaction_sha256": receipt["active_transaction_sha256"],
         "acceptance_evidence_sha256": receipt["acceptance_evidence_sha256"],
+        "pre_apply_receipt_sha256": receipt["pre_apply_receipt_sha256"],
         "selector_identity_sha256": receipt["selector_identity_sha256"],
         "outcome": "PRODUCTION_CUTOVER_ACCEPTED",
         "drive_mutations_performed": False,
@@ -375,6 +437,7 @@ def main() -> int:
         mutation_gate_root = _path("KEELARYN_MUTATION_GATE_ROOT")
         source_commit = _required("KEELARYN_SOURCE_COMMIT")
         receipt_path = _path("KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT")
+        pre_apply_receipt_path = _path("KEELARYN_PRE_APPLY_CUTOVER_RECEIPT")
         pack_dir = _path("KEELARYN_MIGRATION_PACK_DIR")
         freeze_receipt = _path("KEELARYN_MIGRATION_FREEZE_RECEIPT")
         repo_root = _path("KEELARYN_MIGRATION_REPO_ROOT")
@@ -388,12 +451,16 @@ def main() -> int:
             str(state_root),
             str(mutation_gate_root),
             str(receipt_path),
+            str(pre_apply_receipt_path),
             str(pack_dir),
             str(freeze_receipt),
             str(repo_root),
             str(target_authority),
             str(qualification_evidence),
         )
+
+        pre_apply_receipt = strict_pre_apply_receipt(pre_apply_receipt_path)
+        pre_apply_receipt_sha256 = _sha256_bytes(pre_apply_receipt_path.read_bytes())
 
         switch = hub_cutover.HubSelectorCutover(
             selector_path,
@@ -407,6 +474,10 @@ def main() -> int:
         if status.get("status") in {"IDLE", "INHIBITED_IDLE"}:
             phase = "terminal-recovery"
             receipt = _strict_receipt(receipt_path)
+            if receipt["pre_apply_receipt_sha256"] != pre_apply_receipt_sha256:
+                raise LivePostCutoverFinalizationError(
+                    "finalization receipt pre-apply provenance mismatch"
+                )
             _verify_terminal_recovery(switch, receipt)
             phase = "mutation-inhibit-release"
             switch.release_mutation_inhibit_after_accept(
@@ -424,6 +495,10 @@ def main() -> int:
         if status.get("status") == "FINALIZE_PENDING":
             phase = "terminal-recovery"
             receipt = _strict_receipt(receipt_path)
+            if receipt["pre_apply_receipt_sha256"] != pre_apply_receipt_sha256:
+                raise LivePostCutoverFinalizationError(
+                    "finalization receipt pre-apply provenance mismatch"
+                )
             _verify_receipt_against_active(switch, receipt)
             result = switch.accept(
                 expected_active_transaction_sha256=receipt["active_transaction_sha256"]
@@ -452,6 +527,7 @@ def main() -> int:
 
         phase = "transaction-binding"
         record_raw, record, selected_hub_root_id = _active_binding(switch)
+        _verify_pre_apply_against_record(pre_apply_receipt, record_raw, record)
         forbidden = forbidden + (
             selected_hub_root_id,
             record["old_hub_root_id"],
@@ -474,17 +550,32 @@ def main() -> int:
             qualification_evidence,
         )
         acceptance_value = acceptance.to_json_value()
+        _verify_pre_apply_against_acceptance(
+            pre_apply_receipt,
+            acceptance_value,
+        )
         receipt_value = _receipt_for(
             record_raw,
             record,
             selected_hub_root_id,
             acceptance_value,
+            pre_apply_receipt_sha256,
         )
 
         phase = "private-receipt"
         receipt = _write_or_verify_receipt(receipt_path, receipt_value)
 
         phase = "commit-boundary-revalidation"
+        _verify_receipt_against_active(switch, receipt)
+
+        phase = "legacy-source-revalidation"
+        verify_migration_source_against_drive(
+            drive,
+            record["old_hub_root_id"],
+            pack_dir / "authority" / MIGRATION_SOURCE_NAME,
+        )
+
+        phase = "terminal-commit-boundary-revalidation"
         _verify_receipt_against_active(switch, receipt)
 
         phase = "terminal-accept"

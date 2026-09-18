@@ -141,6 +141,30 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
             txid = recovered.status()["transaction_id"]
             self.accept_and_release(recovered, state, txid)
 
+    def test_apply_expected_transaction_hash_and_inhibit_are_commit_boundary_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            selector, state = self.layout(Path(temp))
+            switch = self.switch(selector, state)
+            switch.prepare(self.NEW)
+            active_raw = (state / cutovermod.ACTIVE_NAME).read_bytes()
+            active_sha = hashlib.sha256(active_raw).hexdigest()
+
+            with self.assertRaisesRegex(
+                cutovermod.HubCutoverError,
+                "changed at selector apply boundary",
+            ):
+                switch.apply(expected_active_transaction_sha256="0" * 64)
+            self.assertEqual(self.selected(selector), self.OLD)
+
+            inhibit = state.parent / "mutation-gate" / "INHIBIT.json"
+            inhibit.unlink()
+            with self.assertRaisesRegex(
+                cutovermod.HubCutoverError,
+                "mutation inhibit",
+            ):
+                switch.apply(expected_active_transaction_sha256=active_sha)
+            self.assertEqual(self.selected(selector), self.OLD)
+
     def test_accept_expected_transaction_hash_blocks_replaced_active_transaction(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             selector, state = self.layout(Path(temp))
@@ -281,20 +305,23 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
                 with self.assertRaises(cutovermod.HubCutoverError):
                     self.switch(selector, state)
 
-    def test_cli_does_not_expose_raw_terminal_accept(self) -> None:
+    def test_cli_does_not_expose_raw_apply_or_terminal_accept(self) -> None:
         parser = cutovermod._parser()
-        with self.assertRaises(SystemExit):
-            parser.parse_args(
-                [
-                    "--selector-path",
-                    "/tmp/keelaryn/hub.env",
-                    "--state-root",
-                    "/tmp/keelaryn/deployment",
-                    "--source-commit",
-                    self.SOURCE,
-                    "accept",
-                ]
-            )
+        for command in ("apply", "accept"):
+            with self.subTest(command=command), self.assertRaises(SystemExit):
+                parser.parse_args(
+                    [
+                        "--selector-path",
+                        "/tmp/keelaryn/hub.env",
+                        "--state-root",
+                        "/tmp/keelaryn/deployment",
+                        "--mutation-gate-root",
+                        "/tmp/keelaryn/mutation-gate",
+                        "--source-commit",
+                        self.SOURCE,
+                        command,
+                    ]
+                )
 
     def test_transaction_authority_files_remain_owner_private(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

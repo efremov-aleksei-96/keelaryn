@@ -574,24 +574,65 @@ class HubSelectorCutover:
                 return {"status": "APPLIED", "transaction_id": record["transaction_id"]}
             return {"status": "BLOCKED", "reason": "selector-identity-unknown", "transaction_id": record["transaction_id"]}
 
-    def apply(self) -> dict[str, Any]:
+    def apply(
+        self,
+        *,
+        expected_active_transaction_sha256: str | None = None,
+    ) -> dict[str, Any]:
         with self.locked():
             record_raw, record = self._load_active()
-            if self._load_terminal(record_raw, record) is not None:
-                raise HubCutoverError("terminal Hub cutover decision already exists")
-            observed = self._classify(record)
-            if observed == "NEW":
-                return {"status": "APPLIED", "transaction_id": record["transaction_id"]}
-            if observed != "OLD":
-                raise HubCutoverError("Hub selector is neither exact OLD nor exact NEW identity")
-            _fault(self.fault_hook, "apply.before_selector_replace")
-            _atomic_replace_selector(
-                self.selector_path,
-                record["old_hub_root_id"],
-                record["new_hub_root_id"],
-            )
-            _fault(self.fault_hook, "apply.after_selector_replace")
-            return {"status": "APPLIED", "transaction_id": record["transaction_id"]}
+            if expected_active_transaction_sha256 is not None:
+                if (
+                    not isinstance(expected_active_transaction_sha256, str)
+                    or len(expected_active_transaction_sha256) != 64
+                    or any(
+                        ch not in "0123456789abcdef"
+                        for ch in expected_active_transaction_sha256
+                    )
+                ):
+                    raise HubCutoverError(
+                        "expected active Hub cutover transaction SHA-256 is invalid"
+                    )
+                if hashlib.sha256(record_raw).hexdigest() != expected_active_transaction_sha256:
+                    raise HubCutoverError(
+                        "active Hub cutover transaction changed at selector apply boundary"
+                    )
+
+            def apply_under_gate() -> dict[str, Any]:
+                if self._load_terminal(record_raw, record) is not None:
+                    raise HubCutoverError("terminal Hub cutover decision already exists")
+                if self.mutation_gate is not None:
+                    expected_inhibit = self._mutation_inhibit_value(record_raw, record)
+                    if self.mutation_gate.read() != expected_inhibit:
+                        raise HubCutoverError(
+                            "production mutation inhibit does not bind exact selector apply transaction"
+                        )
+                observed = self._classify(record)
+                if observed == "NEW":
+                    return {
+                        "status": "APPLIED",
+                        "transaction_id": record["transaction_id"],
+                    }
+                if observed != "OLD":
+                    raise HubCutoverError(
+                        "Hub selector is neither exact OLD nor exact NEW identity"
+                    )
+                _fault(self.fault_hook, "apply.before_selector_replace")
+                _atomic_replace_selector(
+                    self.selector_path,
+                    record["old_hub_root_id"],
+                    record["new_hub_root_id"],
+                )
+                _fault(self.fault_hook, "apply.after_selector_replace")
+                return {
+                    "status": "APPLIED",
+                    "transaction_id": record["transaction_id"],
+                }
+
+            if self.mutation_gate is None:
+                return apply_under_gate()
+            with self.mutation_gate.locked():
+                return apply_under_gate()
 
     def accept(
         self,
@@ -705,7 +746,6 @@ def _parser() -> argparse.ArgumentParser:
     prepare = sub.add_parser("prepare")
     prepare.add_argument("new_hub_root_id")
     sub.add_parser("status")
-    sub.add_parser("apply")
     sub.add_parser("rollback")
     return parser
 
@@ -724,8 +764,6 @@ def main(argv: list[str] | None = None) -> int:
             result = switch.prepare(args.new_hub_root_id)
         elif args.command == "status":
             result = switch.status()
-        elif args.command == "apply":
-            result = switch.apply()
         else:
             result = switch.rollback()
     except (HubCutoverError, DriveMutationGateError, OSError) as exc:
