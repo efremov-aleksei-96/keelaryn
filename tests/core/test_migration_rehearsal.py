@@ -217,6 +217,80 @@ class DriveMigrationDisposableRehearsalTests(unittest.TestCase):
             self.assertEqual(master["last_completed_change"]["change_id"], pack.candidate_id)
             self.assertEqual(master["last_completed_change"]["outcome"], "COMMITTED")
 
+    def test_post_commit_replay_bounds_canonical_payload_download_amplification(self) -> None:
+        class CountingDrive(DriveModel):
+            def __init__(self):
+                super().__init__(fault=FaultInjector())
+                self.download_counts: dict[str, int] = {}
+
+            def download(self, file_id: str) -> bytes:
+                self.download_counts[file_id] = self.download_counts.get(file_id, 0) + 1
+                return super().download(file_id)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pack, _, _ = self.build_pack(
+                Path(tmp),
+                candidate_id="migration-rehearsal-download-bound",
+            )
+            drive = CountingDrive()
+            hub = drive.create_folder("root", "Disposable Migration Hub", label="setup.hub")
+            hub_id = hub.file_id
+
+            first = DriveMigrationDisposableRehearsal(drive, hub_id).run(pack.root)
+            self.assertEqual(first.outcome, "PASS")
+
+            layout = DriveHubBootstrap(drive, hub_id).run().layout
+            canonical_ids: list[str] = []
+            for entry in pack.canonical_outputs:
+                item = self.resolve_path(drive, layout.canonical_root_id, entry.target)
+                assert item is not None
+                canonical_ids.append(item.file_id)
+
+            drive.download_counts.clear()
+            second = DriveMigrationDisposableRehearsal(drive, hub_id).run(pack.root)
+            self.assertEqual(second.outcome, "PASS")
+
+            for file_id in canonical_ids:
+                with self.subTest(file_id=file_id):
+                    self.assertLessEqual(
+                        drive.download_counts.get(file_id, 0),
+                        2,
+                        "post-COMMIT replay must not repeatedly download canonical payload bytes",
+                    )
+
+    def test_rehearsal_exposes_post_commit_acceptance_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pack, _, _ = self.build_pack(
+                Path(tmp),
+                candidate_id="migration-rehearsal-progress-after-commit",
+            )
+            drive, hub_id = self.build_drive()
+            events: list[str] = []
+
+            evidence = DriveMigrationDisposableRehearsal(
+                drive,
+                hub_id,
+                progress=lambda phase, current=None, total=None: events.append(phase),
+            ).run(pack.root)
+
+            self.assertEqual(evidence.outcome, "PASS")
+            expected = [
+                "preservation",
+                "router-precheck",
+                "router-commit",
+                "router-postcheck",
+                "canonical-reader",
+                "workflow-verification",
+                "idle-restart",
+                "final-master",
+            ]
+            positions = []
+            for phase in expected:
+                with self.subTest(phase=phase):
+                    self.assertIn(phase, events)
+                positions.append(events.index(phase))
+            self.assertEqual(positions, sorted(positions))
+
     def test_rehearsal_recovers_across_publication_preservation_and_router_crashes(self) -> None:
         points = (
             "drive.migration.ready.create.after",
