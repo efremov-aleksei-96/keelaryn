@@ -220,6 +220,24 @@ class DriveModel:
         self.fault.hit(f"{label}.after")
         return replace(updated)
 
+    def replace_blob_content(
+        self,
+        expected: DriveItem,
+        content: bytes,
+        *,
+        label: str = "drive.replace_blob_content",
+    ) -> DriveItem:
+        if expected.trashed or expected.is_folder:
+            raise ProtocolError("exact blob replacement requires one live blob observation")
+        current = self.get(expected.file_id, include_trashed=False)
+        if current != expected:
+            raise ProtocolError("exact blob observation changed before replacement")
+        return self.update_content(
+            expected.file_id,
+            content,
+            label=label,
+        )
+
     def update_content(
         self,
         file_id: str,

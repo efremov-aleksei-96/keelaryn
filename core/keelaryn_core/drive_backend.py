@@ -121,6 +121,14 @@ class DriveBackend(Protocol):
         label: str = "drive.move_rename",
     ) -> DriveItem: ...
 
+    def replace_blob_content(
+        self,
+        expected: DriveItem,
+        content: bytes,
+        *,
+        label: str = "drive.replace_blob_content",
+    ) -> DriveItem: ...
+
     def update_content(
         self,
         file_id: str,

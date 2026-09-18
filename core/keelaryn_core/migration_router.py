@@ -236,8 +236,8 @@ class DriveMigrationRootIndexPublication:
                 "migration root INDEX identity changed before router commit"
             )
 
-        self.drive.update_content(
-            item.file_id,
+        self.drive.replace_blob_content(
+            commit_item,
             target_raw,
             label=f"drive.migration.router.{pack.candidate_id}.index.update",
         )

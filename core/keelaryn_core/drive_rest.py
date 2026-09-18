@@ -491,6 +491,65 @@ class GoogleDriveBackend:
             raise DriveTransportError("DRIVE_MOVE_RENAME: response ID mismatch")
         return item
 
+    def replace_blob_content(
+        self,
+        expected: DriveItem,
+        content: bytes,
+        *,
+        label: str = "drive.replace_blob_content",
+    ) -> DriveItem:
+        del label
+        if (
+            expected.trashed
+            or expected.is_folder
+            or expected.parent_id is None
+            or expected.size is None
+            or expected.sha256_checksum is None
+            or expected.mime_type.startswith("application/vnd.google-apps.")
+        ):
+            raise ProtocolError("exact blob replacement requires one live regular blob observation")
+
+        current = self.get(expected.file_id, include_trashed=False)
+        if current != expected:
+            raise ProtocolError("exact blob observation changed before replacement")
+
+        raw = bytes(content)
+        url = self._url(
+            UPLOAD_BASE,
+            f"files/{quote(expected.file_id, safe='')}",
+            [
+                ("uploadType", "media"),
+                ("supportsAllDrives", "true"),
+                ("fields", FILE_FIELDS),
+            ],
+        )
+        response = self._request(
+            "PATCH",
+            url,
+            body=raw,
+            content_type=expected.mime_type,
+            mutation=True,
+        )
+        item = self._item(
+            self._parse_json(response, label="DRIVE_REPLACE_BLOB_CONTENT"),
+            label="DRIVE_REPLACE_BLOB_CONTENT",
+        )
+        if (
+            item.file_id != expected.file_id
+            or item.parent_id != expected.parent_id
+            or item.name != expected.name
+            or item.mime_type != expected.mime_type
+            or item.trashed
+            or item.is_folder
+            or item.version <= expected.version
+            or item.size != len(raw)
+            or item.sha256_checksum != sha256(raw).hexdigest()
+        ):
+            raise DriveTransportError(
+                "DRIVE_REPLACE_BLOB_CONTENT: response does not confirm exact replacement"
+            )
+        return item
+
     def update_content(
         self,
         file_id: str,
