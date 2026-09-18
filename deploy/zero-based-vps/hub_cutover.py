@@ -478,7 +478,6 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("new_hub_root_id")
     sub.add_parser("status")
     sub.add_parser("apply")
-    sub.add_parser("accept")
     sub.add_parser("rollback")
     return parser
 
@@ -498,8 +497,6 @@ def main(argv: list[str] | None = None) -> int:
             result = switch.status()
         elif args.command == "apply":
             result = switch.apply()
-        elif args.command == "accept":
-            result = switch.accept()
         else:
             result = switch.rollback()
     except (HubCutoverError, OSError) as exc:

@@ -202,6 +202,21 @@ class ZeroBasedVpsHubCutoverTests(unittest.TestCase):
                 with self.assertRaises(cutovermod.HubCutoverError):
                     self.switch(selector, state)
 
+    def test_cli_does_not_expose_raw_terminal_accept(self) -> None:
+        parser = cutovermod._parser()
+        with self.assertRaises(SystemExit):
+            parser.parse_args(
+                [
+                    "--selector-path",
+                    "/tmp/keelaryn/hub.env",
+                    "--state-root",
+                    "/tmp/keelaryn/deployment",
+                    "--source-commit",
+                    self.SOURCE,
+                    "accept",
+                ]
+            )
+
     def test_insecure_state_or_lock_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             selector, state = self.layout(Path(temp))
