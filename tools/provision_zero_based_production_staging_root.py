@@ -160,9 +160,12 @@ def _load_or_create_authority(
     if path.exists() or path.is_symlink():
         raw = _private_authority(path).read_bytes()
         value = _strict_authority(raw)
+        # tool_sha256 is immutable creation provenance, not a lease on one
+        # gate revision. A compatible successor must be able to resume from the
+        # already-durable reserved Drive IDs without rewriting authority bytes.
         expected = {
             "schema": AUTHORITY_SCHEMA,
-            "tool_sha256": tool_sha256,
+            "tool_sha256": value["tool_sha256"],
             "root_id": value["root_id"],
             "sentinel_id": value["sentinel_id"],
             "root_name": STAGING_ROOT_NAME,
@@ -171,7 +174,7 @@ def _load_or_create_authority(
         }
         if value != expected:
             raise ProductionStagingProvisionError(
-                "production staging authority disagrees with exact gate identity"
+                "production staging authority disagrees with exact staging contract"
             )
         return value, False
 
@@ -235,12 +238,14 @@ def _ensure_root(drive, authority: dict[str, str]) -> bool:
     if (
         root.trashed
         or not root.is_folder
-        or root.parent_id != ROOT_PARENT_ID
         or root.name != STAGING_ROOT_NAME
     ):
         raise ProductionStagingProvisionError(
             "reserved production staging root resolves to conflicting Drive object"
         )
+    # "root" is a Drive API request alias. Google may return the canonical opaque
+    # root folder ID in parents, so top-level membership is proven by the exact
+    # namespace query rather than by comparing parent_id with the alias string.
     _verify_root_namespace(drive, root_id)
     return attempted
 

@@ -6,6 +6,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +28,26 @@ def _load_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+class _OpaqueGoogleRootParentDrive(DriveModel):
+    """Model Google Drive returning the canonical opaque root parent ID."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._staging_id: str | None = None
+
+    def create_folder(self, parent_id, name, **kwargs):
+        item = super().create_folder(parent_id, name, **kwargs)
+        if parent_id == "root" and name == STAGING_ROOT_NAME:
+            self._staging_id = item.file_id
+        return item
+
+    def get(self, file_id, *, include_trashed=True):
+        item = super().get(file_id, include_trashed=include_trashed)
+        if file_id == self._staging_id:
+            return replace(item, parent_id="opaque-google-root-folder-id")
+        return item
 
 
 class ProductionStagingProvisionerTests(unittest.TestCase):
@@ -71,6 +92,29 @@ class ProductionStagingProvisionerTests(unittest.TestCase):
             raw_output = str(result)
             self.assertNotIn(staging.file_id, raw_output)
             self.assertNotIn(sentinel.file_id, raw_output)
+
+    def test_google_root_alias_may_round_trip_as_opaque_parent_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            drive = _OpaqueGoogleRootParentDrive()
+            authority = self._authority(root)
+
+            result = self.module.provision_production_staging(
+                drive,
+                authority,
+                tool_sha256=self.tool_sha,
+            )
+
+            self.assertEqual(result["status"], "PROVISION_PASS")
+            self.assertTrue(result["drive_mutations_performed"])
+            matches = drive.list_children("root", name=STAGING_ROOT_NAME)
+            self.assertEqual(len(matches), 1)
+            self.assertEqual(
+                drive.download(
+                    drive.list_children(matches[0].file_id)[0].file_id
+                ),
+                STAGING_SENTINEL_BYTES,
+            )
 
     def test_replay_is_idempotent_and_performs_no_drive_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -138,27 +182,34 @@ class ProductionStagingProvisionerTests(unittest.TestCase):
                     tool_sha256=self.tool_sha,
                 )
 
-    def test_tool_identity_drift_blocks_replay(self) -> None:
+    def test_compatible_tool_revision_resumes_without_rewriting_authority(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             drive = DriveModel()
             authority = self._authority(root)
 
-            self.module.provision_production_staging(
+            first = self.module.provision_production_staging(
                 drive,
                 authority,
                 tool_sha256=self.tool_sha,
             )
+            authority_before = authority.read_bytes()
 
-            with self.assertRaisesRegex(
-                self.module.ProductionStagingProvisionError,
-                "exact gate identity",
-            ):
-                self.module.provision_production_staging(
-                    drive,
-                    authority,
-                    tool_sha256="b" * 64,
-                )
+            second = self.module.provision_production_staging(
+                drive,
+                authority,
+                tool_sha256="b" * 64,
+            )
+
+            self.assertEqual(second["status"], "PROVISION_PASS")
+            self.assertFalse(second["authority_created"])
+            self.assertFalse(second["drive_mutations_performed"])
+            self.assertEqual(authority.read_bytes(), authority_before)
+            self.assertEqual(first["authority_sha256"], second["authority_sha256"])
+            self.assertEqual(
+                first["staging_identity_sha256"],
+                second["staging_identity_sha256"],
+            )
 
 
 if __name__ == "__main__":
