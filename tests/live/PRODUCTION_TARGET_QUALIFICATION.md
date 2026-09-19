@@ -47,7 +47,7 @@ Required local/private environment:
 - `KEELARYN_GOOGLE_CLIENT_SECRET`
 - `KEELARYN_GOOGLE_REFRESH_TOKEN`
 
-The target authority and qualification evidence paths must remain outside both the Git worktree and the immutable migration pack.
+The target authority and qualification evidence paths must remain outside both the Git worktree and the immutable migration pack. Production qualification creates both as private owner-controlled files: on POSIX they are published atomically with exact mode `0600`, independent of ambient umask, and an existing authority/evidence file with a different owner or mode is rejected fail-closed rather than silently repaired.
 
 ## Safety contract
 

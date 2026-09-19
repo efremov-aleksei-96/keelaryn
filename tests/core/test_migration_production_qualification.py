@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -11,6 +13,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "core"))
 
+import keelaryn_core.migration_production_qualification as production_qualification  # noqa: E402
 from keelaryn_core.drive_backend import DriveNotFound  # noqa: E402
 from keelaryn_core.drive_model import DriveModel  # noqa: E402
 from keelaryn_core.migration_freeze import (  # noqa: E402
@@ -175,6 +178,84 @@ class MigrationProductionQualificationTests(unittest.TestCase):
                 if child.name.startswith(TARGET_PREFIX)
             ]
             self.assertEqual([item.file_id for item in children], [target_id])
+
+    def test_private_atomic_write_requests_owner_only_creation_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "private-output.json"
+            calls: list[tuple[int, int]] = []
+            real_open = os.open
+
+            def recording_open(path, flags, mode=0o777, *, dir_fd=None):
+                calls.append((flags, mode))
+                if dir_fd is None:
+                    return real_open(path, flags, mode)
+                return real_open(path, flags, mode, dir_fd=dir_fd)
+
+            with patch.object(
+                production_qualification.os,
+                "open",
+                side_effect=recording_open,
+            ):
+                production_qualification._atomic_write_private_new(
+                    output,
+                    b"{}\n",
+                    "test private output",
+                )
+
+            create_modes = [
+                mode
+                for flags, mode in calls
+                if flags & os.O_CREAT
+            ]
+            self.assertEqual(create_modes, [0o600])
+            self.assertEqual(output.read_bytes(), b"{}\n")
+
+    @unittest.skipUnless(os.name == "posix", "POSIX mode contract")
+    def test_private_authority_and_evidence_ignore_permissive_umask(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, source, pack, freeze, drive, staging, authority, evidence = self._fixture(root)
+            old_umask = os.umask(0)
+            try:
+                result = DriveMigrationProductionTargetQualification(drive, staging).run(
+                    pack.root,
+                    freeze,
+                    repo,
+                    source,
+                    authority,
+                    evidence,
+                )
+            finally:
+                os.umask(old_umask)
+
+            self.assertEqual(result.outcome, "TARGET_QUALIFICATION_PASS")
+            self.assertEqual(stat.S_IMODE(authority.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(evidence.stat().st_mode), 0o600)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX mode contract")
+    def test_restart_rejects_non_private_target_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, source, pack, freeze, drive, staging, authority, evidence = self._fixture(root)
+            gate = DriveMigrationProductionTargetQualification(drive, staging)
+            gate._target_authority(pack, authority)
+            authority.chmod(0o644)
+
+            with self.assertRaisesRegex(
+                DriveMigrationProductionQualificationBlocked,
+                "owner-controlled mode 0600",
+            ):
+                gate.run(pack.root, freeze, repo, source, authority, evidence)
+
+            self.assertFalse(evidence.exists())
+            self.assertEqual(
+                [
+                    child.name
+                    for child in drive.list_children(staging)
+                    if child.name.startswith(TARGET_PREFIX)
+                ],
+                [],
+            )
 
     def test_source_drift_blocks_before_target_authority_or_creation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

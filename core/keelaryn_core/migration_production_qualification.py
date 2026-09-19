@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import stat
+import uuid
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -9,7 +12,6 @@ from .drive_backend import DriveBackend, DriveNotFound, DriveUncertainMutation
 from .migration_common import (
     MIGRATION_SOURCE_NAME,
     MigrationPackBlocked,
-    atomic_write_new,
     real_directory,
     small_file,
     source_file,
@@ -33,6 +35,97 @@ STAGING_SENTINEL_BYTES = (
 TARGET_PREFIX = "Keelaryn__ZeroBased_Migration_"
 TARGET_AUTHORITY_SCHEMA = "keelaryn.migration-production-target-authority.v1"
 TARGET_EVIDENCE_SCHEMA = "keelaryn.migration-production-target-qualification.v1"
+PRIVATE_OUTPUT_MODE = 0o600
+
+
+def _fsync_dir(path: Path) -> None:
+    if os.name != "posix":
+        return
+    try:
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        # The file itself is fsync'd before publication. Directory fsync is a
+        # best-effort durability reinforcement on filesystems that support it.
+        pass
+
+
+def _private_regular_file(path: Path, label: str) -> Path:
+    candidate = path.absolute()
+    try:
+        info = candidate.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise DriveMigrationProductionQualificationBlocked(
+            f"{label} cannot be inspected"
+        ) from exc
+    if candidate.is_symlink() or not stat.S_ISREG(info.st_mode):
+        raise DriveMigrationProductionQualificationBlocked(
+            f"{label} must be one regular file"
+        )
+    if os.name == "posix":
+        if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != PRIVATE_OUTPUT_MODE:
+            raise DriveMigrationProductionQualificationBlocked(
+                f"{label} must be owner-controlled mode 0600"
+            )
+    return candidate
+
+
+def _atomic_write_private_new(path: Path, raw: bytes, label: str) -> Path:
+    output = path.absolute()
+    parent = real_directory(output.parent, f"{label} parent")
+    output = parent / output.name
+    if output.exists() or output.is_symlink():
+        raise DriveMigrationProductionQualificationBlocked(
+            f"{label} already exists"
+        )
+
+    staging = parent / f".{output.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        fd = os.open(staging, flags, PRIVATE_OUTPUT_MODE)
+        try:
+            if os.name == "posix":
+                os.fchmod(fd, PRIVATE_OUTPUT_MODE)
+            with os.fdopen(fd, "wb", closefd=False) as stream:
+                stream.write(raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(fd)
+
+        _private_regular_file(staging, f"{label} staging file")
+        if output.exists() or output.is_symlink():
+            raise DriveMigrationProductionQualificationBlocked(
+                f"{label} appeared before publication"
+            )
+
+        if os.name == "posix":
+            # Hard-link publication is same-directory and no-replace: if another
+            # object appears at the final path, link() fails instead of replacing it.
+            os.link(staging, output, follow_symlinks=False)
+            _fsync_dir(parent)
+            staging.unlink()
+        else:
+            # Windows rename fails when the destination already exists.
+            staging.rename(output)
+        _fsync_dir(parent)
+        return _private_regular_file(output, label)
+    except FileExistsError as exc:
+        raise DriveMigrationProductionQualificationBlocked(
+            f"{label} appeared before publication"
+        ) from exc
+    finally:
+        try:
+            staging.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 class DriveMigrationProductionQualificationBlocked(ProtocolError):
@@ -244,8 +337,12 @@ class DriveMigrationProductionTargetQualification:
     def _target_authority(self, pack, path: Path) -> dict[str, Any]:
         target_name = TARGET_PREFIX + pack.candidate_id
         if path.exists() or path.is_symlink():
+            authority_file = _private_regular_file(
+                path,
+                "migration production target authority",
+            )
             value = self._strict_authority(
-                small_file(path, "migration production target authority")
+                small_file(authority_file, "migration production target authority")
             )
             expected = {
                 "schema": TARGET_AUTHORITY_SCHEMA,
@@ -271,7 +368,11 @@ class DriveMigrationProductionTargetQualification:
             "target_id": target_id,
             "target_name": target_name,
         }
-        atomic_write_new(path, canonical_json_bytes(value))
+        _atomic_write_private_new(
+            path,
+            canonical_json_bytes(value),
+            "migration production target authority",
+        )
         return value
 
     def _ensure_target(self, authority: dict[str, Any]):
@@ -315,14 +416,29 @@ class DriveMigrationProductionTargetQualification:
     def _publish_evidence(path: Path, raw: bytes) -> None:
         try:
             if path.exists() or path.is_symlink():
-                existing = small_file(path, "migration production qualification evidence")
+                evidence_file = _private_regular_file(
+                    path,
+                    "migration production qualification evidence",
+                )
+                existing = small_file(
+                    evidence_file,
+                    "migration production qualification evidence",
+                )
                 if existing != raw:
                     raise MigrationPackBlocked(
                         "production qualification evidence already exists with different identity"
                     )
             else:
-                atomic_write_new(path, raw)
-        except (MigrationPackBlocked, OSError) as exc:
+                _atomic_write_private_new(
+                    path,
+                    raw,
+                    "migration production qualification evidence",
+                )
+        except (
+            DriveMigrationProductionQualificationBlocked,
+            MigrationPackBlocked,
+            OSError,
+        ) as exc:
             raise DriveMigrationProductionPostConstructionBlocked(
                 "production target is durably constructed, but qualification evidence publication failed"
             ) from exc
