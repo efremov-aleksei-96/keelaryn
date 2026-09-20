@@ -1,0 +1,95 @@
+{
+  "schema": "keelaryn.operation-control-production-qualification.v2",
+  "gate_revision": "operation-control-gate-r0005",
+  "candidate": "operation-control-r0003-20260920-01",
+  "source_commit": "18885db5baa479fde080568b116ff32c0fead07a",
+  "source_tree": "b77fe079e1ee55f1b9be20d6363ae8c063a8664e",
+  "payload_sha256": "80050c8adda76080b91b5d71dd3ce75a6463ef189850e74dd144ff882035fee8",
+  "payload_size": 348890,
+  "file_count": 188,
+  "release_materialized": true,
+  "release_only_validation": {
+    "schema": "keelaryn.zero-vps-target-host-validation.v3",
+    "source_commit": "18885db5baa479fde080568b116ff32c0fead07a",
+    "payload_sha256": "80050c8adda76080b91b5d71dd3ce75a6463ef189850e74dd144ff882035fee8",
+    "payload_size": 348890,
+    "file_count": 188,
+    "python_files_compiled": 173,
+    "release_remained_exact": true,
+    "development_test_suite_executed": false,
+    "host_config_verified": false,
+    "active_release_verified": false,
+    "installed_units_verified": false,
+    "selector_verified": false,
+    "deployment_state_verified": false,
+    "deployment_state_idle": false,
+    "mutation_gate_verified": false,
+    "mutation_gate_idle": false,
+    "cli_surfaces_verified": [
+      "drive_poller",
+      "workspace_cli",
+      "pilot_cli",
+      "release_switch",
+      "hub_cutover",
+      "hub_cutover_rehearsal",
+      "deployment_state_normalize",
+      "operation_runtime",
+      "operation_agent",
+      "operation_transport",
+      "operation_control_bootstrap"
+    ]
+  },
+  "sidecar_prestate": {
+    "release": "EXACT",
+    "predecessor": {
+      "candidate": "operation-control-r0001-20260920-01",
+      "source_commit": "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
+      "payload_sha256": "b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b",
+      "release": "EXACT",
+      "bootstrap_authorized": false
+    },
+    "rejected_r0002": {
+      "candidate": "operation-control-r0002-20260920-01",
+      "source_commit": "a368cc85e799842a00c5c1c496614437aa7064f2",
+      "release": "ABSENT",
+      "bootstrap_authorized": false
+    },
+    "control_current": "ABSENT",
+    "credential": "ABSENT",
+    "bootstrap_root": "ABSENT",
+    "bootstrap_transaction": "ABSENT",
+    "bootstrap_receipt": "ABSENT",
+    "units": {
+      "keelaryn-operation-agent.service": "ABSENT",
+      "keelaryn-operation-transport.service": "ABSENT"
+    }
+  },
+  "production_boundary_before": {
+    "current_source": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover": "PREPARED",
+    "writer": "INACTIVE"
+  },
+  "production_boundary_after": {
+    "current_source": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover": "PREPARED",
+    "writer": "INACTIVE"
+  },
+  "persistent_mutations_performed": false,
+  "production_current_mutated": false,
+  "hub_cutover_mutated": false,
+  "drive_mutated": false,
+  "post_qualification_reconcile": {
+    "release": "EXACT",
+    "rejected_r0001_release": "EXACT",
+    "rejected_r0002_release": "ABSENT",
+    "control_current": "ABSENT",
+    "credential": "ABSENT",
+    "bootstrap_root": "ABSENT",
+    "bootstrap_transaction": "ABSENT",
+    "bootstrap_receipt": "ABSENT",
+    "operation_units": "ABSENT"
+  },
+  "classification": "PASS",
+  "production_qualified": true,
+  "next_boundary": "BOOTSTRAP"
+}
