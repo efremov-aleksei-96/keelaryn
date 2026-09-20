@@ -217,7 +217,14 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
         env = self._base_env()
 
         class FailingQualification:
-            def __init__(self, drive, staging_root_id, legacy_source_root_id):
+            def __init__(
+                self,
+                drive,
+                staging_root_id,
+                legacy_source_root_id,
+                *,
+                progress=None,
+            ):
                 pass
 
             def run_drive(self, *args):
@@ -251,7 +258,14 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
         env = self._base_env()
 
         class LeakingQualification:
-            def __init__(self, drive, staging_root_id, legacy_source_root_id):
+            def __init__(
+                self,
+                drive,
+                staging_root_id,
+                legacy_source_root_id,
+                *,
+                progress=None,
+            ):
                 pass
 
             def run_drive(self, *args):
