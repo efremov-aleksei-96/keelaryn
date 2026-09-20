@@ -80,14 +80,17 @@ class OperationControlRecoveryTests(unittest.TestCase):
         deploy.mkdir(parents=True)
         os.chmod(install, 0o755)
         os.chmod(install / "releases", 0o755)
-        os.chmod(release, 0o555)
-        os.chmod(release / "deploy", 0o555)
-        os.chmod(deploy, 0o555)
 
         for name in recovery.UNIT_NAMES:
             path = deploy / name
             path.write_bytes(("unit:" + name + "\n").encode("ascii"))
             os.chmod(path, 0o444)
+
+        # Materialize fixture bytes first, then freeze the release tree exactly
+        # like a real immutable materialized release.
+        os.chmod(deploy, 0o555)
+        os.chmod(release / "deploy", 0o555)
+        os.chmod(release, 0o555)
 
         os.symlink("releases/" + self.PRODUCTION, install / "current")
         os.symlink("releases/" + self.REJECTED, install / "control-current")
