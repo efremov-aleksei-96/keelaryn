@@ -83,16 +83,17 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
             verify.return_value = self.identity(commit)
             getpwnam.return_value = type("Pw", (), {"pw_uid": 1000})()
 
-            value = bootstrap.preflight(
-                release=release,
-                expected_source_commit=commit,
-                expected_payload_sha256="c" * 64,
-                production_current=install / "current",
-                control_current=install / "control-current",
-                unit_dir=unit_dir,
-                config_dir=config,
-                bootstrap_root=receipt_root,
-            )
+            with mock.patch.object(bootstrap.os, "geteuid", return_value=0):
+                value = bootstrap.preflight(
+                    release=release,
+                    expected_source_commit=commit,
+                    expected_payload_sha256="c" * 64,
+                    production_current=install / "current",
+                    control_current=install / "control-current",
+                    unit_dir=unit_dir,
+                    config_dir=config,
+                    bootstrap_root=receipt_root,
+                )
 
             self.assertEqual(value["control_current_state"], "ABSENT")
             self.assertEqual(
@@ -110,30 +111,27 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             install, release, commit, unit_dir, config, receipt_root = self.layout(root)
-            for name in bootstrap.UNIT_NAMES:
-                source = release / "deploy" / "zero-based-vps" / name
-                source.parent.mkdir(parents=True, exist_ok=True)
-                source.write_bytes((DEPLOY / name).read_bytes())
             verify.return_value = self.identity(commit)
             getpwnam.return_value = type("Pw", (), {"pw_uid": 1000})()
             calls: list[list[str]] = []
 
-            receipt = bootstrap.install(
-                release=release,
-                expected_source_commit=commit,
-                expected_payload_sha256="c" * 64,
-                repository="efremov-aleksei-96/keelaryn",
-                issue=65,
-                actors="efremov-aleksei-96",
-                token="github_pat_" + ("A" * 40),
-                production_current=install / "current",
-                control_current=install / "control-current",
-                unit_dir=unit_dir,
-                config_dir=config,
-                bootstrap_root=receipt_root,
-                systemctl=lambda args: calls.append(args),
-                active_probe=lambda unit: False if not calls else True,
-            )
+            with mock.patch.object(bootstrap.os, "geteuid", return_value=0):
+                receipt = bootstrap.install(
+                    release=release,
+                    expected_source_commit=commit,
+                    expected_payload_sha256="c" * 64,
+                    repository="efremov-aleksei-96/keelaryn",
+                    issue=65,
+                    actors="efremov-aleksei-96",
+                    token="github_pat_" + ("A" * 40),
+                    production_current=install / "current",
+                    control_current=install / "control-current",
+                    unit_dir=unit_dir,
+                    config_dir=config,
+                    bootstrap_root=receipt_root,
+                    systemctl=lambda args: calls.append(args),
+                    active_probe=lambda unit: False if not calls else True,
+                )
 
             self.assertTrue(receipt["production_current_unchanged"])
             self.assertEqual(
@@ -161,10 +159,6 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             install, release, commit, unit_dir, config, receipt_root = self.layout(root)
-            for name in bootstrap.UNIT_NAMES:
-                source = release / "deploy" / "zero-based-vps" / name
-                source.parent.mkdir(parents=True, exist_ok=True)
-                source.write_bytes((DEPLOY / name).read_bytes())
             verify.return_value = self.identity(commit)
             getpwnam.return_value = type("Pw", (), {"pw_uid": 1000})()
 
@@ -172,23 +166,24 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                 if args[:2] == ["enable", "--now"] and args[-1].endswith("agent.service"):
                     raise bootstrap.ControlPlaneBootstrapError("injected start failure")
 
-            with self.assertRaises(bootstrap.ControlPlaneBootstrapError):
-                bootstrap.install(
-                    release=release,
-                    expected_source_commit=commit,
-                    expected_payload_sha256="c" * 64,
-                    repository="efremov-aleksei-96/keelaryn",
-                    issue=65,
-                    actors="efremov-aleksei-96",
-                    token="github_pat_" + ("A" * 40),
-                    production_current=install / "current",
-                    control_current=install / "control-current",
-                    unit_dir=unit_dir,
-                    config_dir=config,
-                    bootstrap_root=receipt_root,
-                    systemctl=systemctl,
-                    active_probe=lambda unit: False,
-                )
+            with mock.patch.object(bootstrap.os, "geteuid", return_value=0):
+                with self.assertRaises(bootstrap.ControlPlaneBootstrapError):
+                    bootstrap.install(
+                        release=release,
+                        expected_source_commit=commit,
+                        expected_payload_sha256="c" * 64,
+                        repository="efremov-aleksei-96/keelaryn",
+                        issue=65,
+                        actors="efremov-aleksei-96",
+                        token="github_pat_" + ("A" * 40),
+                        production_current=install / "current",
+                        control_current=install / "control-current",
+                        unit_dir=unit_dir,
+                        config_dir=config,
+                        bootstrap_root=receipt_root,
+                        systemctl=systemctl,
+                        active_probe=lambda unit: False,
+                    )
 
             self.assertFalse((install / "control-current").exists())
             self.assertFalse((config / "github-operations.env").exists())
