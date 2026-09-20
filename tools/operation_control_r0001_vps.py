@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-GATE_REVISION = "operation-control-gate-r0002"
+GATE_REVISION = "operation-control-gate-r0003"
 CANDIDATE = "operation-control-r0001-20260920-01"
 REPOSITORY = "https://github.com/efremov-aleksei-96/keelaryn.git"
 SOURCE_COMMIT = "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61"
@@ -207,25 +207,9 @@ def _build_payload(repo: Path, work: Path) -> Path:
     return first
 
 
-def _ensure_release(repo: Path, payload: Path) -> Path:
-    release = RELEASES_ROOT / SOURCE_COMMIT
-    materializer = repo / "deploy" / "zero-based-vps" / "materialize_payload.py"
-    if not release.exists() and not release.is_symlink():
-        _json_command(
-            [
-                sys.executable,
-                "-B",
-                str(materializer),
-                "--payload",
-                str(payload),
-                "--releases-root",
-                str(RELEASES_ROOT),
-                "--expected-source-commit",
-                SOURCE_COMMIT,
-                "--expected-payload-sha256",
-                PAYLOAD_SHA256,
-            ]
-        )
+def _validate_release(release: Path) -> dict[str, Any]:
+    if not release.exists() or release.is_symlink() or not release.is_dir():
+        raise GateError("exact frozen candidate release is not materialized")
     validator = release / "deploy" / "zero-based-vps" / "target_host_validate.py"
     value = _json_command(
         [
@@ -247,7 +231,211 @@ def _ensure_release(repo: Path, payload: Path) -> Path:
         or value.get("host_config_verified") is not False
     ):
         raise GateError("release-only target-host qualification did not prove exact candidate")
-    return release
+    return value
+
+
+def _regular_state(path: Path, *, expected_mode: int | None = None) -> str:
+    if not path.exists() and not path.is_symlink():
+        return "ABSENT"
+    if path.is_symlink() or not path.is_file():
+        return "INVALID"
+    if expected_mode is not None and (path.stat(follow_symlinks=False).st_mode & 0o777) != expected_mode:
+        return "INVALID"
+    return "PRESENT"
+
+
+def _directory_state(path: Path, *, expected_mode: int | None = None) -> str:
+    if not path.exists() and not path.is_symlink():
+        return "ABSENT"
+    if path.is_symlink() or not path.is_dir():
+        return "INVALID"
+    if expected_mode is not None and (path.stat(follow_symlinks=False).st_mode & 0o777) != expected_mode:
+        return "INVALID"
+    return "PRESENT"
+
+
+def _sidecar_observation(*, validate_release: bool) -> dict[str, Any]:
+    release = RELEASES_ROOT / SOURCE_COMMIT
+    if not release.exists() and not release.is_symlink():
+        release_state = "ABSENT"
+    else:
+        if release.is_symlink() or not release.is_dir():
+            release_state = "INVALID"
+        elif validate_release:
+            _validate_release(release)
+            release_state = "EXACT"
+        else:
+            release_state = "PRESENT_UNVERIFIED"
+
+    if not CONTROL_CURRENT.exists() and not CONTROL_CURRENT.is_symlink():
+        control_current = "ABSENT"
+    elif CONTROL_CURRENT.is_symlink():
+        target = os.readlink(CONTROL_CURRENT)
+        control_current = (
+            "EXACT"
+            if target == f"releases/{SOURCE_COMMIT}"
+            else "OTHER"
+        )
+    else:
+        control_current = "INVALID"
+
+    units: dict[str, str] = {}
+    for name in (
+        "keelaryn-operation-transport.service",
+        "keelaryn-operation-agent.service",
+    ):
+        installed = UNIT_DIR / name
+        if not installed.exists() and not installed.is_symlink():
+            units[name] = "ABSENT"
+            continue
+        if installed.is_symlink() or not installed.is_file():
+            units[name] = "INVALID"
+            continue
+        if release_state == "EXACT":
+            qualified = release / "deploy" / "zero-based-vps" / name
+            units[name] = (
+                "EXACT"
+                if installed.read_bytes() == qualified.read_bytes()
+                and (installed.stat(follow_symlinks=False).st_mode & 0o777) == 0o644
+                else "OTHER"
+            )
+        else:
+            units[name] = "PRESENT_UNVERIFIED"
+
+    return {
+        "release": release_state,
+        "control_current": control_current,
+        "credential": _regular_state(
+            CONFIG_DIR / "github-operations.env",
+            expected_mode=0o600,
+        ),
+        "bootstrap_root": _directory_state(
+            BOOTSTRAP_ROOT,
+            expected_mode=0o700,
+        ),
+        "bootstrap_receipt": _regular_state(
+            BOOTSTRAP_ROOT / "bootstrap-receipt.json",
+            expected_mode=0o600,
+        )
+        if BOOTSTRAP_ROOT.exists() and BOOTSTRAP_ROOT.is_dir()
+        else "ABSENT",
+        "units": units,
+    }
+
+
+def reconcile() -> dict[str, Any]:
+    _require_root()
+    before = _production_boundary()
+    sidecar = _sidecar_observation(validate_release=True)
+    after = _production_boundary()
+    if before != after:
+        raise GateError("production boundary changed during read-only reconcile")
+    return {
+        "schema": "keelaryn.operation-control-production-reconcile.v1",
+        "gate_revision": GATE_REVISION,
+        "candidate": CANDIDATE,
+        "source_commit": SOURCE_COMMIT,
+        "production_boundary_before": before,
+        "production_boundary_after": after,
+        "sidecar": sidecar,
+        "persistent_mutations_performed": False,
+        "drive_mutated": False,
+    }
+
+
+def materialize() -> dict[str, Any]:
+    _require_root()
+    before = _production_boundary()
+    pre = _sidecar_observation(validate_release=True)
+    if pre["release"] == "EXACT":
+        raise GateError("candidate release is already materialized; do not repeat materialize")
+    if pre["release"] != "ABSENT":
+        raise GateError("candidate release prestate is not exact ABSENT")
+
+    with tempfile.TemporaryDirectory(prefix="keelaryn-control-r0001-") as td:
+        work = Path(td)
+        repo = _checkout_source(work)
+        payload = _build_payload(repo, work)
+        materializer = repo / "deploy" / "zero-based-vps" / "materialize_payload.py"
+        _json_command(
+            [
+                sys.executable,
+                "-B",
+                str(materializer),
+                "--payload",
+                str(payload),
+                "--releases-root",
+                str(RELEASES_ROOT),
+                "--expected-source-commit",
+                SOURCE_COMMIT,
+                "--expected-payload-sha256",
+                PAYLOAD_SHA256,
+            ]
+        )
+
+    release = RELEASES_ROOT / SOURCE_COMMIT
+    validation = _validate_release(release)
+    after = _production_boundary()
+    if before != after:
+        raise GateError("production boundary changed during sidecar materialization")
+    return {
+        "schema": "keelaryn.operation-control-production-materialization.v1",
+        "gate_revision": GATE_REVISION,
+        "candidate": CANDIDATE,
+        "source_commit": SOURCE_COMMIT,
+        "payload_sha256": PAYLOAD_SHA256,
+        "release_materialized": True,
+        "release_validation": validation,
+        "production_boundary_before": before,
+        "production_boundary_after": after,
+        "production_current_mutated": False,
+        "hub_cutover_mutated": False,
+        "drive_mutated": False,
+        "next_action": "QUALIFY",
+    }
+
+
+def qualify() -> dict[str, Any]:
+    _require_root()
+    before = _production_boundary()
+    release = RELEASES_ROOT / SOURCE_COMMIT
+    validation = _validate_release(release)
+    sidecar = _sidecar_observation(validate_release=False)
+    if sidecar["release"] != "PRESENT_UNVERIFIED":
+        raise GateError("qualified release observation changed unexpectedly")
+    sidecar["release"] = "EXACT"
+
+    expected_absent = (
+        sidecar["control_current"] == "ABSENT"
+        and sidecar["credential"] == "ABSENT"
+        and sidecar["bootstrap_receipt"] == "ABSENT"
+        and all(value == "ABSENT" for value in sidecar["units"].values())
+    )
+    if not expected_absent:
+        raise GateError("initial sidecar bootstrap prestate is not exact ABSENT")
+
+    after = _production_boundary()
+    if before != after:
+        raise GateError("production boundary changed during read-only qualification")
+    return {
+        "schema": "keelaryn.operation-control-production-qualification.v2",
+        "gate_revision": GATE_REVISION,
+        "candidate": CANDIDATE,
+        "source_commit": SOURCE_COMMIT,
+        "source_tree": SOURCE_TREE,
+        "payload_sha256": PAYLOAD_SHA256,
+        "payload_size": PAYLOAD_SIZE,
+        "file_count": PAYLOAD_FILE_COUNT,
+        "release_materialized": True,
+        "release_only_validation": validation,
+        "sidecar_prestate": sidecar,
+        "production_boundary_before": before,
+        "production_boundary_after": after,
+        "persistent_mutations_performed": False,
+        "production_current_mutated": False,
+        "hub_cutover_mutated": False,
+        "drive_mutated": False,
+    }
 
 
 def _load_bootstrap_module(release: Path):
@@ -263,56 +451,14 @@ def _load_bootstrap_module(release: Path):
     return module
 
 
-def qualify() -> dict[str, Any]:
-    _require_root()
-    before = _production_boundary()
-    with tempfile.TemporaryDirectory(prefix="keelaryn-control-r0001-") as td:
-        work = Path(td)
-        repo = _checkout_source(work)
-        payload = _build_payload(repo, work)
-        release = _ensure_release(repo, payload)
-        module = _load_bootstrap_module(release)
-        preflight = module.preflight(
-            release=release,
-            expected_source_commit=SOURCE_COMMIT,
-            expected_payload_sha256=PAYLOAD_SHA256,
-            production_current=PRODUCTION_CURRENT,
-            control_current=CONTROL_CURRENT,
-            unit_dir=UNIT_DIR,
-            config_dir=CONFIG_DIR,
-            bootstrap_root=BOOTSTRAP_ROOT,
-        )
-    after = _production_boundary()
-    if before != after:
-        raise GateError("production boundary changed during sidecar qualification")
-    return {
-        "schema": "keelaryn.operation-control-production-qualification.v1",
-        "gate_revision": GATE_REVISION,
-        "candidate": CANDIDATE,
-        "source_commit": SOURCE_COMMIT,
-        "source_tree": SOURCE_TREE,
-        "payload_sha256": PAYLOAD_SHA256,
-        "payload_size": PAYLOAD_SIZE,
-        "file_count": PAYLOAD_FILE_COUNT,
-        "release_materialized": True,
-        "release_only_validation": "PASS",
-        "bootstrap_preflight": preflight,
-        "production_boundary_before": before,
-        "production_boundary_after": after,
-        "production_current_mutated": False,
-        "hub_cutover_mutated": False,
-        "drive_mutated": False,
-    }
-
-
 def bootstrap() -> dict[str, Any]:
     qualification = qualify()
-    preflight = qualification["bootstrap_preflight"]
-    if preflight.get("control_current_state") != "ABSENT":
+    preflight = qualification["sidecar_prestate"]
+    if preflight.get("control_current") != "ABSENT":
         raise GateError("initial bootstrap requires absent control-current")
-    if preflight.get("credential_state") != "ABSENT":
+    if preflight.get("credential") != "ABSENT":
         raise GateError("initial bootstrap requires absent GitHub operations credential")
-    if preflight.get("receipt_state") != "ABSENT":
+    if preflight.get("bootstrap_receipt") != "ABSENT":
         raise GateError("initial bootstrap requires absent bootstrap receipt")
     if any(value != "ABSENT" for value in preflight.get("units", {}).values()):
         raise GateError("initial bootstrap requires absent operation-control units")
@@ -385,7 +531,10 @@ def selftest() -> dict[str, Any]:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keelaryn-operation-control-r0001-gate")
-    parser.add_argument("command", choices=("selftest", "qualify", "bootstrap"))
+    parser.add_argument(
+        "command",
+        choices=("selftest", "reconcile", "materialize", "qualify", "bootstrap"),
+    )
     return parser
 
 
@@ -394,6 +543,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "selftest":
             value = selftest()
+        elif args.command == "reconcile":
+            value = reconcile()
+        elif args.command == "materialize":
+            value = materialize()
         elif args.command == "qualify":
             value = qualify()
         else:

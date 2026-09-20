@@ -1,12 +1,12 @@
 {
   "schema": "keelaryn.operation-control-gate-framework.v1",
-  "gate_revision": "operation-control-gate-r0002",
+  "gate_revision": "operation-control-gate-r0003",
   "candidate": "operation-control-r0001-20260920-01",
   "frozen_source_commit": "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
   "qualification_driver": "tools/operation_control_r0001_vps.py",
   "workflow": ".github/workflows/operation-control-r0001-gate.yml",
   "production_qualified": false,
   "purpose": "rebuild frozen bytes and drive production-specific sidecar qualification/bootstrap without changing candidate bytes",
-  "previous_gate_revision": "operation-control-gate-r0001",
-  "revision_reason": "correct systemd inactive classification in production-boundary inspection; candidate bytes unchanged"
+  "previous_gate_revision": "operation-control-gate-r0002",
+  "revision_reason": "separate true read-only VPS reconcile/qualification from persistent candidate materialization; correct emitted gate evidence revision; candidate bytes unchanged"
 }

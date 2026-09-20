@@ -74,7 +74,7 @@ jobs:
           import json, os, sys
           value={
               "schema":"keelaryn.operation-control-gate-evidence.v1",
-              "gate_revision":"operation-control-gate-r0001",
+              "gate_revision":"operation-control-gate-r0003",
               "candidate":"operation-control-r0001-20260920-01",
               "frozen_source_commit":"98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
               "frozen_source_tree":"eabd2a98e9c2d42e81e7f5c04e3f2b90cf900e6a",
@@ -82,6 +82,9 @@ jobs:
               "payload_size":340331,
               "file_count":188,
               "driver_selftest":True,
+              "driver_read_only_reconcile_surface":True,
+              "driver_separate_materialize_surface":True,
+              "driver_read_only_qualify_surface":True,
               "deterministic_rebuild":True,
               "github_run_id":os.environ["GITHUB_RUN_ID"],
               "github_run_attempt":os.environ["GITHUB_RUN_ATTEMPT"],
