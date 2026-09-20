@@ -86,6 +86,9 @@ jobs:
       - name: Smoke operation control-plane bootstrap CLI surface
         run: python3 -B deploy/zero-based-vps/operation_control_plane_bootstrap.py --help
 
+      - name: Smoke operation control-plane recovery CLI surface
+        run: python3 -B deploy/zero-based-vps/operation_control_plane_recovery.py --help
+
       - name: Run disposable Hub-selector cutover rehearsal
         env:
           KEELARYN_HUB_CUTOVER_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_HUB_CUTOVER_REHEARSAL_EVIDENCE.json
@@ -217,6 +220,7 @@ jobs:
               "operation_agent",
               "operation_transport",
               "operation_control_bootstrap",
+              "operation_control_recovery",
           ]
           if target.get("schema") != "keelaryn.zero-vps-target-host-validation.v3":
               raise SystemExit("target-host validation schema mismatch")
@@ -259,6 +263,7 @@ jobs:
                   "operation_agent_cli_verified": True,
                   "operation_transport_cli_verified": True,
                   "operation_control_bootstrap_cli_verified": True,
+                  "operation_control_recovery_cli_verified": True,
                   "target_host_validator_verified": True,
                   "target_host_config_validator_verified": True,
                   "mutation_gate_validator_verified": True,

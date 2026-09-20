@@ -234,6 +234,23 @@ The token's validity is **unknown**, not failed: transport never reached the Git
 
 Gate r0005 passed exact frozen-r0003 driver selftest and deterministic payload rebuild. This is gate qualification only, not production qualification. The next permitted boundary is a **read-only VPS reconcile**. It must prove the production `e63f` / Hub `PREPARED` / writer `INACTIVE` boundary is unchanged, rejected r0001 remains exact historical provenance, rejected r0002 was never materialized, and the r0003 sidecar prestate is safe before any materialization.
 
+### Successor operation-control development after r0003 rejection
+
+Exact-head development commit `047566c560dd79ca9efeeedf348468faba41e684`
+completed Zero-based Core validation run `35536851066` **PASS**: 626 deterministic
+tests, all CLI/rehearsal steps, deterministic payload materialization and target-host
+validation passed. That commit fixes the missing `/run/keelaryn` systemd sandbox
+dependency, adds a bootstrap stability/restart window before receipt publication, and
+keeps the agent idle rather than exiting while the transport relay is not yet present.
+
+The next development commit adds a product-shipped rejected-install recovery surface.
+Recovery must retain the immutable r0003 release, prove the exact bootstrap
+transaction by binding the credential hash to the transaction marker and receipt,
+publish durable recovery PREPARED authority before any deletion, support restart-safe
+partial cleanup, disable units before deleting their bytes, and preserve the production
+`e63f + PREPARED + writer INACTIVE` boundary. Runtime state directories are deliberately
+not deleted by this recovery transaction.
+
 ## Current production Hub-cutover transaction
 
 The production Hub cutover has been prepared but the selector has **not** been applied.
