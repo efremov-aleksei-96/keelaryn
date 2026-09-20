@@ -140,12 +140,17 @@ Successor development binds remote status recovery and create/update responses t
 - Development payload artifact: `10612487237`, ZIP SHA-256 `1338c51d104c573fc258fff6820f818685352efc003ba773514a25d4853095d6`
 - Candidate receipt: `docs/candidates/operation-control-r0003-20260920-01.json`
 - Gate revision: `operation-control-gate-r0005`
-- State: **FROZEN_AWAITING_GATE**
+- State: **GATE_PASS_AWAITING_VPS_READ_ONLY_RECONCILE**
 - GitHub operation channel: Issue #65
+- Gate run: `35534742741` — **PASS**
+- Gate artifact: `10612094272`, ZIP SHA-256 `022b010fb30739daf09f756166cb7733c6f9f3df17a4ffbf340d5c2404796c14`
+- Gate evidence: `docs/candidates/operation-control-r0003-20260920-01.gate-r0005-evidence.json`
 
 Focused post-PASS review found no successor product blocker. It did identify a gate-framework incompatibility in the historical r0002 driver: that driver still targeted the shared `/etc/keelaryn` credential directory and did not pass the now-required exact status-publisher actor. r0005 is therefore a new gate-framework revision, not a product-byte change. It binds qualification to frozen r0003, uses `/etc/keelaryn/operation-control`, passes the exact status actor, requires the rejected r0002 release to remain absent, and exposes transaction-safe bootstrap resume semantics for a previously reconciled interrupted bootstrap.
 
 Candidate bytes are immutable from this issuance point. Development may continue only through a new successor candidate if frozen product bytes need to change.
+
+Gate r0005 passed exact frozen-r0003 driver selftest and deterministic payload rebuild. This is gate qualification only, not production qualification. The next permitted boundary is a **read-only VPS reconcile**. It must prove the production `e63f` / Hub `PREPARED` / writer `INACTIVE` boundary is unchanged, rejected r0001 remains exact historical provenance, rejected r0002 was never materialized, and the r0003 sidecar prestate is safe before any materialization.
 
 ## Current production Hub-cutover transaction
 
@@ -188,7 +193,7 @@ The failure occurred before pre-apply receipt publication or selector mutation. 
 
 The active first priority is the durable remote-autonomous operation control plane. GitHub Issue **#65, Keelaryn VPS Operation Control**, is the dedicated request/status channel. Development already includes Operation Runtime, the allowlisted network-isolated agent, and the narrow GitHub Issues transport.
 
-The next boundary is successor operation-control development and coherent CI after r0002 rejection; no production sidecar action is currently authorized. After a new candidate is frozen and separately qualified, the one-time sidecar bootstrap may resume. The control plane must use its own `/opt/keelaryn/control-current` selector so the currently PREPARED Hub cutover remains bound to production source e63f and `/opt/keelaryn/current` is not changed merely to install remote-control infrastructure.
+The current boundary is frozen r0003 with gate r0005 PASS. No production sidecar mutation is yet authorized. The next action is read-only r0003 VPS reconcile; only after exact production-state evidence is preserved may r0003 materialization be considered. The control plane must use its own `/opt/keelaryn/control-current` selector so the currently PREPARED Hub cutover remains bound to production source e63f and `/opt/keelaryn/current` is not changed merely to install remote-control infrastructure.
 
 Successor development after the r0002 rejection also hardens durable initialization and crash/replay recovery:
 immutable terminal result authority can repair a state/handoff publication gap without
@@ -237,12 +242,13 @@ The maintainer should be asked to execute a local/VPS command only when evidence
 
 ## Next permitted sequence
 
-1. Read-only confirm remote branch identity before every development write.
-2. Develop Operation Runtime v1 remotely on `dev/zero-based-keelaryn`.
-3. Run and diagnose GitHub CI until coherent development PASS.
-4. Freeze/materialize/qualify the operation-control framework release according to normal version/candidate discipline; do not change production `/opt/keelaryn/current`.
-5. Perform the one-time sidecar bootstrap under `/opt/keelaryn/control-current`, then prove `RUNTIME_SELFTEST` end-to-end through GitHub Issue #65.
-6. Reconcile the still-PREPARED production Hub transaction before any later production mutation.
-7. Resume production cutover only through the qualified runtime/protocol and transaction-bound finalizers.
+1. Read-only confirm authoritative GitHub identity before every repository write.
+2. Run r0003 **VPS read-only reconcile** and preserve exact evidence; perform no production mutation.
+3. If reconcile proves the expected boundary, materialize the exact frozen r0003 release as the next separate transaction.
+4. Run r0003 production qualification read-only against the materialized release and exact sidecar prestate.
+5. Only after production qualification PASS, perform the one-time sidecar bootstrap under `/opt/keelaryn/control-current`, with crash recovery always preceded by read-only reconciliation.
+6. Prove `RUNTIME_SELFTEST` end-to-end through GitHub Issue #65.
+7. Reconcile the still-PREPARED production Hub transaction before any later production mutation.
+8. Resume production cutover only through the qualified runtime/protocol and transaction-bound finalizers.
 
 If production durable state is found to differ from this handoff, stop and reconcile the authoritative VPS state before any mutation.
