@@ -83,7 +83,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
             verify.return_value = self.identity(commit)
             getpwnam.return_value = type("Pw", (), {"pw_uid": 1000})()
 
-            with mock.patch.object(bootstrap.os, "geteuid", return_value=0):
+            with mock.patch.object(bootstrap, "_require_root", return_value=None):
                 value = bootstrap.preflight(
                     release=release,
                     expected_source_commit=commit,
@@ -115,7 +115,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
             getpwnam.return_value = type("Pw", (), {"pw_uid": 1000})()
             calls: list[list[str]] = []
 
-            with mock.patch.object(bootstrap.os, "geteuid", return_value=0):
+            with mock.patch.object(bootstrap, "_require_root", return_value=None):
                 receipt = bootstrap.install(
                     release=release,
                     expected_source_commit=commit,
@@ -166,7 +166,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                 if args[:2] == ["enable", "--now"] and args[-1].endswith("agent.service"):
                     raise bootstrap.ControlPlaneBootstrapError("injected start failure")
 
-            with mock.patch.object(bootstrap.os, "geteuid", return_value=0):
+            with mock.patch.object(bootstrap, "_require_root", return_value=None):
                 with self.assertRaises(bootstrap.ControlPlaneBootstrapError):
                     bootstrap.install(
                         release=release,

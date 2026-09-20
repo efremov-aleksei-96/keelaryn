@@ -33,6 +33,10 @@ class ControlPlaneBootstrapError(RuntimeError):
     pass
 
 
+def _require_root() -> None:
+    _require_root()
+
+
 def _canonical_json(value: dict[str, Any]) -> bytes:
     return (
         json.dumps(
