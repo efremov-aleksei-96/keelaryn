@@ -67,16 +67,18 @@ Candidate bytes are immutable. Any later product/control-plane byte change requi
 - GitHub gate run: `35519565229` — **PASS**
 - Gate artifact: `10608062424`, ZIP SHA-256 `b0fbd41fbe1160e6bd1acecc0e807745f988117531297c12431136f6b8a6b825`
 - Evidence: `docs/candidates/operation-control-r0001-20260920-01.gate-r0003-evidence.json`
-- State: **VPS_MATERIALIZATION_PASS_AWAITING_QUALIFY**
+- State: **VPS_QUALIFY_PASS_AWAITING_BOOTSTRAP**
 - Production reconcile evidence: `docs/candidates/operation-control-r0001-20260920-01.vps-reconcile-r0003.json`
 - Production materialization evidence: `docs/candidates/operation-control-r0001-20260920-01.vps-materialize-r0003.json`
+- Production qualification evidence: `docs/candidates/operation-control-r0001-20260920-01.vps-qualify-r0003.json`
 - Materialized release: exact frozen source `98e76ffdcdbac09610f8b9a2b542f7e61e7dba61`
 - Materialized payload SHA-256: `b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b`
-- Release validation: PASS; 188 files; 340331 bytes; release remained exact
+- Sidecar prestate: release `EXACT`; control selector/credential/bootstrap root/receipt/operation units all `ABSENT`
 - Production boundary: exact `current=e63f`, Hub cutover `PREPARED`, writer `INACTIVE` before and after
-- Production current mutation: false; Hub cutover mutation: false; Drive mutation: false
+- Qualification mutations: none; production current mutation: false; Hub cutover mutation: false; Drive mutation: false
+- Qualification scope: **initial sidecar bootstrap only**
 
-The immutable candidate release is now present on the VPS and exact. Next permitted action is the read-only `qualify` boundary. Do not bootstrap, install credentials, create `control-current`, or start operation services before that qualification result is reviewed.
+The frozen control-plane candidate is now production-qualified for its initial sidecar bootstrap boundary. This does not authorize production Hub cutover or any Drive mutation. Next permitted action is exactly one sidecar `bootstrap` transaction, followed by immediate read-only reconciliation and end-to-end `RUNTIME_SELFTEST` through GitHub Issue #65.
 
 ## Current production Hub-cutover transaction
 
