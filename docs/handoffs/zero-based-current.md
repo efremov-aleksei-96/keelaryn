@@ -43,6 +43,21 @@ Do not rerun the completed source-switch transaction.
 
 Do not rerun definitive r0072 target qualification.
 
+## Frozen Operation Control candidate
+
+- Candidate: `operation-control-r0001-20260920-01`
+- Frozen source commit: `98e76ffdcdbac09610f8b9a2b542f7e61e7dba61`
+- Frozen source tree: `eabd2a98e9c2d42e81e7f5c04e3f2b90cf900e6a`
+- Deterministic VPS payload SHA-256: `b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b`
+- Payload size: `340331`
+- Payload file count: `188`
+- Exact-head Core development validation: PASS, run `35518260534`
+- Candidate receipt: `docs/candidates/operation-control-r0001-20260920-01.json`
+- State: **FROZEN_NOT_PRODUCTION_QUALIFIED**
+- GitHub operation channel: Issue #65
+
+Candidate bytes are immutable. Any later product/control-plane byte change requires a new candidate identity. Development CI evidence does not authorize production bootstrap.
+
 ## Current production Hub-cutover transaction
 
 The production Hub cutover has been prepared but the selector has **not** been applied.
