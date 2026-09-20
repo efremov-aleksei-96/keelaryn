@@ -14,6 +14,7 @@ from keelaryn_core.operation_agent import OperationAgent  # noqa: E402
 from keelaryn_core.operation_request import REQUEST_SCHEMA  # noqa: E402
 from keelaryn_core.operation_transport import (  # noqa: E402
     GitHubOperationTransport,
+    GitHubTransportError,
     IssueComment,
     REQUEST_MARKER,
     STATUS_MARKER,
@@ -112,6 +113,7 @@ class GitHubOperationTransportTests(unittest.TestCase):
             api,
             source_commit=self.COMMIT,
             allowed_actors={"alexey"},
+            status_actor="keelaryn-bot",
             clock=Clock(),
         )
 
@@ -188,6 +190,45 @@ class GitHubOperationTransportTests(unittest.TestCase):
             again = transport.poll_once()
             self.assertEqual(again["status_created"], 0)
             self.assertEqual(again["status_updated"], 0)
+
+    def test_untrusted_remote_status_cannot_be_adopted_as_transport_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            api = FakeGitHub()
+            transport = self.layout(root, api)
+
+            relay = {
+                "schema": "keelaryn.operation-relay-status.v1",
+                "operation_id": self.REQUEST_ID,
+                "operation": "RUNTIME_SELFTEST",
+                "source_commit": self.COMMIT,
+                "execution_state": "SUCCEEDED",
+                "observed_state": "SUCCEEDED",
+                "mutation_state": "READ_ONLY",
+                "phase": "COMPLETE",
+                "event": "TERMINAL",
+                "sequence": 0,
+                "timestamp_utc": "2026-01-01T00:00:00Z",
+                "next_action": "NONE",
+                "terminal": True,
+                "outcome": "PASS",
+            }
+            relay_path = transport.outbox / f"{self.REQUEST_ID}.json"
+            relay_path.write_bytes(canonical(relay))
+            os.chmod(relay_path, 0o644)
+            body = STATUS_MARKER + canonical(relay).decode("utf-8").rstrip("\n")
+            api.add("mallory", body, comment_id=55)
+
+            result = transport.poll_once()
+
+            self.assertEqual(result["status_created"], 1)
+            self.assertEqual(api.updated, [])
+            state = json.loads(transport.state_path.read_text(encoding="utf-8"))
+            self.assertNotEqual(
+                state["status_comments"][self.REQUEST_ID]["comment_id"],
+                55,
+            )
 
     def test_existing_remote_status_is_adopted_instead_of_duplicated(self) -> None:
         with tempfile.TemporaryDirectory() as td:

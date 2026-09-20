@@ -10,7 +10,7 @@ Type=simple
 User=keelaryn
 Group=keelaryn
 WorkingDirectory=/opt/keelaryn/control-current
-EnvironmentFile=/etc/keelaryn/github-operations.env
+EnvironmentFile=/etc/keelaryn/operation-control/github-operations.env
 Environment=PYTHONPATH=/opt/keelaryn/control-current/core
 Environment=PYTHONDONTWRITEBYTECODE=1
 StateDirectory=keelaryn-operation-transport

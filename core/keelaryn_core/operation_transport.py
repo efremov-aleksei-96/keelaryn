@@ -380,6 +380,7 @@ class GitHubOperationTransport:
         *,
         source_commit: str,
         allowed_actors: Iterable[str],
+        status_actor: str,
         clock=time.time,
         status_refresh_seconds: int = 30,
     ) -> None:
@@ -388,6 +389,8 @@ class GitHubOperationTransport:
         actors = frozenset(allowed_actors)
         if not actors or any(_ACTOR.fullmatch(item) is None for item in actors):
             raise GitHubTransportError("GitHub transport actor allowlist is invalid")
+        if _ACTOR.fullmatch(status_actor) is None:
+            raise GitHubTransportError("GitHub transport status actor is invalid")
         if status_refresh_seconds < 5:
             raise GitHubTransportError("GitHub status refresh interval is too small")
         self.root = _private_dir(
@@ -413,6 +416,7 @@ class GitHubOperationTransport:
         self.api = api
         self.source_commit = source_commit
         self.allowed_actors = actors
+        self.status_actor = status_actor
         self.clock = clock
         self.status_refresh_seconds = int(status_refresh_seconds)
 
@@ -515,24 +519,26 @@ class GitHubOperationTransport:
     def _status_body(value: Mapping[str, Any]) -> str:
         return STATUS_MARKER + _canonical(value).decode("utf-8").rstrip("\n")
 
-    @staticmethod
     def _existing_status_comments(
+        self,
         comments: Iterable[IssueComment],
     ) -> dict[str, list[IssueComment]]:
         result: dict[str, list[IssueComment]] = {}
         for comment in comments:
+            if comment.actor != self.status_actor:
+                continue
             if not comment.body.startswith(STATUS_MARKER):
                 continue
             payload = comment.body[len(STATUS_MARKER):]
             if not payload or "\n" in payload or "\r" in payload:
                 continue
             try:
-                value = json.loads(payload)
-            except json.JSONDecodeError:
+                value = _relay_status((payload + "\n").encode("utf-8"))
+            except GitHubTransportError:
                 continue
-            request_id = value.get("operation_id") if isinstance(value, dict) else None
-            if isinstance(request_id, str) and _REQUEST_ID.fullmatch(request_id):
-                result.setdefault(request_id, []).append(comment)
+            if value["source_commit"] != self.source_commit:
+                continue
+            result.setdefault(value["operation_id"], []).append(comment)
         return result
 
     def _publish_statuses(
@@ -575,6 +581,10 @@ class GitHubOperationTransport:
 
             if publication is None:
                 comment = self.api.create_comment(body)
+                if comment.actor != self.status_actor or comment.body != body:
+                    raise GitHubTransportError(
+                        "GitHub status comment creation identity mismatch"
+                    )
                 state["status_comments"][request_id] = {
                     "comment_id": comment.comment_id,
                     "body_sha256": digest,
@@ -591,7 +601,18 @@ class GitHubOperationTransport:
             ):
                 continue
 
-            self.api.update_comment(int(publication["comment_id"]), body)
+            updated_comment = self.api.update_comment(
+                int(publication["comment_id"]),
+                body,
+            )
+            if (
+                updated_comment.comment_id != int(publication["comment_id"])
+                or updated_comment.actor != self.status_actor
+                or updated_comment.body != body
+            ):
+                raise GitHubTransportError(
+                    "GitHub status comment update identity mismatch"
+                )
             publication["body_sha256"] = digest
             publication["published_at"] = now
             updated += 1
@@ -651,11 +672,12 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _environment() -> tuple[str, int, str, frozenset[str]]:
+def _environment() -> tuple[str, int, str, frozenset[str], str]:
     repository = os.environ.get("KEELARYN_GITHUB_OPERATIONS_REPOSITORY", "")
     issue_raw = os.environ.get("KEELARYN_GITHUB_OPERATIONS_ISSUE", "")
     token = os.environ.get("KEELARYN_GITHUB_OPERATIONS_TOKEN", "")
     actors_raw = os.environ.get("KEELARYN_GITHUB_OPERATIONS_ACTORS", "")
+    status_actor = os.environ.get("KEELARYN_GITHUB_OPERATIONS_STATUS_ACTOR", "")
     if _REPOSITORY.fullmatch(repository) is None:
         raise GitHubTransportError("GitHub operations repository is missing/invalid")
     try:
@@ -666,19 +688,22 @@ def _environment() -> tuple[str, int, str, frozenset[str]]:
         raise GitHubTransportError("GitHub operations issue is missing/invalid")
     if not token or token != token.strip():
         raise GitHubTransportError("GitHub operations token is missing/invalid")
-    return repository, issue, token, _actors(actors_raw)
+    if _ACTOR.fullmatch(status_actor) is None:
+        raise GitHubTransportError("GitHub operations status actor is missing/invalid")
+    return repository, issue, token, _actors(actors_raw), status_actor
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        repository, issue, token, actors = _environment()
+        repository, issue, token, actors, status_actor = _environment()
         source_commit = args.source_commit or _materialized_source_commit()
         transport = GitHubOperationTransport(
             args.root,
             GitHubIssueClient(repository, issue, token),
             source_commit=source_commit,
             allowed_actors=actors,
+            status_actor=status_actor,
         )
 
         if args.command == "poll-once":

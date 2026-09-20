@@ -1,0 +1,25 @@
+{
+  "schema": "keelaryn.operation-control-candidate-rejection.v1",
+  "candidate": "operation-control-r0002-20260920-01",
+  "frozen_source_commit": "a368cc85e799842a00c5c1c496614437aa7064f2",
+  "status": "REJECTED_BEFORE_VPS_MATERIALIZATION",
+  "gate_revision": "operation-control-gate-r0004",
+  "gate_run_id": 35531369705,
+  "gate_conclusion": "success",
+  "vps_reconcile_attempted": false,
+  "vps_materialization_attempted": false,
+  "bootstrap_attempted": false,
+  "production_current_mutated": false,
+  "hub_cutover_mutated": false,
+  "drive_mutated": false,
+  "blocker_classification": "operation transport status-publication identity defect",
+  "blocker": "response-loss status recovery accepted a pre-existing public issue status comment by request_id without binding it to the exact configured publisher actor, allowing unrelated commenters to poison publication recovery or cause persistent PATCH failure",
+  "successor_hardening": [
+    "bind recovered, created and updated status comments to an explicit exact status-publisher actor",
+    "validate recovered status comments as canonical exact-source relay payloads",
+    "use dedicated /etc/keelaryn/operation-control credential directory",
+    "use direct exclusive final-path bootstrap file creation with no hidden token-bearing staging file",
+    "fail closed on unclassified systemctl active-state probe errors"
+  ],
+  "successor": "new operation-control candidate required after coherent development PASS"
+}

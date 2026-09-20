@@ -9,7 +9,6 @@ import re
 import stat
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -126,8 +125,21 @@ def _create_private_parent(path: Path) -> tuple[int, ObjectIdentity] | None:
     if _private_parent_state(path) == "PRESENT":
         return None
     parent = path.parent
-    if parent.is_symlink() or not parent.is_dir():
-        raise ControlPlaneBootstrapError("private parent container is invalid")
+    try:
+        parent_info = parent.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise ControlPlaneBootstrapError(
+            "private parent container cannot be inspected"
+        ) from exc
+    if (
+        parent.is_symlink()
+        or not stat.S_ISDIR(parent_info.st_mode)
+        or parent_info.st_uid != os.geteuid()
+        or stat.S_IMODE(parent_info.st_mode) & 0o022
+    ):
+        raise ControlPlaneBootstrapError(
+            "private parent container must be current-user owned and not group/world writable"
+        )
 
     created = False
     pin_fd: int | None = None
@@ -169,69 +181,67 @@ def _fsync_directory(path: Path) -> None:
         os.close(directory_fd)
 
 
-def _atomic_new_file(path: Path, raw: bytes, mode: int) -> tuple[int, ObjectIdentity]:
+def _exclusive_new_file(
+    path: Path,
+    raw: bytes,
+    mode: int,
+) -> tuple[int, ObjectIdentity]:
     parent = path.parent
-    temp = parent / f".{path.name}.tmp-{os.getpid()}-{time.monotonic_ns()}"
-    linked = False
-    pin_fd: int | None = None
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+
+    fd: int | None = None
     identity: ObjectIdentity | None = None
+    created = False
     try:
-        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
-        try:
-            os.fchmod(fd, mode)
-            with os.fdopen(fd, "wb", closefd=False) as stream:
-                stream.write(raw)
-                stream.flush()
-                os.fsync(stream.fileno())
-        finally:
-            os.close(fd)
-
-        try:
-            os.link(temp, path, follow_symlinks=False)
-        except FileExistsError as exc:
+        fd = os.open(path, flags, mode)
+        created = True
+        identity = _fd_identity(fd)
+        if _object_identity(path) != identity:
             raise ControlPlaneBootstrapError(
-                f"bootstrap refuses to replace existing path: {path.name}"
-            ) from exc
-        linked = True
+                f"new file identity changed while opening: {path.name}"
+            )
+        os.fchmod(fd, mode)
+        with os.fdopen(fd, "wb", closefd=False) as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
 
-        pin_fd, identity = _pin_path(path)
-        if _object_identity(temp) != identity:
+        if _fd_identity(fd) != identity or _object_identity(path) != identity:
             raise ControlPlaneBootstrapError(
-                f"new path ownership differs from temporary source: {path.name}"
+                f"new file identity changed during publication: {path.name}"
             )
         _fsync_directory(parent)
-
-        temp.unlink()
-        _fsync_directory(parent)
-
-        if _fd_identity(pin_fd) != identity or _object_identity(path) != identity:
-            raise ControlPlaneBootstrapError(
-                f"new path identity changed after publication: {path.name}"
-            )
-        return pin_fd, identity
+        return fd, identity
+    except FileExistsError as exc:
+        raise ControlPlaneBootstrapError(
+            f"bootstrap refuses to replace existing path: {path.name}"
+        ) from exc
     except BaseException as original:
-        if linked:
-            try:
-                expected = identity if identity is not None else _object_identity(temp)
-                if pin_fd is not None and _fd_identity(pin_fd) != expected:
-                    raise ControlPlaneBootstrapError(
-                        f"created path pin changed during cleanup: {path.name}"
-                    )
-                if _object_identity(path) != expected:
-                    raise ControlPlaneBootstrapError(
-                        f"created path identity changed during cleanup: {path.name}"
-                    )
-                path.unlink()
-                _fsync_directory(parent)
-            except BaseException:
-                raise ControlPlaneBootstrapError(
-                    f"atomic new-file cleanup incomplete: {path.name}"
-                ) from original
-        if pin_fd is not None:
-            _close_pin(pin_fd)
+        cleanup_error = False
+        if created:
+            if fd is None or identity is None:
+                cleanup_error = True
+            else:
+                try:
+                    if _fd_identity(fd) != identity or _object_identity(path) != identity:
+                        raise ControlPlaneBootstrapError(
+                            f"new file identity changed during cleanup: {path.name}"
+                        )
+                    path.unlink()
+                    _fsync_directory(parent)
+                except BaseException:
+                    cleanup_error = True
+        if fd is not None:
+            _close_pin(fd)
+        if cleanup_error:
+            raise ControlPlaneBootstrapError(
+                f"exclusive new-file cleanup incomplete: {path.name}"
+            ) from original
         raise
-    finally:
-        temp.unlink(missing_ok=True)
 
 
 def _new_symlink(path: Path, target: str) -> tuple[int, ObjectIdentity]:
@@ -302,6 +312,7 @@ def _credential_bytes(
     repository: str,
     issue: int,
     actors: str,
+    status_actor: str,
 ) -> bytes:
     if _TOKEN.fullmatch(token) is None:
         raise ControlPlaneBootstrapError("GitHub operations token format is invalid")
@@ -314,11 +325,14 @@ def _credential_bytes(
         raise ControlPlaneBootstrapError("GitHub operations actor allowlist is invalid")
     if len(set(actor_values)) != len(actor_values):
         raise ControlPlaneBootstrapError("GitHub operations actor allowlist has duplicates")
+    if _ACTOR.fullmatch(status_actor) is None:
+        raise ControlPlaneBootstrapError("GitHub operations status actor is invalid")
     return (
         f"KEELARYN_GITHUB_OPERATIONS_TOKEN={token}\n"
         f"KEELARYN_GITHUB_OPERATIONS_REPOSITORY={repository}\n"
         f"KEELARYN_GITHUB_OPERATIONS_ISSUE={issue}\n"
         f"KEELARYN_GITHUB_OPERATIONS_ACTORS={','.join(actor_values)}\n"
+        f"KEELARYN_GITHUB_OPERATIONS_STATUS_ACTOR={status_actor}\n"
     ).encode("ascii")
 
 
@@ -369,7 +383,13 @@ def _must_systemctl(args: list[str]) -> None:
 
 def _is_active(unit: str) -> bool:
     completed = _systemctl(["is-active", "--quiet", unit])
-    return completed.returncode == 0
+    if completed.returncode == 0:
+        return True
+    if completed.returncode in {3, 4}:
+        return False
+    raise ControlPlaneBootstrapError(
+        "systemctl active-state probe failed"
+    )
 
 
 def preflight(
@@ -417,8 +437,19 @@ def preflight(
         raise ControlPlaneBootstrapError("keelaryn service account is invalid")
 
     unit_dir = unit_dir.absolute()
-    if unit_dir.is_symlink() or not unit_dir.is_dir():
-        raise ControlPlaneBootstrapError("systemd unit directory is invalid")
+    try:
+        unit_info = unit_dir.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise ControlPlaneBootstrapError("systemd unit directory cannot be inspected") from exc
+    if (
+        unit_dir.is_symlink()
+        or not stat.S_ISDIR(unit_info.st_mode)
+        or unit_info.st_uid != os.geteuid()
+        or stat.S_IMODE(unit_info.st_mode) & 0o022
+    ):
+        raise ControlPlaneBootstrapError(
+            "systemd unit directory must be current-user owned and not group/world writable"
+        )
     qualified_units = release / "deploy" / "zero-based-vps"
     unit_states: dict[str, str] = {}
     for name in UNIT_NAMES:
@@ -480,6 +511,7 @@ def install(
     repository: str,
     issue: int,
     actors: str,
+    status_actor: str,
     token: str,
     production_current: Path,
     control_current: Path,
@@ -524,6 +556,7 @@ def install(
         repository=repository,
         issue=issue,
         actors=actors,
+        status_actor=status_actor,
     )
     production_before = before["production_current_target"]
     release = release.absolute()
@@ -553,7 +586,7 @@ def install(
             _private_parent(bootstrap_root)
 
         credential = config_dir / "github-operations.env"
-        credential_pin, credential_identity = _atomic_new_file(
+        credential_pin, credential_identity = _exclusive_new_file(
             credential,
             credential_raw,
             0o600,
@@ -563,7 +596,7 @@ def install(
         for name in UNIT_NAMES:
             source = release / "deploy" / "zero-based-vps" / name
             target = unit_dir / name
-            target_pin, target_identity = _atomic_new_file(
+            target_pin, target_identity = _exclusive_new_file(
                 target,
                 source.read_bytes(),
                 0o644,
@@ -605,13 +638,14 @@ def install(
             "repository": repository,
             "issue": issue,
             "actors": actors,
+            "status_actor": status_actor,
             "production_current_unchanged": True,
             "control_current_exact": True,
             "transport_active": True,
             "agent_active": True,
         }
         receipt_path = bootstrap_root / "bootstrap-receipt.json"
-        receipt_pin, receipt_identity = _atomic_new_file(
+        receipt_pin, receipt_identity = _exclusive_new_file(
             receipt_path,
             _canonical_json(receipt),
             0o600,
@@ -695,7 +729,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--production-current", type=Path, default=Path("/opt/keelaryn/current"))
     parser.add_argument("--control-current", type=Path, default=Path("/opt/keelaryn/control-current"))
     parser.add_argument("--unit-dir", type=Path, default=Path("/etc/systemd/system"))
-    parser.add_argument("--config-dir", type=Path, default=Path("/etc/keelaryn"))
+    parser.add_argument(
+        "--config-dir",
+        type=Path,
+        default=Path("/etc/keelaryn/operation-control"),
+    )
     parser.add_argument(
         "--bootstrap-root",
         type=Path,
@@ -708,6 +746,7 @@ def _parser() -> argparse.ArgumentParser:
     apply_parser.add_argument("--repository", required=True)
     apply_parser.add_argument("--issue", required=True, type=int)
     apply_parser.add_argument("--actors", required=True)
+    apply_parser.add_argument("--status-actor", required=True)
     return parser
 
 
@@ -734,6 +773,7 @@ def main(argv: list[str] | None = None) -> int:
                 repository=args.repository,
                 issue=args.issue,
                 actors=args.actors,
+                status_actor=args.status_actor,
                 token=token,
                 production_current=args.production_current,
                 control_current=args.control_current,

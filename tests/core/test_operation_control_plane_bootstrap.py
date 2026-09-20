@@ -37,10 +37,10 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
 
         unit_dir = root / "systemd"
         unit_dir.mkdir(mode=0o755)
-        config_dir = root / "etc" / "keelaryn"
-        config_dir.mkdir(parents=True, mode=0o700)
+        config_parent = root / "etc" / "keelaryn"
+        config_parent.mkdir(parents=True, mode=0o755)
+        config_dir = config_parent / "operation-control"
         bootstrap_root = root / "bootstrap"
-        os.chmod(config_dir, 0o700)
         return install, release, commit, unit_dir, config_dir, bootstrap_root
 
     def identity(self, commit: str):
@@ -75,8 +75,13 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
             repository="efremov-aleksei-96/keelaryn",
             issue=65,
             actors="efremov-aleksei-96",
+            status_actor="efremov-aleksei-96",
         )
         self.assertIn(b"KEELARYN_GITHUB_OPERATIONS_ISSUE=65\n", raw)
+        self.assertIn(
+            b"KEELARYN_GITHUB_OPERATIONS_STATUS_ACTOR=efremov-aleksei-96\n",
+            raw,
+        )
         self.assertNotIn(b" ", raw)
 
 
@@ -98,18 +103,18 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
             self.assertTrue(target.is_dir())
             self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
 
-    def test_atomic_new_file_pin_matches_installed_object(self) -> None:
+    def test_exclusive_new_file_pin_matches_installed_object(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             target = root / "created"
-            pin_fd, identity = bootstrap._atomic_new_file(target, b"ours", 0o600)
+            pin_fd, identity = bootstrap._exclusive_new_file(target, b"ours", 0o600)
             try:
                 self.assertEqual(identity, bootstrap._object_identity(target))
                 self.assertEqual(identity, bootstrap._fd_identity(pin_fd))
             finally:
                 bootstrap._close_pin(pin_fd)
 
-    def test_atomic_new_file_never_replaces_existing_path(self) -> None:
+    def test_exclusive_new_file_never_replaces_existing_path(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             target = root / "credential"
@@ -120,7 +125,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                 bootstrap.ControlPlaneBootstrapError,
                 "refuses to replace existing path",
             ):
-                bootstrap._atomic_new_file(target, b"new", 0o600)
+                bootstrap._exclusive_new_file(target, b"new", 0o600)
 
             self.assertEqual(target.read_bytes(), b"existing")
 
@@ -130,7 +135,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             target = root / "created"
-            pin_fd, identity = bootstrap._atomic_new_file(target, b"ours", 0o600)
+            pin_fd, identity = bootstrap._exclusive_new_file(target, b"ours", 0o600)
             target.unlink()
             target.write_bytes(b"replacement")
             os.chmod(target, 0o600)
@@ -201,6 +206,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                     repository="efremov-aleksei-96/keelaryn",
                     issue=65,
                     actors="efremov-aleksei-96",
+                    status_actor="efremov-aleksei-96",
                     token="github_pat_" + ("A" * 40),
                     production_current=install / "current",
                     control_current=install / "control-current",
@@ -214,6 +220,9 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
             self.assertTrue(receipt["production_current_unchanged"])
             self.assertTrue(receipt_root.is_dir())
             self.assertEqual(stat.S_IMODE(receipt_root.stat().st_mode), 0o700)
+            self.assertTrue(config.is_dir())
+            self.assertEqual(stat.S_IMODE(config.stat().st_mode), 0o700)
+            self.assertEqual(receipt["status_actor"], "efremov-aleksei-96")
             self.assertEqual(
                 os.readlink(install / "current"),
                 "releases/" + ("b" * 40),
@@ -268,6 +277,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                         repository="efremov-aleksei-96/keelaryn",
                         issue=65,
                         actors="efremov-aleksei-96",
+                        status_actor="efremov-aleksei-96",
                         token="github_pat_" + ("A" * 40),
                         production_current=install / "current",
                         control_current=install / "control-current",
@@ -280,8 +290,8 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
 
             self.assertEqual(active, set())
             self.assertFalse(receipt_root.exists())
+            self.assertFalse(config.exists())
             self.assertFalse((install / "control-current").exists())
-            self.assertFalse((config / "github-operations.env").exists())
             for name in bootstrap.UNIT_NAMES:
                 self.assertFalse((unit_dir / name).exists())
                 self.assertIn(["disable", "--now", name], calls)
@@ -289,6 +299,36 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                 os.readlink(install / "current"),
                 "releases/" + ("b" * 40),
             )
+
+    def test_active_probe_fails_closed_on_unclassified_systemctl_error(self) -> None:
+        with mock.patch.object(
+            bootstrap,
+            "_systemctl",
+            return_value=bootstrap.subprocess.CompletedProcess(
+                ["systemctl", "is-active", "--quiet", "x.service"],
+                1,
+                stdout="",
+                stderr="manager error",
+            ),
+        ):
+            with self.assertRaisesRegex(
+                bootstrap.ControlPlaneBootstrapError,
+                "active-state probe failed",
+            ):
+                bootstrap._is_active("x.service")
+
+        for returncode in (3, 4):
+            with mock.patch.object(
+                bootstrap,
+                "_systemctl",
+                return_value=bootstrap.subprocess.CompletedProcess(
+                    ["systemctl", "is-active", "--quiet", "x.service"],
+                    returncode,
+                    stdout="",
+                    stderr="",
+                ),
+            ):
+                self.assertFalse(bootstrap._is_active("x.service"))
 
     def test_agent_transport_dependency_is_resilient_wants_not_requires(self) -> None:
         raw = (DEPLOY / "keelaryn-operation-agent.service").read_text(encoding="utf-8")

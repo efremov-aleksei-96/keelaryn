@@ -118,9 +118,9 @@ The VPS transport runs separately from the privileged agent as the unprivileged 
 
 Requests are accepted only from an explicit GitHub actor allowlist, require exact `KEELARYN_OPERATION_REQUEST_V1` framing and strict operation-request JSON, and remain bound to the exact materialized source commit. There is no shell command, argv list, arbitrary path or free-form executable payload.
 
-The GitHub credential is a dedicated fine-grained token limited to repository metadata read and Issues read/write. It must not receive Contents, Actions, Administration, Secrets or repository-management write permission.
+The GitHub credential is a dedicated fine-grained token limited to repository metadata read and Issues read/write. It must not receive Contents, Actions, Administration, Secrets or repository-management write permission. The expected GitHub status-publisher actor is configured separately from the request-actor allowlist and every remotely recovered/created/updated status comment must match that exact publisher identity.
 
-The transport status channel is non-authoritative. The network-isolated privileged agent writes only sanitized relay snapshots to the transport outbox. GitHub status comments can be lost or delayed without changing private Operation Runtime, Hub selector, release-switch or mutation-gate authority.
+The transport status channel is non-authoritative. The network-isolated privileged agent writes only sanitized relay snapshots to the transport outbox. Remote status recovery accepts only canonical relay payloads from the exact configured status-publisher actor and exact source commit; an arbitrary public issue commenter cannot be adopted as the transport's publication identity. GitHub status comments can be lost or delayed without changing private Operation Runtime, Hub selector, release-switch or mutation-gate authority.
 
 Requests are archived exactly once by the agent. Invalid requests are quarantined as rejected rather than causing a restart/retry loop. Re-delivery of the same request ID resolves to the existing durable operation and cannot repeat an already-created mutation.
 
@@ -137,7 +137,7 @@ Operation-control services therefore run from the independent selector:
 
 The initial bootstrap validates the exact deterministic release payload, requires the control selector, operation units and GitHub credential destination to be absent, installs them transactionally, starts both services, verifies them active, and proves the production `/opt/keelaryn/current` symlink did not change. Failure removes only objects created by that bootstrap attempt and leaves the production selector untouched.
 
-The bootstrap token is entered interactively through `getpass`; it is never accepted as a command-line argument, printed, written to the bootstrap receipt or sent through GitHub. The installed environment file is mode 0600.
+The bootstrap token is entered interactively through `getpass`; it is never accepted as a command-line argument, printed, written to the bootstrap receipt or sent through GitHub. The installed environment file is mode 0600 inside the dedicated root-owned mode-0700 directory `/etc/keelaryn/operation-control/`; bootstrap does not require the shared `/etc/keelaryn` parent itself to be mode 0700.
 
 Initial bootstrap is intentionally install-only. Replacing an existing control-plane selector, unit set or GitHub credential requires a separately qualified update transaction rather than silently reusing bootstrap semantics.
 
@@ -150,16 +150,14 @@ tracked for rollback. Service activation is considered attempted before invoking
 failure. Rollback disables every attempted unit through the same checked systemctl
 boundary, proves both operation-control units inactive, removes every transaction-created
 file/selector and empty private directory, reloads systemd, and proves production
-`/opt/keelaryn/current` unchanged. Bootstrap file creation is exclusive/no-overwrite,
-and rollback is bound to an open Linux `O_PATH|O_NOFOLLOW` ownership pin plus
+`/opt/keelaryn/current` unchanged. Bootstrap file creation is direct exclusive/no-overwrite at the final pathname (no hidden token-bearing staging file), and rollback is bound to an open Linux ownership pin plus
 stable object identity (device, inode and file type) for every transaction-created file,
 selector and private directory. The pin remains open until commit or rollback, so the
 original inode cannot be recycled after delete/recreate. File publication remains
 exclusive/no-overwrite; rollback refuses to delete a pathname whose current object no
 longer matches the pinned transaction-owned object. If a newly-created private
 directory cannot be ownership-pinned, cleanup fails closed and leaves the ambiguous
-path for read-only reconciliation rather than deleting an unproven object. Any incomplete
-rollback is a distinct fail-closed error and must be reconciled before retry.
+path for read-only reconciliation rather than deleting an unproven object. Any incomplete rollback is a distinct fail-closed error and must be reconciled before retry. Systemd active-state probes accept only the explicit active/inactive-or-unknown return classes and fail closed on unclassified manager errors.
 
 The root operation agent only `Wants=` the network transport and is ordered after it;
 transport failure or network loss must not make the durable agent itself unavailable.

@@ -54,10 +54,11 @@ Do not rerun definitive r0072 target qualification.
 - Exact-head Core development validation: **PASS**, run `35530177965` (609 deterministic tests plus all payload/surface/rehearsal steps)
 - Development payload artifact: `10611112366`, ZIP SHA-256 `b130e30302a78492ba958db678512cdd58c83797ca30aa427e4569cadadf0dfa`
 - Candidate receipt: `docs/candidates/operation-control-r0002-20260920-01.json`
-- State: **FROZEN_NOT_PRODUCTION_QUALIFIED**
+- State: **REJECTED_BEFORE_VPS_MATERIALIZATION**
 - GitHub operation channel: Issue #65
+- Rejection evidence: `docs/candidates/operation-control-r0002-20260920-01.rejection.json`
 
-Candidate bytes are immutable from this issuance point. Any later product/control-plane byte change requires a new candidate identity. Development CI evidence does not authorize production bootstrap. The rejected r0001 release already materialized on the VPS remains historical provenance only and must not be reused as r0002.
+Candidate bytes remain immutable historical provenance. Focused post-gate review found a public-status-publication identity defect, so r0002 must not be reconciled/materialized/qualified/bootstraped on production. The rejected r0001 release already materialized on the VPS also remains historical provenance only.
 
 ## Operation Control r0002 gate r0004
 
@@ -69,12 +70,12 @@ Candidate bytes are immutable from this issuance point. Any later product/contro
 - GitHub gate run: `35531369705` — **PASS**
 - Gate artifact: `10611566039`, ZIP SHA-256 `dcd4661c92167489c0dbdc2209ddfde151102364799a05bbe400dbd79ebac69d`
 - Evidence: `docs/candidates/operation-control-r0002-20260920-01.gate-r0004-evidence.json`
-- State: **GATE_PASS_AWAITING_VPS_RECONCILE**
+- Historical state: **GATE_PASS**; candidate subsequently **REJECTED_BEFORE_VPS_MATERIALIZATION**
 - r0002 release is not yet materialized on production.
 - Rejected r0001 release remains historical provenance only and is explicitly validated by the r0002 VPS driver.
 - Initial r0002 qualification requires `control-current`, credential, bootstrap root/receipt, and operation units all exact `ABSENT`.
 
-Gate r0004 passed exact frozen-r0002 deterministic rebuild/selftest. The next permitted production action is read-only VPS `reconcile` only. It must prove the PREPARED e63f production boundary unchanged, exact rejected-r0001 historical release present, r0002 release absent, and all bootstrap sidecar state absent before any r0002 materialization.
+Gate r0004 passed exact frozen-r0002 deterministic rebuild/selftest, but a later focused security review rejected r0002 before any r0002 VPS reconcile/materialization. Its gate evidence is historical only and no longer authorizes production use.
 
 ## Operation Control gate r0003
 
@@ -119,6 +120,14 @@ directory ownership, and decouples agent liveness from transport with `Wants=`.
 Those successor bytes passed coherent exact-head development CI and are now frozen as
 `operation-control-r0002-20260920-01`.
 
+## Operation Control r0002 rejection
+
+Frozen candidate `operation-control-r0002-20260920-01` is **REJECTED_BEFORE_VPS_MATERIALIZATION**.
+
+Focused post-gate review found that response-loss recovery for GitHub status publication selected pre-existing status comments by request ID without binding them to the transport's publisher identity. Because Issue #65 is in a public repository, an unrelated commenter could pre-create a matching status marker/request ID and be adopted as publication state, causing false provenance or a persistent PATCH failure/transport restart loop. No r0002 VPS reconcile, materialization, qualification or bootstrap was attempted.
+
+Successor development binds remote status recovery and create/update responses to an explicit status-publisher actor, uses a dedicated private operation-control credential directory, writes bootstrap files directly with exclusive no-overwrite final-path creation so a crash cannot strand an untracked token-bearing temp file, and makes systemd active-state probing fail closed on unclassified errors. A new candidate identity is required after coherent development PASS.
+
 ## Current production Hub-cutover transaction
 
 The production Hub cutover has been prepared but the selector has **not** been applied.
@@ -160,7 +169,7 @@ The failure occurred before pre-apply receipt publication or selector mutation. 
 
 The active first priority is the durable remote-autonomous operation control plane. GitHub Issue **#65, Keelaryn VPS Operation Control**, is the dedicated request/status channel. Development already includes Operation Runtime, the allowlisted network-isolated agent, and the narrow GitHub Issues transport.
 
-The next boundary is qualification and one-time sidecar bootstrap. The control plane must use its own `/opt/keelaryn/control-current` selector so the currently PREPARED Hub cutover remains bound to production source e63f and `/opt/keelaryn/current` is not changed merely to install remote-control infrastructure.
+The next boundary is successor operation-control development and coherent CI after r0002 rejection; no production sidecar action is currently authorized. After a new candidate is frozen and separately qualified, the one-time sidecar bootstrap may resume. The control plane must use its own `/opt/keelaryn/control-current` selector so the currently PREPARED Hub cutover remains bound to production source e63f and `/opt/keelaryn/current` is not changed merely to install remote-control infrastructure.
 
 The overall objective remains a durable **Operation Runtime v1** so long-running and mutation-capable operations do not depend on ChatGPT streaming, PowerShell, SSH session lifetime or one conversation's memory.
 
