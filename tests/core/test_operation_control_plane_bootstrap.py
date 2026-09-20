@@ -80,6 +80,13 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         self.assertNotIn(b" ", raw)
 
 
+    def test_atomic_new_file_identity_is_captured_after_hard_link(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            target = root / "created"
+            identity = bootstrap._atomic_new_file(target, b"ours", 0o600)
+            self.assertEqual(identity, bootstrap._path_identity(target))
+
     def test_atomic_new_file_never_replaces_existing_path(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

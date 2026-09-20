@@ -73,7 +73,13 @@ def _private_parent_state(path: Path) -> str:
     return "PRESENT"
 
 
+ObjectIdentity = tuple[int, int, int]
 PathIdentity = tuple[int, int, int, int, int, int]
+
+
+def _object_identity(path: Path) -> ObjectIdentity:
+    info = path.stat(follow_symlinks=False)
+    return info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode)
 
 
 def _path_identity(path: Path) -> PathIdentity:
@@ -88,7 +94,7 @@ def _path_identity(path: Path) -> PathIdentity:
     )
 
 
-def _create_private_parent(path: Path) -> PathIdentity | None:
+def _create_private_parent(path: Path) -> ObjectIdentity | None:
     path = path.absolute()
     if _private_parent_state(path) == "PRESENT":
         return None
@@ -97,13 +103,13 @@ def _create_private_parent(path: Path) -> PathIdentity | None:
         raise ControlPlaneBootstrapError("private parent container is invalid")
 
     created = False
-    identity: PathIdentity | None = None
+    identity: ObjectIdentity | None = None
     try:
         path.mkdir(mode=0o700)
         created = True
         os.chmod(path, 0o700)
         _private_parent(path)
-        identity = _path_identity(path)
+        identity = _object_identity(path)
     except BaseException as original:
         if created:
             try:
@@ -128,7 +134,7 @@ def _atomic_new_file(path: Path, raw: bytes, mode: int) -> PathIdentity:
     parent = path.parent
     temp = parent / f".{path.name}.tmp-{os.getpid()}-{time.monotonic_ns()}"
     linked = False
-    temp_identity: PathIdentity | None = None
+    installed_identity: PathIdentity | None = None
     try:
         fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
         try:
@@ -140,7 +146,6 @@ def _atomic_new_file(path: Path, raw: bytes, mode: int) -> PathIdentity:
         finally:
             os.close(fd)
 
-        temp_identity = _path_identity(temp)
         try:
             os.link(temp, path, follow_symlinks=False)
         except FileExistsError as exc:
@@ -149,23 +154,36 @@ def _atomic_new_file(path: Path, raw: bytes, mode: int) -> PathIdentity:
             ) from exc
         linked = True
 
-        final_identity = _path_identity(path)
-        if final_identity != temp_identity:
+        # Creating the hard link changes inode ctime. Compare the two names only
+        # after link(), then capture the rollback identity from the installed path.
+        temp_after_link = _path_identity(temp)
+        installed_identity = _path_identity(path)
+        if installed_identity != temp_after_link:
             raise ControlPlaneBootstrapError(
                 f"new path identity mismatch: {path.name}"
             )
         _fsync_directory(parent)
-        return final_identity
+        return installed_identity
     except BaseException as original:
-        if linked and temp_identity is not None:
+        if linked:
             try:
-                if _path_identity(path) != temp_identity:
+                if installed_identity is None:
+                    raise ControlPlaneBootstrapError(
+                        f"new path ownership is ambiguous: {path.name}"
+                    )
+                if _path_identity(path) != installed_identity:
                     raise ControlPlaneBootstrapError(
                         f"new path identity changed during cleanup: {path.name}"
                     )
+                # The temp hard link still pins the original inode here, so inode
+                # reuse cannot make an external replacement look transaction-owned.
+                if _path_identity(temp) != installed_identity:
+                    raise ControlPlaneBootstrapError(
+                        f"temporary ownership identity changed: {path.name}"
+                    )
                 path.unlink()
                 _fsync_directory(parent)
-            except BaseException as exc:
+            except BaseException:
                 raise ControlPlaneBootstrapError(
                     f"atomic new-file cleanup incomplete: {path.name}"
                 ) from original
@@ -427,7 +445,7 @@ def install(
     bootstrap_root = bootstrap_root.absolute()
     control_current = control_current.absolute()
     created_files: list[tuple[Path, PathIdentity]] = []
-    created_dirs: list[tuple[Path, PathIdentity]] = []
+    created_dirs: list[tuple[Path, ObjectIdentity]] = []
     attempted_units: list[str] = []
 
     try:
@@ -533,7 +551,7 @@ def install(
 
         for path, identity in reversed(created_dirs):
             try:
-                if _path_identity(path) != identity:
+                if _object_identity(path) != identity:
                     raise ControlPlaneBootstrapError(
                         f"created directory identity changed: {path.name}"
                     )

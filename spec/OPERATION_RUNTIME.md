@@ -151,10 +151,13 @@ failure. Rollback disables every attempted unit through the same checked systemc
 boundary, proves both operation-control units inactive, removes every transaction-created
 file/selector and empty private directory, reloads systemd, and proves production
 `/opt/keelaryn/current` unchanged. Bootstrap file creation is exclusive/no-overwrite,
-and rollback is bound to a strong stat identity (device, inode, ctime, mtime, size and
-file type) captured for each object created by the transaction. This deliberately
-rejects delete/recreate replacement even on filesystems that rapidly reuse inode
-numbers, so concurrent material is never deleted as if it were bootstrap-owned. Any incomplete
+and rollback for created files/selectors is bound to a strong stat identity (device,
+inode, ctime, mtime, size and file type) captured after exclusive publication. During
+exclusive hard-link publication the temporary link remains present through validation
+and failure cleanup, pinning the original inode against reuse. Transaction-created
+directories use stable object identity (device, inode and type) because their normal
+child creation/removal changes directory timestamps and size. This rejects concurrent
+replacement without misclassifying legitimate transaction metadata changes. Any incomplete
 rollback is a distinct fail-closed error and must be reconciled before retry.
 
 The root operation agent only `Wants=` the network transport and is ordered after it;
