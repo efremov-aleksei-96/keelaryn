@@ -67,8 +67,9 @@ New immutable runtime authority files are staged privately and become visible at
 final path only after their complete bytes are fsynced; a crash cannot expose a partially
 written `result.json` as valid terminal authority. If a crash happens even earlier,
 after the operation directory is created but before `state.json` becomes visible, the
-agent may reclaim that directory only when it contains no authority and only recognized
-private state-staging files. Any other material makes initialization recovery fail closed.
+agent may reclaim that directory only when it contains no authority and only the exact
+runtime-generated `.state.json.new-<pid>-<32-lowercase-hex>` staging filename form.
+Prefix lookalikes or any other material make initialization recovery fail closed.
 
 ## Progress and heartbeat
 
@@ -167,12 +168,7 @@ tracked for rollback. Service activation is considered attempted before invoking
 failure. Rollback disables every attempted unit through the same checked systemctl
 boundary, proves both operation-control units inactive, removes every transaction-created
 file/selector and empty private directory, reloads systemd, and proves production
-`/opt/keelaryn/current` unchanged. Bootstrap file creation is direct exclusive/no-overwrite at the final pathname (no hidden token-bearing staging file), and rollback is bound to an open Linux ownership pin plus
-stable object identity (device, inode and file type) for every transaction-created file,
-selector and private directory. The pin remains open until commit or rollback, so the
-original inode cannot be recycled after delete/recreate. File publication remains
-exclusive/no-overwrite; rollback refuses to delete a pathname whose current object no
-longer matches the pinned transaction-owned object. If a newly-created private
+`/opt/keelaryn/current` unchanged. Bootstrap starts by publishing an atomic private transaction-directory marker whose name binds the exact source/payload/configuration identity, a SHA-256 of the credential bytes, and whether the private directories pre-existed; the marker contains no token. Initial final-path file creation remains direct exclusive/no-overwrite with no hidden token-bearing staging file. If the process is killed after that marker but before the receipt, an exact retry may adopt or repair only marker-owned regular files with stable owner/mode/path identity, and only while no operation-control unit is active; any active transaction requires every credential/unit/selector byte to already be exact. A torn receipt is recoverable, while an exact completed receipt replay is read-only. Rollback is bound to open Linux ownership pins plus stable object identity (device, inode and file type), refuses to delete a replacement pathname, and retains the transaction marker whenever complete rollback cannot be proven. If a newly-created private
 directory cannot be ownership-pinned, cleanup fails closed and leaves the ambiguous
 path for read-only reconciliation rather than deleting an unproven object. Any incomplete rollback is a distinct fail-closed error and must be reconciled before retry. Systemd active-state probes accept only the explicit active/inactive-or-unknown return classes and fail closed on unclassified manager errors.
 

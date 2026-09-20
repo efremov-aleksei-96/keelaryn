@@ -177,9 +177,16 @@ rerunning work; an agent restart terminalizes any surviving nonterminal operatio
 `INTERRUPTED` (or `RECOVERY_REQUIRED` after an ambiguous mutation boundary); and
 conflicting reuse of an already-processed request ID is quarantined rather than causing
 a restart loop. Pre-state initialization orphans can be reclaimed only when no durable
-authority exists and only recognized private staging files are present; request archive
-directory boundaries are fsynced; and crash-torn trailing progress fragments no longer
-poison status recovery. These bytes remain unqualified development until exact-head CI passes.
+authority exists and only exact runtime-generated state-staging filenames are present;
+request archive directory boundaries are fsynced; and crash-torn trailing progress
+fragments no longer poison status recovery. The bootstrap now carries a durable private
+transaction-directory identity before any credential/unit publication, so a SIGKILL can
+be resumed only under the exact source/payload/configuration/credential hash; partial
+regular files are repairable only while operation-control units are inactive, an exact
+completed receipt replay is read-only, and ambiguous material remains fail-closed.
+The previous 620-test run failure was a regression-harness Path-concatenation typo, not a
+product failure; that typo is removed in the same successor hardening. These bytes remain
+unqualified development until exact-head CI passes.
 
 The overall objective remains a durable **Operation Runtime v1** so long-running and mutation-capable operations do not depend on ChatGPT streaming, PowerShell, SSH session lifetime or one conversation's memory.
 

@@ -20,6 +20,9 @@ HANDOFF_SCHEMA = "keelaryn.operation-runtime-handoff.v1"
 _OPERATION_ID = re.compile(r"^[0-9a-f]{32}$")
 _TOKEN = re.compile(r"^[A-Z][A-Z0-9_:-]{0,63}$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
+_STATE_INIT_STAGING = re.compile(
+    r"^\\.state\\.json\\.new-[1-9][0-9]*-[0-9a-f]{32}$"
+)
 
 _EXECUTION_STATES = {
     "CREATED",
@@ -530,12 +533,11 @@ class OperationRuntime:
             return False
 
         entries = list(directory.iterdir())
-        prefix = ".state.json.new-"
         for path in entries:
             if (
                 path.is_symlink()
                 or not path.is_file()
-                or not path.name.startswith(prefix)
+                or _STATE_INIT_STAGING.fullmatch(path.name) is None
             ):
                 raise OperationRuntimeError(
                     "operation initialization orphan contains unexpected material"

@@ -178,7 +178,6 @@ class OperationRuntimeTests(unittest.TestCase):
             oid = "2" * 32
             directory = root / oid
             directory.mkdir(mode=0o700)
-            staging = directory / ".state.json.new-123-" + Path("a")
             staging = directory / (".state.json.new-123-" + ("a" * 32))
             staging.write_bytes(b"partial")
             os.chmod(staging, 0o600)
@@ -216,6 +215,26 @@ class OperationRuntimeTests(unittest.TestCase):
 
             self.assertTrue(directory.exists())
             self.assertTrue(unexpected.exists())
+
+    def test_initialization_recovery_rejects_staging_prefix_lookalike(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            runtime = self.runtime(root)
+            oid = "5" * 32
+            directory = root / oid
+            directory.mkdir(mode=0o700)
+            lookalike = directory / (".state.json.new-123-" + ("a" * 32) + "-extra")
+            lookalike.write_bytes(b"partial")
+            os.chmod(lookalike, 0o600)
+
+            with self.assertRaisesRegex(
+                OperationRuntimeError,
+                "unexpected material",
+            ):
+                runtime.recover_initialization(oid)
+
+            self.assertTrue(lookalike.exists())
 
     def test_torn_trailing_progress_fragment_does_not_poison_status(self) -> None:
         with tempfile.TemporaryDirectory() as td:

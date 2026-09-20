@@ -300,6 +300,115 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                 "releases/" + ("b" * 40),
             )
 
+    @mock.patch.object(bootstrap, "verify_release_directory")
+    @mock.patch.object(bootstrap.pwd, "getpwnam")
+    def test_crash_partial_transaction_is_repaired_and_exact_replay_is_read_only(
+        self,
+        getpwnam,
+        verify,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            install, release, commit, unit_dir, config, receipt_root = self.layout(root)
+            verify.return_value = self.identity(commit)
+            getpwnam.return_value = type("Pw", (), {"pw_uid": 1000})()
+            config.mkdir(mode=0o700)
+            receipt_root.mkdir(mode=0o700)
+
+            token = "github_pat_" + ("A" * 40)
+            credential_raw = bootstrap._credential_bytes(
+                token=token,
+                repository="efremov-aleksei-96/keelaryn",
+                issue=65,
+                actors="efremov-aleksei-96",
+                status_actor="efremov-aleksei-96",
+            )
+            digest = bootstrap._transaction_digest(
+                expected_source_commit=commit,
+                expected_payload_sha256="c" * 64,
+                repository="efremov-aleksei-96/keelaryn",
+                issue=65,
+                actors="efremov-aleksei-96",
+                status_actor="efremov-aleksei-96",
+                credential_raw=credential_raw,
+            )
+            marker, marker_pin, _ = bootstrap._create_transaction_marker(
+                receipt_root,
+                digest=digest,
+                config_preexisting=False,
+                bootstrap_preexisting=False,
+            )
+            bootstrap._close_pin(marker_pin)
+
+            credential = config / "github-operations.env"
+            credential.write_bytes(b"partial credential")
+            os.chmod(credential, 0o600)
+            first_unit = unit_dir / bootstrap.UNIT_NAMES[0]
+            first_unit.write_bytes(b"partial unit")
+            os.chmod(first_unit, 0o644)
+
+            active: set[str] = set()
+            calls: list[list[str]] = []
+
+            def systemctl(args):
+                calls.append(list(args))
+                if args[:2] == ["enable", "--now"]:
+                    active.add(args[-1])
+                elif args[:2] == ["disable", "--now"]:
+                    active.discard(args[-1])
+
+            with mock.patch.object(bootstrap, "_require_root", return_value=None):
+                receipt = bootstrap.install(
+                    release=release,
+                    expected_source_commit=commit,
+                    expected_payload_sha256="c" * 64,
+                    repository="efremov-aleksei-96/keelaryn",
+                    issue=65,
+                    actors="efremov-aleksei-96",
+                    status_actor="efremov-aleksei-96",
+                    token=token,
+                    production_current=install / "current",
+                    control_current=install / "control-current",
+                    unit_dir=unit_dir,
+                    config_dir=config,
+                    bootstrap_root=receipt_root,
+                    systemctl=systemctl,
+                    active_probe=lambda unit: unit in active,
+                )
+
+            self.assertTrue(receipt["control_current_exact"])
+            self.assertEqual(credential.read_bytes(), credential_raw)
+            for name in bootstrap.UNIT_NAMES:
+                self.assertEqual(
+                    (unit_dir / name).read_bytes(),
+                    (release / "deploy" / "zero-based-vps" / name).read_bytes(),
+                )
+            self.assertTrue(marker.is_dir())
+            self.assertEqual(active, set(bootstrap.UNIT_NAMES))
+
+            calls_before_replay = list(calls)
+            with mock.patch.object(bootstrap, "_require_root", return_value=None):
+                replay = bootstrap.install(
+                    release=release,
+                    expected_source_commit=commit,
+                    expected_payload_sha256="c" * 64,
+                    repository="efremov-aleksei-96/keelaryn",
+                    issue=65,
+                    actors="efremov-aleksei-96",
+                    status_actor="efremov-aleksei-96",
+                    token=token,
+                    production_current=install / "current",
+                    control_current=install / "control-current",
+                    unit_dir=unit_dir,
+                    config_dir=config,
+                    bootstrap_root=receipt_root,
+                    systemctl=systemctl,
+                    active_probe=lambda unit: unit in active,
+                )
+
+            self.assertEqual(replay, receipt)
+            self.assertEqual(calls, calls_before_replay)
+
     def test_active_probe_fails_closed_on_unclassified_systemctl_error(self) -> None:
         with mock.patch.object(
             bootstrap,
