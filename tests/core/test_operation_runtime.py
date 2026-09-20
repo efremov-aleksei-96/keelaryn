@@ -7,6 +7,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -168,6 +169,70 @@ class OperationRuntimeTests(unittest.TestCase):
             self.assertEqual(status["observed_state"], "STALLED")
             self.assertEqual(status["next_action"], "READ_ONLY_RECONCILE")
             self.assertFalse(status["terminal"])
+
+    def test_terminal_result_recovers_state_after_post_result_crash(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            runtime = self.runtime(root)
+            state = runtime.create(
+                operation="READ_ONLY_TEST",
+                source_commit="f" * 40,
+                mutation_capable=False,
+                timeout_seconds=60,
+            )
+            oid = state["operation_id"]
+            runtime.start(oid)
+
+            original_write_state = runtime._write_state
+            with mock.patch.object(
+                runtime,
+                "_write_state",
+                side_effect=OperationRuntimeError("injected state publication failure"),
+            ):
+                with self.assertRaisesRegex(
+                    OperationRuntimeError,
+                    "injected state publication failure",
+                ):
+                    runtime.finish(oid, outcome="PASS")
+
+            self.assertTrue((root / oid / "result.json").exists())
+            self.assertEqual(runtime._read_state(oid)["execution_state"], "RUNNING")
+
+            runtime._write_state = original_write_state
+            result = runtime.recover_terminal(oid)
+            self.assertIsNotNone(result)
+            assert result is not None
+            self.assertEqual(result["outcome"], "PASS")
+            status = runtime.status(oid)
+            self.assertEqual(status["execution_state"], "SUCCEEDED")
+            self.assertTrue(status["terminal"])
+
+    def test_interrupt_from_commit_boundary_requires_read_only_reconcile(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            runtime = self.runtime(root)
+            state = runtime.create(
+                operation="MUTATION_TEST",
+                source_commit="1" * 40,
+                mutation_capable=True,
+                timeout_seconds=60,
+            )
+            oid = state["operation_id"]
+            runtime.start(oid)
+            runtime.update(oid, mutation_state="PRECOMMIT_VERIFIED")
+            runtime.update(oid, mutation_state="COMMITTING")
+
+            result = runtime.interrupt(oid)
+
+            self.assertEqual(result["outcome"], "INTERRUPTED")
+            self.assertEqual(result["execution_state"], "RECOVERY_REQUIRED")
+            self.assertEqual(result["next_action"], "READ_ONLY_RECONCILE")
+            self.assertEqual(
+                runtime.status(oid)["next_action"],
+                "READ_ONLY_RECONCILE",
+            )
 
     def test_mutation_success_requires_verified_or_noop_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as td:

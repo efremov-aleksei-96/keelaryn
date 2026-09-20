@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -318,12 +319,34 @@ class OperationAgent:
 
             operation_dir = self.runtime._directory(request.request_id)
             if operation_dir.exists() or operation_dir.is_symlink():
+                processed = self.processed / request_path.name
+                if processed.exists() or processed.is_symlink():
+                    if (
+                        processed.is_symlink()
+                        or not processed.is_file()
+                        or processed.read_bytes() != request_path.read_bytes()
+                    ):
+                        raise OperationRuntimeError(
+                            "request_id conflicts with processed request identity"
+                        )
+
+                result = self.runtime.recover_terminal(request.request_id)
                 status = self.runtime.status(request.request_id)
-                self._publish_final(request.request_id)
+                if not status["terminal"]:
+                    result = self.runtime.interrupt(request.request_id)
+                    status = self.runtime.status(request.request_id)
+                    disposition = "INTERRUPTED"
+                else:
+                    disposition = "EXISTING"
+
+                self._publish_final(
+                    request.request_id,
+                    outcome=None if result is None else str(result["outcome"]),
+                )
                 return {
                     "schema": AGENT_SCHEMA,
                     "request_id": request.request_id,
-                    "disposition": "EXISTING",
+                    "disposition": disposition,
                     "status": status,
                 }
 
@@ -344,8 +367,15 @@ class OperationAgent:
                 ) as session:
                     handler.callback(session, request)
             except Exception:
+                result = self.runtime.recover_terminal(request.request_id)
                 status = self.runtime.status(request.request_id)
-                self._publish_final(request.request_id, outcome="FAIL")
+                if not status["terminal"]:
+                    result = self.runtime.interrupt(request.request_id)
+                    status = self.runtime.status(request.request_id)
+                self._publish_final(
+                    request.request_id,
+                    outcome=None if result is None else str(result["outcome"]),
+                )
                 return {
                     "schema": AGENT_SCHEMA,
                     "request_id": request.request_id,
@@ -362,16 +392,32 @@ class OperationAgent:
                 "status": status,
             }
 
-    def _archive(self, request_path: Path, destination: Path) -> None:
-        target = destination / request_path.name
+    def _archive(
+        self,
+        request_path: Path,
+        destination: Path,
+        *,
+        conflict_suffix: bool = False,
+    ) -> None:
         raw = request_path.read_bytes()
+        target = destination / request_path.name
         if target.exists() or target.is_symlink():
-            if target.is_symlink() or not target.is_file() or target.read_bytes() != raw:
+            if not target.is_symlink() and target.is_file() and target.read_bytes() == raw:
+                request_path.unlink()
+                return
+            if not conflict_suffix:
                 raise OperationRuntimeError(
                     "operation request archive conflicts with existing identity"
                 )
-            request_path.unlink()
-            return
+            digest = hashlib.sha256(raw).hexdigest()[:16]
+            target = destination / f"{request_path.stem}-{digest}.json"
+            if target.exists() or target.is_symlink():
+                if target.is_symlink() or not target.is_file() or target.read_bytes() != raw:
+                    raise OperationRuntimeError(
+                        "rejected operation request archive conflicts with existing identity"
+                    )
+                request_path.unlink()
+                return
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
@@ -401,7 +447,11 @@ class OperationAgent:
         try:
             result = self.process(request_path)
         except (OperationRuntimeError, OSError):
-            self._archive(request_path, self.rejected)
+            self._archive(
+                request_path,
+                self.rejected,
+                conflict_suffix=True,
+            )
             return {
                 "schema": AGENT_SCHEMA,
                 "disposition": "REJECTED",

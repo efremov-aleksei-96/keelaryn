@@ -53,6 +53,20 @@ A transition may stay at the current boundary or advance by exactly one boundary
 
 Failure or loss of process certainty from `COMMITTING`, `COMMITTED` or `POSTCOMMIT_VERIFYING` requires reconciliation. A successful mutation operation must either remain a proven no-op at `MUTATION_NOT_STARTED` or reach `VERIFIED`.
 
+## Terminal crash recovery
+
+`result.json` is immutable terminal authority. It is published as a complete
+no-overwrite private file before the mutable state/handoff view is advanced to terminal.
+If the worker dies after result publication but before the state/handoff update,
+`recover_terminal` validates exact operation/source/mutation identity and reconstructs
+the terminal state without invoking the operation handler again. A terminal state with
+no result authority, conflicting result/state identities, or a conflicting requested
+finish fails closed.
+
+New immutable runtime authority files are staged privately and become visible at their
+final path only after their complete bytes are fsynced; a crash cannot expose a partially
+written `result.json` as valid terminal authority.
+
 ## Progress and heartbeat
 
 Operation Runtime composes the existing sanitized `GateProgressJournal`.
@@ -103,7 +117,7 @@ The v1 dispatcher is `keelaryn_core.operation_agent`. It is intentionally transp
 
 A request is canonical JSON with only a request ID, operation token, exact source commit, profile token, mutation capability, bounded timeout and approval policy. There is no shell command, argv list, arbitrary path or free-form payload field.
 
-The request ID is also the Operation Runtime operation ID. Re-delivery of the same request therefore resolves to the existing durable operation instead of executing it again.
+The request ID is also the Operation Runtime operation ID. Re-delivery of the same exact request therefore resolves to the existing durable operation instead of executing it again. Reuse of an already-processed request ID with different canonical request bytes is quarantined as a conflicting replay rather than entering an agent restart loop.
 
 The initial allowlist contains only `RUNTIME_SELFTEST`. Production mutations are deliberately impossible until an explicit handler and approval verifier are qualified.
 
@@ -122,7 +136,7 @@ The GitHub credential is a dedicated fine-grained token limited to repository me
 
 The transport status channel is non-authoritative. The network-isolated privileged agent writes only sanitized relay snapshots to the transport outbox. Remote status recovery accepts only canonical relay payloads from the exact configured status-publisher actor and exact source commit; an arbitrary public issue commenter cannot be adopted as the transport's publication identity. GitHub status comments can be lost or delayed without changing private Operation Runtime, Hub selector, release-switch or mutation-gate authority.
 
-Requests are archived exactly once by the agent. Invalid requests are quarantined as rejected rather than causing a restart/retry loop. Re-delivery of the same request ID resolves to the existing durable operation and cannot repeat an already-created mutation.
+Requests are archived exactly once by the agent. Invalid or conflicting replay requests are quarantined as rejected rather than causing a restart/retry loop. Re-delivery of the same exact request ID resolves to the existing durable operation and cannot repeat an already-created mutation. If the agent restarts with an existing nonterminal operation, it never re-executes the handler: the operation is terminalized as `INTERRUPTED`; a commit-ambiguous mutation boundary becomes `RECOVERY_REQUIRED` and requires read-only reconciliation.
 
 A GitHub status comment is observability evidence, never permission to repeat a mutation. Ambiguous mutation boundaries continue to require `READ_ONLY_RECONCILE`.
 

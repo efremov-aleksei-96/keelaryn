@@ -182,23 +182,28 @@ def _atomic_replace_private(path: Path, raw: bytes) -> None:
 
 def _write_new_private(path: Path, raw: bytes, label: str) -> None:
     parent = _private_dir(path.parent, f"{label} parent")
+    temp = parent / f".{path.name}.new-{os.getpid()}-{uuid.uuid4().hex}"
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     try:
-        fd = os.open(path, flags, 0o600)
-    except FileExistsError as exc:
-        raise OperationRuntimeError(f"{label} already exists") from exc
-    try:
-        if os.name == "posix":
-            os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "wb", closefd=False) as stream:
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
+        fd = os.open(temp, flags, 0o600)
+        try:
+            if os.name == "posix":
+                os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "wb", closefd=False) as stream:
+                stream.write(raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(fd)
+        try:
+            os.link(temp, path, follow_symlinks=False)
+        except FileExistsError as exc:
+            raise OperationRuntimeError(f"{label} already exists") from exc
+        _fsync_dir(parent)
     finally:
-        os.close(fd)
-    _fsync_dir(parent)
+        temp.unlink(missing_ok=True)
     _private_file(path, label)
 
 
@@ -290,6 +295,182 @@ class OperationRuntime:
         if path.read_bytes() != _canonical(value):
             raise OperationRuntimeError("operation state is not canonical JSON")
         return value
+
+    def _strict_result(self, value: Any) -> dict[str, Any]:
+        expected = {
+            "schema",
+            "operation_id",
+            "operation",
+            "source_commit",
+            "outcome",
+            "phase",
+            "mutation_state",
+            "execution_state",
+            "next_action",
+            "completed_at_utc",
+        }
+        if not isinstance(value, dict) or set(value) != expected:
+            raise OperationRuntimeError("operation result has invalid keys")
+        if value["schema"] != RESULT_SCHEMA:
+            raise OperationRuntimeError("operation result schema mismatch")
+        _operation_id(value["operation_id"])
+        _token(value["operation"], "operation")
+        _source_commit(value["source_commit"])
+        _token(value["outcome"], "outcome")
+        _token(value["phase"], "phase")
+        if value["mutation_state"] != "READ_ONLY" and value["mutation_state"] not in _MUTATION_SEQUENCE:
+            raise OperationRuntimeError("operation result mutation_state is invalid")
+        if value["execution_state"] not in _TERMINAL_EXECUTION:
+            raise OperationRuntimeError("operation result execution_state is invalid")
+        expected_next = (
+            "READ_ONLY_RECONCILE"
+            if value["execution_state"] == "RECOVERY_REQUIRED"
+            else ("NONE" if value["execution_state"] == "SUCCEEDED" else "STOP")
+        )
+        if value["next_action"] != expected_next:
+            raise OperationRuntimeError("operation result next_action is inconsistent")
+        _epoch(value["completed_at_utc"], "completed_at_utc")
+        return dict(value)
+
+    def _read_result(self, operation_id: str) -> dict[str, Any] | None:
+        path = self._result_path(operation_id)
+        if not path.exists() and not path.is_symlink():
+            return None
+        path = _private_file(path, "operation result")
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise OperationRuntimeError("operation result is invalid JSON") from exc
+        value = self._strict_result(value)
+        if value["operation_id"] != operation_id:
+            raise OperationRuntimeError("operation result identity mismatch")
+        if path.read_bytes() != _canonical(value):
+            raise OperationRuntimeError("operation result is not canonical JSON")
+        return value
+
+    def _terminal_execution(
+        self,
+        state: Mapping[str, Any],
+        outcome: str,
+    ) -> str:
+        if outcome == "PASS":
+            if state["mutation_capable"] and state["mutation_state"] not in {
+                "MUTATION_NOT_STARTED",
+                "VERIFIED",
+            }:
+                raise OperationRuntimeError(
+                    "mutation-capable PASS requires no mutation or VERIFIED boundary"
+                )
+            return "SUCCEEDED"
+        if (
+            state["mutation_capable"]
+            and state["mutation_state"] in _RECOVERY_BOUNDARY
+        ):
+            return "RECOVERY_REQUIRED"
+        return "FAILED"
+
+    def _terminal_result(
+        self,
+        state: Mapping[str, Any],
+        *,
+        outcome: str,
+        phase: str,
+        completed: str,
+    ) -> dict[str, Any]:
+        execution = self._terminal_execution(state, outcome)
+        return {
+            "schema": RESULT_SCHEMA,
+            "operation_id": state["operation_id"],
+            "operation": state["operation"],
+            "source_commit": state["source_commit"],
+            "outcome": outcome,
+            "phase": phase,
+            "mutation_state": state["mutation_state"],
+            "execution_state": execution,
+            "next_action": (
+                "READ_ONLY_RECONCILE"
+                if execution == "RECOVERY_REQUIRED"
+                else ("NONE" if execution == "SUCCEEDED" else "STOP")
+            ),
+            "completed_at_utc": completed,
+        }
+
+    def recover_terminal(self, operation_id: str) -> dict[str, Any] | None:
+        oid = self.resolve_operation_id(operation_id)
+        state = self._read_state(oid)
+        result = self._read_result(oid)
+        if result is None:
+            if state["execution_state"] in _TERMINAL_EXECUTION:
+                raise OperationRuntimeError(
+                    "terminal operation state is missing immutable result authority"
+                )
+            return None
+
+        if (
+            result["operation"] != state["operation"]
+            or result["source_commit"] != state["source_commit"]
+            or result["mutation_state"] != state["mutation_state"]
+        ):
+            raise OperationRuntimeError("operation result does not match durable state")
+
+        expected_execution = self._terminal_execution(state, result["outcome"])
+        if result["execution_state"] != expected_execution:
+            raise OperationRuntimeError(
+                "operation result execution is inconsistent with durable boundary"
+            )
+
+        if state["execution_state"] in _TERMINAL_EXECUTION:
+            if (
+                state["execution_state"] != result["execution_state"]
+                or state["phase"] != result["phase"]
+                or state["updated_at_utc"] != result["completed_at_utc"]
+            ):
+                raise OperationRuntimeError(
+                    "terminal operation state conflicts with immutable result authority"
+                )
+            self._write_handoff(state)
+            return result
+
+        state["execution_state"] = result["execution_state"]
+        state["phase"] = result["phase"]
+        state["updated_at_utc"] = result["completed_at_utc"]
+        self._write_state(state)
+        return result
+
+    def interrupt(
+        self,
+        operation_id: str,
+        *,
+        phase: str = "INTERRUPTED",
+    ) -> dict[str, Any]:
+        oid = self.resolve_operation_id(operation_id)
+        recovered = self.recover_terminal(oid)
+        if recovered is not None:
+            return recovered
+
+        state = self._read_state(oid)
+        if state["execution_state"] not in {"CREATED", "RUNNING"}:
+            raise OperationRuntimeError(
+                "only nonterminal operation may be interrupted"
+            )
+        phase = _token(phase, "phase")
+        completed = _utc(self.clock())
+        result = self._terminal_result(
+            state,
+            outcome="INTERRUPTED",
+            phase=phase,
+            completed=completed,
+        )
+        _write_new_private(
+            self._result_path(oid),
+            _canonical(result),
+            "operation result",
+        )
+        state["execution_state"] = result["execution_state"]
+        state["phase"] = phase
+        state["updated_at_utc"] = completed
+        self._write_state(state)
+        return result
 
     def _write_state(self, value: Mapping[str, Any]) -> dict[str, Any]:
         strict = self._strict_state(dict(value))
@@ -447,52 +628,34 @@ class OperationRuntime:
         phase: str = "COMPLETE",
     ) -> dict[str, Any]:
         oid = self.resolve_operation_id(operation_id)
-        state = self._read_state(oid)
-        if state["execution_state"] != "RUNNING":
-            raise OperationRuntimeError("only RUNNING operation may finish")
         phase = _token(phase, "phase")
         outcome = _token(outcome, "outcome")
 
-        if outcome == "PASS":
-            if state["mutation_capable"] and state["mutation_state"] not in {
-                "MUTATION_NOT_STARTED",
-                "VERIFIED",
-            }:
+        recovered = self.recover_terminal(oid)
+        if recovered is not None:
+            if recovered["outcome"] != outcome or recovered["phase"] != phase:
                 raise OperationRuntimeError(
-                    "mutation-capable PASS requires no mutation or VERIFIED boundary"
+                    "terminal operation result conflicts with requested finish"
                 )
-            execution = "SUCCEEDED"
-        else:
-            execution = (
-                "RECOVERY_REQUIRED"
-                if state["mutation_capable"]
-                and state["mutation_state"] in _RECOVERY_BOUNDARY
-                else "FAILED"
-            )
+            return recovered
+
+        state = self._read_state(oid)
+        if state["execution_state"] != "RUNNING":
+            raise OperationRuntimeError("only RUNNING operation may finish")
 
         completed = _utc(self.clock())
-        result = {
-            "schema": RESULT_SCHEMA,
-            "operation_id": oid,
-            "operation": state["operation"],
-            "source_commit": state["source_commit"],
-            "outcome": outcome,
-            "phase": phase,
-            "mutation_state": state["mutation_state"],
-            "execution_state": execution,
-            "next_action": (
-                "READ_ONLY_RECONCILE"
-                if execution == "RECOVERY_REQUIRED"
-                else ("NONE" if execution == "SUCCEEDED" else "STOP")
-            ),
-            "completed_at_utc": completed,
-        }
+        result = self._terminal_result(
+            state,
+            outcome=outcome,
+            phase=phase,
+            completed=completed,
+        )
         _write_new_private(
             self._result_path(oid),
             _canonical(result),
             "operation result",
         )
-        state["execution_state"] = execution
+        state["execution_state"] = result["execution_state"]
         state["phase"] = phase
         state["updated_at_utc"] = completed
         self._write_state(state)

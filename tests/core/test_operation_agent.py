@@ -144,6 +144,62 @@ class OperationAgentTests(unittest.TestCase):
 
                     self.assertFalse((operation_root / self.REQUEST_ID).exists())
 
+    def test_restart_marks_nonterminal_existing_operation_interrupted_without_rerun(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            agent, operation_root, _ = self.layout(root)
+            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
+            raw = canonical(self.request())
+            request_path.write_bytes(raw)
+            os.chmod(request_path, 0o600)
+
+            agent.runtime.create(
+                operation="RUNTIME_SELFTEST",
+                source_commit=self.COMMIT,
+                mutation_capable=False,
+                timeout_seconds=60,
+                operation_id=self.REQUEST_ID,
+            )
+            agent.runtime.start(self.REQUEST_ID)
+
+            result = agent.process(request_path)
+
+            self.assertEqual(result["disposition"], "INTERRUPTED")
+            self.assertEqual(result["status"]["execution_state"], "FAILED")
+            terminal = json.loads(
+                (operation_root / self.REQUEST_ID / "result.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(terminal["outcome"], "INTERRUPTED")
+
+    def test_conflicting_replay_is_quarantined_without_agent_restart_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            agent, _, control = self.layout(root)
+            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
+            request_path.write_bytes(canonical(self.request()))
+            os.chmod(request_path, 0o600)
+            first = agent.process_pending_once()
+            self.assertEqual(first["disposition"], "COMPLETED")
+
+            conflicting = self.request(timeout_seconds=120)
+            request_path.write_bytes(canonical(conflicting))
+            os.chmod(request_path, 0o600)
+
+            rejected = agent.process_pending_once()
+
+            self.assertEqual(rejected["disposition"], "REJECTED")
+            self.assertFalse(request_path.exists())
+            rejected_files = list((control / "rejected").glob("*.json"))
+            self.assertEqual(len(rejected_files), 1)
+            self.assertEqual(rejected_files[0].read_bytes(), canonical(conflicting))
+            self.assertTrue(
+                (control / "processed" / f"{self.REQUEST_ID}.json").exists()
+            )
+
     def test_invalid_pending_request_is_quarantined_instead_of_retry_loop(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
