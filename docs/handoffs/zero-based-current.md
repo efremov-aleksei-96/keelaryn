@@ -67,13 +67,16 @@ Candidate bytes are immutable. Any later product/control-plane byte change requi
 - GitHub gate run: `35519565229` — **PASS**
 - Gate artifact: `10608062424`, ZIP SHA-256 `b0fbd41fbe1160e6bd1acecc0e807745f988117531297c12431136f6b8a6b825`
 - Evidence: `docs/candidates/operation-control-r0001-20260920-01.gate-r0003-evidence.json`
-- State: **VPS_RECONCILE_PASS_AWAITING_MATERIALIZATION**
+- State: **VPS_MATERIALIZATION_PASS_AWAITING_QUALIFY**
 - Production reconcile evidence: `docs/candidates/operation-control-r0001-20260920-01.vps-reconcile-r0003.json`
+- Production materialization evidence: `docs/candidates/operation-control-r0001-20260920-01.vps-materialize-r0003.json`
+- Materialized release: exact frozen source `98e76ffdcdbac09610f8b9a2b542f7e61e7dba61`
+- Materialized payload SHA-256: `b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b`
+- Release validation: PASS; 188 files; 340331 bytes; release remained exact
 - Production boundary: exact `current=e63f`, Hub cutover `PREPARED`, writer `INACTIVE` before and after
-- Sidecar prestate: candidate release/control selector/credential/bootstrap receipt/operation units all exact `ABSENT`
-- Reconcile mutations: none; Drive mutation: false
+- Production current mutation: false; Hub cutover mutation: false; Drive mutation: false
 
-The VPS driver separates `reconcile` (read-only), `materialize` (persistent immutable release publication), `qualify` (read-only after materialization), and `bootstrap` (credential/service mutation). The read-only reconcile is now PASS. Next permitted action is exactly one `materialize` transaction for the frozen candidate release; do not bootstrap or create credentials/services yet. Candidate bytes remain frozen and unchanged.
+The immutable candidate release is now present on the VPS and exact. Next permitted action is the read-only `qualify` boundary. Do not bootstrap, install credentials, create `control-current`, or start operation services before that qualification result is reviewed.
 
 ## Current production Hub-cutover transaction
 

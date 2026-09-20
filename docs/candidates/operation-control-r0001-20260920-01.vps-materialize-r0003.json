@@ -1,0 +1,54 @@
+{
+  "schema": "keelaryn.operation-control-production-materialization.v1",
+  "candidate": "operation-control-r0001-20260920-01",
+  "gate_revision": "operation-control-gate-r0003",
+  "source_commit": "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
+  "payload_sha256": "b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b",
+  "release_materialized": true,
+  "release_validation": {
+    "schema": "keelaryn.zero-vps-target-host-validation.v3",
+    "source_commit": "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
+    "payload_sha256": "b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b",
+    "payload_size": 340331,
+    "file_count": 188,
+    "python_files_compiled": 173,
+    "release_remained_exact": true,
+    "development_test_suite_executed": false,
+    "host_config_verified": false,
+    "active_release_verified": false,
+    "installed_units_verified": false,
+    "selector_verified": false,
+    "deployment_state_verified": false,
+    "deployment_state_idle": false,
+    "mutation_gate_verified": false,
+    "mutation_gate_idle": false,
+    "cli_surfaces_verified": [
+      "drive_poller",
+      "workspace_cli",
+      "pilot_cli",
+      "release_switch",
+      "hub_cutover",
+      "hub_cutover_rehearsal",
+      "deployment_state_normalize",
+      "operation_runtime",
+      "operation_agent",
+      "operation_transport",
+      "operation_control_bootstrap"
+    ]
+  },
+  "production_boundary_before": {
+    "current_source": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover": "PREPARED",
+    "writer": "INACTIVE"
+  },
+  "production_boundary_after": {
+    "current_source": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover": "PREPARED",
+    "writer": "INACTIVE"
+  },
+  "production_current_mutated": false,
+  "hub_cutover_mutated": false,
+  "drive_mutated": false,
+  "classification": "PASS",
+  "next_action": "QUALIFY"
+}
