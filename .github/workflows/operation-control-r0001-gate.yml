@@ -1,0 +1,101 @@
+name: Operation control r0001 gate
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'tools/operation_control_r0001_vps.py'
+      - '.github/workflows/operation-control-r0001-gate.yml'
+      - 'docs/candidates/operation-control-r0001-20260920-01.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operation-control-r0001-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: SelfTest qualification driver
+        run: |
+          set -euo pipefail
+          python3 -B tools/operation_control_r0001_vps.py selftest > "$RUNNER_TEMP/selftest.json"
+          python3 -m py_compile tools/operation_control_r0001_vps.py
+
+      - name: Rebuild exact frozen candidate payload
+        env:
+          FROZEN_COMMIT: 98e76ffdcdbac09610f8b9a2b542f7e61e7dba61
+          FROZEN_TREE: eabd2a98e9c2d42e81e7f5c04e3f2b90cf900e6a
+          EXPECTED_PAYLOAD: b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b
+          EXPECTED_SIZE: '340331'
+          EXPECTED_COUNT: '188'
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/frozen-source"
+          git worktree add --detach "$work" "$FROZEN_COMMIT"
+          test "$(git -C "$work" rev-parse HEAD)" = "$FROZEN_COMMIT"
+          test "$(git -C "$work" rev-parse 'HEAD^{tree}')" = "$FROZEN_TREE"
+          test -z "$(git -C "$work" status --porcelain)"
+
+          python3 "$work/deploy/zero-based-vps/build_payload.py"             --repo-root "$work"             --source-commit "$FROZEN_COMMIT"             --output "$RUNNER_TEMP/first.tar.gz" > "$RUNNER_TEMP/first.json"
+          python3 "$work/deploy/zero-based-vps/build_payload.py"             --repo-root "$work"             --source-commit "$FROZEN_COMMIT"             --output "$RUNNER_TEMP/second.tar.gz" > "$RUNNER_TEMP/second.json"
+          cmp "$RUNNER_TEMP/first.tar.gz" "$RUNNER_TEMP/second.tar.gz"
+
+          python3 - "$RUNNER_TEMP/first.json" "$EXPECTED_PAYLOAD" "$EXPECTED_SIZE" "$EXPECTED_COUNT" <<'PY'
+          import json, sys
+          v=json.load(open(sys.argv[1],encoding="utf-8"))
+          expected={
+              "payload_sha256":sys.argv[2],
+              "payload_size":int(sys.argv[3]),
+              "file_count":int(sys.argv[4]),
+              "source_commit":"98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
+          }
+          observed={key:v[key] for key in expected}
+          if observed != expected:
+              raise SystemExit(f"frozen payload mismatch: {observed}")
+          PY
+
+      - name: Emit compact gate evidence
+        env:
+          OUT: ${{ runner.temp }}/OPERATION_CONTROL_R0001_GATE.json
+        run: |
+          python3 - "$OUT" <<'PY'
+          import json, os, sys
+          value={
+              "schema":"keelaryn.operation-control-gate-evidence.v1",
+              "gate_revision":"operation-control-gate-r0001",
+              "candidate":"operation-control-r0001-20260920-01",
+              "frozen_source_commit":"98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
+              "frozen_source_tree":"eabd2a98e9c2d42e81e7f5c04e3f2b90cf900e6a",
+              "payload_sha256":"b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b",
+              "payload_size":340331,
+              "file_count":188,
+              "driver_selftest":True,
+              "deterministic_rebuild":True,
+              "github_run_id":os.environ["GITHUB_RUN_ID"],
+              "github_run_attempt":os.environ["GITHUB_RUN_ATTEMPT"],
+              "production_qualified":False,
+          }
+          with open(sys.argv[1],"w",encoding="utf-8",newline="\n") as f:
+              json.dump(value,f,ensure_ascii=False,sort_keys=True,separators=(",",":"))
+              f.write("\n")
+          PY
+
+      - name: Upload compact gate evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operation-control-r0001-gate-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/OPERATION_CONTROL_R0001_GATE.json
+          if-no-files-found: error
+          retention-days: 3

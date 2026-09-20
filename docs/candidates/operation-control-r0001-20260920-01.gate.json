@@ -1,0 +1,10 @@
+{
+  "schema": "keelaryn.operation-control-gate-framework.v1",
+  "gate_revision": "operation-control-gate-r0001",
+  "candidate": "operation-control-r0001-20260920-01",
+  "frozen_source_commit": "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
+  "qualification_driver": "tools/operation_control_r0001_vps.py",
+  "workflow": ".github/workflows/operation-control-r0001-gate.yml",
+  "production_qualified": false,
+  "purpose": "rebuild frozen bytes and drive production-specific sidecar qualification/bootstrap without changing candidate bytes"
+}
