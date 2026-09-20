@@ -140,7 +140,7 @@ Successor development binds remote status recovery and create/update responses t
 - Development payload artifact: `10612487237`, ZIP SHA-256 `1338c51d104c573fc258fff6820f818685352efc003ba773514a25d4853095d6`
 - Candidate receipt: `docs/candidates/operation-control-r0003-20260920-01.json`
 - Gate revision: `operation-control-gate-r0005`
-- State: **GATE_PASS_AWAITING_VPS_READ_ONLY_RECONCILE**
+- State: **VPS_RECONCILE_PASS_AWAITING_MATERIALIZATION**
 - GitHub operation channel: Issue #65
 - Gate run: `35534742741` — **PASS**
 - Gate artifact: `10612094272`, ZIP SHA-256 `022b010fb30739daf09f756166cb7733c6f9f3df17a4ffbf340d5c2404796c14`
@@ -149,6 +149,26 @@ Successor development binds remote status recovery and create/update responses t
 Focused post-PASS review found no successor product blocker. It did identify a gate-framework incompatibility in the historical r0002 driver: that driver still targeted the shared `/etc/keelaryn` credential directory and did not pass the now-required exact status-publisher actor. r0005 is therefore a new gate-framework revision, not a product-byte change. It binds qualification to frozen r0003, uses `/etc/keelaryn/operation-control`, passes the exact status actor, requires the rejected r0002 release to remain absent, and exposes transaction-safe bootstrap resume semantics for a previously reconciled interrupted bootstrap.
 
 Candidate bytes are immutable from this issuance point. Development may continue only through a new successor candidate if frozen product bytes need to change.
+
+### r0003 production read-only reconcile
+
+Production read-only reconcile completed **PASS** against gate r0005.
+
+- Evidence: `docs/candidates/operation-control-r0003-20260920-01.vps-reconcile-r0005.json`
+- production current: exact `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`
+- Hub cutover: `PREPARED`
+- writer: `INACTIVE`
+- r0001 rejected materialized release: exact historical provenance
+- r0002 rejected release: `ABSENT`
+- r0003 release: `ABSENT`
+- `control-current`: `ABSENT`
+- operation credential: `ABSENT`
+- bootstrap root / transaction / receipt: all `ABSENT`
+- operation-control units: both `ABSENT`
+- persistent mutations: none
+- Drive mutations: none
+
+The before/after production boundary was identical. The next permitted transaction is exact frozen-r0003 **materialization only**; no bootstrap or Hub-cutover mutation is authorized yet.
 
 Gate r0005 passed exact frozen-r0003 driver selftest and deterministic payload rebuild. This is gate qualification only, not production qualification. The next permitted boundary is a **read-only VPS reconcile**. It must prove the production `e63f` / Hub `PREPARED` / writer `INACTIVE` boundary is unchanged, rejected r0001 remains exact historical provenance, rejected r0002 was never materialized, and the r0003 sidecar prestate is safe before any materialization.
 
@@ -243,8 +263,8 @@ The maintainer should be asked to execute a local/VPS command only when evidence
 ## Next permitted sequence
 
 1. Read-only confirm authoritative GitHub identity before every repository write.
-2. Run r0003 **VPS read-only reconcile** and preserve exact evidence; perform no production mutation.
-3. If reconcile proves the expected boundary, materialize the exact frozen r0003 release as the next separate transaction.
+2. r0003 **VPS read-only reconcile** is complete and durably recorded as PASS.
+3. Materialize the exact frozen r0003 release as the next separate transaction; do not change `/opt/keelaryn/current`, `control-current`, credentials, units, or Hub state.
 4. Run r0003 production qualification read-only against the materialized release and exact sidecar prestate.
 5. Only after production qualification PASS, perform the one-time sidecar bootstrap under `/opt/keelaryn/control-current`, with crash recovery always preceded by read-only reconciliation.
 6. Prove `RUNTIME_SELFTEST` end-to-end through GitHub Issue #65.

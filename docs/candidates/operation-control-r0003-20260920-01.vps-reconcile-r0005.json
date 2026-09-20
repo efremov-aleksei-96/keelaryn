@@ -1,0 +1,45 @@
+{
+  "schema": "keelaryn.operation-control-production-reconcile.v1",
+  "gate_revision": "operation-control-gate-r0005",
+  "candidate": "operation-control-r0003-20260920-01",
+  "source_commit": "18885db5baa479fde080568b116ff32c0fead07a",
+  "production_boundary_before": {
+    "current_source": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover": "PREPARED",
+    "writer": "INACTIVE"
+  },
+  "production_boundary_after": {
+    "current_source": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover": "PREPARED",
+    "writer": "INACTIVE"
+  },
+  "sidecar": {
+    "release": "ABSENT",
+    "predecessor": {
+      "candidate": "operation-control-r0001-20260920-01",
+      "source_commit": "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
+      "payload_sha256": "b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b",
+      "release": "EXACT",
+      "bootstrap_authorized": false
+    },
+    "rejected_r0002": {
+      "candidate": "operation-control-r0002-20260920-01",
+      "source_commit": "a368cc85e799842a00c5c1c496614437aa7064f2",
+      "release": "ABSENT",
+      "bootstrap_authorized": false
+    },
+    "control_current": "ABSENT",
+    "credential": "ABSENT",
+    "bootstrap_root": "ABSENT",
+    "bootstrap_transaction": "ABSENT",
+    "bootstrap_receipt": "ABSENT",
+    "units": {
+      "keelaryn-operation-agent.service": "ABSENT",
+      "keelaryn-operation-transport.service": "ABSENT"
+    }
+  },
+  "persistent_mutations_performed": false,
+  "drive_mutated": false,
+  "classification": "PASS",
+  "next_boundary": "VPS_MATERIALIZE"
+}
