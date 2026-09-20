@@ -1,0 +1,58 @@
+{
+  "schema": "keelaryn.operation-control-candidate.v1",
+  "candidate": "operation-control-r0003-20260920-01",
+  "frozen": true,
+  "issued_at_utc": "2026-09-20T20:09:45Z",
+  "source_commit": "18885db5baa479fde080568b116ff32c0fead07a",
+  "source_tree": "b77fe079e1ee55f1b9be20d6363ae8c063a8664e",
+  "payload": {
+    "schema": "keelaryn.zero-vps-payload.v1",
+    "sha256": "80050c8adda76080b91b5d71dd3ce75a6463ef189850e74dd144ff882035fee8",
+    "size": 348890,
+    "file_count": 188
+  },
+  "development_evidence": {
+    "core_run_id": 35534261802,
+    "core_run_attempt": 1,
+    "core_conclusion": "success",
+    "deterministic_rebuild": true,
+    "materialization_verified": true,
+    "release_validation_wrote_no_bytecode": true,
+    "target_host_validator_verified": true,
+    "target_host_config_validator_verified": true,
+    "operation_runtime_cli_verified": true,
+    "operation_agent_cli_verified": true,
+    "operation_transport_cli_verified": true,
+    "operation_control_bootstrap_cli_verified": true,
+    "artifact_id": 10612487237,
+    "artifact_zip_sha256": "1338c51d104c573fc258fff6820f818685352efc003ba773514a25d4853095d6",
+    "deterministic_core_tests": 622
+  },
+  "predecessor": {
+    "candidate": "operation-control-r0002-20260920-01",
+    "status": "REJECTED_BEFORE_VPS_MATERIALIZATION",
+    "vps_materialization_attempted": false,
+    "bootstrap_attempted": false
+  },
+  "historical_materialized_predecessor": {
+    "candidate": "operation-control-r0001-20260920-01",
+    "status": "REJECTED_BEFORE_BOOTSTRAP",
+    "retained_as_provenance": true
+  },
+  "control_channel": {
+    "repository": "efremov-aleksei-96/keelaryn",
+    "issue": 65,
+    "status_actor": "efremov-aleksei-96"
+  },
+  "qualification_state": "FROZEN_NOT_PRODUCTION_QUALIFIED",
+  "constraints": [
+    "candidate bytes are immutable after issuance",
+    "development CI is not production qualification",
+    "production /opt/keelaryn/current must not change for sidecar bootstrap",
+    "bootstrap must use /opt/keelaryn/control-current",
+    "credential must use /etc/keelaryn/operation-control/github-operations.env",
+    "bootstrap recovery requires read-only reconcile before any resume attempt",
+    "no production Hub cutover mutation is authorized by this receipt",
+    "rejected r0001 and r0002 provenance must not be reused as r0003"
+  ]
+}

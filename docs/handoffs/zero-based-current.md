@@ -128,6 +128,25 @@ Focused post-gate review found that response-loss recovery for GitHub status pub
 
 Successor development binds remote status recovery and create/update responses to an explicit status-publisher actor, uses a dedicated private operation-control credential directory, writes bootstrap files directly with exclusive no-overwrite final-path creation so a crash cannot strand an untracked token-bearing temp file, and makes systemd active-state probing fail closed on unclassified errors. A new candidate identity is required after coherent development PASS.
 
+## Frozen Operation Control candidate r0003
+
+- Candidate: `operation-control-r0003-20260920-01`
+- Frozen source commit: `18885db5baa479fde080568b116ff32c0fead07a`
+- Frozen source tree: `b77fe079e1ee55f1b9be20d6363ae8c063a8664e`
+- Deterministic VPS payload SHA-256: `80050c8adda76080b91b5d71dd3ce75a6463ef189850e74dd144ff882035fee8`
+- Payload size: `348890`
+- Payload file count: `188`
+- Exact-head development validation: **PASS**, run `35534261802`, 622 deterministic tests plus all CLI/payload/rehearsal steps
+- Development payload artifact: `10612487237`, ZIP SHA-256 `1338c51d104c573fc258fff6820f818685352efc003ba773514a25d4853095d6`
+- Candidate receipt: `docs/candidates/operation-control-r0003-20260920-01.json`
+- Gate revision: `operation-control-gate-r0005`
+- State: **FROZEN_AWAITING_GATE**
+- GitHub operation channel: Issue #65
+
+Focused post-PASS review found no successor product blocker. It did identify a gate-framework incompatibility in the historical r0002 driver: that driver still targeted the shared `/etc/keelaryn` credential directory and did not pass the now-required exact status-publisher actor. r0005 is therefore a new gate-framework revision, not a product-byte change. It binds qualification to frozen r0003, uses `/etc/keelaryn/operation-control`, passes the exact status actor, requires the rejected r0002 release to remain absent, and exposes transaction-safe bootstrap resume semantics for a previously reconciled interrupted bootstrap.
+
+Candidate bytes are immutable from this issuance point. Development may continue only through a new successor candidate if frozen product bytes need to change.
+
 ## Current production Hub-cutover transaction
 
 The production Hub cutover has been prepared but the selector has **not** been applied.
