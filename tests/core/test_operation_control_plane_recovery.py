@@ -56,13 +56,26 @@ class OperationControlRecoveryTests(unittest.TestCase):
     PAYLOAD = "c" * 64
 
     def setUp(self) -> None:
-        patcher = mock.patch.object(
-            recovery,
-            "_service_identity",
-            return_value=(os.geteuid(), os.getegid()),
+        account = type(
+            "Pw",
+            (),
+            {"pw_uid": os.geteuid(), "pw_gid": os.getegid()},
+        )()
+        group = type("Gr", (), {"gr_gid": os.getegid()})()
+        account_patcher = mock.patch.object(
+            recovery.pwd,
+            "getpwnam",
+            return_value=account,
         )
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        group_patcher = mock.patch.object(
+            recovery.grp,
+            "getgrnam",
+            return_value=group,
+        )
+        account_patcher.start()
+        group_patcher.start()
+        self.addCleanup(group_patcher.stop)
+        self.addCleanup(account_patcher.stop)
 
     def test_service_identity_uses_named_keelaryn_group(self) -> None:
         account = type("Pw", (), {"pw_uid": 1234, "pw_gid": 4321})()
