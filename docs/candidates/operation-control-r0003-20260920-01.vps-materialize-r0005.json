@@ -1,0 +1,65 @@
+{
+  "schema": "keelaryn.operation-control-production-materialization.v1",
+  "candidate": "operation-control-r0003-20260920-01",
+  "gate_revision": "operation-control-gate-r0005",
+  "source_commit": "18885db5baa479fde080568b116ff32c0fead07a",
+  "payload_sha256": "80050c8adda76080b91b5d71dd3ce75a6463ef189850e74dd144ff882035fee8",
+  "release_materialized": true,
+  "release_validation": {
+    "schema": "keelaryn.zero-vps-target-host-validation.v3",
+    "source_commit": "18885db5baa479fde080568b116ff32c0fead07a",
+    "payload_sha256": "80050c8adda76080b91b5d71dd3ce75a6463ef189850e74dd144ff882035fee8",
+    "payload_size": 348890,
+    "file_count": 188,
+    "python_files_compiled": 173,
+    "release_remained_exact": true,
+    "development_test_suite_executed": false,
+    "host_config_verified": false,
+    "active_release_verified": false,
+    "installed_units_verified": false,
+    "selector_verified": false,
+    "deployment_state_verified": false,
+    "deployment_state_idle": false,
+    "mutation_gate_verified": false,
+    "mutation_gate_idle": false,
+    "cli_surfaces_verified": [
+      "drive_poller",
+      "workspace_cli",
+      "pilot_cli",
+      "release_switch",
+      "hub_cutover",
+      "hub_cutover_rehearsal",
+      "deployment_state_normalize",
+      "operation_runtime",
+      "operation_agent",
+      "operation_transport",
+      "operation_control_bootstrap"
+    ]
+  },
+  "production_boundary_before": {
+    "current_source": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover": "PREPARED",
+    "writer": "INACTIVE"
+  },
+  "production_boundary_after": {
+    "current_source": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover": "PREPARED",
+    "writer": "INACTIVE"
+  },
+  "production_current_mutated": false,
+  "hub_cutover_mutated": false,
+  "drive_mutated": false,
+  "post_materialization_reconcile": {
+    "release": "EXACT",
+    "rejected_r0001_release": "EXACT",
+    "rejected_r0002_release": "ABSENT",
+    "control_current": "ABSENT",
+    "credential": "ABSENT",
+    "bootstrap_root": "ABSENT",
+    "bootstrap_transaction": "ABSENT",
+    "bootstrap_receipt": "ABSENT",
+    "operation_units": "ABSENT"
+  },
+  "classification": "PASS",
+  "next_action": "QUALIFY"
+}

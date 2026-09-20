@@ -140,7 +140,7 @@ Successor development binds remote status recovery and create/update responses t
 - Development payload artifact: `10612487237`, ZIP SHA-256 `1338c51d104c573fc258fff6820f818685352efc003ba773514a25d4853095d6`
 - Candidate receipt: `docs/candidates/operation-control-r0003-20260920-01.json`
 - Gate revision: `operation-control-gate-r0005`
-- State: **VPS_RECONCILE_PASS_AWAITING_MATERIALIZATION**
+- State: **VPS_MATERIALIZATION_PASS_AWAITING_QUALIFICATION**
 - GitHub operation channel: Issue #65
 - Gate run: `35534742741` — **PASS**
 - Gate artifact: `10612094272`, ZIP SHA-256 `022b010fb30739daf09f756166cb7733c6f9f3df17a4ffbf340d5c2404796c14`
@@ -168,7 +168,28 @@ Production read-only reconcile completed **PASS** against gate r0005.
 - persistent mutations: none
 - Drive mutations: none
 
-The before/after production boundary was identical. The next permitted transaction is exact frozen-r0003 **materialization only**; no bootstrap or Hub-cutover mutation is authorized yet.
+The before/after production boundary was identical.
+
+### r0003 production materialization
+
+Exact frozen r0003 materialization completed **PASS**.
+
+- Evidence: `docs/candidates/operation-control-r0003-20260920-01.vps-materialize-r0005.json`
+- Materialized source: `18885db5baa479fde080568b116ff32c0fead07a`
+- Payload SHA-256: `80050c8adda76080b91b5d71dd3ce75a6463ef189850e74dd144ff882035fee8`
+- Payload size: `348890`
+- File count: `188`
+- Python files compiled: `173`
+- Release exact after validation: true
+- production current mutation: false
+- Hub cutover mutation: false
+- Drive mutation: false
+- post-materialization r0003 release: `EXACT`
+- r0002 release: `ABSENT`
+- `control-current`, credential, bootstrap root/transaction/receipt and both operation units: all `ABSENT`
+- production boundary before/after: exact `e63f`, Hub `PREPARED`, writer `INACTIVE`
+
+The next permitted boundary is separate **read-only r0003 production qualification**. Bootstrap remains unauthorized.
 
 Gate r0005 passed exact frozen-r0003 driver selftest and deterministic payload rebuild. This is gate qualification only, not production qualification. The next permitted boundary is a **read-only VPS reconcile**. It must prove the production `e63f` / Hub `PREPARED` / writer `INACTIVE` boundary is unchanged, rejected r0001 remains exact historical provenance, rejected r0002 was never materialized, and the r0003 sidecar prestate is safe before any materialization.
 
@@ -264,8 +285,8 @@ The maintainer should be asked to execute a local/VPS command only when evidence
 
 1. Read-only confirm authoritative GitHub identity before every repository write.
 2. r0003 **VPS read-only reconcile** is complete and durably recorded as PASS.
-3. Materialize the exact frozen r0003 release as the next separate transaction; do not change `/opt/keelaryn/current`, `control-current`, credentials, units, or Hub state.
-4. Run r0003 production qualification read-only against the materialized release and exact sidecar prestate.
+3. Exact frozen r0003 materialization is complete and durably recorded as PASS.
+4. Run r0003 production qualification read-only against the exact materialized release and exact sidecar prestate.
 5. Only after production qualification PASS, perform the one-time sidecar bootstrap under `/opt/keelaryn/control-current`, with crash recovery always preceded by read-only reconciliation.
 6. Prove `RUNTIME_SELFTEST` end-to-end through GitHub Issue #65.
 7. Reconcile the still-PREPARED production Hub transaction before any later production mutation.
