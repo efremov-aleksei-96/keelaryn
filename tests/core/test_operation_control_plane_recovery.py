@@ -55,6 +55,17 @@ class OperationControlRecoveryTests(unittest.TestCase):
     PRODUCTION = "b" * 40
     PAYLOAD = "c" * 64
 
+    def test_root_precondition_is_fail_closed(self) -> None:
+        with mock.patch.object(recovery.os, "geteuid", return_value=1000):
+            with self.assertRaisesRegex(
+                recovery.OperationControlRecoveryError,
+                "requires root",
+            ):
+                recovery._require_root()
+
+        with mock.patch.object(recovery.os, "geteuid", return_value=0):
+            recovery._require_root()
+
     def spec(self) -> recovery.RecoverySpec:
         return recovery.RecoverySpec(
             rejected_source_commit=self.REJECTED,
@@ -155,7 +166,7 @@ class OperationControlRecoveryTests(unittest.TestCase):
             "file_count": 1,
         }
 
-    @mock.patch.object(recovery.os, "geteuid", return_value=0)
+    @mock.patch.object(recovery, "_require_root", return_value=None)
     def test_inspect_is_read_only_and_binds_marker_to_credential(
         self,
         _geteuid,
@@ -176,7 +187,7 @@ class OperationControlRecoveryTests(unittest.TestCase):
             self.assertEqual(value["bootstrap_transaction"], "PRESENT")
             self.assertFalse(layout.recovery_root.exists())
 
-    @mock.patch.object(recovery.os, "geteuid", return_value=0)
+    @mock.patch.object(recovery, "_require_root", return_value=None)
     def test_cleanup_is_resumable_and_retains_rejected_release(
         self,
         _geteuid,
@@ -218,7 +229,7 @@ class OperationControlRecoveryTests(unittest.TestCase):
             )
             self.assertEqual(inspected["recovery_state"], "COMPLETED")
 
-    @mock.patch.object(recovery.os, "geteuid", return_value=0)
+    @mock.patch.object(recovery, "_require_root", return_value=None)
     def test_disable_failure_leaves_prepared_authority_and_retry_recovers(
         self,
         _geteuid,
@@ -254,7 +265,7 @@ class OperationControlRecoveryTests(unittest.TestCase):
             self.assertTrue(value["sidecar_clean"])
             self.assertTrue(completed.is_file())
 
-    @mock.patch.object(recovery.os, "geteuid", return_value=0)
+    @mock.patch.object(recovery, "_require_root", return_value=None)
     def test_prepared_recovery_rejects_credential_substitution(
         self,
         _geteuid,

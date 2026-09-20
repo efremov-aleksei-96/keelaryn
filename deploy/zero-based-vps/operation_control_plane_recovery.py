@@ -37,6 +37,11 @@ class OperationControlRecoveryError(RuntimeError):
     pass
 
 
+def _require_root() -> None:
+    if os.geteuid() != 0:
+        raise OperationControlRecoveryError("operation-control recovery requires root")
+
+
 @dataclass(frozen=True)
 class RecoverySpec:
     rejected_source_commit: str
@@ -774,8 +779,7 @@ def inspect_rejected_install(
     release_probe: ReleaseProbe = _release_identity,
 ) -> dict[str, Any]:
     _validate_spec(spec)
-    if os.geteuid() != 0:
-        raise OperationControlRecoveryError("operation-control recovery requires root")
+    _require_root()
     boundary_probe = boundary_probe or (lambda: _production_boundary(spec, layout))
     before = boundary_probe()
     observation, _, _ = _observe(
@@ -813,8 +817,7 @@ def cleanup_rejected_install(
     release_probe: ReleaseProbe = _release_identity,
 ) -> dict[str, Any]:
     _validate_spec(spec)
-    if os.geteuid() != 0:
-        raise OperationControlRecoveryError("operation-control recovery requires root")
+    _require_root()
     boundary_probe = boundary_probe or (lambda: _production_boundary(spec, layout))
 
     before = boundary_probe()
