@@ -27,8 +27,8 @@ from keelaryn_core.migration_post_cutover_acceptance import (  # noqa: E402
 )
 from run_migration_pre_apply_cutover import strict_pre_apply_receipt  # noqa: E402
 
-SCHEMA = "keelaryn.migration-post-cutover-live-finalization.v3"
-RECEIPT_SCHEMA = "keelaryn.migration-post-cutover-private-finalization-receipt.v3"
+SCHEMA = "keelaryn.migration-post-cutover-live-finalization.v4"
+RECEIPT_SCHEMA = "keelaryn.migration-post-cutover-private-finalization-receipt.v4"
 
 
 class LivePostCutoverFinalizationError(RuntimeError):
@@ -97,6 +97,7 @@ def _strict_receipt(path: Path) -> dict[str, Any]:
         "schema",
         "transaction_id",
         "active_transaction_sha256",
+        "framework_source_commit",
         "source_commit",
         "selector_identity_sha256",
         "acceptance_evidence_sha256",
@@ -136,15 +137,16 @@ def _strict_receipt(path: Path) -> dict[str, Any]:
             raise LivePostCutoverFinalizationError(
                 f"private finalization receipt {key} is invalid"
             )
-    source = value["source_commit"]
-    if (
-        not isinstance(source, str)
-        or len(source) != 40
-        or any(ch not in "0123456789abcdef" for ch in source)
-    ):
-        raise LivePostCutoverFinalizationError(
-            "private finalization receipt source_commit is invalid"
-        )
+    for key in ("framework_source_commit", "source_commit"):
+        source = value[key]
+        if (
+            not isinstance(source, str)
+            or len(source) != 40
+            or any(ch not in "0123456789abcdef" for ch in source)
+        ):
+            raise LivePostCutoverFinalizationError(
+                f"private finalization receipt {key} is invalid"
+            )
     if raw != _canonical_json(value):
         raise LivePostCutoverFinalizationError(
             "private finalization receipt is not canonical JSON bytes"
@@ -236,9 +238,12 @@ def _verify_pre_apply_against_record(
         raise LivePostCutoverFinalizationError(
             "pre-apply receipt active authority does not match cutover"
         )
-    if pre_apply["source_commit"] != record["tool"]["source_commit"]:
+    if (
+        pre_apply["framework_source_commit"]
+        != record["tool"]["source_commit"]
+    ):
         raise LivePostCutoverFinalizationError(
-            "pre-apply receipt source commit does not match cutover"
+            "pre-apply receipt framework source commit does not match cutover"
         )
     if (
         pre_apply["pre_apply_finalizer_sha256"]
@@ -288,6 +293,7 @@ def _receipt_for(
     selected_hub_root_id: str,
     acceptance_value: dict[str, Any],
     pre_apply_receipt_sha256: str,
+    pre_apply_source_commit: str,
 ) -> dict[str, Any]:
     selected_sha = _sha256_bytes(selected_hub_root_id.encode("utf-8"))
     if acceptance_value.get("outcome") != "POST_CUTOVER_READ_ONLY_PASS":
@@ -302,9 +308,9 @@ def _receipt_for(
         raise LivePostCutoverFinalizationError(
             "post-cutover acceptance did not authorize terminal accept"
         )
-    if acceptance_value.get("source_commit") != record["tool"]["source_commit"]:
+    if acceptance_value.get("source_commit") != pre_apply_source_commit:
         raise LivePostCutoverFinalizationError(
-            "post-cutover acceptance source commit disagrees with cutover transaction"
+            "post-cutover acceptance candidate source commit changed since pre-apply"
         )
     if (
         acceptance_value.get("selector_identity_sha256") != selected_sha
@@ -317,7 +323,8 @@ def _receipt_for(
         "schema": RECEIPT_SCHEMA,
         "transaction_id": record["transaction_id"],
         "active_transaction_sha256": _sha256_bytes(record_raw),
-        "source_commit": record["tool"]["source_commit"],
+        "framework_source_commit": record["tool"]["source_commit"],
+        "source_commit": pre_apply_source_commit,
         "selector_identity_sha256": selected_sha,
         "acceptance_evidence_sha256": _sha256_json(acceptance_value),
         "pre_apply_receipt_sha256": pre_apply_receipt_sha256,
@@ -341,9 +348,12 @@ def _verify_receipt_against_active(
             raise LivePostCutoverFinalizationError(
                 "active cutover authority changed after acceptance"
             )
-        if record["tool"]["source_commit"] != receipt["source_commit"]:
+        if (
+            record["tool"]["source_commit"]
+            != receipt["framework_source_commit"]
+        ):
             raise LivePostCutoverFinalizationError(
-                "active cutover source identity changed after acceptance"
+                "active cutover framework source identity changed after acceptance"
             )
         if (
             record["finalizers"]["post_cutover_sha256"]
@@ -407,9 +417,12 @@ def _verify_terminal_recovery(
         raise LivePostCutoverFinalizationError(
             "accepted cutover history authority mismatch"
         )
-    if record["tool"]["source_commit"] != receipt["source_commit"]:
+    if (
+        record["tool"]["source_commit"]
+        != receipt["framework_source_commit"]
+    ):
         raise LivePostCutoverFinalizationError(
-            "accepted cutover history source mismatch"
+            "accepted cutover history framework source mismatch"
         )
     if record["tool"] != switch.tool_identity:
         raise LivePostCutoverFinalizationError(
@@ -448,6 +461,7 @@ def _verify_terminal_recovery(
 def _public_result(receipt: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema": SCHEMA,
+        "framework_source_commit": receipt["framework_source_commit"],
         "source_commit": receipt["source_commit"],
         "active_transaction_sha256": receipt["active_transaction_sha256"],
         "acceptance_evidence_sha256": receipt["acceptance_evidence_sha256"],
@@ -487,6 +501,9 @@ def main() -> int:
         state_root = _path("KEELARYN_DEPLOYMENT_STATE_ROOT")
         mutation_gate_root = _path("KEELARYN_MUTATION_GATE_ROOT")
         source_commit = _required("KEELARYN_SOURCE_COMMIT")
+        migration_source_root_id = _required(
+            "KEELARYN_MIGRATION_SOURCE_ROOT_ID"
+        )
         receipt_path = _path("KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT")
         pre_apply_receipt_path = _path("KEELARYN_PRE_APPLY_CUTOVER_RECEIPT")
         pack_dir = _path("KEELARYN_MIGRATION_PACK_DIR")
@@ -506,10 +523,18 @@ def main() -> int:
             str(freeze_receipt),
             str(target_authority),
             str(qualification_evidence),
+            migration_source_root_id,
         )
 
         pre_apply_receipt = strict_pre_apply_receipt(pre_apply_receipt_path)
         pre_apply_receipt_sha256 = _sha256_bytes(pre_apply_receipt_path.read_bytes())
+        if (
+            _sha256_bytes(migration_source_root_id.encode("utf-8"))
+            != pre_apply_receipt["migration_source_identity_sha256"]
+        ):
+            raise LivePostCutoverFinalizationError(
+                "migration source identity disagrees with pre-apply receipt"
+            )
 
         executing_tool = Path(hub_cutover.__file__)
         switch = hub_cutover.HubSelectorCutover(
@@ -611,6 +636,7 @@ def main() -> int:
             selected_hub_root_id,
             acceptance_value,
             pre_apply_receipt_sha256,
+            pre_apply_receipt["source_commit"],
         )
 
         phase = "private-receipt"
@@ -622,7 +648,7 @@ def main() -> int:
         phase = "legacy-source-revalidation"
         verify_migration_source_against_drive(
             drive,
-            record["old_hub_root_id"],
+            migration_source_root_id,
             pack_dir / "authority" / MIGRATION_SOURCE_NAME,
         )
 

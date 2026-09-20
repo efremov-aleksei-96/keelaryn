@@ -45,6 +45,8 @@ class _Evidence:
 @unittest.skipUnless(os.name == "posix", "production selector finalizer is POSIX-only")
 class MigrationPreApplyCutoverTests(unittest.TestCase):
     SOURCE = "a" * 40
+    CANDIDATE_SOURCE = "c" * 40
+    MIGRATION_SOURCE = "LegacySourceRoot_0123456789abcdef"
     OLD = "OLDHubRoot_0123456789abcdef"
     NEW = "NEWHubRoot_0123456789abcdef"
 
@@ -77,12 +79,25 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
         qualification = private / "qualification.json"
         qualification.write_bytes(b'{"qualified":true}\n')
         os.chmod(qualification, 0o600)
+        freeze = private / "freeze.json"
+        freeze.write_text(
+            json.dumps(
+                {
+                    "source_commit": self.CANDIDATE_SOURCE,
+                    "source_tree": "b" * 40,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        os.chmod(freeze, 0o600)
         return {
             "KEELARYN_PRODUCTION_CUTOVER_ENABLE": "YES",
             "KEELARYN_HUB_SELECTOR_PATH": str(selector),
             "KEELARYN_DEPLOYMENT_STATE_ROOT": str(state),
             "KEELARYN_MUTATION_GATE_ROOT": str(gate),
             "KEELARYN_SOURCE_COMMIT": self.SOURCE,
+            "KEELARYN_MIGRATION_SOURCE_ROOT_ID": self.MIGRATION_SOURCE,
             "KEELARYN_PRE_APPLY_CUTOVER_RECEIPT": str(private / "pre-apply.json"),
             "KEELARYN_MIGRATION_PACK_DIR": str(private / "pack"),
             "KEELARYN_MIGRATION_FREEZE_RECEIPT": str(private / "freeze.json"),
@@ -91,7 +106,7 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
         }
 
     def _acceptance(self):
-        source = self.SOURCE
+        source = self.CANDIDATE_SOURCE
         new = self.NEW
 
         class Acceptance:
@@ -174,7 +189,7 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
                 module,
                 "verify_migration_candidate_freeze_identity",
                 return_value={
-                    "source_commit": self.SOURCE,
+                    "source_commit": self.CANDIDATE_SOURCE,
                     "source_tree": "b" * 40,
                 },
             ),
@@ -187,7 +202,14 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
             selector, state, gate = self._layout(root)
             env = self._env(root, selector, state, gate)
             patches = self._success_patches(module)
-            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patches[3] as source_verify,
+                patches[4],
+                patches[5],
+            ):
                 code, stdout, stderr = self._run(module, env)
             self.assertEqual(code, 0)
             self.assertEqual(stderr, "")
@@ -201,7 +223,13 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
             receipt = module.strict_pre_apply_receipt(
                 Path(env["KEELARYN_PRE_APPLY_CUTOVER_RECEIPT"])
             )
-            self.assertEqual(receipt["source_commit"], self.SOURCE)
+            self.assertEqual(receipt["source_commit"], self.CANDIDATE_SOURCE)
+            self.assertEqual(receipt["framework_source_commit"], self.SOURCE)
+            self.assertEqual(
+                receipt["migration_source_identity_sha256"],
+                hashlib.sha256(self.MIGRATION_SOURCE.encode("utf-8")).hexdigest(),
+            )
+            self.assertEqual(source_verify.call_args.args[1], self.MIGRATION_SOURCE)
             self.assertEqual(len(receipt["active_transaction_sha256"]), 64)
             self.assertNotIn(self.OLD, stdout)
             self.assertNotIn(self.NEW, stdout)
@@ -232,7 +260,7 @@ class MigrationPreApplyCutoverTests(unittest.TestCase):
                 module,
                 "verify_migration_candidate_freeze_identity",
                 return_value={
-                    "source_commit": self.SOURCE,
+                    "source_commit": self.CANDIDATE_SOURCE,
                     "source_tree": "b" * 40,
                 },
             ):

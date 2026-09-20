@@ -41,6 +41,8 @@ class _FakeEvidence:
 
 class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
     SOURCE = "a" * 40
+    CANDIDATE_SOURCE = "c" * 40
+    MIGRATION_SOURCE = "LegacySourceRoot_0123456789abcdef"
     OLD = "OLDHubRoot_0123456789abcdef"
     NEW = "NEWHubRoot_0123456789abcdef"
 
@@ -75,10 +77,11 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
         active = json.loads(active_raw.decode("utf-8"))
         acceptance_value = self._acceptance_value(self.NEW)
         pre_apply = {
-            "schema": "keelaryn.migration-pre-apply-private-receipt.v2",
+            "schema": "keelaryn.migration-pre-apply-private-receipt.v3",
             "transaction_id": active["transaction_id"],
             "active_transaction_sha256": hashlib.sha256(active_raw).hexdigest(),
-            "source_commit": self.SOURCE,
+            "framework_source_commit": self.SOURCE,
+            "source_commit": self.CANDIDATE_SOURCE,
             "source_tree": acceptance_value["source_tree"],
             "pack_sha256": acceptance_value["pack_sha256"],
             "old_selector_identity_sha256": hashlib.sha256(
@@ -86,6 +89,9 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             ).hexdigest(),
             "new_selector_identity_sha256": hashlib.sha256(
                 self.NEW.encode("utf-8")
+            ).hexdigest(),
+            "migration_source_identity_sha256": hashlib.sha256(
+                self.MIGRATION_SOURCE.encode("utf-8")
             ).hexdigest(),
             "qualification_evidence_sha256": "7" * 64,
             "target_acceptance_evidence_sha256": hashlib.sha256(
@@ -120,6 +126,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             "KEELARYN_DEPLOYMENT_STATE_ROOT": str(state),
             "KEELARYN_MUTATION_GATE_ROOT": str(root / "mutation-gate"),
             "KEELARYN_SOURCE_COMMIT": self.SOURCE,
+            "KEELARYN_MIGRATION_SOURCE_ROOT_ID": self.MIGRATION_SOURCE,
             "KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT": str(
                 private / "finalization-receipt.json"
             ),
@@ -153,7 +160,7 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             "schema": "keelaryn.migration-post-cutover-read-only-acceptance.v1",
             "candidate_id": "candidate",
             "pack_sha256": "1" * 64,
-            "source_commit": self.SOURCE,
+            "source_commit": self.CANDIDATE_SOURCE,
             "source_tree": "b" * 40,
             "selector_identity_sha256": selected_sha,
             "target_identity_sha256": selected_sha,
@@ -229,7 +236,8 @@ class MigrationPostCutoverLiveFinalizationTests(unittest.TestCase):
             self.assertEqual(public["outcome"], "PRODUCTION_CUTOVER_ACCEPTED")
             self.assertEqual(public["hub_cutover_terminal_outcome"], "ACCEPTED")
             self.assertFalse(public["drive_mutations_performed"])
-            self.assertEqual(public["source_commit"], self.SOURCE)
+            self.assertEqual(public["source_commit"], self.CANDIDATE_SOURCE)
+            self.assertEqual(public["framework_source_commit"], self.SOURCE)
             self.assertEqual(len(public["active_transaction_sha256"]), 64)
             self.assertEqual(len(public["acceptance_evidence_sha256"]), 64)
             self.assertEqual(len(public["pre_apply_receipt_sha256"]), 64)

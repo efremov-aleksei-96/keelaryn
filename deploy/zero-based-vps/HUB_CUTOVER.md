@@ -64,9 +64,9 @@ Terminal authority binds SHA-256 of the exact active transaction and records onl
 
 Before `prepare`:
 
-1. the legacy production Hub identity must still be the approved OLD source identity;
+1. the frozen legacy migration source must still match the qualified source inventory; it is an explicit migration input and may differ from the currently selected OLD runtime Hub;
 2. the new zero-based target must have passed all required construction/acceptance gates;
-3. the exact qualified Core/source release must already be active;
+3. the exact development-qualified cutover framework release must already be active; its source commit may differ from the frozen candidate source commit, and both identities are bound independently;
 4. no release-switch or Hub-cutover transaction may already be active;
 5. the writer service must be stopped before `prepare`; `prepare` must obtain the exclusive production mutation gate after all shared mutators have exited.
 
@@ -80,7 +80,7 @@ Use the exact cutover tool from the qualified active release and its exact sourc
 CUTOVER_TOOL=/opt/keelaryn/current/deploy/zero-based-vps/hub_cutover.py
 PRE_APPLY_FINALIZER=/opt/keelaryn/current/tests/live/run_migration_pre_apply_cutover.py
 FINALIZER=/opt/keelaryn/current/tests/live/run_migration_post_cutover_acceptance.py
-SOURCE_COMMIT=<exact-qualified-40-hex-source-commit>
+SOURCE_COMMIT=<exact-active-cutover-framework-40-hex-source-commit>
 SELECTOR=/etc/keelaryn/hub.env
 STATE=/var/lib/keelaryn/deployment
 MUTATION_GATE=/var/lib/keelaryn/mutation-gate
@@ -118,6 +118,7 @@ export KEELARYN_HUB_SELECTOR_PATH="$SELECTOR"
 export KEELARYN_DEPLOYMENT_STATE_ROOT="$STATE"
 export KEELARYN_MUTATION_GATE_ROOT="$MUTATION_GATE"
 export KEELARYN_SOURCE_COMMIT="$SOURCE_COMMIT"
+export KEELARYN_MIGRATION_SOURCE_ROOT_ID=<exact-legacy-migration-source-root-id>
 export KEELARYN_PRE_APPLY_CUTOVER_RECEIPT=<private-mode-0600-path>
 # Also export the exact migration pack/freeze/target-authority/
 # qualification-evidence and OAuth bindings from the qualified candidate.
@@ -125,7 +126,7 @@ export KEELARYN_PRE_APPLY_CUTOVER_RECEIPT=<private-mode-0600-path>
 python3 -B "$PRE_APPLY_FINALIZER"
 ```
 
-The pre-apply finalizer requires exact `PREPARED` transaction + inhibit authority, freshly read-only verifies the qualified NEW target, freshly verifies OLD legacy Drive bytes against the frozen migration source, durably publishes one private transaction-bound pre-apply receipt, revalidates transaction/inhibit identity at the commit boundary, and only then calls the low-level selector `apply` primitive.
+The pre-apply finalizer requires exact `PREPARED` transaction + inhibit authority, freshly read-only verifies the qualified NEW target, freshly verifies the explicitly bound legacy migration-source root against the frozen migration source, durably publishes one private transaction-bound pre-apply receipt, binds the active framework source commit separately from the frozen candidate source commit/tree, revalidates transaction/inhibit identity at the commit boundary, and only then calls the low-level selector `apply` primitive. The OLD selector remains the rollback anchor and is not required to be the migration source.
 
 The cutover finalizers do **not** require a Git checkout. The clean Git worktree is authoritative at candidate freeze and production-target qualification; after qualification, exact source commit/tree from qualification evidence plus the immutable frozen pack/freeze receipt are the local source-provenance boundary for pre-apply and post-cutover runtime verification.
 
@@ -152,7 +153,8 @@ Required private/local bindings are:
 - `KEELARYN_HUB_SELECTOR_PATH`
 - `KEELARYN_DEPLOYMENT_STATE_ROOT`
 - `KEELARYN_MUTATION_GATE_ROOT`
-- `KEELARYN_SOURCE_COMMIT`
+- `KEELARYN_SOURCE_COMMIT` (active cutover framework release)
+- `KEELARYN_MIGRATION_SOURCE_ROOT_ID`
 - `KEELARYN_POST_CUTOVER_FINALIZATION_RECEIPT`
 - `KEELARYN_PRE_APPLY_CUTOVER_RECEIPT`
 - `KEELARYN_MIGRATION_PACK_DIR`
@@ -174,7 +176,7 @@ The finalizer:
 1. requires the exact active Hub-cutover transaction, exact NEW selector and exact private pre-apply receipt;
 2. requires pre-apply transaction/source/OLD/NEW provenance to bind the same active transaction;
 3. runs fresh read-only migration acceptance against the selected NEW Hub and requires it to match the pre-apply target-acceptance digest;
-4. freshly re-verifies OLD legacy Drive bytes against the frozen migration source;
+4. freshly re-verifies the explicitly bound legacy migration-source root against the frozen migration source, independently of OLD selector identity;
 5. requires `POST_CUTOVER_READ_ONLY_PASS`, `drive_mutations_performed=false` and `hub_cutover_accept_allowed=true`;
 6. durably writes or verifies the private finalization receipt including SHA-256 of the pre-apply receipt;
 7. revalidates active transaction and selector identity again at the terminal commit boundary;
@@ -249,7 +251,7 @@ Public/sanitized qualification evidence may bind:
 - PASS/FAIL of disposable switch/rollback rehearsal;
 - PASS/FAIL of production-specific acceptance.
 
-The production selector, private finalization receipt and durable transaction files stay private on the target host.
+The production selector, explicit migration-source root ID, private finalization receipt and durable transaction files stay private on the target host. Public evidence binds only hashes of private Hub identities. The OLD runtime selector identity and the frozen migration-source identity are intentionally distinct concepts.
 
 ## 9. Qualification sequence
 
