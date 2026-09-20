@@ -67,9 +67,13 @@ Candidate bytes are immutable. Any later product/control-plane byte change requi
 - GitHub gate run: `35519565229` — **PASS**
 - Gate artifact: `10608062424`, ZIP SHA-256 `b0fbd41fbe1160e6bd1acecc0e807745f988117531297c12431136f6b8a6b825`
 - Evidence: `docs/candidates/operation-control-r0001-20260920-01.gate-r0003-evidence.json`
-- State: **DEVELOPMENT_GATE_PASS_AWAITING_READ_ONLY_VPS_RECONCILE**
+- State: **VPS_RECONCILE_PASS_AWAITING_MATERIALIZATION**
+- Production reconcile evidence: `docs/candidates/operation-control-r0001-20260920-01.vps-reconcile-r0003.json`
+- Production boundary: exact `current=e63f`, Hub cutover `PREPARED`, writer `INACTIVE` before and after
+- Sidecar prestate: candidate release/control selector/credential/bootstrap receipt/operation units all exact `ABSENT`
+- Reconcile mutations: none; Drive mutation: false
 
-The VPS driver now separates `reconcile` (read-only), `materialize` (persistent immutable release publication), `qualify` (read-only after materialization), and `bootstrap` (credential/service mutation). Next permitted action is only the exact r0003 read-only VPS `reconcile`; do not materialize or bootstrap before its result is reviewed. Candidate bytes remain frozen and unchanged.
+The VPS driver separates `reconcile` (read-only), `materialize` (persistent immutable release publication), `qualify` (read-only after materialization), and `bootstrap` (credential/service mutation). The read-only reconcile is now PASS. Next permitted action is exactly one `materialize` transaction for the frozen candidate release; do not bootstrap or create credentials/services yet. Candidate bytes remain frozen and unchanged.
 
 ## Current production Hub-cutover transaction
 
