@@ -95,7 +95,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
 
             self.assertEqual(target.read_bytes(), b"existing")
 
-    def test_created_path_rollback_is_bound_to_exact_inode(self) -> None:
+    def test_created_path_rollback_rejects_delete_recreate_even_if_inode_reused(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             target = root / "created"

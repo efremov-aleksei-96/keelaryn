@@ -73,12 +73,22 @@ def _private_parent_state(path: Path) -> str:
     return "PRESENT"
 
 
-def _path_identity(path: Path) -> tuple[int, int]:
+PathIdentity = tuple[int, int, int, int, int, int]
+
+
+def _path_identity(path: Path) -> PathIdentity:
     info = path.stat(follow_symlinks=False)
-    return info.st_dev, info.st_ino
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_ctime_ns,
+        info.st_mtime_ns,
+        info.st_size,
+        stat.S_IFMT(info.st_mode),
+    )
 
 
-def _create_private_parent(path: Path) -> tuple[int, int] | None:
+def _create_private_parent(path: Path) -> PathIdentity | None:
     path = path.absolute()
     if _private_parent_state(path) == "PRESENT":
         return None
@@ -87,7 +97,7 @@ def _create_private_parent(path: Path) -> tuple[int, int] | None:
         raise ControlPlaneBootstrapError("private parent container is invalid")
 
     created = False
-    identity: tuple[int, int] | None = None
+    identity: PathIdentity | None = None
     try:
         path.mkdir(mode=0o700)
         created = True
@@ -114,11 +124,11 @@ def _fsync_directory(path: Path) -> None:
         os.close(directory_fd)
 
 
-def _atomic_new_file(path: Path, raw: bytes, mode: int) -> tuple[int, int]:
+def _atomic_new_file(path: Path, raw: bytes, mode: int) -> PathIdentity:
     parent = path.parent
     temp = parent / f".{path.name}.tmp-{os.getpid()}-{time.monotonic_ns()}"
     linked = False
-    temp_identity: tuple[int, int] | None = None
+    temp_identity: PathIdentity | None = None
     try:
         fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
         try:
@@ -166,7 +176,7 @@ def _atomic_new_file(path: Path, raw: bytes, mode: int) -> tuple[int, int]:
 
 def _unlink_created(
     path: Path,
-    identity: tuple[int, int],
+    identity: PathIdentity,
 ) -> None:
     if not path.exists() and not path.is_symlink():
         return
@@ -416,8 +426,8 @@ def install(
     config_dir = config_dir.absolute()
     bootstrap_root = bootstrap_root.absolute()
     control_current = control_current.absolute()
-    created_files: list[tuple[Path, tuple[int, int]]] = []
-    created_dirs: list[tuple[Path, tuple[int, int]]] = []
+    created_files: list[tuple[Path, PathIdentity]] = []
+    created_dirs: list[tuple[Path, PathIdentity]] = []
     attempted_units: list[str] = []
 
     try:
