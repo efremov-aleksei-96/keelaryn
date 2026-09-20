@@ -9,9 +9,9 @@ StartLimitBurst=5
 Type=simple
 User=keelaryn
 Group=keelaryn
-WorkingDirectory=/opt/keelaryn/current
+WorkingDirectory=/opt/keelaryn/control-current
 EnvironmentFile=/etc/keelaryn/github-operations.env
-Environment=PYTHONPATH=/opt/keelaryn/current/core
+Environment=PYTHONPATH=/opt/keelaryn/control-current/core
 Environment=PYTHONDONTWRITEBYTECODE=1
 StateDirectory=keelaryn-operation-transport
 StateDirectoryMode=0700

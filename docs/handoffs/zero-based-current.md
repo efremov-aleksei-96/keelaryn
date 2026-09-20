@@ -82,7 +82,11 @@ The failure occurred before pre-apply receipt publication or selector mutation. 
 
 ## Immediate engineering goal before production selector apply
 
-Implement and qualify a durable **Operation Runtime v1** so long-running and mutation-capable operations do not depend on ChatGPT streaming, PowerShell, SSH session lifetime or one conversation's memory.
+The active first priority is the durable remote-autonomous operation control plane. GitHub Issue **#65, Keelaryn VPS Operation Control**, is the dedicated request/status channel. Development already includes Operation Runtime, the allowlisted network-isolated agent, and the narrow GitHub Issues transport.
+
+The next boundary is qualification and one-time sidecar bootstrap. The control plane must use its own `/opt/keelaryn/control-current` selector so the currently PREPARED Hub cutover remains bound to production source e63f and `/opt/keelaryn/current` is not changed merely to install remote-control infrastructure.
+
+The overall objective remains a durable **Operation Runtime v1** so long-running and mutation-capable operations do not depend on ChatGPT streaming, PowerShell, SSH session lifetime or one conversation's memory.
 
 Required v1 capabilities:
 
@@ -110,8 +114,9 @@ The maintainer should be asked to execute a local/VPS command only when evidence
 1. Read-only confirm remote branch identity before every development write.
 2. Develop Operation Runtime v1 remotely on `dev/zero-based-keelaryn`.
 3. Run and diagnose GitHub CI until coherent development PASS.
-4. Freeze/materialize/qualify the new framework release according to normal version/candidate discipline; do not silently modify production e63f.
-5. Reconcile the still-PREPARED production Hub transaction before any VPS mutation.
-6. Resume production cutover only through the qualified runtime/protocol and transaction-bound finalizers.
+4. Freeze/materialize/qualify the operation-control framework release according to normal version/candidate discipline; do not change production `/opt/keelaryn/current`.
+5. Perform the one-time sidecar bootstrap under `/opt/keelaryn/control-current`, then prove `RUNTIME_SELFTEST` end-to-end through GitHub Issue #65.
+6. Reconcile the still-PREPARED production Hub transaction before any later production mutation.
+7. Resume production cutover only through the qualified runtime/protocol and transaction-bound finalizers.
 
 If production durable state is found to differ from this handoff, stop and reconcile the authoritative VPS state before any mutation.

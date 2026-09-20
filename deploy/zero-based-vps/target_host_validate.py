@@ -42,6 +42,7 @@ CLI_SURFACES = (
     "operation_runtime",
     "operation_agent",
     "operation_transport",
+    "operation_control_bootstrap",
 )
 
 
@@ -257,6 +258,12 @@ def _cli_commands(release: Path) -> dict[str, list[str]]:
             "-B",
             "-m",
             "keelaryn_core.operation_transport",
+            "--help",
+        ],
+        "operation_control_bootstrap": [
+            sys.executable,
+            "-B",
+            str(deploy / "operation_control_plane_bootstrap.py"),
             "--help",
         ],
     }

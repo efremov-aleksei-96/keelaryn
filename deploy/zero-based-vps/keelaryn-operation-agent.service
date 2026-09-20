@@ -9,8 +9,8 @@ StartLimitBurst=5
 Type=simple
 User=root
 Group=root
-WorkingDirectory=/opt/keelaryn/current
-Environment=PYTHONPATH=/opt/keelaryn/current/core
+WorkingDirectory=/opt/keelaryn/control-current
+Environment=PYTHONPATH=/opt/keelaryn/control-current/core
 Environment=PYTHONDONTWRITEBYTECODE=1
 StateDirectory=keelaryn/operations keelaryn/operation-control
 StateDirectoryMode=0700
@@ -26,6 +26,7 @@ PrivateNetwork=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/keelaryn/operations /var/lib/keelaryn/operation-control /var/lib/keelaryn-operation-transport
+InaccessiblePaths=/etc/keelaryn /var/lib/keelaryn/deployment /var/lib/keelaryn/migration /var/lib/keelaryn/mutation-gate /root /home
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
@@ -33,6 +34,7 @@ ProtectKernelLogs=true
 ProtectClock=true
 ProtectHostname=true
 RestrictSUIDSGID=true
+RestrictNamespaces=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
 RestrictRealtime=true

@@ -125,3 +125,18 @@ The transport status channel is non-authoritative. The network-isolated privileg
 Requests are archived exactly once by the agent. Invalid requests are quarantined as rejected rather than causing a restart/retry loop. Re-delivery of the same request ID resolves to the existing durable operation and cannot repeat an already-created mutation.
 
 A GitHub status comment is observability evidence, never permission to repeat a mutation. Ambiguous mutation boundaries continue to require `READ_ONLY_RECONCILE`.
+
+
+## Sidecar control-plane release identity
+
+The operation control plane must not be coupled to `/opt/keelaryn/current`. A production Hub cutover may already have a durable transaction bound to the exact current release, so changing the production selector merely to add remote-control infrastructure would violate transaction identity.
+
+Operation-control services therefore run from the independent selector:
+
+`/opt/keelaryn/control-current -> releases/<exact-qualified-source-commit>`
+
+The initial bootstrap validates the exact deterministic release payload, requires the control selector, operation units and GitHub credential destination to be absent, installs them transactionally, starts both services, verifies them active, and proves the production `/opt/keelaryn/current` symlink did not change. Failure removes only objects created by that bootstrap attempt and leaves the production selector untouched.
+
+The bootstrap token is entered interactively through `getpass`; it is never accepted as a command-line argument, printed, written to the bootstrap receipt or sent through GitHub. The installed environment file is mode 0600.
+
+Initial bootstrap is intentionally install-only. Replacing an existing control-plane selector, unit set or GitHub credential requires a separately qualified update transaction rather than silently reusing bootstrap semantics.
