@@ -264,7 +264,11 @@ not deleted by this recovery transaction.
 - Gate revision: `operation-control-gate-r0006`
 - Qualification driver: `tools/operation_control_r0004_vps.py`
 - Workflow: `.github/workflows/operation-control-r0004-gate.yml`
-- State: **FROZEN_GATE_PENDING**
+- State: **GATE_PASS_PRODUCTION_RECONCILE_PENDING**
+- Gate run: `35539222639` — **PASS**
+- Frozen focused regressions: `55` tests — **PASS**
+- Gate artifact: `10613827353`, ZIP SHA-256 `9cddb43ae4df352f26b042503f94ea96f578e56be3adc94e8951dcf8647d4624`
+- Gate evidence: `docs/candidates/operation-control-r0004-20260920-01.gate-r0006-evidence.json`
 - GitHub operation channel: Issue #65
 
 r0004 is the immutable successor to rejected r0003. Its product bytes add exact rejected-r0003 recovery, retain the rejected r0003 release as provenance, remove only transaction-owned sidecar bytes and the production-observed empty r0003 runtime directories, bind PREPARED recovery authority to exact filesystem paths, and fail closed on foreign runtime material. The r0003 credential is deleted as part of recovery and is not reused.
@@ -274,6 +278,8 @@ Bootstrap hardening requires systemd `Type=notify`: transport sends `READY=1` on
 Production read-only runtime reconciliation before freeze proved the rejected r0003 runtime state is exact and disposable: `/var/lib/keelaryn-operation-transport` is empty mode 0700 under the keelaryn service identity; `/var/lib/keelaryn/operations` is empty root:root mode 0700; and `/var/lib/keelaryn/operation-control` contains only empty root-owned 0700 `processed/` and `rejected/`. No operation/user payload exists in those directories.
 
 Candidate bytes are immutable from this issuance point. Gate/framework/evidence fixes may receive a later gate revision, but any frozen product-byte change requires a new operation-control candidate.
+
+Gate r0006 is complete and PASS. This gate result does not production-qualify r0004. The next boundary is one fresh **read-only** production reconcile using the exact r0004 driver. No recovery/materialization/bootstrap mutation is authorized until that reconcile is reviewed.
 
 ## Current production Hub-cutover transaction
 
