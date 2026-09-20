@@ -74,6 +74,9 @@ jobs:
       - name: Smoke VPS Hub-cutover CLI surface
         run: python3 deploy/zero-based-vps/hub_cutover.py --help
 
+      - name: Smoke durable Operation Runtime CLI surface
+        run: PYTHONPATH=core python3 -B -m keelaryn_core.operation_cli --help
+
       - name: Run disposable Hub-selector cutover rehearsal
         env:
           KEELARYN_HUB_CUTOVER_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_HUB_CUTOVER_REHEARSAL_EVIDENCE.json
@@ -199,6 +202,7 @@ jobs:
               "hub_cutover",
               "hub_cutover_rehearsal",
               "deployment_state_normalize",
+              "operation_runtime",
           ]
           if target.get("schema") != "keelaryn.zero-vps-target-host-validation.v3":
               raise SystemExit("target-host validation schema mismatch")
@@ -237,6 +241,7 @@ jobs:
                   "hub_cutover_cli_verified": True,
                   "hub_cutover_rehearsal_cli_verified": True,
                   "deployment_state_normalizer_cli_verified": True,
+                  "operation_runtime_cli_verified": True,
                   "target_host_validator_verified": True,
                   "target_host_config_validator_verified": True,
                   "mutation_gate_validator_verified": True,

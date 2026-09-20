@@ -37,6 +37,7 @@ CLI_SURFACES = (
     "hub_cutover",
     "hub_cutover_rehearsal",
     "deployment_state_normalize",
+    "operation_runtime",
 )
 
 
@@ -231,6 +232,13 @@ def _cli_commands(release: Path) -> dict[str, list[str]]:
             sys.executable,
             "-B",
             str(deploy / "deployment_state_normalize.py"),
+            "--help",
+        ],
+        "operation_runtime": [
+            sys.executable,
+            "-B",
+            "-m",
+            "keelaryn_core.operation_cli",
             "--help",
         ],
     }
