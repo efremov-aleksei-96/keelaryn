@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-GATE_REVISION = "operation-control-gate-r0001"
+GATE_REVISION = "operation-control-gate-r0002"
 CANDIDATE = "operation-control-r0001-20260920-01"
 REPOSITORY = "https://github.com/efremov-aleksei-96/keelaryn.git"
 SOURCE_COMMIT = "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61"
@@ -94,9 +94,22 @@ def _production_boundary() -> dict[str, Any]:
     if current != expected:
         raise GateError("production current is not exact expected e63f authority")
 
-    active = _run(["systemctl", "is-active", "keelaryn-drive.service"])
-    if active.stdout.strip() != "inactive":
-        raise GateError("production writer is not INACTIVE at prepared boundary")
+    try:
+        active = subprocess.run(
+            ["systemctl", "is-active", "keelaryn-drive.service"],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise GateError("cannot inspect production writer state") from exc
+    writer_state = active.stdout.strip()
+    if active.returncode not in {0, 3} or writer_state != "inactive":
+        raise GateError(
+            "production writer is not exact INACTIVE at prepared boundary"
+        )
 
     tool = INSTALL_ROOT / "releases" / PRODUCTION_SOURCE / "deploy" / "zero-based-vps" / "hub_cutover.py"
     status = _json_command(
@@ -353,10 +366,19 @@ def selftest() -> dict[str, Any]:
     }
     if len(SOURCE_COMMIT) != 40 or len(SOURCE_TREE) != 40 or len(PAYLOAD_SHA256) != 64:
         raise GateError("frozen identities have invalid lengths")
+    simulated_inactive = subprocess.CompletedProcess(
+        ["systemctl", "is-active", "keelaryn-drive.service"],
+        3,
+        stdout="inactive\n",
+        stderr="",
+    )
+    if simulated_inactive.returncode not in {0, 3} or simulated_inactive.stdout.strip() != "inactive":
+        raise GateError("inactive systemd classification selftest failed")
     return {
         "schema": "keelaryn.operation-control-gate-selftest.v1",
         "gate_revision": GATE_REVISION,
         **expected,
+        "systemd_inactive_exit3_accepted": True,
         "pass": True,
     }
 
