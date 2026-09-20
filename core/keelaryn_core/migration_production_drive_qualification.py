@@ -30,15 +30,23 @@ class DriveAuthoritativeMigrationProductionTargetQualification(
         drive,
         staging_root_id: str,
         legacy_source_root_id: str,
+        *,
+        progress=None,
     ) -> None:
-        super().__init__(drive, staging_root_id)
+        super().__init__(drive, staging_root_id, progress=progress)
         if not isinstance(legacy_source_root_id, str) or not legacy_source_root_id:
             raise DriveMigrationProductionQualificationBlocked(
                 "legacy Drive source root ID is invalid"
             )
         self.legacy_source_root_id = legacy_source_root_id
 
-    def _verify_live_source(self, pack, _unused_local_source_root) -> None:
+    def _verify_live_source(
+        self,
+        pack,
+        _unused_local_source_root,
+        *,
+        phase: str,
+    ) -> None:
         source_raw = small_file(
             pack.root / "authority" / MIGRATION_SOURCE_NAME,
             "frozen migration source authority",
@@ -53,6 +61,8 @@ class DriveAuthoritativeMigrationProductionTargetQualification(
                 self.drive,
                 self.legacy_source_root_id,
                 source,
+                progress=self._source_progress,
+                phase=phase,
             )
         except (DriveMigrationSourceBlocked, MigrationPackBlocked) as exc:
             raise DriveMigrationProductionQualificationBlocked(

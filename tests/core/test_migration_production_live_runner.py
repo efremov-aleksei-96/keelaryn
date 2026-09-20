@@ -25,6 +25,20 @@ def _load_runner():
     return module
 
 
+class _FakeProgressJournal:
+    def __init__(self, *args, **kwargs):
+        self.events = []
+
+    def record(self, value):
+        self.events.append(dict(value))
+        return dict(value)
+
+    def finish(self, outcome, *, phase):
+        value = {"event": outcome, "phase": phase}
+        self.events.append(value)
+        return value
+
+
 class _FakeEvidence:
     def __init__(self, value: dict):
         self.value = value
@@ -56,6 +70,10 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
             module.DriveMutationGate,
             "from_environment",
             return_value=gate,
+        ), patch.object(
+            module,
+            "GateProgressJournal",
+            _FakeProgressJournal,
         ):
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 code = module.main()
@@ -87,10 +105,18 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
         captured: dict[str, object] = {}
 
         class FakeQualification:
-            def __init__(self, drive, staging_root_id, legacy_source_root_id):
+            def __init__(
+                self,
+                drive,
+                staging_root_id,
+                legacy_source_root_id,
+                *,
+                progress=None,
+            ):
                 captured["drive"] = drive
                 captured["staging_root_id"] = staging_root_id
                 captured["legacy_source_root_id"] = legacy_source_root_id
+                captured["progress"] = progress
 
             def run_drive(self, *args):
                 captured["args"] = args
@@ -138,6 +164,7 @@ class MigrationProductionLiveRunnerTests(unittest.TestCase):
             captured["legacy_source_root_id"],
             env["KEELARYN_MIGRATION_LEGACY_SOURCE_ROOT_ID"],
         )
+        self.assertTrue(callable(captured["progress"]))
 
         combined = stdout + stderr
         for secret in (

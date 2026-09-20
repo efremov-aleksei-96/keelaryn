@@ -49,6 +49,8 @@ Required local/private environment:
 
 The target authority and qualification evidence paths must remain outside both the Git worktree and the immutable migration pack. Production qualification creates both as private owner-controlled files: on POSIX they are published atomically with exact mode `0600`, independent of ambient umask, and an existing authority/evidence file with a different owner or mode is rejected fail-closed rather than silently repaired.
 
+The live runner also creates/appends `production-target-qualification.progress.jsonl` beside the target authority. Its parent must already be owner-controlled mode `0700`; the journal itself is exact mode `0600`. The journal is append-only across attempts and every attempt has a fresh random `run_id`.
+
 ## Safety contract
 
 Before OAuth/Drive access the live wrapper acquires the shared production mutation gate for the complete target-qualification mutation lifetime. An active Hub-cutover inhibit or exclusive quiescence boundary blocks qualification fail-closed.
@@ -67,6 +69,24 @@ The runner delegates construction to `DriveMigrationProductionTargetQualificatio
 10. never mutates the production selector.
 
 The wrapper additionally rejects success output if it contains the staging Drive ID or any configured private path.
+
+## Mandatory live observability
+
+Production qualification is not allowed to be a black box. Before the mutation gate is entered, the runner must establish the private progress journal successfully. Failure to establish or maintain the journal blocks the next observed mutation boundary.
+
+The runner emits sanitized `GATE_PROGRESS` JSON records to stderr and durably appends the same records to the private journal. A heartbeat is emitted at least every 30 seconds while the runner is alive, including during blocking Drive API calls.
+
+Progress records expose only bounded operational state:
+
+- current phase;
+- `READ_ONLY`, `MUTATION_NOT_STARTED`, `MUTATION_ACTIVE` or `MUTATION_COMMITTED`;
+- durable authority/target/evidence state as `UNKNOWN`, `ABSENT` or `PRESENT`;
+- phase/total elapsed seconds and age of the last real progress event;
+- source verification pass and item counters, such as pass `1/2`, item `73/213`.
+
+The production Drive source verifier reports every completed item in both whole-set verification passes. Major phases include pack/freeze verification, pre-construction source verification, target authority, target creation, rehearsal, post-construction pack/freeze/source/staging verification, evidence publication and completion.
+
+Progress records never contain raw Drive IDs, OAuth values, source file names, payload bytes or private local paths. The terminal success JSON on stdout remains the existing machine-readable qualification result.
 
 ## Output
 

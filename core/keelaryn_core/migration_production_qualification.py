@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .drive_backend import DriveBackend, DriveNotFound, DriveUncertainMutation
 from .migration_common import (
@@ -212,9 +212,33 @@ class DriveMigrationProductionTargetQualification:
     after fresh source/freeze/pack revalidation.
     """
 
-    def __init__(self, drive: DriveBackend, staging_root_id: str):
+    def __init__(
+        self,
+        drive: DriveBackend,
+        staging_root_id: str,
+        *,
+        progress: Callable[[dict[str, object]], None] | None = None,
+    ):
         self.drive = drive
         self.staging_root_id = staging_root_id
+        self._progress_callback = progress
+        self._mutation_state = "MUTATION_NOT_STARTED"
+        self._authority_state = "ABSENT"
+        self._target_state = "ABSENT"
+        self._evidence_state = "ABSENT"
+
+    def _emit(self, value: dict[str, object]) -> None:
+        if self._progress_callback is None:
+            return
+        enriched = dict(value)
+        enriched.setdefault("mutation_state", self._mutation_state)
+        enriched.setdefault("authority_state", self._authority_state)
+        enriched.setdefault("target_state", self._target_state)
+        enriched.setdefault("evidence_state", self._evidence_state)
+        self._progress_callback(enriched)
+
+    def _source_progress(self, value: dict[str, int | str]) -> None:
+        self._emit(dict(value))
 
     @staticmethod
     def _private_output_path(path: Path, repo: Path, pack_root: Path, label: str) -> Path:
@@ -287,8 +311,13 @@ class DriveMigrationProductionTargetQualification:
                     "unexpected object exists in production migration staging root"
                 )
 
-    @staticmethod
-    def _verify_live_source(pack, legacy_source_root: str | Path) -> None:
+    def _verify_live_source(
+        self,
+        pack,
+        legacy_source_root: str | Path,
+        *,
+        phase: str,
+    ) -> None:
         root = real_directory(Path(legacy_source_root), "live legacy migration source root")
         source_raw = small_file(
             pack.root / "authority" / MIGRATION_SOURCE_NAME,
@@ -299,12 +328,43 @@ class DriveMigrationProductionTargetQualification:
             raise DriveMigrationProductionQualificationBlocked(
                 "frozen source candidate identity disagrees with migration pack"
             )
-        for entry in source.entries:
+        item_total = len(source.entries)
+        self._emit(
+            {
+                "phase": phase,
+                "event": "SOURCE_PASS_BEGIN",
+                "pass_index": 1,
+                "pass_total": 1,
+                "item_index": 0,
+                "item_total": item_total,
+            }
+        )
+        for item_index, entry in enumerate(source.entries, start=1):
             raw = source_file(root, entry.source, "live legacy migration source")
             if sha256(raw).hexdigest() != entry.sha256 or len(raw) != entry.size:
                 raise DriveMigrationProductionQualificationBlocked(
                     "live legacy source no longer matches frozen migration source boundary"
                 )
+            self._emit(
+                {
+                    "phase": phase,
+                    "event": "SOURCE_ITEM_COMPLETE",
+                    "pass_index": 1,
+                    "pass_total": 1,
+                    "item_index": item_index,
+                    "item_total": item_total,
+                }
+            )
+        self._emit(
+            {
+                "phase": phase,
+                "event": "SOURCE_VERIFY_COMPLETE",
+                "pass_index": 1,
+                "pass_total": 1,
+                "item_index": item_total,
+                "item_total": item_total,
+            }
+        )
 
     @staticmethod
     def _strict_authority(raw: bytes) -> dict[str, Any]:
@@ -385,6 +445,13 @@ class DriveMigrationProductionTargetQualification:
             # from an already durable target authority. A conflicting staging child
             # appearing after authority publication must block before target create.
             self._verify_staging_root()
+            self._mutation_state = "MUTATION_ACTIVE"
+            self._emit(
+                {
+                    "phase": "TARGET_CREATE",
+                    "event": "MUTATION_BOUNDARY",
+                }
+            )
             try:
                 self.drive.create_folder(
                     self.staging_root_id,
@@ -410,6 +477,14 @@ class DriveMigrationProductionTargetQualification:
                 "reserved production target ID resolves to conflicting Drive object"
             )
         self._verify_staging_root(target_id, target_name)
+        self._mutation_state = "MUTATION_COMMITTED"
+        self._target_state = "PRESENT"
+        self._emit(
+            {
+                "phase": "TARGET_CREATE",
+                "event": "TARGET_OBSERVED",
+            }
+        )
         return item
 
     @staticmethod
@@ -452,6 +527,16 @@ class DriveMigrationProductionTargetQualification:
         target_authority_path: str | Path,
         qualification_evidence_path: str | Path,
     ) -> DriveMigrationProductionQualificationEvidence:
+        self._mutation_state = "MUTATION_NOT_STARTED"
+        self._authority_state = "ABSENT"
+        self._target_state = "ABSENT"
+        self._evidence_state = "ABSENT"
+        self._emit(
+            {
+                "phase": "PACK_FREEZE_VERIFY",
+                "event": "PHASE_BEGIN",
+            }
+        )
         try:
             pack = verify_migration_pack(pack_dir)
             freeze = verify_migration_candidate_freeze(pack.root, freeze_receipt, repo_root)
@@ -459,6 +544,12 @@ class DriveMigrationProductionTargetQualification:
             raise DriveMigrationProductionQualificationBlocked(
                 f"frozen migration candidate verification failed: {exc}"
             ) from exc
+        self._emit(
+            {
+                "phase": "PACK_FREEZE_VERIFY",
+                "event": "PHASE_COMPLETE",
+            }
+        )
         repo = real_directory(Path(repo_root), "migration qualification repository root")
         authority_path = self._private_output_path(
             Path(target_authority_path), repo, pack.root, "production target authority"
@@ -471,17 +562,54 @@ class DriveMigrationProductionTargetQualification:
                 "production target authority and qualification evidence must be distinct files"
             )
 
-        self._verify_live_source(pack, legacy_source_root)
+        self._verify_live_source(
+            pack,
+            legacy_source_root,
+            phase="SOURCE_VERIFY_PRE",
+        )
+        self._emit(
+            {
+                "phase": "TARGET_AUTHORITY",
+                "event": "PHASE_BEGIN",
+            }
+        )
         authority = self._target_authority(pack, authority_path)
+        self._authority_state = "PRESENT"
+        self._emit(
+            {
+                "phase": "TARGET_AUTHORITY",
+                "event": "AUTHORITY_DURABLE",
+            }
+        )
         target = self._ensure_target(authority)
 
+        self._mutation_state = "MUTATION_ACTIVE"
+        self._emit(
+            {
+                "phase": "REHEARSAL",
+                "event": "PHASE_BEGIN",
+            }
+        )
         try:
             rehearsal = DriveMigrationDisposableRehearsal(self.drive, target.file_id).run(pack.root)
         except DriveMigrationRehearsalBlocked as exc:
             raise DriveMigrationProductionQualificationBlocked(
                 f"production target construction/rehearsal failed: {exc}"
             ) from exc
+        self._mutation_state = "MUTATION_COMMITTED"
+        self._emit(
+            {
+                "phase": "REHEARSAL",
+                "event": "PHASE_COMPLETE",
+            }
+        )
 
+        self._emit(
+            {
+                "phase": "PACK_FREEZE_VERIFY_POST",
+                "event": "PHASE_BEGIN",
+            }
+        )
         try:
             final_pack = verify_migration_pack(pack.root)
             final_freeze = verify_migration_candidate_freeze(
@@ -489,8 +617,30 @@ class DriveMigrationProductionTargetQualification:
                 freeze_receipt,
                 repo,
             )
-            self._verify_live_source(final_pack, legacy_source_root)
+            self._emit(
+                {
+                    "phase": "PACK_FREEZE_VERIFY_POST",
+                    "event": "PHASE_COMPLETE",
+                }
+            )
+            self._verify_live_source(
+                final_pack,
+                legacy_source_root,
+                phase="SOURCE_VERIFY_POST",
+            )
+            self._emit(
+                {
+                    "phase": "STAGING_VERIFY_POST",
+                    "event": "PHASE_BEGIN",
+                }
+            )
             self._verify_staging_root(target.file_id, authority["target_name"])
+            self._emit(
+                {
+                    "phase": "STAGING_VERIFY_POST",
+                    "event": "PHASE_COMPLETE",
+                }
+            )
         except (MigrationPackBlocked, DriveMigrationProductionQualificationBlocked) as exc:
             raise DriveMigrationProductionPostConstructionBlocked(
                 "production target is durably constructed, but fresh post-construction qualification failed"
@@ -529,7 +679,26 @@ class DriveMigrationProductionTargetQualification:
             restart_state=rehearsal.restart_state,
             outcome="TARGET_QUALIFICATION_PASS",
         )
+        self._emit(
+            {
+                "phase": "EVIDENCE_PUBLISH",
+                "event": "PHASE_BEGIN",
+            }
+        )
         self._publish_evidence(evidence_path, canonical_json_bytes(evidence.to_json_value()))
+        self._evidence_state = "PRESENT"
+        self._emit(
+            {
+                "phase": "EVIDENCE_PUBLISH",
+                "event": "EVIDENCE_DURABLE",
+            }
+        )
+        self._emit(
+            {
+                "phase": "COMPLETE",
+                "event": "QUALIFICATION_COMPLETE",
+            }
+        )
         return evidence
 
 

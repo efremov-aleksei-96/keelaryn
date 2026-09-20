@@ -11,6 +11,7 @@ sys.path.insert(0, str(REPO / "core"))
 from keelaryn_core.drive_oauth import GoogleOAuthRefreshTokenProvider  # noqa: E402
 from keelaryn_core.drive_mutation_gate import DriveMutationGate  # noqa: E402
 from keelaryn_core.drive_rest import GoogleDriveBackend  # noqa: E402
+from keelaryn_core.gate_progress import GateProgressJournal  # noqa: E402
 from keelaryn_core.migration_production_drive_qualification import (  # noqa: E402
     DriveAuthoritativeMigrationProductionTargetQualification,
 )
@@ -33,6 +34,7 @@ def _path(name: str) -> Path:
 
 def main() -> int:
     phase = "preflight"
+    journal: GateProgressJournal | None = None
     try:
         if _required("KEELARYN_PRODUCTION_TARGET_QUALIFICATION_ENABLE") != "YES":
             raise LiveProductionQualificationError(
@@ -47,18 +49,58 @@ def main() -> int:
         qualification_evidence = _path("KEELARYN_MIGRATION_QUALIFICATION_EVIDENCE")
         staging_root_id = _required("KEELARYN_PRODUCTION_MIGRATION_STAGING_ROOT_ID")
         mutation_gate_root = _path("KEELARYN_MUTATION_GATE_ROOT")
+        progress_journal = (
+            target_authority.absolute().parent
+            / "production-target-qualification.progress.jsonl"
+        )
+
+        journal = GateProgressJournal(
+            progress_journal,
+            operation="MIGRATION_PRODUCTION_TARGET_QUALIFICATION",
+            heartbeat_seconds=30.0,
+            stream=sys.stderr,
+        )
 
         phase = "mutation-gate"
+        journal.record(
+            {
+                "phase": "MUTATION_GATE",
+                "event": "PHASE_BEGIN",
+                "mutation_state": "MUTATION_NOT_STARTED",
+                "authority_state": "ABSENT",
+                "target_state": "ABSENT",
+                "evidence_state": "ABSENT",
+            }
+        )
         with DriveMutationGate.from_environment():
+            journal.record(
+                {
+                    "phase": "MUTATION_GATE",
+                    "event": "PHASE_COMPLETE",
+                }
+            )
             phase = "oauth"
+            journal.record(
+                {
+                    "phase": "OAUTH",
+                    "event": "PHASE_BEGIN",
+                }
+            )
             token_provider = GoogleOAuthRefreshTokenProvider.from_environment()
             drive = GoogleDriveBackend(token_provider)
+            journal.record(
+                {
+                    "phase": "OAUTH",
+                    "event": "PHASE_COMPLETE",
+                }
+            )
 
             phase = "production-target-qualification"
             evidence = DriveAuthoritativeMigrationProductionTargetQualification(
                 drive,
                 staging_root_id,
                 legacy_source_root_id,
+                progress=journal.record,
             ).run_drive(
                 pack_dir,
                 freeze_receipt,
@@ -103,15 +145,25 @@ def main() -> int:
             str(target_authority),
             str(qualification_evidence),
             str(mutation_gate_root),
+            str(progress_journal),
         )
         if any(secret and secret in rendered for secret in forbidden):
             raise LiveProductionQualificationError(
                 "sanitized production qualification output leaked private identity/path"
             )
 
+        journal.finish("PASS", phase="COMPLETE")
         print(rendered, flush=True)
         return 0
     except Exception as exc:
+        if journal is not None:
+            try:
+                journal.finish(
+                    "FAIL",
+                    phase=phase.upper().replace("-", "_"),
+                )
+            except Exception:
+                pass
         # Do not emit exception text: transport/protocol failures may contain Drive
         # IDs, object URLs, source names or workstation paths. Phase + class is
         # sufficient for first-pass classification; private evidence remains local.

@@ -6,7 +6,7 @@ import tempfile
 import uuid
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .drive_backend import DriveBackend, DriveItem
 from .migration_common import (
@@ -26,6 +26,36 @@ from .migration_source import (
     verify_migration_source,
 )
 from .protocol import ProtocolError, canonical_json_bytes
+
+
+DriveMigrationProgress = Callable[[dict[str, int | str]], None]
+
+
+def _emit_progress(
+    progress: DriveMigrationProgress | None,
+    *,
+    phase: str,
+    event: str,
+    pass_index: int | None = None,
+    pass_total: int | None = None,
+    item_index: int | None = None,
+    item_total: int | None = None,
+) -> None:
+    if progress is None:
+        return
+    value: dict[str, int | str] = {
+        "phase": phase,
+        "event": event,
+    }
+    if pass_index is not None:
+        value["pass_index"] = pass_index
+    if pass_total is not None:
+        value["pass_total"] = pass_total
+    if item_index is not None:
+        value["item_index"] = item_index
+    if item_total is not None:
+        value["item_total"] = item_total
+    progress(value)
 
 
 class DriveMigrationSourceBlocked(MigrationPackBlocked):
@@ -140,10 +170,25 @@ class DriveMigrationSourceReader:
 def _read_exact_source_set(
     reader: DriveMigrationSourceReader,
     source: MigrationSource,
+    *,
+    progress: DriveMigrationProgress | None = None,
+    phase: str = "SOURCE_VERIFY",
 ) -> dict[str, bytes]:
     first: dict[str, bytes] = {}
     total = 0
-    for entry in source.entries:
+    item_total = len(source.entries)
+    pass_total = 2
+
+    _emit_progress(
+        progress,
+        phase=phase,
+        event="SOURCE_PASS_BEGIN",
+        pass_index=1,
+        pass_total=pass_total,
+        item_index=0,
+        item_total=item_total,
+    )
+    for item_index, entry in enumerate(source.entries, start=1):
         raw = reader.read_source(entry.source)
         if len(raw) > MAX_MIGRATION_FILE_BYTES:
             raise DriveMigrationSourceBlocked(
@@ -159,13 +204,58 @@ def _read_exact_source_set(
                 "legacy Drive migration source exceeds total size limit"
             )
         first[entry.source] = raw
+        _emit_progress(
+            progress,
+            phase=phase,
+            event="SOURCE_ITEM_COMPLETE",
+            pass_index=1,
+            pass_total=pass_total,
+            item_index=item_index,
+            item_total=item_total,
+        )
+    _emit_progress(
+        progress,
+        phase=phase,
+        event="SOURCE_PASS_COMPLETE",
+        pass_index=1,
+        pass_total=pass_total,
+        item_index=item_total,
+        item_total=item_total,
+    )
 
-    for entry in source.entries:
+    _emit_progress(
+        progress,
+        phase=phase,
+        event="SOURCE_PASS_BEGIN",
+        pass_index=2,
+        pass_total=pass_total,
+        item_index=0,
+        item_total=item_total,
+    )
+    for item_index, entry in enumerate(source.entries, start=1):
         raw = reader.read_source(entry.source)
         if raw != first[entry.source]:
             raise DriveMigrationSourceBlocked(
                 "legacy Drive source changed during whole-set verification"
             )
+        _emit_progress(
+            progress,
+            phase=phase,
+            event="SOURCE_ITEM_COMPLETE",
+            pass_index=2,
+            pass_total=pass_total,
+            item_index=item_index,
+            item_total=item_total,
+        )
+    _emit_progress(
+        progress,
+        phase=phase,
+        event="SOURCE_VERIFY_COMPLETE",
+        pass_index=2,
+        pass_total=pass_total,
+        item_index=item_total,
+        item_total=item_total,
+    )
     return first
 
 
@@ -232,9 +322,17 @@ def verify_migration_source_against_drive(
     drive: DriveBackend,
     source_root_id: str,
     source_manifest: MigrationSource | bytes | str | Path,
+    *,
+    progress: DriveMigrationProgress | None = None,
+    phase: str = "SOURCE_VERIFY",
 ) -> MigrationSource:
     source = _coerce_source(source_manifest)
-    _read_exact_source_set(DriveMigrationSourceReader(drive, source_root_id), source)
+    _read_exact_source_set(
+        DriveMigrationSourceReader(drive, source_root_id),
+        source,
+        progress=progress,
+        phase=phase,
+    )
     return source
 
 
@@ -318,6 +416,7 @@ def build_migration_pack_from_drive(
 
 
 __all__ = [
+    "DriveMigrationProgress",
     "DriveMigrationSourceBlocked",
     "DriveMigrationSourceReader",
     "capture_migration_source_from_drive",
