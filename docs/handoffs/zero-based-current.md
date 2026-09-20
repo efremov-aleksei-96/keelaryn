@@ -6,8 +6,8 @@
 
 - Repository: `efremov-aleksei-96/keelaryn`
 - Branch: `dev/zero-based-keelaryn`
-- Handoff base HEAD: `ad5f12f33eb047f24fd92393fc8ac77c6f616623`
-- Base tree: `6a1f455d5e233df3df7563d4b6f8ad86770c5480`
+- Handoff base HEAD: `819dcbd11b531180763ddcf55d2273a8b6da1c5e`
+- Base tree: `7e00fadba2aff9b40a941f68175af7275f208413`
 - Development branch is unqualified by definition.
 - Exact e63f source bytes currently materialized on production remain the production source authority; later development commits do not silently replace them.
 
@@ -251,6 +251,30 @@ partial cleanup, disable units before deleting their bytes, and preserve the pro
 `e63f + PREPARED + writer INACTIVE` boundary. Runtime state directories are deliberately
 not deleted by this recovery transaction.
 
+## Frozen Operation Control candidate r0004
+
+- Candidate: `operation-control-r0004-20260920-01`
+- Frozen product source: `819dcbd11b531180763ddcf55d2273a8b6da1c5e`
+- Frozen source tree: `7e00fadba2aff9b40a941f68175af7275f208413`
+- Deterministic VPS payload SHA-256: `d814b27f4fe7fa9ceb5271002fa17044f427cda1a58f4e554e5168f1a8b5aa89`
+- Payload size: `361869`
+- Payload file count: `190`
+- Exact-head development validation: **PASS**, run `35538811327`, 640 deterministic tests plus all CLI/payload/rehearsal/target-host steps
+- Development payload artifact: `10613144170`, ZIP SHA-256 `603fa307c1ce3478549a8c2c151140e2a05405cb665b27d3a909eb460b2348b1`
+- Gate revision: `operation-control-gate-r0006`
+- Qualification driver: `tools/operation_control_r0004_vps.py`
+- Workflow: `.github/workflows/operation-control-r0004-gate.yml`
+- State: **FROZEN_GATE_PENDING**
+- GitHub operation channel: Issue #65
+
+r0004 is the immutable successor to rejected r0003. Its product bytes add exact rejected-r0003 recovery, retain the rejected r0003 release as provenance, remove only transaction-owned sidecar bytes and the production-observed empty r0003 runtime directories, bind PREPARED recovery authority to exact filesystem paths, and fail closed on foreign runtime material. The r0003 credential is deleted as part of recovery and is not reused.
+
+Bootstrap hardening requires systemd `Type=notify`: transport sends `READY=1` only after the supplied token authenticates as the exact status actor and the first live read of Issue #65 succeeds. Bootstrap then verifies stable service liveness/restart counts before writing its receipt. GitHub write permission remains a separate runtime acceptance property to be proved by the later Issue #65 `RUNTIME_SELFTEST`.
+
+Production read-only runtime reconciliation before freeze proved the rejected r0003 runtime state is exact and disposable: `/var/lib/keelaryn-operation-transport` is empty mode 0700 under the keelaryn service identity; `/var/lib/keelaryn/operations` is empty root:root mode 0700; and `/var/lib/keelaryn/operation-control` contains only empty root-owned 0700 `processed/` and `rejected/`. No operation/user payload exists in those directories.
+
+Candidate bytes are immutable from this issuance point. Gate/framework/evidence fixes may receive a later gate revision, but any frozen product-byte change requires a new operation-control candidate.
+
 ## Current production Hub-cutover transaction
 
 The production Hub cutover has been prepared but the selector has **not** been applied.
@@ -292,7 +316,7 @@ The failure occurred before pre-apply receipt publication or selector mutation. 
 
 The active first priority is the durable remote-autonomous operation control plane. GitHub Issue **#65, Keelaryn VPS Operation Control**, is the dedicated request/status channel. Development already includes Operation Runtime, the allowlisted network-isolated agent, and the narrow GitHub Issues transport.
 
-r0003 is rejected after bootstrap committed sidecar material but before runtime acceptance. Production recovery is now required before any successor bootstrap. The rejected r0003 sidecar state must first be reconciled and then recovered/cleaned through exact transaction-owned identities; do not blindly rerun bootstrap, manually replace the credential, or mutate `/opt/keelaryn/current`. Successor development must fix the systemd sandbox dependency and bootstrap stable-liveness acceptance before a new candidate is issued.
+r0003 remains immutable rejected provenance. Successor development is complete and frozen as r0004. The next production mutation is **not** materialization or bootstrap: after gate r0006 PASS and a fresh read-only VPS reconcile, run the r0004 driver's separate `recover-r0003` transaction. It must remove only the exact rejected sidecar/empty runtime state already observed on production, retain the r0003 release, preserve `/opt/keelaryn/current`, and leave durable COMPLETED recovery authority. Only then may r0004 materialization proceed.
 
 Successor development after the r0002 rejection also hardens durable initialization and crash/replay recovery:
 immutable terminal result authority can repair a state/handoff publication gap without
@@ -342,14 +366,15 @@ The maintainer should be asked to execute a local/VPS command only when evidence
 ## Next permitted sequence
 
 1. Read-only confirm authoritative GitHub identity before every repository write.
-2. r0003 **VPS read-only reconcile** is complete and durably recorded as PASS.
-3. Exact frozen r0003 materialization is complete and durably recorded as PASS.
-4. r0003 production qualification is complete and durably recorded as PASS.
-5. r0003 bootstrap was attempted and exposed a confirmed product blocker; r0003 is rejected and must not be retried.
-6. Build and validate successor product bytes plus exact rejected-r0003 recovery tooling on GitHub before the next production mutation.
-7. Reconcile then recover/clean the rejected r0003 sidecar transaction as one separately verified production transaction.
-8. Freeze/materialize/qualify/bootstrap a new operation-control candidate, then prove `RUNTIME_SELFTEST` end-to-end through GitHub Issue #65.
-9. Reconcile the still-PREPARED production Hub transaction before any later production mutation.
-10. Resume production cutover only through the qualified runtime/protocol and transaction-bound finalizers.
+2. Complete gate r0006 for frozen r0004 and preserve compact gate evidence.
+3. Run one fresh production read-only r0004 reconcile; if durable VPS state differs from the recorded rejected-r0003 boundary, stop and classify before mutation.
+4. Run **only** the separate `recover-r0003` transaction; on interruption, reconcile before any resume. Preserve the rejected r0003 release and production `e63f / PREPARED / writer INACTIVE` boundary.
+5. Read-only verify durable r0003 recovery `COMPLETED` and exact clean successor sidecar.
+6. Materialize exact frozen r0004 as a separate transaction and verify.
+7. Read-only production-qualify exact r0004 and the completed rejected-r0003 recovery authority.
+8. Bootstrap r0004 with a freshly supplied fine-grained token; `Type=notify` must prove exact authenticated actor plus the first successful Issue #65 poll before bootstrap success.
+9. Prove `RUNTIME_SELFTEST` end-to-end through GitHub Issue #65, including status publication/write permission.
+10. Reconcile the still-PREPARED production Hub transaction before any later production mutation.
+11. Resume production cutover only through the qualified runtime/protocol and transaction-bound finalizers.
 
 If production durable state is found to differ from this handoff, stop and reconcile the authoritative VPS state before any mutation.
