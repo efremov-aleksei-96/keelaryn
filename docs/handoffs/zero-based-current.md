@@ -66,12 +66,15 @@ Candidate bytes are immutable from this issuance point. Any later product/contro
 - Gate revision: `operation-control-gate-r0004`
 - Qualification driver: `tools/operation_control_r0002_vps.py`
 - Workflow: `.github/workflows/operation-control-r0002-gate.yml`
-- State: **GATE_FRAMEWORK_ISSUED_AWAITING_CI**
+- GitHub gate run: `35531369705` — **PASS**
+- Gate artifact: `10611566039`, ZIP SHA-256 `dcd4661c92167489c0dbdc2209ddfde151102364799a05bbe400dbd79ebac69d`
+- Evidence: `docs/candidates/operation-control-r0002-20260920-01.gate-r0004-evidence.json`
+- State: **GATE_PASS_AWAITING_VPS_RECONCILE**
 - r0002 release is not yet materialized on production.
 - Rejected r0001 release remains historical provenance only and is explicitly validated by the r0002 VPS driver.
 - Initial r0002 qualification requires `control-current`, credential, bootstrap root/receipt, and operation units all exact `ABSENT`.
 
-Development gate PASS is required before any r0002 VPS reconcile/materialization. Production `/opt/keelaryn/current`, the PREPARED Hub transaction, writer state and Drive remain outside this gate's mutation authority.
+Gate r0004 passed exact frozen-r0002 deterministic rebuild/selftest. The next permitted production action is read-only VPS `reconcile` only. It must prove the PREPARED e63f production boundary unchanged, exact rejected-r0001 historical release present, r0002 release absent, and all bootstrap sidecar state absent before any r0002 materialization.
 
 ## Operation Control gate r0003
 
