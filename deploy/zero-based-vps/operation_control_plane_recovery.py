@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import grp
 import json
 import os
 import pwd
@@ -134,12 +135,18 @@ def _validate_spec(spec: RecoverySpec) -> RecoverySpec:
 
 def _service_identity() -> tuple[int, int]:
     try:
-        entry = pwd.getpwnam("keelaryn")
+        account = pwd.getpwnam("keelaryn")
     except KeyError as exc:
         raise OperationControlRecoveryError(
             "keelaryn service account is missing"
         ) from exc
-    return entry.pw_uid, entry.pw_gid
+    try:
+        group = grp.getgrnam("keelaryn")
+    except KeyError as exc:
+        raise OperationControlRecoveryError(
+            "keelaryn service group is missing"
+        ) from exc
+    return account.pw_uid, group.gr_gid
 
 
 def _directory_identity(
@@ -647,6 +654,32 @@ def _unit_expected(release: Path, unit: str) -> bytes:
     return path.read_bytes()
 
 
+def _layout_authority(layout: RecoveryLayout) -> dict[str, str]:
+    paths = {
+        "install_root": layout.install_root,
+        "unit_dir": layout.unit_dir,
+        "config_dir": layout.config_dir,
+        "bootstrap_root": layout.bootstrap_root,
+        "recovery_root": layout.recovery_root,
+        "transport_root": layout.transport_root,
+        "operation_root": layout.operation_root,
+        "operation_control_root": layout.operation_control_root,
+        "selector": layout.selector,
+        "deployment_state_root": layout.deployment_state_root,
+        "mutation_gate_root": layout.mutation_gate_root,
+    }
+    authority: dict[str, str] = {}
+    for name, path in paths.items():
+        raw = str(path)
+        absolute = str(path.absolute())
+        if raw != absolute:
+            raise OperationControlRecoveryError(
+                f"recovery layout path must be absolute: {name}"
+            )
+        authority[name] = absolute
+    return authority
+
+
 def _prepared_static(
     spec: RecoverySpec,
     *,
@@ -654,6 +687,7 @@ def _prepared_static(
     credential_sha256: str,
     receipt_sha256: str,
     unit_sha256: dict[str, str],
+    layout: RecoveryLayout,
 ) -> dict[str, Any]:
     return {
         "schema": PREPARED_SCHEMA,
@@ -672,6 +706,7 @@ def _prepared_static(
         "config_preexisting": False,
         "bootstrap_root_preexisting": False,
         "runtime_state_layout": "R0003_EMPTY_EXACT",
+        "filesystem_layout": _layout_authority(layout),
     }
 
 
@@ -680,6 +715,7 @@ def _validate_prepared(
     spec: RecoverySpec,
     unit_sha256: dict[str, str],
     receipt_sha256: str,
+    layout: RecoveryLayout,
 ) -> None:
     required = {
         "schema": PREPARED_SCHEMA,
@@ -696,6 +732,7 @@ def _validate_prepared(
         "config_preexisting": False,
         "bootstrap_root_preexisting": False,
         "runtime_state_layout": "R0003_EMPTY_EXACT",
+        "filesystem_layout": _layout_authority(layout),
     }
     exact_keys = set(required) | {
         "credential_sha256",
@@ -797,7 +834,13 @@ def _observe(
         prepared = _read_canonical_record(prepared_path, PREPARED_SCHEMA)
         completed = _read_canonical_record(completed_path, COMPLETED_SCHEMA)
     if prepared is not None:
-        _validate_prepared(prepared, spec, unit_sha256, receipt_sha256)
+        _validate_prepared(
+            prepared,
+            spec,
+            unit_sha256,
+            receipt_sha256,
+            layout,
+        )
     if completed is not None:
         if prepared is None:
             raise OperationControlRecoveryError(
@@ -1072,6 +1115,7 @@ def cleanup_rejected_install(
             credential_sha256=credential_sha,
             receipt_sha256=material["receipt_sha256"],
             unit_sha256=material["unit_sha256"],
+            layout=layout,
         )
         _ensure_recovery_root(layout)
         _write_exclusive_private(prepared_path, prepared)

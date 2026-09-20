@@ -64,6 +64,15 @@ class OperationControlRecoveryTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    def test_service_identity_uses_named_keelaryn_group(self) -> None:
+        account = type("Pw", (), {"pw_uid": 1234, "pw_gid": 4321})()
+        group = type("Gr", (), {"gr_gid": 9876})()
+        with (
+            mock.patch.object(recovery.pwd, "getpwnam", return_value=account),
+            mock.patch.object(recovery.grp, "getgrnam", return_value=group),
+        ):
+            self.assertEqual(recovery._service_identity(), (1234, 9876))
+
     def test_root_precondition_is_fail_closed(self) -> None:
         with mock.patch.object(recovery.os, "geteuid", return_value=1000):
             with self.assertRaisesRegex(
@@ -361,6 +370,71 @@ class OperationControlRecoveryTests(unittest.TestCase):
             )
             self.assertTrue(value["runtime_state_clean"])
             self.assertFalse(layout.operation_control_root.exists())
+
+    @mock.patch.object(recovery, "_require_root", return_value=None)
+    def test_prepared_authority_binds_exact_filesystem_layout(
+        self,
+        _require_root,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            layout, _ = self.layout(Path(td))
+            ctl = FakeSystemctl()
+            ctl.fail_disable_once = recovery.UNIT_NAMES[0]
+
+            with self.assertRaises(recovery.OperationControlRecoveryError):
+                recovery.cleanup_rejected_install(
+                    self.spec(),
+                    layout,
+                    systemctl=ctl,
+                    boundary_probe=self.boundary,
+                    release_probe=self.release_probe,
+                )
+
+            prepared_path, _ = recovery._recovery_paths(layout, self.spec())
+            prepared = recovery._read_canonical_record(
+                prepared_path,
+                recovery.PREPARED_SCHEMA,
+            )
+            self.assertIsNotNone(prepared)
+            prepared["filesystem_layout"]["transport_root"] = str(
+                layout.transport_root.parent / "other-transport"
+            )
+            prepared_path.write_bytes(recovery._canonical_json(prepared))
+            os.chmod(prepared_path, 0o600)
+
+            with self.assertRaisesRegex(
+                recovery.OperationControlRecoveryError,
+                "prepared recovery authority mismatch: filesystem_layout",
+            ):
+                recovery.cleanup_rejected_install(
+                    self.spec(),
+                    layout,
+                    systemctl=ctl,
+                    boundary_probe=self.boundary,
+                    release_probe=self.release_probe,
+                )
+
+    def test_layout_authority_rejects_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            layout, _ = self.layout(Path(td))
+            relative = recovery.RecoveryLayout(
+                install_root=Path("relative-install"),
+                unit_dir=layout.unit_dir,
+                config_dir=layout.config_dir,
+                bootstrap_root=layout.bootstrap_root,
+                recovery_root=layout.recovery_root,
+                transport_root=layout.transport_root,
+                operation_root=layout.operation_root,
+                operation_control_root=layout.operation_control_root,
+                selector=layout.selector,
+                deployment_state_root=layout.deployment_state_root,
+                mutation_gate_root=layout.mutation_gate_root,
+            )
+            with self.assertRaisesRegex(
+                recovery.OperationControlRecoveryError,
+                "path must be absolute: install_root",
+            ):
+                recovery._layout_authority(relative)
 
     @mock.patch.object(recovery, "_require_root", return_value=None)
     def test_completed_authority_is_exactly_bound_to_prepared_record(
