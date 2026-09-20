@@ -1,0 +1,28 @@
+{
+  "schema": "keelaryn.operation-control-gate-qualification.v1",
+  "candidate": "operation-control-r0001-20260920-01",
+  "frozen_source_commit": "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
+  "frozen_source_tree": "eabd2a98e9c2d42e81e7f5c04e3f2b90cf900e6a",
+  "frozen_payload_sha256": "b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b",
+  "frozen_payload_size": 340331,
+  "frozen_payload_file_count": 188,
+  "gate_revision": "operation-control-gate-r0003",
+  "gate_source_commit": "5c045556d95fc336467686201930478ab2fabd0e",
+  "development_gate": {
+    "workflow_run_id": 35519565229,
+    "run_attempt": 1,
+    "conclusion": "success",
+    "artifact_id": 10608062424,
+    "artifact_zip_sha256": "b0fbd41fbe1160e6bd1acecc0e807745f988117531297c12431136f6b8a6b825",
+    "emitted_gate_revision": "operation-control-gate-r0003"
+  },
+  "boundaries": {
+    "reconcile": "read-only",
+    "materialize": "persistent immutable release publication only",
+    "qualify": "read-only after materialization",
+    "bootstrap": "credential/service mutation"
+  },
+  "qualification_state": "DEVELOPMENT_GATE_PASS_AWAITING_READ_ONLY_VPS_RECONCILE",
+  "production_qualified": false,
+  "next_boundary": "read-only VPS reconcile only; no materialize/bootstrap/token/service mutation"
+}

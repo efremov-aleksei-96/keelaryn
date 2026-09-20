@@ -58,18 +58,18 @@ Do not rerun definitive r0072 target qualification.
 
 Candidate bytes are immutable. Any later product/control-plane byte change requires a new candidate identity. Development CI evidence does not authorize production bootstrap.
 
-## Operation Control gate r0002
+## Operation Control gate r0003
 
 - Frozen candidate: `operation-control-r0001-20260920-01`
 - Frozen candidate source: `98e76ffdcdbac09610f8b9a2b542f7e61e7dba61`
-- Gate revision: `operation-control-gate-r0002`
-- Gate source commit: `04ca231e605fa922ead9e606cf38c95c7a8a3340`
-- GitHub gate run: `35519282153` — **PASS**
-- Gate artifact: `10607478364`, ZIP SHA-256 `0ed898eb407155a82f01c02690e1ddae3f9092f43a65c2b5b643a05a909087c5`
-- Evidence: `docs/candidates/operation-control-r0001-20260920-01.gate-r0002-evidence.json`
-- State: **DEVELOPMENT_GATE_PASS_AWAITING_VPS_QUALIFICATION**
+- Gate revision: `operation-control-gate-r0003`
+- Gate source commit: `5c045556d95fc336467686201930478ab2fabd0e`
+- GitHub gate run: `35519565229` — **PASS**
+- Gate artifact: `10608062424`, ZIP SHA-256 `b0fbd41fbe1160e6bd1acecc0e807745f988117531297c12431136f6b8a6b825`
+- Evidence: `docs/candidates/operation-control-r0001-20260920-01.gate-r0003-evidence.json`
+- State: **DEVELOPMENT_GATE_PASS_AWAITING_READ_ONLY_VPS_RECONCILE**
 
-Next permitted action is one read-only VPS qualification with the exact r0002 driver. Do not bootstrap the GitHub credential/control services until that qualification passes and the still-PREPARED production boundary is freshly reconciled. Candidate bytes remain frozen and unchanged.
+The VPS driver now separates `reconcile` (read-only), `materialize` (persistent immutable release publication), `qualify` (read-only after materialization), and `bootstrap` (credential/service mutation). Next permitted action is only the exact r0003 read-only VPS `reconcile`; do not materialize or bootstrap before its result is reviewed. Candidate bytes remain frozen and unchanged.
 
 ## Current production Hub-cutover transaction
 
