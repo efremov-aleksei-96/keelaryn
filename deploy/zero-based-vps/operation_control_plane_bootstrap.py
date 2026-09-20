@@ -50,11 +50,8 @@ def _canonical_json(value: dict[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _private_parent(path: Path, *, create: bool = False) -> Path:
+def _private_parent(path: Path) -> Path:
     path = path.absolute()
-    if create and not path.exists():
-        path.mkdir(parents=True, mode=0o700)
-        os.chmod(path, 0o700)
     try:
         info = path.stat(follow_symlinks=False)
     except OSError as exc:
@@ -66,6 +63,34 @@ def _private_parent(path: Path, *, create: bool = False) -> Path:
             "private parent must be current-user owned mode 0700"
         )
     return path
+
+
+def _private_parent_state(path: Path) -> str:
+    path = path.absolute()
+    if not path.exists() and not path.is_symlink():
+        return "ABSENT"
+    _private_parent(path)
+    return "PRESENT"
+
+
+def _create_private_parent(path: Path) -> bool:
+    path = path.absolute()
+    if _private_parent_state(path) == "PRESENT":
+        return False
+    parent = path.parent
+    if parent.is_symlink() or not parent.is_dir():
+        raise ControlPlaneBootstrapError("private parent container is invalid")
+    try:
+        path.mkdir(mode=0o700)
+        os.chmod(path, 0o700)
+        _private_parent(path)
+    except BaseException:
+        try:
+            path.rmdir()
+        except OSError:
+            pass
+        raise
+    return True
 
 
 def _atomic_file(path: Path, raw: bytes, mode: int) -> None:
@@ -227,17 +252,27 @@ def preflight(
             _regular_exact(target, mode=0o644, raw=source.read_bytes())
             unit_states[name] = "EXACT"
 
-    config_dir = _private_parent(config_dir, create=True)
+    config_dir = config_dir.absolute()
+    config_dir_state = _private_parent_state(config_dir)
     credential = config_dir / "github-operations.env"
     credential_state = "ABSENT"
     if credential.exists() or credential.is_symlink():
+        if config_dir_state != "PRESENT":
+            raise ControlPlaneBootstrapError(
+                "credential exists without a valid private config directory"
+            )
         _regular_exact(credential, mode=0o600)
         credential_state = "PRESENT"
 
-    bootstrap_root = _private_parent(bootstrap_root, create=True)
+    bootstrap_root = bootstrap_root.absolute()
+    bootstrap_root_state = _private_parent_state(bootstrap_root)
     receipt = bootstrap_root / "bootstrap-receipt.json"
     receipt_state = "ABSENT"
     if receipt.exists() or receipt.is_symlink():
+        if bootstrap_root_state != "PRESENT":
+            raise ControlPlaneBootstrapError(
+                "receipt exists without a valid private bootstrap root"
+            )
         _regular_exact(receipt, mode=0o600)
         receipt_state = "PRESENT"
 
@@ -250,7 +285,9 @@ def preflight(
             "EXACT" if observed_control == expected_control_target else "ABSENT"
         ),
         "units": unit_states,
+        "config_dir_state": config_dir_state,
         "credential_state": credential_state,
+        "bootstrap_root_state": bootstrap_root_state,
         "receipt_state": receipt_state,
     }
 
@@ -314,27 +351,40 @@ def install(
     config_dir = config_dir.absolute()
     bootstrap_root = bootstrap_root.absolute()
     control_current = control_current.absolute()
-    created: list[Path] = []
-    enabled: list[str] = []
+    created_files: list[Path] = []
+    created_dirs: list[Path] = []
+    attempted_units: list[str] = []
 
     try:
+        if before["config_dir_state"] == "ABSENT":
+            if _create_private_parent(config_dir):
+                created_dirs.append(config_dir)
+        else:
+            _private_parent(config_dir)
+
+        if before["bootstrap_root_state"] == "ABSENT":
+            if _create_private_parent(bootstrap_root):
+                created_dirs.append(bootstrap_root)
+        else:
+            _private_parent(bootstrap_root)
+
         credential = config_dir / "github-operations.env"
+        created_files.append(credential)
         _atomic_file(credential, credential_raw, 0o600)
-        created.append(credential)
 
         for name in UNIT_NAMES:
             source = release / "deploy" / "zero-based-vps" / name
             target = unit_dir / name
+            created_files.append(target)
             _atomic_file(target, source.read_bytes(), 0o644)
-            created.append(target)
 
+        created_files.append(control_current)
         os.symlink(f"releases/{expected_source_commit}", control_current)
-        created.append(control_current)
 
         systemctl(["daemon-reload"])
         for unit in UNIT_NAMES:
+            attempted_units.append(unit)
             systemctl(["enable", "--now", unit])
-            enabled.append(unit)
 
         for unit in UNIT_NAMES:
             if not active_probe(unit):
@@ -366,31 +416,59 @@ def install(
             "agent_active": True,
         }
         receipt_path = bootstrap_root / "bootstrap-receipt.json"
+        created_files.append(receipt_path)
         _atomic_file(receipt_path, _canonical_json(receipt), 0o600)
         return receipt
-    except BaseException:
-        for unit in reversed(enabled):
+    except BaseException as original:
+        rollback_errors: list[str] = []
+
+        for unit in reversed(attempted_units):
             try:
-                _systemctl(["disable", "--now", unit])
-            except Exception:
-                pass
-        for path in reversed(created):
+                systemctl(["disable", "--now", unit])
+            except BaseException:
+                rollback_errors.append(f"failed to disable attempted unit {unit}")
+
+        for unit in UNIT_NAMES:
+            try:
+                if active_probe(unit):
+                    rollback_errors.append(f"unit still active after rollback: {unit}")
+            except BaseException:
+                rollback_errors.append(
+                    f"cannot verify unit inactive after rollback: {unit}"
+                )
+
+        for path in reversed(created_files):
             try:
                 if path.is_symlink() or path.is_file():
                     path.unlink()
             except OSError:
-                pass
+                rollback_errors.append(f"failed to remove created path {path}")
+
         try:
-            _systemctl(["daemon-reload"])
-        except Exception:
-            pass
-        if _readlink_exact(production_current.absolute()) != production_before:
+            systemctl(["daemon-reload"])
+        except BaseException:
+            rollback_errors.append("daemon-reload failed during rollback")
+
+        for path in reversed(created_dirs):
+            try:
+                path.rmdir()
+            except OSError:
+                rollback_errors.append(f"failed to remove created directory {path}")
+
+        try:
+            if _readlink_exact(production_current.absolute()) != production_before:
+                rollback_errors.append("production current changed unexpectedly")
+        except BaseException:
+            rollback_errors.append("cannot verify production current after rollback")
+
+        if control_current.exists() or control_current.is_symlink():
+            rollback_errors.append("control-current still exists after rollback")
+
+        if rollback_errors:
             raise ControlPlaneBootstrapError(
-                "bootstrap failed and production current selector changed unexpectedly"
-            )
+                "bootstrap rollback incomplete: " + "; ".join(rollback_errors)
+            ) from original
         raise
-
-
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keelaryn-operation-control-bootstrap")
     parser.add_argument("--release", required=True, type=Path)

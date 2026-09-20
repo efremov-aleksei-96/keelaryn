@@ -40,9 +40,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         config_dir = root / "etc" / "keelaryn"
         config_dir.mkdir(parents=True, mode=0o700)
         bootstrap_root = root / "bootstrap"
-        bootstrap_root.mkdir(mode=0o700)
-        for path in (config_dir, bootstrap_root):
-            os.chmod(path, 0o700)
+        os.chmod(config_dir, 0o700)
         return install, release, commit, unit_dir, config_dir, bootstrap_root
 
     def identity(self, commit: str):
@@ -107,6 +105,8 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                 )
 
             self.assertEqual(value["control_current_state"], "ABSENT")
+            self.assertEqual(value["bootstrap_root_state"], "ABSENT")
+            self.assertFalse(receipt_root.exists())
             self.assertEqual(
                 os.readlink(install / "current"),
                 "releases/" + ("b" * 40),
@@ -145,6 +145,8 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                 )
 
             self.assertTrue(receipt["production_current_unchanged"])
+            self.assertTrue(receipt_root.is_dir())
+            self.assertEqual(stat.S_IMODE(receipt_root.stat().st_mode), 0o700)
             self.assertEqual(
                 os.readlink(install / "current"),
                 "releases/" + ("b" * 40),
@@ -162,7 +164,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
 
     @mock.patch.object(bootstrap, "verify_release_directory")
     @mock.patch.object(bootstrap.pwd, "getpwnam")
-    def test_failed_service_start_rolls_back_new_files_and_control_selector(
+    def test_failed_partial_agent_activation_rolls_back_all_created_state(
         self,
         getpwnam,
         verify,
@@ -172,13 +174,26 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
             install, release, commit, unit_dir, config, receipt_root = self.layout(root)
             verify.return_value = self.identity(commit)
             getpwnam.return_value = type("Pw", (), {"pw_uid": 1000})()
+            active: set[str] = set()
+            calls: list[list[str]] = []
 
             def systemctl(args):
-                if args[:2] == ["enable", "--now"] and args[-1].endswith("agent.service"):
-                    raise bootstrap.ControlPlaneBootstrapError("injected start failure")
+                calls.append(list(args))
+                if args[:2] == ["enable", "--now"]:
+                    unit = args[-1]
+                    active.add(unit)
+                    if unit.endswith("agent.service"):
+                        raise bootstrap.ControlPlaneBootstrapError(
+                            "injected partial agent start failure"
+                        )
+                elif args[:2] == ["disable", "--now"]:
+                    active.discard(args[-1])
 
             with mock.patch.object(bootstrap, "_require_root", return_value=None):
-                with self.assertRaises(bootstrap.ControlPlaneBootstrapError):
+                with self.assertRaisesRegex(
+                    bootstrap.ControlPlaneBootstrapError,
+                    "injected partial agent start failure",
+                ):
                     bootstrap.install(
                         release=release,
                         expected_source_commit=commit,
@@ -193,17 +208,25 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                         config_dir=config,
                         bootstrap_root=receipt_root,
                         systemctl=systemctl,
-                        active_probe=lambda unit: False,
+                        active_probe=lambda unit: unit in active,
                     )
 
+            self.assertEqual(active, set())
+            self.assertFalse(receipt_root.exists())
             self.assertFalse((install / "control-current").exists())
             self.assertFalse((config / "github-operations.env").exists())
             for name in bootstrap.UNIT_NAMES:
                 self.assertFalse((unit_dir / name).exists())
+                self.assertIn(["disable", "--now", name], calls)
             self.assertEqual(
                 os.readlink(install / "current"),
                 "releases/" + ("b" * 40),
             )
+
+    def test_agent_transport_dependency_is_resilient_wants_not_requires(self) -> None:
+        raw = (DEPLOY / "keelaryn-operation-agent.service").read_text(encoding="utf-8")
+        self.assertIn("Wants=keelaryn-operation-transport.service", raw)
+        self.assertNotIn("Requires=keelaryn-operation-transport.service", raw)
 
 
 if __name__ == "__main__":

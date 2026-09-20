@@ -1,6 +1,6 @@
 [Unit]
 Description=Keelaryn durable operation dispatcher
-Requires=keelaryn-operation-transport.service
+Wants=keelaryn-operation-transport.service
 After=keelaryn-operation-transport.service
 StartLimitIntervalSec=300
 StartLimitBurst=5

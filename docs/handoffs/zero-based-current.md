@@ -80,6 +80,25 @@ Candidate bytes are immutable. Any later product/control-plane byte change requi
 
 The frozen control-plane candidate is now production-qualified for its initial sidecar bootstrap boundary. This does not authorize production Hub cutover or any Drive mutation. Next permitted action is exactly one sidecar `bootstrap` transaction, followed by immediate read-only reconciliation and end-to-end `RUNTIME_SELFTEST` through GitHub Issue #65.
 
+## Operation Control r0001 rejection
+
+Frozen candidate `operation-control-r0001-20260920-01` is **REJECTED_BEFORE_BOOTSTRAP**.
+The immutable release already materialized on the VPS is retained as rejected
+provenance and must not be bootstrapped.
+
+Post-qualification review found a bootstrap transaction blocker: a partially successful
+`systemctl enable --now` could fail before the unit was added to the rollback list, and
+the exception path used unchecked raw systemctl calls. That could leave an operation
+service active after a reported bootstrap failure. The candidate also allowed its
+nominal preflight to create private directories. No r0001 bootstrap was attempted;
+`control-current`, credential, bootstrap receipt, and operation units remain absent at
+the last authoritative VPS observation.
+
+Successor development fixes rollback accounting/verification, makes preflight truly
+read-only, removes transaction-created private directories on failure, and decouples
+agent liveness from transport with `Wants=`. Any changed product bytes require a new
+r0002 candidate after coherent development CI PASS.
+
 ## Current production Hub-cutover transaction
 
 The production Hub cutover has been prepared but the selector has **not** been applied.

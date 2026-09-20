@@ -140,3 +140,19 @@ The initial bootstrap validates the exact deterministic release payload, require
 The bootstrap token is entered interactively through `getpass`; it is never accepted as a command-line argument, printed, written to the bootstrap receipt or sent through GitHub. The installed environment file is mode 0600.
 
 Initial bootstrap is intentionally install-only. Replacing an existing control-plane selector, unit set or GitHub credential requires a separately qualified update transaction rather than silently reusing bootstrap semantics.
+
+### Bootstrap transaction and degraded transport behavior
+
+Operation-control bootstrap preflight is strictly read-only: absent private control
+directories remain absent. Directory creation belongs to the install transaction and is
+tracked for rollback. Service activation is considered attempted before invoking
+`systemctl enable --now`, because systemd may partially activate a unit before returning
+failure. Rollback disables every attempted unit through the same checked systemctl
+boundary, proves both operation-control units inactive, removes every transaction-created
+file/selector and empty private directory, reloads systemd, and proves production
+`/opt/keelaryn/current` unchanged. Any incomplete rollback is a distinct fail-closed
+error and must be reconciled before retry.
+
+The root operation agent only `Wants=` the network transport and is ordered after it;
+transport failure or network loss must not make the durable agent itself unavailable.
+The transport remains the only network-capable component.

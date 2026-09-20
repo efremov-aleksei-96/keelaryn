@@ -1,0 +1,18 @@
+{
+  "schema": "keelaryn.operation-control-candidate-rejection.v1",
+  "candidate": "operation-control-r0001-20260920-01",
+  "frozen_source_commit": "98e76ffdcdbac09610f8b9a2b542f7e61e7dba61",
+  "status": "REJECTED_BEFORE_BOOTSTRAP",
+  "bootstrap_attempted": false,
+  "production_current_mutated": false,
+  "hub_cutover_mutated": false,
+  "drive_mutated": false,
+  "blocker_classification": "operation-control bootstrap transaction product defect",
+  "blocker": "partial systemd activation could escape rollback because attempted unit was recorded only after successful enable --now; cleanup used unchecked raw systemctl",
+  "additional_hardening": [
+    "bootstrap preflight must be strictly read-only",
+    "transaction-created private directories must be rolled back",
+    "agent must remain alive when transport is unavailable"
+  ],
+  "successor": "new r0002 candidate required after product-byte fixes and coherent development PASS"
+}
