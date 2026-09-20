@@ -1,0 +1,12 @@
+{
+  "schema": "keelaryn.operation-control-gate-framework.v1",
+  "gate_revision": "operation-control-gate-r0004",
+  "candidate": "operation-control-r0002-20260920-01",
+  "frozen_source_commit": "a368cc85e799842a00c5c1c496614437aa7064f2",
+  "qualification_driver": "tools/operation_control_r0002_vps.py",
+  "workflow": ".github/workflows/operation-control-r0002-gate.yml",
+  "production_qualified": false,
+  "purpose": "rebuild frozen r0002 bytes and drive production-specific sidecar reconcile/materialization/qualification/bootstrap without changing candidate bytes",
+  "previous_gate_revision": "operation-control-gate-r0003",
+  "revision_reason": "bind qualification framework to frozen r0002, require exact absent bootstrap root before initial bootstrap, and preserve/validate rejected r0001 materialized release as historical provenance"
+}

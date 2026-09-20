@@ -59,6 +59,20 @@ Do not rerun definitive r0072 target qualification.
 
 Candidate bytes are immutable from this issuance point. Any later product/control-plane byte change requires a new candidate identity. Development CI evidence does not authorize production bootstrap. The rejected r0001 release already materialized on the VPS remains historical provenance only and must not be reused as r0002.
 
+## Operation Control r0002 gate r0004
+
+- Frozen candidate: `operation-control-r0002-20260920-01`
+- Frozen candidate source: `a368cc85e799842a00c5c1c496614437aa7064f2`
+- Gate revision: `operation-control-gate-r0004`
+- Qualification driver: `tools/operation_control_r0002_vps.py`
+- Workflow: `.github/workflows/operation-control-r0002-gate.yml`
+- State: **GATE_FRAMEWORK_ISSUED_AWAITING_CI**
+- r0002 release is not yet materialized on production.
+- Rejected r0001 release remains historical provenance only and is explicitly validated by the r0002 VPS driver.
+- Initial r0002 qualification requires `control-current`, credential, bootstrap root/receipt, and operation units all exact `ABSENT`.
+
+Development gate PASS is required before any r0002 VPS reconcile/materialization. Production `/opt/keelaryn/current`, the PREPARED Hub transaction, writer state and Drive remain outside this gate's mutation authority.
+
 ## Operation Control gate r0003
 
 - Frozen candidate: `operation-control-r0001-20260920-01`
