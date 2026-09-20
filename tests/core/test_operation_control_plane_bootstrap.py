@@ -65,6 +65,22 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         self.assertIn("-/run/keelaryn", raw)
         self.assertNotIn(" /run/keelaryn", raw)
 
+    def test_transport_systemd_readiness_waits_for_authenticated_live_poll(self) -> None:
+        raw = (DEPLOY / "keelaryn-operation-transport.service").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Type=notify", raw)
+        self.assertIn("NotifyAccess=main", raw)
+        self.assertIn("TimeoutStartSec=60s", raw)
+        source = (
+            ROOT / "core" / "keelaryn_core" / "operation_transport.py"
+        ).read_text(encoding="utf-8")
+        startup_index = source.index("startup = transport.startup_probe()")
+        notify_index = source.index("_sd_notify_ready()", startup_index)
+        loop_index = source.index("while True:", notify_index)
+        self.assertLess(startup_index, notify_index)
+        self.assertLess(notify_index, loop_index)
+
     def test_root_precondition_is_isolated_and_fail_closed(self) -> None:
         with mock.patch.object(bootstrap.os, "geteuid", return_value=1000):
             with self.assertRaisesRegex(

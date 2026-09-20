@@ -6,7 +6,7 @@ StartLimitIntervalSec=300
 StartLimitBurst=5
 
 [Service]
-Type=simple
+Type=notify
 User=keelaryn
 Group=keelaryn
 WorkingDirectory=/opt/keelaryn/control-current
@@ -14,6 +14,8 @@ EnvironmentFile=/etc/keelaryn/operation-control/github-operations.env
 Environment=PYTHONPATH=/opt/keelaryn/control-current/core
 Environment=PYTHONDONTWRITEBYTECODE=1
 StateDirectory=keelaryn-operation-transport
+NotifyAccess=main
+TimeoutStartSec=60s
 StateDirectoryMode=0700
 UMask=0077
 ExecStart=/usr/bin/python3 -B -m keelaryn_core.operation_transport --root /var/lib/keelaryn-operation-transport serve --poll-seconds 10

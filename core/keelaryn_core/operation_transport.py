@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import stat
 import sys
 import time
@@ -43,6 +44,7 @@ class IssueComment:
 
 
 class GitHubIssueApi(Protocol):
+    def authenticated_login(self) -> str: ...
     def list_comments(self) -> list[IssueComment]: ...
     def create_comment(self, body: str) -> IssueComment: ...
     def update_comment(self, comment_id: int, body: str) -> IssueComment: ...
@@ -142,6 +144,27 @@ class GitHubIssueClient:
         if _ACTOR.fullmatch(actor) is None:
             raise GitHubTransportError("GitHub issue comment actor is invalid")
         return IssueComment(comment_id, actor, body, created_at, updated_at)
+
+    def authenticated_login(self) -> str:
+        status, raw = self._request("GET", "/user")
+        if status != 200:
+            raise GitHubTransportError("GitHub authenticated-user lookup failed")
+        try:
+            value = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise GitHubTransportError(
+                "GitHub authenticated-user lookup returned invalid JSON"
+            ) from exc
+        if not isinstance(value, dict):
+            raise GitHubTransportError(
+                "GitHub authenticated-user lookup returned invalid object"
+            )
+        login = value.get("login")
+        if not isinstance(login, str) or _ACTOR.fullmatch(login) is None:
+            raise GitHubTransportError(
+                "GitHub authenticated-user lookup returned invalid login"
+            )
+        return login
 
     def list_comments(self) -> list[IssueComment]:
         owner_repo = "/".join(quote(part, safe="") for part in self.repository.split("/", 1))
@@ -620,6 +643,19 @@ class GitHubOperationTransport:
 
         return created, updated
 
+    def startup_probe(self) -> dict[str, Any]:
+        authenticated_actor = self.api.authenticated_login()
+        if authenticated_actor != self.status_actor:
+            raise GitHubTransportError(
+                "GitHub operations token authenticated actor mismatch"
+            )
+        poll = self.poll_once()
+        return {
+            "schema": "keelaryn.github-operation-transport-startup.v1",
+            "authenticated_actor": authenticated_actor,
+            "poll": poll,
+        }
+
     def poll_once(self) -> dict[str, int | str]:
         state = self._state()
         comments = self.api.list_comments()
@@ -658,6 +694,25 @@ class GitHubOperationTransport:
             "status_created": created,
             "status_updated": updated,
         }
+
+
+def _sd_notify_ready() -> None:
+    raw = os.environ.get("NOTIFY_SOCKET", "")
+    if not raw:
+        raise GitHubTransportError("systemd notify socket is missing")
+    address: str | bytes
+    if raw.startswith("@"):
+        address = ("\0" + raw[1:]).encode("utf-8")
+    else:
+        address = raw
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
+            sock.connect(address)
+            sock.sendall(
+                b"READY=1\nSTATUS=GitHub token authenticated and first issue poll completed"
+            )
+    except OSError as exc:
+        raise GitHubTransportError("systemd readiness notification failed") from exc
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -720,7 +775,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.poll_seconds <= 0:
             raise GitHubTransportError("poll-seconds must be positive")
 
+        startup = transport.startup_probe()
+        print(
+            json.dumps(
+                startup,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            flush=True,
+        )
+        _sd_notify_ready()
+
         while True:
+            time.sleep(args.poll_seconds)
             result = transport.poll_once()
             print(
                 json.dumps(
@@ -731,7 +799,6 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 flush=True,
             )
-            time.sleep(args.poll_seconds)
     except (GitHubTransportError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "core"))
@@ -13,6 +14,7 @@ sys.path.insert(0, str(ROOT / "core"))
 from keelaryn_core.operation_agent import OperationAgent  # noqa: E402
 from keelaryn_core.operation_request import REQUEST_SCHEMA  # noqa: E402
 from keelaryn_core.operation_transport import (  # noqa: E402
+    GitHubIssueClient,
     GitHubOperationTransport,
     GitHubTransportError,
     IssueComment,
@@ -39,6 +41,8 @@ class FakeGitHub:
         self.created: list[str] = []
         self.updated: list[tuple[int, str]] = []
         self.next_id = 1000
+        self.authenticated_actor = "keelaryn-bot"
+        self.events: list[str] = []
 
     def add(self, actor: str, body: str, *, comment_id: int | None = None) -> IssueComment:
         cid = self.next_id if comment_id is None else comment_id
@@ -54,7 +58,12 @@ class FakeGitHub:
         self.comments.sort(key=lambda item: item.comment_id)
         return value
 
+    def authenticated_login(self) -> str:
+        self.events.append("authenticated_login")
+        return self.authenticated_actor
+
     def list_comments(self) -> list[IssueComment]:
+        self.events.append("list_comments")
         return list(self.comments)
 
     def create_comment(self, body: str) -> IssueComment:
@@ -116,6 +125,46 @@ class GitHubOperationTransportTests(unittest.TestCase):
             status_actor="keelaryn-bot",
             clock=Clock(),
         )
+
+    def test_client_authenticated_login_uses_exact_github_identity(self) -> None:
+        client = GitHubIssueClient(
+            "efremov-aleksei-96/keelaryn",
+            65,
+            "github_pat_" + ("A" * 40),
+        )
+        with mock.patch.object(
+            client,
+            "_request",
+            return_value=(200, b'{"login":"efremov-aleksei-96"}'),
+        ) as request:
+            self.assertEqual(client.authenticated_login(), "efremov-aleksei-96")
+        request.assert_called_once_with("GET", "/user")
+
+    def test_startup_probe_authenticates_expected_actor_before_live_poll(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            api = FakeGitHub()
+            transport = self.layout(root, api)
+
+            result = transport.startup_probe()
+
+            self.assertEqual(result["authenticated_actor"], "keelaryn-bot")
+            self.assertEqual(
+                result["poll"]["schema"],
+                "keelaryn.github-operation-transport-poll.v1",
+            )
+            self.assertEqual(
+                api.events[:2],
+                ["authenticated_login", "list_comments"],
+            )
+
+            api.authenticated_actor = "other-actor"
+            with self.assertRaisesRegex(
+                GitHubTransportError,
+                "authenticated actor mismatch",
+            ):
+                transport.startup_probe()
 
     def test_authorized_comment_delivers_exact_private_request_once(self) -> None:
         with tempfile.TemporaryDirectory() as td:

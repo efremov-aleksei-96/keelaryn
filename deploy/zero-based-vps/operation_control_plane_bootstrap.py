@@ -531,7 +531,7 @@ def _systemctl(args: list[str]) -> subprocess.CompletedProcess[str]:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=30,
+            timeout=90,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ControlPlaneBootstrapError("systemctl invocation failed") from exc

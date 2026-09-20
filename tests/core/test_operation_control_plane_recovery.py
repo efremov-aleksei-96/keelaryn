@@ -266,6 +266,53 @@ class OperationControlRecoveryTests(unittest.TestCase):
             self.assertTrue(completed.is_file())
 
     @mock.patch.object(recovery, "_require_root", return_value=None)
+    def test_completed_authority_is_exactly_bound_to_prepared_record(
+        self,
+        _require_root,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            layout, _ = self.layout(Path(td))
+            ctl = FakeSystemctl()
+            recovery.cleanup_rejected_install(
+                self.spec(),
+                layout,
+                systemctl=ctl,
+                boundary_probe=self.boundary,
+                release_probe=self.release_probe,
+            )
+
+            prepared_path, completed_path = recovery._recovery_paths(
+                layout,
+                self.spec(),
+            )
+            prepared = recovery._read_canonical_record(
+                prepared_path,
+                recovery.PREPARED_SCHEMA,
+            )
+            self.assertIsNotNone(prepared)
+
+            completed = recovery._read_canonical_record(
+                completed_path,
+                recovery.COMPLETED_SCHEMA,
+            )
+            self.assertIsNotNone(completed)
+            completed["prepared_sha256"] = "0" * 64
+            completed_path.write_bytes(recovery._canonical_json(completed))
+            os.chmod(completed_path, 0o600)
+
+            with self.assertRaisesRegex(
+                recovery.OperationControlRecoveryError,
+                "completed recovery authority mismatch: prepared_sha256",
+            ):
+                recovery.inspect_rejected_install(
+                    self.spec(),
+                    layout,
+                    systemctl=ctl,
+                    boundary_probe=self.boundary,
+                    release_probe=self.release_probe,
+                )
+
+    @mock.patch.object(recovery, "_require_root", return_value=None)
     def test_prepared_recovery_rejects_credential_substitution(
         self,
         _geteuid,

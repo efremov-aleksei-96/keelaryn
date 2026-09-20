@@ -555,6 +555,14 @@ def _validate_prepared(
         "config_preexisting": False,
         "bootstrap_root_preexisting": False,
     }
+    exact_keys = set(required) | {
+        "credential_sha256",
+        "bootstrap_transaction_marker",
+    }
+    if set(prepared) != exact_keys:
+        raise OperationControlRecoveryError(
+            "prepared recovery authority keys are not exact"
+        )
     for key, expected in required.items():
         if prepared.get(key) != expected:
             raise OperationControlRecoveryError(
@@ -566,6 +574,46 @@ def _validate_prepared(
         raise OperationControlRecoveryError("prepared credential identity is invalid")
     if marker != _expected_marker(spec, credential_sha):
         raise OperationControlRecoveryError("prepared bootstrap marker identity is invalid")
+
+
+def _expected_production_boundary(spec: RecoverySpec) -> dict[str, str]:
+    return {
+        "current_source": spec.production_source_commit,
+        "writer": "INACTIVE",
+        "hub_cutover": "PREPARED",
+    }
+
+
+def _validate_completed(
+    completed: dict[str, Any],
+    spec: RecoverySpec,
+    prepared: dict[str, Any],
+) -> None:
+    expected_boundary = _expected_production_boundary(spec)
+    expected = {
+        "schema": COMPLETED_SCHEMA,
+        "rejected_source_commit": spec.rejected_source_commit,
+        "rejected_payload_sha256": spec.rejected_payload_sha256,
+        "production_source_commit": spec.production_source_commit,
+        "prepared_sha256": sha256(_canonical_json(prepared)).hexdigest(),
+        "production_boundary_before": expected_boundary,
+        "production_boundary_after": expected_boundary,
+        "release_retained_exact": True,
+        "sidecar_clean": True,
+        "runtime_state_directories_touched": False,
+        "production_current_mutated": False,
+        "hub_cutover_mutated": False,
+        "drive_mutated": False,
+    }
+    if set(completed) != set(expected):
+        raise OperationControlRecoveryError(
+            "completed recovery authority keys are not exact"
+        )
+    for key, value in expected.items():
+        if completed.get(key) != value:
+            raise OperationControlRecoveryError(
+                f"completed recovery authority mismatch: {key}"
+            )
 
 
 def _observe(
@@ -607,6 +655,12 @@ def _observe(
         completed = _read_canonical_record(completed_path, COMPLETED_SCHEMA)
     if prepared is not None:
         _validate_prepared(prepared, spec, unit_sha256, receipt_sha256)
+    if completed is not None:
+        if prepared is None:
+            raise OperationControlRecoveryError(
+                "completed recovery authority requires exact prepared authority"
+            )
+        _validate_completed(completed, spec, prepared)
 
     config_state = "ABSENT"
     credential_state = "ABSENT"
