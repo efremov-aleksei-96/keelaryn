@@ -66,6 +66,67 @@ class OperationAgentTests(unittest.TestCase):
         )
         return agent, operation_root, control_root
 
+    def test_agent_stays_idle_until_transport_relay_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            operation_root = root / "operations"
+            control_root = root / "control"
+            transport_root = root / "transport"
+            operation_root.mkdir(mode=0o700)
+            control_root.mkdir(mode=0o700)
+            os.chmod(operation_root, 0o700)
+            os.chmod(control_root, 0o700)
+
+            agent = OperationAgent(
+                operation_root,
+                control_root,
+                transport_root,
+                source_commit=self.COMMIT,
+            )
+            self.assertIsNone(agent.process_pending_once())
+
+            transport_root.mkdir(mode=0o700)
+            os.chmod(transport_root, 0o700)
+            for name in ("inbox", "outbox"):
+                path = transport_root / name
+                path.mkdir(mode=0o700)
+                os.chmod(path, 0o700)
+
+            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
+            request_path.write_bytes(canonical(self.request()))
+            os.chmod(request_path, 0o600)
+            result = agent.process_pending_once()
+
+            self.assertEqual(result["disposition"], "COMPLETED")
+            self.assertEqual(result["status"]["observed_state"], "SUCCEEDED")
+
+    def test_malformed_transport_relay_still_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            operation_root = root / "operations"
+            control_root = root / "control"
+            transport_root = root / "transport"
+            operation_root.mkdir(mode=0o700)
+            control_root.mkdir(mode=0o700)
+            transport_root.mkdir(mode=0o755)
+            os.chmod(operation_root, 0o700)
+            os.chmod(control_root, 0o700)
+            os.chmod(transport_root, 0o755)
+
+            agent = OperationAgent(
+                operation_root,
+                control_root,
+                transport_root,
+                source_commit=self.COMMIT,
+            )
+            with self.assertRaisesRegex(
+                OperationRuntimeError,
+                "operation transport root must have mode 0700",
+            ):
+                agent.process_pending_once()
+
     def test_request_is_strict_canonical_and_contains_no_command_surface(self) -> None:
         request = self.request()
         parsed = parse_operation_request(canonical(request))

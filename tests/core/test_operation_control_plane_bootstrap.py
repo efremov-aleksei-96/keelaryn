@@ -58,6 +58,13 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
             self.assertIn("/opt/keelaryn/control-current", raw)
             self.assertNotIn("WorkingDirectory=/opt/keelaryn/current", raw)
 
+    def test_transport_sandbox_tolerates_absent_legacy_runtime_path(self) -> None:
+        raw = (DEPLOY / "keelaryn-operation-transport.service").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("-/run/keelaryn", raw)
+        self.assertNotIn(" /run/keelaryn", raw)
+
     def test_root_precondition_is_isolated_and_fail_closed(self) -> None:
         with mock.patch.object(bootstrap.os, "geteuid", return_value=1000):
             with self.assertRaisesRegex(
@@ -215,6 +222,8 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                     bootstrap_root=receipt_root,
                     systemctl=lambda args: calls.append(args),
                     active_probe=lambda unit: False if not calls else True,
+                    restart_probe=lambda unit: 0,
+                    sleeper=lambda seconds: None,
                 )
 
             self.assertTrue(receipt["production_current_unchanged"])
@@ -374,6 +383,8 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                     bootstrap_root=receipt_root,
                     systemctl=systemctl,
                     active_probe=lambda unit: unit in active,
+                    restart_probe=lambda unit: 0,
+                    sleeper=lambda seconds: None,
                 )
 
             self.assertTrue(receipt["control_current_exact"])
@@ -404,10 +415,69 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
                     bootstrap_root=receipt_root,
                     systemctl=systemctl,
                     active_probe=lambda unit: unit in active,
+                    restart_probe=lambda unit: 0,
+                    sleeper=lambda seconds: None,
                 )
 
             self.assertEqual(replay, receipt)
             self.assertEqual(calls, calls_before_replay)
+
+    @mock.patch.object(bootstrap, "verify_release_directory")
+    @mock.patch.object(bootstrap.pwd, "getpwnam")
+    def test_restart_during_stability_window_rolls_back_before_receipt(
+        self,
+        getpwnam,
+        verify,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            install, release, commit, unit_dir, config, receipt_root = self.layout(root)
+            verify.return_value = self.identity(commit)
+            getpwnam.return_value = type("Pw", (), {"pw_uid": 1000})()
+            active: set[str] = set()
+            restarts = {name: 0 for name in bootstrap.UNIT_NAMES}
+
+            def systemctl(args):
+                if args[:2] == ["enable", "--now"]:
+                    active.add(args[-1])
+                elif args[:2] == ["disable", "--now"]:
+                    active.discard(args[-1])
+
+            def sleeper(seconds):
+                self.assertEqual(seconds, bootstrap.SERVICE_STABILITY_SECONDS)
+                restarts[bootstrap.UNIT_NAMES[0]] += 1
+
+            with mock.patch.object(bootstrap, "_require_root", return_value=None):
+                with self.assertRaisesRegex(
+                    bootstrap.ControlPlaneBootstrapError,
+                    "restarted during stability window",
+                ):
+                    bootstrap.install(
+                        release=release,
+                        expected_source_commit=commit,
+                        expected_payload_sha256="c" * 64,
+                        repository="efremov-aleksei-96/keelaryn",
+                        issue=65,
+                        actors="efremov-aleksei-96",
+                        status_actor="efremov-aleksei-96",
+                        token="github_pat_" + ("A" * 40),
+                        production_current=install / "current",
+                        control_current=install / "control-current",
+                        unit_dir=unit_dir,
+                        config_dir=config,
+                        bootstrap_root=receipt_root,
+                        systemctl=systemctl,
+                        active_probe=lambda unit: unit in active,
+                        restart_probe=lambda unit: restarts[unit],
+                        sleeper=sleeper,
+                    )
+
+            self.assertEqual(active, set())
+            self.assertFalse(receipt_root.exists())
+            self.assertFalse(config.exists())
+            self.assertFalse((install / "control-current").exists())
+            for name in bootstrap.UNIT_NAMES:
+                self.assertFalse((unit_dir / name).exists())
 
     def test_active_probe_fails_closed_on_unclassified_systemctl_error(self) -> None:
         with mock.patch.object(

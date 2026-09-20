@@ -234,9 +234,9 @@ class OperationAgent:
             "rejected operation request archive",
             create=True,
         )
-        transport = _relay_dir(Path(transport_root), "operation transport root")
-        self.inbox = _relay_dir(transport / "inbox", "operation transport inbox")
-        self.outbox = _relay_dir(transport / "outbox", "operation transport outbox")
+        self.transport_root = Path(transport_root).absolute()
+        self.inbox = self.transport_root / "inbox"
+        self.outbox = self.transport_root / "outbox"
         self.lock_path = _private_lock(self.control_root / LOCK_NAME)
         self.source_commit = source_commit
         if (
@@ -245,6 +245,17 @@ class OperationAgent:
         ):
             raise OperationRuntimeError("operation agent source_commit is invalid")
         self.handlers = dict(HANDLERS if handlers is None else handlers)
+
+    def _relay_ready(self) -> bool:
+        for path, label in (
+            (self.transport_root, "operation transport root"),
+            (self.inbox, "operation transport inbox"),
+            (self.outbox, "operation transport outbox"),
+        ):
+            if not path.exists() and not path.is_symlink():
+                return False
+            _relay_dir(path, label)
+        return True
 
     @contextmanager
     def locked(self) -> Iterator[None]:
@@ -311,6 +322,8 @@ class OperationAgent:
         _atomic_relay(self.outbox / f"{request_id}.json", relay)
 
     def process(self, request_path: str | Path) -> dict[str, object]:
+        if not self._relay_ready():
+            raise OperationRuntimeError("operation transport relay is unavailable")
         request_path = Path(request_path).absolute()
         if request_path.parent != self.inbox:
             raise OperationRuntimeError(
@@ -454,6 +467,8 @@ class OperationAgent:
         _fsync_dir(request_path.parent)
 
     def process_pending_once(self) -> dict[str, object] | None:
+        if not self._relay_ready():
+            return None
         requests = sorted(
             path
             for path in self.inbox.iterdir()

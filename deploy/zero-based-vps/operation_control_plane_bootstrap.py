@@ -9,6 +9,7 @@ import re
 import stat
 import subprocess
 import sys
+import time
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Callable
@@ -28,6 +29,7 @@ _OID = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _TRANSACTION_DIR = re.compile(r"^transaction-c([01])-b([01])-([0-9a-f]{64})$")
 _TRANSACTION_SCHEMA = "keelaryn.operation-control-bootstrap-transaction.v1"
+SERVICE_STABILITY_SECONDS = 12.0
 
 
 class ControlPlaneBootstrapError(RuntimeError):
@@ -554,6 +556,16 @@ def _is_active(unit: str) -> bool:
     )
 
 
+def _restart_count(unit: str) -> int:
+    completed = _systemctl(["show", unit, "--property=NRestarts", "--value"])
+    if completed.returncode != 0:
+        raise ControlPlaneBootstrapError("systemctl restart-count probe failed")
+    raw = completed.stdout.strip()
+    if not raw.isdigit():
+        raise ControlPlaneBootstrapError("systemctl restart-count value is invalid")
+    return int(raw)
+
+
 def preflight(
     *,
     release: Path,
@@ -693,6 +705,8 @@ def install(
     bootstrap_root: Path,
     systemctl: Callable[[list[str]], None] = _must_systemctl,
     active_probe: Callable[[str], bool] = _is_active,
+    restart_probe: Callable[[str], int] = _restart_count,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
     credential_raw = _credential_bytes(
         token=token,
@@ -900,10 +914,31 @@ def install(
             rollback_units.append(unit)
             systemctl(["enable", "--now", unit])
 
+        restart_anchor: dict[str, int] = {}
         for unit in UNIT_NAMES:
             if not active_probe(unit):
                 raise ControlPlaneBootstrapError(
                     f"operation-control unit did not become active: {unit}"
+                )
+            restart_anchor[unit] = restart_probe(unit)
+
+        if not any(active_before.values()) and any(
+            value != 0 for value in restart_anchor.values()
+        ):
+            raise ControlPlaneBootstrapError(
+                "operation-control unit restarted during initial bootstrap"
+            )
+
+        sleeper(SERVICE_STABILITY_SECONDS)
+
+        for unit in UNIT_NAMES:
+            if not active_probe(unit):
+                raise ControlPlaneBootstrapError(
+                    f"operation-control unit did not remain active: {unit}"
+                )
+            if restart_probe(unit) != restart_anchor[unit]:
+                raise ControlPlaneBootstrapError(
+                    f"operation-control unit restarted during stability window: {unit}"
                 )
 
         if _readlink_exact(production_current) != production_before:
