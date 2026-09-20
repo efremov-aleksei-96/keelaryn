@@ -28,6 +28,7 @@ TRANSACTION_RECORD_RE = re.compile(r"[0-9a-f]{32}\.json")
 UNIT_NAMES = (
     "keelaryn-drive.service",
     "keelaryn-drive-bootstrap.service",
+    "keelaryn-operation-agent.service",
 )
 CLI_SURFACES = (
     "drive_poller",
@@ -38,6 +39,7 @@ CLI_SURFACES = (
     "hub_cutover_rehearsal",
     "deployment_state_normalize",
     "operation_runtime",
+    "operation_agent",
 )
 
 
@@ -239,6 +241,13 @@ def _cli_commands(release: Path) -> dict[str, list[str]]:
             "-B",
             "-m",
             "keelaryn_core.operation_cli",
+            "--help",
+        ],
+        "operation_agent": [
+            sys.executable,
+            "-B",
+            "-m",
+            "keelaryn_core.operation_agent",
             "--help",
         ],
     }

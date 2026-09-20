@@ -95,3 +95,16 @@ A self-hosted GitHub Actions runner or unrestricted remote root shell is not the
 Operation Runtime does not replace release-switch, Hub-cutover, mutation-gate or migration transaction authorities. Those remain the canonical commit/rollback mechanisms for their domains.
 
 The runtime records execution and recovery state around those authorities. A runtime PASS cannot convert an unqualified candidate into a qualified release, authorize a production cutover, or weaken an existing fail-closed transaction rule.
+
+
+## Local allowlisted dispatcher
+
+The v1 dispatcher is `keelaryn_core.operation_agent`. It is intentionally transport-independent.
+
+A request is canonical JSON with only a request ID, operation token, exact source commit, profile token, mutation capability, bounded timeout and approval policy. There is no shell command, argv list, arbitrary path or free-form payload field.
+
+The request ID is also the Operation Runtime operation ID. Re-delivery of the same request therefore resolves to the existing durable operation instead of executing it again.
+
+The initial allowlist contains only `RUNTIME_SELFTEST`. Production mutations are deliberately impossible until an explicit handler and approval verifier are qualified.
+
+The systemd agent service is detached from SSH/chat, has no network access, no Linux capabilities, and may write only the private operation/control roots. A future network transport must be a separate less-privileged component that can deliver strict request files but cannot execute arbitrary commands or gain the dispatcher privileges.
