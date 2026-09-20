@@ -72,12 +72,14 @@ class ZeroBasedVpsReleaseSwitchToolIdentityTests(unittest.TestCase):
             self.assertEqual(os.readlink(install / "current"), f"releases/{self.OLD}")
             self.assertEqual(old.status(), {"status": "IDLE"})
 
-    def test_readme_pins_one_transaction_to_captured_old_switch_tool(self) -> None:
+    def test_readme_pins_active_transaction_then_switches_post_terminal_authority(self) -> None:
         text = (DEPLOY / "README.md").read_text(encoding="utf-8")
         required = (
             'OLD_RELEASE="$(readlink -f /opt/keelaryn/current)"',
             'SWITCH_TOOL="$OLD_RELEASE/deploy/zero-based-vps/release_switch.py"',
-            '"$SWITCH_TOOL"',
+            "while `ACTIVE_TRANSACTION.json` exists",
+            'POST_SWITCH_TOOL="/opt/keelaryn/current/deploy/zero-based-vps/release_switch.py"',
+            "Never retry `accept` merely because a post-terminal OLD-tool status check is rejected.",
             "atomically restore `current`",
         )
         for value in required:

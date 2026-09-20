@@ -348,7 +348,7 @@ SWITCH_TOOL="$OLD_RELEASE/deploy/zero-based-vps/release_switch.py"
 test -f "$SWITCH_TOOL"
 ```
 
-Keep using that exact `$SWITCH_TOOL` for `prepare`, `apply`, `status`, `accept` and `rollback` until the transaction is terminal and `status` is `IDLE`. `release_switch.py` enforces this itself: while an active transaction exists, a tool launched from NEW or any unrelated release is rejected fail-closed.
+Keep using that exact `$SWITCH_TOOL` for every operation **while `ACTIVE_TRANSACTION.json` exists**, including `prepare`, `apply`, active-transaction `status`, `accept` and `rollback`. `accept`/`rollback` may return `{"status":"IDLE"}` only after they have durably published terminal authority and archived the active record. From that point the transaction is terminal: the captured OLD tool is deliberately no longer authoritative, and any subsequent `status` check must use `release_switch.py` from the exact current release. Do not treat the expected rejection of the OLD tool after terminal archival as a failed accept/rollback. `release_switch.py` enforces both sides of this boundary fail-closed.
 
 1. Stop the old writer and prove it is stopped:
 
@@ -398,6 +398,18 @@ Keep using that exact `$SWITCH_TOOL` for `prepare`, `apply`, `status`, `accept` 
    ```
 
 `accept` requires exact NEW `current`, exact bound release identities, then writes an immutable ACCEPTED marker before archival cleanup. OLD is retained as rollback/provenance material; release retention is outside this MVP transaction.
+
+After `accept` returns `{"status":"IDLE"}`, post-terminal verification must switch authority to the exact current release rather than calling the captured OLD tool again:
+
+```bash
+POST_SWITCH_TOOL="/opt/keelaryn/current/deploy/zero-based-vps/release_switch.py"
+python3 -B "$POST_SWITCH_TOOL" \
+  --install-root /opt/keelaryn \
+  --state-root /var/lib/keelaryn/deployment \
+  status
+```
+
+The expected result is `{"status":"IDLE"}` with no `ACTIVE_TRANSACTION.json`. If `accept` is interrupted before its result is observed, reconcile durable state first: when the active record still exists, continue with the transaction-bound OLD tool; when it is absent, use the current-release tool for read-only status. Never retry `accept` merely because a post-terminal OLD-tool status check is rejected.
 
 ## Source rollback
 
