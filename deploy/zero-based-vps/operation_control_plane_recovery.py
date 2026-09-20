@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pwd
 import re
 import stat
 import subprocess
@@ -60,6 +61,9 @@ class RecoveryLayout:
     config_dir: Path
     bootstrap_root: Path
     recovery_root: Path
+    transport_root: Path
+    operation_root: Path
+    operation_control_root: Path
     selector: Path
     deployment_state_root: Path
     mutation_gate_root: Path
@@ -126,6 +130,142 @@ def _validate_spec(spec: RecoverySpec) -> RecoverySpec:
     if _ACTOR.fullmatch(spec.status_actor) is None:
         raise OperationControlRecoveryError("status actor is invalid")
     return spec
+
+
+def _service_identity() -> tuple[int, int]:
+    try:
+        entry = pwd.getpwnam("keelaryn")
+    except KeyError as exc:
+        raise OperationControlRecoveryError(
+            "keelaryn service account is missing"
+        ) from exc
+    return entry.pw_uid, entry.pw_gid
+
+
+def _directory_identity(
+    path: Path,
+    label: str,
+    *,
+    expected_uid: int,
+    expected_gid: int,
+) -> list[Path] | None:
+    path = path.absolute()
+    if not path.exists() and not path.is_symlink():
+        return None
+    try:
+        info = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise OperationControlRecoveryError(f"{label} cannot be inspected") from exc
+    if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
+        raise OperationControlRecoveryError(f"{label} must be one real directory")
+    if (
+        info.st_uid != expected_uid
+        or info.st_gid != expected_gid
+        or stat.S_IMODE(info.st_mode) != 0o700
+    ):
+        raise OperationControlRecoveryError(
+            f"{label} owner/group/mode is not exact"
+        )
+    try:
+        return list(path.iterdir())
+    except OSError as exc:
+        raise OperationControlRecoveryError(f"{label} cannot be enumerated") from exc
+
+
+def _runtime_state(layout: RecoveryLayout) -> dict[str, str]:
+    root_uid = os.geteuid()
+    root_gid = os.getegid()
+    service_uid, service_gid = _service_identity()
+
+    transport_entries = _directory_identity(
+        layout.transport_root,
+        "operation transport runtime root",
+        expected_uid=service_uid,
+        expected_gid=service_gid,
+    )
+    if transport_entries is None:
+        transport_state = "ABSENT"
+    elif transport_entries:
+        raise OperationControlRecoveryError(
+            "operation transport runtime root contains unexpected material"
+        )
+    else:
+        transport_state = "EXACT"
+
+    operation_entries = _directory_identity(
+        layout.operation_root,
+        "operation runtime root",
+        expected_uid=root_uid,
+        expected_gid=root_gid,
+    )
+    if operation_entries is None:
+        operation_state = "ABSENT"
+    elif operation_entries:
+        raise OperationControlRecoveryError(
+            "operation runtime root contains unexpected material"
+        )
+    else:
+        operation_state = "EXACT"
+
+    control_entries = _directory_identity(
+        layout.operation_control_root,
+        "operation agent control root",
+        expected_uid=root_uid,
+        expected_gid=root_gid,
+    )
+    if control_entries is None:
+        control_state = "ABSENT"
+    else:
+        allowed = {"processed", "rejected"}
+        names = {entry.name for entry in control_entries}
+        if not names.issubset(allowed):
+            raise OperationControlRecoveryError(
+                "operation agent control root contains unexpected material"
+            )
+        for name in sorted(names):
+            child = layout.operation_control_root / name
+            child_entries = _directory_identity(
+                child,
+                f"operation agent control {name} directory",
+                expected_uid=root_uid,
+                expected_gid=root_gid,
+            )
+            if child_entries is None:
+                raise OperationControlRecoveryError(
+                    f"operation agent control {name} directory disappeared"
+                )
+            if child_entries:
+                raise OperationControlRecoveryError(
+                    f"operation agent control {name} directory is not empty"
+                )
+        control_state = "EXACT" if names == allowed else "PARTIAL_EXACT"
+
+    return {
+        "transport_root": transport_state,
+        "operation_root": operation_state,
+        "operation_control_root": control_state,
+    }
+
+
+def _remove_runtime_state(layout: RecoveryLayout) -> None:
+    state = _runtime_state(layout)
+
+    if state["operation_control_root"] != "ABSENT":
+        for name in ("processed", "rejected"):
+            child = layout.operation_control_root / name
+            if child.exists() or child.is_symlink():
+                _unlink_pinned(child, directory=True)
+        if (
+            layout.operation_control_root.exists()
+            or layout.operation_control_root.is_symlink()
+        ):
+            _unlink_pinned(layout.operation_control_root, directory=True)
+
+    if state["operation_root"] != "ABSENT":
+        _unlink_pinned(layout.operation_root, directory=True)
+
+    if state["transport_root"] != "ABSENT":
+        _unlink_pinned(layout.transport_root, directory=True)
 
 
 def _fsync_directory(path: Path) -> None:
@@ -531,6 +671,7 @@ def _prepared_static(
         "control_current_target": f"releases/{spec.rejected_source_commit}",
         "config_preexisting": False,
         "bootstrap_root_preexisting": False,
+        "runtime_state_layout": "R0003_EMPTY_EXACT",
     }
 
 
@@ -554,6 +695,7 @@ def _validate_prepared(
         "control_current_target": f"releases/{spec.rejected_source_commit}",
         "config_preexisting": False,
         "bootstrap_root_preexisting": False,
+        "runtime_state_layout": "R0003_EMPTY_EXACT",
     }
     exact_keys = set(required) | {
         "credential_sha256",
@@ -600,7 +742,8 @@ def _validate_completed(
         "production_boundary_after": expected_boundary,
         "release_retained_exact": True,
         "sidecar_clean": True,
-        "runtime_state_directories_touched": False,
+        "runtime_state_clean": True,
+        "runtime_state_directories_touched": True,
         "production_current_mutated": False,
         "hub_cutover_mutated": False,
         "drive_mutated": False,
@@ -741,6 +884,8 @@ def _observe(
             )
         control_state = "EXACT"
 
+    runtime_state = _runtime_state(layout)
+
     units: dict[str, str] = {}
     services: dict[str, dict[str, str]] = {}
     for unit in UNIT_NAMES:
@@ -768,6 +913,11 @@ def _observe(
         and marker_state == "PRESENT"
         and receipt_state == "PRESENT"
         and all(value == "EXACT" for value in units.values())
+        and runtime_state == {
+            "transport_root": "EXACT",
+            "operation_root": "EXACT",
+            "operation_control_root": "EXACT",
+        }
     )
     clean = (
         control_state == "ABSENT"
@@ -777,6 +927,7 @@ def _observe(
         and marker_state == "ABSENT"
         and receipt_state == "ABSENT"
         and all(value == "ABSENT" for value in units.values())
+        and all(value == "ABSENT" for value in runtime_state.values())
     )
 
     if completed is not None:
@@ -812,6 +963,7 @@ def _observe(
         "bootstrap_receipt": receipt_state,
         "units": units,
         "services": services,
+        "runtime_state": runtime_state,
         "runtime_state_directories_touched": False,
     }
     if prepared is None:
@@ -894,7 +1046,8 @@ def cleanup_rejected_install(
             "production_boundary_before": before,
             "production_boundary_after": after,
             "sidecar_clean": True,
-            "runtime_state_directories_touched": False,
+            "runtime_state_clean": True,
+            "runtime_state_directories_touched": True,
             "production_current_mutated": False,
             "hub_cutover_mutated": False,
             "drive_mutated": False,
@@ -1025,6 +1178,8 @@ def cleanup_rejected_install(
             )
         _unlink_pinned(layout.bootstrap_root, directory=True)
 
+    _remove_runtime_state(layout)
+
     post, _, _ = _observe(
         spec,
         layout,
@@ -1052,7 +1207,8 @@ def cleanup_rejected_install(
         "production_boundary_after": final_boundary,
         "release_retained_exact": True,
         "sidecar_clean": True,
-        "runtime_state_directories_touched": False,
+        "runtime_state_clean": True,
+        "runtime_state_directories_touched": True,
         "production_current_mutated": False,
         "hub_cutover_mutated": False,
         "drive_mutated": False,
@@ -1099,6 +1255,21 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("/var/lib/keelaryn/operation-recovery"),
     )
+    parser.add_argument(
+        "--transport-root",
+        type=Path,
+        default=Path("/var/lib/keelaryn-operation-transport"),
+    )
+    parser.add_argument(
+        "--operation-root",
+        type=Path,
+        default=Path("/var/lib/keelaryn/operations"),
+    )
+    parser.add_argument(
+        "--operation-control-root",
+        type=Path,
+        default=Path("/var/lib/keelaryn/operation-control"),
+    )
     parser.add_argument("--selector", type=Path, default=Path("/etc/keelaryn/hub.env"))
     parser.add_argument(
         "--deployment-state-root",
@@ -1131,6 +1302,9 @@ def main(argv: list[str] | None = None) -> int:
         config_dir=args.config_dir,
         bootstrap_root=args.bootstrap_root,
         recovery_root=args.recovery_root,
+        transport_root=args.transport_root,
+        operation_root=args.operation_root,
+        operation_control_root=args.operation_control_root,
         selector=args.selector,
         deployment_state_root=args.deployment_state_root,
         mutation_gate_root=args.mutation_gate_root,

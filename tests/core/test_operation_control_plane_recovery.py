@@ -55,6 +55,15 @@ class OperationControlRecoveryTests(unittest.TestCase):
     PRODUCTION = "b" * 40
     PAYLOAD = "c" * 64
 
+    def setUp(self) -> None:
+        patcher = mock.patch.object(
+            recovery,
+            "_service_identity",
+            return_value=(os.geteuid(), os.getegid()),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_root_precondition_is_fail_closed(self) -> None:
         with mock.patch.object(recovery.os, "geteuid", return_value=1000):
             with self.assertRaisesRegex(
@@ -142,6 +151,22 @@ class OperationControlRecoveryTests(unittest.TestCase):
         receipt.write_bytes(recovery._expected_receipt(self.spec()))
         os.chmod(receipt, 0o600)
 
+        transport_root = root / "runtime-transport"
+        transport_root.mkdir(mode=0o700)
+        os.chmod(transport_root, 0o700)
+
+        operation_root = root / "runtime-operations"
+        operation_root.mkdir(mode=0o700)
+        os.chmod(operation_root, 0o700)
+
+        operation_control_root = root / "runtime-control"
+        operation_control_root.mkdir(mode=0o700)
+        os.chmod(operation_control_root, 0o700)
+        for name in ("processed", "rejected"):
+            child = operation_control_root / name
+            child.mkdir(mode=0o700)
+            os.chmod(child, 0o700)
+
         recovery_root = root / "recovery"
         layout = recovery.RecoveryLayout(
             install_root=install,
@@ -149,6 +174,9 @@ class OperationControlRecoveryTests(unittest.TestCase):
             config_dir=config_dir,
             bootstrap_root=bootstrap_root,
             recovery_root=recovery_root,
+            transport_root=transport_root,
+            operation_root=operation_root,
+            operation_control_root=operation_control_root,
             selector=root / "unused-selector",
             deployment_state_root=root / "unused-deployment",
             mutation_gate_root=root / "unused-gate",
@@ -185,6 +213,14 @@ class OperationControlRecoveryTests(unittest.TestCase):
             self.assertFalse(value["persistent_mutations_performed"])
             self.assertEqual(value["credential"], "PRESENT")
             self.assertEqual(value["bootstrap_transaction"], "PRESENT")
+            self.assertEqual(
+                value["runtime_state"],
+                {
+                    "transport_root": "EXACT",
+                    "operation_root": "EXACT",
+                    "operation_control_root": "EXACT",
+                },
+            )
             self.assertFalse(layout.recovery_root.exists())
 
     @mock.patch.object(recovery, "_require_root", return_value=None)
@@ -209,6 +245,11 @@ class OperationControlRecoveryTests(unittest.TestCase):
             self.assertFalse(layout.control_current.exists())
             self.assertFalse(layout.config_dir.exists())
             self.assertFalse(layout.bootstrap_root.exists())
+            self.assertFalse(layout.transport_root.exists())
+            self.assertFalse(layout.operation_root.exists())
+            self.assertFalse(layout.operation_control_root.exists())
+            self.assertTrue(value["runtime_state_clean"])
+            self.assertTrue(value["runtime_state_directories_touched"])
             for name in recovery.UNIT_NAMES:
                 self.assertFalse((layout.unit_dir / name).exists())
 
@@ -264,6 +305,62 @@ class OperationControlRecoveryTests(unittest.TestCase):
             )
             self.assertTrue(value["sidecar_clean"])
             self.assertTrue(completed.is_file())
+
+    @mock.patch.object(recovery, "_require_root", return_value=None)
+    def test_runtime_state_foreign_material_blocks_before_prepared_authority(
+        self,
+        _require_root,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            layout, _ = self.layout(Path(td))
+            foreign = layout.transport_root / "unexpected"
+            foreign.write_text("foreign", encoding="utf-8")
+            os.chmod(foreign, 0o600)
+
+            with self.assertRaisesRegex(
+                recovery.OperationControlRecoveryError,
+                "transport runtime root contains unexpected material",
+            ):
+                recovery.cleanup_rejected_install(
+                    self.spec(),
+                    layout,
+                    systemctl=FakeSystemctl(),
+                    boundary_probe=self.boundary,
+                    release_probe=self.release_probe,
+                )
+            self.assertFalse(layout.recovery_root.exists())
+            self.assertTrue(foreign.is_file())
+
+    @mock.patch.object(recovery, "_require_root", return_value=None)
+    def test_runtime_cleanup_resumes_from_exact_partial_control_tree(
+        self,
+        _require_root,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            layout, _ = self.layout(Path(td))
+            ctl = FakeSystemctl()
+            ctl.fail_disable_once = recovery.UNIT_NAMES[0]
+
+            with self.assertRaises(recovery.OperationControlRecoveryError):
+                recovery.cleanup_rejected_install(
+                    self.spec(),
+                    layout,
+                    systemctl=ctl,
+                    boundary_probe=self.boundary,
+                    release_probe=self.release_probe,
+                )
+
+            (layout.operation_control_root / "processed").rmdir()
+
+            value = recovery.cleanup_rejected_install(
+                self.spec(),
+                layout,
+                systemctl=ctl,
+                boundary_probe=self.boundary,
+                release_probe=self.release_probe,
+            )
+            self.assertTrue(value["runtime_state_clean"])
+            self.assertFalse(layout.operation_control_root.exists())
 
     @mock.patch.object(recovery, "_require_root", return_value=None)
     def test_completed_authority_is_exactly_bound_to_prepared_record(
