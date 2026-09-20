@@ -144,6 +144,30 @@ class OperationAgentTests(unittest.TestCase):
 
                     self.assertFalse((operation_root / self.REQUEST_ID).exists())
 
+    def test_restart_reclaims_prestate_initialization_orphan_and_executes_once(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            agent, operation_root, _ = self.layout(root)
+            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
+            raw = canonical(self.request())
+            request_path.write_bytes(raw)
+            os.chmod(request_path, 0o600)
+
+            orphan = operation_root / self.REQUEST_ID
+            orphan.mkdir(mode=0o700)
+            staging = orphan / (".state.json.new-999-" + ("a" * 32))
+            staging.write_bytes(b"partial")
+            os.chmod(staging, 0o600)
+
+            result = agent.process_pending_once()
+
+            self.assertEqual(result["disposition"], "COMPLETED")
+            self.assertEqual(result["status"]["execution_state"], "SUCCEEDED")
+            self.assertTrue(
+                (operation_root / self.REQUEST_ID / "result.json").exists()
+            )
+
     def test_restart_marks_nonterminal_existing_operation_interrupted_without_rerun(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

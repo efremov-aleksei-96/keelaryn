@@ -7,6 +7,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from hashlib import sha256
 from pathlib import Path
 
@@ -109,6 +110,39 @@ class GateProgressTests(unittest.TestCase):
         )
         self.assertEqual(events[-1]["event"], "SOURCE_VERIFY_COMPLETE")
         self.assertEqual(events[-1]["item_total"], 1)
+
+
+    def test_append_retries_short_writes_until_complete_record(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            path = root / "progress.jsonl"
+            stream = io.StringIO()
+            original_write = os.write
+            calls = {"count": 0}
+
+            def short_write(fd, raw):
+                calls["count"] += 1
+                if len(raw) > 1:
+                    raw = raw[: max(1, len(raw) // 2)]
+                return original_write(fd, raw)
+
+            with mock.patch("keelaryn_core.gate_progress.os.write", side_effect=short_write):
+                journal = GateProgressJournal(
+                    path,
+                    operation="TEST",
+                    heartbeat_seconds=60,
+                    stream=stream,
+                )
+                journal.finish("PASS", phase="COMPLETE")
+
+            self.assertGreater(calls["count"], 2)
+            records = [
+                json.loads(line)
+                for line in path.read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertGreaterEqual(len(records), 2)
+            self.assertEqual(records[-1]["event"], "PASS")
 
 
 if __name__ == "__main__":

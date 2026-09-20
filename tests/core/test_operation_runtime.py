@@ -170,6 +170,83 @@ class OperationRuntimeTests(unittest.TestCase):
             self.assertEqual(status["next_action"], "READ_ONLY_RECONCILE")
             self.assertFalse(status["terminal"])
 
+    def test_initialization_orphan_is_reclaimed_only_before_state_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            runtime = self.runtime(root)
+            oid = "2" * 32
+            directory = root / oid
+            directory.mkdir(mode=0o700)
+            staging = directory / ".state.json.new-123-" + Path("a")
+            staging = directory / (".state.json.new-123-" + ("a" * 32))
+            staging.write_bytes(b"partial")
+            os.chmod(staging, 0o600)
+
+            self.assertTrue(runtime.recover_initialization(oid))
+            self.assertFalse(directory.exists())
+
+            state = runtime.create(
+                operation="READ_ONLY_TEST",
+                source_commit="2" * 40,
+                mutation_capable=False,
+                timeout_seconds=60,
+                operation_id=oid,
+            )
+            self.assertEqual(state["execution_state"], "CREATED")
+            self.assertFalse(runtime.recover_initialization(oid))
+
+    def test_initialization_recovery_rejects_unexpected_orphan_material(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            runtime = self.runtime(root)
+            oid = "3" * 32
+            directory = root / oid
+            directory.mkdir(mode=0o700)
+            unexpected = directory / "unexpected"
+            unexpected.write_bytes(b"x")
+            os.chmod(unexpected, 0o600)
+
+            with self.assertRaisesRegex(
+                OperationRuntimeError,
+                "unexpected material",
+            ):
+                runtime.recover_initialization(oid)
+
+            self.assertTrue(directory.exists())
+            self.assertTrue(unexpected.exists())
+
+    def test_torn_trailing_progress_fragment_does_not_poison_status(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            runtime = self.runtime(root)
+            state = runtime.create(
+                operation="READ_ONLY_TEST",
+                source_commit="4" * 40,
+                mutation_capable=False,
+                timeout_seconds=60,
+                operation_id="4" * 32,
+            )
+            runtime.start(state["operation_id"])
+            progress_path = root / state["operation_id"] / "progress.jsonl"
+            valid = {
+                "schema": "keelaryn.gate-progress.v1",
+                "operation": "READ_ONLY_TEST",
+                "timestamp_utc": "2027-01-15T08:00:00Z",
+            }
+            progress_path.write_bytes(
+                json.dumps(valid, separators=(",", ":")).encode("utf-8")
+                + b"\n{\"schema\":"
+            )
+            os.chmod(progress_path, 0o600)
+
+            observed = runtime.status(state["operation_id"])
+
+            self.assertEqual(observed["execution_state"], "RUNNING")
+            self.assertEqual(observed["observed_state"], "RUNNING")
+
     def test_terminal_result_recovers_state_after_post_result_crash(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

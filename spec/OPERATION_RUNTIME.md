@@ -65,13 +65,16 @@ finish fails closed.
 
 New immutable runtime authority files are staged privately and become visible at their
 final path only after their complete bytes are fsynced; a crash cannot expose a partially
-written `result.json` as valid terminal authority.
+written `result.json` as valid terminal authority. If a crash happens even earlier,
+after the operation directory is created but before `state.json` becomes visible, the
+agent may reclaim that directory only when it contains no authority and only recognized
+private state-staging files. Any other material makes initialization recovery fail closed.
 
 ## Progress and heartbeat
 
 Operation Runtime composes the existing sanitized `GateProgressJournal`.
 
-The journal is append-only and emits heartbeat records while work is running. `keelaryn-operation status` combines durable state with the newest progress timestamp, while `keelaryn-operation watch` provides a stable UI for observing progress without controlling the worker process.
+The journal is append-only and emits heartbeat records while work is running. Appends retry short writes and fsync their bytes. A crash-torn final fragment without a newline is ignored by status recovery, while a newline-terminated invalid record remains a fail-closed integrity error. `keelaryn-operation status` combines durable state with the newest complete progress timestamp, while `keelaryn-operation watch` provides a stable UI for observing progress without controlling the worker process.
 
 The viewer is deliberately separate from the worker. Closing the viewer must not terminate the operation.
 
@@ -136,7 +139,7 @@ The GitHub credential is a dedicated fine-grained token limited to repository me
 
 The transport status channel is non-authoritative. The network-isolated privileged agent writes only sanitized relay snapshots to the transport outbox. Remote status recovery accepts only canonical relay payloads from the exact configured status-publisher actor and exact source commit; an arbitrary public issue commenter cannot be adopted as the transport's publication identity. GitHub status comments can be lost or delayed without changing private Operation Runtime, Hub selector, release-switch or mutation-gate authority.
 
-Requests are archived exactly once by the agent. Invalid or conflicting replay requests are quarantined as rejected rather than causing a restart/retry loop. Re-delivery of the same exact request ID resolves to the existing durable operation and cannot repeat an already-created mutation. If the agent restarts with an existing nonterminal operation, it never re-executes the handler: the operation is terminalized as `INTERRUPTED`; a commit-ambiguous mutation boundary becomes `RECOVERY_REQUIRED` and requires read-only reconciliation.
+Request archive publication and inbox deletion are directory-fsynced on POSIX so a crash does not silently lose the handoff boundary. Requests are archived exactly once by the agent. Invalid or conflicting replay requests are quarantined as rejected rather than causing a restart/retry loop. Re-delivery of the same exact request ID resolves to the existing durable operation and cannot repeat an already-created mutation. If the agent restarts with an existing nonterminal operation, it never re-executes the handler: the operation is terminalized as `INTERRUPTED`; a commit-ambiguous mutation boundary becomes `RECOVERY_REQUIRED` and requires read-only reconciliation.
 
 A GitHub status comment is observability evidence, never permission to repeat a mutation. Ambiguous mutation boundaries continue to require `READ_ONLY_RECONCILE`.
 

@@ -171,12 +171,15 @@ The active first priority is the durable remote-autonomous operation control pla
 
 The next boundary is successor operation-control development and coherent CI after r0002 rejection; no production sidecar action is currently authorized. After a new candidate is frozen and separately qualified, the one-time sidecar bootstrap may resume. The control plane must use its own `/opt/keelaryn/control-current` selector so the currently PREPARED Hub cutover remains bound to production source e63f and `/opt/keelaryn/current` is not changed merely to install remote-control infrastructure.
 
-Successor development after the r0002 rejection also hardens crash/replay recovery:
+Successor development after the r0002 rejection also hardens durable initialization and crash/replay recovery:
 immutable terminal result authority can repair a state/handoff publication gap without
 rerunning work; an agent restart terminalizes any surviving nonterminal operation as
 `INTERRUPTED` (or `RECOVERY_REQUIRED` after an ambiguous mutation boundary); and
 conflicting reuse of an already-processed request ID is quarantined rather than causing
-a restart loop. These bytes remain unqualified development until exact-head CI passes.
+a restart loop. Pre-state initialization orphans can be reclaimed only when no durable
+authority exists and only recognized private staging files are present; request archive
+directory boundaries are fsynced; and crash-torn trailing progress fragments no longer
+poison status recovery. These bytes remain unqualified development until exact-head CI passes.
 
 The overall objective remains a durable **Operation Runtime v1** so long-running and mutation-capable operations do not depend on ChatGPT streaming, PowerShell, SSH session lifetime or one conversation's memory.
 

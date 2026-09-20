@@ -114,14 +114,13 @@ def _canonical(value: Mapping[str, Any]) -> bytes:
 
 
 def _fsync_dir(path: Path) -> None:
+    if os.name != "posix":
+        return
+    fd = os.open(path, os.O_RDONLY)
     try:
-        fd = os.open(path, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-    except OSError:
-        pass
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
@@ -519,6 +518,37 @@ class OperationRuntime:
             (operation_id + "\n").encode("ascii"),
         )
 
+    def recover_initialization(self, operation_id: str) -> bool:
+        oid = _operation_id(operation_id)
+        directory = self._directory(oid)
+        if not directory.exists() and not directory.is_symlink():
+            return False
+
+        directory = _private_dir(directory, "operation directory")
+        state_path = self._state_path(oid)
+        if state_path.exists() or state_path.is_symlink():
+            return False
+
+        entries = list(directory.iterdir())
+        prefix = ".state.json.new-"
+        for path in entries:
+            if (
+                path.is_symlink()
+                or not path.is_file()
+                or not path.name.startswith(prefix)
+            ):
+                raise OperationRuntimeError(
+                    "operation initialization orphan contains unexpected material"
+                )
+            _private_file(path, "operation initialization staging file")
+
+        for path in entries:
+            path.unlink()
+        _fsync_dir(directory)
+        directory.rmdir()
+        _fsync_dir(self.root)
+        return True
+
     def resolve_operation_id(self, value: str) -> str:
         if value != "latest":
             return _operation_id(value)
@@ -661,31 +691,54 @@ class OperationRuntime:
         self._write_state(state)
         return result
 
-    def _latest_progress(self, operation_id: str) -> dict[str, Any] | None:
+    def _latest_progress(
+        self,
+        operation_id: str,
+        *,
+        expected_operation: str,
+    ) -> dict[str, Any] | None:
         path = self._progress_path(operation_id)
         if not path.exists() and not path.is_symlink():
             return None
         _private_file(path, "operation progress journal")
         try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except (OSError, UnicodeDecodeError) as exc:
+            raw = path.read_bytes()
+        except OSError as exc:
             raise OperationRuntimeError("operation progress journal is unreadable") from exc
-        if not lines:
+        if not raw:
             return None
+
+        records = raw.split(b"\n")
+        if raw.endswith(b"\n"):
+            complete = records[:-1]
+        else:
+            # A process crash may tear only the final append. Ignore that
+            # unterminated fragment, never a newline-terminated invalid record.
+            complete = records[:-1]
+        if not complete:
+            return None
+
         try:
-            value = json.loads(lines[-1])
-        except json.JSONDecodeError as exc:
+            value = json.loads(complete[-1].decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise OperationRuntimeError(
-                "operation progress journal has invalid final record"
+                "operation progress journal has invalid final complete record"
             ) from exc
-        if not isinstance(value, dict) or value.get("schema") != "keelaryn.gate-progress.v1":
-            raise OperationRuntimeError("operation progress journal schema mismatch")
+        if (
+            not isinstance(value, dict)
+            or value.get("schema") != "keelaryn.gate-progress.v1"
+            or value.get("operation") != expected_operation
+        ):
+            raise OperationRuntimeError("operation progress journal identity mismatch")
         return value
 
     def status(self, operation_id: str = "latest") -> dict[str, Any]:
         oid = self.resolve_operation_id(operation_id)
         state = self._read_state(oid)
-        progress = self._latest_progress(oid)
+        progress = self._latest_progress(
+            oid,
+            expected_operation=state["operation"],
+        )
 
         reference = state["updated_at_utc"]
         if progress is not None:

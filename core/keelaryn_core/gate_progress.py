@@ -64,14 +64,13 @@ def _utc_now() -> str:
 
 
 def _fsync_dir(path: Path) -> None:
+    if os.name != "posix":
+        return
+    fd = os.open(path, os.O_RDONLY)
     try:
-        fd = os.open(path, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-    except OSError:
-        pass
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 class GateProgressJournal:
@@ -185,7 +184,15 @@ class GateProgressJournal:
                     raise GateProgressError(
                         "progress journal descriptor must be owner-controlled mode 0600"
                     )
-            os.write(fd, raw + b"\n")
+            payload = raw + b"\n"
+            offset = 0
+            while offset < len(payload):
+                written = os.write(fd, payload[offset:])
+                if written <= 0:
+                    raise GateProgressError(
+                        "progress journal append made no forward progress"
+                    )
+                offset += written
             os.fsync(fd)
         finally:
             os.close(fd)

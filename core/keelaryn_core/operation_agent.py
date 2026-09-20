@@ -82,6 +82,16 @@ def _relay_dir(path: Path, label: str) -> Path:
     return path
 
 
+def _fsync_dir(path: Path) -> None:
+    if os.name != "posix":
+        return
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _private_lock(path: Path) -> Path:
     if not path.exists():
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -318,8 +328,15 @@ class OperationAgent:
             handler = self._validate_request(request)
 
             operation_dir = self.runtime._directory(request.request_id)
+            processed = self.processed / request_path.name
+            if (
+                (operation_dir.exists() or operation_dir.is_symlink())
+                and not (processed.exists() or processed.is_symlink())
+                and self.runtime.recover_initialization(request.request_id)
+            ):
+                operation_dir = self.runtime._directory(request.request_id)
+
             if operation_dir.exists() or operation_dir.is_symlink():
-                processed = self.processed / request_path.name
                 if processed.exists() or processed.is_symlink():
                     if (
                         processed.is_symlink()
@@ -404,6 +421,7 @@ class OperationAgent:
         if target.exists() or target.is_symlink():
             if not target.is_symlink() and target.is_file() and target.read_bytes() == raw:
                 request_path.unlink()
+                _fsync_dir(request_path.parent)
                 return
             if not conflict_suffix:
                 raise OperationRuntimeError(
@@ -417,6 +435,7 @@ class OperationAgent:
                         "rejected operation request archive conflicts with existing identity"
                     )
                 request_path.unlink()
+                _fsync_dir(request_path.parent)
                 return
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
         if hasattr(os, "O_NOFOLLOW"):
@@ -430,7 +449,9 @@ class OperationAgent:
                 os.fsync(stream.fileno())
         finally:
             os.close(fd)
+        _fsync_dir(destination)
         request_path.unlink()
+        _fsync_dir(request_path.parent)
 
     def process_pending_once(self) -> dict[str, object] | None:
         requests = sorted(
