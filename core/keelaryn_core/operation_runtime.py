@@ -21,7 +21,7 @@ _OPERATION_ID = re.compile(r"^[0-9a-f]{32}$")
 _TOKEN = re.compile(r"^[A-Z][A-Z0-9_:-]{0,63}$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
 _STATE_INIT_STAGING = re.compile(
-    r"^\\.state\\.json\\.new-[1-9][0-9]*-[0-9a-f]{32}$"
+    r"^\.state\.json\.new-[1-9][0-9]*-[0-9a-f]{32}$"
 )
 
 _EXECUTION_STATES = {

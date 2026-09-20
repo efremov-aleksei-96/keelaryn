@@ -184,9 +184,14 @@ transaction-directory identity before any credential/unit publication, so a SIGK
 be resumed only under the exact source/payload/configuration/credential hash; partial
 regular files are repairable only while operation-control units are inactive, an exact
 completed receipt replay is read-only, and ambiguous material remains fail-closed.
-The previous 620-test run failure was a regression-harness Path-concatenation typo, not a
-product failure; that typo is removed in the same successor hardening. These bytes remain
-unqualified development until exact-head CI passes.
+The earlier 620-test run failure was a regression-harness Path-concatenation typo, not a
+product failure; that typo was removed. Successor CI run `35534113522` then executed 622
+deterministic tests: the new bootstrap crash-recovery regression passed, while exactly two
+runtime/agent initialization-recovery tests failed from one newly introduced recognizer
+defect — the raw-string staging regexp used doubled backslashes and therefore rejected the
+legitimate `.state.json.new-<pid>-<32hex>` form. No other deterministic failure was reported.
+The recognizer escape is corrected in the successor commit; bytes remain unqualified until
+that exact HEAD completes coherent CI PASS.
 
 The overall objective remains a durable **Operation Runtime v1** so long-running and mutation-capable operations do not depend on ChatGPT streaming, PowerShell, SSH session lifetime or one conversation's memory.
 
