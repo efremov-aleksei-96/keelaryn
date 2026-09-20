@@ -45,18 +45,19 @@ Do not rerun definitive r0072 target qualification.
 
 ## Frozen Operation Control candidate
 
-- Candidate: `operation-control-r0001-20260920-01`
-- Frozen source commit: `98e76ffdcdbac09610f8b9a2b542f7e61e7dba61`
-- Frozen source tree: `eabd2a98e9c2d42e81e7f5c04e3f2b90cf900e6a`
-- Deterministic VPS payload SHA-256: `b9f4022ddca38435e377ed08662d6cc7930655c828b861cdca980ba87f948c4b`
-- Payload size: `340331`
+- Candidate: `operation-control-r0002-20260920-01`
+- Frozen source commit: `a368cc85e799842a00c5c1c496614437aa7064f2`
+- Frozen source tree: `7fc44142c83a4f9af3079ee9f801dfa232f38f98`
+- Deterministic VPS payload SHA-256: `47f99b459a8582ff9bf20756ff4b088d083f66af5cdaf34b7ead4f7c8dafbb3b`
+- Payload size: `342556`
 - Payload file count: `188`
-- Exact-head Core development validation: PASS, run `35518260534`
-- Candidate receipt: `docs/candidates/operation-control-r0001-20260920-01.json`
+- Exact-head Core development validation: **PASS**, run `35530177965` (609 deterministic tests plus all payload/surface/rehearsal steps)
+- Development payload artifact: `10611112366`, ZIP SHA-256 `b130e30302a78492ba958db678512cdd58c83797ca30aa427e4569cadadf0dfa`
+- Candidate receipt: `docs/candidates/operation-control-r0002-20260920-01.json`
 - State: **FROZEN_NOT_PRODUCTION_QUALIFIED**
 - GitHub operation channel: Issue #65
 
-Candidate bytes are immutable. Any later product/control-plane byte change requires a new candidate identity. Development CI evidence does not authorize production bootstrap.
+Candidate bytes are immutable from this issuance point. Any later product/control-plane byte change requires a new candidate identity. Development CI evidence does not authorize production bootstrap. The rejected r0001 release already materialized on the VPS remains historical provenance only and must not be reused as r0002.
 
 ## Operation Control gate r0003
 
@@ -67,7 +68,7 @@ Candidate bytes are immutable. Any later product/control-plane byte change requi
 - GitHub gate run: `35519565229` — **PASS**
 - Gate artifact: `10608062424`, ZIP SHA-256 `b0fbd41fbe1160e6bd1acecc0e807745f988117531297c12431136f6b8a6b825`
 - Evidence: `docs/candidates/operation-control-r0001-20260920-01.gate-r0003-evidence.json`
-- State: **VPS_QUALIFY_PASS_AWAITING_BOOTSTRAP**
+- Historical state before rejection: **VPS_QUALIFY_PASS**; candidate subsequently **REJECTED_BEFORE_BOOTSTRAP**
 - Production reconcile evidence: `docs/candidates/operation-control-r0001-20260920-01.vps-reconcile-r0003.json`
 - Production materialization evidence: `docs/candidates/operation-control-r0001-20260920-01.vps-materialize-r0003.json`
 - Production qualification evidence: `docs/candidates/operation-control-r0001-20260920-01.vps-qualify-r0003.json`
@@ -78,7 +79,7 @@ Candidate bytes are immutable. Any later product/control-plane byte change requi
 - Qualification mutations: none; production current mutation: false; Hub cutover mutation: false; Drive mutation: false
 - Qualification scope: **initial sidecar bootstrap only**
 
-The frozen control-plane candidate is now production-qualified for its initial sidecar bootstrap boundary. This does not authorize production Hub cutover or any Drive mutation. Next permitted action is exactly one sidecar `bootstrap` transaction, followed by immediate read-only reconciliation and end-to-end `RUNTIME_SELFTEST` through GitHub Issue #65.
+This r0001 qualification evidence is historical only. Post-qualification review rejected r0001 before bootstrap, so its prior qualification does not authorize any bootstrap action. Current work proceeds only from frozen r0002 after a new r0002-specific gate/production qualification cycle.
 
 ## Operation Control r0001 rejection
 
@@ -95,9 +96,11 @@ nominal preflight to create private directories. No r0001 bootstrap was attempte
 the last authoritative VPS observation.
 
 Successor development fixes rollback accounting/verification, makes preflight truly
-read-only, removes transaction-created private directories on failure, and decouples
-agent liveness from transport with `Wants=`. Any changed product bytes require a new
-r0002 candidate after coherent development CI PASS.
+read-only, uses exclusive no-overwrite publication, pins transaction-owned objects with
+Linux `O_PATH|O_NOFOLLOW` descriptors through commit/rollback, fails closed on ambiguous
+directory ownership, and decouples agent liveness from transport with `Wants=`.
+Those successor bytes passed coherent exact-head development CI and are now frozen as
+`operation-control-r0002-20260920-01`.
 
 ## Current production Hub-cutover transaction
 
