@@ -80,6 +80,9 @@ jobs:
       - name: Smoke allowlisted Operation Agent CLI surface
         run: PYTHONPATH=core python3 -B -m keelaryn_core.operation_agent --help
 
+      - name: Smoke GitHub operation transport CLI surface
+        run: PYTHONPATH=core python3 -B -m keelaryn_core.operation_transport --help
+
       - name: Run disposable Hub-selector cutover rehearsal
         env:
           KEELARYN_HUB_CUTOVER_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_HUB_CUTOVER_REHEARSAL_EVIDENCE.json
@@ -168,6 +171,7 @@ jobs:
           install -m 0644 "$release/deploy/zero-based-vps/keelaryn-drive.service" "$unit_dir/keelaryn-drive.service"
           install -m 0644 "$release/deploy/zero-based-vps/keelaryn-drive-bootstrap.service" "$unit_dir/keelaryn-drive-bootstrap.service"
           install -m 0644 "$release/deploy/zero-based-vps/keelaryn-operation-agent.service" "$unit_dir/keelaryn-operation-agent.service"
+          install -m 0644 "$release/deploy/zero-based-vps/keelaryn-operation-transport.service" "$unit_dir/keelaryn-operation-transport.service"
           PYTHONDONTWRITEBYTECODE=1 python3 -B \
             "$release/deploy/zero-based-vps/target_host_validate.py" \
             --release "$release" \
@@ -208,6 +212,7 @@ jobs:
               "deployment_state_normalize",
               "operation_runtime",
               "operation_agent",
+              "operation_transport",
           ]
           if target.get("schema") != "keelaryn.zero-vps-target-host-validation.v3":
               raise SystemExit("target-host validation schema mismatch")
@@ -248,6 +253,7 @@ jobs:
                   "deployment_state_normalizer_cli_verified": True,
                   "operation_runtime_cli_verified": True,
                   "operation_agent_cli_verified": True,
+                  "operation_transport_cli_verified": True,
                   "target_host_validator_verified": True,
                   "target_host_config_validator_verified": True,
                   "mutation_gate_validator_verified": True,

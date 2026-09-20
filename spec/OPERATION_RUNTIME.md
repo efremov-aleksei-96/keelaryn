@@ -108,3 +108,20 @@ The request ID is also the Operation Runtime operation ID. Re-delivery of the sa
 The initial allowlist contains only `RUNTIME_SELFTEST`. Production mutations are deliberately impossible until an explicit handler and approval verifier are qualified.
 
 The systemd agent service is detached from SSH/chat, has no network access, no Linux capabilities, and may write only the private operation/control roots. A future network transport must be a separate less-privileged component that can deliver strict request files but cannot execute arbitrary commands or gain the dispatcher privileges.
+
+
+## GitHub Issues transport
+
+The first remote transport uses one dedicated GitHub issue as a narrow queue/status channel. It is deliberately not a repository-content writer and not a self-hosted Actions runner.
+
+The VPS transport runs separately from the privileged agent as the unprivileged `keelaryn` account. It can reach GitHub over HTTPS but is sandboxed away from `/etc/keelaryn`, the private Operation Runtime authority, migration state, mutation gate and Hub credentials. It writes only `/var/lib/keelaryn-operation-transport`.
+
+Requests are accepted only from an explicit GitHub actor allowlist, require exact `KEELARYN_OPERATION_REQUEST_V1` framing and strict operation-request JSON, and remain bound to the exact materialized source commit. There is no shell command, argv list, arbitrary path or free-form executable payload.
+
+The GitHub credential is a dedicated fine-grained token limited to repository metadata read and Issues read/write. It must not receive Contents, Actions, Administration, Secrets or repository-management write permission.
+
+The transport status channel is non-authoritative. The network-isolated privileged agent writes only sanitized relay snapshots to the transport outbox. GitHub status comments can be lost or delayed without changing private Operation Runtime, Hub selector, release-switch or mutation-gate authority.
+
+Requests are archived exactly once by the agent. Invalid requests are quarantined as rejected rather than causing a restart/retry loop. Re-delivery of the same request ID resolves to the existing durable operation and cannot repeat an already-created mutation.
+
+A GitHub status comment is observability evidence, never permission to repeat a mutation. Ambiguous mutation boundaries continue to require `READ_ONLY_RECONCILE`.

@@ -4,6 +4,7 @@ import argparse
 import fcntl
 import json
 import os
+import re
 import stat
 import sys
 import time
@@ -17,8 +18,11 @@ from .operation_runtime import OperationRuntime, OperationRuntimeError, Operatio
 
 
 AGENT_SCHEMA = "keelaryn.operation-agent.v1"
+RELAY_SCHEMA = "keelaryn.operation-relay-status.v1"
 LOCK_NAME = "LOCK"
-INBOX_NAME = "inbox"
+PROCESSED_NAME = "processed"
+REJECTED_NAME = "rejected"
+_REQUEST_FILE = re.compile(r"^[0-9a-f]{32}\.json$")
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,19 @@ def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
     return path
 
 
+def _relay_dir(path: Path, label: str) -> Path:
+    path = path.absolute()
+    try:
+        info = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise OperationRuntimeError(f"{label} cannot be inspected") from exc
+    if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
+        raise OperationRuntimeError(f"{label} must be one real directory")
+    if stat.S_IMODE(info.st_mode) != 0o700:
+        raise OperationRuntimeError(f"{label} must have mode 0700")
+    return path
+
+
 def _private_lock(path: Path) -> Path:
     if not path.exists():
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -87,6 +104,40 @@ def _private_lock(path: Path) -> Path:
     return path
 
 
+def _atomic_relay(path: Path, value: dict[str, object]) -> None:
+    raw = (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+    temp = path.parent / f".{path.name}.tmp-{os.getpid()}-{time.monotonic_ns()}"
+    try:
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        try:
+            os.fchmod(fd, 0o644)
+            with os.fdopen(fd, "wb", closefd=False) as stream:
+                stream.write(raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(fd)
+        os.replace(temp, path)
+        try:
+            directory_fd = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except OSError:
+            pass
+    finally:
+        temp.unlink(missing_ok=True)
+
+
 def _materialized_source_commit() -> str:
     release = Path(__file__).resolve().parents[2]
     source = release / "SOURCE_COMMIT"
@@ -106,34 +157,75 @@ def _materialized_source_commit() -> str:
     return value
 
 
-class OperationAgent:
-    """Serialized allowlisted local operation dispatcher.
+class RelayProgressStream:
+    def __init__(self, outbox: Path, operation_id: str, source_commit: str) -> None:
+        self.outbox = outbox
+        self.operation_id = operation_id
+        self.source_commit = source_commit
+        self.buffer = ""
 
-    v1 deliberately has no network transport and no arbitrary command execution.
-    A later unprivileged transport may place strict request files into the private
-    inbox; this privileged dispatcher trusts only schema-validated allowlisted
-    requests bound to its exact source commit.
-    """
+    def write(self, data: str) -> int:
+        self.buffer += data
+        while "\n" in self.buffer:
+            line, self.buffer = self.buffer.split("\n", 1)
+            if not line.startswith("GATE_PROGRESS "):
+                continue
+            try:
+                value = json.loads(line[len("GATE_PROGRESS "):])
+                if value.get("schema") != "keelaryn.gate-progress.v1":
+                    continue
+                relay = {
+                    "schema": RELAY_SCHEMA,
+                    "operation_id": self.operation_id,
+                    "operation": value["operation"],
+                    "source_commit": self.source_commit,
+                    "execution_state": "RUNNING",
+                    "observed_state": "RUNNING",
+                    "mutation_state": value["mutation_state"],
+                    "phase": value["phase"],
+                    "event": value["event"],
+                    "sequence": value["sequence"],
+                    "timestamp_utc": value["timestamp_utc"],
+                    "next_action": "WAIT",
+                    "terminal": False,
+                    "outcome": None,
+                }
+                _atomic_relay(self.outbox / f"{self.operation_id}.json", relay)
+            except Exception:
+                pass
+        return len(data)
+
+    def flush(self) -> None:
+        return None
+
+
+class OperationAgent:
+    """Serialized allowlisted dispatcher with a non-authoritative relay boundary."""
 
     def __init__(
         self,
         operation_root: str | Path,
         control_root: str | Path,
+        transport_root: str | Path,
         *,
         source_commit: str,
         handlers: dict[str, OperationHandler] | None = None,
     ) -> None:
         self.runtime = OperationRuntime(operation_root)
-        self.control_root = _private_dir(
-            Path(control_root),
-            "operation control root",
+        self.control_root = _private_dir(Path(control_root), "operation control root", create=True)
+        self.processed = _private_dir(
+            self.control_root / PROCESSED_NAME,
+            "processed operation request archive",
             create=True,
         )
-        self.inbox = _private_dir(
-            self.control_root / INBOX_NAME,
-            "operation inbox",
+        self.rejected = _private_dir(
+            self.control_root / REJECTED_NAME,
+            "rejected operation request archive",
             create=True,
         )
+        transport = _relay_dir(Path(transport_root), "operation transport root")
+        self.inbox = _relay_dir(transport / "inbox", "operation transport inbox")
+        self.outbox = _relay_dir(transport / "outbox", "operation transport outbox")
         self.lock_path = _private_lock(self.control_root / LOCK_NAME)
         self.source_commit = source_commit
         if (
@@ -187,13 +279,33 @@ class OperationAgent:
             )
         return handler
 
+    def _publish_final(self, request_id: str, *, outcome: str | None = None) -> None:
+        status = self.runtime.status(request_id)
+        relay = {
+            "schema": RELAY_SCHEMA,
+            "operation_id": status["operation_id"],
+            "operation": status["operation"],
+            "source_commit": status["source_commit"],
+            "execution_state": status["execution_state"],
+            "observed_state": status["observed_state"],
+            "mutation_state": status["mutation_state"],
+            "phase": status["phase"],
+            "event": "TERMINAL" if status["terminal"] else "STATUS",
+            "sequence": 0,
+            "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "next_action": status["next_action"],
+            "terminal": status["terminal"],
+            "outcome": outcome,
+        }
+        _atomic_relay(self.outbox / f"{request_id}.json", relay)
+
     def process(self, request_path: str | Path) -> dict[str, object]:
         request_path = Path(request_path).absolute()
         if request_path.parent != self.inbox:
             raise OperationRuntimeError(
-                "operation request must be directly inside the private inbox"
+                "operation request must be directly inside the transport inbox"
             )
-        if request_path.name != request_path.stem + ".json":
+        if _REQUEST_FILE.fullmatch(request_path.name) is None:
             raise OperationRuntimeError("operation request filename is invalid")
 
         with self.locked():
@@ -207,6 +319,7 @@ class OperationAgent:
             operation_dir = self.runtime._directory(request.request_id)
             if operation_dir.exists() or operation_dir.is_symlink():
                 status = self.runtime.status(request.request_id)
+                self._publish_final(request.request_id)
                 return {
                     "schema": AGENT_SCHEMA,
                     "request_id": request.request_id,
@@ -222,14 +335,17 @@ class OperationAgent:
                 operation_id=request.request_id,
             )
 
+            relay = RelayProgressStream(self.outbox, request.request_id, self.source_commit)
             try:
                 with self.runtime.session(
                     request.request_id,
                     heartbeat_seconds=15.0,
+                    stream=relay,
                 ) as session:
                     handler.callback(session, request)
             except Exception:
                 status = self.runtime.status(request.request_id)
+                self._publish_final(request.request_id, outcome="FAIL")
                 return {
                     "schema": AGENT_SCHEMA,
                     "request_id": request.request_id,
@@ -237,28 +353,69 @@ class OperationAgent:
                     "status": status,
                 }
 
+            status = self.runtime.status(request.request_id)
+            self._publish_final(request.request_id, outcome="PASS")
             return {
                 "schema": AGENT_SCHEMA,
                 "request_id": request.request_id,
                 "disposition": "COMPLETED",
-                "status": self.runtime.status(request.request_id),
+                "status": status,
             }
+
+    def _archive(self, request_path: Path, destination: Path) -> None:
+        target = destination / request_path.name
+        raw = request_path.read_bytes()
+        if target.exists() or target.is_symlink():
+            if target.is_symlink() or not target.is_file() or target.read_bytes() != raw:
+                raise OperationRuntimeError(
+                    "operation request archive conflicts with existing identity"
+                )
+            request_path.unlink()
+            return
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        fd = os.open(target, flags, 0o600)
+        try:
+            os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "wb", closefd=False) as stream:
+                stream.write(raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(fd)
+        request_path.unlink()
 
     def process_pending_once(self) -> dict[str, object] | None:
         requests = sorted(
             path
             for path in self.inbox.iterdir()
-            if path.is_file() and not path.is_symlink() and path.suffix == ".json"
+            if path.is_file()
+            and not path.is_symlink()
+            and _REQUEST_FILE.fullmatch(path.name)
         )
         if not requests:
             return None
-        return self.process(requests[0])
+
+        request_path = requests[0]
+        try:
+            result = self.process(request_path)
+        except (OperationRuntimeError, OSError):
+            self._archive(request_path, self.rejected)
+            return {
+                "schema": AGENT_SCHEMA,
+                "disposition": "REJECTED",
+            }
+
+        self._archive(request_path, self.processed)
+        return result
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keelaryn-operation-agent")
     parser.add_argument("--operation-root", required=True, type=Path)
     parser.add_argument("--control-root", required=True, type=Path)
+    parser.add_argument("--transport-root", required=True, type=Path)
     parser.add_argument("--source-commit")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -277,6 +434,7 @@ def main(argv: list[str] | None = None) -> int:
         agent = OperationAgent(
             args.operation_root,
             args.control_root,
+            args.transport_root,
             source_commit=source_commit,
         )
 

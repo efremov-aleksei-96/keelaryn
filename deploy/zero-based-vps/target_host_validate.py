@@ -29,6 +29,7 @@ UNIT_NAMES = (
     "keelaryn-drive.service",
     "keelaryn-drive-bootstrap.service",
     "keelaryn-operation-agent.service",
+    "keelaryn-operation-transport.service",
 )
 CLI_SURFACES = (
     "drive_poller",
@@ -40,6 +41,7 @@ CLI_SURFACES = (
     "deployment_state_normalize",
     "operation_runtime",
     "operation_agent",
+    "operation_transport",
 )
 
 
@@ -248,6 +250,13 @@ def _cli_commands(release: Path) -> dict[str, list[str]]:
             "-B",
             "-m",
             "keelaryn_core.operation_agent",
+            "--help",
+        ],
+        "operation_transport": [
+            sys.executable,
+            "-B",
+            "-m",
+            "keelaryn_core.operation_transport",
             "--help",
         ],
     }

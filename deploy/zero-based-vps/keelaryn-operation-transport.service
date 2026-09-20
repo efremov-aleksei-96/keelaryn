@@ -1,31 +1,32 @@
 [Unit]
-Description=Keelaryn durable operation dispatcher
-Requires=keelaryn-operation-transport.service
-After=keelaryn-operation-transport.service
+Description=Keelaryn GitHub issue operation transport
+Wants=network-online.target
+After=network-online.target
 StartLimitIntervalSec=300
 StartLimitBurst=5
 
 [Service]
 Type=simple
-User=root
-Group=root
+User=keelaryn
+Group=keelaryn
 WorkingDirectory=/opt/keelaryn/current
+EnvironmentFile=/etc/keelaryn/github-operations.env
 Environment=PYTHONPATH=/opt/keelaryn/current/core
 Environment=PYTHONDONTWRITEBYTECODE=1
-StateDirectory=keelaryn/operations keelaryn/operation-control
+StateDirectory=keelaryn-operation-transport
 StateDirectoryMode=0700
 UMask=0077
-ExecStart=/usr/bin/python3 -B -m keelaryn_core.operation_agent --operation-root /var/lib/keelaryn/operations --control-root /var/lib/keelaryn/operation-control --transport-root /var/lib/keelaryn-operation-transport serve --poll-seconds 5
+ExecStart=/usr/bin/python3 -B -m keelaryn_core.operation_transport --root /var/lib/keelaryn-operation-transport serve --poll-seconds 10
 Restart=on-failure
-RestartSec=5s
+RestartSec=10s
 TimeoutStopSec=30s
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
-PrivateNetwork=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/keelaryn/operations /var/lib/keelaryn/operation-control /var/lib/keelaryn-operation-transport
+ReadWritePaths=/var/lib/keelaryn-operation-transport
+InaccessiblePaths=/etc/keelaryn /var/lib/keelaryn /root /home /run/keelaryn
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
@@ -33,13 +34,14 @@ ProtectKernelLogs=true
 ProtectClock=true
 ProtectHostname=true
 RestrictSUIDSGID=true
+RestrictNamespaces=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
 RestrictRealtime=true
 SystemCallArchitectures=native
 CapabilityBoundingSet=
 AmbientCapabilities=
-RestrictAddressFamilies=AF_UNIX
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ProtectProc=invisible
 ProcSubset=pid
 

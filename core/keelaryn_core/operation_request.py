@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import re
+import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from .operation_runtime import OperationRuntimeError
 
@@ -119,6 +120,11 @@ def read_operation_request(path: str | Path) -> OperationRequest:
     candidate = Path(path)
     if candidate.is_symlink() or not candidate.is_file():
         raise OperationRuntimeError("operation request must be one regular file")
+    info = candidate.stat(follow_symlinks=False)
+    if info.st_size < 2 or info.st_size > 16384:
+        raise OperationRuntimeError("operation request size is invalid")
+    if stat.S_IMODE(info.st_mode) != 0o600:
+        raise OperationRuntimeError("operation request must have mode 0600")
     return parse_operation_request(candidate.read_bytes())
 
 
