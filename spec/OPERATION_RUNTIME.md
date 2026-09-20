@@ -150,8 +150,10 @@ tracked for rollback. Service activation is considered attempted before invoking
 failure. Rollback disables every attempted unit through the same checked systemctl
 boundary, proves both operation-control units inactive, removes every transaction-created
 file/selector and empty private directory, reloads systemd, and proves production
-`/opt/keelaryn/current` unchanged. Any incomplete rollback is a distinct fail-closed
-error and must be reconciled before retry.
+`/opt/keelaryn/current` unchanged. Bootstrap file creation is exclusive/no-overwrite,
+and rollback is bound to the exact inode identities created by the transaction so a
+concurrent replacement is never deleted as if it were bootstrap-owned. Any incomplete
+rollback is a distinct fail-closed error and must be reconciled before retry.
 
 The root operation agent only `Wants=` the network transport and is ordered after it;
 transport failure or network loss must not make the durable agent itself unavailable.

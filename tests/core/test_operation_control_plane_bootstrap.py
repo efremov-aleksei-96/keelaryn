@@ -79,6 +79,39 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         self.assertIn(b"KEELARYN_GITHUB_OPERATIONS_ISSUE=65\n", raw)
         self.assertNotIn(b" ", raw)
 
+
+    def test_atomic_new_file_never_replaces_existing_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            target = root / "credential"
+            target.write_bytes(b"existing")
+            os.chmod(target, 0o600)
+
+            with self.assertRaisesRegex(
+                bootstrap.ControlPlaneBootstrapError,
+                "refuses to replace existing path",
+            ):
+                bootstrap._atomic_new_file(target, b"new", 0o600)
+
+            self.assertEqual(target.read_bytes(), b"existing")
+
+    def test_created_path_rollback_is_bound_to_exact_inode(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            target = root / "created"
+            identity = bootstrap._atomic_new_file(target, b"ours", 0o600)
+            target.unlink()
+            target.write_bytes(b"replacement")
+            os.chmod(target, 0o600)
+
+            with self.assertRaisesRegex(
+                bootstrap.ControlPlaneBootstrapError,
+                "identity changed before rollback",
+            ):
+                bootstrap._unlink_created(target, identity)
+
+            self.assertEqual(target.read_bytes(), b"replacement")
+
     @mock.patch.object(bootstrap, "verify_release_directory")
     @mock.patch.object(bootstrap.pwd, "getpwnam")
     def test_preflight_proves_production_current_without_mutating_it(

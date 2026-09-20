@@ -73,29 +73,52 @@ def _private_parent_state(path: Path) -> str:
     return "PRESENT"
 
 
-def _create_private_parent(path: Path) -> bool:
+def _path_identity(path: Path) -> tuple[int, int]:
+    info = path.stat(follow_symlinks=False)
+    return info.st_dev, info.st_ino
+
+
+def _create_private_parent(path: Path) -> tuple[int, int] | None:
     path = path.absolute()
     if _private_parent_state(path) == "PRESENT":
-        return False
+        return None
     parent = path.parent
     if parent.is_symlink() or not parent.is_dir():
         raise ControlPlaneBootstrapError("private parent container is invalid")
+
+    created = False
+    identity: tuple[int, int] | None = None
     try:
         path.mkdir(mode=0o700)
+        created = True
         os.chmod(path, 0o700)
         _private_parent(path)
-    except BaseException:
-        try:
-            path.rmdir()
-        except OSError:
-            pass
+        identity = _path_identity(path)
+    except BaseException as original:
+        if created:
+            try:
+                path.rmdir()
+            except OSError as exc:
+                raise ControlPlaneBootstrapError(
+                    "private parent creation rollback incomplete"
+                ) from original
         raise
-    return True
+    return identity
 
 
-def _atomic_file(path: Path, raw: bytes, mode: int) -> None:
+def _fsync_directory(path: Path) -> None:
+    directory_fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _atomic_new_file(path: Path, raw: bytes, mode: int) -> tuple[int, int]:
     parent = path.parent
     temp = parent / f".{path.name}.tmp-{os.getpid()}-{time.monotonic_ns()}"
+    linked = False
+    temp_identity: tuple[int, int] | None = None
     try:
         fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
         try:
@@ -106,14 +129,56 @@ def _atomic_file(path: Path, raw: bytes, mode: int) -> None:
                 os.fsync(stream.fileno())
         finally:
             os.close(fd)
-        os.replace(temp, path)
-        directory_fd = os.open(parent, os.O_RDONLY)
+
+        temp_identity = _path_identity(temp)
         try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+            os.link(temp, path, follow_symlinks=False)
+        except FileExistsError as exc:
+            raise ControlPlaneBootstrapError(
+                f"bootstrap refuses to replace existing path: {path.name}"
+            ) from exc
+        linked = True
+
+        final_identity = _path_identity(path)
+        if final_identity != temp_identity:
+            raise ControlPlaneBootstrapError(
+                f"new path identity mismatch: {path.name}"
+            )
+        _fsync_directory(parent)
+        return final_identity
+    except BaseException as original:
+        if linked and temp_identity is not None:
+            try:
+                if _path_identity(path) != temp_identity:
+                    raise ControlPlaneBootstrapError(
+                        f"new path identity changed during cleanup: {path.name}"
+                    )
+                path.unlink()
+                _fsync_directory(parent)
+            except BaseException as exc:
+                raise ControlPlaneBootstrapError(
+                    f"atomic new-file cleanup incomplete: {path.name}"
+                ) from original
+        raise
     finally:
         temp.unlink(missing_ok=True)
+
+
+def _unlink_created(
+    path: Path,
+    identity: tuple[int, int],
+) -> None:
+    if not path.exists() and not path.is_symlink():
+        return
+    if _path_identity(path) != identity:
+        raise ControlPlaneBootstrapError(
+            f"created path identity changed before rollback: {path.name}"
+        )
+    if not (path.is_symlink() or path.is_file()):
+        raise ControlPlaneBootstrapError(
+            f"created path type changed before rollback: {path.name}"
+        )
+    path.unlink()
 
 
 def _credential_bytes(
@@ -351,35 +416,37 @@ def install(
     config_dir = config_dir.absolute()
     bootstrap_root = bootstrap_root.absolute()
     control_current = control_current.absolute()
-    created_files: list[Path] = []
-    created_dirs: list[Path] = []
+    created_files: list[tuple[Path, tuple[int, int]]] = []
+    created_dirs: list[tuple[Path, tuple[int, int]]] = []
     attempted_units: list[str] = []
 
     try:
         if before["config_dir_state"] == "ABSENT":
-            if _create_private_parent(config_dir):
-                created_dirs.append(config_dir)
+            identity = _create_private_parent(config_dir)
+            if identity is not None:
+                created_dirs.append((config_dir, identity))
         else:
             _private_parent(config_dir)
 
         if before["bootstrap_root_state"] == "ABSENT":
-            if _create_private_parent(bootstrap_root):
-                created_dirs.append(bootstrap_root)
+            identity = _create_private_parent(bootstrap_root)
+            if identity is not None:
+                created_dirs.append((bootstrap_root, identity))
         else:
             _private_parent(bootstrap_root)
 
         credential = config_dir / "github-operations.env"
-        created_files.append(credential)
-        _atomic_file(credential, credential_raw, 0o600)
+        credential_identity = _atomic_new_file(credential, credential_raw, 0o600)
+        created_files.append((credential, credential_identity))
 
         for name in UNIT_NAMES:
             source = release / "deploy" / "zero-based-vps" / name
             target = unit_dir / name
-            created_files.append(target)
-            _atomic_file(target, source.read_bytes(), 0o644)
+            target_identity = _atomic_new_file(target, source.read_bytes(), 0o644)
+            created_files.append((target, target_identity))
 
-        created_files.append(control_current)
         os.symlink(f"releases/{expected_source_commit}", control_current)
+        created_files.append((control_current, _path_identity(control_current)))
 
         systemctl(["daemon-reload"])
         for unit in UNIT_NAMES:
@@ -416,8 +483,12 @@ def install(
             "agent_active": True,
         }
         receipt_path = bootstrap_root / "bootstrap-receipt.json"
-        created_files.append(receipt_path)
-        _atomic_file(receipt_path, _canonical_json(receipt), 0o600)
+        receipt_identity = _atomic_new_file(
+            receipt_path,
+            _canonical_json(receipt),
+            0o600,
+        )
+        created_files.append((receipt_path, receipt_identity))
         return receipt
     except BaseException as original:
         rollback_errors: list[str] = []
@@ -437,23 +508,30 @@ def install(
                     f"cannot verify unit inactive after rollback: {unit}"
                 )
 
-        for path in reversed(created_files):
+        for path, identity in reversed(created_files):
             try:
-                if path.is_symlink() or path.is_file():
-                    path.unlink()
-            except OSError:
-                rollback_errors.append(f"failed to remove created path {path}")
+                _unlink_created(path, identity)
+            except BaseException:
+                rollback_errors.append(
+                    f"failed to remove exact created path {path}"
+                )
 
         try:
             systemctl(["daemon-reload"])
         except BaseException:
             rollback_errors.append("daemon-reload failed during rollback")
 
-        for path in reversed(created_dirs):
+        for path, identity in reversed(created_dirs):
             try:
+                if _path_identity(path) != identity:
+                    raise ControlPlaneBootstrapError(
+                        f"created directory identity changed: {path.name}"
+                    )
                 path.rmdir()
-            except OSError:
-                rollback_errors.append(f"failed to remove created directory {path}")
+            except BaseException:
+                rollback_errors.append(
+                    f"failed to remove exact created directory {path}"
+                )
 
         try:
             if _readlink_exact(production_current.absolute()) != production_before:
