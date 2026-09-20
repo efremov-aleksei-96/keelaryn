@@ -60,6 +60,17 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
             self.assertIn("/opt/keelaryn/control-current", raw)
             self.assertNotIn("WorkingDirectory=/opt/keelaryn/current", raw)
 
+    def test_root_precondition_is_isolated_and_fail_closed(self) -> None:
+        with mock.patch.object(bootstrap.os, "geteuid", return_value=1000):
+            with self.assertRaisesRegex(
+                bootstrap.ControlPlaneBootstrapError,
+                "requires root",
+            ):
+                bootstrap._require_root()
+
+        with mock.patch.object(bootstrap.os, "geteuid", return_value=0):
+            bootstrap._require_root()
+
     def test_credential_bytes_are_canonical_and_secret_never_enters_receipt(self) -> None:
         raw = bootstrap._credential_bytes(
             token="github_pat_" + ("A" * 40),

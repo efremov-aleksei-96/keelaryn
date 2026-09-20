@@ -34,7 +34,8 @@ class ControlPlaneBootstrapError(RuntimeError):
 
 
 def _require_root() -> None:
-    _require_root()
+    if os.geteuid() != 0:
+        raise ControlPlaneBootstrapError("control-plane bootstrap requires root")
 
 
 def _canonical_json(value: dict[str, Any]) -> bytes:
@@ -177,8 +178,7 @@ def preflight(
     config_dir: Path,
     bootstrap_root: Path,
 ) -> dict[str, Any]:
-    if os.geteuid() != 0:
-        raise ControlPlaneBootstrapError("control-plane bootstrap requires root")
+    _require_root()
     if _OID.fullmatch(expected_source_commit) is None:
         raise ControlPlaneBootstrapError("expected source commit is invalid")
     if _SHA256.fullmatch(expected_payload_sha256) is None:
