@@ -97,8 +97,30 @@ This separation is deliberate: development branches optimize iteration speed whi
 
 ## Maintainer interaction model
 
-The intended workflow is that ChatGPT can modify an accessible `dev/**` branch, read CI results, fix failures, and repeat without asking the maintainer to execute every intermediate Windows script.
+The intended workflow is that ChatGPT performs as much development work as the connected environment safely permits instead of turning the maintainer into a remote shell operator.
 
-A local Windows workstation remains necessary only for tests that depend on the actual production installation, real desktop integration, local security/ACL behavior, or other boundaries that GitHub-hosted disposable runners cannot faithfully represent.
+After a `dev/**` line exists on GitHub, the remote branch is authoritative. Normal development should therefore prefer, in order:
+
+1. exact GitHub source inspection and direct `dev/**` commits;
+2. GitHub Actions for disposable validation, diagnosis and regression evidence;
+3. connected Google Drive only when the task genuinely depends on Drive-held authoritative inputs or evidence;
+4. the production VPS only for evidence or state transitions that cannot be reproduced on disposable GitHub infrastructure.
+
+The maintainer should not be asked to run intermediate local PowerShell or SSH when an equivalent read-only check, edit or disposable validation can be performed remotely. Production/VPS commands requested from the maintainer should be reduced to one coherent action at a time and only when direct server execution is unavailable or the evidence is inherently production-specific.
+
+Long-running or mutation-capable production operations must not depend on a chat stream, terminal window or SSH connection remaining open. They should execute through the durable Operation Runtime once that runtime is available; until then, every production mutation remains transactional and is followed by durable-state reconciliation before any retry.
+
+### Durable continuation handoff
+
+Chat memory is never authoritative project state. Every active development line should maintain a newest sanitized handoff under `docs/handoffs/` containing:
+
+- authoritative branch and HEAD;
+- qualified/frozen identities relevant to the current line;
+- current production/development transaction state;
+- last confirmed PASS/FAIL or interrupted boundary;
+- exact blocker/classification;
+- the next permitted action and explicitly forbidden retries.
+
+The handoff must contain no OAuth credentials, private keys, raw private Hub IDs or other secrets. It is updated at significant checkpoints so a new ChatGPT conversation can resume from repository state without reconstructing critical operational facts from chat history. Volatile handoffs are development coordination artifacts and may be retired when their line is durably closed or superseded.
 
 For an existing local-only development line, one initial push is required to materialize that exact Git history on GitHub. After that, normal development iterations can occur on the remote branch.
