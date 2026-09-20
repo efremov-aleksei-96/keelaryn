@@ -80,12 +80,16 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         self.assertNotIn(b" ", raw)
 
 
-    def test_atomic_new_file_identity_is_captured_after_hard_link(self) -> None:
+    def test_atomic_new_file_pin_matches_installed_object(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             target = root / "created"
-            identity = bootstrap._atomic_new_file(target, b"ours", 0o600)
-            self.assertEqual(identity, bootstrap._path_identity(target))
+            pin_fd, identity = bootstrap._atomic_new_file(target, b"ours", 0o600)
+            try:
+                self.assertEqual(identity, bootstrap._object_identity(target))
+                self.assertEqual(identity, bootstrap._fd_identity(pin_fd))
+            finally:
+                bootstrap._close_pin(pin_fd)
 
     def test_atomic_new_file_never_replaces_existing_path(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -102,20 +106,25 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
 
             self.assertEqual(target.read_bytes(), b"existing")
 
-    def test_created_path_rollback_rejects_delete_recreate_even_if_inode_reused(self) -> None:
+    def test_created_path_rollback_rejects_delete_recreate_while_pin_holds_inode(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             target = root / "created"
-            identity = bootstrap._atomic_new_file(target, b"ours", 0o600)
+            pin_fd, identity = bootstrap._atomic_new_file(target, b"ours", 0o600)
             target.unlink()
             target.write_bytes(b"replacement")
             os.chmod(target, 0o600)
 
-            with self.assertRaisesRegex(
-                bootstrap.ControlPlaneBootstrapError,
-                "identity changed before rollback",
-            ):
-                bootstrap._unlink_created(target, identity)
+            try:
+                with self.assertRaisesRegex(
+                    bootstrap.ControlPlaneBootstrapError,
+                    "identity changed before rollback",
+                ):
+                    bootstrap._unlink_created(target, pin_fd, identity)
+            finally:
+                bootstrap._close_pin(pin_fd)
 
             self.assertEqual(target.read_bytes(), b"replacement")
 

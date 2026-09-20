@@ -74,27 +74,78 @@ def _private_parent_state(path: Path) -> str:
 
 
 ObjectIdentity = tuple[int, int, int]
-PathIdentity = tuple[int, int, int, int, int, int]
+PinnedPath = tuple[Path, int, ObjectIdentity]
 
 
-def _object_identity(path: Path) -> ObjectIdentity:
-    info = path.stat(follow_symlinks=False)
+def _identity_from_stat(info: os.stat_result) -> ObjectIdentity:
     return info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode)
 
 
-def _path_identity(path: Path) -> PathIdentity:
-    info = path.stat(follow_symlinks=False)
-    return (
-        info.st_dev,
-        info.st_ino,
-        info.st_ctime_ns,
-        info.st_mtime_ns,
-        info.st_size,
-        stat.S_IFMT(info.st_mode),
-    )
+def _object_identity(path: Path) -> ObjectIdentity:
+    return _identity_from_stat(path.stat(follow_symlinks=False))
 
 
-def _create_private_parent(path: Path) -> ObjectIdentity | None:
+def _fd_identity(fd: int) -> ObjectIdentity:
+    return _identity_from_stat(os.fstat(fd))
+
+
+def _pin_path(path: Path) -> tuple[int, ObjectIdentity]:
+    o_path = getattr(os, "O_PATH", 0)
+    o_nofollow = getattr(os, "O_NOFOLLOW", 0)
+    o_cloexec = getattr(os, "O_CLOEXEC", 0)
+    if not o_path or not o_nofollow:
+        raise ControlPlaneBootstrapError(
+            "Linux O_PATH/O_NOFOLLOW support is required for bootstrap ownership pins"
+        )
+    try:
+        fd = os.open(path, o_path | o_nofollow | o_cloexec)
+    except OSError as exc:
+        raise ControlPlaneBootstrapError(
+            f"cannot pin created path: {path.name}"
+        ) from exc
+    try:
+        identity = _fd_identity(fd)
+        if _object_identity(path) != identity:
+            raise ControlPlaneBootstrapError(
+                f"created path changed while pinning: {path.name}"
+            )
+        return fd, identity
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _close_pin(fd: int) -> None:
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
+def _private_parent(path: Path) -> Path:
+    path = path.absolute()
+    try:
+        info = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise ControlPlaneBootstrapError("private parent cannot be inspected") from exc
+    if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
+        raise ControlPlaneBootstrapError("private parent must be one real directory")
+    if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
+        raise ControlPlaneBootstrapError(
+            "private parent must be current-user owned mode 0700"
+        )
+    return path
+
+
+def _private_parent_state(path: Path) -> str:
+    path = path.absolute()
+    if not path.exists() and not path.is_symlink():
+        return "ABSENT"
+    _private_parent(path)
+    return "PRESENT"
+
+
+def _create_private_parent(path: Path) -> tuple[int, ObjectIdentity] | None:
     path = path.absolute()
     if _private_parent_state(path) == "PRESENT":
         return None
@@ -103,23 +154,31 @@ def _create_private_parent(path: Path) -> ObjectIdentity | None:
         raise ControlPlaneBootstrapError("private parent container is invalid")
 
     created = False
+    pin_fd: int | None = None
     identity: ObjectIdentity | None = None
     try:
         path.mkdir(mode=0o700)
         created = True
         os.chmod(path, 0o700)
         _private_parent(path)
-        identity = _object_identity(path)
+        pin_fd, identity = _pin_path(path)
+        return pin_fd, identity
     except BaseException as original:
         if created:
             try:
+                if pin_fd is not None and identity is not None:
+                    if _fd_identity(pin_fd) != identity or _object_identity(path) != identity:
+                        raise ControlPlaneBootstrapError(
+                            "created private parent identity changed during rollback"
+                        )
                 path.rmdir()
-            except OSError as exc:
+            except BaseException:
                 raise ControlPlaneBootstrapError(
                     "private parent creation rollback incomplete"
                 ) from original
+        if pin_fd is not None:
+            _close_pin(pin_fd)
         raise
-    return identity
 
 
 def _fsync_directory(path: Path) -> None:
@@ -130,11 +189,12 @@ def _fsync_directory(path: Path) -> None:
         os.close(directory_fd)
 
 
-def _atomic_new_file(path: Path, raw: bytes, mode: int) -> PathIdentity:
+def _atomic_new_file(path: Path, raw: bytes, mode: int) -> tuple[int, ObjectIdentity]:
     parent = path.parent
     temp = parent / f".{path.name}.tmp-{os.getpid()}-{time.monotonic_ns()}"
     linked = False
-    installed_identity: PathIdentity | None = None
+    pin_fd: int | None = None
+    identity: ObjectIdentity | None = None
     try:
         fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
         try:
@@ -154,32 +214,32 @@ def _atomic_new_file(path: Path, raw: bytes, mode: int) -> PathIdentity:
             ) from exc
         linked = True
 
-        # Creating the hard link changes inode ctime. Compare the two names only
-        # after link(), then capture the rollback identity from the installed path.
-        temp_after_link = _path_identity(temp)
-        installed_identity = _path_identity(path)
-        if installed_identity != temp_after_link:
+        pin_fd, identity = _pin_path(path)
+        if _object_identity(temp) != identity:
             raise ControlPlaneBootstrapError(
-                f"new path identity mismatch: {path.name}"
+                f"new path ownership differs from temporary source: {path.name}"
             )
         _fsync_directory(parent)
-        return installed_identity
+
+        temp.unlink()
+        _fsync_directory(parent)
+
+        if _fd_identity(pin_fd) != identity or _object_identity(path) != identity:
+            raise ControlPlaneBootstrapError(
+                f"new path identity changed after publication: {path.name}"
+            )
+        return pin_fd, identity
     except BaseException as original:
         if linked:
             try:
-                if installed_identity is None:
+                expected = identity if identity is not None else _object_identity(temp)
+                if pin_fd is not None and _fd_identity(pin_fd) != expected:
                     raise ControlPlaneBootstrapError(
-                        f"new path ownership is ambiguous: {path.name}"
+                        f"created path pin changed during cleanup: {path.name}"
                     )
-                if _path_identity(path) != installed_identity:
+                if _object_identity(path) != expected:
                     raise ControlPlaneBootstrapError(
-                        f"new path identity changed during cleanup: {path.name}"
-                    )
-                # The temp hard link still pins the original inode here, so inode
-                # reuse cannot make an external replacement look transaction-owned.
-                if _path_identity(temp) != installed_identity:
-                    raise ControlPlaneBootstrapError(
-                        f"temporary ownership identity changed: {path.name}"
+                        f"created path identity changed during cleanup: {path.name}"
                     )
                 path.unlink()
                 _fsync_directory(parent)
@@ -187,28 +247,75 @@ def _atomic_new_file(path: Path, raw: bytes, mode: int) -> PathIdentity:
                 raise ControlPlaneBootstrapError(
                     f"atomic new-file cleanup incomplete: {path.name}"
                 ) from original
+        if pin_fd is not None:
+            _close_pin(pin_fd)
         raise
     finally:
         temp.unlink(missing_ok=True)
 
 
-def _unlink_created(
-    path: Path,
-    identity: PathIdentity,
-) -> None:
-    if not path.exists() and not path.is_symlink():
-        return
-    if _path_identity(path) != identity:
+def _new_symlink(path: Path, target: str) -> tuple[int, ObjectIdentity]:
+    created = False
+    pin_fd: int | None = None
+    identity: ObjectIdentity | None = None
+    try:
+        os.symlink(target, path)
+        created = True
+        pin_fd, identity = _pin_path(path)
+        if not path.is_symlink() or os.readlink(path) != target:
+            raise ControlPlaneBootstrapError(
+                f"new symlink target changed: {path.name}"
+            )
+        _fsync_directory(path.parent)
+        return pin_fd, identity
+    except FileExistsError as exc:
         raise ControlPlaneBootstrapError(
-            f"created path identity changed before rollback: {path.name}"
-        )
-    if not (path.is_symlink() or path.is_file()):
-        raise ControlPlaneBootstrapError(
-            f"created path type changed before rollback: {path.name}"
-        )
-    path.unlink()
+            f"bootstrap refuses to replace existing path: {path.name}"
+        ) from exc
+    except BaseException as original:
+        if created:
+            try:
+                if pin_fd is None or identity is None:
+                    raise ControlPlaneBootstrapError(
+                        f"new symlink ownership is ambiguous: {path.name}"
+                    )
+                if _fd_identity(pin_fd) != identity or _object_identity(path) != identity:
+                    raise ControlPlaneBootstrapError(
+                        f"new symlink identity changed during cleanup: {path.name}"
+                    )
+                path.unlink()
+                _fsync_directory(path.parent)
+            except BaseException:
+                raise ControlPlaneBootstrapError(
+                    f"new symlink cleanup incomplete: {path.name}"
+                ) from original
+        if pin_fd is not None:
+            _close_pin(pin_fd)
+        raise
 
 
+def _unlink_created(path: Path, pin_fd: int, identity: ObjectIdentity) -> None:
+    try:
+        if _fd_identity(pin_fd) != identity:
+            raise ControlPlaneBootstrapError(
+                f"created path pin identity changed: {path.name}"
+            )
+        if not path.exists() and not path.is_symlink():
+            raise ControlPlaneBootstrapError(
+                f"created path disappeared before rollback: {path.name}"
+            )
+        if _object_identity(path) != identity:
+            raise ControlPlaneBootstrapError(
+                f"created path identity changed before rollback: {path.name}"
+            )
+        if not (path.is_symlink() or path.is_file()):
+            raise ControlPlaneBootstrapError(
+                f"created path type changed before rollback: {path.name}"
+            )
+        path.unlink()
+        _fsync_directory(path.parent)
+    finally:
+        _close_pin(pin_fd)
 def _credential_bytes(
     *,
     token: str,
@@ -444,37 +551,50 @@ def install(
     config_dir = config_dir.absolute()
     bootstrap_root = bootstrap_root.absolute()
     control_current = control_current.absolute()
-    created_files: list[tuple[Path, PathIdentity]] = []
-    created_dirs: list[tuple[Path, ObjectIdentity]] = []
+    created_files: list[PinnedPath] = []
+    created_dirs: list[PinnedPath] = []
     attempted_units: list[str] = []
 
     try:
         if before["config_dir_state"] == "ABSENT":
-            identity = _create_private_parent(config_dir)
-            if identity is not None:
-                created_dirs.append((config_dir, identity))
+            pinned = _create_private_parent(config_dir)
+            if pinned is not None:
+                pin_fd, identity = pinned
+                created_dirs.append((config_dir, pin_fd, identity))
         else:
             _private_parent(config_dir)
 
         if before["bootstrap_root_state"] == "ABSENT":
-            identity = _create_private_parent(bootstrap_root)
-            if identity is not None:
-                created_dirs.append((bootstrap_root, identity))
+            pinned = _create_private_parent(bootstrap_root)
+            if pinned is not None:
+                pin_fd, identity = pinned
+                created_dirs.append((bootstrap_root, pin_fd, identity))
         else:
             _private_parent(bootstrap_root)
 
         credential = config_dir / "github-operations.env"
-        credential_identity = _atomic_new_file(credential, credential_raw, 0o600)
-        created_files.append((credential, credential_identity))
+        credential_pin, credential_identity = _atomic_new_file(
+            credential,
+            credential_raw,
+            0o600,
+        )
+        created_files.append((credential, credential_pin, credential_identity))
 
         for name in UNIT_NAMES:
             source = release / "deploy" / "zero-based-vps" / name
             target = unit_dir / name
-            target_identity = _atomic_new_file(target, source.read_bytes(), 0o644)
-            created_files.append((target, target_identity))
+            target_pin, target_identity = _atomic_new_file(
+                target,
+                source.read_bytes(),
+                0o644,
+            )
+            created_files.append((target, target_pin, target_identity))
 
-        os.symlink(f"releases/{expected_source_commit}", control_current)
-        created_files.append((control_current, _path_identity(control_current)))
+        control_pin, control_identity = _new_symlink(
+            control_current,
+            f"releases/{expected_source_commit}",
+        )
+        created_files.append((control_current, control_pin, control_identity))
 
         systemctl(["daemon-reload"])
         for unit in UNIT_NAMES:
@@ -511,12 +631,19 @@ def install(
             "agent_active": True,
         }
         receipt_path = bootstrap_root / "bootstrap-receipt.json"
-        receipt_identity = _atomic_new_file(
+        receipt_pin, receipt_identity = _atomic_new_file(
             receipt_path,
             _canonical_json(receipt),
             0o600,
         )
-        created_files.append((receipt_path, receipt_identity))
+        created_files.append((receipt_path, receipt_pin, receipt_identity))
+
+        for _, pin_fd, _ in created_files:
+            _close_pin(pin_fd)
+        for _, pin_fd, _ in created_dirs:
+            _close_pin(pin_fd)
+        created_files.clear()
+        created_dirs.clear()
         return receipt
     except BaseException as original:
         rollback_errors: list[str] = []
@@ -536,9 +663,9 @@ def install(
                     f"cannot verify unit inactive after rollback: {unit}"
                 )
 
-        for path, identity in reversed(created_files):
+        for path, pin_fd, identity in reversed(created_files):
             try:
-                _unlink_created(path, identity)
+                _unlink_created(path, pin_fd, identity)
             except BaseException:
                 rollback_errors.append(
                     f"failed to remove exact created path {path}"
@@ -549,17 +676,20 @@ def install(
         except BaseException:
             rollback_errors.append("daemon-reload failed during rollback")
 
-        for path, identity in reversed(created_dirs):
+        for path, pin_fd, identity in reversed(created_dirs):
             try:
-                if _object_identity(path) != identity:
+                if _fd_identity(pin_fd) != identity or _object_identity(path) != identity:
                     raise ControlPlaneBootstrapError(
                         f"created directory identity changed: {path.name}"
                     )
                 path.rmdir()
+                _fsync_directory(path.parent)
             except BaseException:
                 rollback_errors.append(
                     f"failed to remove exact created directory {path}"
                 )
+            finally:
+                _close_pin(pin_fd)
 
         try:
             if _readlink_exact(production_current.absolute()) != production_before:
