@@ -22,6 +22,14 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         commit = "a" * 40
         release = releases / commit
         release.mkdir(parents=True)
+        qualified = release / "deploy" / "zero-based-vps"
+        qualified.mkdir(parents=True)
+        for name in bootstrap.UNIT_NAMES:
+            target = qualified / name
+            target.write_bytes((DEPLOY / name).read_bytes())
+            os.chmod(target, 0o444)
+        os.chmod(qualified, 0o555)
+        os.chmod(release / "deploy", 0o555)
         os.chmod(install, 0o755)
         os.chmod(releases, 0o755)
         os.chmod(release, 0o555)
@@ -72,10 +80,6 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             install, release, commit, unit_dir, config, receipt_root = self.layout(root)
-            for name in bootstrap.UNIT_NAMES:
-                source = release / "deploy" / "zero-based-vps" / name
-                source.parent.mkdir(parents=True, exist_ok=True)
-                source.write_bytes((DEPLOY / name).read_bytes())
             verify.return_value = self.identity(commit)
             getpwnam.return_value = type("Pw", (), {"pw_uid": 1000})()
 
