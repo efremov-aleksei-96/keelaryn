@@ -6,7 +6,6 @@ import json
 import os
 import pwd
 import re
-import shutil
 import stat
 import subprocess
 import sys
@@ -48,29 +47,6 @@ def _canonical_json(value: dict[str, Any]) -> bytes:
         )
         + "\n"
     ).encode("utf-8")
-
-
-def _private_parent(path: Path) -> Path:
-    path = path.absolute()
-    try:
-        info = path.stat(follow_symlinks=False)
-    except OSError as exc:
-        raise ControlPlaneBootstrapError("private parent cannot be inspected") from exc
-    if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
-        raise ControlPlaneBootstrapError("private parent must be one real directory")
-    if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
-        raise ControlPlaneBootstrapError(
-            "private parent must be current-user owned mode 0700"
-        )
-    return path
-
-
-def _private_parent_state(path: Path) -> str:
-    path = path.absolute()
-    if not path.exists() and not path.is_symlink():
-        return "ABSENT"
-    _private_parent(path)
-    return "PRESENT"
 
 
 ObjectIdentity = tuple[int, int, int]
@@ -165,19 +141,23 @@ def _create_private_parent(path: Path) -> tuple[int, ObjectIdentity] | None:
         return pin_fd, identity
     except BaseException as original:
         if created:
+            if pin_fd is None or identity is None:
+                raise ControlPlaneBootstrapError(
+                    "private parent creation ownership is ambiguous; reconcile before retry"
+                ) from original
             try:
-                if pin_fd is not None and identity is not None:
-                    if _fd_identity(pin_fd) != identity or _object_identity(path) != identity:
-                        raise ControlPlaneBootstrapError(
-                            "created private parent identity changed during rollback"
-                        )
+                if _fd_identity(pin_fd) != identity or _object_identity(path) != identity:
+                    raise ControlPlaneBootstrapError(
+                        "created private parent identity changed during rollback"
+                    )
                 path.rmdir()
+                _fsync_directory(path.parent)
             except BaseException:
                 raise ControlPlaneBootstrapError(
                     "private parent creation rollback incomplete"
                 ) from original
-        if pin_fd is not None:
-            _close_pin(pin_fd)
+            finally:
+                _close_pin(pin_fd)
         raise
 
 
@@ -705,6 +685,8 @@ def install(
                 "bootstrap rollback incomplete: " + "; ".join(rollback_errors)
             ) from original
         raise
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keelaryn-operation-control-bootstrap")
     parser.add_argument("--release", required=True, type=Path)

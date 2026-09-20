@@ -80,6 +80,24 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         self.assertNotIn(b" ", raw)
 
 
+    def test_private_parent_pin_failure_never_deletes_unpinned_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            target = root / "private"
+            with mock.patch.object(
+                bootstrap,
+                "_pin_path",
+                side_effect=bootstrap.ControlPlaneBootstrapError("injected pin failure"),
+            ):
+                with self.assertRaisesRegex(
+                    bootstrap.ControlPlaneBootstrapError,
+                    "ownership is ambiguous",
+                ):
+                    bootstrap._create_private_parent(target)
+
+            self.assertTrue(target.is_dir())
+            self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
+
     def test_atomic_new_file_pin_matches_installed_object(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

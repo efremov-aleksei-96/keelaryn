@@ -156,7 +156,9 @@ stable object identity (device, inode and file type) for every transaction-creat
 selector and private directory. The pin remains open until commit or rollback, so the
 original inode cannot be recycled after delete/recreate. File publication remains
 exclusive/no-overwrite; rollback refuses to delete a pathname whose current object no
-longer matches the pinned transaction-owned object. Any incomplete
+longer matches the pinned transaction-owned object. If a newly-created private
+directory cannot be ownership-pinned, cleanup fails closed and leaves the ambiguous
+path for read-only reconciliation rather than deleting an unproven object. Any incomplete
 rollback is a distinct fail-closed error and must be reconciled before retry.
 
 The root operation agent only `Wants=` the network transport and is ordered after it;
