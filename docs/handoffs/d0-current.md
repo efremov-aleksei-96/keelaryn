@@ -290,3 +290,36 @@ Every scenario pins a canonical production-current symlink, credential bytes, Hu
 
 This gate does not access the real VPS, real Hub selector, real credential or Google Drive and cannot claim production qualification.
 
+## D0-02C transition qualification PASS
+
+Development HEAD `eb001fe5b02a71cd14b3958bd3b2058a06dd0074` passed ordinary Zero-based Core validation run `35645443161` with 693/693 deterministic tests.
+
+Dedicated exact frozen transition qualification:
+- workflow: `Operation control r0007 transition gate r0001`
+- run: `35645443118`
+- conclusion: `SUCCESS`
+- evidence artifact: `10660201981`
+- artifact ZIP SHA-256: `9726a3a2c538f2e7a934b9e2a32e06afc2b5c9562c5529863604a23b4bff4618`
+
+The disposable gate rebuilt and materialized exact frozen r0005 and r0007 payloads and passed all six scenarios:
+1. exact success → COMPLETED;
+2. injected successor failure → exact predecessor rollback / ROLLED_BACK;
+3. PREPARED + OLD_EXACT interruption → recovered to COMPLETED;
+4. PREPARED + NEW_EXACT interruption → terminalized without republishing control bytes;
+5. foreign PARTIAL boundary → fail closed, preserve foreign bytes, require reconcile;
+6. already-COMPLETED successor with stopped services → idempotent service recovery without republishing bytes or terminal authority.
+
+All scenarios preserved production-current, credential bytes, Hub selector sentinel and Drive sentinel. The gate performed no real VPS, production or Drive mutation and explicitly did not claim production qualification.
+
+## D0-02D — fresh VPS reconcile
+
+Before any production r0007 bootstrap, evidence must be refreshed against real external authority.
+
+Sequence:
+1. send a new read-only `RUNTIME_SELFTEST` request for exact installed r0005 source through GitHub Issue #65 and require an exact terminal PASS;
+2. separately obtain fresh read-only VPS evidence for production current, control-current, installed r0005 control-unit bytes/state, writer state, Hub PREPARED transaction, OLD selector, mutation inhibit and credential identity;
+3. compare those facts to the recorded production anchor;
+4. only if the complete boundary is exact may a later transaction prepare r0007 production bootstrap.
+
+The existing Issue #65 selftest PASS at 2026-09-21T05:58:16Z is historical only and is not fresh enough for a production mutation boundary.
+

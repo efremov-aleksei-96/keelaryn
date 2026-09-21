@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 10,
+  "revision": 11,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "e0697a1119326358e7b09b0c4957615a1c51c395",
+  "repository_basis_commit": "eb001fe5b02a71cd14b3958bd3b2058a06dd0074",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -47,11 +47,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02C-checkpoint-corrected-zero-based-core-validation",
-    "run_id": 35644590430,
+    "scope": "D0-02C-transition-qualified",
+    "run_id": 35645443161,
     "conclusion": "PASS",
     "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact development HEAD e0697a1119326358e7b09b0c4957615a1c51c395 passed 693/693 deterministic Core tests and the full existing zero-based validation surface. Frozen r0007 product/runtime bytes remain at 833123b6a7ad2c61087ee8a86700bb9ad8a46298."
+    "note": "Exact development HEAD eb001fe5b02a71cd14b3958bd3b2058a06dd0074 passed 693/693 Core tests. Dedicated frozen r0005-to-r0007 transition gate run 35645443118 also passed all six disposable success/rollback/interruption/replay scenarios; artifact 10660201981 digest sha256:9726a3a2c538f2e7a934b9e2a32e06afc2b5c9562c5529863604a23b4bff4618."
   },
   "production_boundary": {
     "freshness": "RECORDED_NOT_LIVE_VERIFIED_IN_D0",
@@ -101,7 +101,7 @@
     },
     {
       "candidate": "operation-control-r0007-20260921-01",
-      "state": "FROZEN_DEDICATED_GATE_PASS",
+      "state": "FROZEN_TRANSITION_GATE_PASS",
       "source_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
       "retry": "NOT_A_RETRY_TARGET"
     }
@@ -123,8 +123,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02C_TRANSITION",
-    "description": "Resolve operation-control-r0007 transition gate r0001. It must prove exact frozen r0005-to-r0007 success, rollback, PREPARED/OLD_EXACT recovery, PREPARED/NEW_EXACT recovery without republication, fail-closed foreign partial state, and idempotent COMPLETED service recovery. Production/VPS/Drive/Hub mutations remain forbidden.",
+    "id": "D0-02D_VPS_RECONCILE",
+    "description": "Obtain fresh read-only production evidence before any r0007 bootstrap: first send a new exact-r0005 RUNTIME_SELFTEST through GitHub Issue #65 and verify the terminal PASS/status source binding, then reconcile the production current/control-current, installed r0005 control units, writer state, Hub PREPARED transaction/OLD selector, mutation inhibit and credential identity through a read-only VPS observation path. No production or Drive mutation is allowed during this objective.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
