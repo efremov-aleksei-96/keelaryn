@@ -421,3 +421,44 @@ Gate r0002 is therefore a workflow/evidence revision only:
 - syntax validation uses in-memory Python `compile(...)` and immediately proves the worktree remains clean;
 - r0001 remains preserved as failed evidence and is never rewritten.
 
+## D0-02E bootstrap preparation PASS
+
+Corrective bootstrap-prep gate r0002:
+- run `35653073762`
+- conclusion `SUCCESS`
+- evidence artifact `10662513908`
+- artifact ZIP SHA-256 `a40172fe907593867a4b331046edb76fa250efe97e44c117c22dbddf9695d48e`
+
+Current development HEAD `3fc6274b3796f2378672a631353dc4dadad61794` also passed Zero-based Core run `35653073690` with 703/703 tests.
+
+The r0007 bootstrap-prep framework remains revision `operation-control-r0007-bootstrap-prep-r0001`; gate r0002 is only the hygiene/evidence correction over failed r0001.
+
+Qualified invariants:
+- frozen r0007 source/tree/payload exact;
+- materialization occurred only in disposable temp storage;
+- target-host and D0 control validation PASS;
+- remote allowlist is exactly `RUNTIME_SELFTEST` + `PRODUCTION_SNAPSHOT`;
+- remote mutation handlers = 0;
+- `stage_implemented=false`;
+- `upgrade_implemented=false`;
+- `production_mutation_allowed=false`;
+- `drive_content_mutation_allowed=false`;
+- `production_qualified=false`;
+- a fresh read-only mutation-boundary revalidation remains mandatory before any later production write.
+
+## D0-02F — stage transaction qualification
+
+The next engineering level separates inert release publication from control activation.
+
+A future stage transaction may only publish exact frozen r0007 as an immutable release directory. It must not change `production current`, `control-current`, systemd unit bytes/state, writer, GitHub operation credential, legacy Hub selector/transaction or Google Drive corpus.
+
+Required qualification states:
+1. destination ABSENT → atomic materialization → STAGED_EXACT;
+2. destination already STAGED_EXACT → idempotent success without rewrite;
+3. destination exists but is foreign/partial → fail closed without overwrite/delete;
+4. interruption before publication → no successor release;
+5. interruption/post-publication uncertainty → reconcile exact release identity and never blindly retry/delete;
+6. before any real stage write, fresh read-only live boundary revalidation is mandatory.
+
+The installed r0005 and frozen r0007 share the exact same `materialize_payload.py` Git blob `ece36ad98d4a15442f5f081db76345525fe1b8c1`; this reusable mechanism is therefore a strong candidate for stage publication, but D0-02F must qualify the transaction wrapper separately before any real VPS stage.
+

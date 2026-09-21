@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 15,
+  "revision": 16,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "01defeb0a5e586fdf2309af5553f79ce4c62f80a",
+  "repository_basis_commit": "3fc6274b3796f2378672a631353dc4dadad61794",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02E-bootstrap-prep-development",
-    "run_id": 35651750917,
+    "scope": "D0-02E-bootstrap-prep-qualified",
+    "run_id": 35653073690,
     "conclusion": "PASS",
     "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact HEAD 01defeb0a5e586fdf2309af5553f79ce4c62f80a passed 703/703 Core tests. Bootstrap-prep gate r0001 failed only because its own py_compile step created __pycache__ residue before a clean-worktree assertion; qualification framework tests passed and frozen r0007/product bytes were unchanged."
+    "note": "Exact HEAD 3fc6274b3796f2378672a631353dc4dadad61794 passed 703/703 Core tests. Bootstrap-prep gate r0002 run 35653073762 passed with artifact 10662513908 digest sha256:a40172fe907593867a4b331046edb76fa250efe97e44c117c22dbddf9695d48e; qualification remained temp-only, exposed only reconcile/qualify, and authorized no production or Drive mutation."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -117,7 +117,7 @@
     },
     {
       "candidate": "operation-control-r0007-20260921-01",
-      "state": "FROZEN_TRANSITION_GATE_PASS",
+      "state": "FROZEN_BOOTSTRAP_PREP_GATE_PASS",
       "source_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
       "retry": "NOT_A_RETRY_TARGET"
     }
@@ -139,8 +139,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02E_BOOTSTRAP_PREP",
-    "description": "Resolve bootstrap-prep gate r0002. Gate r0002 is an evidence/workflow-only correction over unchanged bootstrap-prep framework r0001: syntax-check without bytecode residue, rerun exact frozen r0007 qualification, prove clean checkout, and upload evidence. Production/Drive mutation remains forbidden.",
+    "id": "D0-02F_STAGE_QUALIFICATION",
+    "description": "Design and qualify a separate monotonic r0007 stage transaction that can publish the exact frozen r0007 release as an inert immutable object under /opt/keelaryn/releases without changing production current, control-current, installed systemd units, writer, credential, legacy Hub selector/transaction, or Google Drive. Qualification must prove ABSENT-to-STAGED_EXACT, ALREADY_STAGED_EXACT idempotence, fail-closed foreign/partial destination handling, interruption/post-publication reconciliation, and mandatory fresh read-only mutation-boundary revalidation. Do not perform the real VPS stage during this objective.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
