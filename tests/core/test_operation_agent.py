@@ -13,6 +13,10 @@ sys.path.insert(0, str(ROOT / "core"))
 
 import keelaryn_core.operation_agent as operation_agent  # noqa: E402
 from keelaryn_core.operation_agent import OperationAgent  # noqa: E402
+from keelaryn_core.operation_hub_pre_apply_activation import (  # noqa: E402
+    ACTIVATION_NAME as HUB_PRE_APPLY_ACTIVATION_NAME,
+    activation_bytes as hub_pre_apply_activation_bytes,
+)
 from keelaryn_core.operation_hub_pre_apply_profile import (  # noqa: E402
     PROFILE_NAME as HUB_PRE_APPLY_PROFILE_NAME,
     PROFILE_SCHEMA as HUB_PRE_APPLY_PROFILE_SCHEMA,
@@ -99,8 +103,24 @@ class OperationAgentTests(unittest.TestCase):
             "new_selector_identity_sha256": "c" * 64,
         }
         path = control_root / HUB_PRE_APPLY_PROFILE_NAME
-        path.write_bytes(canonical(value))
+        profile_raw = canonical(value)
+        path.write_bytes(profile_raw)
         os.chmod(path, 0o600)
+        activation = control_root / HUB_PRE_APPLY_ACTIVATION_NAME
+        activation.write_bytes(
+            hub_pre_apply_activation_bytes(
+                control_source_commit=self.COMMIT,
+                profile_raw=profile_raw,
+                control_update_transaction_id="d" * 64,
+                control_update_completed_raw=canonical(
+                    {
+                        "schema": "keelaryn.operation-control-update-completed.v1",
+                        "transaction_id": "d" * 64,
+                    }
+                ),
+            )
+        )
+        os.chmod(activation, 0o600)
 
     def test_agent_stays_idle_until_transport_relay_exists(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -291,7 +311,7 @@ class OperationAgentTests(unittest.TestCase):
             ) as worker:
                 with self.assertRaisesRegex(
                     OperationRuntimeError,
-                    "preauthorization is unavailable",
+                    "activation is unavailable",
                 ):
                     agent.process(request_path)
 

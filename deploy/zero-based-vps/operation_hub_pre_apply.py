@@ -14,6 +14,12 @@ REPO = Path(__file__).resolve().parents[2]
 CORE = REPO / "core"
 sys.path.insert(0, str(CORE))
 
+from keelaryn_core.operation_hub_pre_apply_activation import (  # noqa: E402
+    ACTIVATION_NAME,
+    HubPreApplyActivationError,
+    read_hub_pre_apply_activation,
+    verify_hub_pre_apply_activation,
+)
 from keelaryn_core.operation_hub_pre_apply_profile import (  # noqa: E402
     HubPreApplyProfileError,
     PROFILE_NAME,
@@ -198,6 +204,20 @@ def run(profile_path: Path = PROFILE_PATH) -> dict[str, Any]:
         raise HubPreApplyWorkerError("Hub pre-apply worker requires root")
 
     profile = _load_profile(profile_path)
+    try:
+        profile_raw = profile_path.read_bytes()
+        activation = read_hub_pre_apply_activation(
+            profile_path.parent / ACTIVATION_NAME
+        )
+        verify_hub_pre_apply_activation(
+            activation,
+            control_source_commit=profile["control_source_commit"],
+            profile_raw=profile_raw,
+        )
+    except (OSError, HubPreApplyActivationError) as exc:
+        raise HubPreApplyWorkerError(
+            "Hub pre-apply activation is unavailable or mismatched"
+        ) from exc
 
     if (
         not CONTROL_CURRENT.is_symlink()

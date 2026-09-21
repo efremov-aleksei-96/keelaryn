@@ -19,6 +19,13 @@ CORE = REPO / "core"
 if str(CORE) not in sys.path:
     sys.path.insert(0, str(CORE))
 
+from keelaryn_core.operation_hub_pre_apply_activation import (  # noqa: E402
+    ACTIVATION_NAME,
+    HubPreApplyActivationError,
+    activation_bytes,
+    read_hub_pre_apply_activation,
+    verify_hub_pre_apply_activation,
+)
 from keelaryn_core.operation_hub_pre_apply_profile import (  # noqa: E402
     PROFILE_NAME,
     HubPreApplyProfileError,
@@ -611,6 +618,107 @@ def _verify_predecessor_commit_boundary(
         )
 
 
+def _ensure_activation(
+    *,
+    path: Path,
+    control_source_commit: str,
+    profile_raw: bytes,
+    transaction_id: str,
+    completed_raw: bytes,
+) -> None:
+    expected = activation_bytes(
+        control_source_commit=control_source_commit,
+        profile_raw=profile_raw,
+        control_update_transaction_id=transaction_id,
+        control_update_completed_raw=completed_raw,
+    )
+    if path.exists() or path.is_symlink():
+        _regular(path, "Hub pre-apply activation", mode=0o600, expected=expected)
+        try:
+            verify_hub_pre_apply_activation(
+                read_hub_pre_apply_activation(path),
+                control_source_commit=control_source_commit,
+                profile_raw=profile_raw,
+            )
+        except HubPreApplyActivationError as exc:
+            raise ControlPlaneUpdateError(
+                "Hub pre-apply activation validation failed"
+            ) from exc
+        return
+    _exclusive_file(path, expected, 0o600)
+
+
+def _verify_transaction_owned_rollback_boundary(
+    *,
+    old_release: Path,
+    new_release: Path,
+    old_source: str,
+    new_source: str,
+    control_current: Path,
+    production_current: Path,
+    production_before: str,
+    unit_dir: Path,
+    credential_path: Path,
+    credential_sha: str,
+    operation_control_root: Path,
+    profile_raw: bytes,
+) -> None:
+    if _production_target(production_current) != production_before:
+        raise ControlPlaneUpdateError("production current changed before rollback")
+    if _sha(_regular(
+        credential_path,
+        "GitHub operations credential",
+        mode=0o600,
+    ).read_bytes()) != credential_sha:
+        raise ControlPlaneUpdateError("credential changed before rollback")
+
+    if _readlink(control_current, "control-current") not in {
+        f"releases/{old_source}",
+        f"releases/{new_source}",
+    }:
+        raise ControlPlaneUpdateError(
+            "control-current is not transaction-owned before rollback"
+        )
+
+    for name in PERSISTENT_UNITS:
+        observed = _regular(
+            unit_dir / name,
+            f"transaction unit {name}",
+            mode=0o644,
+        ).read_bytes()
+        if observed not in {
+            _unit_bytes(old_release, name),
+            _unit_bytes(new_release, name),
+        }:
+            raise ControlPlaneUpdateError(
+                f"unit is not transaction-owned before rollback: {name}"
+            )
+
+    worker = unit_dir / WORKER_UNIT
+    if worker.exists() or worker.is_symlink():
+        _regular(
+            worker,
+            "Hub pre-apply worker unit",
+            mode=0o644,
+            expected=_unit_bytes(new_release, WORKER_UNIT),
+        )
+
+    profile = operation_control_root / PROFILE_NAME
+    if profile.exists() or profile.is_symlink():
+        _regular(
+            profile,
+            "Hub pre-apply preauthorization profile",
+            mode=0o600,
+            expected=profile_raw,
+        )
+
+    activation = operation_control_root / ACTIVATION_NAME
+    if activation.exists() or activation.is_symlink():
+        raise ControlPlaneUpdateError(
+            "activation exists before rollback terminal authority"
+        )
+
+
 def update_control_plane(
     *,
     install_root: Path,
@@ -632,35 +740,17 @@ def update_control_plane(
     sleeper: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
     _require_root()
-    old_source = _validate_oid(
-        expected_old_source_commit,
-        "expected old source commit",
-    )
-    new_source = _validate_oid(
-        expected_new_source_commit,
-        "expected new source commit",
-    )
-    old_payload = _validate_sha(
-        expected_old_payload_sha256,
-        "expected old payload SHA-256",
-    )
-    new_payload = _validate_sha(
-        expected_new_payload_sha256,
-        "expected new payload SHA-256",
-    )
+    old_source = _validate_oid(expected_old_source_commit, "expected old source commit")
+    new_source = _validate_oid(expected_new_source_commit, "expected new source commit")
+    old_payload = _validate_sha(expected_old_payload_sha256, "expected old payload SHA-256")
+    new_payload = _validate_sha(expected_new_payload_sha256, "expected new payload SHA-256")
     if old_source == new_source:
         raise ControlPlaneUpdateError(
             "control-plane update requires a distinct successor source"
         )
 
-    install_root = _owned_dir(
-        install_root,
-        "install root",
-    )
-    releases = _owned_dir(
-        install_root / "releases",
-        "release root",
-    )
+    install_root = _owned_dir(install_root, "install root")
+    releases = _owned_dir(install_root / "releases", "release root")
     old_release = releases / old_source
     new_release = releases / new_source
     _release_identity(old_release, old_source, old_payload)
@@ -669,39 +759,17 @@ def update_control_plane(
     production_current = install_root / "current"
     control_current = install_root / "control-current"
     production_before = _production_target(production_current)
-    if _readlink(control_current, "control-current") != f"releases/{old_source}":
-        raise ControlPlaneUpdateError(
-            "control-current is not exact expected predecessor"
-        )
-
     unit_dir = _owned_dir(unit_dir, "systemd unit directory")
     operation_control_root = _owned_dir(
         operation_control_root,
         "operation control root",
         exact_mode=0o700,
     )
-    _operation_runtime_idle(operation_root)
-    _transport_inbox_idle(transport_root)
-
-    credential_raw = _regular(
+    credential_sha = _sha(_regular(
         credential_path,
         "GitHub operations credential",
         mode=0o600,
-    ).read_bytes()
-    credential_sha = _sha(credential_raw)
-
-    for name in PERSISTENT_UNITS:
-        _regular(
-            unit_dir / name,
-            f"installed predecessor unit {name}",
-            mode=0o644,
-            expected=_unit_bytes(old_release, name),
-        )
-    worker_path = unit_dir / WORKER_UNIT
-    if worker_path.exists() or worker_path.is_symlink():
-        raise ControlPlaneUpdateError(
-            "Hub pre-apply worker unit must be absent before successor update"
-        )
+    ).read_bytes())
 
     try:
         profile = read_hub_pre_apply_profile(profile_source)
@@ -714,23 +782,10 @@ def update_control_plane(
         raise ControlPlaneUpdateError(
             "preauthorization profile is not bound to successor control source"
         )
-    profile_destination = operation_control_root / PROFILE_NAME
-    if profile_destination.exists() or profile_destination.is_symlink():
-        raise ControlPlaneUpdateError(
-            "preauthorization destination must be absent before update"
-        )
 
-    if not all(active_probe(unit) for unit in PERSISTENT_UNITS):
-        raise ControlPlaneUpdateError(
-            "predecessor operation-control services must be active"
-        )
-    if any(
-        enabled_probe(unit) not in {"enabled", "enabled-runtime"}
-        for unit in PERSISTENT_UNITS
-    ):
-        raise ControlPlaneUpdateError(
-            "predecessor operation-control services must be enabled"
-        )
+    profile_destination = operation_control_root / PROFILE_NAME
+    activation_path = operation_control_root / ACTIVATION_NAME
+    worker_path = unit_dir / WORKER_UNIT
 
     update_root = _owned_dir(
         update_root,
@@ -756,18 +811,9 @@ def update_control_plane(
         if os.name == "posix":
             os.chmod(tx, 0o700)
         _fsync_dir(update_root)
-    tx = _owned_dir(tx, "control update transaction", exact_mode=0o700)
+    _owned_dir(tx, "control update transaction", exact_mode=0o700)
 
-    old_unit_sha = {
-        name: _sha(_unit_bytes(old_release, name))
-        for name in PERSISTENT_UNITS
-    }
-    new_unit_sha = {
-        name: _sha(_unit_bytes(new_release, name))
-        for name in PERSISTENT_UNITS
-    }
     worker_raw = _unit_bytes(new_release, WORKER_UNIT)
-    worker_sha = _sha(worker_raw)
     prepared = {
         "schema": PREPARED_SCHEMA,
         "transaction_id": digest,
@@ -778,13 +824,50 @@ def update_control_plane(
         "production_current_target": production_before,
         "credential_sha256": credential_sha,
         "profile_sha256": _sha(profile_raw),
-        "old_unit_sha256": old_unit_sha,
-        "new_unit_sha256": new_unit_sha,
-        "worker_unit_sha256": worker_sha,
+        "old_unit_sha256": {
+            name: _sha(_unit_bytes(old_release, name))
+            for name in PERSISTENT_UNITS
+        },
+        "new_unit_sha256": {
+            name: _sha(_unit_bytes(new_release, name))
+            for name in PERSISTENT_UNITS
+        },
+        "worker_unit_sha256": _sha(worker_raw),
     }
     prepared_raw = _canonical(prepared)
 
-    if completed_path.exists() or completed_path.is_symlink():
+    if rolled_path.exists() or rolled_path.is_symlink():
+        raise ControlPlaneUpdateError(
+            "same control-plane update previously rolled back; reconcile before retry"
+        )
+
+    prepared_exists = prepared_path.exists() or prepared_path.is_symlink()
+    completed_exists = completed_path.exists() or completed_path.is_symlink()
+    if prepared_exists:
+        if _canonical(_json_private(
+            prepared_path,
+            "prepared control update authority",
+        )) != prepared_raw:
+            raise ControlPlaneUpdateError(
+                "prepared control update authority mismatch"
+            )
+    elif completed_exists:
+        raise ControlPlaneUpdateError(
+            "completed control update exists without PREPARED authority"
+        )
+
+    live = _live_boundary(
+        old_release=old_release,
+        new_release=new_release,
+        old_source=old_source,
+        new_source=new_source,
+        control_current=control_current,
+        unit_dir=unit_dir,
+        control_root=operation_control_root,
+        profile_raw=profile_raw,
+    )
+
+    if completed_exists:
         completed = _json_private(
             completed_path,
             "completed control update authority",
@@ -792,35 +875,11 @@ def update_control_plane(
         if (
             completed.get("schema") != COMPLETED_SCHEMA
             or completed.get("transaction_id") != digest
+            or live != "NEW_EXACT"
         ):
             raise ControlPlaneUpdateError(
-                "completed control update authority mismatch"
+                "completed control update conflicts with authority/live state"
             )
-        if _canonical(_json_private(
-            prepared_path,
-            "prepared control update authority",
-        )) != prepared_raw:
-            raise ControlPlaneUpdateError(
-                "completed control update PREPARED authority mismatch"
-            )
-        if _live_boundary(
-            old_release=old_release,
-            new_release=new_release,
-            old_source=old_source,
-            new_source=new_source,
-            control_current=control_current,
-            unit_dir=unit_dir,
-            control_root=operation_control_root,
-            profile_raw=profile_raw,
-        ) != "NEW_EXACT":
-            raise ControlPlaneUpdateError(
-                "completed control update conflicts with live state"
-            )
-        _verify_services(
-            active_probe=active_probe,
-            enabled_probe=enabled_probe,
-            restart_probe=restart_probe,
-        )
         if _production_target(production_current) != production_before:
             raise ControlPlaneUpdateError(
                 "production current changed after completed control update"
@@ -833,76 +892,128 @@ def update_control_plane(
             raise ControlPlaneUpdateError(
                 "GitHub operations credential changed after update"
             )
+        if not all(active_probe(unit) for unit in PERSISTENT_UNITS):
+            systemctl(["daemon-reload"])
+            for unit in PERSISTENT_UNITS:
+                if not active_probe(unit):
+                    systemctl(["start", unit])
+        anchors = _verify_services(
+            active_probe=active_probe,
+            enabled_probe=enabled_probe,
+            restart_probe=restart_probe,
+        )
+        sleeper(SERVICE_STABILITY_SECONDS)
+        _verify_services(
+            active_probe=active_probe,
+            enabled_probe=enabled_probe,
+            restart_probe=restart_probe,
+            restart_anchor=anchors,
+        )
+        _ensure_activation(
+            path=activation_path,
+            control_source_commit=new_source,
+            profile_raw=profile_raw,
+            transaction_id=digest,
+            completed_raw=_canonical(completed),
+        )
         return completed
 
-    if rolled_path.exists() or rolled_path.is_symlink():
+    if activation_path.exists() or activation_path.is_symlink():
         raise ControlPlaneUpdateError(
-            "same control-plane update previously rolled back; reconcile before retry"
+            "Hub pre-apply activation exists before COMPLETED authority"
         )
 
-    if prepared_path.exists() or prepared_path.is_symlink():
-        existing = _json_private(
-            prepared_path,
-            "prepared control update authority",
-        )
-        if _canonical(existing) != prepared_raw:
+    if prepared_exists and live == "NEW_EXACT":
+        for unit in reversed(PERSISTENT_UNITS):
+            if active_probe(unit):
+                systemctl(["stop", unit])
+        if any(active_probe(unit) for unit in PERSISTENT_UNITS):
             raise ControlPlaneUpdateError(
-                "prepared control update authority mismatch"
+                "cannot quiesce exact successor during recovery"
             )
-        live = _live_boundary(
-            old_release=old_release,
-            new_release=new_release,
-            old_source=old_source,
-            new_source=new_source,
-            control_current=control_current,
-            unit_dir=unit_dir,
-            control_root=operation_control_root,
-            profile_raw=profile_raw,
+        _operation_runtime_idle(operation_root)
+        _transport_inbox_idle(transport_root)
+        if _production_target(production_current) != production_before:
+            raise ControlPlaneUpdateError(
+                "production current changed during successor recovery"
+            )
+        systemctl(["daemon-reload"])
+        for unit in PERSISTENT_UNITS:
+            systemctl(["start", unit])
+        anchors = _verify_services(
+            active_probe=active_probe,
+            enabled_probe=enabled_probe,
+            restart_probe=restart_probe,
         )
-        if live == "NEW_EXACT":
-            anchors = _verify_services(
-                active_probe=active_probe,
-                enabled_probe=enabled_probe,
-                restart_probe=restart_probe,
-            )
-            sleeper(SERVICE_STABILITY_SECONDS)
-            _verify_services(
-                active_probe=active_probe,
-                enabled_probe=enabled_probe,
-                restart_probe=restart_probe,
-                restart_anchor=anchors,
-            )
-            completed = {
-                "schema": COMPLETED_SCHEMA,
-                "transaction_id": digest,
-                "production_current_unchanged": True,
-                "control_current": "SUCCESSOR",
-                "persistent_services": "ACTIVE_STABLE",
-                "worker_unit": "STATIC_INACTIVE",
-                "preauthorization": "EXACT",
-                "credential_unchanged": True,
-            }
-            _write_record(completed_path, completed)
-            return completed
+        sleeper(SERVICE_STABILITY_SECONDS)
+        _verify_services(
+            active_probe=active_probe,
+            enabled_probe=enabled_probe,
+            restart_probe=restart_probe,
+            restart_anchor=anchors,
+        )
+        completed = {
+            "schema": COMPLETED_SCHEMA,
+            "transaction_id": digest,
+            "production_current_unchanged": True,
+            "control_current": "SUCCESSOR",
+            "persistent_services": "ACTIVE_STABLE",
+            "worker_unit": "STATIC_INACTIVE",
+            "preauthorization": "EXACT",
+            "credential_unchanged": True,
+        }
+        completed_raw = _canonical(completed)
+        _write_record(completed_path, completed)
+        _ensure_activation(
+            path=activation_path,
+            control_source_commit=new_source,
+            profile_raw=profile_raw,
+            transaction_id=digest,
+            completed_raw=completed_raw,
+        )
+        return completed
+
+    if prepared_exists and live != "OLD_EXACT":
+        raise ControlPlaneUpdateError(
+            "incomplete control update is partial; read-only reconciliation required"
+        )
+
+    if not prepared_exists:
+        _operation_runtime_idle(operation_root)
+        _transport_inbox_idle(transport_root)
         if live != "OLD_EXACT":
             raise ControlPlaneUpdateError(
-                "incomplete control update is partial; read-only reconciliation required"
+                "initial control update requires exact predecessor live boundary"
             )
-    else:
+        if not all(active_probe(unit) for unit in PERSISTENT_UNITS):
+            raise ControlPlaneUpdateError(
+                "predecessor operation-control services must be active"
+            )
+        if any(
+            enabled_probe(unit) not in {"enabled", "enabled-runtime"}
+            for unit in PERSISTENT_UNITS
+        ):
+            raise ControlPlaneUpdateError(
+                "predecessor operation-control services must be enabled"
+            )
         _write_record(prepared_path, prepared)
+    elif any(
+        enabled_probe(unit) not in {"enabled", "enabled-runtime"}
+        for unit in PERSISTENT_UNITS
+    ):
+        raise ControlPlaneUpdateError(
+            "predecessor services lost enabled state during recovery"
+        )
 
-    rollback_needed = False
+    completed_written = False
     try:
-        rollback_needed = True
-
-        # Freeze request intake/execution before changing qualified control bytes.
         for unit in reversed(PERSISTENT_UNITS):
-            systemctl(["stop", unit])
+            if active_probe(unit):
+                systemctl(["stop", unit])
         if any(active_probe(unit) for unit in PERSISTENT_UNITS):
             raise ControlPlaneUpdateError(
                 "predecessor operation-control services did not stop"
             )
-
         _verify_predecessor_commit_boundary(
             old_release=old_release,
             old_source=old_source,
@@ -917,8 +1028,6 @@ def update_control_plane(
             transport_root=transport_root,
         )
 
-        # Publish non-service authorities/worker first, then exact persistent units,
-        # then swap the independent control selector.
         _exclusive_file(profile_destination, profile_raw, 0o600)
         _exclusive_file(worker_path, worker_raw, 0o644)
         for name in PERSISTENT_UNITS:
@@ -927,15 +1036,11 @@ def update_control_plane(
                 _unit_bytes(new_release, name),
                 0o644,
             )
-        _atomic_symlink(
-            control_current,
-            f"releases/{new_source}",
-        )
+        _atomic_symlink(control_current, f"releases/{new_source}")
 
         systemctl(["daemon-reload"])
         for unit in PERSISTENT_UNITS:
             systemctl(["start", unit])
-
         anchors = _verify_services(
             active_probe=active_probe,
             enabled_probe=enabled_probe,
@@ -948,7 +1053,6 @@ def update_control_plane(
             restart_probe=restart_probe,
             restart_anchor=anchors,
         )
-
         if _live_boundary(
             old_release=old_release,
             new_release=new_release,
@@ -962,18 +1066,6 @@ def update_control_plane(
             raise ControlPlaneUpdateError(
                 "successor control-plane live boundary is not exact"
             )
-        if _production_target(production_current) != production_before:
-            raise ControlPlaneUpdateError(
-                "production current changed during control-plane update"
-            )
-        if _sha(_regular(
-            credential_path,
-            "GitHub operations credential",
-            mode=0o600,
-        ).read_bytes()) != credential_sha:
-            raise ControlPlaneUpdateError(
-                "GitHub operations credential changed during update"
-            )
 
         completed = {
             "schema": COMPLETED_SCHEMA,
@@ -985,29 +1077,48 @@ def update_control_plane(
             "preauthorization": "EXACT",
             "credential_unchanged": True,
         }
+        completed_raw = _canonical(completed)
         _write_record(completed_path, completed)
-        rollback_needed = False
+        completed_written = True
+        _ensure_activation(
+            path=activation_path,
+            control_source_commit=new_source,
+            profile_raw=profile_raw,
+            transaction_id=digest,
+            completed_raw=completed_raw,
+        )
         return completed
 
     except BaseException as original:
-        if not rollback_needed:
+        if completed_written:
             raise
         rollback_error: BaseException | None = None
         try:
             for unit in reversed(PERSISTENT_UNITS):
                 try:
-                    systemctl(["stop", unit])
+                    if active_probe(unit):
+                        systemctl(["stop", unit])
                 except BaseException:
                     pass
             if any(active_probe(unit) for unit in PERSISTENT_UNITS):
                 raise ControlPlaneUpdateError(
                     "cannot prove successor services stopped before rollback"
                 )
-
-            _atomic_symlink(
-                control_current,
-                f"releases/{old_source}",
+            _verify_transaction_owned_rollback_boundary(
+                old_release=old_release,
+                new_release=new_release,
+                old_source=old_source,
+                new_source=new_source,
+                control_current=control_current,
+                production_current=production_current,
+                production_before=production_before,
+                unit_dir=unit_dir,
+                credential_path=credential_path,
+                credential_sha=credential_sha,
+                operation_control_root=operation_control_root,
+                profile_raw=profile_raw,
             )
+            _atomic_symlink(control_current, f"releases/{old_source}")
             for name in PERSISTENT_UNITS:
                 _atomic_file(
                     unit_dir / name,
@@ -1026,11 +1137,9 @@ def update_control_plane(
                 0o600,
                 "Hub pre-apply preauthorization profile",
             )
-
             systemctl(["daemon-reload"])
             for unit in PERSISTENT_UNITS:
                 systemctl(["start", unit])
-
             anchors = _verify_services(
                 active_probe=active_probe,
                 enabled_probe=enabled_probe,
@@ -1056,34 +1165,22 @@ def update_control_plane(
                 raise ControlPlaneUpdateError(
                     "rollback did not restore exact predecessor boundary"
                 )
-            if _production_target(production_current) != production_before:
-                raise ControlPlaneUpdateError(
-                    "production current changed during rollback"
-                )
-            if _sha(_regular(
-                credential_path,
-                "GitHub operations credential",
-                mode=0o600,
-            ).read_bytes()) != credential_sha:
-                raise ControlPlaneUpdateError(
-                    "credential changed during rollback"
-                )
-
-            rolled = {
-                "schema": ROLLED_BACK_SCHEMA,
-                "transaction_id": digest,
-                "production_current_unchanged": True,
-                "control_current": "PREDECESSOR",
-                "persistent_services": "ACTIVE_STABLE",
-                "worker_unit": "ABSENT",
-                "preauthorization": "ABSENT",
-                "credential_unchanged": True,
-                "failure_class": type(original).__name__,
-            }
-            _write_record(rolled_path, rolled)
+            _write_record(
+                rolled_path,
+                {
+                    "schema": ROLLED_BACK_SCHEMA,
+                    "transaction_id": digest,
+                    "production_current_unchanged": True,
+                    "control_current": "PREDECESSOR",
+                    "persistent_services": "ACTIVE_STABLE",
+                    "worker_unit": "ABSENT",
+                    "preauthorization": "ABSENT",
+                    "credential_unchanged": True,
+                    "failure_class": type(original).__name__,
+                },
+            )
         except BaseException as exc:
             rollback_error = exc
-
         if rollback_error is not None:
             raise ControlPlaneUpdateError(
                 "control-plane update rollback is incomplete; read-only reconciliation required"

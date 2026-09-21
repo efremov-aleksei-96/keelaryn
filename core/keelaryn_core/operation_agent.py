@@ -15,6 +15,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator
 
+from .operation_hub_pre_apply_activation import (
+    ACTIVATION_NAME as HUB_PRE_APPLY_ACTIVATION_NAME,
+    HubPreApplyActivationError,
+    read_hub_pre_apply_activation,
+    verify_hub_pre_apply_activation,
+)
 from .operation_hub_pre_apply_profile import (
     HubPreApplyProfileError,
     PROFILE_NAME as HUB_PRE_APPLY_PROFILE_NAME,
@@ -373,13 +379,25 @@ class OperationAgent:
                 raise OperationRuntimeError(
                     "mutation approval verifier is not defined for operation"
                 )
+            profile_path = self.control_root / HUB_PRE_APPLY_PROFILE_NAME
             try:
-                approval = read_hub_pre_apply_profile(
-                    self.control_root / HUB_PRE_APPLY_PROFILE_NAME
+                approval = read_hub_pre_apply_profile(profile_path)
+                profile_raw = profile_path.read_bytes()
+                activation = read_hub_pre_apply_activation(
+                    self.control_root / HUB_PRE_APPLY_ACTIVATION_NAME
                 )
-            except HubPreApplyProfileError as exc:
+                verify_hub_pre_apply_activation(
+                    activation,
+                    control_source_commit=request.source_commit,
+                    profile_raw=profile_raw,
+                )
+            except (
+                HubPreApplyProfileError,
+                HubPreApplyActivationError,
+                OSError,
+            ) as exc:
                 raise OperationRuntimeError(
-                    "exact private mutation preauthorization is unavailable"
+                    "exact private mutation activation is unavailable"
                 ) from exc
             if (
                 approval["operation"] != request.operation

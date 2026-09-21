@@ -285,6 +285,12 @@ class ControlPlaneUpdateTests(unittest.TestCase):
                 ).read_bytes(),
                 layout["profile"].read_bytes(),
             )
+            self.assertTrue(
+                (
+                    layout["control"]
+                    / "hub-pre-apply-activation.json"
+                ).is_file()
+            )
             self.assertEqual(active, set(update.PERSISTENT_UNITS))
             self.assertIn(["daemon-reload"], calls)
 
@@ -354,6 +360,8 @@ class ControlPlaneUpdateTests(unittest.TestCase):
                             / ("1" * 32 + ".json")
                         )
                         pending.write_bytes(b"raced")
+                elif args[0] == "start":
+                    active.add(args[1])
 
             with mock.patch.object(
                 update,

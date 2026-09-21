@@ -493,3 +493,19 @@ Development history:
 
 Never resurrect the previously supplied large manual HUB PRE-APPLY PowerShell block.
 
+### 2026-09-21 crash-safe successor activation
+
+Pre-write authority: `2791192bdcb581b585e7143801d459d99f911c51`.
+The successor commit containing this section changes control update recovery and mutation activation:
+
+- PREPARED + exact OLD can resume even if a crash already stopped persistent operation services.
+- PREPARED + exact NEW is recovery-terminalized by quiescing/restarting/stability-checking exact successor bytes; publication is not replayed.
+- mixed/unknown boundaries remain read-only-reconcile only.
+- rollback overwrites state only after proving every mutable object is exact OLD/NEW transaction-owned.
+- `hub-pre-apply-profile.json` is no longer sufficient to authorize mutation.
+- a root-private `hub-pre-apply-activation.json` binds successor source, profile SHA-256, update transaction and COMPLETED authority hash.
+- activation is published only after durable control-update COMPLETED; agent and worker both require it.
+- if only activation publication is interrupted after COMPLETED, replay may restore that exact activation without repeating the update.
+
+Before any later write, reconcile the authoritative branch HEAD and its CI. Production remains untouched by this development commit.
+
