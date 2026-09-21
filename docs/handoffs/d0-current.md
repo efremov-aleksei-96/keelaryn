@@ -177,3 +177,28 @@ Initial D0-02A development HEAD `7aae6557d4956a92c883e449133dc672146578a2` reach
 
 This successor changes only that validator plus the required durable D0 checkpoint. No protocol shape, security boundary, VPS state, Hub state or Drive state is changed. The initial failed run is retained as development evidence; do not rerun or rewrite that commit.
 
+## D0-02B — installable read-only control successor
+
+Pre-write authority: `1950a72c777d3da1a7cf808593ca1e2535b3a6e2`; D0-02A Core run `35635338340` PASS with 690/690 deterministic tests.
+
+This development successor keeps old Hub-first update machinery as provenance and creates a separate active D0 path:
+
+- effective `operation_agent.py` exposes exactly `RUNTIME_SELFTEST` and `PRODUCTION_SNAPSHOT`; both are non-mutating and non-approval-gated;
+- `HUB_PRE_APPLY` is removed from the effective remote allowlist and request validator;
+- `operation_control_d0_update.py` reuses only low-level transaction/filesystem/systemd primitives from the old updater, while its own durable authority schemas and update root are D0-specific;
+- before creating PREPARED authority it statically proves the successor HANDLERS AST is exactly the two read-only operations and validates the snapshot worker's network/capability/secret-isolation policy;
+- the transaction preserves production current and GitHub credential identity, quiesces transport/agent, revalidates the exact predecessor boundary, publishes only control-current + persistent control units + the static snapshot worker, verifies service stability, and writes COMPLETED;
+- failures before COMPLETED restore exact predecessor control-current/unit bytes and remove the snapshot worker if the predecessor did not have it;
+- `operation_control_d0_validate.py` independently qualifies exact payload identity, read-only allowlist, static worker policy and installed unit bytes;
+- deterministic VPS-payload CI executes this D0 validator on the materialized exact HEAD.
+
+The production snapshot legacy-Hub observation is strengthened so mutation inhibit must bind the active transaction, production/tool source, tool hash and canonical OLD/NEW selector hashes. Authority disagreement is surfaced only as sanitized `BLOCKED / MUTATION_INHIBIT_AUTHORITY_MISMATCH`.
+
+No VPS, production Hub, writer, credential or Drive mutation is performed by this development commit.
+
+## Next permitted engineering objective
+
+**D0-02C — freeze and qualify the read-only successor candidate.**
+
+First require exact current-HEAD Core CI PASS. Then create one immutable D0 Operation Control candidate bound to the current source/payload, prove r0005 → candidate update and rollback/recovery in disposable qualification, and prepare one production bootstrap transaction. The old Hub cutover remains paused and cannot be authorized by the D0 candidate.
+

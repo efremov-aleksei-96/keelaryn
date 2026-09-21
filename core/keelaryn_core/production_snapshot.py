@@ -184,7 +184,10 @@ def _sha256_state(raw: bytes | None) -> dict[str, Any]:
     }
 
 
-def _hub_boundary(layout: ProductionSnapshotLayout) -> dict[str, Any]:
+def _hub_boundary(
+    layout: ProductionSnapshotLayout,
+    production_source_commit: str,
+) -> dict[str, Any]:
     selector = _selector_value(layout.selector_path)
     active_path = layout.deployment_state_root / "ACTIVE_TRANSACTION.json"
     active_raw = _optional_regular(
@@ -223,6 +226,7 @@ def _hub_boundary(layout: ProductionSnapshotLayout) -> dict[str, Any]:
                     "sha256": None,
                     "transaction_matches": None,
                     "active_transaction_matches": None,
+                    "authority_matches": None,
                 },
             }
         return {
@@ -237,6 +241,7 @@ def _hub_boundary(layout: ProductionSnapshotLayout) -> dict[str, Any]:
                 "sha256": inhibit_sha,
                 "transaction_matches": True,
                 "active_transaction_matches": None,
+                "authority_matches": False,
             },
         }
 
@@ -252,12 +257,42 @@ def _hub_boundary(layout: ProductionSnapshotLayout) -> dict[str, Any]:
         raise ProductionSnapshotError("ACTIVE_TRANSACTION old identity invalid")
     if not isinstance(new_id, str) or _HUB_ID.fullmatch(new_id) is None:
         raise ProductionSnapshotError("ACTIVE_TRANSACTION new identity invalid")
-    if not isinstance(active.get("tool"), dict) or not isinstance(
-        active.get("finalizers"), dict
-    ):
-        raise ProductionSnapshotError("ACTIVE_TRANSACTION authority shape invalid")
+    if old_id == new_id:
+        raise ProductionSnapshotError(
+            "ACTIVE_TRANSACTION old/new identities are equal"
+        )
+
+    tool = active.get("tool")
+    if not isinstance(tool, dict) or set(tool) != {"source_commit", "sha256"}:
+        raise ProductionSnapshotError("ACTIVE_TRANSACTION tool identity invalid")
+    if not isinstance(tool["source_commit"], str) or _SHA.fullmatch(tool["source_commit"]) is None:
+        raise ProductionSnapshotError("ACTIVE_TRANSACTION tool source invalid")
+    if not isinstance(tool["sha256"], str) or _SHA256.fullmatch(tool["sha256"]) is None:
+        raise ProductionSnapshotError("ACTIVE_TRANSACTION tool hash invalid")
+
+    finalizers = active.get("finalizers")
+    if not isinstance(finalizers, dict) or set(finalizers) != {
+        "pre_apply_sha256",
+        "post_cutover_sha256",
+    }:
+        raise ProductionSnapshotError(
+            "ACTIVE_TRANSACTION finalizer identity invalid"
+        )
+    for key in ("pre_apply_sha256", "post_cutover_sha256"):
+        digest = finalizers[key]
+        if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None:
+            raise ProductionSnapshotError(
+                "ACTIVE_TRANSACTION finalizer hash invalid"
+            )
 
     active_sha = hashlib.sha256(active_raw).hexdigest()
+    old_selector_sha = hashlib.sha256(
+        f"KEELARYN_HUB_ROOT_ID={old_id}\n".encode("ascii")
+    ).hexdigest()
+    new_selector_sha = hashlib.sha256(
+        f"KEELARYN_HUB_ROOT_ID={new_id}\n".encode("ascii")
+    ).hexdigest()
+
     if selector == old_id:
         selector_role = "OLD"
     elif selector == new_id:
@@ -285,7 +320,7 @@ def _hub_boundary(layout: ProductionSnapshotLayout) -> dict[str, Any]:
             or terminal_value.get("schema") != _TERMINAL_SCHEMA
             or terminal_value.get("transaction_id") != txid
             or terminal_value.get("active_transaction_sha256") != active_sha
-            or terminal_value.get("tool") != active["tool"]
+            or terminal_value.get("tool") != tool
             or terminal_value.get("outcome") not in {"ACCEPTED", "ROLLED_BACK"}
         ):
             raise ProductionSnapshotError(
@@ -312,16 +347,32 @@ def _hub_boundary(layout: ProductionSnapshotLayout) -> dict[str, Any]:
             "sha256": None,
             "transaction_matches": None,
             "active_transaction_matches": None,
+            "authority_matches": None,
         }
     else:
+        transaction_matches = inhibit["transaction_id"] == txid
+        active_transaction_matches = (
+            inhibit["active_transaction_sha256"] == active_sha
+        )
+        authority_matches = (
+            transaction_matches
+            and active_transaction_matches
+            and inhibit["source_commit"] == tool["source_commit"]
+            and tool["source_commit"] == production_source_commit
+            and inhibit["tool_sha256"] == tool["sha256"]
+            and inhibit["old_selector_sha256"] == old_selector_sha
+            and inhibit["new_selector_sha256"] == new_selector_sha
+        )
         inhibit_value = {
             "state": "PRESENT",
             "sha256": inhibit_sha,
-            "transaction_matches": inhibit["transaction_id"] == txid,
-            "active_transaction_matches": (
-                inhibit["active_transaction_sha256"] == active_sha
-            ),
+            "transaction_matches": transaction_matches,
+            "active_transaction_matches": active_transaction_matches,
+            "authority_matches": authority_matches,
         }
+        if not authority_matches:
+            status = "BLOCKED"
+            reason = "MUTATION_INHIBIT_AUTHORITY_MISMATCH"
 
     return {
         "status": status,
@@ -332,7 +383,6 @@ def _hub_boundary(layout: ProductionSnapshotLayout) -> dict[str, Any]:
         "active_transaction": _sha256_state(active_raw),
         "mutation_inhibit": inhibit_value,
     }
-
 
 def _default_run(
     args: list[str],
@@ -393,12 +443,13 @@ def _boundary_once(
     layout: ProductionSnapshotLayout,
     run: CommandRunner,
 ) -> dict[str, Any]:
+    production_source = _release_selector(
+        layout.install_root / "current",
+        layout.install_root,
+        "production current",
+    )
     return {
-        "production_source_commit": _release_selector(
-            layout.install_root / "current",
-            layout.install_root,
-            "production current",
-        ),
+        "production_source_commit": production_source,
         "control_source_commit": _release_selector(
             layout.install_root / "control-current",
             layout.install_root,
@@ -409,9 +460,11 @@ def _boundary_once(
             "operation_agent": _service_state(layout.agent_unit, run),
             "operation_transport": _service_state(layout.transport_unit, run),
         },
-        "legacy_hub": _hub_boundary(layout),
+        "legacy_hub": _hub_boundary(
+            layout,
+            production_source,
+        ),
     }
-
 
 def collect_production_snapshot(
     layout: ProductionSnapshotLayout | None = None,
@@ -552,6 +605,7 @@ def validate_production_snapshot(value: Any) -> dict[str, Any]:
         "ACTIVE_TRANSACTION_ABSENT",
         "TERMINAL_SELECTOR_MISMATCH",
         "SELECTOR_IDENTITY_UNKNOWN",
+        "MUTATION_INHIBIT_AUTHORITY_MISMATCH",
     }:
         raise ProductionSnapshotError("production snapshot reason invalid")
 
@@ -579,6 +633,7 @@ def validate_production_snapshot(value: Any) -> dict[str, Any]:
         "sha256",
         "transaction_matches",
         "active_transaction_matches",
+        "authority_matches",
     }:
         raise ProductionSnapshotError(
             "production snapshot mutation inhibit invalid"
@@ -595,7 +650,11 @@ def validate_production_snapshot(value: Any) -> dict[str, Any]:
         raise ProductionSnapshotError(
             "production snapshot mutation inhibit state/hash mismatch"
         )
-    for key in ("transaction_matches", "active_transaction_matches"):
+    for key in (
+        "transaction_matches",
+        "active_transaction_matches",
+        "authority_matches",
+    ):
         if inhibit[key] is not None and not isinstance(inhibit[key], bool):
             raise ProductionSnapshotError(
                 f"production snapshot mutation inhibit {key} invalid"

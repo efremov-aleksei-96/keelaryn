@@ -15,17 +15,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .operation_hub_pre_apply_activation import (
-    ACTIVATION_NAME as HUB_PRE_APPLY_ACTIVATION_NAME,
-    HubPreApplyActivationError,
-    read_hub_pre_apply_activation,
-    verify_hub_pre_apply_activation_authority,
-)
-from .operation_hub_pre_apply_profile import (
-    HubPreApplyProfileError,
-    PROFILE_NAME as HUB_PRE_APPLY_PROFILE_NAME,
-    read_hub_pre_apply_profile,
-)
 from .operation_request import OperationRequest, read_operation_request
 from .production_snapshot import (
     ProductionSnapshotError,
@@ -47,7 +36,6 @@ REJECTED_NAME = "rejected"
 _REQUEST_FILE = re.compile(r"^[0-9a-f]{32}\.json$")
 _REQUEST_ID = re.compile(r"^[0-9a-f]{32}$")
 PRODUCTION_SNAPSHOT_UNIT = "keelaryn-production-snapshot@{}.service"
-HUB_PRE_APPLY_UNIT = "keelaryn-hub-preapply.service"
 
 
 @dataclass(frozen=True)
@@ -102,64 +90,6 @@ def _production_snapshot(session: OperationSession, request: OperationRequest) -
     session.record(phase="SNAPSHOT", event="PHASE_COMPLETE")
 
 
-def _run_fixed_oneshot(unit: str) -> None:
-    if unit != HUB_PRE_APPLY_UNIT:
-        raise OperationRuntimeError("operation worker unit is not allowlisted")
-    try:
-        completed = subprocess.run(
-            ["systemctl", "start", unit],
-            check=False,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=7200,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise OperationRuntimeError(
-            "fixed operation worker invocation became uncertain"
-        ) from exc
-    if completed.returncode != 0:
-        raise OperationRuntimeError("fixed operation worker reported failure")
-
-
-def _hub_pre_apply(session: OperationSession, request: OperationRequest) -> None:
-    if request.profile != "CURRENT_PREPARED":
-        raise OperationRuntimeError(
-            "HUB_PRE_APPLY requires CURRENT_PREPARED profile"
-        )
-
-    # The remote request cannot select a Hub, transaction, Drive ID or path.
-    # Authorization is the already-durable PREPARED Hub-cutover authority.
-    # Once the worker is handed off, any failure is conservatively ambiguous
-    # until a separate read-only reconcile proves the production boundary.
-    session.record(
-        phase="BOUNDARY",
-        event="PRECOMMIT_VERIFIED",
-        mutation_state="PRECOMMIT_VERIFIED",
-    )
-    session.record(
-        phase="SELECTOR_APPLY",
-        event="MUTATION_BOUNDARY",
-        mutation_state="COMMITTING",
-    )
-    _run_fixed_oneshot(HUB_PRE_APPLY_UNIT)
-    session.record(
-        phase="SELECTOR_APPLY",
-        event="MUTATION_COMMITTED",
-        mutation_state="COMMITTED",
-    )
-    session.record(
-        phase="POSTVERIFY",
-        event="POSTCOMMIT_VERIFYING",
-        mutation_state="POSTCOMMIT_VERIFYING",
-    )
-    session.record(
-        phase="POSTVERIFY",
-        event="POSTCOMMIT_VERIFIED",
-        mutation_state="VERIFIED",
-    )
-
-
 HANDLERS: dict[str, OperationHandler] = {
     "RUNTIME_SELFTEST": OperationHandler(
         mutation_capable=False,
@@ -171,13 +101,7 @@ HANDLERS: dict[str, OperationHandler] = {
         requires_approval=False,
         callback=_production_snapshot,
     ),
-    "HUB_PRE_APPLY": OperationHandler(
-        mutation_capable=True,
-        requires_approval=True,
-        callback=_hub_pre_apply,
-    ),
 }
-
 
 def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
     path = path.absolute()
@@ -421,48 +345,11 @@ class OperationAgent:
             raise OperationRuntimeError(
                 "operation request mutation capability disagrees with allowlist"
             )
-        if handler.requires_approval:
-            if request.approval != "REQUIRED":
-                raise OperationRuntimeError(
-                    "operation request approval policy disagrees with allowlist"
-                )
-            if request.operation != "HUB_PRE_APPLY":
-                raise OperationRuntimeError(
-                    "mutation approval verifier is not defined for operation"
-                )
-            profile_path = self.control_root / HUB_PRE_APPLY_PROFILE_NAME
-            try:
-                approval = read_hub_pre_apply_profile(profile_path)
-                profile_raw = profile_path.read_bytes()
-                activation = read_hub_pre_apply_activation(
-                    self.control_root / HUB_PRE_APPLY_ACTIVATION_NAME
-                )
-                verify_hub_pre_apply_activation_authority(
-                    activation,
-                    control_source_commit=request.source_commit,
-                    profile_raw=profile_raw,
-                    update_root=(
-                        self.control_root.parent
-                        / "operation-control-updates"
-                    ),
-                )
-            except (
-                HubPreApplyProfileError,
-                HubPreApplyActivationError,
-                OSError,
-            ) as exc:
-                raise OperationRuntimeError(
-                    "exact private mutation activation is unavailable"
-                ) from exc
-            if (
-                approval["operation"] != request.operation
-                or approval["request_profile"] != request.profile
-                or approval["control_source_commit"] != request.source_commit
-            ):
-                raise OperationRuntimeError(
-                    "mutation request does not match exact private preauthorization"
-                )
-        elif request.approval != "NOT_REQUIRED":
+        if handler.mutation_capable or handler.requires_approval:
+            raise OperationRuntimeError(
+                "D0 remote operation handlers must be read-only"
+            )
+        if request.approval != "NOT_REQUIRED":
             raise OperationRuntimeError(
                 "read-only operation must not claim mutation approval"
             )

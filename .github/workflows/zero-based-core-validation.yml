@@ -166,6 +166,11 @@ jobs:
       - name: Compile successor upgrade engine
         run: python3 -B -m py_compile deploy/zero-based-vps/operation_control_successor_upgrade.py
 
+      - name: Compile D0 control updater and validator
+        run: |
+          python3 -B -m py_compile deploy/zero-based-vps/operation_control_d0_update.py
+          python3 -B -m py_compile deploy/zero-based-vps/operation_control_d0_validate.py
+
       - name: Run disposable Hub-selector cutover rehearsal
         env:
           KEELARYN_HUB_CUTOVER_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_HUB_CUTOVER_REHEARSAL_EVIDENCE.json
@@ -255,6 +260,7 @@ jobs:
           install -m 0644 "$release/deploy/zero-based-vps/keelaryn-drive-bootstrap.service" "$unit_dir/keelaryn-drive-bootstrap.service"
           install -m 0644 "$release/deploy/zero-based-vps/keelaryn-operation-agent.service" "$unit_dir/keelaryn-operation-agent.service"
           install -m 0644 "$release/deploy/zero-based-vps/keelaryn-operation-transport.service" "$unit_dir/keelaryn-operation-transport.service"
+          install -m 0644 "$release/deploy/zero-based-vps/keelaryn-production-snapshot@.service" "$unit_dir/keelaryn-production-snapshot@.service"
           PYTHONDONTWRITEBYTECODE=1 python3 -B \
             "$release/deploy/zero-based-vps/target_host_validate.py" \
             --release "$release" \
@@ -266,11 +272,18 @@ jobs:
             --deployment-state-root "$state_root" \
             --mutation-gate-root "$mutation_gate_root" \
             > "$tmp/target-host-config.json"
+          PYTHONDONTWRITEBYTECODE=1 python3 -B \
+            "$release/deploy/zero-based-vps/operation_control_d0_validate.py" \
+            --release "$release" \
+            --expected-source-commit "$GITHUB_SHA" \
+            --expected-payload-sha256 "$payload_sha" \
+            --installed-unit-dir "$unit_dir" \
+            > "$tmp/d0-control.json"
           if find "$release" \( -type d -name '__pycache__' -o -type f -name '*.pyc' -o -type f -name '*.pyo' \) -print -quit | grep -q .; then
             echo "Materialized release was mutated by validation bytecode output." >&2
             exit 1
           fi
-          python3 - "$tmp/first.json" "$tmp/second.json" "$tmp/materialized.json" "$tmp/target-host-release.json" "$tmp/target-host-config.json" "$KEELARYN_VPS_EVIDENCE" <<'PY'
+          python3 - "$tmp/first.json" "$tmp/second.json" "$tmp/materialized.json" "$tmp/target-host-release.json" "$tmp/target-host-config.json" "$tmp/d0-control.json" "$KEELARYN_VPS_EVIDENCE" <<'PY'
           import json
           import os
           import sys
@@ -280,6 +293,7 @@ jobs:
           materialized = json.load(open(sys.argv[3], encoding="utf-8"))
           target = json.load(open(sys.argv[4], encoding="utf-8"))
           host = json.load(open(sys.argv[5], encoding="utf-8"))
+          d0 = json.load(open(sys.argv[6], encoding="utf-8"))
           keys = ("schema", "source_commit", "file_count", "payload_sha256", "payload_size")
           if any(first[key] != second[key] for key in keys):
               raise SystemExit("deterministic payload metadata mismatch")
@@ -324,6 +338,16 @@ jobs:
           for key in ("host_config_verified", "selector_verified", "installed_units_verified", "active_release_verified", "deployment_state_verified", "deployment_state_idle", "mutation_gate_verified", "mutation_gate_idle", "release_remained_exact"):
               if host.get(key) is not True:
                   raise SystemExit(f"host-config target-host proof did not establish {key}")
+          if d0.get("schema") != "keelaryn.operation-control-d0-validation.v1":
+              raise SystemExit("D0 control validation schema mismatch")
+          if d0.get("source_commit") != first["source_commit"] or d0.get("payload_sha256") != first["payload_sha256"]:
+              raise SystemExit("D0 control validation identity mismatch")
+          if d0.get("remote_allowlist") != ["PRODUCTION_SNAPSHOT", "RUNTIME_SELFTEST"]:
+              raise SystemExit("D0 remote allowlist mismatch")
+          if d0.get("remote_mutation_handlers") != 0:
+              raise SystemExit("D0 control exposes mutation handler")
+          if d0.get("snapshot_unit_policy_verified") is not True or d0.get("installed_units_verified") is not True:
+              raise SystemExit("D0 control qualification incomplete")
           evidence = {key: first[key] for key in keys}
           evidence.update(
               {
@@ -345,13 +369,14 @@ jobs:
                   "operation_control_update_cli_verified": True,
                   "target_host_validator_verified": True,
                   "target_host_config_validator_verified": True,
+                  "d0_control_validator_verified": True,
                   "mutation_gate_validator_verified": True,
                   "development_test_suite_executed": target["development_test_suite_executed"],
                   "github_run_id": os.environ["GITHUB_RUN_ID"],
                   "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
               }
           )
-          with open(sys.argv[6], "w", encoding="utf-8", newline="\n") as stream:
+          with open(sys.argv[7], "w", encoding="utf-8", newline="\n") as stream:
               json.dump(evidence, stream, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
               stream.write("\n")
           PY

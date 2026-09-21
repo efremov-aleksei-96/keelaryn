@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 4,
+  "revision": 5,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "7aae6557d4956a92c883e449133dc672146578a2",
+  "repository_basis_commit": "1950a72c777d3da1a7cf808593ca1e2535b3a6e2",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -47,11 +47,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-01B-zero-based-core-validation",
-    "run_id": 35631451089,
+    "scope": "D0-02A-zero-based-core-validation",
+    "run_id": 35635338340,
     "conclusion": "PASS",
     "relevance": "CURRENT_D0_BASELINE",
-    "note": "Exact HEAD 93f9851d283e181f788b509bc0e19eabad012e05 passed Zero-based Core validation (681 tests) and Windows migration run 35631451344 (131 tests)."
+    "note": "Exact HEAD 1950a72c777d3da1a7cf808593ca1e2535b3a6e2 passed Zero-based Core validation with 690/690 deterministic tests plus relay, CLI, rehearsal and deterministic VPS payload checks."
   },
   "production_boundary": {
     "freshness": "RECORDED_NOT_LIVE_VERIFIED_IN_D0",
@@ -117,8 +117,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02B",
-    "description": "After exact current-HEAD CI PASS for the D0-02A timestamp-regex correction, integrate and qualify installation of the read-only production snapshot worker into a D0 Operation Control successor without authorizing old Hub mutations.",
+    "id": "D0-02C",
+    "description": "After exact current-HEAD CI PASS for D0-02B, freeze and qualify a read-only D0 Operation Control successor candidate, then prepare the single transaction-safe production bootstrap/update from installed r0005. Do not authorize or resume old Hub mutations.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

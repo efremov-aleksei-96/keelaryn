@@ -13,14 +13,6 @@ sys.path.insert(0, str(ROOT / "core"))
 
 import keelaryn_core.operation_agent as operation_agent  # noqa: E402
 from keelaryn_core.operation_agent import OperationAgent  # noqa: E402
-from keelaryn_core.operation_hub_pre_apply_activation import (  # noqa: E402
-    ACTIVATION_NAME as HUB_PRE_APPLY_ACTIVATION_NAME,
-    activation_bytes as hub_pre_apply_activation_bytes,
-)
-from keelaryn_core.operation_hub_pre_apply_profile import (  # noqa: E402
-    PROFILE_NAME as HUB_PRE_APPLY_PROFILE_NAME,
-    PROFILE_SCHEMA as HUB_PRE_APPLY_PROFILE_SCHEMA,
-)
 from keelaryn_core.operation_request import REQUEST_SCHEMA, parse_operation_request  # noqa: E402
 from keelaryn_core.operation_runtime import OperationRuntimeError  # noqa: E402
 
@@ -77,68 +69,35 @@ class OperationAgentTests(unittest.TestCase):
         )
         return agent, operation_root, control_root
 
-    def authorize_hub_pre_apply(self, control_root: Path) -> None:
-        source_root = "1abcdefghijk"
-        value = {
-            "schema": HUB_PRE_APPLY_PROFILE_SCHEMA,
-            "operation": "HUB_PRE_APPLY",
-            "request_profile": "CURRENT_PREPARED",
-            "authorization": "APPROVED",
-            "control_source_commit": self.COMMIT,
-            "transaction_id": "2" * 32,
-            "active_transaction_sha256": "3" * 64,
-            "framework_source_commit": "4" * 40,
-            "candidate_id": "migration-r0072-20260919-01",
-            "candidate_source_commit": "5" * 40,
-            "candidate_source_tree": "6" * 40,
-            "pack_sha256": "7" * 64,
-            "freeze_receipt_sha256": "8" * 64,
-            "target_authority_sha256": "9" * 64,
-            "qualification_evidence_sha256": "a" * 64,
-            "credential_sha256": "b" * 64,
-            "migration_source_root_id": source_root,
-            "migration_source_identity_sha256": __import__("hashlib").sha256(
-                source_root.encode("utf-8")
-            ).hexdigest(),
-            "new_selector_identity_sha256": "c" * 64,
-        }
-        path = control_root / HUB_PRE_APPLY_PROFILE_NAME
-        profile_raw = canonical(value)
-        path.write_bytes(profile_raw)
-        os.chmod(path, 0o600)
-        update_root = control_root.parent / "operation-control-updates"
-        update_root.mkdir(mode=0o700)
-        os.chmod(update_root, 0o700)
-        transaction_id = "d" * 64
-        tx = update_root / transaction_id
-        tx.mkdir(mode=0o700)
-        os.chmod(tx, 0o700)
-        completed_raw = canonical(
-            {
-                "schema": "keelaryn.operation-control-update-completed.v1",
-                "transaction_id": transaction_id,
-                "production_current_unchanged": True,
-                "control_current": "SUCCESSOR",
-                "persistent_services": "ACTIVE_STABLE",
-                "worker_unit": "STATIC_INACTIVE",
-                "preauthorization": "EXACT",
-                "credential_unchanged": True,
-            }
+    def test_effective_d0_allowlist_contains_no_mutation_handler(self) -> None:
+        self.assertEqual(
+            set(operation_agent.HANDLERS),
+            {"RUNTIME_SELFTEST", "PRODUCTION_SNAPSHOT"},
         )
-        completed = tx / "COMPLETED.json"
-        completed.write_bytes(completed_raw)
-        os.chmod(completed, 0o600)
+        for handler in operation_agent.HANDLERS.values():
+            self.assertFalse(handler.mutation_capable)
+            self.assertFalse(handler.requires_approval)
 
-        activation = control_root / HUB_PRE_APPLY_ACTIVATION_NAME
-        activation.write_bytes(
-            hub_pre_apply_activation_bytes(
-                control_source_commit=self.COMMIT,
-                profile_raw=profile_raw,
-                control_update_transaction_id=transaction_id,
-                control_update_completed_raw=completed_raw,
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            agent, operation_root, _ = self.layout(root)
+            request = self.request(
+                operation="HUB_PRE_APPLY",
+                profile="CURRENT_PREPARED",
+                mutation_capable=True,
+                approval="REQUIRED",
             )
-        )
-        os.chmod(activation, 0o600)
+            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
+            request_path.write_bytes(canonical(request))
+            os.chmod(request_path, 0o640)
+            with self.assertRaisesRegex(
+                OperationRuntimeError,
+                "not allowlisted",
+            ):
+                agent.process(request_path)
+            self.assertEqual(list(operation_root.iterdir()), [])
+
 
     def test_agent_stays_idle_until_transport_relay_exists(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -238,177 +197,6 @@ class OperationAgentTests(unittest.TestCase):
 
             self.assertEqual(second["disposition"], "EXISTING")
             self.assertEqual(result_before, result_after)
-
-    def test_hub_pre_apply_uses_only_fixed_worker_and_reaches_verified(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            os.chmod(root, 0o700)
-            agent, _, control = self.layout(root)
-            self.authorize_hub_pre_apply(control)
-            request = self.request(
-                operation="HUB_PRE_APPLY",
-                profile="CURRENT_PREPARED",
-                mutation_capable=True,
-                timeout_seconds=7200,
-                approval="REQUIRED",
-            )
-            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
-            request_path.write_bytes(canonical(request))
-            os.chmod(request_path, 0o640)
-
-            with mock.patch.object(
-                operation_agent,
-                "_run_fixed_oneshot",
-                return_value=None,
-            ) as worker:
-                result = agent.process(request_path)
-
-            worker.assert_called_once_with(
-                operation_agent.HUB_PRE_APPLY_UNIT
-            )
-            self.assertEqual(result["disposition"], "COMPLETED")
-            self.assertEqual(result["status"]["execution_state"], "SUCCEEDED")
-            self.assertEqual(result["status"]["mutation_state"], "VERIFIED")
-            self.assertEqual(result["status"]["next_action"], "NONE")
-
-    def test_hub_pre_apply_worker_failure_requires_read_only_reconcile(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            os.chmod(root, 0o700)
-            agent, _, control = self.layout(root)
-            self.authorize_hub_pre_apply(control)
-            request = self.request(
-                operation="HUB_PRE_APPLY",
-                profile="CURRENT_PREPARED",
-                mutation_capable=True,
-                timeout_seconds=7200,
-                approval="REQUIRED",
-            )
-            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
-            request_path.write_bytes(canonical(request))
-            os.chmod(request_path, 0o640)
-
-            with mock.patch.object(
-                operation_agent,
-                "_run_fixed_oneshot",
-                side_effect=OperationRuntimeError("uncertain"),
-            ):
-                result = agent.process(request_path)
-
-            self.assertEqual(result["disposition"], "FAILED")
-            self.assertEqual(
-                result["status"]["execution_state"],
-                "RECOVERY_REQUIRED",
-            )
-            self.assertEqual(result["status"]["mutation_state"], "COMMITTING")
-            self.assertEqual(
-                result["status"]["next_action"],
-                "READ_ONLY_RECONCILE",
-            )
-
-    def test_hub_pre_apply_requires_exact_private_preauthorization(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            os.chmod(root, 0o700)
-            agent, operation_root, _ = self.layout(root)
-            request = self.request(
-                operation="HUB_PRE_APPLY",
-                profile="CURRENT_PREPARED",
-                mutation_capable=True,
-                timeout_seconds=7200,
-                approval="REQUIRED",
-            )
-            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
-            request_path.write_bytes(canonical(request))
-            os.chmod(request_path, 0o640)
-
-            with mock.patch.object(
-                operation_agent,
-                "_run_fixed_oneshot",
-                return_value=None,
-            ) as worker:
-                with self.assertRaisesRegex(
-                    OperationRuntimeError,
-                    "activation is unavailable",
-                ):
-                    agent.process(request_path)
-
-            worker.assert_not_called()
-            self.assertFalse((operation_root / self.REQUEST_ID).exists())
-
-    def test_hub_pre_apply_rejects_tampered_control_update_completed(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            os.chmod(root, 0o700)
-            agent, operation_root, control = self.layout(root)
-            self.authorize_hub_pre_apply(control)
-
-            completed = (
-                control.parent
-                / "operation-control-updates"
-                / ("d" * 64)
-                / "COMPLETED.json"
-            )
-            value = json.loads(completed.read_text(encoding="utf-8"))
-            value["persistent_services"] = "TAMPERED"
-            completed.write_bytes(canonical(value))
-            os.chmod(completed, 0o600)
-
-            request = self.request(
-                operation="HUB_PRE_APPLY",
-                profile="CURRENT_PREPARED",
-                mutation_capable=True,
-                timeout_seconds=7200,
-                approval="REQUIRED",
-            )
-            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
-            request_path.write_bytes(canonical(request))
-            os.chmod(request_path, 0o640)
-
-            with mock.patch.object(
-                operation_agent,
-                "_run_fixed_oneshot",
-                return_value=None,
-            ) as worker_call:
-                with self.assertRaisesRegex(
-                    OperationRuntimeError,
-                    "activation is unavailable",
-                ):
-                    agent.process(request_path)
-
-            worker_call.assert_not_called()
-            self.assertFalse((operation_root / self.REQUEST_ID).exists())
-
-    def test_hub_pre_apply_rejects_profile_not_bound_to_request(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            os.chmod(root, 0o700)
-            agent, operation_root, control = self.layout(root)
-            self.authorize_hub_pre_apply(control)
-            request = self.request(
-                operation="HUB_PRE_APPLY",
-                profile="ARBITRARY",
-                mutation_capable=True,
-                timeout_seconds=7200,
-                approval="REQUIRED",
-            )
-            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
-            request_path.write_bytes(canonical(request))
-            os.chmod(request_path, 0o640)
-
-            with mock.patch.object(
-                operation_agent,
-                "_run_fixed_oneshot",
-                return_value=None,
-            ) as worker:
-                with self.assertRaisesRegex(
-                    OperationRuntimeError,
-                    "does not match exact private preauthorization",
-                ):
-                    agent.process(request_path)
-
-            worker.assert_not_called()
-            self.assertFalse((operation_root / self.REQUEST_ID).exists())
 
     def test_pending_request_is_archived_and_not_repeated(self) -> None:
         with tempfile.TemporaryDirectory() as td:

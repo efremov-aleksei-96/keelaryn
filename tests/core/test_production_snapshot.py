@@ -112,8 +112,11 @@ class ProductionSnapshotTests(unittest.TestCase):
         active = {
             "schema": "keelaryn.zero-vps-hub-cutover.v2",
             "transaction_id": self.TXID,
-            "tool": {"source_commit": self.PROD},
-            "finalizers": {"pre_apply": {"sha256": "2" * 64}},
+            "tool": {"source_commit": self.PROD, "sha256": "6" * 64},
+            "finalizers": {
+                "pre_apply_sha256": "7" * 64,
+                "post_cutover_sha256": "8" * 64,
+            },
             "old_hub_root_id": old_id,
             "new_hub_root_id": new_id,
         }
@@ -136,9 +139,13 @@ class ProductionSnapshotTests(unittest.TestCase):
                     active_raw
                 ).hexdigest(),
                 "source_commit": self.PROD,
-                "tool_sha256": "3" * 64,
-                "old_selector_sha256": "4" * 64,
-                "new_selector_sha256": "5" * 64,
+                "tool_sha256": "6" * 64,
+                "old_selector_sha256": hashlib.sha256(
+                    f"KEELARYN_HUB_ROOT_ID={old_id}\\n".encode("ascii")
+                ).hexdigest(),
+                "new_selector_sha256": hashlib.sha256(
+                    f"KEELARYN_HUB_ROOT_ID={new_id}\\n".encode("ascii")
+                ).hexdigest(),
             }
         )
         inhibit = gate / "INHIBIT.json"
@@ -178,6 +185,10 @@ class ProductionSnapshotTests(unittest.TestCase):
                 value["legacy_hub"]["mutation_inhibit"][
                     "active_transaction_matches"
                 ],
+                True,
+            )
+            self.assertEqual(
+                value["legacy_hub"]["mutation_inhibit"]["authority_matches"],
                 True,
             )
             rendered = json.dumps(value, sort_keys=True)
@@ -249,6 +260,35 @@ class ProductionSnapshotTests(unittest.TestCase):
             unit,
         )
         self.assertNotIn("[Install]", unit)
+
+    def test_inhibit_authority_mismatch_is_reported_blocked_without_identity_leak(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            layout, old_id, new_id = self.layout(root)
+            inhibit_path = layout.mutation_gate_root / "INHIBIT.json"
+            value = json.loads(inhibit_path.read_text(encoding="utf-8"))
+            value["tool_sha256"] = "f" * 64
+            inhibit_path.write_bytes(compact(value))
+            os.chmod(inhibit_path, 0o640)
+
+            observed = collect_production_snapshot(
+                layout,
+                run=FakeSystemd(),
+            )
+
+            self.assertEqual(observed["legacy_hub"]["status"], "BLOCKED")
+            self.assertEqual(
+                observed["legacy_hub"]["reason"],
+                "MUTATION_INHIBIT_AUTHORITY_MISMATCH",
+            )
+            self.assertFalse(
+                observed["legacy_hub"]["mutation_inhibit"]["authority_matches"]
+            )
+            rendered = json.dumps(observed, sort_keys=True)
+            self.assertNotIn(old_id, rendered)
+            self.assertNotIn(new_id, rendered)
+
+
 
 
 if __name__ == "__main__":

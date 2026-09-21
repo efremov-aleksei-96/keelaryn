@@ -60,6 +60,7 @@ def snapshot() -> dict[str, object]:
                 "sha256": "4" * 64,
                 "transaction_matches": True,
                 "active_transaction_matches": True,
+                "authority_matches": True,
             },
         },
         "production_mutations_performed": False,
