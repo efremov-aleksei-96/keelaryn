@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 12,
+  "revision": 13,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "ea6c1635f6b266e59fe867af2f172fabe0dced25",
+  "repository_basis_commit": "26d1d07234afc575cc3afbce69e0dfa4026c6300",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,14 +53,16 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02C-transition-qualified",
-    "run_id": 35645443161,
+    "scope": "D0-layered-corpus-first-architecture",
+    "run_id": 35648813912,
     "conclusion": "PASS",
     "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact development HEAD eb001fe5b02a71cd14b3958bd3b2058a06dd0074 passed 693/693 Core tests. Dedicated frozen r0005-to-r0007 transition gate run 35645443118 also passed all six disposable success/rollback/interruption/replay scenarios; artifact 10660201981 digest sha256:9726a3a2c538f2e7a934b9e2a32e06afc2b5c9562c5529863604a23b4bff4618."
+    "note": "Exact HEAD 26d1d07234afc575cc3afbce69e0dfa4026c6300 passed 695/695 Core tests after canonical layered Corpus-first authority was enforced in documentation, durable state validation and regression tests."
   },
   "production_boundary": {
-    "freshness": "RECORDED_NOT_LIVE_VERIFIED_IN_D0",
+    "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
+    "observed_at_utc": "2026-09-21T20:16:10Z",
+    "evidence_path": "docs/evidence/D0_02D_LEGACY_RUNTIME_RECONCILE_2026-09-21T201610Z.json",
     "source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
     "hub_cutover_status": "PREPARED",
     "hub_transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
@@ -71,7 +73,15 @@
       "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
       "state": "INSTALLED_RUNTIME_ACCEPTED"
     },
-    "rule": "Fresh read-only legacy-runtime VPS reconciliation is mandatory before the r0005-to-r0007 control cutover; legacy Hub content/semantics are never authority for the Corpus-first model."
+    "read_only_selftest": {
+      "request_id": "50000000000000000000000000000002",
+      "request_comment_id": 5766792375,
+      "status_comment_id": 5766795620,
+      "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+      "status": "PASS",
+      "timestamp_utc": "2026-09-21T20:08:20Z"
+    },
+    "rule": "This evidence proves only the observed legacy runtime safety boundary. Re-read external authority immediately before any later production mutation; legacy Hub content/semantics remain non-authoritative."
   },
   "constrained_candidates": [
     {
@@ -129,8 +139,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02D_VPS_RECONCILE",
-    "description": "After this canonical Corpus-first architecture commit passes CI, continue D0-02D strictly as read-only legacy-runtime safety observation: verify a fresh exact-r0005 RUNTIME_SELFTEST through Issue #65, then reconcile production current/control-current, installed r0005 control units, writer state, legacy Hub PREPARED transaction/OLD selector, mutation inhibit and credential identity. Do not use legacy Hub as content/semantic/project/LifeOS authority and do not mutate production or Drive during this objective.",
+    "id": "D0-02E_BOOTSTRAP_PREP",
+    "description": "Prepare production-specific r0007 bootstrap without mutating production: determine the exact materialization/update mechanism from frozen r0007 payload, prove all bootstrap inputs and rollback/recovery prerequisites against the live-verified r0005 boundary, and require another fresh read-only boundary revalidation at the eventual mutation boundary. Do not modify legacy Hub selector, writer, Google Drive corpus or production control-current during this objective.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

@@ -230,19 +230,46 @@ def validate_state(value: Any) -> dict[str, Any]:
         top["production_boundary"],
         {
             "freshness",
+            "observed_at_utc",
+            "evidence_path",
             "source_commit",
             "hub_cutover_status",
             "hub_transaction_id",
             "selector",
             "writer",
             "installed_operation_control",
+            "read_only_selftest",
             "rule",
         },
         "DEVELOPMENT_STATE.production_boundary",
     )
-    if production["freshness"] != "RECORDED_NOT_LIVE_VERIFIED_IN_D0":
+    if production["freshness"] != "LIVE_VERIFIED_READ_ONLY_D0":
         raise DevelopmentStateError(
             "DEVELOPMENT_STATE.production_boundary.freshness: invalid"
+        )
+    observed_at = _string(
+        production["observed_at_utc"],
+        "DEVELOPMENT_STATE.production_boundary.observed_at_utc",
+    )
+    if re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
+        observed_at,
+    ) is None:
+        raise DevelopmentStateError(
+            "DEVELOPMENT_STATE.production_boundary.observed_at_utc: invalid"
+        )
+    evidence_path = _string(
+        production["evidence_path"],
+        "DEVELOPMENT_STATE.production_boundary.evidence_path",
+    )
+    if (
+        not evidence_path.startswith("docs/evidence/")
+        or evidence_path.startswith("/")
+        or "\\" in evidence_path
+        or ".." in evidence_path.split("/")
+    ):
+        raise DevelopmentStateError(
+            "DEVELOPMENT_STATE.production_boundary.evidence_path: unsafe"
         )
     _sha(
         production["source_commit"],
@@ -269,13 +296,65 @@ def validate_state(value: Any) -> dict[str, Any]:
         installed["candidate"],
         "DEVELOPMENT_STATE.production_boundary.installed_operation_control.candidate",
     )
-    _sha(
+    installed_source = _sha(
         installed["source_commit"],
         "DEVELOPMENT_STATE.production_boundary.installed_operation_control.source_commit",
     )
     if installed["state"] != "INSTALLED_RUNTIME_ACCEPTED":
         raise DevelopmentStateError(
             "DEVELOPMENT_STATE.production_boundary.installed_operation_control.state: invalid"
+        )
+    selftest = _exact_keys(
+        production["read_only_selftest"],
+        {
+            "request_id",
+            "request_comment_id",
+            "status_comment_id",
+            "source_commit",
+            "status",
+            "timestamp_utc",
+        },
+        "DEVELOPMENT_STATE.production_boundary.read_only_selftest",
+    )
+    request_id = _string(
+        selftest["request_id"],
+        "DEVELOPMENT_STATE.production_boundary.read_only_selftest.request_id",
+    )
+    if re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
+        raise DevelopmentStateError(
+            "DEVELOPMENT_STATE.production_boundary.read_only_selftest.request_id: invalid"
+        )
+    _int(
+        selftest["request_comment_id"],
+        "DEVELOPMENT_STATE.production_boundary.read_only_selftest.request_comment_id",
+        minimum=1,
+    )
+    _int(
+        selftest["status_comment_id"],
+        "DEVELOPMENT_STATE.production_boundary.read_only_selftest.status_comment_id",
+        minimum=1,
+    )
+    if _sha(
+        selftest["source_commit"],
+        "DEVELOPMENT_STATE.production_boundary.read_only_selftest.source_commit",
+    ) != installed_source:
+        raise DevelopmentStateError(
+            "DEVELOPMENT_STATE.production_boundary.read_only_selftest: source mismatch"
+        )
+    if selftest["status"] != "PASS":
+        raise DevelopmentStateError(
+            "DEVELOPMENT_STATE.production_boundary.read_only_selftest.status: invalid"
+        )
+    selftest_timestamp = _string(
+        selftest["timestamp_utc"],
+        "DEVELOPMENT_STATE.production_boundary.read_only_selftest.timestamp_utc",
+    )
+    if re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
+        selftest_timestamp,
+    ) is None:
+        raise DevelopmentStateError(
+            "DEVELOPMENT_STATE.production_boundary.read_only_selftest.timestamp_utc: invalid"
         )
     _string(production["rule"], "DEVELOPMENT_STATE.production_boundary.rule")
 

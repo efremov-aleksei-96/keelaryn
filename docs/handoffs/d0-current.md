@@ -340,3 +340,32 @@ The old Hub cutover state is therefore `PAUSED_LEGACY_RUNTIME_ONLY`, not pending
 
 D0-02D may resume only after the canonical architecture commit itself passes CI, and then only as strictly read-only legacy-runtime safety observation.
 
+## D0-02D — fresh legacy-runtime safety reconcile PASS
+
+Fresh read-only control-channel selftest:
+- Issue #65 request comment `5766792375`
+- status comment `5766795620`
+- operation id `50000000000000000000000000000002`
+- exact r0005 source `08f2e211f53764590f6ff0f05f86b2de62c14418`
+- terminal `SUCCEEDED / READ_ONLY / PASS`
+- timestamp `2026-09-21T20:08:20Z`
+
+Fresh two-pass stdin-only VPS observation completed at `2026-09-21T20:16:10Z` and returned PASS. Sanitized evidence is stored at `docs/evidence/D0_02D_LEGACY_RUNTIME_RECONCILE_2026-09-21T201610Z.json`.
+
+Observed safety boundary:
+- production current exact `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- control-current exact r0005; payload `6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7`, 365052 bytes, 190 files;
+- operation agent + transport ACTIVE/enabled and byte-exact to r0005;
+- writer INACTIVE / MainPID 0;
+- legacy Hub PREPARED, transaction `61a2bfb65c9a47d088a76eee0df89d14`, selector role OLD;
+- active transaction SHA and tool/finalizer identities exact;
+- mutation inhibit PRESENT and bound to the same transaction/source/tool/OLD+NEW selector hashes;
+- GitHub operations credential canonical; bootstrap receipt and bootstrap transaction identity exact;
+- r0007 snapshot unit ABSENT, proving no partial successor publication.
+
+This evidence is strictly `RUNTIME_SAFETY_ONLY`: it is not legacy-Hub semantic/content authority, performs no Google Drive/content reconciliation, contains no raw Hub IDs, and authorizes no production mutation.
+
+## D0-02E — bootstrap preparation
+
+Next work is production-specific preparation only. It must determine and qualify the exact frozen-r0007 materialization/update mechanism, prove rollback/interruption behavior remains applicable to the freshly observed r0005 predecessor, and define a mutation-boundary revalidation. Production mutation remains forbidden in D0-02E.
+

@@ -82,7 +82,9 @@ def _state(basis: str) -> dict:
             "note": "Resolve current HEAD CI live.",
         },
         "production_boundary": {
-            "freshness": "RECORDED_NOT_LIVE_VERIFIED_IN_D0",
+            "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
+            "observed_at_utc": "2026-09-21T20:16:10Z",
+            "evidence_path": "docs/evidence/test-vps-reconcile.json",
             "source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
             "hub_cutover_status": "PREPARED",
             "hub_transaction_id": "transaction",
@@ -92,6 +94,14 @@ def _state(basis: str) -> dict:
                 "candidate": "operation-control-r0005-20260921-01",
                 "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
                 "state": "INSTALLED_RUNTIME_ACCEPTED",
+            },
+            "read_only_selftest": {
+                "request_id": "50000000000000000000000000000002",
+                "request_comment_id": 1,
+                "status_comment_id": 2,
+                "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+                "status": "PASS",
+                "timestamp_utc": "2026-09-21T20:08:20Z",
             },
             "rule": "Fresh VPS reconciliation before mutation.",
         },
@@ -188,6 +198,18 @@ class DevelopmentStateValidationTests(unittest.TestCase):
     def test_legacy_hub_cannot_become_semantic_authority(self) -> None:
         value = _state("0" * 40)
         value["architecture"]["legacy_hub_authority"] = "CANONICAL_CONTENT_MODEL"
+        with self.assertRaises(development_state.DevelopmentStateError):
+            development_state.validate_state(value)
+
+    def test_live_vps_evidence_requires_read_only_selftest_source_binding(self) -> None:
+        value = _state("0" * 40)
+        value["production_boundary"]["read_only_selftest"]["source_commit"] = "f" * 40
+        with self.assertRaises(development_state.DevelopmentStateError):
+            development_state.validate_state(value)
+
+    def test_live_vps_evidence_path_must_remain_in_docs_evidence(self) -> None:
+        value = _state("0" * 40)
+        value["production_boundary"]["evidence_path"] = "../secret.json"
         with self.assertRaises(development_state.DevelopmentStateError):
             development_state.validate_state(value)
 
