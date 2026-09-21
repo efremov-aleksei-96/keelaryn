@@ -1,0 +1,61 @@
+{
+  "schema": "keelaryn.operation-control-production-qualification-pass.v1",
+  "candidate": "operation-control-r0006-20260921-01",
+  "gate_revision": "operation-control-gate-r0012",
+  "driver_source_commit": "7b2186f55782c9bbbd285fc171e761fd1871d629",
+  "frozen_product_source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+  "frozen_product_source_tree": "1e3a80f76283fb0800bb6e9d09202f6ab6755c5b",
+  "frozen_payload_sha256": "0d2201e94a75f8622b40118d93b9eee9064ebe6650d3140e73997aed92c8c3cd",
+  "frozen_payload_size": 393732,
+  "frozen_payload_file_count": 199,
+  "gate_run_id": 35595404204,
+  "gate_conclusion": "success",
+  "production_reconcile": {
+    "outcome": "PASS",
+    "schema": "keelaryn.operation-control-r0006-reconcile.v1",
+    "control_current": "EXACT_R0005",
+    "predecessor_source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+    "predecessor_payload_sha256": "6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7",
+    "successor_worker_profile_activation": "ABSENT",
+    "persistent_mutations_performed": false,
+    "drive_mutations_performed": false
+  },
+  "production_qualification": {
+    "outcome": "PASS",
+    "schema": "keelaryn.operation-control-r0006-production-qualification.v1",
+    "production_qualified": true,
+    "payload_sha256": "0d2201e94a75f8622b40118d93b9eee9064ebe6650d3140e73997aed92c8c3cd",
+    "payload_size": 393732,
+    "payload_file_count": 199,
+    "source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+    "source_tree": "1e3a80f76283fb0800bb6e9d09202f6ab6755c5b",
+    "persistent_mutations_performed": false,
+    "drive_mutations_performed": false,
+    "next_action": "UPGRADE"
+  },
+  "production_boundary": {
+    "before_equals_after": true,
+    "production_source": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover": "PREPARED",
+    "transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
+    "active_transaction_sha256": "1d243586556019e132c454ebc8ccc252b755e5b43421434a6ff1eaf1c166ea34",
+    "old_selector_identity_sha256": "15370553b6732a11d4e0a9a8a02066c1c089d8b0f443001cc39fe39b201c8444",
+    "new_selector_identity_sha256": "dffc1b46b44d951b498ee7d781f6b992f0dc6356cfb38eebadbee792a847db39",
+    "writer": "INACTIVE_MAINPID_0"
+  },
+  "migration_boundary": {
+    "candidate": "migration-r0072-20260919-01",
+    "pack_sha256": "82eda038bb2c424d44137e3bfa8174778ab8a24d49bcca253430cc1aea2bc21b",
+    "freeze_receipt_sha256": "d469b6b5f20196445111da5b354284338ec4b3c9c4245d395e95b97115f1ff39",
+    "target_authority_sha256": "5ef842af448bbfba606abd4565c13f2c9a059a480ad0ad81cf9d688abe5fab10",
+    "qualification_evidence_sha256": "5fda3af50ab1e9f9fb2d53a93d163f97a2842383b1b0d6d2c635c49df0cc2346",
+    "source_manifest_sha256": "540b48d5c8b5e94cb5671988f2ce300648d651d7c73f47a7130bdd47acd7013e",
+    "qualification_credential_sha256": "24f562a3eb5d4ea93a24162e8a65d182cc2ab4c4298f70da7866c446cc7018ed",
+    "migration_source_identity_sha256": "40907275bba002f58120cef28d8bf2c0950f6d69057075dbb632154075b21eb9"
+  },
+  "upgrade_executed": false,
+  "human_mutation_boundary_pending": true,
+  "production_current_mutated": false,
+  "hub_selector_mutated": false,
+  "drive_mutations_performed": false
+}

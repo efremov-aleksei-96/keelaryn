@@ -659,3 +659,26 @@ r0012 driver now reads `qualification-input/pack/MIGRATION_PACK.json` as an immu
 
 Do not rerun production qualification until r0012 PASS. Production state remains PREPARED/r0005 with writer off; no durable production mutation was attempted by the failed r0011 reconcile.
 
+### 2026-09-21 r0006 production qualification PASS
+
+Production-specific read-only execution under gate revision `operation-control-gate-r0012` completed successfully.
+
+Observed:
+
+- `reconcile`: PASS;
+- `qualify`: PASS;
+- candidate: `operation-control-r0006-20260921-01`;
+- frozen product source/tree: `b371a9b9f28fe668cc8073019a3d5f352f9d9bf3` / `1e3a80f76283fb0800bb6e9d09202f6ab6755c5b`;
+- payload: SHA-256 `0d2201e94a75f8622b40118d93b9eee9064ebe6650d3140e73997aed92c8c3cd`, size `393732`, files `199`;
+- control boundary: exact r0005 predecessor; successor worker/profile/activation absent;
+- production Hub transaction remains exact PREPARED `61a2bfb65c9a47d088a76eee0df89d14`;
+- writer remains exact `INACTIVE_MAINPID_0`;
+- all pinned r0072 authority/credential/source hashes match;
+- production boundary before qualification equals production boundary after qualification;
+- persistent mutations: false;
+- Drive mutations: false.
+
+Production qualification evidence is stored in `docs/candidates/operation-control-r0006-20260921-01.production-r0012-pass.json`.
+
+The candidate is now production-qualified for the next action reported by the driver: `UPGRADE`. The control-plane upgrade has **not** been executed. Treat it as a separate human-approved production mutation transaction. Before that mutation, reconcile authoritative GitHub state and use the exact r0012 driver; after any interruption, reconcile production before considering retry.
+
