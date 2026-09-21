@@ -146,6 +146,94 @@ class ControlPlaneUpdateTests(unittest.TestCase):
             "file_count": 1,
         }
 
+    def seed_prepared(self, layout) -> str:
+        profile_raw = layout["profile"].read_bytes()
+        credential_sha = hashlib.sha256(
+            layout["credential"].read_bytes()
+        ).hexdigest()
+        digest = update._transaction_digest(
+            old_source=self.OLD,
+            old_payload=self.OLD_PAYLOAD,
+            new_source=self.NEW,
+            new_payload=self.NEW_PAYLOAD,
+            profile_sha=hashlib.sha256(profile_raw).hexdigest(),
+            production_target=f"releases/{self.PROD}",
+        )
+        update_root = layout["updates"]
+        update_root.mkdir(mode=0o700)
+        os.chmod(update_root, 0o700)
+        tx = update_root / digest
+        tx.mkdir(mode=0o700)
+        os.chmod(tx, 0o700)
+
+        def sha(raw):
+            return hashlib.sha256(raw).hexdigest()
+
+        prepared = {
+            "schema": update.PREPARED_SCHEMA,
+            "transaction_id": digest,
+            "old_source_commit": self.OLD,
+            "old_payload_sha256": self.OLD_PAYLOAD,
+            "new_source_commit": self.NEW,
+            "new_payload_sha256": self.NEW_PAYLOAD,
+            "production_current_target": f"releases/{self.PROD}",
+            "credential_sha256": credential_sha,
+            "profile_sha256": sha(profile_raw),
+            "old_unit_sha256": {
+                name: sha(
+                    (
+                        layout["old"]
+                        / "deploy"
+                        / "zero-based-vps"
+                        / name
+                    ).read_bytes()
+                )
+                for name in update.PERSISTENT_UNITS
+            },
+            "new_unit_sha256": {
+                name: sha(
+                    (
+                        layout["new"]
+                        / "deploy"
+                        / "zero-based-vps"
+                        / name
+                    ).read_bytes()
+                )
+                for name in update.PERSISTENT_UNITS
+            },
+            "worker_unit_sha256": sha(
+                (
+                    layout["new"]
+                    / "deploy"
+                    / "zero-based-vps"
+                    / update.WORKER_UNIT
+                ).read_bytes()
+            ),
+        }
+        prepared_path = tx / "PREPARED.json"
+        prepared_path.write_bytes(canonical(prepared))
+        os.chmod(prepared_path, 0o600)
+        return digest
+
+    def recovery_runtime(self, active):
+        enabled = set(update.PERSISTENT_UNITS)
+        calls: list[list[str]] = []
+
+        def systemctl(args):
+            calls.append(list(args))
+            if args[0] == "stop":
+                active.discard(args[1])
+            elif args[0] == "start":
+                active.add(args[1])
+
+        def active_probe(unit):
+            return unit in active
+
+        def enabled_probe(unit):
+            return "enabled" if unit in enabled else "static"
+
+        return systemctl, active_probe, enabled_probe, calls
+
     def run_update(self, layout, *, fail_start_agent=False):
         active = set(update.PERSISTENT_UNITS)
         enabled = set(update.PERSISTENT_UNITS)
@@ -460,6 +548,224 @@ class ControlPlaneUpdateTests(unittest.TestCase):
             self.assertEqual(
                 os.readlink(layout["install"] / "control-current"),
                 f"releases/{self.OLD}",
+            )
+
+    def test_prepared_old_exact_resumes_with_services_already_stopped(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            layout = self.layout(root)
+            digest = self.seed_prepared(layout)
+            active = set()
+            systemctl, active_probe, enabled_probe, _ = self.recovery_runtime(active)
+
+            with mock.patch.object(
+                update,
+                "_require_root",
+                return_value=None,
+            ), mock.patch.object(
+                update,
+                "verify_release_directory",
+                side_effect=[
+                    self.identity(self.OLD, self.OLD_PAYLOAD),
+                    self.identity(self.NEW, self.NEW_PAYLOAD),
+                ],
+            ):
+                result = update.update_control_plane(
+                    install_root=layout["install"],
+                    unit_dir=layout["unit_dir"],
+                    credential_path=layout["credential"],
+                    operation_control_root=layout["control"],
+                    operation_root=layout["operations"],
+                    transport_root=layout["transport"],
+                    update_root=layout["updates"],
+                    profile_source=layout["profile"],
+                    expected_old_source_commit=self.OLD,
+                    expected_old_payload_sha256=self.OLD_PAYLOAD,
+                    expected_new_source_commit=self.NEW,
+                    expected_new_payload_sha256=self.NEW_PAYLOAD,
+                    systemctl=systemctl,
+                    active_probe=active_probe,
+                    enabled_probe=enabled_probe,
+                    restart_probe=lambda unit: 0,
+                    sleeper=lambda seconds: None,
+                )
+
+            self.assertEqual(result["schema"], update.COMPLETED_SCHEMA)
+            self.assertEqual(
+                os.readlink(layout["install"] / "control-current"),
+                f"releases/{self.NEW}",
+            )
+            self.assertTrue(
+                (layout["updates"] / digest / "COMPLETED.json").is_file()
+            )
+            self.assertTrue(
+                (
+                    layout["control"]
+                    / "hub-pre-apply-activation.json"
+                ).is_file()
+            )
+            self.assertEqual(active, set(update.PERSISTENT_UNITS))
+
+    def test_prepared_new_exact_terminalizes_without_republishing_bytes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            layout = self.layout(root)
+            digest = self.seed_prepared(layout)
+
+            profile_destination = (
+                layout["control"] / "hub-pre-apply-profile.json"
+            )
+            profile_destination.write_bytes(layout["profile"].read_bytes())
+            os.chmod(profile_destination, 0o600)
+
+            worker = layout["unit_dir"] / update.WORKER_UNIT
+            worker.write_bytes(
+                (
+                    layout["new"]
+                    / "deploy"
+                    / "zero-based-vps"
+                    / update.WORKER_UNIT
+                ).read_bytes()
+            )
+            os.chmod(worker, 0o644)
+
+            for name in update.PERSISTENT_UNITS:
+                target = layout["unit_dir"] / name
+                target.write_bytes(
+                    (
+                        layout["new"]
+                        / "deploy"
+                        / "zero-based-vps"
+                        / name
+                    ).read_bytes()
+                )
+                os.chmod(target, 0o644)
+
+            current = layout["install"] / "control-current"
+            current.unlink()
+            os.symlink(f"releases/{self.NEW}", current)
+
+            active = set()
+            systemctl, active_probe, enabled_probe, _ = self.recovery_runtime(active)
+
+            with mock.patch.object(
+                update,
+                "_require_root",
+                return_value=None,
+            ), mock.patch.object(
+                update,
+                "verify_release_directory",
+                side_effect=[
+                    self.identity(self.OLD, self.OLD_PAYLOAD),
+                    self.identity(self.NEW, self.NEW_PAYLOAD),
+                ],
+            ), mock.patch.object(
+                update,
+                "_atomic_file",
+                side_effect=AssertionError(
+                    "NEW_EXACT recovery must not republish unit bytes"
+                ),
+            ), mock.patch.object(
+                update,
+                "_atomic_symlink",
+                side_effect=AssertionError(
+                    "NEW_EXACT recovery must not republish selector"
+                ),
+            ):
+                result = update.update_control_plane(
+                    install_root=layout["install"],
+                    unit_dir=layout["unit_dir"],
+                    credential_path=layout["credential"],
+                    operation_control_root=layout["control"],
+                    operation_root=layout["operations"],
+                    transport_root=layout["transport"],
+                    update_root=layout["updates"],
+                    profile_source=layout["profile"],
+                    expected_old_source_commit=self.OLD,
+                    expected_old_payload_sha256=self.OLD_PAYLOAD,
+                    expected_new_source_commit=self.NEW,
+                    expected_new_payload_sha256=self.NEW_PAYLOAD,
+                    systemctl=systemctl,
+                    active_probe=active_probe,
+                    enabled_probe=enabled_probe,
+                    restart_probe=lambda unit: 0,
+                    sleeper=lambda seconds: None,
+                )
+
+            self.assertEqual(result["schema"], update.COMPLETED_SCHEMA)
+            self.assertTrue(
+                (layout["updates"] / digest / "COMPLETED.json").is_file()
+            )
+            self.assertTrue(
+                (
+                    layout["control"]
+                    / "hub-pre-apply-activation.json"
+                ).is_file()
+            )
+            self.assertEqual(active, set(update.PERSISTENT_UNITS))
+
+    def test_prepared_mixed_boundary_never_overwrites_unknown_bytes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            layout = self.layout(root)
+            digest = self.seed_prepared(layout)
+            victim = layout["unit_dir"] / update.PERSISTENT_UNITS[0]
+            victim.write_bytes(b"unknown-foreign-bytes\n")
+            os.chmod(victim, 0o644)
+            before = victim.read_bytes()
+
+            with mock.patch.object(
+                update,
+                "_require_root",
+                return_value=None,
+            ), mock.patch.object(
+                update,
+                "verify_release_directory",
+                side_effect=[
+                    self.identity(self.OLD, self.OLD_PAYLOAD),
+                    self.identity(self.NEW, self.NEW_PAYLOAD),
+                ],
+            ):
+                with self.assertRaisesRegex(
+                    update.ControlPlaneUpdateError,
+                    "partial; read-only reconciliation required",
+                ):
+                    update.update_control_plane(
+                        install_root=layout["install"],
+                        unit_dir=layout["unit_dir"],
+                        credential_path=layout["credential"],
+                        operation_control_root=layout["control"],
+                        operation_root=layout["operations"],
+                        transport_root=layout["transport"],
+                        update_root=layout["updates"],
+                        profile_source=layout["profile"],
+                        expected_old_source_commit=self.OLD,
+                        expected_old_payload_sha256=self.OLD_PAYLOAD,
+                        expected_new_source_commit=self.NEW,
+                        expected_new_payload_sha256=self.NEW_PAYLOAD,
+                        systemctl=lambda args: (_ for _ in ()).throw(
+                            AssertionError(
+                                "mixed boundary must not invoke systemctl"
+                            )
+                        ),
+                        active_probe=lambda unit: False,
+                        enabled_probe=lambda unit: "enabled",
+                        restart_probe=lambda unit: 0,
+                        sleeper=lambda seconds: None,
+                    )
+
+            self.assertEqual(victim.read_bytes(), before)
+            self.assertFalse(
+                (layout["updates"] / digest / "COMPLETED.json").exists()
+            )
+            self.assertFalse(
+                (layout["updates"] / digest / "ROLLED_BACK.json").exists()
+            )
+            self.assertFalse(
+                (
+                    layout["control"]
+                    / "hub-pre-apply-activation.json"
+                ).exists()
             )
 
     def test_profile_must_bind_successor_source(self):

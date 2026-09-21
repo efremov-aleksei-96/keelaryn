@@ -787,12 +787,15 @@ def update_control_plane(
     activation_path = operation_control_root / ACTIVATION_NAME
     worker_path = unit_dir / WORKER_UNIT
 
-    update_root = _owned_dir(
-        update_root,
-        "control update root",
-        exact_mode=0o700,
-        create=True,
-    )
+    update_root = update_root.absolute()
+    update_root_exists = update_root.exists() or update_root.is_symlink()
+    if update_root_exists:
+        update_root = _owned_dir(
+            update_root,
+            "control update root",
+            exact_mode=0o700,
+        )
+
     digest = _transaction_digest(
         old_source=old_source,
         old_payload=old_payload,
@@ -801,17 +804,16 @@ def update_control_plane(
         profile_sha=_sha(profile_raw),
         production_target=production_before,
     )
-    _assert_no_foreign_incomplete(update_root, digest)
+    if update_root_exists:
+        _assert_no_foreign_incomplete(update_root, digest)
+
     tx, prepared_path, completed_path, rolled_path = _transaction_paths(
         update_root,
         digest,
     )
-    if not tx.exists() and not tx.is_symlink():
-        tx.mkdir(mode=0o700)
-        if os.name == "posix":
-            os.chmod(tx, 0o700)
-        _fsync_dir(update_root)
-    _owned_dir(tx, "control update transaction", exact_mode=0o700)
+    tx_exists = tx.exists() or tx.is_symlink()
+    if tx_exists:
+        _owned_dir(tx, "control update transaction", exact_mode=0o700)
 
     worker_raw = _unit_bytes(new_release, WORKER_UNIT)
     prepared = {
@@ -843,6 +845,11 @@ def update_control_plane(
 
     prepared_exists = prepared_path.exists() or prepared_path.is_symlink()
     completed_exists = completed_path.exists() or completed_path.is_symlink()
+    if tx_exists and not (prepared_exists or completed_exists):
+        if any(tx.iterdir()):
+            raise ControlPlaneUpdateError(
+                "orphan control update transaction contains unexpected material"
+            )
     if prepared_exists:
         if _canonical(_json_private(
             prepared_path,
@@ -996,6 +1003,24 @@ def update_control_plane(
             raise ControlPlaneUpdateError(
                 "predecessor operation-control services must be enabled"
             )
+
+        # No durable update authority exists before every failure-prone
+        # initial read-only boundary above has passed.
+        if not update_root_exists:
+            update_root = _owned_dir(
+                update_root,
+                "control update root",
+                exact_mode=0o700,
+                create=True,
+            )
+            update_root_exists = True
+        if not tx_exists:
+            tx.mkdir(mode=0o700)
+            if os.name == "posix":
+                os.chmod(tx, 0o700)
+            _fsync_dir(update_root)
+            tx_exists = True
+        _owned_dir(tx, "control update transaction", exact_mode=0o700)
         _write_record(prepared_path, prepared)
     elif any(
         enabled_probe(unit) not in {"enabled", "enabled-runtime"}

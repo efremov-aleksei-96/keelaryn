@@ -509,3 +509,19 @@ The successor commit containing this section changes control update recovery and
 
 Before any later write, reconcile the authoritative branch HEAD and its CI. Production remains untouched by this development commit.
 
+### 2026-09-21 initial-authority ordering and crash regressions
+
+Pre-write authority: `3bfc31e86e440377db66a3e7f27d0621b95a4e9b`.
+Core run `35590413595` executed 656 deterministic tests; 655 passed and the only failure proved a product transaction-order defect: the updater created `operation-control-updates/` before the initial pending-request/runtime preflight.
+
+The successor commit containing this section moves all first-time update-root/transaction creation until after initial runtime, inbox, OLD live-boundary, active-service and enabled-service validation. Existing durable PREPARED authorities remain readable for crash recovery without requiring predecessor services to have remained active.
+
+Permanent regressions now cover:
+
+- pending transport request before first update: zero update transaction material;
+- PREPARED + OLD_EXACT with persistent services already stopped: safe resume to exact successor;
+- PREPARED + NEW_EXACT with services inactive: terminalize/stability-check without republishing qualified bytes;
+- PREPARED + mixed/unknown bytes: fail closed with no overwrite, no terminal and no activation.
+
+After context loss, read authoritative branch HEAD and its CI before any write. Production/VPS/Hub/Drive remain untouched by this development work.
+
