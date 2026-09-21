@@ -18,7 +18,7 @@ from keelaryn_core.operation_hub_pre_apply_activation import (  # noqa: E402
     ACTIVATION_NAME,
     HubPreApplyActivationError,
     read_hub_pre_apply_activation,
-    verify_hub_pre_apply_activation,
+    verify_hub_pre_apply_activation_authority,
 )
 from keelaryn_core.operation_hub_pre_apply_profile import (  # noqa: E402
     HubPreApplyProfileError,
@@ -209,10 +209,11 @@ def run(profile_path: Path = PROFILE_PATH) -> dict[str, Any]:
         activation = read_hub_pre_apply_activation(
             profile_path.parent / ACTIVATION_NAME
         )
-        verify_hub_pre_apply_activation(
+        verify_hub_pre_apply_activation_authority(
             activation,
             control_source_commit=profile["control_source_commit"],
             profile_raw=profile_raw,
+            update_root=profile_path.parent.parent / "operation-control-updates",
         )
     except (OSError, HubPreApplyActivationError) as exc:
         raise HubPreApplyWorkerError(

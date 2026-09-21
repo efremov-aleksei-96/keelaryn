@@ -181,3 +181,8 @@ path for read-only reconciliation rather than deleting an unproven object. Any i
 The root operation agent only `Wants=` the network transport and is ordered after it;
 transport failure or network loss must not make the durable agent itself unavailable.
 The transport remains the only network-capable component.
+
+### Mutation activation terminal-authority binding
+
+A private preauthorization profile and activation file are necessary but not sufficient for `HUB_PRE_APPLY`. Before creating a mutation-capable Operation Runtime record, both the root agent and the fixed worker must resolve the activation-selected owner-private mode-0700 control-update transaction and its mode-0600 canonical `COMPLETED.json`. The COMPLETED schema, exact success semantics, transaction identity and SHA-256 must match the activation. Replacement, deletion, semantic downgrade, noncanonical serialization or hash drift of terminal control-update authority therefore disables Hub mutation. This is a read-only proof and adds no transport-selected path or new write capability.
+

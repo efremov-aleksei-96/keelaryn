@@ -19,7 +19,7 @@ from .operation_hub_pre_apply_activation import (
     ACTIVATION_NAME as HUB_PRE_APPLY_ACTIVATION_NAME,
     HubPreApplyActivationError,
     read_hub_pre_apply_activation,
-    verify_hub_pre_apply_activation,
+    verify_hub_pre_apply_activation_authority,
 )
 from .operation_hub_pre_apply_profile import (
     HubPreApplyProfileError,
@@ -386,10 +386,14 @@ class OperationAgent:
                 activation = read_hub_pre_apply_activation(
                     self.control_root / HUB_PRE_APPLY_ACTIVATION_NAME
                 )
-                verify_hub_pre_apply_activation(
+                verify_hub_pre_apply_activation_authority(
                     activation,
                     control_source_commit=request.source_commit,
                     profile_raw=profile_raw,
+                    update_root=(
+                        self.control_root.parent
+                        / "operation-control-updates"
+                    ),
                 )
             except (
                 HubPreApplyProfileError,

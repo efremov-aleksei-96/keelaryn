@@ -525,3 +525,11 @@ Permanent regressions now cover:
 
 After context loss, read authoritative branch HEAD and its CI before any write. Production/VPS/Hub/Drive remain untouched by this development work.
 
+### 2026-09-21 activation-to-COMPLETED authority binding
+
+Pre-write authority: `40f84f491ebaede105aa6f310d1aa3d7a971263b`; Core run `35590802866` PASS.
+
+The successor commit containing this section makes `HUB_PRE_APPLY` activation depend on the durable control-update terminal authority itself. Agent and worker resolve `operation-control-updates/<activation transaction>/COMPLETED.json` and require exact owner/mode, canonical schema/keys, success semantics, transaction identity and the SHA-256 recorded by activation. Tampered/missing/replaced terminal authority blocks mutation before worker execution. No new transport parameter or write permission is introduced.
+
+Production/VPS/Hub/Drive remain unchanged. Reconcile authoritative branch HEAD and CI before any later write.
+
