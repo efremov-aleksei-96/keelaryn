@@ -768,3 +768,30 @@ r0016 no longer performs fragment-level movement of the field. It replaces the c
 
 Production remains exact r0005/PREPARED with writer inactive; updater/profile/activation remain absent. The r0006 materialized release still has only the recorded diagnostic pycache residue. Do not run production repair, qualification or upgrade until r0016 PASS.
 
+### 2026-09-21 r0006 gate r0017 — remove duplicate pre-upgrade Drive scan
+
+Authoritative pre-write HEAD: `b8a346c6a075f726800e1baeec095f914adba7f6`.
+
+r0016 gate run `35599654538` completed SUCCESS. Production read-only r0016 `reconcile` passed. Its following `qualify` was observed alive and making progress, but the exact frozen migration source contains 213 entries and the two-pass path-stability algorithm implies approximately 3566 sequential Drive API requests for only ~1.44 MiB of content. This made the read-only qualification take tens of minutes.
+
+Source review identified duplicate work:
+
+1. candidate-driver `qualify()` performed full `verify_migration_source_against_drive()`;
+2. `upgrade()` then calls frozen `upgrade_successor()`;
+3. frozen `build_hub_pre_apply_profile()` performs the complete fresh two-pass source verification again immediately before profile publication and updater execution.
+
+The commit containing this section issues gate revision `operation-control-gate-r0017` only. Frozen r0006 product source remains exact `b371a9b9f28fe668cc8073019a3d5f352f9d9bf3`.
+
+r0017 qualification semantics:
+
+- still loads the exact pinned qualification credential;
+- still discovers exactly one parentless `My Laptop` Computers root;
+- still resolves the complete exact-case legacy path using the frozen resolver;
+- still requires the frozen source-root identity SHA-256;
+- still requires the exact pinned `MIGRATION_SOURCE.json` bytes/hash;
+- does **not** reread all 213 source files during standalone read-only qualification;
+- returns `full_source_verification=DEFERRED_TO_UPGRADE_MUTATION_BOUNDARY`;
+- frozen `upgrade_successor()` remains unchanged and still performs the complete fresh two-pass Drive source verification before profile publication/updater execution.
+
+Thus no validation is removed from the mutation/commit boundary; only the redundant earlier full scan is removed. Production repair and upgrade remain separate mutation transactions.
+

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-GATE_REVISION = "operation-control-gate-r0016"
+GATE_REVISION = "operation-control-gate-r0017"
 CANDIDATE = "operation-control-r0006-20260921-01"
 REPOSITORY = "https://github.com/efremov-aleksei-96/keelaryn.git"
 
@@ -552,6 +552,11 @@ def _computers_drive_factory(module):
 
 
 def _drive_source_probe(module, spec, layout) -> dict[str, Any]:
+    """Resolve the frozen legacy source boundary without rereading all source bytes.
+
+    Full two-pass source-byte verification remains mandatory inside the frozen
+    successor engine immediately before profile publication/updater execution.
+    """
     candidate_root = layout.migration_root / spec.migration_candidate_id
     credential = candidate_root / "qualification-production-drive.env"
     source_manifest = (
@@ -563,22 +568,11 @@ def _drive_source_probe(module, spec, layout) -> dict[str, Any]:
     )
     values = module._credential_environment(credential)
     drive = _computers_drive_factory(module)(values)
-    source_root_id = module.resolve_legacy_source_root(
+    module.resolve_legacy_source_root(
         drive,
         path_segments=module.LEGACY_SOURCE_PATH,
         expected_identity_sha256=spec.migration_source_identity_sha256,
     )
-    try:
-        module.verify_migration_source_against_drive(
-            drive,
-            source_root_id,
-            source_manifest,
-            phase="R0006_PRODUCTION_QUALIFICATION_SOURCE_VERIFY",
-        )
-    except Exception as exc:
-        raise GateError(
-            f"legacy Drive source qualification failed: {exc}"
-        ) from exc
     return {
         "computers_root": "EXACT_UNIQUE_PARENTLESS",
         "source_identity_sha256": spec.migration_source_identity_sha256,
@@ -588,10 +582,10 @@ def _drive_source_probe(module, spec, layout) -> dict[str, Any]:
                 "r0072 migration source manifest",
             )
         ),
-        "source_verified": True,
+        "source_root_resolved": True,
+        "full_source_verification": "DEFERRED_TO_UPGRADE_MUTATION_BOUNDARY",
         "drive_mutations_performed": False,
     }
-
 
 def _tree_snapshot(root: Path) -> dict[str, tuple[str, int, bytes | None]]:
     if root.is_symlink() or not root.is_dir():
@@ -903,7 +897,8 @@ def selftest() -> dict[str, Any]:
         "hub_transaction_id": HUB_TRANSACTION_ID,
         "reconcile_surface": True,
         "read_only_qualification_surface": True,
-        "read_only_drive_source_probe": True,
+        "lightweight_drive_source_boundary_probe": True,
+        "full_source_verification_at_upgrade_boundary": True,
         "diagnostic_release_repair_surface": True,
         "computers_namespace_adapter": True,
         "single_command_upgrade_surface": True,
