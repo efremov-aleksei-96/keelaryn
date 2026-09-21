@@ -171,3 +171,9 @@ No production/VPS/Drive mutation is performed by D0-02A development.
 
 First require exact-HEAD Core/Windows development CI PASS for D0-02A. Then adapt the existing transaction-safe control-plane update/materialization path so the snapshot worker unit is installed as a static, non-enabled unit and prove the successor's effective remote allowlist/worker boundary in disposable qualification. Do not resume `HUB_PRE_APPLY` or any old Hub content mutation.
 
+### D0-02A CI correction
+
+Initial D0-02A development HEAD `7aae6557d4956a92c883e449133dc672146578a2` reached the deterministic Core suite but failed 5 new snapshot tests. All failures had one root cause: the ISO-8601 UTC timestamp validator contained a double-escaped raw-regex digit token and rejected valid timestamps such as `2026-09-21T17:30:00Z`.
+
+This successor changes only that validator plus the required durable D0 checkpoint. No protocol shape, security boundary, VPS state, Hub state or Drive state is changed. The initial failed run is retained as development evidence; do not rerun or rewrite that commit.
+

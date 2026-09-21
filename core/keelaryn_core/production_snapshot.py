@@ -31,7 +31,7 @@ _TXID = re.compile(r"^[0-9a-f]{32}$")
 _OPERATION_ID = re.compile(r"^[0-9a-f]{32}$")
 _HUB_ID = re.compile(r"^[A-Za-z0-9_-]{10,256}$")
 _ACTIVE_STATE = re.compile(r"^[a-z][a-z-]{0,31}$")
-_TIMESTAMP = re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$")
+_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 _ACTIVE_SCHEMA = "keelaryn.zero-vps-hub-cutover.v2"
 _TERMINAL_SCHEMA = "keelaryn.zero-vps-hub-cutover-terminal.v1"
