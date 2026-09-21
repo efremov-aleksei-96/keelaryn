@@ -533,3 +533,23 @@ The successor commit containing this section makes `HUB_PRE_APPLY` activation de
 
 Production/VPS/Hub/Drive remain unchanged. Reconcile authoritative branch HEAD and CI before any later write.
 
+### 2026-09-21 reusable successor upgrade engine
+
+Pre-write authority: `5ef961c5ce0c136757026477c2f2579be07b0870`; Core run `35591236803` PASS.
+
+The successor commit containing this section adds `deploy/zero-based-vps/operation_control_successor_upgrade.py` as a reusable engine; it does **not** freeze or issue a successor candidate.
+
+Design:
+
+- a later frozen wrapper supplies exact predecessor/successor source/tree/payload identities and the migration-source identity hash;
+- source is fetched by exact commit and tree, payload is rebuilt twice and must be byte-identical to the frozen payload identity;
+- an existing materialized successor is accepted only after exact release verification;
+- the production `current` release and Hub cutover must still be exact PREPARED;
+- r0072 pack/freeze/target/qualification/credential authorities are re-read privately and cross-bound;
+- legacy source is resolved only through exact-case logical Drive path `My Laptop/0__Core/keelaryn/hub`, then its opaque ID hash must equal the frozen migration-source identity and the live source set is freshly verified against `MIGRATION_SOURCE`;
+- the raw Drive ID exists only in process/private profile bytes and is never returned in sanitized result;
+- a candidate-side private profile is create-once/verify-exact and by itself does not authorize mutation;
+- only the exact successor release's transactional updater may install the profile and publish activation after COMPLETED.
+
+Next: wait for coherent Core/Windows development PASS, then focused review this engine and add the frozen candidate wrapper/gate only after the successor source bytes are ready. Production/VPS/Hub/Drive remain unchanged.
+

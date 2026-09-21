@@ -150,6 +150,9 @@ jobs:
       - name: Smoke operation control-plane update CLI surface
         run: python3 -B deploy/zero-based-vps/operation_control_plane_update.py --help
 
+      - name: Compile successor upgrade engine
+        run: python3 -B -m py_compile deploy/zero-based-vps/operation_control_successor_upgrade.py
+
       - name: Run disposable Hub-selector cutover rehearsal
         env:
           KEELARYN_HUB_CUTOVER_EVIDENCE: ${{ runner.temp }}/ZERO_BASED_HUB_CUTOVER_REHEARSAL_EVIDENCE.json
