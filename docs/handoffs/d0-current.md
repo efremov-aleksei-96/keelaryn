@@ -213,3 +213,35 @@ The same HEAD's Windows run `35637755870` completed SUCCESS.
 
 This corrective successor changes only those two test fixtures plus this durable checkpoint. Production/control implementation bytes are intentionally unchanged. The failed Core evidence remains preserved and must not be rerun/reinterpreted as PASS.
 
+## D0-02C1 — frozen read-only Operation Control r0007
+
+Pre-freeze authoritative source: `833123b6a7ad2c61087ee8a86700bb9ad8a46298`, tree `bbca9e3a17162e12a7a0f649138e8c469518ad2a`.
+
+Frozen candidate:
+- `operation-control-r0007-20260921-01`
+- payload SHA-256 `c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9`
+- payload size `414534`
+- payload file count `208`
+
+The freeze is bound to exact-head Core run `35638117240` (SUCCESS, 693/693 tests), exact deterministic payload artifact `10656858049`, and D0 materialized-release validation. Windows run `35637755870` is retained only as evidence for the unchanged relevant Windows surface; the corrective source delta to the frozen candidate contains only DEVELOPMENT_STATE, handoff and the Linux snapshot fixture.
+
+Dedicated candidate gate `operation-control-d0-gate-r0001` independently:
+- checks the immutable candidate receipt;
+- checks out the exact frozen source/tree;
+- reruns the full frozen Core suite;
+- proves cross-user relay DAC;
+- rebuilds the payload twice and requires byte identity to the frozen SHA/size/count;
+- materializes the exact frozen release;
+- runs target-host validation;
+- installs exact persistent control units plus the static snapshot worker into a disposable unit directory;
+- runs the D0 control validator and requires the exact two-operation read-only allowlist with zero mutation handlers;
+- emits compact evidence with `production_qualified=false` and zero production/Drive mutations.
+
+No VPS, production, Hub selector, writer, credential or Google Drive mutation occurs in D0-02C1.
+
+## Next permitted engineering objective
+
+**D0-02C2 — resolve r0007 gate r0001 and, only after PASS, prove disposable r0005 → r0007 update/rollback/interruption recovery.**
+
+Production bootstrap remains forbidden until that disposable transition qualification passes and a fresh read-only VPS reconciliation confirms the real predecessor boundary.
+

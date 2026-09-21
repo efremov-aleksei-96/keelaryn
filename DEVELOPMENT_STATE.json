@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 6,
+  "revision": 7,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "9df0de0c99db854b82aa1d7592036a1d8a7ef8a8",
+  "repository_basis_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -47,11 +47,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02A-zero-based-core-validation",
-    "run_id": 35635338340,
+    "scope": "D0-02B-zero-based-core-validation",
+    "run_id": 35638117240,
     "conclusion": "PASS",
-    "relevance": "CURRENT_D0_BASELINE",
-    "note": "Exact HEAD 1950a72c777d3da1a7cf808593ca1e2535b3a6e2 passed Zero-based Core validation with 690/690 deterministic tests plus relay, CLI, rehearsal and deterministic VPS payload checks."
+    "relevance": "FROZEN_R0007_SOURCE_BASELINE",
+    "note": "Exact frozen source 833123b6a7ad2c61087ee8a86700bb9ad8a46298 passed 693/693 Core tests, deterministic payload/materialization and D0 control validation. Applicable Windows surface remained unchanged from successful run 35637755870 on 9df0de0c99db854b82aa1d7592036a1d8a7ef8a8."
   },
   "production_boundary": {
     "freshness": "RECORDED_NOT_LIVE_VERIFIED_IN_D0",
@@ -98,6 +98,13 @@
       "state": "FROZEN_PRODUCT_OLD_ARCHITECTURE_LINE_PAUSED",
       "source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
       "retry": "FORBIDDEN_UNTIL_ARCHITECTURE_DISPOSITION"
+    },
+    {
+      "candidate": "operation-control-r0007-20260921-01",
+      "state": "FROZEN_PENDING_DEDICATED_GATE",
+      "source_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
+      "payload_sha256": "c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9",
+      "retry": "NOT_A_RETRY_TARGET"
     }
   ],
   "transaction_disposition": {
@@ -117,8 +124,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02C",
-    "description": "After exact current-HEAD Core and applicable Windows CI PASS for the D0-02B fixture correction, freeze and qualify a read-only D0 Operation Control successor candidate, then prepare the single transaction-safe production bootstrap/update from installed r0005. Do not authorize or resume old Hub mutations.",
+    "id": "D0-02C2",
+    "description": "Resolve operation-control-r0007 gate r0001. If PASS, qualify the frozen r0005-to-r0007 update, rollback and interruption recovery on a disposable Linux boundary before any production bootstrap. Old Hub mutations remain forbidden.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
