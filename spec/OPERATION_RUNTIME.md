@@ -161,7 +161,9 @@ The initial bootstrap validates the exact deterministic release payload, require
 
 The bootstrap token is entered interactively through `getpass`; it is never accepted as a command-line argument, printed, written to the bootstrap receipt or sent through GitHub. The installed environment file is mode 0600 inside the dedicated root-owned mode-0700 directory `/etc/keelaryn/operation-control/`; bootstrap does not require the shared `/etc/keelaryn` parent itself to be mode 0700.
 
-Initial bootstrap is intentionally install-only. Replacing an existing control-plane selector, unit set or GitHub credential requires a separately qualified update transaction rather than silently reusing bootstrap semantics.
+Initial bootstrap is intentionally install-only. Replacing an existing control-plane selector or unit set uses the separately qualified `operation_control_plane_update.py` transaction rather than silently reusing bootstrap semantics. The updater verifies exact predecessor and successor release identities, requires no pending/nonterminal operation, preserves the existing GitHub credential byte-for-byte, freezes the persistent transport/agent services, atomically replaces only qualified control-plane unit bytes plus `control-current`, installs mutation workers as non-enabled oneshots, publishes the root-private preauthorization profile, then restarts and stability-checks the persistent services. Production `/opt/keelaryn/current` is captured before the transaction and must remain byte-for-byte the same symlink target throughout.
+
+A normal update failure attempts exact rollback to predecessor `control-current` and unit bytes, removes only the exact successor worker/profile bytes, restarts the predecessor services and records an immutable sanitized `ROLLED_BACK` authority. A process crash after PREPARED is never blindly replayed: exact OLD may resume, exact NEW may be terminalized after stability verification, while any mixed boundary is `read-only reconciliation required`. The GitHub credential is not replaced by control-plane update.
 
 ### Bootstrap transaction and degraded transport behavior
 
