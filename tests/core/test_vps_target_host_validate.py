@@ -244,6 +244,27 @@ class ZeroBasedVpsTargetHostValidationTests(unittest.TestCase):
         self.assertIn("--install-root", raw)
         self.assertIn('"development_test_suite_executed"', raw)
 
+    def test_successor_upgrade_engine_is_library_not_cli_surface(self) -> None:
+        raw = (DEPLOY / "target_host_validate.py").read_text(encoding="utf-8")
+        surface_block = raw.split("CLI_SURFACES = (", 1)[1].split(")\n", 1)[0]
+        self.assertNotIn(
+            '"operation_control_successor_upgrade"',
+            surface_block,
+        )
+        self.assertNotIn(
+            '"operation_control_successor_upgrade": [',
+            raw,
+        )
+        self.assertIn(
+            "operation_control_successor_upgrade.py",
+            (
+                REPO
+                / ".github"
+                / "workflows"
+                / "zero-based-core-validation.yml"
+            ).read_text(encoding="utf-8"),
+        )
+
     def test_target_validator_source_never_invokes_unittest_discovery(self) -> None:
         raw = (DEPLOY / "target_host_validate.py").read_text(encoding="utf-8")
         self.assertNotIn("unittest", raw)

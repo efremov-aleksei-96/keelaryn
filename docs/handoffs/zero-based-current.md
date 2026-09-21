@@ -569,3 +569,18 @@ The successor commit containing this section:
 
 Production/VPS/Hub/Drive remain unchanged. Before any later write, reconcile authoritative branch HEAD and CI.
 
+### 2026-09-21 library-only validator contract and early successor preflight
+
+Pre-write authority: `a019d7f1ce7ac51399e1ed7cc0a20accc713c54d`.
+Core run `35592117877` passed deterministic tests, relay, all CLI smokes and Hub rehearsal, then failed only in deterministic payload proof because `target_host_validate.py` treated the library-only successor upgrade engine as a CLI surface and invoked `py_compile` inside the immutable materialized release. This is classified **DEVELOPMENT_VALIDATOR_CONTRACT**; release determinism itself had already passed.
+
+The successor commit containing this section:
+
+- removes `operation_control_successor_upgrade.py` from target-host CLI surfaces; the workflow still compiles it before materialization, and target-host validation still read-only compiles every Python source with built-in `compile()` without bytecode writes;
+- adds a regression proving the upgrade engine remains a library-only surface;
+- adds an early read-only successor-upgrade preflight before source fetch/materialization or Drive work;
+- the preflight requires production writer exact `inactive/MainPID=0`, canonical `control-current -> releases/<old source>`, exact predecessor transport/agent unit bytes, and absence of successor worker/profile/activation;
+- this fail-fast layer does not replace the transactional updater's fresh commit-boundary validation.
+
+Production/VPS/Hub/Drive remain unchanged. Reconcile authoritative branch HEAD and CI before any later write.
+

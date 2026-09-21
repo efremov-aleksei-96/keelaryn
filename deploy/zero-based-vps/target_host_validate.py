@@ -45,7 +45,6 @@ CLI_SURFACES = (
     "operation_control_bootstrap",
     "operation_control_recovery",
     "operation_control_update",
-    "operation_control_successor_upgrade",
 )
 
 
@@ -280,13 +279,6 @@ def _cli_commands(release: Path) -> dict[str, list[str]]:
             "-B",
             str(deploy / "operation_control_plane_update.py"),
             "--help",
-        ],
-        "operation_control_successor_upgrade": [
-            sys.executable,
-            "-B",
-            "-m",
-            "py_compile",
-            str(deploy / "operation_control_successor_upgrade.py"),
         ],
     }
 

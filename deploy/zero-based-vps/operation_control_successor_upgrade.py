@@ -38,9 +38,13 @@ from keelaryn_core.protocol import (  # noqa: E402
     canonical_json_bytes,
     strict_json_bytes,
 )
+from keelaryn_core.operation_hub_pre_apply_activation import (  # noqa: E402
+    ACTIVATION_NAME,
+)
 from keelaryn_core.operation_hub_pre_apply_profile import (  # noqa: E402
     AUTHORIZATION,
     OPERATION,
+    PROFILE_NAME,
     PROFILE_SCHEMA,
     REQUEST_PROFILE,
     parse_hub_pre_apply_profile,
@@ -56,6 +60,12 @@ RESULT_SCHEMA = "keelaryn.operation-control-successor-upgrade.v1"
 PROFILE_STAGING_NAME = "operation-control-hub-pre-apply-profile.v1.json"
 LEGACY_SOURCE_PATH = ("My Laptop", "0__Core", "keelaryn", "hub")
 REPOSITORY = "https://github.com/efremov-aleksei-96/keelaryn.git"
+WRITER_UNIT = "keelaryn-drive.service"
+PERSISTENT_CONTROL_UNITS = (
+    "keelaryn-operation-transport.service",
+    "keelaryn-operation-agent.service",
+)
+SUCCESSOR_WORKER_UNIT = "keelaryn-hub-preapply.service"
 
 _OID = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -467,6 +477,126 @@ def _build_payload_twice(
                 "second successor payload metadata differs"
             )
     return first
+
+
+def _systemd_unit_state(unit: str) -> tuple[str, int]:
+    result = _run(
+        [
+            "systemctl",
+            "show",
+            unit,
+            "--property=ActiveState",
+            "--property=MainPID",
+        ]
+    )
+    values: dict[str, str] = {}
+    for raw in result.stdout.splitlines():
+        if "=" not in raw:
+            continue
+        key, value = raw.split("=", 1)
+        values[key] = value
+    if set(values) != {"ActiveState", "MainPID"}:
+        raise SuccessorUpgradeError(
+            f"systemd state response is incomplete for {unit}"
+        )
+    try:
+        main_pid = int(values["MainPID"])
+    except ValueError as exc:
+        raise SuccessorUpgradeError(
+            f"systemd MainPID is invalid for {unit}"
+        ) from exc
+    if main_pid < 0:
+        raise SuccessorUpgradeError(
+            f"systemd MainPID is invalid for {unit}"
+        )
+    return values["ActiveState"], main_pid
+
+
+def _exact_installed_unit(
+    path: Path,
+    expected: bytes,
+    label: str,
+) -> None:
+    try:
+        info = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise SuccessorUpgradeError(f"{label} cannot be inspected") from exc
+    if path.is_symlink() or not stat.S_ISREG(info.st_mode):
+        raise SuccessorUpgradeError(f"{label} must be one regular file")
+    if os.name == "posix" and (
+        info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o644
+    ):
+        raise SuccessorUpgradeError(
+            f"{label} must be current-user owned mode 0644"
+        )
+    if path.read_bytes() != expected:
+        raise SuccessorUpgradeError(f"{label} bytes mismatch")
+
+
+def _preflight_upgrade_boundary(
+    spec: SuccessorSpec,
+    layout: UpgradeLayout,
+    *,
+    systemd_probe: Callable[[str], tuple[str, int]] = _systemd_unit_state,
+) -> None:
+    _validate_spec(spec)
+
+    writer_state, writer_pid = systemd_probe(WRITER_UNIT)
+    if writer_state != "inactive" or writer_pid != 0:
+        raise SuccessorUpgradeError(
+            "production writer must be exact inactive/MainPID=0"
+        )
+
+    releases = layout.install_root / "releases"
+    predecessor = releases / spec.old_source_commit
+    try:
+        verify_release_directory(
+            predecessor,
+            expected_source_commit=spec.old_source_commit,
+            expected_payload_sha256=spec.old_payload_sha256,
+        )
+    except PayloadMaterializeError as exc:
+        raise SuccessorUpgradeError(
+            "installed predecessor identity mismatch"
+        ) from exc
+
+    control_current = layout.install_root / "control-current"
+    if not control_current.is_symlink():
+        raise SuccessorUpgradeError(
+            "control-current must be one canonical predecessor symlink"
+        )
+    if os.name == "posix" and control_current.lstat().st_uid != os.geteuid():
+        raise SuccessorUpgradeError("control-current owner mismatch")
+    if os.readlink(control_current) != f"releases/{spec.old_source_commit}":
+        raise SuccessorUpgradeError(
+            "control-current does not select exact predecessor"
+        )
+
+    deploy = predecessor / "deploy" / "zero-based-vps"
+    for name in PERSISTENT_CONTROL_UNITS:
+        _exact_installed_unit(
+            layout.unit_dir / name,
+            (deploy / name).read_bytes(),
+            f"installed predecessor unit {name}",
+        )
+
+    worker = layout.unit_dir / SUCCESSOR_WORKER_UNIT
+    if worker.exists() or worker.is_symlink():
+        raise SuccessorUpgradeError(
+            "successor Hub worker must be absent before upgrade"
+        )
+
+    for path, label in (
+        (layout.operation_control_root / PROFILE_NAME, "Hub pre-apply profile"),
+        (
+            layout.operation_control_root / ACTIVATION_NAME,
+            "Hub pre-apply activation",
+        ),
+    ):
+        if path.exists() or path.is_symlink():
+            raise SuccessorUpgradeError(
+                f"{label} must be absent before successor upgrade"
+            )
 
 
 def materialize_successor(
@@ -890,9 +1020,19 @@ def upgrade_successor(
     layout: UpgradeLayout,
     *,
     drive_factory: Callable[[Mapping[str, str]], Any] | None = None,
+    systemd_probe: Callable[[str], tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     _require_root()
     _validate_spec(spec)
+    _preflight_upgrade_boundary(
+        spec,
+        layout,
+        systemd_probe=(
+            _systemd_unit_state
+            if systemd_probe is None
+            else systemd_probe
+        ),
+    )
     materialize_successor(spec, layout)
     _, profile_path = build_hub_pre_apply_profile(
         spec,
@@ -949,5 +1089,6 @@ __all__ = [
     "build_hub_pre_apply_profile",
     "materialize_successor",
     "resolve_legacy_source_root",
+    "_preflight_upgrade_boundary",
     "upgrade_successor",
 ]

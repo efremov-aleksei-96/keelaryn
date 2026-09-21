@@ -242,6 +242,109 @@ class SuccessorUpgradeTests(unittest.TestCase):
             self.assertEqual(value["source_commit"], spec.new_source_commit)
             self.assertEqual(len(calls), 2)
 
+    def test_preflight_requires_writer_inactive_and_zero_pid(self):
+        spec = self.spec()
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            layout = upgrade.UpgradeLayout(install_root=root)
+            with self.assertRaisesRegex(
+                upgrade.SuccessorUpgradeError,
+                "inactive/MainPID=0",
+            ):
+                upgrade._preflight_upgrade_boundary(
+                    spec,
+                    layout,
+                    systemd_probe=lambda unit: ("active", 123),
+                )
+
+    def test_preflight_requires_exact_predecessor_control_boundary(self):
+        spec = self.spec()
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            install = root / "install"
+            predecessor = install / "releases" / spec.old_source_commit
+            deploy = predecessor / "deploy" / "zero-based-vps"
+            deploy.mkdir(parents=True)
+            unit_dir = root / "units"
+            unit_dir.mkdir()
+            control_root = root / "control"
+            control_root.mkdir()
+            os.chmod(control_root, 0o700)
+
+            for name in upgrade.PERSISTENT_CONTROL_UNITS:
+                raw = f"{name}\n".encode()
+                (deploy / name).write_bytes(raw)
+                installed = unit_dir / name
+                installed.write_bytes(raw)
+                os.chmod(installed, 0o644)
+
+            os.symlink(
+                f"releases/{spec.old_source_commit}",
+                install / "control-current",
+            )
+            layout = upgrade.UpgradeLayout(
+                install_root=install,
+                unit_dir=unit_dir,
+                operation_control_root=control_root,
+            )
+
+            with mock.patch.object(
+                upgrade,
+                "verify_release_directory",
+                return_value={},
+            ):
+                upgrade._preflight_upgrade_boundary(
+                    spec,
+                    layout,
+                    systemd_probe=lambda unit: ("inactive", 0),
+                )
+
+                victim = unit_dir / upgrade.PERSISTENT_CONTROL_UNITS[0]
+                victim.write_bytes(b"tampered\n")
+                with self.assertRaisesRegex(
+                    upgrade.SuccessorUpgradeError,
+                    "bytes mismatch",
+                ):
+                    upgrade._preflight_upgrade_boundary(
+                        spec,
+                        layout,
+                        systemd_probe=lambda unit: ("inactive", 0),
+                    )
+
+    def test_upgrade_runs_preflight_before_materialization_or_drive_work(self):
+        spec = self.spec()
+        layout = upgrade.UpgradeLayout()
+        calls = []
+
+        def fail_preflight(*args, **kwargs):
+            calls.append("preflight")
+            raise upgrade.SuccessorUpgradeError("blocked early")
+
+        with mock.patch.object(
+            upgrade,
+            "_require_root",
+            return_value=None,
+        ), mock.patch.object(
+            upgrade,
+            "_preflight_upgrade_boundary",
+            side_effect=fail_preflight,
+        ), mock.patch.object(
+            upgrade,
+            "materialize_successor",
+        ) as materialize, mock.patch.object(
+            upgrade,
+            "build_hub_pre_apply_profile",
+        ) as profile:
+            with self.assertRaisesRegex(
+                upgrade.SuccessorUpgradeError,
+                "blocked early",
+            ):
+                upgrade.upgrade_successor(spec, layout)
+
+        self.assertEqual(calls, ["preflight"])
+        materialize.assert_not_called()
+        profile.assert_not_called()
+
     def test_upgrade_uses_exact_successor_updater_and_sanitizes_result(self):
         spec = self.spec()
         with tempfile.TemporaryDirectory() as td:
@@ -273,6 +376,10 @@ class SuccessorUpgradeTests(unittest.TestCase):
             with mock.patch.object(
                 upgrade,
                 "_require_root",
+                return_value=None,
+            ), mock.patch.object(
+                upgrade,
+                "_preflight_upgrade_boundary",
                 return_value=None,
             ), mock.patch.object(
                 upgrade,
