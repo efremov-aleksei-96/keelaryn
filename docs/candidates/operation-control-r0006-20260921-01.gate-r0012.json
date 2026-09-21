@@ -1,0 +1,19 @@
+{
+  "schema": "keelaryn.operation-control-gate-framework.v1",
+  "gate_revision": "operation-control-gate-r0012",
+  "candidate": "operation-control-r0006-20260921-01",
+  "frozen_source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+  "qualification_driver": "tools/operation_control_r0006_vps.py",
+  "workflow": ".github/workflows/operation-control-r0006-gate-r0012.yml",
+  "production_qualified": false,
+  "purpose": "qualify the immutable r0006 product with a production driver that uses the exact frozen r0072 migration-pack filename and digest contract",
+  "previous_gate_revision": "operation-control-gate-r0011",
+  "revision_reason": "production read-only reconcile exposed qualification-driver-only path/schema defect: frozen migration pack authority is MIGRATION_PACK.json and its pack identity is SHA-256 of canonical manifest bytes, not a pack_sha256 JSON field",
+  "frozen_product_bytes_unchanged": true,
+  "r0011_run_id": 35594376690,
+  "r0011_conclusion": "success",
+  "r0011_artifact_id": 10636186650,
+  "r0011_artifact_zip_sha256": "49960baf1384b6544a1de7a4a83ea3fd3572e15191be87709dbcc56215a2c498",
+  "production_reconcile_observation": "READ_ONLY_FAILED_BEFORE_QUALIFY",
+  "production_reconcile_error": "r0072 pack manifest cannot be inspected"
+}

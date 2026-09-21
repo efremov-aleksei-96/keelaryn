@@ -639,3 +639,23 @@ The commit containing this section issues gate revision `operation-control-gate-
 
 r0011 adds an explicit gate regression for this distinction and reruns the complete frozen r0006 gate. No production/VPS/Hub/Drive mutation occurred. Do not run production `qualify` until r0011 is PASS.
 
+### 2026-09-21 r0006 gate r0012 after production read-only reconcile
+
+Authoritative pre-write HEAD: `eb2c4f65990150b00e1f35711e10f553e40364b9`.
+
+r0011 run `35594376690` completed SUCCESS. Its evidence artifact is `10636186650`, ZIP SHA-256 `49960baf1384b6544a1de7a4a83ea3fd3572e15191be87709dbcc56215a2c498`, evidence JSON SHA-256 `83882dcbd87563a2b55f835bd338f9b8ccb8f729a4ec63eb7b5f5a37448c2eed`.
+
+The first production-specific command under r0011 ran `reconcile` only and failed closed with `ERROR: r0072 pack manifest cannot be inspected`. `qualify` never started and no production/control/Hub/Drive mutation occurred.
+
+Exact frozen source review proved this was a **PRODUCTION_QUALIFICATION_DRIVER** defect, not r0072/product state:
+
+- frozen migration contract defines `MIGRATION_PACK_NAME = "MIGRATION_PACK.json"`;
+- `MigrationPack.pack_sha256` is SHA-256 of the canonical `MIGRATION_PACK.json` bytes;
+- there is no `PACK_MANIFEST.json` contract and no embedded `pack_sha256` field.
+
+The commit containing this section issues gate revision `operation-control-gate-r0012` only. Frozen r0006 product remains exact source `b371a9b9f28fe668cc8073019a3d5f352f9d9bf3`.
+
+r0012 driver now reads `qualification-input/pack/MIGRATION_PACK.json` as an immutable pack file and requires its raw-byte SHA-256 to equal the pinned r0072 pack SHA. The gate regression constructs an r0072-like filesystem with the real filename/layout, proves successful `_migration_anchor()`, then proves a legacy/wrong `PACK_MANIFEST.json` path is rejected.
+
+Do not rerun production qualification until r0012 PASS. Production state remains PREPARED/r0005 with writer off; no durable production mutation was attempted by the failed r0011 reconcile.
+

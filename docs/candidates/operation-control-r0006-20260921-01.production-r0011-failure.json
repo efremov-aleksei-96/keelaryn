@@ -1,0 +1,18 @@
+{
+  "schema": "keelaryn.operation-control-production-qualification-failure.v1",
+  "candidate": "operation-control-r0006-20260921-01",
+  "gate_revision": "operation-control-gate-r0011",
+  "driver_source_commit": "eb2c4f65990150b00e1f35711e10f553e40364b9",
+  "frozen_product_source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+  "phase": "RECONCILE",
+  "qualify_started": false,
+  "upgrade_started": false,
+  "persistent_mutations_performed": false,
+  "hub_selector_mutated": false,
+  "drive_mutations_performed": false,
+  "error": "r0072 pack manifest cannot be inspected",
+  "classification": "PRODUCTION_QUALIFICATION_DRIVER",
+  "root_cause": "qualification driver referenced qualification-input/pack/PACK_MANIFEST.json and expected a pack_sha256 JSON field; frozen r0072 contract uses MIGRATION_PACK.json and defines pack identity as SHA-256 of the canonical manifest bytes",
+  "product_bytes_implicated": false,
+  "successor_gate_revision": "operation-control-gate-r0012"
+}

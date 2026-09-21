@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-GATE_REVISION = "operation-control-gate-r0011"
+GATE_REVISION = "operation-control-gate-r0012"
 CANDIDATE = "operation-control-r0006-20260921-01"
 REPOSITORY = "https://github.com/efremov-aleksei-96/keelaryn.git"
 
@@ -427,15 +427,11 @@ def _migration_anchor() -> dict[str, Any]:
         observed[key] = digest
 
     pack_manifest = _pack_file(
-        root / "qualification-input" / "pack" / "PACK_MANIFEST.json",
-        "r0072 pack manifest",
+        root / "qualification-input" / "pack" / "MIGRATION_PACK.json",
+        "r0072 migration pack manifest",
     )
-    try:
-        value = json.loads(pack_manifest.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise GateError("r0072 PACK_MANIFEST JSON invalid") from exc
-    if not isinstance(value, dict) or value.get("pack_sha256") != MIGRATION_PACK_SHA256:
-        raise GateError("r0072 pack SHA mismatch")
+    if _sha(pack_manifest) != MIGRATION_PACK_SHA256:
+        raise GateError("r0072 MIGRATION_PACK SHA-256 mismatch")
     return observed
 
 
