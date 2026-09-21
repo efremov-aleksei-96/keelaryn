@@ -305,10 +305,10 @@ Successor development uses group-mediated DAC without restoring broad root capab
 - Exact-head Core validation: **PASS**, run `35564099444`, 643 deterministic tests plus cross-user DAC, CLI, rehearsal, deterministic payload/materialization and target-host validation
 - Windows migration validation: **PASS**, run `35564099442`
 - Development payload artifact: `10623295924`, ZIP SHA-256 `ed9cfe449d58f23094deb9647c5f12aff9299d8b3113615ad0caca5e7c45e1fd`
-- Gate revision: `operation-control-gate-r0007`
+- Gate revision: `operation-control-gate-r0008`
 - Qualification driver: `tools/operation_control_r0005_vps.py`
 - Workflow: `.github/workflows/operation-control-r0005-gate.yml`
-- State: **FROZEN_NOT_PRODUCTION_QUALIFIED**
+- State: **FROZEN_NOT_PRODUCTION_QUALIFIED — r0007 gate harness failed; r0008 pending**
 - GitHub operation channel: Issue #65
 
 The cross-user relay defect exposed by rejected r0004 is covered by an actual disposable Linux user boundary: transport runs as a non-root UID, agent retains UID 0 but all capability sets are zero, both share only the keelaryn GID, request/status files are mode 0640, relay directories are 0770, and terminal publication succeeds. `RestrictSUIDSGID=true` remains enabled; no SGID bit is required. The CI-only relay harness lives under `tests/ci` and is excluded from production payload bytes.
@@ -320,6 +320,12 @@ r0005 preserves the exact historical r0003 recovery authority:
 Before r0005 materialization, the r0005 driver requires a separate rejected-r0004 failed-bootstrap runtime-residue recovery transaction. It may remove only the exact production-observed r0004 runtime residue, must retain the immutable r0004 release, must coexist with and preserve the historical r0003 authority files, and must preserve the `e63f + PREPARED + writer INACTIVE` production boundary.
 
 Candidate product bytes are immutable from this issuance point. A gate/evidence-only correction may receive a later gate revision, but any change to frozen product bytes requires a new candidate.
+
+### r0007 gate execution failure
+
+Gate r0007 run `35564710697` is preserved as failed qualification evidence. Driver SelfTest, exact frozen source/tree checkout and 58 focused frozen operation-control tests all passed. The cross-user step failed before invoking the frozen product because the shell referenced `FROZEN_COMMIT` without defining it in that step. Classification: **GATE_HARNESS**, not product failure. Frozen r0005 product bytes remain immutable and unchanged.
+
+Gate r0008 changes only gate tooling/evidence: it binds the cross-user step to exact frozen source `08f2e211f53764590f6ff0f05f86b2de62c14418`. The historical r0007 workflow remains available only by manual dispatch and no longer runs automatically on successor gate metadata commits.
 
 ## Current production Hub-cutover transaction
 
@@ -411,8 +417,8 @@ The maintainer should be asked to execute a local/VPS command only when evidence
 
 ## Next permitted sequence
 
-1. Run and review Source/Full Gate `operation-control-gate-r0007` against frozen r0005.
-2. After gate PASS, fresh production read-only reconcile must prove: production `e63f + PREPARED + writer INACTIVE`; rejected r0004 release exact; r0004 transaction-owned sidecar absent; exact known runtime residue present; historical r0003 recovery authority hashes unchanged.
+1. Run and review Source/Full Gate `operation-control-gate-r0008` against immutable frozen r0005.
+2. If gate r0008 PASS, fresh production read-only reconcile must prove: production `e63f + PREPARED + writer INACTIVE`; rejected r0004 release exact; r0004 transaction-owned sidecar absent; exact known runtime residue present; historical r0003 recovery authority hashes unchanged.
 3. Run `recover-r0004` as one separate production mutation and read-only verify durable COMPLETED failed-bootstrap authority plus preserved r0003 authority.
 4. Materialize exact frozen r0005 as a separate production transaction.
 5. Run read-only production qualification.
@@ -420,4 +426,4 @@ The maintainer should be asked to execute a local/VPS command only when evidence
 7. Prove end-to-end `RUNTIME_SELFTEST` through Issue #65, including actual status comment write permission.
 8. Only after runtime acceptance reconcile the still-PREPARED Hub transaction before any Hub selector mutation.
 
-Do not retry r0004 bootstrap. If any durable state differs, stop and reconcile before mutation.
+Do not retry r0004 bootstrap. Do not rerun r0007 automatically. If any durable state differs, stop and reconcile before mutation.

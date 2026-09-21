@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-GATE_REVISION = "operation-control-gate-r0007"
+GATE_REVISION = "operation-control-gate-r0008"
 CANDIDATE = "operation-control-r0005-20260921-01"
 REPOSITORY = "https://github.com/efremov-aleksei-96/keelaryn.git"
 SOURCE_COMMIT = "08f2e211f53764590f6ff0f05f86b2de62c14418"

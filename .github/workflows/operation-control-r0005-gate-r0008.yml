@@ -1,13 +1,21 @@
-name: Operation control r0005 gate
+name: Operation control r0005 gate r0008
 
 on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'tools/operation_control_r0005_vps.py'
+      - '.github/workflows/operation-control-r0005-gate-r0008.yml'
+      - 'docs/candidates/operation-control-r0005-20260921-01.json'
+      - 'docs/candidates/operation-control-r0005-20260921-01.gate-r0008.json'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: operation-control-r0005-gate-${{ github.ref }}
+  group: operation-control-r0005-gate-r0008-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -47,6 +55,8 @@ jobs:
             -p 'test_operation_*.py'
 
       - name: Prove frozen cross-user relay DAC
+        env:
+          FROZEN_COMMIT: 08f2e211f53764590f6ff0f05f86b2de62c14418
         run: |
           set -euo pipefail
           work="$RUNNER_TEMP/frozen-source"
@@ -157,7 +167,7 @@ jobs:
           import json, os, sys
           value={
               "schema":"keelaryn.operation-control-gate-evidence.v1",
-              "gate_revision":"operation-control-gate-r0007",
+              "gate_revision":"operation-control-gate-r0008",
               "candidate":"operation-control-r0005-20260921-01",
               "frozen_source_commit":"08f2e211f53764590f6ff0f05f86b2de62c14418",
               "frozen_source_tree":"8b73bb1e19f554099c81374cb957c588f479d666",
@@ -191,7 +201,7 @@ jobs:
       - name: Upload compact r0005 gate evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: operation-control-r0005-gate-${{ github.run_attempt }}
+          name: operation-control-r0005-gate-r0008-${{ github.run_attempt }}
           path: ${{ runner.temp }}/OPERATION_CONTROL_R0005_GATE.json
           if-no-files-found: error
           retention-days: 3
