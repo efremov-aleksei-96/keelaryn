@@ -1,0 +1,22 @@
+{
+  "schema": "keelaryn.operation-control-gate-failure-evidence.v1",
+  "gate_revision": "operation-control-gate-r0013",
+  "candidate": "operation-control-r0006-20260921-01",
+  "frozen_source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+  "frozen_source_tree": "1e3a80f76283fb0800bb6e9d09202f6ab6755c5b",
+  "product_bytes_changed": false,
+  "github_run_id": 35597548608,
+  "conclusion": "failure",
+  "classification": "GATE_HARNESS",
+  "driver_selftest_passed": true,
+  "real_r0072_pack_layout_regression_passed": true,
+  "failed_step": "Prove Computers namespace adapter and repair guard",
+  "frozen_source_checkout_started": false,
+  "frozen_product_tests_started": false,
+  "production_qualified": false,
+  "failure": "PermissionError creating mock __pycache__ under a fixture directory already chmod 0555",
+  "root_cause": "test harness applied immutable release directory modes before creating the synthetic diagnostic residue it intended to test",
+  "driver_logic_implicated": false,
+  "frozen_product_bytes_implicated": false,
+  "successor_gate_revision": "operation-control-gate-r0014"
+}

@@ -715,3 +715,20 @@ r0013 production-driver changes:
 
 Do not run repair or upgrade until r0013 gate PASS and a fresh production read-only r0013 `reconcile + qualify` PASS. Cleanup and upgrade remain separate transaction boundaries.
 
+### 2026-09-21 r0006 gate r0014 after r0013 fixture-order failure
+
+Authoritative pre-write HEAD: `7e308498ff60ea96fb3e83e625246a84305b20df`.
+
+r0013 run `35597548608` failed in the gate-only regression `Prove Computers namespace adapter and repair guard`. Driver selftest and the real r0072 migration-pack layout regression had already passed. The failure was **GATE_HARNESS**: the synthetic test fixture applied mode 0555 to `installed/deploy/zero-based-vps` before attempting to create the mock `__pycache__`, so Linux correctly returned `PermissionError`.
+
+No frozen r0006 product byte or r0013 qualification-driver byte is changed by the commit containing this section. Gate revision `operation-control-gate-r0014` changes only the workflow fixture ordering:
+
+1. create exact reference/installed trees while writable;
+2. create the synthetic diagnostic `__pycache__/materialize_payload.cpython-312.pyc` residue;
+3. apply expected immutable 0555/0444 modes to the ordinary release tree;
+4. verify the strict diagnostic-contamination guard;
+5. verify extra/changed residue is rejected;
+6. rerun the full frozen candidate gate.
+
+Production remains exact r0005/PREPARED with writer inactive; updater never started in the earlier failed r0012 upgrade. The r0006 release still contains only the separately recorded diagnostic-induced pycache residue. Do not run production repair/requalification until r0014 PASS.
+
