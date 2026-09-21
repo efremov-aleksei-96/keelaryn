@@ -29,6 +29,7 @@ LOCK_NAME = "LOCK"
 PROCESSED_NAME = "processed"
 REJECTED_NAME = "rejected"
 _REQUEST_FILE = re.compile(r"^[0-9a-f]{32}\.json$")
+HUB_PRE_APPLY_UNIT = "keelaryn-hub-preapply.service"
 
 
 @dataclass(frozen=True)
