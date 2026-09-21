@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -28,6 +29,15 @@ from keelaryn_core.migration_common import MIGRATION_SOURCE_NAME, small_file  # 
 from keelaryn_core.migration_drive_source import verify_migration_source_against_drive  # noqa: E402
 from keelaryn_core.migration_freeze import verify_migration_candidate_freeze_identity  # noqa: E402
 from keelaryn_core.migration_pack import verify_migration_pack  # noqa: E402
+from keelaryn_core.migration_production_qualification import (  # noqa: E402
+    TARGET_AUTHORITY_SCHEMA,
+    TARGET_EVIDENCE_SCHEMA,
+)
+from keelaryn_core.protocol import (  # noqa: E402
+    ProtocolError,
+    canonical_json_bytes,
+    strict_json_bytes,
+)
 from keelaryn_core.operation_hub_pre_apply_profile import (  # noqa: E402
     AUTHORIZATION,
     OPERATION,
@@ -168,6 +178,163 @@ def _private_dir(path: Path, label: str, *, mode: int = 0o700) -> Path:
             f"{label} must be current-user owned mode {mode:04o}"
         )
     return path
+
+
+def _fsync_dir(path: Path) -> None:
+    if os.name != "posix":
+        return
+    try:
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        pass
+
+
+def _atomic_private_new(path: Path, raw: bytes, label: str) -> Path:
+    parent = _private_dir(path.parent, f"{label} parent")
+    output = parent / path.name
+    if output.exists() or output.is_symlink():
+        raise SuccessorUpgradeError(f"{label} already exists")
+
+    staging = parent / f".{output.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        fd = os.open(staging, flags, 0o600)
+        try:
+            if os.name == "posix":
+                os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "wb", closefd=False) as stream:
+                stream.write(raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(fd)
+
+        _private_file(staging, f"{label} staging file")
+        if output.exists() or output.is_symlink():
+            raise SuccessorUpgradeError(f"{label} appeared before publication")
+
+        if os.name == "posix":
+            os.link(staging, output, follow_symlinks=False)
+            _fsync_dir(parent)
+            staging.unlink()
+        else:
+            staging.rename(output)
+        _fsync_dir(parent)
+        return _private_file(output, label)
+    except FileExistsError as exc:
+        raise SuccessorUpgradeError(
+            f"{label} appeared before publication"
+        ) from exc
+    finally:
+        try:
+            staging.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _strict_canonical_json(
+    raw: bytes,
+    *,
+    label: str,
+    keys: set[str],
+    schema: str,
+) -> dict[str, Any]:
+    try:
+        value = strict_json_bytes(raw, label=label)
+    except ProtocolError as exc:
+        raise SuccessorUpgradeError(str(exc)) from exc
+    if not isinstance(value, dict) or set(value) != keys:
+        raise SuccessorUpgradeError(f"{label}: keys mismatch")
+    if value.get("schema") != schema:
+        raise SuccessorUpgradeError(f"{label}: schema mismatch")
+    if raw != canonical_json_bytes(value):
+        raise SuccessorUpgradeError(f"{label}: noncanonical JSON")
+    return dict(value)
+
+
+_TARGET_AUTHORITY_KEYS = {
+    "schema",
+    "candidate_id",
+    "pack_sha256",
+    "staging_root_id",
+    "target_id",
+    "target_name",
+}
+
+_TARGET_EVIDENCE_KEYS = {
+    "schema",
+    "candidate_id",
+    "pack_sha256",
+    "source_commit",
+    "source_tree",
+    "source_manifest_sha256",
+    "mapping_manifest_sha256",
+    "frozen_canonical_inventory_sha256",
+    "frozen_project_state_inventory_sha256",
+    "frozen_preservation_inventory_sha256",
+    "frozen_root_index_sha256",
+    "target_identity_sha256",
+    "staging_identity_sha256",
+    "canonical_epoch",
+    "canonical_file_count",
+    "canonical_total_bytes",
+    "canonical_inventory_sha256",
+    "preserved_file_count",
+    "preserved_total_bytes",
+    "preservation_inventory_sha256",
+    "project_count",
+    "reconciliation_state_sha256",
+    "router_outcome",
+    "root_index_sha256",
+    "reader_epoch",
+    "no_op_phase",
+    "restart_state",
+    "outcome",
+    "cutover_authorized",
+}
+
+
+def _strict_target_authority(raw: bytes) -> dict[str, Any]:
+    value = _strict_canonical_json(
+        raw,
+        label="MIGRATION_PRODUCTION_TARGET_AUTHORITY",
+        keys=_TARGET_AUTHORITY_KEYS,
+        schema=TARGET_AUTHORITY_SCHEMA,
+    )
+    for key in (
+        "candidate_id",
+        "pack_sha256",
+        "staging_root_id",
+        "target_id",
+        "target_name",
+    ):
+        if not isinstance(value[key], str) or not value[key]:
+            raise SuccessorUpgradeError(
+                f"MIGRATION_PRODUCTION_TARGET_AUTHORITY.{key}: invalid"
+            )
+    return value
+
+
+def _strict_target_qualification(raw: bytes) -> dict[str, Any]:
+    value = _strict_canonical_json(
+        raw,
+        label="MIGRATION_PRODUCTION_TARGET_QUALIFICATION",
+        keys=_TARGET_EVIDENCE_KEYS,
+        schema=TARGET_EVIDENCE_SCHEMA,
+    )
+    if value.get("cutover_authorized") is not False:
+        raise SuccessorUpgradeError(
+            "MIGRATION_PRODUCTION_TARGET_QUALIFICATION.cutover_authorized: invalid"
+        )
+    return value
 
 
 def _read_json_private(path: Path, label: str) -> tuple[bytes, dict[str, Any]]:
@@ -466,32 +633,53 @@ def _load_current_hub_authority(
         ) from exc
 
     tool = release / "deploy" / "zero-based-vps" / "hub_cutover.py"
-    status = _json_command(
-        [
-            sys.executable,
-            "-B",
-            str(tool),
-            "--selector-path",
-            str(layout.selector),
-            "--state-root",
-            str(layout.deployment_state_root),
-            "--mutation-gate-root",
-            str(layout.mutation_gate_root),
-            "--source-commit",
-            framework_source,
-            "status",
-        ]
-    )
-    if status.get("status") != "PREPARED":
-        raise SuccessorUpgradeError(
-            "production Hub cutover is not exact PREPARED"
+
+    def observe_status() -> dict[str, Any]:
+        value = _json_command(
+            [
+                sys.executable,
+                "-B",
+                str(tool),
+                "--selector-path",
+                str(layout.selector),
+                "--state-root",
+                str(layout.deployment_state_root),
+                "--mutation-gate-root",
+                str(layout.mutation_gate_root),
+                "--source-commit",
+                framework_source,
+                "status",
+            ]
         )
+        if value.get("status") != "PREPARED":
+            raise SuccessorUpgradeError(
+                "production Hub cutover is not exact PREPARED"
+            )
+        return value
 
     active_path = layout.deployment_state_root / "ACTIVE_TRANSACTION.json"
+    status_first = observe_status()
     active_raw, active = _read_json_private(
         active_path,
         "active Hub cutover transaction",
     )
+    status_second = observe_status()
+    active_raw_second, active_second = _read_json_private(
+        active_path,
+        "active Hub cutover transaction",
+    )
+
+    if (
+        status_first != status_second
+        or active_raw != active_raw_second
+        or active != active_second
+        or not current.is_symlink()
+        or os.readlink(current) != target
+    ):
+        raise SuccessorUpgradeError(
+            "production PREPARED authority changed during stabilization"
+        )
+
     required = {
         "schema",
         "transaction_id",
@@ -504,7 +692,7 @@ def _load_current_hub_authority(
         raise SuccessorUpgradeError(
             "active Hub cutover transaction keys mismatch"
         )
-    if active.get("transaction_id") != status.get("transaction_id"):
+    if active.get("transaction_id") != status_first.get("transaction_id"):
         raise SuccessorUpgradeError(
             "active Hub cutover transaction/status mismatch"
         )
@@ -541,14 +729,16 @@ def build_hub_pre_apply_profile(
     credential = candidate_root / "qualification-production-drive.env"
 
     freeze_raw, freeze_value = _read_json_private(freeze, "freeze receipt")
-    authority_raw, authority_value = _read_json_private(
+    authority_raw = _private_file(
         authority,
         "target authority",
-    )
-    qualification_raw, qualification_value = _read_json_private(
+    ).read_bytes()
+    qualification_raw = _private_file(
         qualification,
         "qualification evidence",
-    )
+    ).read_bytes()
+    authority_value = _strict_target_authority(authority_raw)
+    qualification_value = _strict_target_qualification(qualification_raw)
     credential_raw = _private_file(
         credential,
         "migration qualification credential",
@@ -659,24 +849,20 @@ def build_hub_pre_apply_profile(
 
     staging = candidate_root / PROFILE_STAGING_NAME
     if staging.exists() or staging.is_symlink():
-        existing = _private_file(staging, "staged Hub pre-apply profile").read_bytes()
+        existing = _private_file(
+            staging,
+            "staged Hub pre-apply profile",
+        ).read_bytes()
         if existing != profile_raw:
             raise SuccessorUpgradeError(
                 "staged Hub pre-apply profile conflicts with current authority"
             )
     else:
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
-        fd = os.open(staging, flags, 0o600)
-        try:
-            if os.name == "posix":
-                os.fchmod(fd, 0o600)
-            os.write(fd, profile_raw)
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        _private_file(staging, "staged Hub pre-apply profile")
+        _atomic_private_new(
+            staging,
+            profile_raw,
+            "staged Hub pre-apply profile",
+        )
     return profile_raw, staging
 
 

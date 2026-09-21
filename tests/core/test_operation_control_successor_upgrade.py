@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,7 @@ MODULE = ROOT / "deploy" / "zero-based-vps" / "operation_control_successor_upgra
 SPEC = importlib.util.spec_from_file_location("operation_control_successor_upgrade", MODULE)
 assert SPEC is not None and SPEC.loader is not None
 upgrade = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = upgrade
 SPEC.loader.exec_module(upgrade)
 
 
@@ -91,6 +93,121 @@ class SuccessorUpgradeTests(unittest.TestCase):
                 path_segments=upgrade.LEGACY_SOURCE_PATH,
                 expected_identity_sha256="f" * 64,
             )
+
+    def test_target_authority_requires_exact_canonical_schema(self):
+        value = {
+            "schema": upgrade.TARGET_AUTHORITY_SCHEMA,
+            "candidate_id": "migration-r0072-20260919-01",
+            "pack_sha256": "a" * 64,
+            "staging_root_id": "staging-id",
+            "target_id": "target-id",
+            "target_name": "target-name",
+        }
+        raw = upgrade.canonical_json_bytes(value)
+        self.assertEqual(
+            upgrade._strict_target_authority(raw),
+            value,
+        )
+        with self.assertRaisesRegex(
+            upgrade.SuccessorUpgradeError,
+            "noncanonical",
+        ):
+            upgrade._strict_target_authority(
+                json.dumps(value, indent=2).encode("utf-8")
+            )
+        bad = dict(value)
+        bad["extra"] = "forbidden"
+        with self.assertRaisesRegex(
+            upgrade.SuccessorUpgradeError,
+            "keys mismatch",
+        ):
+            upgrade._strict_target_authority(
+                upgrade.canonical_json_bytes(bad)
+            )
+
+    def test_prepared_snapshot_must_be_stable_across_two_observations(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            install = root / "install"
+            release = install / "releases" / ("a" * 40)
+            release.mkdir(parents=True)
+            current = install / "current"
+            os.symlink(f"releases/{'a' * 40}", current)
+            state = root / "state"
+            state.mkdir()
+            active_path = state / "ACTIVE_TRANSACTION.json"
+            active_path.write_bytes(b"ignored")
+            os.chmod(active_path, 0o600)
+
+            layout = upgrade.UpgradeLayout(
+                install_root=install,
+                deployment_state_root=state,
+                selector=root / "selector",
+                mutation_gate_root=root / "gate",
+            )
+            first = {
+                "schema": "x",
+                "transaction_id": "1" * 32,
+                "tool": {"source_commit": "a" * 40, "sha256": "b" * 64},
+                "finalizers": {},
+                "old_hub_root_id": "old-root-identity",
+                "new_hub_root_id": "new-root-identity",
+            }
+            second = dict(first)
+            second["transaction_id"] = "2" * 32
+
+            with mock.patch.object(
+                upgrade,
+                "verify_release_directory",
+                return_value={},
+            ), mock.patch.object(
+                upgrade,
+                "_json_command",
+                side_effect=[
+                    {"status": "PREPARED", "transaction_id": "1" * 32},
+                    {"status": "PREPARED", "transaction_id": "2" * 32},
+                ],
+            ), mock.patch.object(
+                upgrade,
+                "_read_json_private",
+                side_effect=[
+                    (b"first", first),
+                    (b"second", second),
+                ],
+            ):
+                with self.assertRaisesRegex(
+                    upgrade.SuccessorUpgradeError,
+                    "changed during stabilization",
+                ):
+                    upgrade._load_current_hub_authority(layout)
+
+    def test_atomic_private_profile_publication_is_create_once(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            path = root / "profile.json"
+            raw = b'{"schema":"test"}\n'
+            published = upgrade._atomic_private_new(
+                path,
+                raw,
+                "profile",
+            )
+            self.assertEqual(published.read_bytes(), raw)
+            if os.name == "posix":
+                self.assertEqual(
+                    published.stat().st_mode & 0o777,
+                    0o600,
+                )
+            with self.assertRaisesRegex(
+                upgrade.SuccessorUpgradeError,
+                "already exists",
+            ):
+                upgrade._atomic_private_new(
+                    path,
+                    b"different\n",
+                    "profile",
+                )
+            self.assertEqual(path.read_bytes(), raw)
 
     def test_existing_successor_is_verified_without_rebuild(self):
         spec = self.spec()

@@ -553,3 +553,19 @@ Design:
 
 Next: wait for coherent Core/Windows development PASS, then focused review this engine and add the frozen candidate wrapper/gate only after the successor source bytes are ready. Production/VPS/Hub/Drive remain unchanged.
 
+### 2026-09-21 successor engine authority hardening
+
+Pre-write authority: `e14312818a868e673a2df49f14df004f48f80b90`.
+Migration Windows run `35591683874` PASS. Core run `35591683870` failed before executing the new engine tests because the dynamic test loader omitted `sys.modules` registration required by Python 3.12 dataclass processing; this is classified **TEST_HARNESS**, while the other 660 tests passed.
+
+The successor commit containing this section:
+
+- fixes the dynamic test loader registration;
+- stabilizes production PREPARED authority with two status observations and two exact ACTIVE_TRANSACTION reads, requiring identical status, bytes, parsed authority and production-current symlink;
+- parses target authority and target qualification using strict duplicate-key rejection, exact schema/key sets and canonical JSON bytes;
+- requires qualification `cutover_authorized=false`;
+- publishes the private staged profile through same-directory create-once staging, file fsync, no-replace publication and directory fsync;
+- adds regressions for noncanonical/extra target-authority JSON, PREPARED authority drift and create-once private profile publication.
+
+Production/VPS/Hub/Drive remain unchanged. Before any later write, reconcile authoritative branch HEAD and CI.
+
