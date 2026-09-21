@@ -20,6 +20,10 @@ from .operation_runtime import OperationRuntime, OperationRuntimeError, Operatio
 
 AGENT_SCHEMA = "keelaryn.operation-agent.v1"
 RELAY_SCHEMA = "keelaryn.operation-relay-status.v1"
+
+RELAY_ROOT_MODE = 0o750
+RELAY_DIRECTORY_MODE = 0o2770
+RELAY_FILE_MODE = 0o660
 LOCK_NAME = "LOCK"
 PROCESSED_NAME = "processed"
 REJECTED_NAME = "rejected"
@@ -69,7 +73,8 @@ def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
     return path
 
 
-def _relay_dir(path: Path, label: str) -> Path:
+
+def _relay_dir(path: Path, label: str, *, mode: int) -> Path:
     path = path.absolute()
     try:
         info = path.stat(follow_symlinks=False)
@@ -77,10 +82,12 @@ def _relay_dir(path: Path, label: str) -> Path:
         raise OperationRuntimeError(f"{label} cannot be inspected") from exc
     if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
         raise OperationRuntimeError(f"{label} must be one real directory")
-    if stat.S_IMODE(info.st_mode) != 0o700:
-        raise OperationRuntimeError(f"{label} must have mode 0700")
+    if os.name == "posix":
+        if info.st_gid != os.getegid() or stat.S_IMODE(info.st_mode) != mode:
+            raise OperationRuntimeError(
+                f"{label} group/mode is not exact {mode:04o}"
+            )
     return path
-
 
 def _fsync_dir(path: Path) -> None:
     if os.name != "posix":
@@ -127,9 +134,9 @@ def _atomic_relay(path: Path, value: dict[str, object]) -> None:
     ).encode("utf-8")
     temp = path.parent / f".{path.name}.tmp-{os.getpid()}-{time.monotonic_ns()}"
     try:
-        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, RELAY_FILE_MODE)
         try:
-            os.fchmod(fd, 0o644)
+            os.fchmod(fd, RELAY_FILE_MODE)
             with os.fdopen(fd, "wb", closefd=False) as stream:
                 stream.write(raw)
                 stream.flush()
@@ -247,14 +254,14 @@ class OperationAgent:
         self.handlers = dict(HANDLERS if handlers is None else handlers)
 
     def _relay_ready(self) -> bool:
-        for path, label in (
-            (self.transport_root, "operation transport root"),
-            (self.inbox, "operation transport inbox"),
-            (self.outbox, "operation transport outbox"),
+        for path, label, mode in (
+            (self.transport_root, "operation transport root", RELAY_ROOT_MODE),
+            (self.inbox, "operation transport inbox", RELAY_DIRECTORY_MODE),
+            (self.outbox, "operation transport outbox", RELAY_DIRECTORY_MODE),
         ):
             if not path.exists() and not path.is_symlink():
                 return False
-            _relay_dir(path, label)
+            _relay_dir(path, label, mode=mode)
         return True
 
     @contextmanager

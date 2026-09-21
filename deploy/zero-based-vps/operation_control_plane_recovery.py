@@ -22,6 +22,10 @@ PREPARED_SCHEMA = "keelaryn.operation-control-recovery-prepared.v1"
 COMPLETED_SCHEMA = "keelaryn.operation-control-recovery-completed.v1"
 BOOTSTRAP_TRANSACTION_SCHEMA = "keelaryn.operation-control-bootstrap-transaction.v1"
 BOOTSTRAP_RECEIPT_SCHEMA = "keelaryn.operation-control-bootstrap-receipt.v1"
+FAILED_BOOTSTRAP_SCHEMA = "keelaryn.operation-control-failed-bootstrap-recovery.v1"
+FAILED_BOOTSTRAP_PREPARED_SCHEMA = "keelaryn.operation-control-failed-bootstrap-recovery-prepared.v1"
+FAILED_BOOTSTRAP_COMPLETED_SCHEMA = "keelaryn.operation-control-failed-bootstrap-recovery-completed.v1"
+FAILED_BOOTSTRAP_RUNTIME_LAYOUT = "R0004_FAILED_BOOTSTRAP_EXACT_V1"
 
 UNIT_NAMES = (
     "keelaryn-operation-transport.service",
@@ -155,6 +159,7 @@ def _directory_identity(
     *,
     expected_uid: int,
     expected_gid: int,
+    expected_mode: int = 0o700,
 ) -> list[Path] | None:
     path = path.absolute()
     if not path.exists() and not path.is_symlink():
@@ -168,7 +173,7 @@ def _directory_identity(
     if (
         info.st_uid != expected_uid
         or info.st_gid != expected_gid
-        or stat.S_IMODE(info.st_mode) != 0o700
+        or stat.S_IMODE(info.st_mode) != expected_mode
     ):
         raise OperationControlRecoveryError(
             f"{label} owner/group/mode is not exact"
@@ -1273,6 +1278,525 @@ def cleanup_rejected_install(
     return completed_value
 
 
+
+def _failed_bootstrap_paths(
+    layout: RecoveryLayout,
+    spec: RecoverySpec,
+) -> tuple[Path, Path]:
+    stem = f"failed-bootstrap-{spec.rejected_source_commit}"
+    return (
+        layout.recovery_root / f"{stem}.prepared.json",
+        layout.recovery_root / f"{stem}.completed.json",
+    )
+
+
+def _exact_regular_identity(
+    path: Path,
+    label: str,
+    *,
+    expected_uid: int,
+    expected_gid: int,
+    expected_mode: int,
+    expected_size: int,
+) -> None:
+    path = path.absolute()
+    try:
+        info = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise OperationControlRecoveryError(f"{label} cannot be inspected") from exc
+    if path.is_symlink() or not stat.S_ISREG(info.st_mode):
+        raise OperationControlRecoveryError(f"{label} must be one regular file")
+    if (
+        info.st_uid != expected_uid
+        or info.st_gid != expected_gid
+        or stat.S_IMODE(info.st_mode) != expected_mode
+        or info.st_size != expected_size
+    ):
+        raise OperationControlRecoveryError(
+            f"{label} owner/group/mode/size is not exact"
+        )
+
+
+def _failed_bootstrap_runtime_state(
+    layout: RecoveryLayout,
+    *,
+    allow_partial: bool,
+) -> dict[str, str]:
+    root_uid = os.geteuid()
+    root_gid = os.getegid()
+    service_uid, service_gid = _service_identity()
+
+    transport_entries = _directory_identity(
+        layout.transport_root,
+        "failed-bootstrap transport runtime root",
+        expected_uid=service_uid,
+        expected_gid=service_gid,
+        expected_mode=0o700,
+    )
+    if transport_entries is None:
+        transport_state = "ABSENT"
+    else:
+        expected = {"inbox", "outbox", "state"}
+        names = {entry.name for entry in transport_entries}
+        if not names.issubset(expected):
+            raise OperationControlRecoveryError(
+                "failed-bootstrap transport runtime root contains unexpected material"
+            )
+        for name in sorted(names):
+            entries = _directory_identity(
+                layout.transport_root / name,
+                f"failed-bootstrap transport {name} directory",
+                expected_uid=service_uid,
+                expected_gid=service_gid,
+                expected_mode=0o700,
+            )
+            if entries is None:
+                raise OperationControlRecoveryError(
+                    f"failed-bootstrap transport {name} directory disappeared"
+                )
+            if entries:
+                raise OperationControlRecoveryError(
+                    f"failed-bootstrap transport {name} directory is not empty"
+                )
+        if not allow_partial and names != expected:
+            raise OperationControlRecoveryError(
+                "failed-bootstrap transport runtime layout is not exact"
+            )
+        transport_state = "EXACT" if names == expected else "PARTIAL_EXACT"
+
+    operation_entries = _directory_identity(
+        layout.operation_root,
+        "failed-bootstrap operation runtime root",
+        expected_uid=root_uid,
+        expected_gid=root_gid,
+        expected_mode=0o700,
+    )
+    if operation_entries is None:
+        operation_state = "ABSENT"
+    elif operation_entries:
+        raise OperationControlRecoveryError(
+            "failed-bootstrap operation runtime root contains unexpected material"
+        )
+    else:
+        operation_state = "EXACT"
+
+    control_entries = _directory_identity(
+        layout.operation_control_root,
+        "failed-bootstrap operation control root",
+        expected_uid=root_uid,
+        expected_gid=root_gid,
+        expected_mode=0o700,
+    )
+    if control_entries is None:
+        control_state = "ABSENT"
+    else:
+        expected = {"processed", "rejected", "LOCK"}
+        names = {entry.name for entry in control_entries}
+        if not names.issubset(expected):
+            raise OperationControlRecoveryError(
+                "failed-bootstrap operation control root contains unexpected material"
+            )
+        for name in ("processed", "rejected"):
+            if name not in names:
+                continue
+            entries = _directory_identity(
+                layout.operation_control_root / name,
+                f"failed-bootstrap operation control {name} directory",
+                expected_uid=root_uid,
+                expected_gid=root_gid,
+                expected_mode=0o700,
+            )
+            if entries is None:
+                raise OperationControlRecoveryError(
+                    f"failed-bootstrap operation control {name} disappeared"
+                )
+            if entries:
+                raise OperationControlRecoveryError(
+                    f"failed-bootstrap operation control {name} is not empty"
+                )
+        if "LOCK" in names:
+            _exact_regular_identity(
+                layout.operation_control_root / "LOCK",
+                "failed-bootstrap operation control lock",
+                expected_uid=root_uid,
+                expected_gid=root_gid,
+                expected_mode=0o600,
+                expected_size=0,
+            )
+        if not allow_partial and names != expected:
+            raise OperationControlRecoveryError(
+                "failed-bootstrap operation control layout is not exact"
+            )
+        control_state = "EXACT" if names == expected else "PARTIAL_EXACT"
+
+    states = {
+        "transport_root": transport_state,
+        "operation_root": operation_state,
+        "operation_control_root": control_state,
+    }
+    if not allow_partial and states != {
+        "transport_root": "EXACT",
+        "operation_root": "EXACT",
+        "operation_control_root": "EXACT",
+    }:
+        raise OperationControlRecoveryError(
+            "failed-bootstrap runtime residue is not exact"
+        )
+    return states
+
+
+def _failed_bootstrap_prepared(
+    spec: RecoverySpec,
+    layout: RecoveryLayout,
+) -> dict[str, Any]:
+    return {
+        "schema": FAILED_BOOTSTRAP_PREPARED_SCHEMA,
+        "rejected_source_commit": spec.rejected_source_commit,
+        "rejected_payload_sha256": spec.rejected_payload_sha256,
+        "production_source_commit": spec.production_source_commit,
+        "repository": spec.repository,
+        "issue": spec.issue,
+        "actors": _normalize_actors(spec.actors),
+        "status_actor": spec.status_actor,
+        "runtime_state_layout": FAILED_BOOTSTRAP_RUNTIME_LAYOUT,
+        "filesystem_layout": _layout_authority(layout),
+        "sidecar_transaction_paths_clean": True,
+    }
+
+
+def _validate_failed_bootstrap_prepared(
+    value: dict[str, Any],
+    spec: RecoverySpec,
+    layout: RecoveryLayout,
+) -> None:
+    expected = _failed_bootstrap_prepared(spec, layout)
+    if set(value) != set(expected):
+        raise OperationControlRecoveryError(
+            "failed-bootstrap PREPARED authority keys are not exact"
+        )
+    for key, item in expected.items():
+        if value.get(key) != item:
+            raise OperationControlRecoveryError(
+                f"failed-bootstrap PREPARED authority mismatch: {key}"
+            )
+
+
+def _validate_failed_bootstrap_completed(
+    value: dict[str, Any],
+    spec: RecoverySpec,
+    prepared: dict[str, Any],
+) -> None:
+    boundary = _expected_production_boundary(spec)
+    expected = {
+        "schema": FAILED_BOOTSTRAP_COMPLETED_SCHEMA,
+        "rejected_source_commit": spec.rejected_source_commit,
+        "rejected_payload_sha256": spec.rejected_payload_sha256,
+        "production_source_commit": spec.production_source_commit,
+        "prepared_sha256": sha256(_canonical_json(prepared)).hexdigest(),
+        "production_boundary_before": boundary,
+        "production_boundary_after": boundary,
+        "release_retained_exact": True,
+        "sidecar_transaction_paths_clean": True,
+        "runtime_state_clean": True,
+        "runtime_state_directories_touched": True,
+        "production_current_mutated": False,
+        "hub_cutover_mutated": False,
+        "drive_mutated": False,
+    }
+    if set(value) != set(expected):
+        raise OperationControlRecoveryError(
+            "failed-bootstrap COMPLETED authority keys are not exact"
+        )
+    for key, item in expected.items():
+        if value.get(key) != item:
+            raise OperationControlRecoveryError(
+                f"failed-bootstrap COMPLETED authority mismatch: {key}"
+            )
+
+
+def _observe_failed_bootstrap_runtime(
+    spec: RecoverySpec,
+    layout: RecoveryLayout,
+    *,
+    systemctl: Systemctl,
+    release_probe: ReleaseProbe,
+) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any] | None]:
+    release = layout.install_root / "releases" / spec.rejected_source_commit
+    identity = release_probe(
+        release,
+        spec.rejected_source_commit,
+        spec.rejected_payload_sha256,
+    )
+    if (
+        identity.get("source_commit") != spec.rejected_source_commit
+        or identity.get("payload_sha256") != spec.rejected_payload_sha256
+    ):
+        raise OperationControlRecoveryError(
+            "failed-bootstrap rejected release probe returned wrong identity"
+        )
+
+    if layout.control_current.exists() or layout.control_current.is_symlink():
+        raise OperationControlRecoveryError(
+            "failed-bootstrap recovery requires control-current ABSENT"
+        )
+    if layout.config_dir.exists() or layout.config_dir.is_symlink():
+        raise OperationControlRecoveryError(
+            "failed-bootstrap recovery requires config directory ABSENT"
+        )
+    if layout.bootstrap_root.exists() or layout.bootstrap_root.is_symlink():
+        raise OperationControlRecoveryError(
+            "failed-bootstrap recovery requires bootstrap root ABSENT"
+        )
+
+    services: dict[str, dict[str, str]] = {}
+    for unit in UNIT_NAMES:
+        target = layout.unit_dir / unit
+        if target.exists() or target.is_symlink():
+            raise OperationControlRecoveryError(
+                f"failed-bootstrap recovery requires unit ABSENT: {unit}"
+            )
+        services[unit] = _service_state(unit, systemctl)
+        if (
+            services[unit]["active"] == "active"
+            or services[unit]["enabled"] == "enabled"
+        ):
+            raise OperationControlRecoveryError(
+                f"failed-bootstrap recovery requires inactive/disabled service: {unit}"
+            )
+
+    prepared_path, completed_path = _failed_bootstrap_paths(layout, spec)
+    prepared = None
+    completed = None
+    if layout.recovery_root.exists() or layout.recovery_root.is_symlink():
+        _private_directory(layout.recovery_root, "operation recovery root")
+        prepared = _read_canonical_record(
+            prepared_path,
+            FAILED_BOOTSTRAP_PREPARED_SCHEMA,
+        )
+        completed = _read_canonical_record(
+            completed_path,
+            FAILED_BOOTSTRAP_COMPLETED_SCHEMA,
+        )
+    if prepared is not None:
+        _validate_failed_bootstrap_prepared(prepared, spec, layout)
+    if completed is not None:
+        if prepared is None:
+            raise OperationControlRecoveryError(
+                "failed-bootstrap COMPLETED authority requires PREPARED authority"
+            )
+        _validate_failed_bootstrap_completed(completed, spec, prepared)
+
+    runtime = _failed_bootstrap_runtime_state(
+        layout,
+        allow_partial=prepared is not None,
+    )
+    clean = all(value == "ABSENT" for value in runtime.values())
+    exact = all(value == "EXACT" for value in runtime.values())
+
+    if completed is not None:
+        if not clean:
+            raise OperationControlRecoveryError(
+                "failed-bootstrap COMPLETED authority conflicts with runtime residue"
+            )
+        state = "COMPLETED"
+    elif prepared is None:
+        if not exact:
+            raise OperationControlRecoveryError(
+                "failed-bootstrap runtime residue is not exact initial state"
+            )
+        state = "READY"
+    elif clean:
+        state = "CLEAN_PENDING_COMPLETION"
+    else:
+        state = "PREPARED_OR_PARTIAL"
+
+    return (
+        {
+            "schema": FAILED_BOOTSTRAP_SCHEMA,
+            "rejected_source_commit": spec.rejected_source_commit,
+            "rejected_payload_sha256": spec.rejected_payload_sha256,
+            "release": "EXACT",
+            "recovery_state": state,
+            "recovery_prepared": prepared is not None,
+            "recovery_completed": completed is not None,
+            "sidecar_transaction_paths_clean": True,
+            "services": services,
+            "runtime_state": runtime,
+            "persistent_mutations_performed": False,
+        },
+        prepared,
+        completed,
+    )
+
+
+def inspect_failed_bootstrap_runtime(
+    spec: RecoverySpec,
+    layout: RecoveryLayout,
+    *,
+    systemctl: Systemctl = _default_systemctl,
+    boundary_probe: BoundaryProbe | None = None,
+    release_probe: ReleaseProbe = _release_identity,
+) -> dict[str, Any]:
+    _validate_spec(spec)
+    _require_root()
+    boundary_probe = boundary_probe or (lambda: _production_boundary(spec, layout))
+    before = boundary_probe()
+    observation, _, _ = _observe_failed_bootstrap_runtime(
+        spec,
+        layout,
+        systemctl=systemctl,
+        release_probe=release_probe,
+    )
+    after = boundary_probe()
+    if before != after:
+        raise OperationControlRecoveryError(
+            "production boundary changed during failed-bootstrap inspection"
+        )
+    observation["production_boundary_before"] = before
+    observation["production_boundary_after"] = after
+    return observation
+
+
+def _remove_failed_bootstrap_runtime(layout: RecoveryLayout) -> None:
+    _failed_bootstrap_runtime_state(layout, allow_partial=True)
+
+    if layout.operation_control_root.exists() or layout.operation_control_root.is_symlink():
+        lock = layout.operation_control_root / "LOCK"
+        if lock.exists() or lock.is_symlink():
+            _unlink_pinned(lock)
+        for name in ("processed", "rejected"):
+            child = layout.operation_control_root / name
+            if child.exists() or child.is_symlink():
+                _unlink_pinned(child, directory=True)
+        _unlink_pinned(layout.operation_control_root, directory=True)
+
+    if layout.operation_root.exists() or layout.operation_root.is_symlink():
+        _unlink_pinned(layout.operation_root, directory=True)
+
+    if layout.transport_root.exists() or layout.transport_root.is_symlink():
+        for name in ("state", "outbox", "inbox"):
+            child = layout.transport_root / name
+            if child.exists() or child.is_symlink():
+                _unlink_pinned(child, directory=True)
+        _unlink_pinned(layout.transport_root, directory=True)
+
+
+def cleanup_failed_bootstrap_runtime(
+    spec: RecoverySpec,
+    layout: RecoveryLayout,
+    *,
+    systemctl: Systemctl = _default_systemctl,
+    boundary_probe: BoundaryProbe | None = None,
+    release_probe: ReleaseProbe = _release_identity,
+) -> dict[str, Any]:
+    _validate_spec(spec)
+    _require_root()
+    boundary_probe = boundary_probe or (lambda: _production_boundary(spec, layout))
+
+    before = boundary_probe()
+    observation, prepared, completed = _observe_failed_bootstrap_runtime(
+        spec,
+        layout,
+        systemctl=systemctl,
+        release_probe=release_probe,
+    )
+    if completed is not None:
+        after = boundary_probe()
+        if after != before:
+            raise OperationControlRecoveryError(
+                "production boundary changed during failed-bootstrap replay"
+            )
+        return {
+            "schema": FAILED_BOOTSTRAP_COMPLETED_SCHEMA,
+            "replayed": True,
+            "rejected_source_commit": spec.rejected_source_commit,
+            "production_boundary_before": before,
+            "production_boundary_after": after,
+            "runtime_state_clean": True,
+            "runtime_state_directories_touched": True,
+            "production_current_mutated": False,
+            "hub_cutover_mutated": False,
+            "drive_mutated": False,
+        }
+
+    prepared_path, completed_path = _failed_bootstrap_paths(layout, spec)
+    if prepared is None:
+        if observation["recovery_state"] != "READY":
+            raise OperationControlRecoveryError(
+                "failed-bootstrap recovery is not at exact READY boundary"
+            )
+        prepared = _failed_bootstrap_prepared(spec, layout)
+        _ensure_recovery_root(layout)
+        _write_exclusive_private(prepared_path, prepared)
+
+    observation, prepared, completed = _observe_failed_bootstrap_runtime(
+        spec,
+        layout,
+        systemctl=systemctl,
+        release_probe=release_probe,
+    )
+    if completed is not None:
+        raise OperationControlRecoveryError(
+            "failed-bootstrap COMPLETED authority appeared unexpectedly"
+        )
+
+    commit_boundary = boundary_probe()
+    if commit_boundary != before:
+        raise OperationControlRecoveryError(
+            "production boundary changed before failed-bootstrap cleanup"
+        )
+
+    _remove_failed_bootstrap_runtime(layout)
+
+    post, _, _ = _observe_failed_bootstrap_runtime(
+        spec,
+        layout,
+        systemctl=systemctl,
+        release_probe=release_probe,
+    )
+    if post["recovery_state"] != "CLEAN_PENDING_COMPLETION":
+        raise OperationControlRecoveryError(
+            "failed-bootstrap cleanup did not reach exact clean state"
+        )
+
+    final_boundary = boundary_probe()
+    if final_boundary != before:
+        raise OperationControlRecoveryError(
+            "production boundary changed during failed-bootstrap cleanup"
+        )
+
+    completed_value = {
+        "schema": FAILED_BOOTSTRAP_COMPLETED_SCHEMA,
+        "rejected_source_commit": spec.rejected_source_commit,
+        "rejected_payload_sha256": spec.rejected_payload_sha256,
+        "production_source_commit": spec.production_source_commit,
+        "prepared_sha256": sha256(_canonical_json(prepared)).hexdigest(),
+        "production_boundary_before": before,
+        "production_boundary_after": final_boundary,
+        "release_retained_exact": True,
+        "sidecar_transaction_paths_clean": True,
+        "runtime_state_clean": True,
+        "runtime_state_directories_touched": True,
+        "production_current_mutated": False,
+        "hub_cutover_mutated": False,
+        "drive_mutated": False,
+    }
+    _write_exclusive_private(completed_path, completed_value)
+
+    verified = inspect_failed_bootstrap_runtime(
+        spec,
+        layout,
+        systemctl=systemctl,
+        boundary_probe=boundary_probe,
+        release_probe=release_probe,
+    )
+    if verified["recovery_state"] != "COMPLETED":
+        raise OperationControlRecoveryError(
+            "failed-bootstrap COMPLETED authority did not verify"
+        )
+    return completed_value
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keelaryn-operation-control-recovery")
     parser.add_argument("--rejected-source-commit", required=True)
@@ -1325,7 +1849,15 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("/var/lib/keelaryn/mutation-gate"),
     )
-    parser.add_argument("command", choices=("inspect", "cleanup"))
+    parser.add_argument(
+        "command",
+        choices=(
+            "inspect",
+            "cleanup",
+            "inspect-failed-bootstrap-runtime",
+            "cleanup-failed-bootstrap-runtime",
+        ),
+    )
     return parser
 
 
@@ -1356,8 +1888,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "inspect":
             value = inspect_rejected_install(spec, layout)
-        else:
+        elif args.command == "cleanup":
             value = cleanup_rejected_install(spec, layout)
+        elif args.command == "inspect-failed-bootstrap-runtime":
+            value = inspect_failed_bootstrap_runtime(spec, layout)
+        else:
+            value = cleanup_failed_bootstrap_runtime(spec, layout)
     except (
         OperationControlRecoveryError,
         OSError,

@@ -16,8 +16,8 @@ Environment=PYTHONDONTWRITEBYTECODE=1
 StateDirectory=keelaryn-operation-transport
 NotifyAccess=main
 TimeoutStartSec=60s
-StateDirectoryMode=0700
-UMask=0077
+StateDirectoryMode=0750
+UMask=0007
 ExecStart=/usr/bin/python3 -B -m keelaryn_core.operation_transport --root /var/lib/keelaryn-operation-transport serve --poll-seconds 10
 Restart=on-failure
 RestartSec=10s

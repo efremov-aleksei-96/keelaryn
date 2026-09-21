@@ -115,8 +115,8 @@ class GitHubOperationTransportTests(unittest.TestCase):
 
     def layout(self, root: Path, api: FakeGitHub):
         transport_root = root / "transport"
-        os.mkdir(transport_root, 0o700)
-        os.chmod(transport_root, 0o700)
+        os.mkdir(transport_root, 0o750)
+        os.chmod(transport_root, 0o750)
         return GitHubOperationTransport(
             transport_root,
             api,
@@ -182,7 +182,7 @@ class GitHubOperationTransportTests(unittest.TestCase):
             path = transport.inbox / f"{self.REQUEST_ID}.json"
             self.assertEqual(path.read_bytes(), canonical(self.request()))
             if os.name == "posix":
-                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(path.stat().st_mode & 0o777, 0o660)
 
     def test_unauthorized_and_malformed_comments_advance_cursor_without_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as td:

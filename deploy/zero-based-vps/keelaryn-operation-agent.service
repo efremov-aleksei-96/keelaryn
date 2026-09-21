@@ -8,7 +8,7 @@ StartLimitBurst=5
 [Service]
 Type=simple
 User=root
-Group=root
+Group=keelaryn
 WorkingDirectory=/opt/keelaryn/control-current
 Environment=PYTHONPATH=/opt/keelaryn/control-current/core
 Environment=PYTHONDONTWRITEBYTECODE=1

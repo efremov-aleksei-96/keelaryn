@@ -51,13 +51,13 @@ class OperationAgentTests(unittest.TestCase):
         transport_root = root / "transport"
         operation_root.mkdir(mode=0o700)
         control_root.mkdir(mode=0o700)
-        transport_root.mkdir(mode=0o700)
+        transport_root.mkdir(mode=0o750)
         for path in (operation_root, control_root, transport_root):
             os.chmod(path, 0o700)
         for name in ("inbox", "outbox"):
             path = transport_root / name
-            path.mkdir(mode=0o700)
-            os.chmod(path, 0o700)
+            path.mkdir(mode=0o770)
+            os.chmod(path, 0o2770)
         agent = OperationAgent(
             operation_root,
             control_root,
@@ -86,8 +86,8 @@ class OperationAgentTests(unittest.TestCase):
             )
             self.assertIsNone(agent.process_pending_once())
 
-            transport_root.mkdir(mode=0o700)
-            os.chmod(transport_root, 0o700)
+            transport_root.mkdir(mode=0o750)
+            os.chmod(transport_root, 0o750)
             for name in ("inbox", "outbox"):
                 path = transport_root / name
                 path.mkdir(mode=0o700)
@@ -95,7 +95,7 @@ class OperationAgentTests(unittest.TestCase):
 
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(self.request()))
-            os.chmod(request_path, 0o600)
+            os.chmod(request_path, 0o660)
             result = agent.process_pending_once()
 
             self.assertEqual(result["disposition"], "COMPLETED")
@@ -123,7 +123,7 @@ class OperationAgentTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(
                 OperationRuntimeError,
-                "operation transport root must have mode 0700",
+                "operation transport root group/mode is not exact 0750",
             ):
                 agent.process_pending_once()
 
@@ -148,7 +148,7 @@ class OperationAgentTests(unittest.TestCase):
             agent, operation_root, _ = self.layout(root)
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(self.request()))
-            os.chmod(request_path, 0o600)
+            os.chmod(request_path, 0o660)
 
             first = agent.process(request_path)
             self.assertEqual(first["disposition"], "COMPLETED")
@@ -172,7 +172,7 @@ class OperationAgentTests(unittest.TestCase):
             agent, _, control = self.layout(root)
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(self.request()))
-            os.chmod(request_path, 0o600)
+            os.chmod(request_path, 0o660)
 
             first = agent.process_pending_once()
             second = agent.process_pending_once()
@@ -213,7 +213,7 @@ class OperationAgentTests(unittest.TestCase):
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             raw = canonical(self.request())
             request_path.write_bytes(raw)
-            os.chmod(request_path, 0o600)
+            os.chmod(request_path, 0o660)
 
             orphan = operation_root / self.REQUEST_ID
             orphan.mkdir(mode=0o700)
@@ -237,7 +237,7 @@ class OperationAgentTests(unittest.TestCase):
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             raw = canonical(self.request())
             request_path.write_bytes(raw)
-            os.chmod(request_path, 0o600)
+            os.chmod(request_path, 0o660)
 
             agent.runtime.create(
                 operation="RUNTIME_SELFTEST",
@@ -266,13 +266,13 @@ class OperationAgentTests(unittest.TestCase):
             agent, _, control = self.layout(root)
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(self.request()))
-            os.chmod(request_path, 0o600)
+            os.chmod(request_path, 0o660)
             first = agent.process_pending_once()
             self.assertEqual(first["disposition"], "COMPLETED")
 
             conflicting = self.request(timeout_seconds=120)
             request_path.write_bytes(canonical(conflicting))
-            os.chmod(request_path, 0o600)
+            os.chmod(request_path, 0o660)
 
             rejected = agent.process_pending_once()
 

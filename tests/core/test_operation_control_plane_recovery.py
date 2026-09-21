@@ -205,6 +205,38 @@ class OperationControlRecoveryTests(unittest.TestCase):
         )
         return layout, release
 
+    def failed_bootstrap_residue(self, layout: recovery.RecoveryLayout) -> None:
+        if layout.control_current.exists() or layout.control_current.is_symlink():
+            layout.control_current.unlink()
+
+        if layout.credential.exists():
+            layout.credential.unlink()
+        if layout.config_dir.exists():
+            layout.config_dir.rmdir()
+
+        if layout.bootstrap_root.exists():
+            for entry in list(layout.bootstrap_root.iterdir()):
+                if entry.is_dir():
+                    entry.rmdir()
+                else:
+                    entry.unlink()
+            layout.bootstrap_root.rmdir()
+
+        for name in recovery.UNIT_NAMES:
+            path = layout.unit_dir / name
+            if path.exists() or path.is_symlink():
+                path.unlink()
+
+        for name in ("inbox", "outbox", "state"):
+            child = layout.transport_root / name
+            child.mkdir(mode=0o700)
+            os.chmod(child, 0o700)
+
+        lock = layout.operation_control_root / "LOCK"
+        lock.write_bytes(b"")
+        os.chmod(lock, 0o600)
+
+
     def release_probe(self, path: Path, source: str, payload: str):
         self.assertEqual(path.name, self.REJECTED)
         self.assertEqual(source, self.REJECTED)
@@ -495,6 +527,127 @@ class OperationControlRecoveryTests(unittest.TestCase):
                     boundary_probe=self.boundary,
                     release_probe=self.release_probe,
                 )
+
+    @mock.patch.object(recovery, "_require_root", return_value=None)
+    def test_failed_bootstrap_runtime_cleanup_is_exact_and_restart_safe(
+        self,
+        _require_root,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            layout, release = self.layout(Path(td))
+            self.failed_bootstrap_residue(layout)
+            ctl = FakeSystemctl()
+            ctl.enabled = {name: False for name in recovery.UNIT_NAMES}
+
+            inspected = recovery.inspect_failed_bootstrap_runtime(
+                self.spec(),
+                layout,
+                systemctl=ctl,
+                boundary_probe=self.boundary,
+                release_probe=self.release_probe,
+            )
+            self.assertEqual(inspected["recovery_state"], "READY")
+            self.assertEqual(
+                inspected["runtime_state"],
+                {
+                    "transport_root": "EXACT",
+                    "operation_root": "EXACT",
+                    "operation_control_root": "EXACT",
+                },
+            )
+
+            original = recovery._unlink_pinned
+            calls = {"count": 0}
+
+            def fail_after_one(path, *, directory=False):
+                if calls["count"] == 1:
+                    calls["count"] += 1
+                    raise recovery.OperationControlRecoveryError(
+                        "injected cleanup stop"
+                    )
+                calls["count"] += 1
+                return original(path, directory=directory)
+
+            with mock.patch.object(
+                recovery,
+                "_unlink_pinned",
+                side_effect=fail_after_one,
+            ):
+                with self.assertRaisesRegex(
+                    recovery.OperationControlRecoveryError,
+                    "injected cleanup stop",
+                ):
+                    recovery.cleanup_failed_bootstrap_runtime(
+                        self.spec(),
+                        layout,
+                        systemctl=ctl,
+                        boundary_probe=self.boundary,
+                        release_probe=self.release_probe,
+                    )
+
+            prepared, completed = recovery._failed_bootstrap_paths(
+                layout,
+                self.spec(),
+            )
+            self.assertTrue(prepared.is_file())
+            self.assertFalse(completed.exists())
+
+            value = recovery.cleanup_failed_bootstrap_runtime(
+                self.spec(),
+                layout,
+                systemctl=ctl,
+                boundary_probe=self.boundary,
+                release_probe=self.release_probe,
+            )
+            self.assertTrue(value["runtime_state_clean"])
+            self.assertTrue(release.is_dir())
+            self.assertFalse(layout.transport_root.exists())
+            self.assertFalse(layout.operation_root.exists())
+            self.assertFalse(layout.operation_control_root.exists())
+            self.assertTrue(completed.is_file())
+
+            final = recovery.inspect_failed_bootstrap_runtime(
+                self.spec(),
+                layout,
+                systemctl=ctl,
+                boundary_probe=self.boundary,
+                release_probe=self.release_probe,
+            )
+            self.assertEqual(final["recovery_state"], "COMPLETED")
+
+    @mock.patch.object(recovery, "_require_root", return_value=None)
+    def test_failed_bootstrap_runtime_foreign_material_blocks_before_authority(
+        self,
+        _require_root,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            layout, _ = self.layout(Path(td))
+            self.failed_bootstrap_residue(layout)
+            ctl = FakeSystemctl()
+            ctl.enabled = {name: False for name in recovery.UNIT_NAMES}
+
+            foreign = layout.transport_root / "inbox" / "unexpected.json"
+            foreign.write_text("foreign", encoding="utf-8")
+            os.chmod(foreign, 0o600)
+
+            with self.assertRaisesRegex(
+                recovery.OperationControlRecoveryError,
+                "transport inbox directory is not empty",
+            ):
+                recovery.cleanup_failed_bootstrap_runtime(
+                    self.spec(),
+                    layout,
+                    systemctl=ctl,
+                    boundary_probe=self.boundary,
+                    release_probe=self.release_probe,
+                )
+
+            prepared, completed = recovery._failed_bootstrap_paths(
+                layout,
+                self.spec(),
+            )
+            self.assertFalse(prepared.exists())
+            self.assertFalse(completed.exists())
 
     @mock.patch.object(recovery, "_require_root", return_value=None)
     def test_prepared_recovery_rejects_credential_substitution(

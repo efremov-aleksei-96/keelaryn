@@ -531,5 +531,34 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         self.assertNotIn("Requires=keelaryn-operation-transport.service", raw)
 
 
+    def test_agent_transport_relay_uses_narrow_shared_group_dac(self) -> None:
+        transport_unit = (DEPLOY / "keelaryn-operation-transport.service").read_text(
+            encoding="utf-8"
+        )
+        agent_unit = (DEPLOY / "keelaryn-operation-agent.service").read_text(
+            encoding="utf-8"
+        )
+        transport_source = (
+            ROOT / "core" / "keelaryn_core" / "operation_transport.py"
+        ).read_text(encoding="utf-8")
+        agent_source = (
+            ROOT / "core" / "keelaryn_core" / "operation_agent.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("User=keelaryn", transport_unit)
+        self.assertIn("Group=keelaryn", transport_unit)
+        self.assertIn("StateDirectoryMode=0750", transport_unit)
+        self.assertIn("UMask=0007", transport_unit)
+        self.assertIn("User=root", agent_unit)
+        self.assertIn("Group=keelaryn", agent_unit)
+        self.assertIn("CapabilityBoundingSet=\n", agent_unit)
+        self.assertNotIn("CAP_DAC_OVERRIDE", agent_unit)
+
+        for source in (transport_source, agent_source):
+            self.assertIn("RELAY_ROOT_MODE = 0o750", source)
+            self.assertIn("RELAY_DIRECTORY_MODE = 0o2770", source)
+            self.assertIn("RELAY_FILE_MODE = 0o660", source)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

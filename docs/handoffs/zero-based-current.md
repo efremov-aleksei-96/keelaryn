@@ -264,7 +264,7 @@ not deleted by this recovery transaction.
 - Gate revision: `operation-control-gate-r0006`
 - Qualification driver: `tools/operation_control_r0004_vps.py`
 - Workflow: `.github/workflows/operation-control-r0004-gate.yml`
-- State: **GATE_PASS_PRODUCTION_RECONCILE_PENDING**
+- State: **REJECTED_AFTER_BOOTSTRAP_ROLLBACK_BEFORE_RUNTIME_ACCEPTANCE**
 - Gate run: `35539222639` — **PASS**
 - Frozen focused regressions: `55` tests — **PASS**
 - Gate artifact: `10613827353`, ZIP SHA-256 `9cddb43ae4df352f26b042503f94ea96f578e56be3adc94e8951dcf8647d4624`
@@ -279,7 +279,20 @@ Production read-only runtime reconciliation before freeze proved the rejected r0
 
 Candidate bytes are immutable from this issuance point. Gate/framework/evidence fixes may receive a later gate revision, but any frozen product-byte change requires a new operation-control candidate.
 
-Gate r0006 is complete and PASS. This gate result does not production-qualify r0004. The next boundary is one fresh **read-only** production reconcile using the exact r0004 driver. No recovery/materialization/bootstrap mutation is authorized until that reconcile is reviewed.
+Gate r0006 passed; r0004 then completed production recovery, materialization and read-only qualification. Its first bootstrap attempt is rejected: transport authenticated the exact GitHub actor and completed the first live Issue #65 poll, but the capability-free root agent could not traverse the transport-owned 0700 relay and exited with permission denied before runtime acceptance. Bootstrap rollback removed transaction-owned unit/config/control-current material and wrote no bootstrap receipt, while systemd-created runtime directories remain as exact residue. r0004 must not be bootstrapped again.
+
+## r0004 bootstrap rejection and successor development
+
+- Rejection evidence: `docs/candidates/operation-control-r0004-20260920-01.rejection.json`
+- Product blocker: cross-user relay DAC contract.
+- Transport startup: **PASS** — authenticated `efremov-aleksei-96`, first Issue #65 poll succeeded.
+- Agent startup: **FAIL** — permission denied on `/var/lib/keelaryn-operation-transport/inbox`.
+- Bootstrap receipt: absent; runtime selftest: not attempted; Issue #65 status comments: none.
+- Rollback removed credential, control-current and both installed operation unit files; services are inactive/not-found.
+- Exact runtime residue remains: transport `inbox/outbox/state`, empty operation root, and operation-control `processed/rejected/LOCK`.
+- Rejected r0004 release remains immutable provenance.
+
+Successor development uses group-mediated DAC without restoring broad root capabilities: transport root `0750`, relay directories `2770`, relay files `0660`; both services use group `keelaryn`, while agent remains `User=root` with empty `CapabilityBoundingSet`. Recovery gains a separate durable r0004 failed-bootstrap runtime-residue transaction with exact shape validation, PREPARED-before-delete authority, restart-safe partial cleanup and retained rejected release.
 
 ## Current production Hub-cutover transaction
 
@@ -372,15 +385,14 @@ The maintainer should be asked to execute a local/VPS command only when evidence
 ## Next permitted sequence
 
 1. Read-only confirm authoritative GitHub identity before every repository write.
-2. Complete gate r0006 for frozen r0004 and preserve compact gate evidence.
-3. Run one fresh production read-only r0004 reconcile; if durable VPS state differs from the recorded rejected-r0003 boundary, stop and classify before mutation.
-4. Run **only** the separate `recover-r0003` transaction; on interruption, reconcile before any resume. Preserve the rejected r0003 release and production `e63f / PREPARED / writer INACTIVE` boundary.
-5. Read-only verify durable r0003 recovery `COMPLETED` and exact clean successor sidecar.
-6. Materialize exact frozen r0004 as a separate transaction and verify.
-7. Read-only production-qualify exact r0004 and the completed rejected-r0003 recovery authority.
-8. Bootstrap r0004 with a freshly supplied fine-grained token; `Type=notify` must prove exact authenticated actor plus the first successful Issue #65 poll before bootstrap success.
-9. Prove `RUNTIME_SELFTEST` end-to-end through GitHub Issue #65, including status publication/write permission.
-10. Reconcile the still-PREPARED production Hub transaction before any later production mutation.
-11. Resume production cutover only through the qualified runtime/protocol and transaction-bound finalizers.
+2. Validate successor relay DAC and exact r0004 failed-bootstrap residue recovery on GitHub.
+3. Do not retry r0004 bootstrap.
+4. After coherent successor development PASS, freeze a new operation-control candidate; r0004 remains immutable rejected provenance.
+5. Source/Full Gate the successor candidate.
+6. Fresh production read-only reconcile must prove r0004 transaction sidecar remains absent, rejected r0004 release is exact, and only the known runtime residue remains.
+7. Run the dedicated failed-bootstrap runtime-residue cleanup as one separate production transaction and verify durable COMPLETED authority.
+8. Materialize, qualify and bootstrap the successor as separate boundaries.
+9. Prove `RUNTIME_SELFTEST` end-to-end through Issue #65.
+10. Reconcile the still-PREPARED production Hub transaction before any later Hub mutation.
 
-If production durable state is found to differ from this handoff, stop and reconcile the authoritative VPS state before any mutation.
+If production durable state differs, stop and reconcile before mutation.

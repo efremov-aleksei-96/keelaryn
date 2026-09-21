@@ -29,6 +29,10 @@ _ACTOR = re.compile(r"^[A-Za-z0-9-]{1,39}$")
 _REQUEST_ID = re.compile(r"^[0-9a-f]{32}$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
 
+RELAY_ROOT_MODE = 0o750
+RELAY_DIRECTORY_MODE = 0o2770
+RELAY_FILE_MODE = 0o660
+
 
 class GitHubTransportError(OperationRuntimeError):
     """GitHub issue transport cannot prove an exact safe operation exchange."""
@@ -241,12 +245,19 @@ def _canonical(value: Mapping[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
+
+def _owned_dir(
+    path: Path,
+    label: str,
+    *,
+    mode: int,
+    create: bool = False,
+) -> Path:
     path = path.absolute()
     if create and not path.exists():
-        path.mkdir(parents=True, mode=0o700)
+        path.mkdir(parents=True, mode=mode & 0o777)
         if os.name == "posix":
-            os.chmod(path, 0o700)
+            os.chmod(path, mode)
     try:
         info = path.stat(follow_symlinks=False)
     except OSError as exc:
@@ -254,12 +265,29 @@ def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
     if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
         raise GitHubTransportError(f"{label} must be one real directory")
     if os.name == "posix":
-        if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
+        if (
+            info.st_uid != os.geteuid()
+            or info.st_gid != os.getegid()
+            or stat.S_IMODE(info.st_mode) != mode
+        ):
             raise GitHubTransportError(
-                f"{label} must be owner-controlled mode 0700"
+                f"{label} owner/group/mode is not exact {mode:04o}"
             )
     return path
 
+
+def _private_dir(path: Path, label: str, *, create: bool = False) -> Path:
+    return _owned_dir(path, label, mode=0o700, create=create)
+
+
+def _relay_dir(
+    path: Path,
+    label: str,
+    *,
+    mode: int,
+    create: bool = False,
+) -> Path:
+    return _owned_dir(path, label, mode=mode, create=create)
 
 def _regular(path: Path, label: str, mode: int) -> Path:
     try:
@@ -416,19 +444,22 @@ class GitHubOperationTransport:
             raise GitHubTransportError("GitHub transport status actor is invalid")
         if status_refresh_seconds < 5:
             raise GitHubTransportError("GitHub status refresh interval is too small")
-        self.root = _private_dir(
+        self.root = _relay_dir(
             Path(root),
             "GitHub operation transport root",
+            mode=RELAY_ROOT_MODE,
             create=True,
         )
-        self.inbox = _private_dir(
+        self.inbox = _relay_dir(
             self.root / "inbox",
             "GitHub operation transport inbox",
+            mode=RELAY_DIRECTORY_MODE,
             create=True,
         )
-        self.outbox = _private_dir(
+        self.outbox = _relay_dir(
             self.root / "outbox",
             "GitHub operation transport outbox",
+            mode=RELAY_DIRECTORY_MODE,
             create=True,
         )
         self.state_root = _private_dir(
@@ -498,7 +529,7 @@ class GitHubOperationTransport:
             return "SOURCE_MISMATCH"
         target = self.inbox / f"{request.request_id}.json"
         if target.exists() or target.is_symlink():
-            _regular(target, "operation inbox request", 0o600)
+            _regular(target, "operation inbox request", RELAY_FILE_MODE)
             if target.read_bytes() != raw:
                 raise GitHubTransportError(
                     "operation inbox request identity conflicts with existing request"
@@ -508,9 +539,9 @@ class GitHubOperationTransport:
             f".{request.request_id}.tmp-{os.getpid()}-{time.monotonic_ns()}"
         )
         try:
-            fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, RELAY_FILE_MODE)
             try:
-                os.fchmod(fd, 0o600)
+                os.fchmod(fd, RELAY_FILE_MODE)
                 with os.fdopen(fd, "wb", closefd=False) as stream:
                     stream.write(raw)
                     stream.flush()
@@ -527,7 +558,7 @@ class GitHubOperationTransport:
             except OSError:
                 pass
         except FileExistsError:
-            _regular(target, "operation inbox request", 0o600)
+            _regular(target, "operation inbox request", RELAY_FILE_MODE)
             if target.read_bytes() != raw:
                 raise GitHubTransportError(
                     "operation request raced with conflicting identity"
@@ -535,7 +566,7 @@ class GitHubOperationTransport:
             return "EXISTING"
         finally:
             temp.unlink(missing_ok=True)
-        _regular(target, "operation inbox request", 0o600)
+        _regular(target, "operation inbox request", RELAY_FILE_MODE)
         return "DELIVERED"
 
     @staticmethod
@@ -575,8 +606,7 @@ class GitHubOperationTransport:
         now = float(self.clock())
 
         for path in sorted(self.outbox.glob("*.json")):
-            if path.is_symlink() or not path.is_file():
-                raise GitHubTransportError("operation outbox contains non-regular status")
+            _regular(path, "operation outbox status", RELAY_FILE_MODE)
             value = _relay_status(path.read_bytes())
             if value["source_commit"] != self.source_commit:
                 raise GitHubTransportError("operation relay source_commit mismatch")
