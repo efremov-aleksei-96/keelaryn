@@ -462,3 +462,15 @@ Required qualification states:
 
 The installed r0005 and frozen r0007 share the exact same `materialize_payload.py` Git blob `ece36ad98d4a15442f5f081db76345525fe1b8c1`; this reusable mechanism is therefore a strong candidate for stage publication, but D0-02F must qualify the transaction wrapper separately before any real VPS stage.
 
+### r0007 candidate lifecycle-state correction
+
+Closeout HEAD `5c4c06025c61f96b1533c81eb17a25a56759590a` incorrectly changed the r0007 constrained-candidate lifecycle state from `FROZEN_TRANSITION_GATE_PASS` to `FROZEN_BOOTSTRAP_PREP_GATE_PASS`.
+
+That was a durable-state modeling error. `constrained_candidates[].state` describes the frozen candidate lifecycle, not the progress of later release-engineering qualification gates. Bootstrap-prep PASS is preserved by CI/gate evidence and handoff/checkpoint provenance; it must not rewrite the frozen candidate lifecycle token.
+
+Observed failures caused only by this state mismatch:
+- Zero-based Core run `35653966321` — FAIL, one error in `test_recorded_boundary_accepts_current_layered_authority`;
+- bootstrap-prep gate r0002 run `35653966511` — FAIL at the same recorded-boundary check before qualification.
+
+This correction restores r0007 to `FROZEN_TRANSITION_GATE_PASS`. Frozen source/tree/payload, bootstrap-prep framework, r0002 PASS evidence, D0-02D live VPS evidence, production state and next objective `D0-02F_STAGE_QUALIFICATION` are unchanged.
+
