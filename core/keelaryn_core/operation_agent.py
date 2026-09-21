@@ -340,7 +340,10 @@ class OperationAgent:
             raise OperationRuntimeError("operation request filename is invalid")
 
         with self.locked():
-            request = read_operation_request(request_path)
+            request = read_operation_request(
+                request_path,
+                expected_mode=RELAY_FILE_MODE,
+            )
             if request_path.stem != request.request_id:
                 raise OperationRuntimeError(
                     "operation request filename does not match request_id"

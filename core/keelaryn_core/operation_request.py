@@ -116,15 +116,23 @@ def parse_operation_request(raw: bytes) -> OperationRequest:
     return request
 
 
-def read_operation_request(path: str | Path) -> OperationRequest:
+def read_operation_request(
+    path: str | Path,
+    *,
+    expected_mode: int = 0o600,
+) -> OperationRequest:
+    if expected_mode not in {0o600, 0o660}:
+        raise OperationRuntimeError("operation request expected mode is invalid")
     candidate = Path(path)
     if candidate.is_symlink() or not candidate.is_file():
         raise OperationRuntimeError("operation request must be one regular file")
     info = candidate.stat(follow_symlinks=False)
     if info.st_size < 2 or info.st_size > 16384:
         raise OperationRuntimeError("operation request size is invalid")
-    if stat.S_IMODE(info.st_mode) != 0o600:
-        raise OperationRuntimeError("operation request must have mode 0600")
+    if stat.S_IMODE(info.st_mode) != expected_mode:
+        raise OperationRuntimeError(
+            f"operation request must have mode {expected_mode:04o}"
+        )
     return parse_operation_request(candidate.read_bytes())
 
 

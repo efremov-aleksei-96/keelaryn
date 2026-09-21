@@ -265,7 +265,7 @@ class GitHubOperationTransportTests(unittest.TestCase):
             }
             relay_path = transport.outbox / f"{self.REQUEST_ID}.json"
             relay_path.write_bytes(canonical(relay))
-            os.chmod(relay_path, 0o644)
+            os.chmod(relay_path, 0o660)
             body = STATUS_MARKER + canonical(relay).decode("utf-8").rstrip("\n")
             api.add("mallory", body, comment_id=55)
 
@@ -304,7 +304,7 @@ class GitHubOperationTransportTests(unittest.TestCase):
             }
             relay_path = transport.outbox / f"{self.REQUEST_ID}.json"
             relay_path.write_bytes(canonical(relay))
-            os.chmod(relay_path, 0o644)
+            os.chmod(relay_path, 0o660)
             body = STATUS_MARKER + canonical(relay).decode("utf-8").rstrip("\n")
             api.add("keelaryn-bot", body, comment_id=55)
 

@@ -52,8 +52,9 @@ class OperationAgentTests(unittest.TestCase):
         operation_root.mkdir(mode=0o700)
         control_root.mkdir(mode=0o700)
         transport_root.mkdir(mode=0o750)
-        for path in (operation_root, control_root, transport_root):
-            os.chmod(path, 0o700)
+        os.chmod(operation_root, 0o700)
+        os.chmod(control_root, 0o700)
+        os.chmod(transport_root, 0o750)
         for name in ("inbox", "outbox"):
             path = transport_root / name
             path.mkdir(mode=0o770)
@@ -90,8 +91,8 @@ class OperationAgentTests(unittest.TestCase):
             os.chmod(transport_root, 0o750)
             for name in ("inbox", "outbox"):
                 path = transport_root / name
-                path.mkdir(mode=0o700)
-                os.chmod(path, 0o700)
+                path.mkdir(mode=0o770)
+                os.chmod(path, 0o2770)
 
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(self.request()))
@@ -198,7 +199,7 @@ class OperationAgentTests(unittest.TestCase):
                     agent, operation_root, _ = self.layout(root)
                     path = agent.inbox / f"{self.REQUEST_ID}.json"
                     path.write_bytes(canonical(self.request(**updates)))
-                    os.chmod(path, 0o600)
+                    os.chmod(path, 0o660)
 
                     with self.assertRaises(OperationRuntimeError):
                         agent.process(path)
@@ -292,7 +293,7 @@ class OperationAgentTests(unittest.TestCase):
             agent, _, control = self.layout(root)
             path = agent.inbox / f"{self.REQUEST_ID}.json"
             path.write_bytes(canonical(self.request(operation="ARBITRARY_SHELL")))
-            os.chmod(path, 0o600)
+            os.chmod(path, 0o660)
 
             result = agent.process_pending_once()
 
