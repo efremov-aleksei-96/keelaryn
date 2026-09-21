@@ -1,0 +1,156 @@
+{
+  "schema": "keelaryn.autonomous-development-state.v1",
+  "repository": "efremov-aleksei-96/keelaryn",
+  "authoritative_branch": "dev/zero-based-keelaryn",
+  "qualification_state": "UNQUALIFIED_DEVELOPMENT",
+  "head_resolution": {
+    "mode": "RESOLVE_BRANCH_REF_LIVE",
+    "state_file_commit_mode": "RESOLVE_LAST_CHANGE_LIVE",
+    "rule": "Never treat a HEAD recorded in chat or an older handoff as current authority."
+  },
+  "capability": {
+    "current_level": "D0",
+    "name": "AUTONOMOUS_ENGINEERING",
+    "status": "IN_PROGRESS",
+    "product_level": "P0_NOT_STARTED"
+  },
+  "architecture": {
+    "model": "CORPUS_FIRST",
+    "old_hub_first_r2": "PROVENANCE_RESEARCH_ONLY",
+    "old_hub_cutover": "PAUSED_PENDING_ARCHITECTURE_DISPOSITION",
+    "content_authority": "PHYSICAL_CORPUS_PROVIDER",
+    "chat_is_durable_state": false
+  },
+  "authority": {
+    "github": [
+      "source",
+      "branch_head",
+      "specifications",
+      "ci",
+      "development_history",
+      "sanitized_checkpoints"
+    ],
+    "vps": [
+      "controlled_runtime",
+      "integration_state",
+      "production_specific_state"
+    ],
+    "google_drive": [
+      "real_corpus",
+      "corpus_specific_evidence"
+    ],
+    "chatgpt": [
+      "engineer",
+      "orchestrator"
+    ]
+  },
+  "last_coherent_ci": {
+    "scope": "operation-control-gate-r0016",
+    "run_id": 35599654538,
+    "conclusion": "PASS",
+    "relevance": "HISTORICAL_PRE_D0_BASELINE",
+    "note": "r0017 was issued after this PASS; do not infer a later CI result without live GitHub reconciliation."
+  },
+  "production_boundary": {
+    "freshness": "RECORDED_NOT_LIVE_VERIFIED_IN_D0",
+    "source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "hub_cutover_status": "PREPARED",
+    "hub_transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
+    "selector": "OLD",
+    "writer": "INACTIVE_MAINPID_0",
+    "installed_operation_control": {
+      "candidate": "operation-control-r0005-20260921-01",
+      "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+      "state": "INSTALLED_RUNTIME_ACCEPTED"
+    },
+    "rule": "Fresh read-only VPS reconciliation is mandatory before any production mutation."
+  },
+  "constrained_candidates": [
+    {
+      "candidate": "operation-control-r0001-20260920-01",
+      "state": "REJECTED_BEFORE_BOOTSTRAP",
+      "retry": "FORBIDDEN"
+    },
+    {
+      "candidate": "operation-control-r0002-20260920-01",
+      "state": "REJECTED_BEFORE_VPS_MATERIALIZATION",
+      "retry": "FORBIDDEN"
+    },
+    {
+      "candidate": "operation-control-r0003-20260920-01",
+      "state": "REJECTED_AFTER_BOOTSTRAP_COMMIT_BEFORE_RUNTIME_ACCEPTANCE",
+      "retry": "FORBIDDEN"
+    },
+    {
+      "candidate": "operation-control-r0004-20260920-01",
+      "state": "REJECTED_AFTER_BOOTSTRAP_ROLLBACK_BEFORE_RUNTIME_ACCEPTANCE",
+      "retry": "FORBIDDEN"
+    },
+    {
+      "candidate": "operation-control-r0005-20260921-01",
+      "state": "INSTALLED_RUNTIME_ACCEPTED",
+      "retry": "NOT_A_RETRY_TARGET"
+    },
+    {
+      "candidate": "operation-control-r0006-20260921-01",
+      "state": "FROZEN_PRODUCT_OLD_ARCHITECTURE_LINE_PAUSED",
+      "source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+      "retry": "FORBIDDEN_UNTIL_ARCHITECTURE_DISPOSITION"
+    }
+  ],
+  "transaction_disposition": {
+    "old_hub_cutover": {
+      "state": "PAUSED_PENDING_ARCHITECTURE_DISPOSITION",
+      "transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
+      "mutation_allowed": false
+    },
+    "d0": {
+      "state": "ACTIVE",
+      "mutation_scope": "DEVELOPMENT_CONTROL_PLANE_ONLY"
+    }
+  },
+  "checkpoint_sources": {
+    "primary_human_handoff": "docs/handoffs/d0-current.md",
+    "historical_handoff": "docs/handoffs/zero-based-current.md",
+    "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
+  },
+  "next_objective": {
+    "id": "D0-01B",
+    "description": "Implement a deterministic read-only DEVELOPMENT_STATE reader with targeted tests and CI coverage.",
+    "production_mutation_allowed": false,
+    "drive_content_mutation_allowed": false
+  },
+  "forbidden_actions": [
+    "Blindly retry any interrupted or failed durable mutation.",
+    "Continue the old Hub selector apply or old Hub content cutover.",
+    "Restart the old writer as part of D0.",
+    "Activate the staged old Hub credential.",
+    "Retry rejected Operation Control candidates.",
+    "Treat development CI as production qualification.",
+    "Infer current VPS state from this file without fresh reconciliation before mutation."
+  ],
+  "resume_procedure": [
+    "Resolve authoritative_branch HEAD live.",
+    "Read and validate DEVELOPMENT_STATE.json.",
+    "Resolve the commit that last changed DEVELOPMENT_STATE.json.",
+    "Read applicable CI for current HEAD and distinguish current CI from recorded historical CI.",
+    "Read fresh VPS state only when the next action depends on VPS reality.",
+    "Read Google Drive only when the next action depends on corpus or Drive evidence.",
+    "Continue only from next_objective or the first objectively uncompleted prerequisite.",
+    "After interruption, reconcile authority before any retry."
+  ],
+  "product_after_d0": {
+    "target_level": "P0",
+    "path": [
+      "PHYSICAL_CORPUS",
+      "READ_ONLY_DISCOVERY",
+      "INVENTORY",
+      "ARTIFACT_IDENTITY",
+      "CURRENT_LOCATOR",
+      "BASIC_OBSERVATION_REVISION",
+      "MINIMAL_EXTRACTION",
+      "TASK_SPECIFIC_AI_CONTEXT"
+    ],
+    "destructive_normalization_required": false
+  }
+}
