@@ -22,8 +22,8 @@ AGENT_SCHEMA = "keelaryn.operation-agent.v1"
 RELAY_SCHEMA = "keelaryn.operation-relay-status.v1"
 
 RELAY_ROOT_MODE = 0o750
-RELAY_DIRECTORY_MODE = 0o2770
-RELAY_FILE_MODE = 0o660
+RELAY_DIRECTORY_MODE = 0o770
+RELAY_FILE_MODE = 0o640
 LOCK_NAME = "LOCK"
 PROCESSED_NAME = "processed"
 REJECTED_NAME = "rejected"

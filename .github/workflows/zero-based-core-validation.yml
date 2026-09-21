@@ -9,6 +9,7 @@ on:
       - 'deploy/**'
       - 'tests/core/**'
       - 'tests/live/**'
+      - 'tests/ci/**'
       - 'spec/**'
       - '.github/workflows/zero-based-core-validation.yml'
       - '.github/workflows/zero-based-migration-windows.yml'
@@ -21,6 +22,7 @@ on:
       - 'deploy/**'
       - 'tests/core/**'
       - 'tests/live/**'
+      - 'tests/ci/**'
       - 'spec/**'
       - '.github/workflows/zero-based-core-validation.yml'
       - '.github/workflows/zero-based-migration-windows.yml'
@@ -48,7 +50,7 @@ jobs:
         run: python3 --version
 
       - name: Compile Core and live acceptance tooling
-        run: python3 -m compileall -q core tests/core tests/live
+        run: python3 -m compileall -q core tests/core tests/live tests/ci
 
       - name: Run deterministic Core tests
         run: python3 -m unittest discover -s tests/core -p 'test_*.py' -v
@@ -84,14 +86,14 @@ jobs:
           stage="$tmp/stage"
           sudo install -d -m 0755 "$stage"
           sudo cp -a "$GITHUB_WORKSPACE/core" "$stage/core"
-          sudo cp             "$GITHUB_WORKSPACE/tests/live/operation_relay_cross_user.py"             "$stage/operation_relay_cross_user.py"
+          sudo cp             "$GITHUB_WORKSPACE/tests/ci/operation_relay_cross_user.py"             "$stage/operation_relay_cross_user.py"
 
           sudo find "$stage/core" -type d -exec chmod 0755 {} +
           sudo find "$stage/core" -type f -exec chmod 0644 {} +
           sudo chmod 0644 "$stage/operation_relay_cross_user.py"
 
           sudo diff -qr "$GITHUB_WORKSPACE/core" "$stage/core"
-          sudo cmp             "$GITHUB_WORKSPACE/tests/live/operation_relay_cross_user.py"             "$stage/operation_relay_cross_user.py"
+          sudo cmp             "$GITHUB_WORKSPACE/tests/ci/operation_relay_cross_user.py"             "$stage/operation_relay_cross_user.py"
 
           script="$stage/operation_relay_cross_user.py"
           staged_pythonpath="$stage/core"

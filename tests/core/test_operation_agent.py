@@ -58,7 +58,7 @@ class OperationAgentTests(unittest.TestCase):
         for name in ("inbox", "outbox"):
             path = transport_root / name
             path.mkdir(mode=0o770)
-            os.chmod(path, 0o2770)
+            os.chmod(path, 0o770)
         agent = OperationAgent(
             operation_root,
             control_root,
@@ -92,11 +92,11 @@ class OperationAgentTests(unittest.TestCase):
             for name in ("inbox", "outbox"):
                 path = transport_root / name
                 path.mkdir(mode=0o770)
-                os.chmod(path, 0o2770)
+                os.chmod(path, 0o770)
 
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(self.request()))
-            os.chmod(request_path, 0o660)
+            os.chmod(request_path, 0o640)
             result = agent.process_pending_once()
 
             self.assertEqual(result["disposition"], "COMPLETED")
@@ -149,7 +149,7 @@ class OperationAgentTests(unittest.TestCase):
             agent, operation_root, _ = self.layout(root)
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(self.request()))
-            os.chmod(request_path, 0o660)
+            os.chmod(request_path, 0o640)
 
             first = agent.process(request_path)
             self.assertEqual(first["disposition"], "COMPLETED")
@@ -173,7 +173,7 @@ class OperationAgentTests(unittest.TestCase):
             agent, _, control = self.layout(root)
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(self.request()))
-            os.chmod(request_path, 0o660)
+            os.chmod(request_path, 0o640)
 
             first = agent.process_pending_once()
             second = agent.process_pending_once()
@@ -199,7 +199,7 @@ class OperationAgentTests(unittest.TestCase):
                     agent, operation_root, _ = self.layout(root)
                     path = agent.inbox / f"{self.REQUEST_ID}.json"
                     path.write_bytes(canonical(self.request(**updates)))
-                    os.chmod(path, 0o660)
+                    os.chmod(path, 0o640)
 
                     with self.assertRaises(OperationRuntimeError):
                         agent.process(path)
@@ -214,7 +214,7 @@ class OperationAgentTests(unittest.TestCase):
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             raw = canonical(self.request())
             request_path.write_bytes(raw)
-            os.chmod(request_path, 0o660)
+            os.chmod(request_path, 0o640)
 
             orphan = operation_root / self.REQUEST_ID
             orphan.mkdir(mode=0o700)
@@ -238,7 +238,7 @@ class OperationAgentTests(unittest.TestCase):
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             raw = canonical(self.request())
             request_path.write_bytes(raw)
-            os.chmod(request_path, 0o660)
+            os.chmod(request_path, 0o640)
 
             agent.runtime.create(
                 operation="RUNTIME_SELFTEST",
@@ -267,13 +267,13 @@ class OperationAgentTests(unittest.TestCase):
             agent, _, control = self.layout(root)
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(self.request()))
-            os.chmod(request_path, 0o660)
+            os.chmod(request_path, 0o640)
             first = agent.process_pending_once()
             self.assertEqual(first["disposition"], "COMPLETED")
 
             conflicting = self.request(timeout_seconds=120)
             request_path.write_bytes(canonical(conflicting))
-            os.chmod(request_path, 0o660)
+            os.chmod(request_path, 0o640)
 
             rejected = agent.process_pending_once()
 
@@ -293,7 +293,7 @@ class OperationAgentTests(unittest.TestCase):
             agent, _, control = self.layout(root)
             path = agent.inbox / f"{self.REQUEST_ID}.json"
             path.write_bytes(canonical(self.request(operation="ARBITRARY_SHELL")))
-            os.chmod(path, 0o660)
+            os.chmod(path, 0o640)
 
             result = agent.process_pending_once()
 

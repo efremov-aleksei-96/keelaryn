@@ -115,8 +115,8 @@ def prove_transport_identity(root: Path) -> None:
         path = root / name
         if path.stat(follow_symlinks=False).st_gid != os.getegid():
             raise SystemExit(f"{name} group does not match shared GID")
-        if mode(path) != 0o2770:
-            raise SystemExit(f"{name} mode is not 2770")
+        if mode(path) != 0o770:
+            raise SystemExit(f"{name} mode is not 0770")
     state = root / "state"
     if mode(state) != 0o700:
         raise SystemExit("transport private state directory mode is not 0700")
@@ -151,13 +151,13 @@ def transport_deliver(root: Path, source_commit: str) -> None:
         raise SystemExit("transport request owner does not match transport UID")
     if request_path.stat(follow_symlinks=False).st_gid != os.getegid():
         raise SystemExit("transport request group does not match shared GID")
-    if mode(request_path) != 0o660:
-        raise SystemExit("transport request mode is not 0660")
+    if mode(request_path) != 0o640:
+        raise SystemExit("transport request mode is not 0640")
     print(json.dumps({
         "phase": "TRANSPORT_DELIVER",
         "transport_uid": os.geteuid(),
         "shared_gid": os.getegid(),
-        "request_mode": "0660",
+        "request_mode": "0640",
         "result": "PASS",
     }, sort_keys=True, separators=(",", ":")))
 
@@ -196,15 +196,15 @@ def agent_process(
         raise SystemExit("agent relay status is not root-owned")
     if status.stat(follow_symlinks=False).st_gid != expected_gid:
         raise SystemExit("agent relay status does not retain shared GID")
-    if mode(status) != 0o660:
-        raise SystemExit("agent relay status mode is not 0660")
+    if mode(status) != 0o640:
+        raise SystemExit("agent relay status mode is not 0640")
 
     print(json.dumps({
         "phase": "AGENT_PROCESS",
         "agent_uid": os.geteuid(),
         "shared_gid": os.getegid(),
         "capabilities": caps,
-        "status_mode": "0660",
+        "status_mode": "0640",
         "result": "PASS",
     }, sort_keys=True, separators=(",", ":")))
 

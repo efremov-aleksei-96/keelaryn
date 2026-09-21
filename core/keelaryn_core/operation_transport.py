@@ -30,8 +30,8 @@ _REQUEST_ID = re.compile(r"^[0-9a-f]{32}$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
 
 RELAY_ROOT_MODE = 0o750
-RELAY_DIRECTORY_MODE = 0o2770
-RELAY_FILE_MODE = 0o660
+RELAY_DIRECTORY_MODE = 0o770
+RELAY_FILE_MODE = 0o640
 
 
 class GitHubTransportError(OperationRuntimeError):

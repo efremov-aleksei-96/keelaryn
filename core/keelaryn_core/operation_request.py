@@ -121,7 +121,7 @@ def read_operation_request(
     *,
     expected_mode: int = 0o600,
 ) -> OperationRequest:
-    if expected_mode not in {0o600, 0o660}:
+    if expected_mode not in {0o600, 0o640}:
         raise OperationRuntimeError("operation request expected mode is invalid")
     candidate = Path(path)
     if candidate.is_symlink() or not candidate.is_file():

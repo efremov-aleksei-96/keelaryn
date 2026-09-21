@@ -182,7 +182,7 @@ class GitHubOperationTransportTests(unittest.TestCase):
             path = transport.inbox / f"{self.REQUEST_ID}.json"
             self.assertEqual(path.read_bytes(), canonical(self.request()))
             if os.name == "posix":
-                self.assertEqual(path.stat().st_mode & 0o777, 0o660)
+                self.assertEqual(path.stat().st_mode & 0o777, 0o640)
 
     def test_unauthorized_and_malformed_comments_advance_cursor_without_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -265,7 +265,7 @@ class GitHubOperationTransportTests(unittest.TestCase):
             }
             relay_path = transport.outbox / f"{self.REQUEST_ID}.json"
             relay_path.write_bytes(canonical(relay))
-            os.chmod(relay_path, 0o660)
+            os.chmod(relay_path, 0o640)
             body = STATUS_MARKER + canonical(relay).decode("utf-8").rstrip("\n")
             api.add("mallory", body, comment_id=55)
 
@@ -304,7 +304,7 @@ class GitHubOperationTransportTests(unittest.TestCase):
             }
             relay_path = transport.outbox / f"{self.REQUEST_ID}.json"
             relay_path.write_bytes(canonical(relay))
-            os.chmod(relay_path, 0o660)
+            os.chmod(relay_path, 0o640)
             body = STATUS_MARKER + canonical(relay).decode("utf-8").rstrip("\n")
             api.add("keelaryn-bot", body, comment_id=55)
 

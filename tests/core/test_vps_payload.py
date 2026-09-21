@@ -41,6 +41,10 @@ class ZeroBasedVpsPayloadTests(unittest.TestCase):
                 self.assertEqual(len(names), len(set(names)))
                 self.assertIn("keelaryn-zero/SOURCE_COMMIT", names)
                 self.assertIn("keelaryn-zero/PAYLOAD_MANIFEST.json", names)
+                self.assertNotIn(
+                    "keelaryn-zero/tests/ci/operation_relay_cross_user.py",
+                    names,
+                )
                 source = archive.extractfile("keelaryn-zero/SOURCE_COMMIT")
                 manifest_file = archive.extractfile("keelaryn-zero/PAYLOAD_MANIFEST.json")
                 assert source is not None and manifest_file is not None
@@ -50,6 +54,12 @@ class ZeroBasedVpsPayloadTests(unittest.TestCase):
                 self.assertEqual(manifest["schema"], builder.SCHEMA)
                 self.assertEqual(manifest["source_commit"], source_commit)
                 self.assertEqual(len(manifest["files"]), one["file_count"])
+                self.assertFalse(
+                    any(
+                        entry["path"].startswith("tests/ci/")
+                        for entry in manifest["files"]
+                    )
+                )
                 for entry in manifest["files"]:
                     with self.subTest(path=entry["path"]):
                         self.assertFalse(entry["path"].startswith("manager/"))

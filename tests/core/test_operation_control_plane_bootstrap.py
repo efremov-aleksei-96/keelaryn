@@ -549,6 +549,7 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
         self.assertIn("Group=keelaryn", transport_unit)
         self.assertIn("StateDirectoryMode=0750", transport_unit)
         self.assertIn("UMask=0007", transport_unit)
+        self.assertIn("RestrictSUIDSGID=true", transport_unit)
         self.assertIn("User=root", agent_unit)
         self.assertIn("Group=keelaryn", agent_unit)
         self.assertIn("CapabilityBoundingSet=\n", agent_unit)
@@ -556,8 +557,8 @@ class ControlPlaneBootstrapTests(unittest.TestCase):
 
         for source in (transport_source, agent_source):
             self.assertIn("RELAY_ROOT_MODE = 0o750", source)
-            self.assertIn("RELAY_DIRECTORY_MODE = 0o2770", source)
-            self.assertIn("RELAY_FILE_MODE = 0o660", source)
+            self.assertIn("RELAY_DIRECTORY_MODE = 0o770", source)
+            self.assertIn("RELAY_FILE_MODE = 0o640", source)
 
 
 if __name__ == "__main__":
