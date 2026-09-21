@@ -123,7 +123,9 @@ A request is canonical JSON with only a request ID, operation token, exact sourc
 
 The request ID is also the Operation Runtime operation ID. Re-delivery of the same exact request therefore resolves to the existing durable operation instead of executing it again. Reuse of an already-processed request ID with different canonical request bytes is quarantined as a conflicting replay rather than entering an agent restart loop.
 
-The initial allowlist contains only `RUNTIME_SELFTEST`. Production mutations are deliberately impossible until an explicit handler and approval verifier are qualified.
+The initial qualified allowlist contains only `RUNTIME_SELFTEST`. Successor development may add narrowly scoped mutation handlers only when the remote request cannot select arbitrary commands, paths, credentials, target identities or transaction identities.
+
+For Hub cutover continuation, `HUB_PRE_APPLY` uses the fixed `CURRENT_PREPARED` profile. The GitHub request is not authority to choose a Hub or create a transaction: execution is permitted only against an already-durable exact `PREPARED` Hub-cutover authority. The network-isolated agent starts one fixed qualified oneshot worker unit; it does not receive Drive IDs or filesystem paths from the transport. Before handoff the Operation Runtime advances durably through `PRECOMMIT_VERIFIED` to `COMMITTING`; any worker failure or agent interruption from that point requires read-only reconciliation and is never blindly retried.
 
 The systemd agent service is detached from SSH/chat, has no network access, no Linux capabilities, and may write only the private operation/control roots. A future network transport must be a separate less-privileged component that can deliver strict request files but cannot execute arbitrary commands or gain the dispatcher privileges.
 

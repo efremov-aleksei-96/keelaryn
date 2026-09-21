@@ -6,10 +6,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "core"))
 
+import keelaryn_core.operation_agent as operation_agent  # noqa: E402
 from keelaryn_core.operation_agent import OperationAgent  # noqa: E402
 from keelaryn_core.operation_request import REQUEST_SCHEMA, parse_operation_request  # noqa: E402
 from keelaryn_core.operation_runtime import OperationRuntimeError  # noqa: E402
@@ -165,6 +167,99 @@ class OperationAgentTests(unittest.TestCase):
 
             self.assertEqual(second["disposition"], "EXISTING")
             self.assertEqual(result_before, result_after)
+
+    def test_hub_pre_apply_uses_only_fixed_worker_and_reaches_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            agent, _, _ = self.layout(root)
+            request = self.request(
+                operation="HUB_PRE_APPLY",
+                profile="CURRENT_PREPARED",
+                mutation_capable=True,
+                timeout_seconds=7200,
+            )
+            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
+            request_path.write_bytes(canonical(request))
+            os.chmod(request_path, 0o640)
+
+            with mock.patch.object(
+                operation_agent,
+                "_run_fixed_oneshot",
+                return_value=None,
+            ) as worker:
+                result = agent.process(request_path)
+
+            worker.assert_called_once_with(
+                operation_agent.HUB_PRE_APPLY_UNIT
+            )
+            self.assertEqual(result["disposition"], "COMPLETED")
+            self.assertEqual(result["status"]["execution_state"], "SUCCEEDED")
+            self.assertEqual(result["status"]["mutation_state"], "VERIFIED")
+            self.assertEqual(result["status"]["next_action"], "NONE")
+
+    def test_hub_pre_apply_worker_failure_requires_read_only_reconcile(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            agent, _, _ = self.layout(root)
+            request = self.request(
+                operation="HUB_PRE_APPLY",
+                profile="CURRENT_PREPARED",
+                mutation_capable=True,
+                timeout_seconds=7200,
+            )
+            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
+            request_path.write_bytes(canonical(request))
+            os.chmod(request_path, 0o640)
+
+            with mock.patch.object(
+                operation_agent,
+                "_run_fixed_oneshot",
+                side_effect=OperationRuntimeError("uncertain"),
+            ):
+                result = agent.process(request_path)
+
+            self.assertEqual(result["disposition"], "FAILED")
+            self.assertEqual(
+                result["status"]["execution_state"],
+                "RECOVERY_REQUIRED",
+            )
+            self.assertEqual(result["status"]["mutation_state"], "COMMITTING")
+            self.assertEqual(
+                result["status"]["next_action"],
+                "READ_ONLY_RECONCILE",
+            )
+
+    def test_hub_pre_apply_rejects_arbitrary_profile_before_worker(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            agent, _, _ = self.layout(root)
+            request = self.request(
+                operation="HUB_PRE_APPLY",
+                profile="ARBITRARY",
+                mutation_capable=True,
+                timeout_seconds=7200,
+            )
+            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
+            request_path.write_bytes(canonical(request))
+            os.chmod(request_path, 0o640)
+
+            with mock.patch.object(
+                operation_agent,
+                "_run_fixed_oneshot",
+                return_value=None,
+            ) as worker:
+                result = agent.process(request_path)
+
+            worker.assert_not_called()
+            self.assertEqual(result["disposition"], "FAILED")
+            self.assertEqual(result["status"]["execution_state"], "FAILED")
+            self.assertEqual(
+                result["status"]["mutation_state"],
+                "MUTATION_NOT_STARTED",
+            )
 
     def test_pending_request_is_archived_and_not_repeated(self) -> None:
         with tempfile.TemporaryDirectory() as td:

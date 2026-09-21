@@ -7,6 +7,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 import sys
 import time
 from contextlib import contextmanager
@@ -44,11 +45,74 @@ def _runtime_selftest(session: OperationSession, request: OperationRequest) -> N
     session.record(phase="SELFTEST", event="PHASE_COMPLETE")
 
 
+def _run_fixed_oneshot(unit: str) -> None:
+    if unit != HUB_PRE_APPLY_UNIT:
+        raise OperationRuntimeError("operation worker unit is not allowlisted")
+    try:
+        completed = subprocess.run(
+            ["systemctl", "start", unit],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=7200,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise OperationRuntimeError(
+            "fixed operation worker invocation became uncertain"
+        ) from exc
+    if completed.returncode != 0:
+        raise OperationRuntimeError("fixed operation worker reported failure")
+
+
+def _hub_pre_apply(session: OperationSession, request: OperationRequest) -> None:
+    if request.profile != "CURRENT_PREPARED":
+        raise OperationRuntimeError(
+            "HUB_PRE_APPLY requires CURRENT_PREPARED profile"
+        )
+
+    # The remote request cannot select a Hub, transaction, Drive ID or path.
+    # Authorization is the already-durable PREPARED Hub-cutover authority.
+    # Once the worker is handed off, any failure is conservatively ambiguous
+    # until a separate read-only reconcile proves the production boundary.
+    session.record(
+        phase="BOUNDARY",
+        event="PRECOMMIT_VERIFIED",
+        mutation_state="PRECOMMIT_VERIFIED",
+    )
+    session.record(
+        phase="SELECTOR_APPLY",
+        event="MUTATION_BOUNDARY",
+        mutation_state="COMMITTING",
+    )
+    _run_fixed_oneshot(HUB_PRE_APPLY_UNIT)
+    session.record(
+        phase="SELECTOR_APPLY",
+        event="MUTATION_COMMITTED",
+        mutation_state="COMMITTED",
+    )
+    session.record(
+        phase="POSTVERIFY",
+        event="POSTCOMMIT_VERIFYING",
+        mutation_state="POSTCOMMIT_VERIFYING",
+    )
+    session.record(
+        phase="POSTVERIFY",
+        event="POSTCOMMIT_VERIFIED",
+        mutation_state="VERIFIED",
+    )
+
+
 HANDLERS: dict[str, OperationHandler] = {
     "RUNTIME_SELFTEST": OperationHandler(
         mutation_capable=False,
         requires_approval=False,
         callback=_runtime_selftest,
+    ),
+    "HUB_PRE_APPLY": OperationHandler(
+        mutation_capable=True,
+        requires_approval=False,
+        callback=_hub_pre_apply,
     ),
 }
 
@@ -304,7 +368,7 @@ class OperationAgent:
             )
         if request.approval != "NOT_REQUIRED":
             raise OperationRuntimeError(
-                "read-only operation must not claim production approval"
+                "operation does not accept a separate approval claim"
             )
         return handler
 
