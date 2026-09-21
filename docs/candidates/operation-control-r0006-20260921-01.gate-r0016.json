@@ -1,0 +1,17 @@
+{
+  "schema": "keelaryn.operation-control-gate-framework.v1",
+  "gate_revision": "operation-control-gate-r0016",
+  "candidate": "operation-control-r0006-20260921-01",
+  "frozen_source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+  "qualification_driver": "tools/operation_control_r0006_vps.py",
+  "workflow": ".github/workflows/operation-control-r0006-gate-r0016.yml",
+  "production_qualified": false,
+  "purpose": "qualify immutable r0006 after replacing reconcile and qualify as exact bounded function bodies and retaining executable result-shape coverage",
+  "previous_gate_revision": "operation-control-gate-r0015",
+  "revision_reason": "r0015 gate caught that an ambiguous source replacement failed to move drive_source_boundary from reconcile to qualify; r0016 replaces the complete functions by exact boundaries",
+  "frozen_product_bytes_unchanged": true,
+  "r0015_run_id": 35599424005,
+  "r0015_conclusion": "failure",
+  "r0015_failure_classification": "QUALIFICATION_DRIVER",
+  "production_state_changed_since_r0014_reconcile_failure": false
+}

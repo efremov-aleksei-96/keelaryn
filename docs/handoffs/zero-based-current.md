@@ -750,3 +750,21 @@ r0015 driver contract:
 
 Production remains r0005/PREPARED, writer inactive, updater absent. The diagnostic pycache residue in the materialized r0006 release is unchanged and still must be repaired only after r0015 gate PASS plus fresh production read-only qualification PASS.
 
+### 2026-09-21 r0006 gate r0016 after r0015 result-shape gate failure
+
+Authoritative pre-write HEAD: `8730e3c8242bf53f533f9ae3e503af88c9cd9745`.
+
+r0015 run `35599424005` failed exactly where intended: the new executable result-shape regression invoked `reconcile()` and caught `NameError: drive_source is not defined`. No production command was executed under r0015.
+
+The cause was an editing defect in the r0015 gate/driver patch itself: an ambiguous text replacement reinserted `drive_source_boundary` into the first matching result dictionary, which was `reconcile`, while `qualify` still omitted it.
+
+The commit containing this section issues gate revision `operation-control-gate-r0016` only. Frozen r0006 product source remains `b371a9b9f28fe668cc8073019a3d5f352f9d9bf3`.
+
+r0016 no longer performs fragment-level movement of the field. It replaces the complete bounded function bodies:
+
+- `reconcile()` returns production/control/migration boundaries only and has no live Drive source field;
+- `qualify()` performs `_drive_source_probe(...)` and returns the resulting `drive_source_boundary`;
+- the executable gate regression invokes both functions and asserts exactly those result shapes before any later frozen-product checks.
+
+Production remains exact r0005/PREPARED with writer inactive; updater/profile/activation remain absent. The r0006 materialized release still has only the recorded diagnostic pycache residue. Do not run production repair, qualification or upgrade until r0016 PASS.
+

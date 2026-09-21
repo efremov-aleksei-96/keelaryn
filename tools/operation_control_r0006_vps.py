@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-GATE_REVISION = "operation-control-gate-r0015"
+GATE_REVISION = "operation-control-gate-r0016"
 CANDIDATE = "operation-control-r0006-20260921-01"
 REPOSITORY = "https://github.com/efremov-aleksei-96/keelaryn.git"
 
@@ -767,7 +767,6 @@ def reconcile() -> dict[str, Any]:
         "production_boundary": after,
         "control_boundary": control,
         "migration_boundary": migration,
-        "drive_source_boundary": drive_source,
         "persistent_mutations_performed": False,
         "drive_mutations_performed": False,
     }
@@ -814,6 +813,7 @@ def qualify() -> dict[str, Any]:
         "production_boundary_after": after,
         "control_boundary": control,
         "migration_boundary": migration,
+        "drive_source_boundary": drive_source,
         "persistent_mutations_performed": False,
         "drive_mutations_performed": False,
         "production_qualified": True,
