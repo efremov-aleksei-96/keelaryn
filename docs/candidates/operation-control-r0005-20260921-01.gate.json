@@ -1,0 +1,12 @@
+{
+  "schema": "keelaryn.operation-control-gate-framework.v1",
+  "gate_revision": "operation-control-gate-r0007",
+  "candidate": "operation-control-r0005-20260921-01",
+  "frozen_source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+  "qualification_driver": "tools/operation_control_r0005_vps.py",
+  "workflow": ".github/workflows/operation-control-r0005-gate.yml",
+  "production_qualified": false,
+  "purpose": "rebuild frozen r0005 bytes, prove focused operation-control regressions and the cross-user relay DAC contract, preserve exact historical r0003 recovery authority, and drive a separate exact rejected-r0004 failed-bootstrap runtime-residue recovery before r0005 materialization/qualification/bootstrap",
+  "previous_gate_revision": "operation-control-gate-r0006",
+  "revision_reason": "bind qualification to frozen r0005, add exact coexistence of historical r0003 recovery authority with rejected-r0004 failed-bootstrap recovery authority, require separate r0004 runtime cleanup, and prove capability-free cross-user relay behavior without SGID dependency"
+}
