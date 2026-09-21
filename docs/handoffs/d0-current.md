@@ -245,3 +245,16 @@ No VPS, production, Hub selector, writer, credential or Google Drive mutation oc
 
 Production bootstrap remains forbidden until that disposable transition qualification passes and a fresh read-only VPS reconciliation confirms the real predecessor boundary.
 
+### r0007 dedicated gate PASS / development-state schema correction
+
+Dedicated frozen candidate gate:
+- run `35643121287`
+- conclusion `SUCCESS`
+- frozen Core `693/693 PASS`
+- artifact `10658574549`
+- artifact ZIP SHA-256 `bf31f59afc002206075f40701884af16edacd9bfb52bf17ac87f92d417f3251a`
+
+The ordinary Core workflow on freeze commit `b37e123988e66abb29a7476892af36415e184e8d` stopped at the D0 checkpoint parser before product tests because the r0007 constrained-candidate entry included an unsupported `payload_sha256` key. The candidate receipt itself remains the authority for frozen payload identity.
+
+This corrective checkpoint removes only that schema-incompatible field from `DEVELOPMENT_STATE.json`, records r0007 as `FROZEN_DEDICATED_GATE_PASS`, and leaves frozen source, candidate receipt, gate workflow, payload bytes and production state unchanged.
+

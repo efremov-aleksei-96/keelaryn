@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 7,
+  "revision": 8,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
+  "repository_basis_commit": "b37e123988e66abb29a7476892af36415e184e8d",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -101,9 +101,8 @@
     },
     {
       "candidate": "operation-control-r0007-20260921-01",
-      "state": "FROZEN_PENDING_DEDICATED_GATE",
+      "state": "FROZEN_DEDICATED_GATE_PASS",
       "source_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
-      "payload_sha256": "c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9",
       "retry": "NOT_A_RETRY_TARGET"
     }
   ],
@@ -125,7 +124,7 @@
   },
   "next_objective": {
     "id": "D0-02C2",
-    "description": "Resolve operation-control-r0007 gate r0001. If PASS, qualify the frozen r0005-to-r0007 update, rollback and interruption recovery on a disposable Linux boundary before any production bootstrap. Old Hub mutations remain forbidden.",
+    "description": "Qualify the frozen r0005-to-r0007 control-plane transition on a disposable Linux boundary: exact success, exact rollback on injected failure, PREPARED/OLD_EXACT interruption recovery, and PREPARED/NEW_EXACT interruption recovery. Production mutation remains forbidden; old Hub mutations remain forbidden.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
