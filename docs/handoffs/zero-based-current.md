@@ -611,3 +611,15 @@ Initial candidate gate revision: `operation-control-gate-r0009`, workflow `.gith
 
 No production/VPS/Hub/Drive mutation was performed by candidate issuance. Next: read the automatic r0009 gate result. Do not alter frozen product bytes; if product bytes must change, issue r0007. If only gate/evidence must change, issue a new gate revision for the same r0006 candidate.
 
+### 2026-09-21 r0006 gate r0010 after r0009 harness failure
+
+Authoritative pre-write HEAD: `3e41e00da1f9eafb259c35eca4298b373c66da06`.
+
+r0009 run `35593516119` is preserved as **GATE_HARNESS** failure. Exact frozen r0006 source/tree/payload were unchanged. The following passed before the failed step: qualification-driver selftest, exact frozen checkout, 86 focused operation tests, 12 target-host tests, capability-free cross-user relay DAC, and deterministic frozen payload rebuild.
+
+The failing run block contained unescaped shell grouping parentheses in a `find` command. Bash rejected the complete `Materialize and validate frozen r0006 release` block at parse time, so neither materialization nor target-host validation from that block is claimed as executed. Product bytes were not implicated.
+
+The commit containing this section issues gate revision `operation-control-gate-r0010` only. Frozen candidate remains exactly `operation-control-r0006-20260921-01` at source `b371a9b9f28fe668cc8073019a3d5f352f9d9bf3`. r0010 replaces the invalid shell residue scan with a read-only Python filesystem scan; no frozen product, production driver, production/VPS/Hub/Drive state is changed.
+
+Next: read automatic r0010 gate result. If r0010 fails, classify before any change; do not alter frozen r0006 product bytes unless a genuine product defect is proven.
+
