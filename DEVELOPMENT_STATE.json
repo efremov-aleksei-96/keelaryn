@@ -1,12 +1,14 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
+  "revision": 2,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
+  "repository_basis_commit": "a457d90277375b90b5f1767205c123bec7c5d710",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
     "state_file_commit_mode": "RESOLVE_LAST_CHANGE_LIVE",
-    "rule": "Never treat a HEAD recorded in chat or an older handoff as current authority."
+    "rule": "Resolve authoritative branch HEAD and current HEAD CI live; never treat chat or an older handoff HEAD as current authority."
   },
   "capability": {
     "current_level": "D0",
@@ -49,7 +51,7 @@
     "run_id": 35599654538,
     "conclusion": "PASS",
     "relevance": "HISTORICAL_PRE_D0_BASELINE",
-    "note": "r0017 was issued after this PASS; do not infer a later CI result without live GitHub reconciliation."
+    "note": "This is the last recorded coherent pre-D0 baseline. Current HEAD CI must always be resolved live from GitHub."
   },
   "production_boundary": {
     "freshness": "RECORDED_NOT_LIVE_VERIFIED_IN_D0",
@@ -115,8 +117,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-01B",
-    "description": "Implement a deterministic read-only DEVELOPMENT_STATE reader with targeted tests and CI coverage.",
+    "id": "D0-02",
+    "description": "After current HEAD CI is live-confirmed PASS, establish reliable read-only VPS state acquisition through existing remote Operation Control without resuming old Hub mutations.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
@@ -131,9 +133,10 @@
   ],
   "resume_procedure": [
     "Resolve authoritative_branch HEAD live.",
-    "Read and validate DEVELOPMENT_STATE.json.",
-    "Resolve the commit that last changed DEVELOPMENT_STATE.json.",
-    "Read applicable CI for current HEAD and distinguish current CI from recorded historical CI.",
+    "Read and strictly validate DEVELOPMENT_STATE.json.",
+    "Resolve the commit that last changed DEVELOPMENT_STATE.json and compare it with current HEAD.",
+    "Resolve current HEAD CI live and distinguish it from recorded historical CI.",
+    "Require repository_basis_commit to be the checkpoint commit first parent when CI enforces a fresh checkpoint.",
     "Read fresh VPS state only when the next action depends on VPS reality.",
     "Read Google Drive only when the next action depends on corpus or Drive evidence.",
     "Continue only from next_objective or the first objectively uncompleted prerequisite.",

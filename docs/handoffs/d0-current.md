@@ -113,19 +113,35 @@ Physical Corpus
 
 No physical normalization, deduplication, destructive mutation, maximal ontology or disaster reconstruction is required for P0.
 
+## D0-01 — autonomous development state
+
+### D0-01A — COMPLETE
+
+Commit `a457d90277375b90b5f1767205c123bec7c5d710` created the first machine-readable `DEVELOPMENT_STATE.json`.
+
+### D0-01B — implemented in the successor commit to the pre-write HEAD above
+
+This coherent change adds:
+
+- strict fail-closed `tools/development_state.py`;
+- duplicate-key and exact-shape validation for the D0 state contract;
+- live local Git resolution of HEAD, branch, checkpoint age and basis relation;
+- explicit detection of a stale state file;
+- `repository_basis_commit`, which avoids impossible self-reference by binding each checkpoint to its pre-write parent;
+- nine targeted deterministic regressions;
+- zero-based CI path triggers for the state and reader;
+- CI enforcement that the state changed in the same HEAD and its basis is that HEAD's first parent.
+
+The exact containing commit SHA and its CI are deliberately resolved live rather than written into the state file itself.
+
+No VPS, Hub selector, writer, credential or Drive content mutation is part of D0-01.
+
 ## Next permitted engineering objective
 
-**D0-01: establish a machine-readable autonomous-development state contract and reader.**
+**D0-02 — reliable read-only VPS state acquisition.**
 
-It must reconstruct, without chat memory:
+Before D0-02 work, resolve the authoritative branch HEAD and require the D0-01B zero-based Core validation for that exact HEAD to PASS.
 
-- repository/branch/current HEAD;
-- current capability level;
-- last coherent CI state;
-- production state freshness and last known boundary;
-- paused/active transaction disposition;
-- frozen/rejected candidate identities that constrain retries;
-- next permitted action;
-- explicitly forbidden retries.
+D0-02 must reuse the existing remote Operation Control/runtime where safe, but it is read-only: obtain a compact sanitized production snapshot without resuming the paused Hub cutover. The snapshot must distinguish live observations from recorded historical state and be usable by a fresh chat without SSH/PowerShell supplied by the maintainer.
 
-Do not mutate production Hub/Drive content while implementing D0-01.
+Old Hub mutations remain forbidden.

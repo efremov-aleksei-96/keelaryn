@@ -11,6 +11,8 @@ on:
       - 'tests/live/**'
       - 'tests/ci/**'
       - 'spec/**'
+      - 'DEVELOPMENT_STATE.json'
+      - 'tools/development_state.py'
       - '.github/workflows/zero-based-core-validation.yml'
       - '.github/workflows/zero-based-migration-windows.yml'
       - '.github/workflows/development-validation.yml'
@@ -24,6 +26,8 @@ on:
       - 'tests/live/**'
       - 'tests/ci/**'
       - 'spec/**'
+      - 'DEVELOPMENT_STATE.json'
+      - 'tools/development_state.py'
       - '.github/workflows/zero-based-core-validation.yml'
       - '.github/workflows/zero-based-migration-windows.yml'
       - '.github/workflows/development-validation.yml'
@@ -43,11 +47,20 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 1
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Show Python runtime
         run: python3 --version
+
+      - name: Validate D0 autonomous development checkpoint
+        run: |
+          python3 -B -m py_compile tools/development_state.py
+          python3 -B tools/development_state.py \
+            --repository-root "$GITHUB_WORKSPACE" \
+            --require-state-current \
+            --require-basis-parent \
+            > "$RUNNER_TEMP/DEVELOPMENT_STATE_SNAPSHOT.json"
 
       - name: Compile Core and live acceptance tooling
         run: python3 -m compileall -q core tests/core tests/live tests/ci
