@@ -150,14 +150,22 @@ class ControlPlaneUpdateTests(unittest.TestCase):
         active = set(update.PERSISTENT_UNITS)
         enabled = set(update.PERSISTENT_UNITS)
         calls: list[list[str]] = []
+        agent_start_failures_remaining = 1 if fail_start_agent else 0
 
         def systemctl(args):
+            nonlocal agent_start_failures_remaining
             calls.append(list(args))
             if args[0] == "stop":
                 active.discard(args[1])
             elif args[0] == "start":
-                if fail_start_agent and args[1].endswith("agent.service"):
-                    raise update.ControlPlaneUpdateError("injected start failure")
+                if (
+                    agent_start_failures_remaining
+                    and args[1].endswith("agent.service")
+                ):
+                    agent_start_failures_remaining -= 1
+                    raise update.ControlPlaneUpdateError(
+                        "injected one-shot successor start failure"
+                    )
                 active.add(args[1])
 
         def active_probe(unit):
@@ -325,6 +333,79 @@ class ControlPlaneUpdateTests(unittest.TestCase):
             self.assertEqual(active, set(update.PERSISTENT_UNITS))
             rolled = list(layout["updates"].glob("*/ROLLED_BACK.json"))
             self.assertEqual(len(rolled), 1)
+
+    def test_commit_boundary_rechecks_transport_after_services_stop(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            layout = self.layout(root)
+            active = set(update.PERSISTENT_UNITS)
+            enabled = set(update.PERSISTENT_UNITS)
+            stop_count = 0
+
+            def systemctl(args):
+                nonlocal stop_count
+                if args[0] == "stop":
+                    active.discard(args[1])
+                    stop_count += 1
+                    if stop_count == len(update.PERSISTENT_UNITS):
+                        pending = (
+                            layout["transport"]
+                            / "inbox"
+                            / ("1" * 32 + ".json")
+                        )
+                        pending.write_bytes(b"raced")
+
+            with mock.patch.object(
+                update,
+                "_require_root",
+                return_value=None,
+            ), mock.patch.object(
+                update,
+                "verify_release_directory",
+                side_effect=[
+                    self.identity(self.OLD, self.OLD_PAYLOAD),
+                    self.identity(self.NEW, self.NEW_PAYLOAD),
+                ],
+            ):
+                with self.assertRaisesRegex(
+                    update.ControlPlaneUpdateError,
+                    "rolled back exactly",
+                ):
+                    update.update_control_plane(
+                        install_root=layout["install"],
+                        unit_dir=layout["unit_dir"],
+                        credential_path=layout["credential"],
+                        operation_control_root=layout["control"],
+                        operation_root=layout["operations"],
+                        transport_root=layout["transport"],
+                        update_root=layout["updates"],
+                        profile_source=layout["profile"],
+                        expected_old_source_commit=self.OLD,
+                        expected_old_payload_sha256=self.OLD_PAYLOAD,
+                        expected_new_source_commit=self.NEW,
+                        expected_new_payload_sha256=self.NEW_PAYLOAD,
+                        systemctl=systemctl,
+                        active_probe=lambda unit: unit in active,
+                        enabled_probe=lambda unit: (
+                            "enabled" if unit in enabled else "static"
+                        ),
+                        restart_probe=lambda unit: 0,
+                        sleeper=lambda seconds: None,
+                    )
+
+            self.assertEqual(
+                os.readlink(layout["install"] / "control-current"),
+                f"releases/{self.OLD}",
+            )
+            self.assertFalse(
+                (layout["unit_dir"] / update.WORKER_UNIT).exists()
+            )
+            self.assertFalse(
+                (
+                    layout["control"]
+                    / "hub-pre-apply-profile.json"
+                ).exists()
+            )
 
     def test_pending_transport_request_blocks_before_transaction(self):
         with tempfile.TemporaryDirectory() as td:

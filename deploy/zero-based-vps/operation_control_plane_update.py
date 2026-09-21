@@ -552,6 +552,65 @@ def _live_boundary(
     return "PARTIAL"
 
 
+def _verify_predecessor_commit_boundary(
+    *,
+    old_release: Path,
+    old_source: str,
+    control_current: Path,
+    production_current: Path,
+    production_before: str,
+    unit_dir: Path,
+    credential_path: Path,
+    credential_sha: str,
+    operation_control_root: Path,
+    operation_root: Path,
+    transport_root: Path,
+) -> None:
+    # This check runs only after transport/agent are stopped, immediately
+    # before the first successor byte is published.
+    _operation_runtime_idle(operation_root)
+    _transport_inbox_idle(transport_root)
+
+    if _production_target(production_current) != production_before:
+        raise ControlPlaneUpdateError(
+            "production current changed at control update commit boundary"
+        )
+    if _readlink(control_current, "control-current") != f"releases/{old_source}":
+        raise ControlPlaneUpdateError(
+            "control-current changed at control update commit boundary"
+        )
+    if _sha(
+        _regular(
+            credential_path,
+            "GitHub operations credential",
+            mode=0o600,
+        ).read_bytes()
+    ) != credential_sha:
+        raise ControlPlaneUpdateError(
+            "GitHub operations credential changed at commit boundary"
+        )
+
+    for name in PERSISTENT_UNITS:
+        _regular(
+            unit_dir / name,
+            f"predecessor unit {name}",
+            mode=0o644,
+            expected=_unit_bytes(old_release, name),
+        )
+
+    worker = unit_dir / WORKER_UNIT
+    if worker.exists() or worker.is_symlink():
+        raise ControlPlaneUpdateError(
+            "Hub pre-apply worker appeared before commit boundary"
+        )
+
+    profile = operation_control_root / PROFILE_NAME
+    if profile.exists() or profile.is_symlink():
+        raise ControlPlaneUpdateError(
+            "preauthorization profile appeared before commit boundary"
+        )
+
+
 def update_control_plane(
     *,
     install_root: Path,
@@ -844,6 +903,20 @@ def update_control_plane(
                 "predecessor operation-control services did not stop"
             )
 
+        _verify_predecessor_commit_boundary(
+            old_release=old_release,
+            old_source=old_source,
+            control_current=control_current,
+            production_current=production_current,
+            production_before=production_before,
+            unit_dir=unit_dir,
+            credential_path=credential_path,
+            credential_sha=credential_sha,
+            operation_control_root=operation_control_root,
+            operation_root=operation_root,
+            transport_root=transport_root,
+        )
+
         # Publish non-service authorities/worker first, then exact persistent units,
         # then swap the independent control selector.
         _exclusive_file(profile_destination, profile_raw, 0o600)
@@ -926,6 +999,10 @@ def update_control_plane(
                     systemctl(["stop", unit])
                 except BaseException:
                     pass
+            if any(active_probe(unit) for unit in PERSISTENT_UNITS):
+                raise ControlPlaneUpdateError(
+                    "cannot prove successor services stopped before rollback"
+                )
 
             _atomic_symlink(
                 control_current,

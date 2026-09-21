@@ -427,3 +427,69 @@ The maintainer should be asked to execute a local/VPS command only when evidence
 8. Only after runtime acceptance reconcile the still-PREPARED Hub transaction before any Hub selector mutation.
 
 Do not retry r0004 bootstrap. Do not rerun r0007 automatically. If any durable state differs, stop and reconcile before mutation.
+
+## 2026-09-21 autonomous remote-operation continuation
+
+This section supersedes older development-next-step text above when the two conflict.
+Always reconcile the authoritative remote branch before any write.
+
+### Development authority at section creation
+
+- Repository: `efremov-aleksei-96/keelaryn`
+- Branch: `dev/zero-based-keelaryn`
+- Pre-write authoritative HEAD: `b914812fe9d2c02185ebe12197128613d4075815`
+- The commit containing this section is the immediate successor development commit; after opening a new chat, read the branch HEAD rather than assuming the pre-write SHA is still current.
+- Branch remains explicitly **unqualified development**.
+
+### Production boundary — do not infer newer state without VPS evidence
+
+Last durable production facts carried forward:
+
+- production `/opt/keelaryn/current`: exact `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`
+- Hub cutover transaction: exact `PREPARED`, transaction `61a2bfb65c9a47d088a76eee0df89d14`
+- ACTIVE_TRANSACTION SHA-256: `1d243586556019e132c454ebc8ccc252b755e5b43421434a6ff1eaf1c166ea34`
+- selector remains OLD; writer remains inactive; mutation inhibit remains present/exact
+- installed Operation Control remains immutable r0005 source `08f2e211f53764590f6ff0f05f86b2de62c14418`
+- no development commit in this continuation has mutated VPS production, Hub selector, Drive content or r0005
+- frozen r0072 migration candidate remains authoritative; do not rerun definitive qualification
+- legacy migration-source raw identity is private; only its approved SHA-256 `40907275bba002f58120cef28d8bf2c0950f6d69057075dbb632154075b21eb9` may appear in public/sanitized evidence
+
+### Remote-operation successor development
+
+Goal: remove routine manual SSH/PowerShell from production administration. One bootstrap/update action may still be required to move installed r0005 to the first mutation-capable successor; after that, Hub stages should be driven through strict GitHub Operation Control.
+
+Development history:
+
+- `a6f92aa492b79cbc64baa5ef106d31021f2e792d`: fixed the first HUB_PRE_APPLY handler defect; Core run `35580495127` PASS.
+- `c064bc67767ca4f25d36c4c7bb93529ecc6d5fd8`: added root-private exact mutation preauthorization; Core run `35581062210` PASS.
+- `b914812fe9d2c02185ebe12197128613d4075815`: added transactional control-plane updater and updater tests.
+  - Migration Windows run `35581631951`: PASS.
+  - Core run `35581632045`: FAIL in one rollback regression only.
+  - Failure classification: **TEST_HARNESS**. The injected agent-start failure repeated during rollback, intentionally making exact rollback impossible; product correctly failed closed with read-only reconciliation required.
+- Focused review after that run found two real updater hardening requirements:
+  1. after transport/agent stop and immediately before first successor publication, freshly revalidate inbox/runtime and exact predecessor production/control/unit/credential boundaries;
+  2. rollback must prove successor persistent services are stopped before restoring predecessor bytes.
+- The immediate successor commit containing this handoff implements those hardenings and changes the regression injection to a one-shot successor-start failure.
+
+### Current safety model
+
+- `HUB_PRE_APPLY` is mutation-capable and requires a private mode-0600 preauthorization profile.
+- GitHub/transport cannot choose raw command, filesystem path, Drive ID, target identity or transaction identity.
+- Preauthorization binds the exact successor control source, operation/profile token and already-durable Hub/migration authorities.
+- Agent is network-isolated; transport is unprivileged/network-capable.
+- Hub pre-apply worker is a fixed static oneshot and must not be persistently enabled.
+- Any ambiguity at/after `COMMITTING` requires read-only reconciliation; never blindly repeat the mutation.
+- Control-plane updater must preserve the existing GitHub credential byte-for-byte and must not mutate production `current`, Hub selector or migration state.
+
+### Next goal after restoring context
+
+1. Read authoritative `dev/zero-based-keelaryn` HEAD and CI associated with the commit containing this section.
+2. If CI fails, classify product vs harness before changing bytes.
+3. Reach coherent development PASS for the transactional updater.
+4. Add/build a sanitized deterministic preauthorization-profile generator so the maintainer never handles a raw Drive ID or long VPS parameter list.
+5. Freeze a new immutable Operation Control successor candidate only after coherent PASS; then run candidate gate/production-specific qualification.
+6. Perform at most one minimal manual r0005 -> successor installation/update action.
+7. Thereafter submit `HUB_PRE_APPLY` remotely, reconcile APPLIED, then separately implement/qualify and invoke post-cutover acceptance and writer-start operations.
+
+Never resurrect the previously supplied large manual HUB PRE-APPLY PowerShell block.
+
