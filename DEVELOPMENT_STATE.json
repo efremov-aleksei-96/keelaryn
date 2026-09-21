@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 13,
+  "revision": 14,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "26d1d07234afc575cc3afbce69e0dfa4026c6300",
+  "repository_basis_commit": "34bca27e7b4150b870977d001d7fe7dd37f45c8d",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-layered-corpus-first-architecture",
-    "run_id": 35648813912,
+    "scope": "D0-02D-live-reconcile-checkpoint",
+    "run_id": 35650589808,
     "conclusion": "PASS",
     "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact HEAD 26d1d07234afc575cc3afbce69e0dfa4026c6300 passed 695/695 Core tests after canonical layered Corpus-first authority was enforced in documentation, durable state validation and regression tests."
+    "note": "Exact HEAD 34bca27e7b4150b870977d001d7fe7dd37f45c8d passed 697/697 Core tests after fresh read-only r0005/legacy-runtime evidence was durably recorded."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02E_BOOTSTRAP_PREP",
-    "description": "Prepare production-specific r0007 bootstrap without mutating production: determine the exact materialization/update mechanism from frozen r0007 payload, prove all bootstrap inputs and rollback/recovery prerequisites against the live-verified r0005 boundary, and require another fresh read-only boundary revalidation at the eventual mutation boundary. Do not modify legacy Hub selector, writer, Google Drive corpus or production control-current during this objective.",
+    "description": "Resolve operation-control-r0007 bootstrap-prep gate r0001. The gate must remain qualification-only: validate the recorded live r0005 safety boundary, rebuild/materialize/validate exact frozen r0007 only in disposable storage, expose only reconcile/qualify commands, and keep stage/upgrade and all production/Drive mutations forbidden. After PASS, design a separately authorized stage transaction with fresh mutation-boundary revalidation.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

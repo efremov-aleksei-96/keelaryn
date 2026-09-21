@@ -1,0 +1,144 @@
+name: Operation control r0007 bootstrap prep gate r0001
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'tools/operation_control_r0007_vps.py'
+      - 'tests/core/test_operation_control_r0007_vps.py'
+      - '.github/workflows/operation-control-r0007-bootstrap-prep-r0001.yml'
+      - 'docs/candidates/operation-control-r0007-20260921-01.json'
+      - 'docs/evidence/D0_02D_LEGACY_RUNTIME_RECONCILE_2026-09-21T201610Z.json'
+      - 'DEVELOPMENT_STATE.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operation-control-r0007-bootstrap-prep-r0001-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compile r0007 bootstrap-prep tooling
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile tools/operation_control_r0007_vps.py
+          python3 -B -m py_compile tests/core/test_operation_control_r0007_vps.py
+
+      - name: Run r0007 bootstrap-prep regression tests
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover             -s tests/core -p 'test_operation_control_r0007_vps.py'
+
+      - name: Qualify frozen r0007 bootstrap inputs without production mutation
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/OPERATION_CONTROL_R0007_BOOTSTRAP_PREP.json"
+          stdout="$RUNNER_TEMP/bootstrap-prep-stdout.json"
+
+          PYTHONDONTWRITEBYTECODE=1 python3 -B             tools/operation_control_r0007_vps.py qualify             --repository-root "$GITHUB_WORKSPACE"             --output "$out"             > "$stdout"
+
+          cmp "$stdout" "$out"
+
+          python3 - "$out" <<'PY'
+          import json
+          import sys
+
+          value = json.load(open(sys.argv[1], encoding="utf-8"))
+
+          if value.get("schema") != "keelaryn.operation-control-r0007-bootstrap-prep.v1":
+              raise SystemExit("bootstrap-prep evidence schema mismatch")
+          if value.get("gate_revision") != "operation-control-r0007-bootstrap-prep-r0001":
+              raise SystemExit("bootstrap-prep gate revision mismatch")
+          if value.get("candidate") != "operation-control-r0007-20260921-01":
+              raise SystemExit("bootstrap-prep candidate mismatch")
+          if value.get("predecessor_candidate") != "operation-control-r0005-20260921-01":
+              raise SystemExit("bootstrap-prep predecessor mismatch")
+          if value.get("source_commit") != "833123b6a7ad2c61087ee8a86700bb9ad8a46298":
+              raise SystemExit("bootstrap-prep source mismatch")
+          if value.get("source_tree") != "bbca9e3a17162e12a7a0f649138e8c469518ad2a":
+              raise SystemExit("bootstrap-prep tree mismatch")
+
+          expected_payload = {
+              "source_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
+              "payload_sha256": "c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9",
+              "payload_size": 414534,
+              "file_count": 208,
+          }
+          if value.get("payload") != expected_payload:
+              raise SystemExit("bootstrap-prep payload identity mismatch")
+
+          recorded = value.get("recorded_live_boundary", {})
+          if recorded.get("evidence_path") != "docs/evidence/D0_02D_LEGACY_RUNTIME_RECONCILE_2026-09-21T201610Z.json":
+              raise SystemExit("bootstrap-prep live evidence path mismatch")
+          if recorded.get("production_source_commit") != "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f":
+              raise SystemExit("bootstrap-prep production source mismatch")
+          if recorded.get("predecessor_source_commit") != "08f2e211f53764590f6ff0f05f86b2de62c14418":
+              raise SystemExit("bootstrap-prep predecessor source mismatch")
+          if recorded.get("legacy_hub", {}).get("authority_scope") != "RUNTIME_SAFETY_ONLY":
+              raise SystemExit("bootstrap-prep legacy Hub authority widened")
+          if recorded.get("r0007_transition_gate") != "PASS":
+              raise SystemExit("bootstrap-prep transition prerequisite missing")
+
+          release = value.get("disposable_release_qualification", {})
+          if release.get("release_path_class") != "DISPOSABLE_TEMP_ONLY":
+              raise SystemExit("bootstrap-prep materialization is not temp-only")
+          d0 = release.get("d0_control_validation", {})
+          if d0.get("remote_allowlist") != [
+              "PRODUCTION_SNAPSHOT",
+              "RUNTIME_SELFTEST",
+          ]:
+              raise SystemExit("bootstrap-prep remote allowlist mismatch")
+          if d0.get("remote_mutation_handlers") != 0:
+              raise SystemExit("bootstrap-prep exposes remote mutation handler")
+          if d0.get("snapshot_unit_policy_verified") is not True:
+              raise SystemExit("bootstrap-prep snapshot policy not verified")
+          if d0.get("installed_units_verified") is not True:
+              raise SystemExit("bootstrap-prep unit bytes not verified")
+
+          if value.get("supported_commands") != ["qualify", "reconcile"]:
+              raise SystemExit("bootstrap-prep tool exposes unexpected command")
+          if value.get("stage_implemented") is not False:
+              raise SystemExit("bootstrap-prep unexpectedly implements stage")
+          if value.get("upgrade_implemented") is not False:
+              raise SystemExit("bootstrap-prep unexpectedly implements upgrade")
+          if value.get("production_mutation_allowed") is not False:
+              raise SystemExit("bootstrap-prep authorizes production mutation")
+          if value.get("drive_content_mutation_allowed") is not False:
+              raise SystemExit("bootstrap-prep authorizes Drive mutation")
+          if value.get("legacy_hub_authority_scope") != "RUNTIME_SAFETY_ONLY":
+              raise SystemExit("bootstrap-prep legacy Hub authority scope mismatch")
+          if value.get("requires_fresh_mutation_boundary_revalidation") is not True:
+              raise SystemExit("bootstrap-prep omits future boundary revalidation")
+          if value.get("production_qualified") is not False:
+              raise SystemExit("bootstrap-prep incorrectly claims production qualification")
+          if value.get("next_action") != "DESIGN_SEPARATE_STAGE_TRANSACTION":
+              raise SystemExit("bootstrap-prep next action mismatch")
+          PY
+
+          if grep -Eq '"(old_hub_root_id|new_hub_root_id|KEELARYN_GITHUB_OPERATIONS_TOKEN)"' "$out"; then
+            echo "bootstrap-prep evidence leaks forbidden raw authority material" >&2
+            exit 1
+          fi
+
+          test -z "$(git status --porcelain)"
+
+      - name: Upload compact bootstrap-prep evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operation-control-r0007-bootstrap-prep-r0001-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/OPERATION_CONTROL_R0007_BOOTSTRAP_PREP.json
+          if-no-files-found: error
+          retention-days: 3

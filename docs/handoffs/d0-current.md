@@ -369,3 +369,36 @@ This evidence is strictly `RUNTIME_SAFETY_ONLY`: it is not legacy-Hub semantic/c
 
 Next work is production-specific preparation only. It must determine and qualify the exact frozen-r0007 materialization/update mechanism, prove rollback/interruption behavior remains applicable to the freshly observed r0005 predecessor, and define a mutation-boundary revalidation. Production mutation remains forbidden in D0-02E.
 
+## D0-02E — r0007 bootstrap-prep gate r0001
+
+Pre-write authority: `34bca27e7b4150b870977d001d7fe7dd37f45c8d`; Core run `35650589808` SUCCESS with 697/697 tests.
+
+Qualification-only tooling introduced:
+- `tools/operation_control_r0007_vps.py`;
+- `tests/core/test_operation_control_r0007_vps.py`;
+- `.github/workflows/operation-control-r0007-bootstrap-prep-r0001.yml`.
+
+The tool deliberately exposes exactly two commands:
+- `reconcile`: two-pass, root-only, strictly read-only observation of the legacy runtime safety boundary;
+- `qualify`: current-repository authority validation plus exact frozen r0007 checkout, double deterministic payload rebuild, disposable materialization, target-host validation and D0 control validation.
+
+There is intentionally no `stage`, `upgrade`, `repair`, Hub-preapply or Drive mutation command in this D0-02E surface.
+
+The qualification command binds:
+- frozen r0007 source/tree/payload;
+- durable r0007 transition-gate PASS state;
+- fresh D0-02D live-r0005 evidence;
+- layered Corpus-first authority;
+- legacy Hub scope `RUNTIME_SAFETY_ONLY`;
+- exact predecessor source/payload and recorded credential identity.
+
+All candidate materialization in this gate is disposable/temp-only. The evidence must state:
+- `stage_implemented=false`;
+- `upgrade_implemented=false`;
+- `production_mutation_allowed=false`;
+- `drive_content_mutation_allowed=false`;
+- `production_qualified=false`;
+- `requires_fresh_mutation_boundary_revalidation=true`.
+
+Only after this gate passes may the next development step design a separate durable stage transaction. That later stage transaction is not authorized by D0-02E.
+
