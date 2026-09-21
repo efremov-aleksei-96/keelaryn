@@ -42,6 +42,10 @@ class HubPreApplyWorkerTests(unittest.TestCase):
         source_hash = hashlib.sha256(source_root.encode("utf-8")).hexdigest()
         return {
             "schema": worker.PROFILE_SCHEMA,
+            "operation": "HUB_PRE_APPLY",
+            "request_profile": "CURRENT_PREPARED",
+            "authorization": "APPROVED",
+            "control_source_commit": "0" * 40,
             "transaction_id": "1" * 32,
             "active_transaction_sha256": "2" * 64,
             "framework_source_commit": "3" * 40,

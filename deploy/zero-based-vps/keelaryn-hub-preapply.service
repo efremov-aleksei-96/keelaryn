@@ -21,6 +21,7 @@ PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/etc/keelaryn/hub.env /var/lib/keelaryn/deployment /var/lib/keelaryn/mutation-gate /var/lib/keelaryn/migration
+ReadOnlyPaths=/var/lib/keelaryn/operation-control/hub-pre-apply-profile.json
 InaccessiblePaths=/etc/keelaryn/operation-control/github-operations.env /etc/keelaryn/drive.env /root /home
 ProtectKernelTunables=true
 ProtectKernelModules=true

@@ -15,6 +15,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator
 
+from .operation_hub_pre_apply_profile import (
+    HubPreApplyProfileError,
+    PROFILE_NAME as HUB_PRE_APPLY_PROFILE_NAME,
+    read_hub_pre_apply_profile,
+)
 from .operation_request import OperationRequest, read_operation_request
 from .operation_runtime import OperationRuntime, OperationRuntimeError, OperationSession
 
@@ -112,7 +117,7 @@ HANDLERS: dict[str, OperationHandler] = {
     ),
     "HUB_PRE_APPLY": OperationHandler(
         mutation_capable=True,
-        requires_approval=False,
+        requires_approval=True,
         callback=_hub_pre_apply,
     ),
 }
@@ -364,12 +369,29 @@ class OperationAgent:
                 raise OperationRuntimeError(
                     "operation request approval policy disagrees with allowlist"
                 )
+            if request.operation != "HUB_PRE_APPLY":
+                raise OperationRuntimeError(
+                    "mutation approval verifier is not defined for operation"
+                )
+            try:
+                approval = read_hub_pre_apply_profile(
+                    self.control_root / HUB_PRE_APPLY_PROFILE_NAME
+                )
+            except HubPreApplyProfileError as exc:
+                raise OperationRuntimeError(
+                    "exact private mutation preauthorization is unavailable"
+                ) from exc
+            if (
+                approval["operation"] != request.operation
+                or approval["request_profile"] != request.profile
+                or approval["control_source_commit"] != request.source_commit
+            ):
+                raise OperationRuntimeError(
+                    "mutation request does not match exact private preauthorization"
+                )
+        elif request.approval != "NOT_REQUIRED":
             raise OperationRuntimeError(
-                "approved mutation receipt verification is not implemented"
-            )
-        if request.approval != "NOT_REQUIRED":
-            raise OperationRuntimeError(
-                "operation does not accept a separate approval claim"
+                "read-only operation must not claim mutation approval"
             )
         return handler
 

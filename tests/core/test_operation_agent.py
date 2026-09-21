@@ -13,6 +13,10 @@ sys.path.insert(0, str(ROOT / "core"))
 
 import keelaryn_core.operation_agent as operation_agent  # noqa: E402
 from keelaryn_core.operation_agent import OperationAgent  # noqa: E402
+from keelaryn_core.operation_hub_pre_apply_profile import (  # noqa: E402
+    PROFILE_NAME as HUB_PRE_APPLY_PROFILE_NAME,
+    PROFILE_SCHEMA as HUB_PRE_APPLY_PROFILE_SCHEMA,
+)
 from keelaryn_core.operation_request import REQUEST_SCHEMA, parse_operation_request  # noqa: E402
 from keelaryn_core.operation_runtime import OperationRuntimeError  # noqa: E402
 
@@ -68,6 +72,35 @@ class OperationAgentTests(unittest.TestCase):
             source_commit=self.COMMIT,
         )
         return agent, operation_root, control_root
+
+    def authorize_hub_pre_apply(self, control_root: Path) -> None:
+        source_root = "1abcdefghijk"
+        value = {
+            "schema": HUB_PRE_APPLY_PROFILE_SCHEMA,
+            "operation": "HUB_PRE_APPLY",
+            "request_profile": "CURRENT_PREPARED",
+            "authorization": "APPROVED",
+            "control_source_commit": self.COMMIT,
+            "transaction_id": "2" * 32,
+            "active_transaction_sha256": "3" * 64,
+            "framework_source_commit": "4" * 40,
+            "candidate_id": "migration-r0072-20260919-01",
+            "candidate_source_commit": "5" * 40,
+            "candidate_source_tree": "6" * 40,
+            "pack_sha256": "7" * 64,
+            "freeze_receipt_sha256": "8" * 64,
+            "target_authority_sha256": "9" * 64,
+            "qualification_evidence_sha256": "a" * 64,
+            "credential_sha256": "b" * 64,
+            "migration_source_root_id": source_root,
+            "migration_source_identity_sha256": __import__("hashlib").sha256(
+                source_root.encode("utf-8")
+            ).hexdigest(),
+            "new_selector_identity_sha256": "c" * 64,
+        }
+        path = control_root / HUB_PRE_APPLY_PROFILE_NAME
+        path.write_bytes(canonical(value))
+        os.chmod(path, 0o600)
 
     def test_agent_stays_idle_until_transport_relay_exists(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -172,12 +205,14 @@ class OperationAgentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             os.chmod(root, 0o700)
-            agent, _, _ = self.layout(root)
+            agent, _, control = self.layout(root)
+            self.authorize_hub_pre_apply(control)
             request = self.request(
                 operation="HUB_PRE_APPLY",
                 profile="CURRENT_PREPARED",
                 mutation_capable=True,
                 timeout_seconds=7200,
+                approval="REQUIRED",
             )
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(request))
@@ -202,12 +237,14 @@ class OperationAgentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             os.chmod(root, 0o700)
-            agent, _, _ = self.layout(root)
+            agent, _, control = self.layout(root)
+            self.authorize_hub_pre_apply(control)
             request = self.request(
                 operation="HUB_PRE_APPLY",
                 profile="CURRENT_PREPARED",
                 mutation_capable=True,
                 timeout_seconds=7200,
+                approval="REQUIRED",
             )
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(request))
@@ -231,16 +268,17 @@ class OperationAgentTests(unittest.TestCase):
                 "READ_ONLY_RECONCILE",
             )
 
-    def test_hub_pre_apply_rejects_arbitrary_profile_before_worker(self) -> None:
+    def test_hub_pre_apply_requires_exact_private_preauthorization(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             os.chmod(root, 0o700)
-            agent, _, _ = self.layout(root)
+            agent, operation_root, _ = self.layout(root)
             request = self.request(
                 operation="HUB_PRE_APPLY",
-                profile="ARBITRARY",
+                profile="CURRENT_PREPARED",
                 mutation_capable=True,
                 timeout_seconds=7200,
+                approval="REQUIRED",
             )
             request_path = agent.inbox / f"{self.REQUEST_ID}.json"
             request_path.write_bytes(canonical(request))
@@ -251,15 +289,45 @@ class OperationAgentTests(unittest.TestCase):
                 "_run_fixed_oneshot",
                 return_value=None,
             ) as worker:
-                result = agent.process(request_path)
+                with self.assertRaisesRegex(
+                    OperationRuntimeError,
+                    "preauthorization is unavailable",
+                ):
+                    agent.process(request_path)
 
             worker.assert_not_called()
-            self.assertEqual(result["disposition"], "FAILED")
-            self.assertEqual(result["status"]["execution_state"], "FAILED")
-            self.assertEqual(
-                result["status"]["mutation_state"],
-                "MUTATION_NOT_STARTED",
+            self.assertFalse((operation_root / self.REQUEST_ID).exists())
+
+    def test_hub_pre_apply_rejects_profile_not_bound_to_request(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            agent, operation_root, control = self.layout(root)
+            self.authorize_hub_pre_apply(control)
+            request = self.request(
+                operation="HUB_PRE_APPLY",
+                profile="ARBITRARY",
+                mutation_capable=True,
+                timeout_seconds=7200,
+                approval="REQUIRED",
             )
+            request_path = agent.inbox / f"{self.REQUEST_ID}.json"
+            request_path.write_bytes(canonical(request))
+            os.chmod(request_path, 0o640)
+
+            with mock.patch.object(
+                operation_agent,
+                "_run_fixed_oneshot",
+                return_value=None,
+            ) as worker:
+                with self.assertRaisesRegex(
+                    OperationRuntimeError,
+                    "does not match exact private preauthorization",
+                ):
+                    agent.process(request_path)
+
+            worker.assert_not_called()
+            self.assertFalse((operation_root / self.REQUEST_ID).exists())
 
     def test_pending_request_is_archived_and_not_repeated(self) -> None:
         with tempfile.TemporaryDirectory() as td:

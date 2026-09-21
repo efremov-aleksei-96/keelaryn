@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import stat
 import subprocess
 import sys
@@ -11,38 +10,26 @@ from pathlib import Path
 from typing import Any
 
 
-PROFILE_SCHEMA = "keelaryn.operation-hub-pre-apply-profile.v1"
-PROFILE_PATH = Path("/etc/keelaryn/operation-control/hub-pre-apply-profile.json")
+REPO = Path(__file__).resolve().parents[2]
+CORE = REPO / "core"
+sys.path.insert(0, str(CORE))
+
+from keelaryn_core.operation_hub_pre_apply_profile import (  # noqa: E402
+    HubPreApplyProfileError,
+    PROFILE_NAME,
+    PROFILE_SCHEMA,
+    read_hub_pre_apply_profile,
+)
+
+
+PROFILE_PATH = Path("/var/lib/keelaryn/operation-control") / PROFILE_NAME
+CONTROL_CURRENT = Path("/opt/keelaryn/control-current")
 CURRENT = Path("/opt/keelaryn/current")
 SELECTOR = Path("/etc/keelaryn/hub.env")
 STATE_ROOT = Path("/var/lib/keelaryn/deployment")
 MUTATION_GATE_ROOT = Path("/var/lib/keelaryn/mutation-gate")
 MIGRATION_ROOT = Path("/var/lib/keelaryn/migration")
 WRITER_UNIT = "keelaryn-drive.service"
-
-_OID = re.compile(r"^[0-9a-f]{40}$")
-_SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_ID = re.compile(r"^[0-9a-f]{32}$")
-_CANDIDATE = re.compile(r"^migration-r[0-9]{4}-[0-9]{8}-[0-9]{2}$")
-_DRIVE_ID = re.compile(r"^[A-Za-z0-9_-]{10,256}$")
-
-_PROFILE_KEYS = {
-    "schema",
-    "transaction_id",
-    "active_transaction_sha256",
-    "framework_source_commit",
-    "candidate_id",
-    "candidate_source_commit",
-    "candidate_source_tree",
-    "pack_sha256",
-    "freeze_receipt_sha256",
-    "target_authority_sha256",
-    "qualification_evidence_sha256",
-    "credential_sha256",
-    "migration_source_root_id",
-    "migration_source_identity_sha256",
-    "new_selector_identity_sha256",
-}
 
 
 class HubPreApplyWorkerError(RuntimeError):
@@ -87,49 +74,10 @@ def _hex(value: object, pattern: re.Pattern[str], label: str) -> str:
 
 
 def _load_profile(path: Path = PROFILE_PATH) -> dict[str, Any]:
-    path = _private_file(path, "Hub pre-apply profile")
-    raw = path.read_bytes()
     try:
-        value = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise HubPreApplyWorkerError("Hub pre-apply profile is invalid JSON") from exc
-    if not isinstance(value, dict) or set(value) != _PROFILE_KEYS:
-        raise HubPreApplyWorkerError("Hub pre-apply profile keys mismatch")
-    if value["schema"] != PROFILE_SCHEMA:
-        raise HubPreApplyWorkerError("Hub pre-apply profile schema mismatch")
-    if raw != _canonical(value):
-        raise HubPreApplyWorkerError("Hub pre-apply profile is not canonical JSON")
-
-    _hex(value["transaction_id"], _ID, "transaction_id")
-    for key in (
-        "active_transaction_sha256",
-        "pack_sha256",
-        "freeze_receipt_sha256",
-        "target_authority_sha256",
-        "qualification_evidence_sha256",
-        "credential_sha256",
-        "migration_source_identity_sha256",
-        "new_selector_identity_sha256",
-    ):
-        _hex(value[key], _SHA256, key)
-    for key in (
-        "framework_source_commit",
-        "candidate_source_commit",
-        "candidate_source_tree",
-    ):
-        _hex(value[key], _OID, key)
-
-    candidate = value["candidate_id"]
-    if not isinstance(candidate, str) or _CANDIDATE.fullmatch(candidate) is None:
-        raise HubPreApplyWorkerError("candidate_id is invalid")
-
-    source_root = value["migration_source_root_id"]
-    if not isinstance(source_root, str) or _DRIVE_ID.fullmatch(source_root) is None:
-        raise HubPreApplyWorkerError("migration source root ID is invalid")
-    if _sha(source_root.encode("utf-8")) != value["migration_source_identity_sha256"]:
-        raise HubPreApplyWorkerError("migration source identity mismatch")
-
-    return dict(value)
+        return read_hub_pre_apply_profile(path)
+    except HubPreApplyProfileError as exc:
+        raise HubPreApplyWorkerError(str(exc)) from exc
 
 
 def _oauth_environment(path: Path) -> dict[str, str]:
@@ -250,6 +198,13 @@ def run(profile_path: Path = PROFILE_PATH) -> dict[str, Any]:
         raise HubPreApplyWorkerError("Hub pre-apply worker requires root")
 
     profile = _load_profile(profile_path)
+
+    if (
+        not CONTROL_CURRENT.is_symlink()
+        or os.readlink(CONTROL_CURRENT)
+        != f'releases/{profile["control_source_commit"]}'
+    ):
+        raise HubPreApplyWorkerError("control-current identity mismatch")
 
     if (
         not CURRENT.is_symlink()
