@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 14,
+  "revision": 15,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "34bca27e7b4150b870977d001d7fe7dd37f45c8d",
+  "repository_basis_commit": "01defeb0a5e586fdf2309af5553f79ce4c62f80a",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02D-live-reconcile-checkpoint",
-    "run_id": 35650589808,
+    "scope": "D0-02E-bootstrap-prep-development",
+    "run_id": 35651750917,
     "conclusion": "PASS",
     "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact HEAD 34bca27e7b4150b870977d001d7fe7dd37f45c8d passed 697/697 Core tests after fresh read-only r0005/legacy-runtime evidence was durably recorded."
+    "note": "Exact HEAD 01defeb0a5e586fdf2309af5553f79ce4c62f80a passed 703/703 Core tests. Bootstrap-prep gate r0001 failed only because its own py_compile step created __pycache__ residue before a clean-worktree assertion; qualification framework tests passed and frozen r0007/product bytes were unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02E_BOOTSTRAP_PREP",
-    "description": "Resolve operation-control-r0007 bootstrap-prep gate r0001. The gate must remain qualification-only: validate the recorded live r0005 safety boundary, rebuild/materialize/validate exact frozen r0007 only in disposable storage, expose only reconcile/qualify commands, and keep stage/upgrade and all production/Drive mutations forbidden. After PASS, design a separately authorized stage transaction with fresh mutation-boundary revalidation.",
+    "description": "Resolve bootstrap-prep gate r0002. Gate r0002 is an evidence/workflow-only correction over unchanged bootstrap-prep framework r0001: syntax-check without bytecode residue, rerun exact frozen r0007 qualification, prove clean checkout, and upload evidence. Production/Drive mutation remains forbidden.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

@@ -402,3 +402,22 @@ All candidate materialization in this gate is disposable/temp-only. The evidence
 
 Only after this gate passes may the next development step design a separate durable stage transaction. That later stage transaction is not authorized by D0-02E.
 
+### D0-02E bootstrap-prep gate r0001 failure / r0002 correction
+
+Development HEAD `01defeb0a5e586fdf2309af5553f79ce4c62f80a` passed ordinary Core validation run `35651750917` with 703/703 tests.
+
+Bootstrap-prep gate r0001 run `35651750931` failed after:
+- compile step PASS;
+- all 6 bootstrap-prep regression tests PASS;
+- qualification command completed without semantic/identity/validation error.
+
+The failure was gate hygiene only: `python3 -B -m py_compile` created `__pycache__/*.pyc`, after which the gate's own `git status --porcelain` clean-worktree assertion correctly failed.
+
+Frozen r0007 bytes, bootstrap-prep framework code, D0-02D evidence, production and VPS state were not changed.
+
+Gate r0002 is therefore a workflow/evidence revision only:
+- bootstrap-prep framework revision remains `operation-control-r0007-bootstrap-prep-r0001`;
+- gate workflow revision becomes `operation-control-r0007-bootstrap-prep-r0002`;
+- syntax validation uses in-memory Python `compile(...)` and immediately proves the worktree remains clean;
+- r0001 remains preserved as failed evidence and is never rewritten.
+
