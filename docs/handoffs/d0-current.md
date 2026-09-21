@@ -323,3 +323,20 @@ Sequence:
 
 The existing Issue #65 selftest PASS at 2026-09-21T05:58:16Z is historical only and is not fresh enough for a production mutation boundary.
 
+## Canonical architecture boundary — Corpus-first layered authority
+
+The active canonical architecture is now explicitly Corpus-first. The previous Hub-first r2 model is superseded product architecture and remains only in Git/legacy provenance.
+
+Layered authority is normative:
+- physical corpus objects are authoritative for object existence, stored bytes/content, the physical identity referent and physical location;
+- explicit project/workspace STATE is authoritative for operational/current state owned by that project/workspace;
+- LifeOS is a separate permanent master/life-orchestration workspace and is authoritative only for cross-life orchestration semantics that it owns; it references project truth rather than copying it;
+- Keelaryn `0__Core/__Keelaryn` is a compact control/semantic plane for indexes, fingerprints, identity/revision observations, relations, classifications, accepted/derived state, transactions and recovery metadata; it is not a second content corpus;
+- semantic classification never overrides the underlying physical object, while physical location alone never defines the object's complete semantic meaning.
+
+Legacy production Hub authority is permanently constrained to provenance plus the temporary pre-cutover runtime boundary. Its selector/current/PREPARED transaction may be read for r0005 → r0007 safety reconciliation, but old Hub Areas/Projects/Records/Resources are not imported as the new canonical organization, Google Drive corpus is not reconciled against old Hub semantics, and no corpus mutation may be derived from old Hub state.
+
+The old Hub cutover state is therefore `PAUSED_LEGACY_RUNTIME_ONLY`, not pending architectural disposition. Frozen r0006 remains a forbidden legacy Hub line.
+
+D0-02D may resume only after the canonical architecture commit itself passes CI, and then only as strictly read-only legacy-runtime safety observation.
+

@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 11,
+  "revision": 12,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "eb001fe5b02a71cd14b3958bd3b2058a06dd0074",
+  "repository_basis_commit": "ea6c1635f6b266e59fe867af2f172fabe0dced25",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -19,8 +19,14 @@
   "architecture": {
     "model": "CORPUS_FIRST",
     "old_hub_first_r2": "PROVENANCE_RESEARCH_ONLY",
-    "old_hub_cutover": "PAUSED_PENDING_ARCHITECTURE_DISPOSITION",
-    "content_authority": "PHYSICAL_CORPUS_PROVIDER",
+    "old_hub_cutover": "PAUSED_LEGACY_RUNTIME_ONLY",
+    "authority_model": "LAYERED_CORPUS_FIRST",
+    "object_authority": "PHYSICAL_CORPUS_OBJECT_EXISTENCE_BYTES_IDENTITY_LOCATION",
+    "operational_state_authority": "EXPLICIT_PROJECT_WORKSPACE_STATE",
+    "lifeos_authority": "CROSS_LIFE_ORCHESTRATION_SEMANTICS_ONLY",
+    "control_semantic_plane": "INDEXES_FINGERPRINTS_RELATIONS_CLASSIFICATIONS_DERIVED_TRANSACTION_RECOVERY_METADATA",
+    "semantic_rule": "SEMANTICS_DO_NOT_OVERRIDE_OBJECT_AND_LOCATION_DOES_NOT_DEFINE_COMPLETE_MEANING",
+    "legacy_hub_authority": "PROVENANCE_AND_TEMPORARY_PRE_CUTOVER_RUNTIME_BOUNDARY_ONLY",
     "chat_is_durable_state": false
   },
   "authority": {
@@ -65,7 +71,7 @@
       "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
       "state": "INSTALLED_RUNTIME_ACCEPTED"
     },
-    "rule": "Fresh read-only VPS reconciliation is mandatory before any production mutation."
+    "rule": "Fresh read-only legacy-runtime VPS reconciliation is mandatory before the r0005-to-r0007 control cutover; legacy Hub content/semantics are never authority for the Corpus-first model."
   },
   "constrained_candidates": [
     {
@@ -97,7 +103,7 @@
       "candidate": "operation-control-r0006-20260921-01",
       "state": "FROZEN_PRODUCT_OLD_ARCHITECTURE_LINE_PAUSED",
       "source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
-      "retry": "FORBIDDEN_UNTIL_ARCHITECTURE_DISPOSITION"
+      "retry": "FORBIDDEN_LEGACY_HUB_LINE"
     },
     {
       "candidate": "operation-control-r0007-20260921-01",
@@ -108,7 +114,7 @@
   ],
   "transaction_disposition": {
     "old_hub_cutover": {
-      "state": "PAUSED_PENDING_ARCHITECTURE_DISPOSITION",
+      "state": "PAUSED_LEGACY_RUNTIME_ONLY",
       "transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
       "mutation_allowed": false
     },
@@ -124,7 +130,7 @@
   },
   "next_objective": {
     "id": "D0-02D_VPS_RECONCILE",
-    "description": "Obtain fresh read-only production evidence before any r0007 bootstrap: first send a new exact-r0005 RUNTIME_SELFTEST through GitHub Issue #65 and verify the terminal PASS/status source binding, then reconcile the production current/control-current, installed r0005 control units, writer state, Hub PREPARED transaction/OLD selector, mutation inhibit and credential identity through a read-only VPS observation path. No production or Drive mutation is allowed during this objective.",
+    "description": "After this canonical Corpus-first architecture commit passes CI, continue D0-02D strictly as read-only legacy-runtime safety observation: verify a fresh exact-r0005 RUNTIME_SELFTEST through Issue #65, then reconcile production current/control-current, installed r0005 control units, writer state, legacy Hub PREPARED transaction/OLD selector, mutation inhibit and credential identity. Do not use legacy Hub as content/semantic/project/LifeOS authority and do not mutate production or Drive during this objective.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

@@ -48,8 +48,24 @@ def _state(basis: str) -> dict:
         "architecture": {
             "model": "CORPUS_FIRST",
             "old_hub_first_r2": "PROVENANCE_RESEARCH_ONLY",
-            "old_hub_cutover": "PAUSED_PENDING_ARCHITECTURE_DISPOSITION",
-            "content_authority": "PHYSICAL_CORPUS_PROVIDER",
+            "old_hub_cutover": "PAUSED_LEGACY_RUNTIME_ONLY",
+            "authority_model": "LAYERED_CORPUS_FIRST",
+            "object_authority": (
+                "PHYSICAL_CORPUS_OBJECT_EXISTENCE_BYTES_IDENTITY_LOCATION"
+            ),
+            "operational_state_authority": "EXPLICIT_PROJECT_WORKSPACE_STATE",
+            "lifeos_authority": "CROSS_LIFE_ORCHESTRATION_SEMANTICS_ONLY",
+            "control_semantic_plane": (
+                "INDEXES_FINGERPRINTS_RELATIONS_CLASSIFICATIONS_DERIVED_"
+                "TRANSACTION_RECOVERY_METADATA"
+            ),
+            "semantic_rule": (
+                "SEMANTICS_DO_NOT_OVERRIDE_OBJECT_AND_LOCATION_DOES_NOT_"
+                "DEFINE_COMPLETE_MEANING"
+            ),
+            "legacy_hub_authority": (
+                "PROVENANCE_AND_TEMPORARY_PRE_CUTOVER_RUNTIME_BOUNDARY_ONLY"
+            ),
             "chat_is_durable_state": False,
         },
         "authority": {
@@ -99,7 +115,7 @@ def _state(basis: str) -> dict:
         ],
         "transaction_disposition": {
             "old_hub_cutover": {
-                "state": "PAUSED_PENDING_ARCHITECTURE_DISPOSITION",
+                "state": "PAUSED_LEGACY_RUNTIME_ONLY",
                 "transaction_id": "transaction",
                 "mutation_allowed": False,
             },
@@ -160,6 +176,18 @@ class DevelopmentStateValidationTests(unittest.TestCase):
     def test_chat_cannot_become_durable_authority(self) -> None:
         value = _state("0" * 40)
         value["architecture"]["chat_is_durable_state"] = True
+        with self.assertRaises(development_state.DevelopmentStateError):
+            development_state.validate_state(value)
+
+    def test_object_authority_cannot_collapse_layered_authority(self) -> None:
+        value = _state("0" * 40)
+        value["architecture"]["authority_model"] = "PHYSICAL_FILES_ONLY"
+        with self.assertRaises(development_state.DevelopmentStateError):
+            development_state.validate_state(value)
+
+    def test_legacy_hub_cannot_become_semantic_authority(self) -> None:
+        value = _state("0" * 40)
+        value["architecture"]["legacy_hub_authority"] = "CANONICAL_CONTENT_MODEL"
         with self.assertRaises(development_state.DevelopmentStateError):
             development_state.validate_state(value)
 

@@ -1,389 +1,377 @@
-# Keelaryn Zero-Based Architecture
+# Keelaryn Zero-Based Architecture — Corpus-first
 
-**Architecture revision:** r2  
-**Status:** accepted implementation baseline  
-**Scope:** new minimal Keelaryn architecture; this document does not extend Manager 4.x requirements.
+Status: **current canonical product architecture**
 
-## 1. Purpose
+This document defines the active zero-based architecture for Keelaryn. Earlier Hub-first r2 material remains available through Git history and legacy product/provenance files, but it is not an active architectural authority.
 
-Keelaryn is a software system for maintaining a durable user knowledge base across AI conversations and AI providers.
+## 1. Fundamental model
 
-The **Keelaryn Hub** is the independent long-lived database of user context. It must remain useful without ChatGPT, without Keelaryn itself, and without Windows. The normal working Hub may live in Google Drive and synchronize to devices through ordinary Drive synchronization. It must remain readable offline with ordinary tools such as Obsidian.
+Keelaryn is **Corpus-first**.
 
-The human user must not be the transport layer for ZIP/RETURN packages between AI chats and the Hub.
+The durable user corpus consists of the real physical objects that already exist in user-controlled storage and providers: files, directories and provider objects such as PDF, DOCX, XLSX, Google Docs/Sheets, JPG, audio, video, executables, archives, encrypted containers and other real artifacts.
 
-## 2. Legacy boundary
+Keelaryn does not require a second complete authoritative content mirror. It manages knowledge about the corpus:
 
-Manager 4.x, its tests, qualification framework, runtime and engineering primitives remain repository provenance and a source of previously validated technical techniques.
+- artifact identity;
+- physical locators and provider identity;
+- fingerprints and content revisions;
+- observations;
+- semantic classifications and relations;
+- validation;
+- transactions and provenance;
+- recovery/reconstruction knowledge;
+- indexes, views, previews and AI context.
 
-They are **not** requirements for the zero-based system. Mechanisms from Manager 4.x return only when a new requirement justifies them.
+Derived extraction, Markdown, summaries, indexes, previews, semantic views and AI_CONTEXT are rebuildable/non-authoritative unless a user separately creates one as an independent durable artifact.
 
-The following are therefore not inherited automatically:
+A PDF remains a PDF, a DOCX remains a DOCX, a JPG remains a JPG. Keelaryn does not make a transformed copy authoritative merely because that copy is easier for software or AI to read.
 
-- AI_CONTEXT;
-- SOURCE archives;
-- DISTRIBUTION archives;
-- UPDATE package flow;
-- Manager self-update machinery;
-- the old Doctor contract;
-- multi-Hub registry and active-instance machinery;
-- global/per-instance inboxes;
-- CANDIDATE / APPROVED / CURRENT ZIP topology;
-- candidate transport;
-- Workspace Checkout/Return;
-- full-Hub rebuilds;
-- GUI requirements;
-- the old release topology.
+Physical organization and semantic organization are independent.
 
-Production Manager 4.x remains independent from this development line until a later, explicitly designed migration.
+## 2. Layered authority model
 
-## 3. Logical Hub structure
+Corpus-first does **not** mean that physical files are the only authority in the system. Authority is layered by the kind of fact being represented.
 
-The minimal logical Hub is:
+### 2.1 Physical corpus object authority
 
-```text
-Keelaryn Hub/
-├── README.md
-├── MASTER.json
-├── INDEX.md
-├── canonical/
-├── work/
-│   ├── projects/
-│   └── reconciliation/
-├── control/
-└── history/
-```
+Physical corpus objects are authoritative for:
 
-### `README.md`
+- object existence;
+- the bytes/content actually stored by the provider;
+- the physical object that identity refers to;
+- the object's current physical locator/provider location.
 
-A short, stable protocol for humans and AI systems.
+Keelaryn may maintain durable identity, revision and locator records about those objects, but those records describe the physical corpus and must reconcile to physical evidence.
 
-### `MASTER.json`
+Path is not artifact identity.
 
-A small Core-owned system state record. At minimum it identifies:
+Content hash is not artifact identity.
 
-- system state;
-- `canonical_read_status`;
-- active change;
-- current stage;
-- last completed change;
-- `canonical_epoch`.
+Provider object ID is not a global Keelaryn identity.
 
-After a fully completed operation it returns to a clean `READY` state. Normal AI roles do not modify `MASTER.json`.
+A rename/move with proven continuity preserves the Artifact. A content modification creates a new revision of the same Artifact. A copy creates a new Artifact even when bytes are identical. Identical hashes do not authorize automatic identity merge, deduplication or deletion.
 
-### `INDEX.md`
+### 2.2 Project/workspace operational-state authority
 
-A router and navigation layer describing what exists, where it lives, and which canonical topic owns each class of truth.
+An explicit project or workspace STATE record remains authoritative for the operational/current state owned by that project or workspace.
 
-Normal navigation is:
+Examples include:
 
-`Root INDEX → Domain INDEX → canonical document`.
-
-INDEX files should not duplicate mutable subject truth unless duplication is necessary for routing.
-
-### `canonical/`
-
-The currently accepted truth. It may contain Markdown, PDF and other durable documents.
-
-### `work/`
-
-All unfinished work. Nothing under `work/` is accepted canonical truth.
-
-### `control/`
-
-Core-owned technical state for an active commit or recovery operation.
-
-### `history/`
-
-Previous states of canonical targets affected by changes, sufficient for rollback and per-change recovery. It is not a full snapshot of the Hub after every operation.
-
-## 4. Canonical truth model
-
-Every mutable fact has one canonical storage location. This does **not** imply one fact per file; canonical documents should be logically coherent and large enough that an AI does not need to open dozens of tiny files for one subject.
-
-A project may discover a global fact without becoming its canonical owner.
-
-Before creating a new canonical topic, the system must use:
-
-1. Router / INDEX navigation;
-2. Hub search.
-
-Parallel truths should be avoided.
-
-## 5. Project workflow
-
-Projects may execute in parallel.
-
-**Workspace** is the universal project initiator and navigator. Subject work occurs in separate Project Chats.
-
-Each project owns a durable `STATE.md`, updated after every substantial decision rather than only at chat boundaries.
-
-At minimum `STATE.md` records:
-
-- goal;
-- current state;
-- working findings;
-- canonical dependencies;
-- open work;
+- current project phase;
+- completed and pending work;
+- decisions owned by the project;
+- project-local working assumptions;
 - next action;
-- expected canonical effects.
+- reconciliation/checkpoint state.
 
-A new chat must be able to continue from `STATE.md` without reading the old chat transcript.
+This operational authority does not replace the physical corpus object. A project STATE can say that a document is currently under review; it cannot redefine the document's bytes, erase its physical existence, or make a nonexistent physical mutation true.
 
-For the MVP, exactly one active writer is allowed for one project's work area at a time.
+Project truth should be referenced, not copied into a competing global canonical record.
 
-## 6. RESULT contract
+### 2.3 LifeOS authority
 
-Project Chats do not modify canonical data.
+LifeOS is a separate permanent master/life-orchestration workspace.
 
-When a project is ready to hand off its findings, it creates `RESULT.md`. At minimum it contains:
+LifeOS is authoritative only for its cross-life orchestration semantics, such as relationships among life domains, priorities, cross-project coordination and master-level operational context that LifeOS itself owns.
 
-- project identity;
-- readiness;
-- findings;
-- evidence;
-- canonical inputs;
-- proposed semantic effects;
-- expected canonical targets;
-- unresolved uncertainties.
+LifeOS does **not** become part of the Keelaryn engine and does not copy or replace project-owned truth. It references project/workspace state where project truth is needed.
 
-`RESULT.md` is a proposal to Reconciliation, not a commit instruction.
+Keelaryn may index, classify, locate and relate LifeOS artifacts like other corpus material, but Keelaryn does not become the owner of LifeOS semantics.
 
-After Reconciliation claims a specific RESULT, that RESULT becomes immutable.
+### 2.4 Keelaryn control/semantic-plane authority
 
-## 7. Reconciliation role
+Keelaryn's control/semantic plane stores compact system knowledge required to manage and understand the corpus, including:
 
-Reconciliation is a persistent role, but not one permanent chat.
+- inventory/indexes;
+- fingerprints;
+- Artifact identities and observations;
+- revision knowledge;
+- current locators;
+- relations;
+- classifications;
+- accepted semantic facts and their provenance;
+- ambiguity;
+- derived state;
+- transaction records;
+- validation/reconciliation state;
+- rollback and recovery metadata;
+- extraction/preview/index metadata;
+- task-specific AI context.
 
-All canonical publications are serialized. Project work may proceed in parallel, but canonical changes are accepted one at a time.
+This plane is not a second content corpus and must not become a mandatory full mirror of user content.
 
-Reconciliation must:
+The control plane can be authoritative for Keelaryn's own transaction/recovery state and accepted metadata, while the underlying physical object remains authoritative for its existence and physical content.
 
-- re-check the RESULT;
-- re-read current canonical inputs;
-- account for parallel changes completed after the project began;
-- use Router + Search;
-- find logical dependencies and conflicts;
-- prepare final replacement/addition/deletion files;
-- perform the semantic post-check after Core publication.
+AI inference does not become an accepted durable semantic fact automatically. Ambiguity is a valid first-class state.
 
-Reconciliation owns its own durable `STATE.md`.
+### 2.5 Semantics versus physical location
 
-## 8. Ready Change
+Semantic classification never overrides the underlying physical object.
 
-Reconciliation prepares one exact change package.
+At the same time, physical location alone does not define the object's complete semantic meaning.
 
-For the MVP, at most one change may be in `READY_FOR_COMMIT` state at a time.
+A file can physically live under one directory while participating in multiple semantic dimensions such as People, Organizations, Areas, Events, Facts or Projects. These dimensions are semantic relations/views, not mandatory physical directories.
 
-The package contains:
+No rule may infer that moving a file between directories automatically changes every semantic fact about that Artifact.
 
-- strict `CHANGE.json`;
-- prepared files;
-- a separate ready marker.
+## 3. Managed corpus physical profile
 
-The ready marker is created **last**. Once the marker exists, Reconciliation must not modify that change.
-
-Core claims the exact identity of the ready change into its own `control/` state. Reconciliation does not write `MASTER.json`.
-
-The exact JSON schema and state-machine vocabulary are defined in the next implementation phase, not by implication from Manager 4.x.
-
-## 9. Keelaryn Core
-
-The working name of the new deterministic program is **Keelaryn Core**. The name may be revised later without changing the architecture.
-
-The first implementation targets a Linux VPS.
-
-Core does not interpret the semantic meaning of Hub content. It is a deterministic safe-publication executor.
-
-The MVP supports three canonical operations:
-
-- `ADD`;
-- `REPLACE`;
-- `DELETE`.
-
-For an accepted ready change, Core performs the following logical sequence:
-
-1. read `MASTER.json`;
-2. recover any unfinished prior operation if present;
-3. validate the ready change;
-4. validate expected old fingerprints;
-5. validate prepared new fingerprints;
-6. save previous state for all affected targets;
-7. verify the saved previous-state snapshots;
-8. transition canonical readability to `UNSAFE` before the first canonical replacement;
-9. apply operations;
-10. after every operation, re-read and verify the resulting target;
-11. wait for Reconciliation semantic post-check;
-12. on PASS, clean active technical state and return to `READY`;
-13. on FAIL, perform mandatory rollback, verify it, clean active technical state and return to `READY`.
-
-Core fails closed on ambiguity.
-
-## 10. Crash and restart invariants
-
-Every critical stage must be durable and idempotent.
-
-After restart, Core does not trust process memory. It derives reality from:
-
-- `MASTER.json`;
-- Core control records;
-- actual canonical files;
-- fingerprints.
-
-For every target, recovery must classify actual state as exactly one of:
-
-- `OLD`;
-- `NEW`;
-- `UNKNOWN`.
-
-`UNKNOWN` blocks automated continuation and requires recovery handling.
-
-Immediately before every destructive `REPLACE` or `DELETE`, Core must revalidate the original target again.
-
-## 11. Rollback invariants
-
-A semantic post-check FAIL in the MVP **always** causes rollback.
-
-Forward repair inside the failed publication is forbidden. A later repair is a new change with a new identity.
-
-Rollback restores the previous state of each target:
-
-- `REPLACE` → old bytes;
-- `DELETE` → old bytes;
-- `ADD` → previous state was `ABSENT`, so the added file is removed.
-
-If the current target unexpectedly differs from the expected NEW state, Core enters `RECOVERY_BLOCKED` rather than overwriting unknown bytes.
-
-## 12. SAFE / UNSAFE canonical reads
-
-Before the first canonical replacement, the old canonical state remains readable and safe.
-
-From the start of canonical mutation until semantic PASS or verified rollback:
-
-`canonical_read_status = UNSAFE`.
-
-Ordinary AI readers must not use canonical data while it is UNSAFE. Reconciliation for the active change is the special reader allowed to inspect the publication for semantic post-check.
-
-### Consistent reader protocol
-
-An ordinary AI reader must:
-
-1. read `MASTER.json`;
-2. require `canonical_read_status = SAFE` and remember `canonical_epoch`;
-3. read the necessary canonical files;
-4. re-read `MASTER.json`;
-5. use the read data only if status is still SAFE and the epoch is unchanged.
-
-After every UNSAFE window, Core increments `canonical_epoch`, including when a commit is rolled back.
-
-## 13. Cleanup invariant
-
-A successful transaction must end in a clean state.
-
-Temporary prepared/control data are removed. History remains. `MASTER.json` is cleared to:
+The initial managed-root profile is:
 
 ```text
-state: READY
-canonical_read_status: SAFE
-active_change: none
-current_stage: none
+<Managed Root>/
+├── 0__Core/
+│   └── __Keelaryn/
+├── 1__Inbox/
+├── 2__Project/
+├── 3__Records/
+├── 8__Library/
+└── 9__Archive/
 ```
 
-Residual active state after a reported success is an error.
+`0__Core/__Keelaryn` is the small Keelaryn control/semantic state plane. It is not a content Hub and not a full copy of the corpus.
 
-## 14. Core wakeup
+"Core" means machinery/control plane, not "important user files."
 
-The MVP uses polling from the Linux VPS over the Hub's master/ready state.
+Areas, People, Organizations, Events, Facts and similar semantic dimensions are not required top-level directories.
 
-No webhook or API-driven wakeup is required for the first version. The wakeup cause is untrusted and semantically irrelevant; on every invocation, Core independently determines the required action from durable Hub state.
+The physical profile is a useful initial convention, not a requirement that arbitrary existing user corpora be destructively normalized before Keelaryn can observe them.
 
-Event-driven Google Drive wakeup is deferred to the roadmap.
+## 4. Legacy Hub boundary
 
-## 15. History and backup boundary
+The old production Hub is **legacy runtime state and provenance only**.
 
-Per-change `history/` required for rollback is part of the MVP.
+Its allowed active role before the r0005 → r0007 control cutover is strictly limited to pre-cutover safety observation of the existing production boundary.
 
-Unchanged large immutable files such as PDFs are not recopied for every change.
+The following legacy facts may be read to prove a safe cutover boundary:
 
-An automatic independent disaster-backup system is not part of the MVP. The owner may continue making independent copies of the whole Hub through separate means.
+- production `current`;
+- `control-current`;
+- installed Operation Control release/unit identity;
+- writer service state;
+- legacy Hub selector;
+- legacy Hub PREPARED transaction identity;
+- mutation-inhibit identity;
+- credential identity/fingerprint where safely observable.
 
-No automatic history retention/deletion policy is implemented in the MVP.
+That observation is a **runtime safety check**, not content authority.
 
-## 16. Logical permissions
+The old Hub has no authority over:
 
-The logical authority model is:
+- physical corpus object existence/content/identity/location;
+- project/workspace operational STATE;
+- LifeOS cross-life orchestration semantics;
+- the new Keelaryn semantic/control model.
 
-- Project AI writes only its own project work area;
-- Reconciliation AI writes reconciliation work, prepared changes and post-check results;
-- Core writes `MASTER.json`, `control/`, `canonical/`, `history/` and cleanup state;
-- the human owner retains physical full access.
+Explicitly forbidden:
 
-The first version may operate through one Google account with protocol-level separation. Separate Drive identities and physical permission separation are a hardening item, not an MVP blocker.
+- importing old Hub `Areas / Projects / Records / Resources` as the new canonical structure;
+- restoring Hub-first architecture;
+- reconciling Google Drive corpus semantics/content against the old Hub as authority;
+- changing Google Drive corpus because the old Hub says it should look different;
+- treating legacy selector/current as the future content model;
+- retaining a permanent new-runtime dependency on legacy Hub simply because that dependency existed before cutover.
 
-## 17. Version discipline
+After a safe r0005 → r0007 cutover, dependency on the legacy Hub must decrease, not become entrenched.
 
-Development commits are identified by commit SHA, branch and CI runs. They are not product releases.
+The old Hub-first r2 line is `PROVENANCE_RESEARCH_ONLY`. Frozen old-architecture candidates are not resumed as a product direction.
 
-Architecture documents use explicit architecture revisions such as `r2`.
+## 5. Legacy Hub safety observation versus authority
 
-Product versions are assigned only to actual distributable milestones. A possible sequence is:
+The distinction is normative:
 
 ```text
-development commits
-→ 0.1.0 first usable preview
-→ development commits
-→ 1.0.0-rc.1 frozen public candidate
-→ 1.0.0 public qualified release
+Fresh read-only legacy Hub/VPS reconcile before control cutover
+    = ALLOWED SAFETY OBSERVATION
+
+Legacy Hub as canonical content/semantic/project/LifeOS authority
+    = FORBIDDEN
 ```
 
-`0.2.0` exists only if a distinct distributed preview milestone is actually needed.
+A successful legacy-runtime reconcile proves only that the control-plane transition can occur safely from the observed predecessor state. It does not validate or adopt legacy Hub semantics into Corpus-first Keelaryn.
 
-The first public `1.0.0` must provide, at minimum:
+## 6. Minimal identity model
 
-- install/deployment documentation;
-- usable Hub bootstrap;
-- Workspace/Project workflow;
-- durable project/reconciliation STATE;
-- RESULT → Reconciliation flow;
-- VPS Core;
-- crash/restart recovery;
-- safe snapshot/publication behavior;
-- rollback on semantic FAIL;
-- clean READY completion;
-- Hub portability;
-- public qualification evidence.
-
-## 18. Implementation sequence
-
-Implementation proceeds in this order:
-
-1. record this Zero-Based Architecture r2 and the durable roadmap in GitHub;
-2. develop on a new zero-based `dev/**` line, separate from unfinished Manager 4.17.13 work;
-3. leave production Manager 4.17.12 unchanged;
-4. define strict JSON schemas and the deterministic state machine;
-5. implement Core against a disposable local filesystem first;
-6. add fault-injection tests covering a crash after each critical step, external modification, invalid hashes, duplicate ready changes, rollback and clean READY;
-7. add the Google Drive backend only after the local filesystem model is proven;
-8. deploy Core on a Linux VPS;
-9. run a disposable end-to-end Project → RESULT → Reconciliation → Core cycle;
-10. pilot against a copy of a limited subset of the real Hub;
-11. design production-Hub migration only after that pilot succeeds.
-
-Production is not modified during these phases.
-
-## 19. Repository transition strategy
-
-The zero-based line preserves existing Manager 4.x source and tests in place as legacy provenance. It does not perform a mass rename or deletion.
-
-New implementation material is added alongside the legacy system:
+Minimum distinct concepts:
 
 ```text
-docs/
-  ZERO_BASED_ARCHITECTURE.md
-  ROADMAP.md
-spec/                 # next phase: schemas and deterministic state-machine contracts
-core/                 # next phase: new implementation
-tests/core/           # next phase: zero-based deterministic/fault-injection tests
+Artifact identity
+Physical locator / provider identity
+Content revision
+Observation
 ```
 
-The existing `manager/`, Manager-specific tests and old release tooling remain untouched until a later cleanup is independently justified. No legacy mechanism is imported into `spec/` or `core/` merely because it already exists.
+An observation records what Keelaryn observed about a physical object at a point in time.
+
+A locator says where/how an Artifact is physically accessible; it is not the Artifact itself.
+
+A revision represents observed content state for an Artifact.
+
+Identity continuity must be evidence-based. If continuity cannot be proven, ambiguity is retained instead of silently merging identities.
+
+## 7. Observation and derived state
+
+Read-only discovery precedes mutation.
+
+Discovery may collect:
+
+- locator;
+- provider object metadata;
+- size;
+- timestamps where meaningful;
+- fingerprints/hashes;
+- MIME/type;
+- extraction capability;
+- safe structural metadata.
+
+Discovery must not normalize, move, rename, delete, deduplicate, merge identities or accept semantic inference merely to make the corpus look cleaner.
+
+Opaque, encrypted or currently unsupported content is still a valid corpus object. Unsupported extraction is not equivalent to nonexistent content.
+
+Derived state must be rebuildable from the corpus plus accepted durable metadata whenever feasible.
+
+## 8. Safe mutations
+
+Any future physical corpus mutation follows:
+
+```text
+capture prestate
+→ validate identity
+→ validate destination
+→ prepare rollback
+→ revalidate at mutation boundary
+→ mutate
+→ verify physical result
+→ commit metadata
+→ retain provenance
+```
+
+Metadata must never claim that a physical mutation completed before the physical result has been verified.
+
+Same-hash objects do not authorize automatic deletion or merge.
+
+No P0 physical normalization, deduplication or destructive migration is required merely to make Keelaryn usable.
+
+## 9. Development Level 0 — autonomous engineering
+
+Before Product P0, D0 establishes autonomous engineering.
+
+A fresh ChatGPT chat must be able to reconstruct exact development state from durable external authority and continue with minimal maintainer involvement.
+
+Authority for development operations:
+
+```text
+GitHub
+    source code
+    branch/HEAD
+    architecture/specifications
+    CI
+    development history
+
+VPS
+    controlled runtime/integration state
+    production-specific state
+
+Google Drive / other corpus providers
+    real corpus
+    provider/corpus-specific evidence
+
+ChatGPT
+    engineer/orchestrator
+    not durable state storage
+```
+
+After interruption:
+
+1. resolve GitHub branch/HEAD live;
+2. read durable development state;
+3. reconcile relevant VPS/provider evidence;
+4. determine what completed durably;
+5. continue only from the first uncompleted step;
+6. never blindly retry a possible durable mutation.
+
+## 10. Product P0
+
+After D0, the minimum useful product path is:
+
+```text
+Physical Corpus
+↓
+read-only discovery
+↓
+inventory
+↓
+Artifact identity
+↓
+current locator
+↓
+basic observation/revision
+↓
+minimal extraction
+↓
+task-specific AI context
+```
+
+P0 may explicitly leave difficult reconstruction, metadata-loss recovery, chaotic-corpus adoption, migrations and advanced multi-provider cases unsupported.
+
+Future requirements must remain architecturally possible, but they do not block a minimal coherent happy path unless required for correctness or data safety.
+
+## 11. Build order
+
+Build bottom-up:
+
+1. minimal coherent happy path;
+2. reliability;
+3. validation;
+4. reconciliation;
+5. safe mutations;
+6. rollback/interruption recovery;
+7. metadata-loss recovery;
+8. reconstruction;
+9. unmanaged/chaotic corpus adoption;
+10. normalization/migrations;
+11. advanced multi-root/provider support.
+
+Do not front-load a maximal ontology or recovery system into P0.
+
+## 12. GitHub-first qualification discipline
+
+Normal development occurs on `dev/**`.
+
+```text
+qualified base
+→ dev/**
+→ remote development + CI
+→ coherent development PASS
+→ candidate freeze
+→ Source/Full Gate
+→ production-specific acceptance
+→ main/release
+```
+
+A green development CI run is not a candidate. A candidate gate PASS is not production qualification. Production-specific mutation requires fresh production-boundary evidence.
+
+Frozen candidate product bytes are immutable. If product bytes change, issue a new candidate/version. Gate/evidence-only changes use a new gate revision rather than silently changing the frozen candidate.
+
+## 13. Current pre-cutover rule
+
+The current production control successor is r0007. Its frozen product direction is Corpus-first.
+
+Before any r0007 production bootstrap:
+
+1. prove the installed r0005 read-only control channel is alive and source-bound;
+2. perform a fresh strictly read-only legacy-runtime reconcile;
+3. require the observed predecessor boundary to match the permitted cutover prestate;
+4. do not inspect legacy Hub content as semantic authority;
+5. do not mutate Google Drive or other corpus content;
+6. only a later separately authorized transaction may perform the control-plane cutover.
+
+The purpose of this reconcile is only to make the runtime transition safe.
+
+## 14. Legacy material
+
+Legacy Manager 4.x, Hub 2.x, old Hub-first architecture documents, legacy `hub/` content and old gate/update tooling remain available as provenance/research material unless a specific reusable mechanism is deliberately requalified.
+
+No legacy mechanism or semantic model becomes part of the new architecture merely because it already exists.
+
+Git history is the durable record of superseded architecture; the current canonical architecture does not need to preserve contradictory Hub-first rules inline.

@@ -165,30 +165,44 @@ def validate_state(value: Any) -> dict[str, Any]:
             "model",
             "old_hub_first_r2",
             "old_hub_cutover",
-            "content_authority",
+            "authority_model",
+            "object_authority",
+            "operational_state_authority",
+            "lifeos_authority",
+            "control_semantic_plane",
+            "semantic_rule",
+            "legacy_hub_authority",
             "chat_is_durable_state",
         },
         "DEVELOPMENT_STATE.architecture",
     )
-    if architecture["model"] != "CORPUS_FIRST":
-        raise DevelopmentStateError("DEVELOPMENT_STATE.architecture.model: invalid")
-    if architecture["old_hub_first_r2"] != "PROVENANCE_RESEARCH_ONLY":
+    expected_architecture = {
+        "model": "CORPUS_FIRST",
+        "old_hub_first_r2": "PROVENANCE_RESEARCH_ONLY",
+        "old_hub_cutover": "PAUSED_LEGACY_RUNTIME_ONLY",
+        "authority_model": "LAYERED_CORPUS_FIRST",
+        "object_authority": (
+            "PHYSICAL_CORPUS_OBJECT_EXISTENCE_BYTES_IDENTITY_LOCATION"
+        ),
+        "operational_state_authority": "EXPLICIT_PROJECT_WORKSPACE_STATE",
+        "lifeos_authority": "CROSS_LIFE_ORCHESTRATION_SEMANTICS_ONLY",
+        "control_semantic_plane": (
+            "INDEXES_FINGERPRINTS_RELATIONS_CLASSIFICATIONS_DERIVED_"
+            "TRANSACTION_RECOVERY_METADATA"
+        ),
+        "semantic_rule": (
+            "SEMANTICS_DO_NOT_OVERRIDE_OBJECT_AND_LOCATION_DOES_NOT_"
+            "DEFINE_COMPLETE_MEANING"
+        ),
+        "legacy_hub_authority": (
+            "PROVENANCE_AND_TEMPORARY_PRE_CUTOVER_RUNTIME_BOUNDARY_ONLY"
+        ),
+        "chat_is_durable_state": False,
+    }
+    if architecture != expected_architecture:
         raise DevelopmentStateError(
-            "DEVELOPMENT_STATE.architecture.old_hub_first_r2: invalid"
+            "DEVELOPMENT_STATE.architecture: invalid layered Corpus-first boundary"
         )
-    if architecture["old_hub_cutover"] != "PAUSED_PENDING_ARCHITECTURE_DISPOSITION":
-        raise DevelopmentStateError(
-            "DEVELOPMENT_STATE.architecture.old_hub_cutover: invalid"
-        )
-    if architecture["content_authority"] != "PHYSICAL_CORPUS_PROVIDER":
-        raise DevelopmentStateError(
-            "DEVELOPMENT_STATE.architecture.content_authority: invalid"
-        )
-    if _bool(
-        architecture["chat_is_durable_state"],
-        "DEVELOPMENT_STATE.architecture.chat_is_durable_state",
-    ):
-        raise DevelopmentStateError("DEVELOPMENT_STATE: chat cannot be durable state")
 
     authority = _exact_keys(
         top["authority"],
@@ -291,6 +305,7 @@ def validate_state(value: Any) -> dict[str, Any]:
             "FORBIDDEN",
             "NOT_A_RETRY_TARGET",
             "FORBIDDEN_UNTIL_ARCHITECTURE_DISPOSITION",
+            "FORBIDDEN_LEGACY_HUB_LINE",
         }:
             raise DevelopmentStateError(f"{label}.retry: invalid")
         if "source_commit" in item:
@@ -306,7 +321,7 @@ def validate_state(value: Any) -> dict[str, Any]:
         {"state", "transaction_id", "mutation_allowed"},
         "DEVELOPMENT_STATE.transaction_disposition.old_hub_cutover",
     )
-    if old_hub["state"] != "PAUSED_PENDING_ARCHITECTURE_DISPOSITION":
+    if old_hub["state"] != "PAUSED_LEGACY_RUNTIME_ONLY":
         raise DevelopmentStateError(
             "DEVELOPMENT_STATE.transaction_disposition.old_hub_cutover.state: invalid"
         )
