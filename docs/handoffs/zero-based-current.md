@@ -584,3 +584,30 @@ The successor commit containing this section:
 
 Production/VPS/Hub/Drive remain unchanged. Reconcile authoritative branch HEAD and CI before any later write.
 
+### 2026-09-21 r0006 candidate freeze
+
+Development-coherent source before issuance:
+
+- source commit: `b371a9b9f28fe668cc8073019a3d5f352f9d9bf3`
+- source tree: `1e3a80f76283fb0800bb6e9d09202f6ab6755c5b`
+- deterministic payload SHA-256: `0d2201e94a75f8622b40118d93b9eee9064ebe6650d3140e73997aed92c8c3cd`
+- payload size: `393732`
+- file count: `199`
+- Core run `35592732039`: SUCCESS, 672 tests PASS
+- Hub rehearsal artifact `10635575175`, ZIP SHA-256 `df8a4089ef87c1c65fbe4a1ec3655d51ead98f4d76bcf63fd82b55c839bfcbe7`
+- VPS payload artifact `10635425517`, ZIP SHA-256 `73ee1e20e5d29554c9f6746538ab1cf2a1244434929c8c0b5d8c9ee3d037d628`
+
+The commit containing this section **issues and freezes** `operation-control-r0006-20260921-01`. Candidate product bytes are the exact earlier source commit above and are immutable from this point. This issuance commit contains only qualification/provenance tooling; changing those files does not change frozen r0006 product bytes.
+
+New production driver: `tools/operation_control_r0006_vps.py`.
+
+- `reconcile`: read-only exact production/r0005/r0072 boundary reconciliation.
+- `qualify`: read-only production qualification; rebuilds exact frozen source/payload and invokes frozen engine boundary verification without Drive mutation.
+- `upgrade`: re-runs qualification first, then freshly fetches the same frozen source and invokes its exact transactional successor engine. It is the intended single short manual r0005 -> r0006 transition command after gate/production acceptance.
+- driver pins PREPARED transaction identity/SHA, OLD/NEW selector identity hashes and all critical r0072 authority/credential hashes.
+- raw Drive IDs are never emitted in sanitized driver results.
+
+Initial candidate gate revision: `operation-control-gate-r0009`, workflow `.github/workflows/operation-control-r0006-gate-r0009.yml`.
+
+No production/VPS/Hub/Drive mutation was performed by candidate issuance. Next: read the automatic r0009 gate result. Do not alter frozen product bytes; if product bytes must change, issue r0007. If only gate/evidence must change, issue a new gate revision for the same r0006 candidate.
+
