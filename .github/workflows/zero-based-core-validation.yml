@@ -81,15 +81,28 @@ jobs:
           trap 'sudo rm -rf "$tmp"' EXIT
           sudo chmod 0755 "$tmp"
 
-          script="$GITHUB_WORKSPACE/tests/live/operation_relay_cross_user.py"
+          stage="$tmp/stage"
+          sudo install -d -m 0755 "$stage"
+          sudo cp -a "$GITHUB_WORKSPACE/core" "$stage/core"
+          sudo cp             "$GITHUB_WORKSPACE/tests/live/operation_relay_cross_user.py"             "$stage/operation_relay_cross_user.py"
 
-          sudo -u "$transport_user"             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/core"             /usr/bin/python3 -B "$script"             transport-deliver             --root "$tmp/transport"             --source-commit "$GITHUB_SHA"
+          sudo find "$stage/core" -type d -exec chmod 0755 {} +
+          sudo find "$stage/core" -type f -exec chmod 0644 {} +
+          sudo chmod 0644 "$stage/operation_relay_cross_user.py"
+
+          sudo diff -qr "$GITHUB_WORKSPACE/core" "$stage/core"
+          sudo cmp             "$GITHUB_WORKSPACE/tests/live/operation_relay_cross_user.py"             "$stage/operation_relay_cross_user.py"
+
+          script="$stage/operation_relay_cross_user.py"
+          staged_pythonpath="$stage/core"
+
+          sudo -u "$transport_user"             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$staged_pythonpath"             /usr/bin/python3 -B "$script"             transport-deliver             --root "$tmp/transport"             --source-commit "$GITHUB_SHA"
 
           sudo install -d -m 0700 -o root -g root             "$tmp/operations"             "$tmp/control"
 
-          sudo setpriv             --reuid=0             --regid="$shared_gid"             --clear-groups             --bounding-set=-all             --inh-caps=-all             --ambient-caps=-all             --no-new-privs             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/core"             /usr/bin/python3 -B "$script"             agent-process             --transport-root "$tmp/transport"             --operation-root "$tmp/operations"             --control-root "$tmp/control"             --source-commit "$GITHUB_SHA"             --expected-gid "$shared_gid"
+          sudo setpriv             --reuid=0             --regid="$shared_gid"             --clear-groups             --bounding-set=-all             --inh-caps=-all             --ambient-caps=-all             --no-new-privs             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$staged_pythonpath"             /usr/bin/python3 -B "$script"             agent-process             --transport-root "$tmp/transport"             --operation-root "$tmp/operations"             --control-root "$tmp/control"             --source-commit "$GITHUB_SHA"             --expected-gid "$shared_gid"
 
-          sudo -u "$transport_user"             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/core"             /usr/bin/python3 -B "$script"             transport-publish             --root "$tmp/transport"             --source-commit "$GITHUB_SHA"
+          sudo -u "$transport_user"             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$staged_pythonpath"             /usr/bin/python3 -B "$script"             transport-publish             --root "$tmp/transport"             --source-commit "$GITHUB_SHA"
 
       - name: Smoke local CLI bootstrap and status
         run: |
