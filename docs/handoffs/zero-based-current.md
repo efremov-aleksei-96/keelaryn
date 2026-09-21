@@ -623,3 +623,19 @@ The commit containing this section issues gate revision `operation-control-gate-
 
 Next: read automatic r0010 gate result. If r0010 fails, classify before any change; do not alter frozen r0006 product bytes unless a genuine product defect is proven.
 
+### 2026-09-21 r0006 gate r0011 production-driver filesystem contract
+
+Pre-write authority: `23c8b12dd781db0d6afda73f9ce416bfbf10855b`.
+
+r0010 run `35593775552` completed SUCCESS. Evidence artifact `10635907150` ZIP SHA-256 is `8abd4a4e04e5acc48d3516f609c1a1b6e444037bb718213e34185ed8766d787a`. r0010 proved the exact frozen r0006 product bytes, focused tests, relay DAC, deterministic rebuild, materialization and target-host validation.
+
+A subsequent production-readiness review found a **qualification-driver-only** filesystem contract defect: the candidate-specific r0006 driver used the private-output mode-0600 validator for `qualification-input/pack/PACK_MANIFEST.json` and `qualification-input/pack/authority/MIGRATION_SOURCE.json`. Those two files are immutable pack inputs, not private credential/authority outputs; the frozen product engine itself correctly verifies pack semantics/content without requiring mode 0600.
+
+The commit containing this section issues gate revision `operation-control-gate-r0011` only. Frozen r0006 product source remains exactly `b371a9b9f28fe668cc8073019a3d5f352f9d9bf3`. Driver semantics are now:
+
+- private freeze/target/qualification/credential files: root-owned regular exact mode 0600;
+- immutable pack manifest/source manifest: root-owned regular non-symlink, not group/world writable, plus exact pinned SHA/pack verification;
+- symlink or group/world-writable pack inputs fail closed.
+
+r0011 adds an explicit gate regression for this distinction and reruns the complete frozen r0006 gate. No production/VPS/Hub/Drive mutation occurred. Do not run production `qualify` until r0011 is PASS.
+

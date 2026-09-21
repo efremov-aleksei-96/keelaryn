@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-GATE_REVISION = "operation-control-gate-r0009"
+GATE_REVISION = "operation-control-gate-r0011"
 CANDIDATE = "operation-control-r0006-20260921-01"
 REPOSITORY = "https://github.com/efremov-aleksei-96/keelaryn.git"
 
@@ -125,6 +125,23 @@ def _private_file(path: Path, label: str, mode: int = 0o600) -> bytes:
         info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != mode
     ):
         raise GateError(f"{label} owner/mode mismatch")
+    return path.read_bytes()
+
+
+def _pack_file(path: Path, label: str) -> bytes:
+    try:
+        info = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise GateError(f"{label} cannot be inspected") from exc
+    if path.is_symlink() or not stat.S_ISREG(info.st_mode):
+        raise GateError(f"{label} must be one regular file")
+    if os.name == "posix":
+        if info.st_uid != os.geteuid():
+            raise GateError(f"{label} owner mismatch")
+        if stat.S_IMODE(info.st_mode) & 0o022:
+            raise GateError(
+                f"{label} must not be group/world writable"
+            )
     return path.read_bytes()
 
 
@@ -362,7 +379,7 @@ def _migration_anchor() -> dict[str, Any]:
     if root.is_symlink() or not root.is_dir():
         raise GateError("r0072 migration candidate root missing/not real")
 
-    paths = {
+    private_paths = {
         "freeze_receipt_sha256": (
             root / "migration-candidate-freeze.v1.json",
             MIGRATION_FREEZE_SHA256,
@@ -379,8 +396,14 @@ def _migration_anchor() -> dict[str, Any]:
             root / "qualification-production-drive.env",
             MIGRATION_CREDENTIAL_SHA256,
         ),
+    }
+    pack_paths = {
         "source_manifest_sha256": (
-            root / "qualification-input" / "pack" / "authority" / "MIGRATION_SOURCE.json",
+            root
+            / "qualification-input"
+            / "pack"
+            / "authority"
+            / "MIGRATION_SOURCE.json",
             MIGRATION_SOURCE_MANIFEST_SHA256,
         ),
     }
@@ -389,14 +412,21 @@ def _migration_anchor() -> dict[str, Any]:
         "pack_sha256": MIGRATION_PACK_SHA256,
         "migration_source_identity_sha256": MIGRATION_SOURCE_IDENTITY_SHA256,
     }
-    for key, (path, expected) in paths.items():
+    for key, (path, expected) in private_paths.items():
         raw = _private_file(path, key)
         digest = _sha(raw)
         if digest != expected:
             raise GateError(f"r0072 authority hash mismatch: {key}")
         observed[key] = digest
 
-    pack_manifest = _private_file(
+    for key, (path, expected) in pack_paths.items():
+        raw = _pack_file(path, key)
+        digest = _sha(raw)
+        if digest != expected:
+            raise GateError(f"r0072 pack input hash mismatch: {key}")
+        observed[key] = digest
+
+    pack_manifest = _pack_file(
         root / "qualification-input" / "pack" / "PACK_MANIFEST.json",
         "r0072 pack manifest",
     )

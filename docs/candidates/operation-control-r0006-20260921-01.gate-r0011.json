@@ -1,0 +1,17 @@
+{
+  "schema": "keelaryn.operation-control-gate-framework.v1",
+  "gate_revision": "operation-control-gate-r0011",
+  "candidate": "operation-control-r0006-20260921-01",
+  "frozen_source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+  "qualification_driver": "tools/operation_control_r0006_vps.py",
+  "workflow": ".github/workflows/operation-control-r0006-gate-r0011.yml",
+  "production_qualified": false,
+  "purpose": "qualify the immutable r0006 product with a production driver whose filesystem contract distinguishes private authorities from immutable migration-pack inputs",
+  "previous_gate_revision": "operation-control-gate-r0010",
+  "revision_reason": "qualification-driver-only correction: PACK_MANIFEST.json and authority/MIGRATION_SOURCE.json are immutable pack inputs, not private output authorities; accept owner-controlled non-group/world-writable regular files while retaining exact SHA validation",
+  "frozen_product_bytes_unchanged": true,
+  "r0010_run_id": 35593775552,
+  "r0010_conclusion": "success",
+  "r0010_artifact_id": 10635907150,
+  "r0010_artifact_zip_sha256": "8abd4a4e04e5acc48d3516f609c1a1b6e444037bb718213e34185ed8766d787a"
+}
