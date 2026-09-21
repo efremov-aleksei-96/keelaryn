@@ -258,3 +258,9 @@ The ordinary Core workflow on freeze commit `b37e123988e66abb29a7476892af36415e1
 
 This corrective checkpoint removes only that schema-incompatible field from `DEVELOPMENT_STATE.json`, records r0007 as `FROZEN_DEDICATED_GATE_PASS`, and leaves frozen source, candidate receipt, gate workflow, payload bytes and production state unchanged.
 
+### D0 checkpoint objective-ID grammar correction
+
+Ordinary Core run `35644041061` stopped before product tests because durable-state schema v1 accepts objective IDs matching `^D[0-9]+-[0-9]+[A-Z]?(?:_[A-Z0-9_-]+)?$`; `D0-02C2` was therefore invalid.
+
+This checkpoint changes only the objective identifier to `D0-02C_TRANSITION`, increments the durable state revision, and preserves the same transition-qualification meaning. Frozen r0007 candidate bytes, receipt, dedicated gate, payload identity and production state are unchanged.
+

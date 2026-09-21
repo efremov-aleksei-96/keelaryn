@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 8,
+  "revision": 9,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "b37e123988e66abb29a7476892af36415e184e8d",
+  "repository_basis_commit": "cc0c30f5d3f7f9cfa28a8676b63626146b7b25c8",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -123,7 +123,7 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02C2",
+    "id": "D0-02C_TRANSITION",
     "description": "Qualify the frozen r0005-to-r0007 control-plane transition on a disposable Linux boundary: exact success, exact rollback on injected failure, PREPARED/OLD_EXACT interruption recovery, and PREPARED/NEW_EXACT interruption recovery. Production mutation remains forbidden; old Hub mutations remain forbidden.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
