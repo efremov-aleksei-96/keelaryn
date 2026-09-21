@@ -264,3 +264,29 @@ Ordinary Core run `35644041061` stopped before product tests because durable-sta
 
 This checkpoint changes only the objective identifier to `D0-02C_TRANSITION`, increments the durable state revision, and preserves the same transition-qualification meaning. Frozen r0007 candidate bytes, receipt, dedicated gate, payload identity and production state are unchanged.
 
+## D0-02C transition gate r0001
+
+Pre-write development authority: `e0697a1119326358e7b09b0c4957615a1c51c395`; ordinary Core run `35644590430` SUCCESS with 693/693 deterministic tests.
+
+Qualification-only files added:
+- `tests/ci/operation_control_r0007_transition.py`
+- `.github/workflows/operation-control-r0007-transition-gate-r0001.yml`
+
+The harness is deliberately excluded from the frozen VPS payload. It operates only on a disposable GitHub-hosted Linux filesystem and loads the updater from the exact materialized r0007 release.
+
+The gate independently rebuilds twice and byte-verifies both frozen payload authorities:
+- r0005 source `08f2e211f53764590f6ff0f05f86b2de62c14418`, payload `6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7`;
+- r0007 source `833123b6a7ad2c61087ee8a86700bb9ad8a46298`, payload `c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9`.
+
+It then materializes both releases into one disposable release root and proves six transition states against the exact frozen r0007 updater:
+1. exact r0005 → r0007 success / COMPLETED;
+2. injected successor service failure → exact r0005 rollback / ROLLED_BACK;
+3. PREPARED + OLD_EXACT process interruption → resume to COMPLETED;
+4. PREPARED + NEW_EXACT process interruption → terminalize without unit/control-current republication;
+5. PREPARED + foreign PARTIAL boundary → fail closed without overwriting foreign bytes or writing terminal authority;
+6. already-COMPLETED successor with stopped services → service recovery without republishing control bytes or terminal authority.
+
+Every scenario pins a canonical production-current symlink, credential bytes, Hub selector sentinel and Drive-authority sentinel and requires all four to remain unchanged.
+
+This gate does not access the real VPS, real Hub selector, real credential or Google Drive and cannot claim production qualification.
+

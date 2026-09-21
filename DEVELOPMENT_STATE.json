@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 9,
+  "revision": 10,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "cc0c30f5d3f7f9cfa28a8676b63626146b7b25c8",
+  "repository_basis_commit": "e0697a1119326358e7b09b0c4957615a1c51c395",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -47,11 +47,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02B-zero-based-core-validation",
-    "run_id": 35638117240,
+    "scope": "D0-02C-checkpoint-corrected-zero-based-core-validation",
+    "run_id": 35644590430,
     "conclusion": "PASS",
-    "relevance": "FROZEN_R0007_SOURCE_BASELINE",
-    "note": "Exact frozen source 833123b6a7ad2c61087ee8a86700bb9ad8a46298 passed 693/693 Core tests, deterministic payload/materialization and D0 control validation. Applicable Windows surface remained unchanged from successful run 35637755870 on 9df0de0c99db854b82aa1d7592036a1d8a7ef8a8."
+    "relevance": "CURRENT_DEVELOPMENT_BASELINE",
+    "note": "Exact development HEAD e0697a1119326358e7b09b0c4957615a1c51c395 passed 693/693 deterministic Core tests and the full existing zero-based validation surface. Frozen r0007 product/runtime bytes remain at 833123b6a7ad2c61087ee8a86700bb9ad8a46298."
   },
   "production_boundary": {
     "freshness": "RECORDED_NOT_LIVE_VERIFIED_IN_D0",
@@ -124,7 +124,7 @@
   },
   "next_objective": {
     "id": "D0-02C_TRANSITION",
-    "description": "Qualify the frozen r0005-to-r0007 control-plane transition on a disposable Linux boundary: exact success, exact rollback on injected failure, PREPARED/OLD_EXACT interruption recovery, and PREPARED/NEW_EXACT interruption recovery. Production mutation remains forbidden; old Hub mutations remain forbidden.",
+    "description": "Resolve operation-control-r0007 transition gate r0001. It must prove exact frozen r0005-to-r0007 success, rollback, PREPARED/OLD_EXACT recovery, PREPARED/NEW_EXACT recovery without republication, fail-closed foreign partial state, and idempotent COMPLETED service recovery. Production/VPS/Drive/Hub mutations remain forbidden.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
