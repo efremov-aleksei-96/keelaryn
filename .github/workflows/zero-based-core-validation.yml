@@ -96,6 +96,11 @@ jobs:
           script="$stage/operation_relay_cross_user.py"
           staged_pythonpath="$stage/core"
 
+          sudo install -d -m 0750 -o "$transport_user" -g "$group_name" "$tmp/transport"
+          test "$(stat -c '%u' "$tmp/transport")" = "$transport_uid"
+          test "$(stat -c '%g' "$tmp/transport")" = "$shared_gid"
+          test "$(stat -c '%a' "$tmp/transport")" = "750"
+
           sudo -u "$transport_user"             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$staged_pythonpath"             /usr/bin/python3 -B "$script"             transport-deliver             --root "$tmp/transport"             --source-commit "$GITHUB_SHA"
 
           sudo install -d -m 0700 -o root -g root             "$tmp/operations"             "$tmp/control"
