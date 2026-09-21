@@ -202,3 +202,14 @@ No VPS, production Hub, writer, credential or Drive mutation is performed by thi
 
 First require exact current-HEAD Core CI PASS. Then create one immutable D0 Operation Control candidate bound to the current source/payload, prove r0005 → candidate update and rollback/recovery in disposable qualification, and prepare one production bootstrap transaction. The old Hub cutover remains paused and cannot be authorized by the D0 candidate.
 
+### D0-02B CI correction
+
+Initial D0-02B HEAD `9df0de0c99db854b82aa1d7592036a1d8a7ef8a8` preserved the intended product/control bytes but Core run `35637755891` failed after 693 tests with exactly two fixture defects in `test_production_snapshot.py`:
+
+1. selector hashes were calculated from a literal backslash+n instead of the canonical selector newline;
+2. the deliberate inhibit-tamper fixture rewrote bytes with the test-local compact serializer rather than the authoritative `mutation_inhibit_bytes()` contract.
+
+The same HEAD's Windows run `35637755870` completed SUCCESS.
+
+This corrective successor changes only those two test fixtures plus this durable checkpoint. Production/control implementation bytes are intentionally unchanged. The failed Core evidence remains preserved and must not be rerun/reinterpreted as PASS.
+

@@ -141,10 +141,10 @@ class ProductionSnapshotTests(unittest.TestCase):
                 "source_commit": self.PROD,
                 "tool_sha256": "6" * 64,
                 "old_selector_sha256": hashlib.sha256(
-                    f"KEELARYN_HUB_ROOT_ID={old_id}\\n".encode("ascii")
+                    f"KEELARYN_HUB_ROOT_ID={old_id}\n".encode("ascii")
                 ).hexdigest(),
                 "new_selector_sha256": hashlib.sha256(
-                    f"KEELARYN_HUB_ROOT_ID={new_id}\\n".encode("ascii")
+                    f"KEELARYN_HUB_ROOT_ID={new_id}\n".encode("ascii")
                 ).hexdigest(),
             }
         )
@@ -268,7 +268,7 @@ class ProductionSnapshotTests(unittest.TestCase):
             inhibit_path = layout.mutation_gate_root / "INHIBIT.json"
             value = json.loads(inhibit_path.read_text(encoding="utf-8"))
             value["tool_sha256"] = "f" * 64
-            inhibit_path.write_bytes(compact(value))
+            inhibit_path.write_bytes(mutation_inhibit_bytes(value))
             os.chmod(inhibit_path, 0o640)
 
             observed = collect_production_snapshot(
