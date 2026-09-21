@@ -732,3 +732,21 @@ No frozen r0006 product byte or r0013 qualification-driver byte is changed by th
 
 Production remains exact r0005/PREPARED with writer inactive; updater never started in the earlier failed r0012 upgrade. The r0006 release still contains only the separately recorded diagnostic-induced pycache residue. Do not run production repair/requalification until r0014 PASS.
 
+### 2026-09-21 r0006 gate r0015 after reconcile result-shape failure
+
+Authoritative pre-write HEAD: `87ea56d9eb7f3eedbaac3d809dc14bc8ece06479`.
+
+r0014 gate run `35598524055` completed SUCCESS and preserved exact frozen r0006 product identity. The subsequent production read-only `reconcile` completed its boundary checks but failed while constructing its JSON result with `NameError: drive_source is not defined`. `qualify`, `repair-release` and `upgrade` did not start; no production/Hub/Drive mutation occurred.
+
+Classification: **PRODUCTION_QUALIFICATION_DRIVER**. The r0013 driver patch accidentally placed `drive_source_boundary` in the `reconcile` result even though the live Drive source probe is intentionally performed only by `qualify`. Conversely, `qualify` computed `drive_source` but omitted it from returned qualification evidence.
+
+The commit containing this section issues gate revision `operation-control-gate-r0015` only; frozen r0006 product source remains `b371a9b9f28fe668cc8073019a3d5f352f9d9bf3`.
+
+r0015 driver contract:
+
+- `reconcile`: production/r0005/r0072 local boundary only; no live Drive source probe and no `drive_source_boundary` field;
+- `qualify`: performs the Computers-namespace live source probe and must return `drive_source_boundary`;
+- the gate now executes both `reconcile()` and `qualify()` with deterministic mocked external boundaries and asserts their complete result-shape contract, in addition to all prior r0014 coverage.
+
+Production remains r0005/PREPARED, writer inactive, updater absent. The diagnostic pycache residue in the materialized r0006 release is unchanged and still must be repaired only after r0015 gate PASS plus fresh production read-only qualification PASS.
+

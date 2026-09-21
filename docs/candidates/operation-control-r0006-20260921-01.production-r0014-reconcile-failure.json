@@ -1,0 +1,20 @@
+{
+  "schema": "keelaryn.operation-control-production-qualification-failure.v1",
+  "candidate": "operation-control-r0006-20260921-01",
+  "gate_revision": "operation-control-gate-r0014",
+  "driver_source_commit": "87ea56d9eb7f3eedbaac3d809dc14bc8ece06479",
+  "frozen_product_source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+  "phase": "RECONCILE_RESULT_SERIALIZATION",
+  "qualify_started": false,
+  "repair_started": false,
+  "upgrade_started": false,
+  "persistent_mutations_performed": false,
+  "hub_selector_mutated": false,
+  "drive_mutations_performed": false,
+  "error": "NameError: name 'drive_source' is not defined",
+  "classification": "PRODUCTION_QUALIFICATION_DRIVER",
+  "root_cause": "r0013 driver patch inserted drive_source_boundary into reconcile result although drive_source exists only in qualify; qualify computed the live Drive source probe but omitted it from its result evidence",
+  "gate_coverage_gap": "r0014 covered adapter and repair helpers but did not execute reconcile/qualify result construction",
+  "product_bytes_implicated": false,
+  "successor_gate_revision": "operation-control-gate-r0015"
+}
