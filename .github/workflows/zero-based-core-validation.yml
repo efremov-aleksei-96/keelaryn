@@ -53,6 +53,44 @@ jobs:
       - name: Run deterministic Core tests
         run: python3 -m unittest discover -s tests/core -p 'test_*.py' -v
 
+      - name: Prove cross-user operation relay DAC
+        run: |
+          set -euo pipefail
+
+          group_name='keelaryn-ci'
+          transport_user='keelaryn-xport'
+
+          if getent group "$group_name" >/dev/null; then
+            echo "Disposable shared group unexpectedly exists." >&2
+            exit 1
+          fi
+          if getent passwd "$transport_user" >/dev/null; then
+            echo "Disposable transport user unexpectedly exists." >&2
+            exit 1
+          fi
+
+          sudo groupadd --system "$group_name"
+          sudo useradd             --system             --no-create-home             --gid "$group_name"             --shell /usr/sbin/nologin             "$transport_user"
+
+          transport_uid="$(id -u "$transport_user")"
+          shared_gid="$(getent group "$group_name" | cut -d: -f3)"
+          test "$transport_uid" -ne 0
+          test -n "$shared_gid"
+
+          tmp="$(sudo mktemp -d /tmp/keelaryn-operation-relay.XXXXXX)"
+          trap 'sudo rm -rf "$tmp"' EXIT
+          sudo chmod 0755 "$tmp"
+
+          script="$GITHUB_WORKSPACE/tests/live/operation_relay_cross_user.py"
+
+          sudo -u "$transport_user"             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/core"             /usr/bin/python3 -B "$script"             transport-deliver             --root "$tmp/transport"             --source-commit "$GITHUB_SHA"
+
+          sudo install -d -m 0700 -o root -g root             "$tmp/operations"             "$tmp/control"
+
+          sudo setpriv             --reuid=0             --regid="$shared_gid"             --clear-groups             --bounding-set=-all             --inh-caps=-all             --ambient-caps=-all             --no-new-privs             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/core"             /usr/bin/python3 -B "$script"             agent-process             --transport-root "$tmp/transport"             --operation-root "$tmp/operations"             --control-root "$tmp/control"             --source-commit "$GITHUB_SHA"             --expected-gid "$shared_gid"
+
+          sudo -u "$transport_user"             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/core"             /usr/bin/python3 -B "$script"             transport-publish             --root "$tmp/transport"             --source-commit "$GITHUB_SHA"
+
       - name: Smoke local CLI bootstrap and status
         run: |
           tmp="$(mktemp -d)"
