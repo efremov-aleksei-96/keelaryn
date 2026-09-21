@@ -1,0 +1,387 @@
+name: Operation control r0006 gate r0013
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'tools/operation_control_r0006_vps.py'
+      - '.github/workflows/operation-control-r0006-gate-r0013.yml'
+      - 'docs/candidates/operation-control-r0006-20260921-01.json'
+      - 'docs/candidates/operation-control-r0006-20260921-01.gate-r0013.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operation-control-r0006-gate-r0013-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: SelfTest r0006 qualification driver
+        run: |
+          set -euo pipefail
+          python3 -B tools/operation_control_r0006_vps.py selftest > "$RUNNER_TEMP/selftest.json"
+          python3 -m py_compile tools/operation_control_r0006_vps.py
+
+      - name: Prove real r0072 migration-pack qualification layout
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import importlib.util
+          import os
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          path = Path("tools/operation_control_r0006_vps.py")
+          spec = importlib.util.spec_from_file_location("r0006_gate_driver", path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          sys.modules[spec.name] = module
+          spec.loader.exec_module(module)
+
+          with tempfile.TemporaryDirectory() as td:
+              base = Path(td)
+              migration_root = base / "migration"
+              candidate = migration_root / module.MIGRATION_CANDIDATE
+              pack = candidate / "qualification-input" / "pack"
+              authority = pack / "authority"
+              authority.mkdir(parents=True)
+
+              private = {
+                  "migration-candidate-freeze.v1.json": b'{"freeze":"exact"}\n',
+                  "production-target-authority.v1.json": b'{"target":"exact"}\n',
+                  "production-target-qualification.v1.json": b'{"qualification":"exact"}\n',
+                  "qualification-production-drive.env": b'KEELARYN_GOOGLE_CLIENT_ID=x\n',
+              }
+              for name, raw in private.items():
+                  target = candidate / name
+                  target.write_bytes(raw)
+                  os.chmod(target, 0o600)
+
+              source_raw = b'{"schema":"keelaryn.migration-source.v1"}\n'
+              source = authority / "MIGRATION_SOURCE.json"
+              source.write_bytes(source_raw)
+              os.chmod(source, 0o644)
+
+              pack_raw = b'{"schema":"keelaryn.migration-pack.v1"}\n'
+              manifest = pack / "MIGRATION_PACK.json"
+              manifest.write_bytes(pack_raw)
+              os.chmod(manifest, 0o644)
+
+              digest = lambda raw: hashlib.sha256(raw).hexdigest()
+              module.MIGRATION_ROOT = migration_root
+              module.MIGRATION_FREEZE_SHA256 = digest(
+                  private["migration-candidate-freeze.v1.json"]
+              )
+              module.MIGRATION_TARGET_AUTHORITY_SHA256 = digest(
+                  private["production-target-authority.v1.json"]
+              )
+              module.MIGRATION_QUALIFICATION_SHA256 = digest(
+                  private["production-target-qualification.v1.json"]
+              )
+              module.MIGRATION_CREDENTIAL_SHA256 = digest(
+                  private["qualification-production-drive.env"]
+              )
+              module.MIGRATION_SOURCE_MANIFEST_SHA256 = digest(source_raw)
+              module.MIGRATION_PACK_SHA256 = digest(pack_raw)
+              module.MIGRATION_SOURCE_IDENTITY_SHA256 = "4" * 64
+
+              observed = module._migration_anchor()
+              assert observed["pack_sha256"] == digest(pack_raw)
+              assert observed["source_manifest_sha256"] == digest(source_raw)
+
+              wrong = pack / "PACK_MANIFEST.json"
+              wrong.write_bytes(pack_raw)
+              os.chmod(wrong, 0o644)
+              manifest.unlink()
+              try:
+                  module._migration_anchor()
+              except module.GateError as exc:
+                  assert "migration pack manifest cannot be inspected" in str(exc)
+              else:
+                  raise SystemExit(
+                      "driver incorrectly accepted legacy/nonexistent PACK_MANIFEST name"
+                  )
+          PY
+
+      - name: Prove Computers namespace adapter and repair guard
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          import json
+          import os
+          import stat
+          import sys
+          import tempfile
+          from pathlib import Path
+          from types import SimpleNamespace
+
+          path = Path("tools/operation_control_r0006_vps.py")
+          spec = importlib.util.spec_from_file_location("r0006_gate_driver", path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          sys.modules[spec.name] = module
+          spec.loader.exec_module(module)
+
+          class FakeBackend:
+              def __init__(self, files):
+                  self.files = files
+              @staticmethod
+              def _q_literal(value):
+                  return "'" + value + "'"
+              @staticmethod
+              def _url(base, path, params):
+                  return "fake://list"
+              def _request(self, method, url):
+                  return SimpleNamespace(status=200, body=b"{}")
+              def _parse_json(self, response, *, label):
+                  return {"files": self.files}
+              @staticmethod
+              def _item(raw, *, label):
+                  return SimpleNamespace(
+                      file_id=raw["id"],
+                      parent_id=raw.get("parent_id"),
+                      name=raw["name"],
+                      mime_type=module.FOLDER_MIME,
+                      version=1,
+                      trashed=False,
+                      size=None,
+                      sha256_checksum=None,
+                      head_revision_id=None,
+                      is_folder=True,
+                  )
+              def list_children(self, parent_id, *, name=None, include_trashed=False):
+                  return []
+
+          exact = {
+              "id": "opaque-computer-root",
+              "name": module.COMPUTERS_ROOT_NAME,
+              "parent_id": None,
+          }
+          found = module._discover_computers_root(FakeBackend([exact]))
+          assert found.name == module.COMPUTERS_ROOT_NAME
+          adapter = module._ComputersRootDriveAdapter(
+              FakeBackend([exact]),
+              found,
+          )
+          assert adapter.list_children("root")[0].name == module.COMPUTERS_ROOT_NAME
+
+          duplicate = dict(exact)
+          duplicate["id"] = "second-root"
+          try:
+              module._discover_computers_root(
+                  FakeBackend([exact, duplicate])
+              )
+          except module.GateError:
+              pass
+          else:
+              raise SystemExit("ambiguous Computers root accepted")
+
+          parented = dict(exact)
+          parented["parent_id"] = "ordinary-parent"
+          try:
+              module._discover_computers_root(FakeBackend([parented]))
+          except module.GateError:
+              pass
+          else:
+              raise SystemExit("ordinary parented folder accepted as Computers root")
+
+          with tempfile.TemporaryDirectory() as td:
+              root = Path(td)
+              reference = root / "reference"
+              installed = root / "installed"
+              for base in (reference, installed):
+                  (base / "deploy" / "zero-based-vps").mkdir(parents=True)
+                  (base / "payload.txt").write_bytes(b"exact\n")
+                  os.chmod(base / "payload.txt", 0o444)
+                  os.chmod(base / "deploy" / "zero-based-vps", 0o555)
+                  os.chmod(base / "deploy", 0o555)
+                  os.chmod(base, 0o555)
+
+              cache = (
+                  installed
+                  / "deploy"
+                  / "zero-based-vps"
+                  / "__pycache__"
+              )
+              cache.mkdir()
+              pyc = cache / "materialize_payload.cpython-312.pyc"
+              pyc.write_bytes(b"diagnostic")
+              os.chmod(cache, 0o755)
+              os.chmod(pyc, 0o644)
+
+              assert module._diagnostic_contamination_only(
+                  installed,
+                  reference,
+              )
+              pyc.write_bytes(b"changed")
+              other = cache / "extra.pyc"
+              other.write_bytes(b"x")
+              os.chmod(other, 0o644)
+              assert not module._diagnostic_contamination_only(
+                  installed,
+                  reference,
+              )
+          PY
+
+      - name: Check out exact frozen r0006 source
+        env:
+          FROZEN_COMMIT: b371a9b9f28fe668cc8073019a3d5f352f9d9bf3
+          FROZEN_TREE: 1e3a80f76283fb0800bb6e9d09202f6ab6755c5b
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/frozen-source"
+          git worktree add --detach "$work" "$FROZEN_COMMIT"
+          test "$(git -C "$work" rev-parse HEAD)" = "$FROZEN_COMMIT"
+          test "$(git -C "$work" rev-parse 'HEAD^{tree}')" = "$FROZEN_TREE"
+          test -z "$(git -C "$work" status --porcelain)"
+
+      - name: Run focused frozen operation-control regressions
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/frozen-source"
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover             -s "$work/tests/core" -p 'test_operation_*.py'
+          PYTHONDONTWRITEBYTECODE=1 python3 -B             "$work/tests/core/test_vps_target_host_validate.py"
+
+      - name: Prove frozen cross-user relay DAC
+        env:
+          FROZEN_COMMIT: b371a9b9f28fe668cc8073019a3d5f352f9d9bf3
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/frozen-source"
+          group_name='keelaryn-r0006-ci'
+          transport_user='keelaryn-r0006-xport'
+          sudo groupadd --system "$group_name"
+          sudo useradd --system --no-create-home --gid "$group_name" --shell /usr/sbin/nologin "$transport_user"
+          transport_uid="$(id -u "$transport_user")"
+          shared_gid="$(getent group "$group_name" | cut -d: -f3)"
+          test "$transport_uid" -ne 0
+          test -n "$shared_gid"
+
+          tmp="$(sudo mktemp -d /tmp/keelaryn-r0006-relay.XXXXXX)"
+          trap 'sudo rm -rf "$tmp"' EXIT
+          sudo chmod 0755 "$tmp"
+          stage="$tmp/stage"
+          sudo install -d -m 0755 "$stage"
+          sudo cp -a "$work/core" "$stage/core"
+          sudo cp "$work/tests/ci/operation_relay_cross_user.py" "$stage/operation_relay_cross_user.py"
+          sudo find "$stage/core" -type d -exec chmod 0755 {} +
+          sudo find "$stage/core" -type f -exec chmod 0644 {} +
+          sudo chmod 0644 "$stage/operation_relay_cross_user.py"
+
+          sudo install -d -m 0750 -o "$transport_user" -g "$group_name" "$tmp/transport"
+          sudo -u "$transport_user" env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$stage/core"             /usr/bin/python3 -B "$stage/operation_relay_cross_user.py" transport-deliver             --root "$tmp/transport" --source-commit "$FROZEN_COMMIT"
+
+          sudo install -d -m 0700 -o root -g root "$tmp/operations" "$tmp/control"
+          sudo setpriv --reuid=0 --regid="$shared_gid" --clear-groups             --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs             env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$stage/core"             /usr/bin/python3 -B "$stage/operation_relay_cross_user.py" agent-process             --transport-root "$tmp/transport" --operation-root "$tmp/operations"             --control-root "$tmp/control" --source-commit "$FROZEN_COMMIT"             --expected-gid "$shared_gid"
+
+          sudo -u "$transport_user" env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$stage/core"             /usr/bin/python3 -B "$stage/operation_relay_cross_user.py" transport-publish             --root "$tmp/transport" --source-commit "$FROZEN_COMMIT"
+
+      - name: Rebuild exact frozen r0006 candidate payload
+        env:
+          FROZEN_COMMIT: b371a9b9f28fe668cc8073019a3d5f352f9d9bf3
+          EXPECTED_PAYLOAD: 0d2201e94a75f8622b40118d93b9eee9064ebe6650d3140e73997aed92c8c3cd
+          EXPECTED_SIZE: '393732'
+          EXPECTED_COUNT: '199'
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/frozen-source"
+          python3 "$work/deploy/zero-based-vps/build_payload.py"             --repo-root "$work" --source-commit "$FROZEN_COMMIT"             --output "$RUNNER_TEMP/first.tar.gz" > "$RUNNER_TEMP/first.json"
+          python3 "$work/deploy/zero-based-vps/build_payload.py"             --repo-root "$work" --source-commit "$FROZEN_COMMIT"             --output "$RUNNER_TEMP/second.tar.gz" > "$RUNNER_TEMP/second.json"
+          cmp "$RUNNER_TEMP/first.tar.gz" "$RUNNER_TEMP/second.tar.gz"
+
+          python3 - "$RUNNER_TEMP/first.json" "$EXPECTED_PAYLOAD" "$EXPECTED_SIZE" "$EXPECTED_COUNT" <<'PY'
+          import json, sys
+          v=json.load(open(sys.argv[1],encoding="utf-8"))
+          expected={
+              "payload_sha256":sys.argv[2],
+              "payload_size":int(sys.argv[3]),
+              "file_count":int(sys.argv[4]),
+              "source_commit":"b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+          }
+          observed={key:v[key] for key in expected}
+          if observed != expected:
+              raise SystemExit(f"frozen payload mismatch: {observed}")
+          PY
+
+      - name: Materialize and validate frozen r0006 release
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/frozen-source"
+          root="$RUNNER_TEMP/materialized"
+          python3 "$work/deploy/zero-based-vps/materialize_payload.py"             --payload "$RUNNER_TEMP/first.tar.gz"             --releases-root "$root/releases"             --expected-source-commit b371a9b9f28fe668cc8073019a3d5f352f9d9bf3             --expected-payload-sha256 0d2201e94a75f8622b40118d93b9eee9064ebe6650d3140e73997aed92c8c3cd             > "$RUNNER_TEMP/materialized.json"
+          release="$root/releases/b371a9b9f28fe668cc8073019a3d5f352f9d9bf3"
+          PYTHONDONTWRITEBYTECODE=1 python3 -B             "$release/deploy/zero-based-vps/target_host_validate.py"             --release "$release"             --expected-source-commit b371a9b9f28fe668cc8073019a3d5f352f9d9bf3             --expected-payload-sha256 0d2201e94a75f8622b40118d93b9eee9064ebe6650d3140e73997aed92c8c3cd             > "$RUNNER_TEMP/target-host.json"
+          python3 - "$release" <<'PY'
+          from pathlib import Path
+          import sys
+
+          release = Path(sys.argv[1])
+          forbidden = [
+              path
+              for path in release.rglob("*")
+              if path.name == "__pycache__"
+              or (path.is_file() and path.suffix in {".pyc", ".pyo"})
+          ]
+          if forbidden:
+              raise SystemExit(
+                  "Frozen release mutated during validation: "
+                  + ", ".join(str(path.relative_to(release)) for path in forbidden[:10])
+              )
+          PY
+
+      - name: Emit compact r0006 gate evidence
+        env:
+          OUT: ${{ runner.temp }}/OPERATION_CONTROL_R0006_GATE.json
+        run: |
+          python3 - "$OUT" <<'PY'
+          import json, os, sys
+          value={
+              "schema":"keelaryn.operation-control-gate-evidence.v1",
+              "gate_revision":"operation-control-gate-r0013",
+              "candidate":"operation-control-r0006-20260921-01",
+              "frozen_source_commit":"b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
+              "frozen_source_tree":"1e3a80f76283fb0800bb6e9d09202f6ab6755c5b",
+              "payload_sha256":"0d2201e94a75f8622b40118d93b9eee9064ebe6650d3140e73997aed92c8c3cd",
+              "payload_size":393732,
+              "file_count":199,
+              "predecessor_candidate":"operation-control-r0005-20260921-01",
+              "migration_candidate":"migration-r0072-20260919-01",
+              "driver_selftest":True,
+              "driver_read_only_reconcile_surface":True,
+              "driver_read_only_qualification_surface":True,
+              "driver_single_command_upgrade_surface":True,
+              "frozen_focused_operation_tests":True,
+              "target_host_validation":True,
+              "cross_user_relay_dac_verified":True,
+              "deterministic_rebuild":True,
+              "github_run_id":os.environ["GITHUB_RUN_ID"],
+              "github_run_attempt":os.environ["GITHUB_RUN_ATTEMPT"],
+              "production_qualified":False,
+          }
+          with open(sys.argv[1],"w",encoding="utf-8",newline="\n") as f:
+              json.dump(value,f,ensure_ascii=False,sort_keys=True,separators=(",",":"))
+              f.write("\n")
+          PY
+
+      - name: Upload compact r0006 gate evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operation-control-r0006-gate-r0013-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/OPERATION_CONTROL_R0006_GATE.json
+          if-no-files-found: error
+          retention-days: 3

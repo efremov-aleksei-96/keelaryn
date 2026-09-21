@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-GATE_REVISION = "operation-control-gate-r0012"
+GATE_REVISION = "operation-control-gate-r0013"
 CANDIDATE = "operation-control-r0006-20260921-01"
 REPOSITORY = "https://github.com/efremov-aleksei-96/keelaryn.git"
 
@@ -56,6 +56,19 @@ OPERATION_CONTROL_ROOT = Path("/var/lib/keelaryn/operation-control")
 OPERATION_ROOT = Path("/var/lib/keelaryn/operations")
 TRANSPORT_ROOT = Path("/var/lib/keelaryn-operation-transport")
 UPDATE_ROOT = Path("/var/lib/keelaryn/operation-control-updates")
+
+COMPUTERS_ROOT_NAME = "My Laptop"
+FOLDER_MIME = "application/vnd.google-apps.folder"
+DRIVE_API_BASE = "https://www.googleapis.com/drive/v3"
+DRIVE_FILE_FIELDS = (
+    "id,name,mimeType,parents,version,trashed,size,"
+    "sha256Checksum,headRevisionId"
+)
+DIAGNOSTIC_CACHE_DIR = "deploy/zero-based-vps/__pycache__"
+DIAGNOSTIC_CACHE_FILE = (
+    "deploy/zero-based-vps/__pycache__/"
+    "materialize_payload.cpython-312.pyc"
+)
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -435,6 +448,289 @@ def _migration_anchor() -> dict[str, Any]:
     return observed
 
 
+class _ComputersRootDriveAdapter:
+    def __init__(self, backend, computers_root) -> None:
+        self._backend = backend
+        self._computers_root = computers_root
+
+    def list_children(
+        self,
+        parent_id: str,
+        *,
+        name: str | None = None,
+        include_trashed: bool = False,
+    ):
+        if parent_id == "root":
+            if include_trashed:
+                raise GateError(
+                    "Computers-root adapter refuses trashed-root enumeration"
+                )
+            if name is not None and name != self._computers_root.name:
+                return []
+            return [self._computers_root]
+        return self._backend.list_children(
+            parent_id,
+            name=name,
+            include_trashed=include_trashed,
+        )
+
+    def __getattr__(self, name: str):
+        return getattr(self._backend, name)
+
+
+def _discover_computers_root(backend):
+    query = (
+        f"name = {backend._q_literal(COMPUTERS_ROOT_NAME)}"
+        f" and mimeType = {backend._q_literal(FOLDER_MIME)}"
+        " and trashed = false"
+    )
+    matches = []
+    page_token: str | None = None
+    while True:
+        params = [
+            ("q", query),
+            ("spaces", "drive"),
+            ("pageSize", "1000"),
+            ("supportsAllDrives", "true"),
+            ("includeItemsFromAllDrives", "true"),
+            ("fields", f"nextPageToken,files({DRIVE_FILE_FIELDS})"),
+        ]
+        if page_token is not None:
+            params.append(("pageToken", page_token))
+        response = backend._request(
+            "GET",
+            backend._url(DRIVE_API_BASE, "files", params),
+        )
+        value = backend._parse_json(
+            response,
+            label="R0006_COMPUTERS_ROOT_SEARCH",
+        )
+        if not isinstance(value, dict) or not isinstance(
+            value.get("files"),
+            list,
+        ):
+            raise GateError(
+                "Computers-root search returned invalid Drive response"
+            )
+        for raw in value["files"]:
+            item = backend._item(
+                raw,
+                label="R0006_COMPUTERS_ROOT_SEARCH.files[]",
+            )
+            if (
+                item.name == COMPUTERS_ROOT_NAME
+                and item.is_folder
+                and not item.trashed
+                and item.parent_id is None
+            ):
+                matches.append(item)
+        next_token = value.get("nextPageToken")
+        if next_token is None:
+            break
+        if not isinstance(next_token, str) or not next_token:
+            raise GateError(
+                "Computers-root search returned invalid page token"
+            )
+        page_token = next_token
+    if len(matches) != 1:
+        raise GateError(
+            "exact parentless Computers root is missing or ambiguous"
+        )
+    return matches[0]
+
+
+def _computers_drive_factory(module):
+    def factory(values):
+        provider = module.GoogleOAuthRefreshTokenProvider.from_environment(
+            values
+        )
+        backend = module.GoogleDriveBackend(provider)
+        computers_root = _discover_computers_root(backend)
+        return _ComputersRootDriveAdapter(backend, computers_root)
+
+    return factory
+
+
+def _drive_source_probe(module, spec, layout) -> dict[str, Any]:
+    candidate_root = layout.migration_root / spec.migration_candidate_id
+    credential = candidate_root / "qualification-production-drive.env"
+    source_manifest = (
+        candidate_root
+        / "qualification-input"
+        / "pack"
+        / "authority"
+        / "MIGRATION_SOURCE.json"
+    )
+    values = module._credential_environment(credential)
+    drive = _computers_drive_factory(module)(values)
+    source_root_id = module.resolve_legacy_source_root(
+        drive,
+        path_segments=module.LEGACY_SOURCE_PATH,
+        expected_identity_sha256=spec.migration_source_identity_sha256,
+    )
+    try:
+        module.verify_migration_source_against_drive(
+            drive,
+            source_root_id,
+            source_manifest,
+            phase="R0006_PRODUCTION_QUALIFICATION_SOURCE_VERIFY",
+        )
+    except Exception as exc:
+        raise GateError(
+            f"legacy Drive source qualification failed: {exc}"
+        ) from exc
+    return {
+        "computers_root": "EXACT_UNIQUE_PARENTLESS",
+        "source_identity_sha256": spec.migration_source_identity_sha256,
+        "source_manifest_sha256": _sha(
+            _pack_file(
+                source_manifest,
+                "r0072 migration source manifest",
+            )
+        ),
+        "source_verified": True,
+        "drive_mutations_performed": False,
+    }
+
+
+def _tree_snapshot(root: Path) -> dict[str, tuple[str, int, bytes | None]]:
+    if root.is_symlink() or not root.is_dir():
+        raise GateError("release snapshot root must be one real directory")
+    result: dict[str, tuple[str, int, bytes | None]] = {
+        ".": ("dir", stat.S_IMODE(root.stat().st_mode), None)
+    }
+    for path in root.rglob("*"):
+        rel = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            result[rel] = ("symlink", 0, None)
+        elif path.is_dir():
+            result[rel] = (
+                "dir",
+                stat.S_IMODE(path.stat().st_mode),
+                None,
+            )
+        elif path.is_file():
+            result[rel] = (
+                "file",
+                stat.S_IMODE(path.stat().st_mode),
+                path.read_bytes(),
+            )
+        else:
+            result[rel] = ("other", 0, None)
+    return result
+
+
+def _diagnostic_contamination_only(
+    installed: Path,
+    reference: Path,
+) -> bool:
+    actual = _tree_snapshot(installed)
+    exact = _tree_snapshot(reference)
+    for key, value in exact.items():
+        if actual.get(key) != value:
+            return False
+    extras = set(actual) - set(exact)
+    if extras != {DIAGNOSTIC_CACHE_DIR, DIAGNOSTIC_CACHE_FILE}:
+        return False
+    return (
+        actual[DIAGNOSTIC_CACHE_DIR][:2] == ("dir", 0o755)
+        and actual[DIAGNOSTIC_CACHE_FILE][:2] == ("file", 0o644)
+    )
+
+
+def _remove_diagnostic_contamination(installed: Path) -> None:
+    cache_file = installed / DIAGNOSTIC_CACHE_FILE
+    cache_dir = installed / DIAGNOSTIC_CACHE_DIR
+    if cache_file.is_symlink() or not cache_file.is_file():
+        raise GateError("diagnostic pyc residue changed before repair")
+    if cache_dir.is_symlink() or not cache_dir.is_dir():
+        raise GateError("diagnostic cache directory changed before repair")
+    cache_file.unlink()
+    cache_dir.rmdir()
+    try:
+        fd = os.open(cache_dir.parent, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        pass
+
+
+def repair_release() -> dict[str, Any]:
+    _require_root()
+    before = _production_anchor()
+    with tempfile.TemporaryDirectory(prefix="keelaryn-r0006-repair-") as td:
+        work = Path(td)
+        source = _checkout_frozen(work)
+        _rebuild_frozen(source, work)
+        module = _load_engine(source)
+        spec = _successor_spec(module)
+        layout = _layout(module)
+        _control_anchor(module, spec, layout)
+
+        reference_root = work / "reference"
+        materializer = (
+            source
+            / "deploy"
+            / "zero-based-vps"
+            / "materialize_payload.py"
+        )
+        _json_command(
+            [
+                sys.executable,
+                "-B",
+                str(materializer),
+                "--payload",
+                str(work / "first.tar.gz"),
+                "--releases-root",
+                str(reference_root / "releases"),
+                "--expected-source-commit",
+                SOURCE_COMMIT,
+                "--expected-payload-sha256",
+                PAYLOAD_SHA256,
+            ],
+            timeout=600,
+        )
+        reference = reference_root / "releases" / SOURCE_COMMIT
+        installed = INSTALL_ROOT / "releases" / SOURCE_COMMIT
+
+        if _tree_snapshot(installed) == _tree_snapshot(reference):
+            repaired = False
+        else:
+            if not _diagnostic_contamination_only(installed, reference):
+                raise GateError(
+                    "r0006 release differs from frozen reference beyond "
+                    "the exact diagnostic residue"
+                )
+            _remove_diagnostic_contamination(installed)
+            if _tree_snapshot(installed) != _tree_snapshot(reference):
+                raise GateError(
+                    "r0006 release is not exact after diagnostic repair"
+                )
+            repaired = True
+
+    after = _production_anchor()
+    if before != after:
+        raise GateError(
+            "production boundary changed during r0006 release repair"
+        )
+    return {
+        "schema": "keelaryn.operation-control-r0006-release-repair.v1",
+        "gate_revision": GATE_REVISION,
+        "candidate": CANDIDATE,
+        "release_source_commit": SOURCE_COMMIT,
+        "release_payload_sha256": PAYLOAD_SHA256,
+        "diagnostic_residue_removed": repaired,
+        "release_exact_after": True,
+        "control_current": "EXACT_R0005",
+        "production_boundary_before_equals_after": True,
+        "hub_selector_mutated": False,
+        "drive_mutations_performed": False,
+        "next_action": "REQUALIFY",
+    }
+
+
 def _control_anchor(module, spec, layout) -> dict[str, Any]:
     try:
         module._preflight_upgrade_boundary(
@@ -471,6 +767,7 @@ def reconcile() -> dict[str, Any]:
         "production_boundary": after,
         "control_boundary": control,
         "migration_boundary": migration,
+        "drive_source_boundary": drive_source,
         "persistent_mutations_performed": False,
         "drive_mutations_performed": False,
     }
@@ -485,10 +782,13 @@ def qualify() -> dict[str, Any]:
         source = _checkout_frozen(work)
         payload = _rebuild_frozen(source, work)
         module = _load_engine(source)
-        control = _control_anchor(module, _successor_spec(module), _layout(module))
+        spec = _successor_spec(module)
+        layout = _layout(module)
+        control = _control_anchor(module, spec, layout)
+        drive_source = _drive_source_probe(module, spec, layout)
         try:
             active_raw, active, framework = module._load_current_hub_authority(
-                _layout(module)
+                layout
             )
         except Exception as exc:
             raise GateError(
@@ -532,7 +832,11 @@ def upgrade() -> dict[str, Any]:
         spec = _successor_spec(module)
         layout = _layout(module)
         try:
-            result = module.upgrade_successor(spec, layout)
+            result = module.upgrade_successor(
+                spec,
+                layout,
+                drive_factory=_computers_drive_factory(module),
+            )
         except Exception as exc:
             raise GateError(
                 f"r0006 transactional successor upgrade failed: {exc}"
@@ -599,6 +903,9 @@ def selftest() -> dict[str, Any]:
         "hub_transaction_id": HUB_TRANSACTION_ID,
         "reconcile_surface": True,
         "read_only_qualification_surface": True,
+        "read_only_drive_source_probe": True,
+        "diagnostic_release_repair_surface": True,
+        "computers_namespace_adapter": True,
         "single_command_upgrade_surface": True,
         "upgrade_requalifies_before_mutation": True,
         "pass": True,
@@ -609,7 +916,13 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keelaryn-operation-control-r0006")
     parser.add_argument(
         "command",
-        choices=("selftest", "reconcile", "qualify", "upgrade"),
+        choices=(
+            "selftest",
+            "reconcile",
+            "qualify",
+            "repair-release",
+            "upgrade",
+        ),
     )
     return parser
 
@@ -623,6 +936,8 @@ def main(argv: list[str] | None = None) -> int:
             value = reconcile()
         elif args.command == "qualify":
             value = qualify()
+        elif args.command == "repair-release":
+            value = repair_release()
         else:
             value = upgrade()
     except (GateError, OSError, KeyError, ValueError) as exc:

@@ -682,3 +682,36 @@ Production qualification evidence is stored in `docs/candidates/operation-contro
 
 The candidate is now production-qualified for the next action reported by the driver: `UPGRADE`. The control-plane upgrade has **not** been executed. Treat it as a separate human-approved production mutation transaction. Before that mutation, reconcile authoritative GitHub state and use the exact r0012 driver; after any interruption, reconcile production before considering retry.
 
+### 2026-09-21 r0006 gate r0013 after first upgrade attempt
+
+Authoritative pre-write HEAD: `b4ef7b10d9a0a83f1f370a8fceff37829c6586a1`.
+
+The first r0012 production `upgrade` attempt did **not** enter the transactional updater. Frozen engine sequencing proves the successor release was materialized first, then profile construction failed while resolving the legacy Drive source. Post-failure read-only reconcile proved:
+
+- `control-current` remains exact r0005;
+- successor worker/profile/activation are absent;
+- operation-control update root is absent/empty;
+- production Hub remains PREPARED and writer remains inactive;
+- no Drive mutation occurred.
+
+Read-only Drive diagnosis found the exact legacy `hub` by its frozen identity SHA-256 and confirmed the logical chain `My Laptop -> 0__Core -> keelaryn -> hub`. The root cause is namespace topology: `My Laptop` is a parentless Google Drive **Computers** root, not a child of ordinary My Drive alias `root`. Raw Drive IDs are not stored in repository evidence.
+
+A later diagnostic command imported `materialize_payload.py` directly from the immutable release without Python `-B`, creating exactly one extra directory/file:
+
+- `deploy/zero-based-vps/__pycache__` mode 0755;
+- `deploy/zero-based-vps/__pycache__/materialize_payload.cpython-312.pyc` mode 0644.
+
+No expected file/directory is missing, release identity remains exact, root mode is 0555 and there are no symlinks. This is classified **DIAGNOSTIC_INDUCED_RELEASE_CONTAMINATION**, not product/materialization failure.
+
+The commit containing this section issues gate revision `operation-control-gate-r0013` only; frozen r0006 product bytes remain source `b371a9b9f28fe668cc8073019a3d5f352f9d9bf3`.
+
+r0013 production-driver changes:
+
+- a strict candidate-side Drive adapter performs one global read-only exact-name folder search for parentless `My Laptop` and exposes only that item as the frozen resolver's synthetic `root` child;
+- all later path traversal remains the frozen exact-case resolver and ends with the frozen source-root identity SHA plus complete two-pass `MIGRATION_SOURCE` verification;
+- production `qualify` now performs this live Drive source probe, so resolver/source failures cannot first appear during mutation;
+- `upgrade` injects the same adapter into the frozen engine through its existing `drive_factory` seam;
+- new `repair-release` is a separate production mutation surface. It rebuilds/materializes an exact disposable reference, permits only the exact proven diagnostic residue, removes only those two objects, then requires full byte/mode equality to the reference. It does not alter control-current/Hub/Drive.
+
+Do not run repair or upgrade until r0013 gate PASS and a fresh production read-only r0013 `reconcile + qualify` PASS. Cleanup and upgrade remain separate transaction boundaries.
+
