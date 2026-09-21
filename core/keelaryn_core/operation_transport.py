@@ -17,13 +17,19 @@ from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from .operation_request import OperationRequest, parse_operation_request
+from .production_snapshot import (
+    ProductionSnapshotError,
+    validate_production_snapshot,
+)
 from .operation_runtime import OperationRuntimeError
 
 
 REQUEST_MARKER = "KEELARYN_OPERATION_REQUEST_V1\n"
 STATUS_MARKER = "KEELARYN_OPERATION_STATUS_V1\n"
 TRANSPORT_STATE_SCHEMA = "keelaryn.github-operation-transport-state.v1"
-RELAY_SCHEMA = "keelaryn.operation-relay-status.v1"
+RELAY_SCHEMA_V1 = "keelaryn.operation-relay-status.v1"
+RELAY_SCHEMA_V2 = "keelaryn.operation-relay-status.v2"
+RELAY_SCHEMA = RELAY_SCHEMA_V2
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _ACTOR = re.compile(r"^[A-Za-z0-9-]{1,39}$")
 _REQUEST_ID = re.compile(r"^[0-9a-f]{32}$")
@@ -368,7 +374,7 @@ def _relay_status(raw: bytes) -> dict[str, Any]:
         value = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise GitHubTransportError("operation relay status is invalid JSON") from exc
-    expected = {
+    base_expected = {
         "schema",
         "operation_id",
         "operation",
@@ -384,10 +390,17 @@ def _relay_status(raw: bytes) -> dict[str, Any]:
         "terminal",
         "outcome",
     }
-    if not isinstance(value, dict) or set(value) != expected:
+    if not isinstance(value, dict):
         raise GitHubTransportError("operation relay status has invalid keys")
-    if value["schema"] != RELAY_SCHEMA:
+    schema = value.get("schema")
+    if schema == RELAY_SCHEMA_V1:
+        expected = base_expected
+    elif schema == RELAY_SCHEMA_V2:
+        expected = base_expected | {"result"}
+    else:
         raise GitHubTransportError("operation relay status schema mismatch")
+    if set(value) != expected:
+        raise GitHubTransportError("operation relay status has invalid keys")
     if _REQUEST_ID.fullmatch(value["operation_id"]) is None:
         raise GitHubTransportError("operation relay request identity is invalid")
     if _OID.fullmatch(value["source_commit"]) is None:
@@ -418,6 +431,32 @@ def _relay_status(raw: bytes) -> dict[str, Any]:
         not isinstance(value["outcome"], str) or len(value["outcome"]) > 64
     ):
         raise GitHubTransportError("operation relay outcome is invalid")
+
+    if schema == RELAY_SCHEMA_V2:
+        result = value["result"]
+        snapshot_success = (
+            value["operation"] == "PRODUCTION_SNAPSHOT"
+            and value["terminal"] is True
+            and value["execution_state"] == "SUCCEEDED"
+            and value["outcome"] == "PASS"
+        )
+        if result is None:
+            if snapshot_success:
+                raise GitHubTransportError(
+                    "successful production snapshot relay is missing result"
+                )
+        else:
+            if not snapshot_success:
+                raise GitHubTransportError(
+                    "structured relay result is not authorized for this status"
+                )
+            try:
+                validate_production_snapshot(result)
+            except ProductionSnapshotError as exc:
+                raise GitHubTransportError(
+                    "production snapshot relay result is invalid"
+                ) from exc
+
     if raw != _canonical(value):
         raise GitHubTransportError("operation relay status is not canonical JSON")
     return value

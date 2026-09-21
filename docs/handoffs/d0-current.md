@@ -145,3 +145,29 @@ Before D0-02 work, resolve the authoritative branch HEAD and require the D0-01B 
 D0-02 must reuse the existing remote Operation Control/runtime where safe, but it is read-only: obtain a compact sanitized production snapshot without resuming the paused Hub cutover. The snapshot must distinguish live observations from recorded historical state and be usable by a fresh chat without SSH/PowerShell supplied by the maintainer.
 
 Old Hub mutations remain forbidden.
+
+## D0-02A — read-only production snapshot protocol
+
+Pre-write authority: `93f9851d283e181f788b509bc0e19eabad012e05`; D0-01B Core run `35631451089` PASS (681 tests) and Windows run `35631451344` PASS (131 tests).
+
+The successor development commit containing this section adds the first strict remote observation protocol:
+
+- `PRODUCTION_SNAPSHOT` is a read-only allowlisted operation with `approval=NOT_REQUIRED` and no command/path parameters;
+- a static template worker `keelaryn-production-snapshot@.service` runs without network access or Linux capabilities;
+- the worker hides known Drive/GitHub credential paths and writes only one create-once mode-0600 result beneath the exact operation directory;
+- observation is two-pass and fails if release selectors, service state, legacy Hub transaction, selector classification or mutation inhibit drift between passes;
+- raw old/new Hub IDs are used only for local classification and are never returned;
+- relay v2 adds one strict `result` field; historical relay v1 remains accepted;
+- structured relay output is accepted only for a terminal successful `PRODUCTION_SNAPSHOT` and must match `keelaryn.production-snapshot.v1`;
+- replay of a completed request republishes the immutable snapshot without rerunning the worker.
+
+The snapshot reports only sanitized source commit identities, normalized service state/PID, legacy Hub state, transaction identity/hash, selector role and mutation-inhibit hash/match flags. It explicitly states that no production or Drive mutation was performed.
+
+No production/VPS/Drive mutation is performed by D0-02A development.
+
+## Next permitted engineering objective
+
+**D0-02B — installable read-only Operation Control successor.**
+
+First require exact-HEAD Core/Windows development CI PASS for D0-02A. Then adapt the existing transaction-safe control-plane update/materialization path so the snapshot worker unit is installed as a static, non-enabled unit and prove the successor's effective remote allowlist/worker boundary in disposable qualification. Do not resume `HUB_PRE_APPLY` or any old Hub content mutation.
+

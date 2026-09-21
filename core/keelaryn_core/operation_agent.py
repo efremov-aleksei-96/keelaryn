@@ -27,11 +27,16 @@ from .operation_hub_pre_apply_profile import (
     read_hub_pre_apply_profile,
 )
 from .operation_request import OperationRequest, read_operation_request
+from .production_snapshot import (
+    ProductionSnapshotError,
+    SNAPSHOT_NAME,
+    read_production_snapshot,
+)
 from .operation_runtime import OperationRuntime, OperationRuntimeError, OperationSession
 
 
 AGENT_SCHEMA = "keelaryn.operation-agent.v1"
-RELAY_SCHEMA = "keelaryn.operation-relay-status.v1"
+RELAY_SCHEMA = "keelaryn.operation-relay-status.v2"
 
 RELAY_ROOT_MODE = 0o750
 RELAY_DIRECTORY_MODE = 0o770
@@ -40,6 +45,8 @@ LOCK_NAME = "LOCK"
 PROCESSED_NAME = "processed"
 REJECTED_NAME = "rejected"
 _REQUEST_FILE = re.compile(r"^[0-9a-f]{32}\.json$")
+_REQUEST_ID = re.compile(r"^[0-9a-f]{32}$")
+PRODUCTION_SNAPSHOT_UNIT = "keelaryn-production-snapshot@{}.service"
 HUB_PRE_APPLY_UNIT = "keelaryn-hub-preapply.service"
 
 
@@ -55,6 +62,44 @@ def _runtime_selftest(session: OperationSession, request: OperationRequest) -> N
         raise OperationRuntimeError("RUNTIME_SELFTEST requires DEFAULT profile")
     session.record(phase="SELFTEST", event="PHASE_BEGIN")
     session.record(phase="SELFTEST", event="PHASE_COMPLETE")
+
+
+def _run_production_snapshot_worker(operation_id: str) -> None:
+    if _REQUEST_ID.fullmatch(operation_id) is None:
+        raise OperationRuntimeError("production snapshot operation identity is invalid")
+    unit = PRODUCTION_SNAPSHOT_UNIT.format(operation_id)
+    try:
+        completed = subprocess.run(
+            ["systemctl", "start", unit],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise OperationRuntimeError(
+            "production snapshot worker outcome is uncertain"
+        ) from exc
+    if completed.returncode != 0:
+        raise OperationRuntimeError("production snapshot worker reported failure")
+
+
+def _production_snapshot(session: OperationSession, request: OperationRequest) -> None:
+    if request.profile != "DEFAULT":
+        raise OperationRuntimeError(
+            "PRODUCTION_SNAPSHOT requires DEFAULT profile"
+        )
+    session.record(phase="SNAPSHOT", event="PHASE_BEGIN")
+    _run_production_snapshot_worker(session.operation_id)
+    path = session.runtime._directory(session.operation_id) / SNAPSHOT_NAME
+    try:
+        read_production_snapshot(path)
+    except (ProductionSnapshotError, OSError) as exc:
+        raise OperationRuntimeError(
+            "production snapshot result is unavailable or invalid"
+        ) from exc
+    session.record(phase="SNAPSHOT", event="PHASE_COMPLETE")
 
 
 def _run_fixed_oneshot(unit: str) -> None:
@@ -120,6 +165,11 @@ HANDLERS: dict[str, OperationHandler] = {
         mutation_capable=False,
         requires_approval=False,
         callback=_runtime_selftest,
+    ),
+    "PRODUCTION_SNAPSHOT": OperationHandler(
+        mutation_capable=False,
+        requires_approval=False,
+        callback=_production_snapshot,
     ),
     "HUB_PRE_APPLY": OperationHandler(
         mutation_capable=True,
@@ -283,6 +333,7 @@ class RelayProgressStream:
                     "next_action": "WAIT",
                     "terminal": False,
                     "outcome": None,
+                    "result": None,
                 }
                 _atomic_relay(self.outbox / f"{self.operation_id}.json", relay)
             except Exception:
@@ -419,6 +470,20 @@ class OperationAgent:
 
     def _publish_final(self, request_id: str, *, outcome: str | None = None) -> None:
         status = self.runtime.status(request_id)
+        result_payload: dict[str, object] | None = None
+        if (
+            status["operation"] == "PRODUCTION_SNAPSHOT"
+            and status["terminal"] is True
+            and status["execution_state"] == "SUCCEEDED"
+            and outcome == "PASS"
+        ):
+            path = self.runtime._directory(request_id) / SNAPSHOT_NAME
+            try:
+                result_payload = read_production_snapshot(path)
+            except (ProductionSnapshotError, OSError) as exc:
+                raise OperationRuntimeError(
+                    "successful production snapshot has no exact durable result"
+                ) from exc
         relay = {
             "schema": RELAY_SCHEMA,
             "operation_id": status["operation_id"],
@@ -434,6 +499,7 @@ class OperationAgent:
             "next_action": status["next_action"],
             "terminal": status["terminal"],
             "outcome": outcome,
+            "result": result_payload,
         }
         _atomic_relay(self.outbox / f"{request_id}.json", relay)
 
