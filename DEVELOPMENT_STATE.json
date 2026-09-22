@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 53,
+  "revision": 54,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "e287d4bfd2b8432a620e8737da3f5d78a58b2196",
+  "repository_basis_commit": "19ecd5d61fce93ee64cf623a965d79e7f9d0648e",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02O-post-stage-reconcile-PASS",
-    "run_id": 35780404585,
+    "scope": "D0-02P-post-stage-checkpoint-PASS-before-control-update-runtime",
+    "run_id": 35781436372,
     "conclusion": "PASS",
-    "relevance": "CURRENT_GREEN_HEAD_AND_POST_STAGE_LIVE_STATE",
-    "note": "Exact HEAD e287d4bfd2b8432a620e8737da3f5d78a58b2196 passed Zero-based Core run 35780404585, stage-runtime gate r0001, private-input gate, bootstrap-prep r0002, production-stage-prep and stage gate. A subsequent real VPS read-only post-stage reconcile proved INPUT_EXACT, immutable PREPARED/COMPLETED witnesses, execution COMPLETED_EXACT, release STAGED_EXACT and unchanged predecessor runtime anchors: control source remains r0005, production source remains e63f..., legacy Hub PREPARED/OLD, writer INACTIVE, r0007 snapshot unit absent. No mutation occurred. Sanitized result is docs/evidence/R0007_POST_STAGE_RECONCILE_20260923.json."
+    "relevance": "CURRENT_POST_STAGE_BASELINE",
+    "note": "HEAD 19ecd5d61fce93ee64cf623a965d79e7f9d0648e passed Zero-based Core run 35781436372 plus stage-runtime/private-input/bootstrap-prep/production-stage-prep/stage gates. D0-02P review found the frozen operation_control_d0_update.py protocol is the correct r0005->r0007 control transition but its generic CLI exposes path and identity overrides and has no dedicated read-only reconcile surface. This successor adds a narrow fixed-identity runtime wrapper. No control-current, systemd service/unit, credential, Hub, Drive or production-current mutation occurs in this development commit."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02P_CONTROL_UPDATE_PREP",
-    "description": "Prepare and qualify the real r0005 -> r0007 D0 control-plane update using the existing operation_control_d0_update.py protocol, not release_switch.py. First perform read-only verification that the staged r0007 release is exact, control-current still selects r0005, production current remains unchanged, predecessor persistent units and credential are exact, operation runtime and transport inbox are idle, no incomplete D0 control-update transaction exists, and the frozen r0007 transition qualification covers success/rollback/recovery. If the existing CLI is too broad for direct production use, add a narrow self-locating wrapper with fixed canonical paths and exact old/new identities. Do not mutate control-current, systemd units, services, credentials, Hub, Drive or production current during this objective.",
+    "description": "After exact-head Core and operation-control-r0007-control-update-runtime gate PASS, execute exactly one real VPS read-only control-update-runtime reconcile. It must self-locate and prove the live Git branch and exact stage authority, verify immutable stage witnesses and exact r0005/r0007 releases, prove production current remains e63f..., credential identity unchanged, operation runtime and transport inbox idle, persistent predecessor control services active/enabled, control boundary OLD_EXACT, and control-update transaction state NEW or an explicitly classified recoverable state without creating update-root. Do not invoke update in the same transaction. If reconcile returns OLD_EXACT + NEW with no mutation, checkpoint it before any separate control switch.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

@@ -1268,3 +1268,29 @@ No witness/release/activation/Hub/writer/credential/Drive mutation occurred.
 Sanitized evidence: `docs/evidence/R0007_POST_STAGE_RECONCILE_20260923.json`.
 
 The next lifecycle step is D0-02P control-update preparation. The existing qualified D0 update protocol is `deploy/zero-based-vps/operation_control_d0_update.py`; it updates only the control plane (`control-current` plus control units/services), leaves production `current` unchanged, protects credential identity, and has rollback/recovery semantics. No control update is authorized by this checkpoint.
+
+### D0-02P narrow control-update runtime
+
+Post-stage state is exact and r0007 is inertly staged. Review confirmed that the frozen `operation_control_d0_update.py` protocol is the correct r0005 -> r0007 control transition: it preserves production `current`, switches only `control-current` plus exact control unit bytes, restarts the persistent control services, checks stability, preserves credential identity, and has transactional rollback/recovery.
+
+The generic updater CLI is not used directly in production because it exposes path and identity overrides.
+
+This revision adds `tools/operation_control_r0007_control_update_runtime.py`:
+- commands only `reconcile` and `update`;
+- self-locates the current dev checkout and proves live branch identity;
+- resolves the exact issued stage authority;
+- verifies immutable stage PREPARED/COMPLETED witnesses independently of current control boundary;
+- verifies exact installed r0005 and staged r0007 release identities with the frozen materializer;
+- loads the mutation engine from the verified staged r0007 release itself;
+- fixes install/unit/credential/operation/transport/update roots to canonical VPS paths;
+- fixes old/new source and payload identities;
+- requires production `current` to remain exact `e63f...`;
+- requires exact credential SHA;
+- requires operation runtime and transport inbox idle;
+- classifies control state as `OLD_EXACT` or `NEW_EXACT`;
+- classifies transaction state as `NEW`, recoverable PREPARED states, `COMPLETED_EXACT`, `ROLLED_BACK_EXACT`, or fail-closed;
+- never creates update-root during `reconcile`;
+- on update failure reports mutation/credential outcome unknown and requires read-only reconcile before any retry;
+- has no Hub or Drive mutation surface.
+
+Next action after green CI is one real VPS `reconcile` only.
