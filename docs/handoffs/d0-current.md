@@ -959,3 +959,62 @@ The reconcile implementation also fail-closed validates canonical credential act
 **D0-02L — issue one real r0007 stage-only Git authorization.**
 
 This must be an isolated Git child commit bound to this exact boundary-evidence checkpoint. Do not combine authority issuance with VPS payload acquisition or release publication. Activation, legacy-Hub mutation, writer mutation, credential mutation and Drive mutation remain forbidden.
+
+## D0-02L — real r0007 release-stage authority issued
+
+Issuer checkpoint:
+- commit `82b1a0107a7f7a01b674265d19e7ad0da93bab8d`;
+- Zero-based Core run `35766748442` PASS;
+- bootstrap-prep r0002, stage-authority r0003, stage-execution, real-stage-transaction r0002, stage gate and production-stage-prep all PASS.
+
+Issued transaction:
+- transaction ID `e7869ce5efd9d63da191e30f7c4e2c2b`;
+- authority commit `b821bd44c82e853b7464664087d11cb39644d0df`;
+- authority parent / issuer checkpoint `82b1a0107a7f7a01b674265d19e7ad0da93bab8d`;
+- authority path `docs/authorizations/operation-control-r0007-stage/e7869ce5efd9d63da191e30f7c4e2c2b.json`;
+- authority Git blob `7bbb3196e1318bf808f40b2d89928a45ad2ee44a`;
+- authority SHA-256 `002c725f8ddcd5ad1a579116d37ec4aad58521356bf11e57103f0babe81527f8`;
+- scope `R0007_RELEASE_STAGE_ONLY`.
+
+Bound fresh stage boundary:
+- evidence path `docs/evidence/R0007_STAGE_BOUNDARY_20260922T173715Z.json`;
+- evidence Git blob `b91d6f11101aabf9beac1d180a29249fb4515449`;
+- evidence SHA-256 `582970cacfa3e2e740379e7c4c9017037324a16a5c731b31246819e3df7f57f5`;
+- observed at `2026-09-22T17:37:15Z`.
+
+Read-only post-write verification proved the authority commit has exactly one file diff: one added canonical authorization JSON. The bound evidence blob is byte-identical in issuer parent and authority commit.
+
+Authorized:
+- inert r0007 release staging only.
+
+Explicitly not authorized:
+- activation;
+- Drive content mutation;
+- legacy Hub mutation;
+- writer mutation;
+- credential mutation.
+
+No VPS payload input was acquired and no release was published during D0-02L.
+
+### Next objective — D0-02M
+
+Acquire the exact frozen r0007 payload into the **private transaction-bound VPS input path only**.
+
+Before the write:
+1. resolve the exact issued Git authority above;
+2. fresh read-only reconcile the private input path and live runtime boundary;
+3. if input is already exact, do not rewrite it;
+4. if input is foreign/partial, fail closed;
+5. only when absent and all authority/boundary identities are exact, perform autonomous exact acquisition.
+
+Acquisition contract:
+- fetch exact frozen source `833123b6a7ad2c61087ee8a86700bb9ad8a46298`;
+- require source tree `bbca9e3a17162e12a7a0f649138e8c469518ad2a`;
+- require clean checkout;
+- deterministic build twice, byte-identical;
+- payload SHA-256 `c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9`;
+- payload size `414534`;
+- file count `208`;
+- publish only to transaction-bound `0600` private input with O_EXCL/fsync semantics.
+
+D0-02M must not publish into `/opt/keelaryn/releases`, create stage PREPARED/COMPLETED witnesses, activate r0007, mutate legacy Hub/writer/credential, or mutate Drive.
