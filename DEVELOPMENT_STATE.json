@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 25,
+  "revision": 26,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "5c4b8b679c8a67f41de3b976920608facd4755c3",
+  "repository_basis_commit": "cb47ac7815da558618408104e4ed3a16d297c2ff",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02H-authorization-provenance-closeout",
-    "run_id": 35718493935,
+    "scope": "D0-02I-one-shot-stage-execution-qualified",
+    "run_id": 35723496514,
     "conclusion": "PASS",
     "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact HEAD 5c4b8b679c8a67f41de3b976920608facd4755c3 passed 724/724 Core tests. Stage-authority gate r0002 rerun 35718493955 passed with artifact 10689349715 digest sha256:7448c642586988cad8ffe035bb03ec688f694f170990d2eab0ef9f920e62f9a1. No real stage authorization or VPS stage exists."
+    "note": "Exact HEAD cb47ac7815da558618408104e4ed3a16d297c2ff passed 729/729 Core tests. Stage-execution gate r0001 run 35723496551 passed with artifact 10692333515 digest sha256:99f62fc1b575eb8ab52fa9cbfcccddb6e4988d15703ba97313e28b754dfa2587. Qualification proved exact authority execution/recovery with immutable PREPARED/COMPLETED witnesses and no real authorization issuance or VPS stage."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -139,8 +139,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02I_REAL_STAGE_AUTHORITY_EXECUTION_PREP",
-    "description": "Resolve operation-control-r0007 stage-execution gate r0001. Qualification must prove one-shot execution/recovery using Git-resolved IssuedStageAuthorization, authority-bound fresh boundary evidence matched against fresh live runtime projection, exact frozen payload verification before PREPARED, flat immutable transaction-bound PREPARED/COMPLETED witnesses, monotonic release publication, exact replay, no blind retry after PREPARED-without-release, recovery of staged-exact publication without COMPLETED and without republication, fail-closed stale boundary/bad payload/foreign witness/unattributed staged release/completed-without-prepared states, and continued prohibition on activation. No real authorization issuance, VPS stage or Drive mutation is allowed in D0-02I.",
+    "id": "D0-02J_REAL_STAGE_TRANSACTION_PREP",
+    "description": "Design and qualify the concrete real r0007 stage transaction boundary without performing it. Qualification must cover fresh live VPS boundary capture and sanitized evidence checkpointing, one-shot Git authority issuance as an isolated child commit, exact authority blob capture, exact frozen payload acquisition/transport to a private VPS staging input with independent SHA/size verification, trusted Git authority resolution, execution through the qualified one-shot PREPARED/release/COMPLETED protocol, post-execution read-only reconcile, durable transaction checkpointing, and interruption recovery across evidence issuance, authority issuance, payload transport, PREPARED, publication and COMPLETED boundaries. It must fail closed on stale evidence, authority/branch drift, payload mismatch, foreign private input/witness state and unattributed staged release. Real authority issuance, real VPS release publication, activation, Hub mutation and Drive mutation remain forbidden during D0-02J qualification.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

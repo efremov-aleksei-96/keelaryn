@@ -793,3 +793,47 @@ Disposable qualification r0001 covers nine scenarios:
 
 D0-02I still exposes only the `qualify` CLI. It creates no real `docs/authorizations/...json`, performs no real VPS publication and grants no activation authority.
 
+## D0-02I one-shot stage execution/recovery PASS
+
+Authoritative qualification HEAD `cb47ac7815da558618408104e4ed3a16d297c2ff`.
+
+Validation:
+- Zero-based Core run `35723496514` — SUCCESS, 729/729 tests;
+- stage-execution gate r0001 run `35723496551` — SUCCESS;
+- evidence artifact `10692333515`;
+- artifact ZIP SHA-256 `99f62fc1b575eb8ab52fa9cbfcccddb6e4988d15703ba97313e28b754dfa2587`.
+
+Qualified execution/recovery model:
+- Git-resolved `IssuedStageAuthorization` is required;
+- authority-bound boundary evidence is re-read and matched against a fresh live runtime projection;
+- exact frozen r0007 payload is verified before PREPARED;
+- flat immutable transaction-bound PREPARED/COMPLETED witnesses provide execution attribution only;
+- exact immutable r0007 release directory remains the physical publication commit authority;
+- crash after PREPARED but before publication requires reconcile and forbids blind retry;
+- crash after exact publication but before COMPLETED recovers the receipt without republication;
+- exact replay is idempotent;
+- stale boundary, wrong payload, foreign PREPARED, unattributed staged release and COMPLETED-without-PREPARED all fail closed;
+- activation remains unauthorized.
+
+No real `docs/authorizations/...json` record exists, no real VPS stage was performed, and the r0007 constrained-candidate lifecycle remains `FROZEN_TRANSITION_GATE_PASS`.
+
+## D0-02J — concrete real-stage transaction preparation
+
+The next qualification layer must join the already-qualified primitives into the exact future operational transaction without executing it against production.
+
+Required future sequence:
+1. fresh read-only VPS boundary capture;
+2. sanitize and durably checkpoint that evidence in GitHub;
+3. issue exactly one transaction-bound stage authority as an isolated child commit;
+4. capture exact authority commit/path/blob identities;
+5. acquire/transport the exact frozen r0007 payload to a private VPS input path without publishing it into `/opt/keelaryn/releases`;
+6. independently verify payload SHA-256, size, file count and source identity on VPS;
+7. resolve the Git authority into `IssuedStageAuthorization`;
+8. execute the qualified PREPARED → inert release publication → COMPLETED protocol;
+9. post-stage read-only reconcile of staged release and all non-release runtime anchors;
+10. durably checkpoint the transaction result and all exact identities.
+
+Qualification must cover interruption after each boundary and prove that recovery always starts from external authority/reconcile rather than blind retry.
+
+D0-02J itself remains disposable-only: no real authority issuance, no production payload transport, no real VPS publication, no activation, no legacy-Hub mutation and no Google Drive mutation.
+
