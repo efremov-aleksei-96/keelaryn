@@ -561,3 +561,37 @@ Required contract:
 
 D0-02G does not authorize the real VPS stage. It must not mutate `control-current`, systemd units, writer, credential, legacy Hub state or Google Drive corpus.
 
+## D0-02G — production stage preparation gate r0001
+
+Pre-write authority: `7158004b93e1a2ed79c0ba8232febe2ccd0315fb`; current Core validation and D0-02F stage gate are PASS. Real VPS stage remains forbidden.
+
+New qualification-only production-stage surface:
+- `tools/operation_control_r0007_production_stage.py`;
+- `tests/core/test_operation_control_r0007_production_stage.py`;
+- `.github/workflows/operation-control-r0007-production-stage-prep-r0001.yml`.
+
+The internal future production function is `execute_authorized_stage(...)`; the CLI still exposes only `qualify`. Therefore D0-02G can qualify the real-stage contract without making the real production mutation executable from this development checkpoint.
+
+Authorization is exact and narrow:
+- schema `keelaryn.operation-control-r0007-production-stage-authorization.v1`;
+- scope `R0007_RELEASE_STAGE_ONLY`;
+- exact r0007 candidate/source/tree/payload;
+- `production_stage_authorized=true`;
+- `activation_authorized=false`;
+- Drive, legacy-Hub, writer and credential mutation authorization all false.
+
+Future production execution contract:
+1. validate exact authorization before any observation/write;
+2. perform fresh two-pass read-only live r0005/legacy-runtime precheck;
+3. classify current successor release state before write;
+4. reject foreign/partial/residue states without overwrite/delete;
+5. delegate exact publication only to the already-qualified monotonic stage primitive;
+6. that primitive revalidates payload/filesystem/runtime again at its mutation boundary;
+7. after publication or uncertainty, perform a stable two-pass read-only postcheck of all non-release runtime anchors;
+8. recognize exact durable release publication instead of blind retry/delete;
+9. never authorize activation as part of stage.
+
+Qualification scenarios cover exact authorization, widened-authorization rejection, exact stage, idempotent replay, foreign/partial fail-closed, interrupted residue fail-closed, response loss after durable publication, mutation-boundary drift before publication and runtime drift after publication.
+
+Evidence must be sanitized: raw Hub IDs and credential token material are forbidden. D0-02G itself has `real_vps_stage_performed=false`, `production_stage_cli_exposed=false`, `production_mutation_allowed=false` and `drive_content_mutation_allowed=false`.
+
