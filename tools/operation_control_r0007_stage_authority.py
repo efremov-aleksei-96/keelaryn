@@ -31,7 +31,7 @@ PREDECESSOR_SOURCE = "08f2e211f53764590f6ff0f05f86b2de62c14418"
 HUB_TRANSACTION_ID = "61a2bfb65c9a47d088a76eee0df89d14"
 CREDENTIAL_SHA256 = "7002ed72a223dd7fc860451c53a4ec8f264d14f7144000559a295522b7cbe928"
 
-GATE_REVISION = "operation-control-r0007-stage-authority-gate-r0001"
+GATE_REVISION = "operation-control-r0007-stage-authority-gate-r0002"
 
 
 class StageAuthorityError(RuntimeError):

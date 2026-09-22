@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 22,
+  "revision": 23,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "0c76ee26b0f17004f3658e6918ebc7fcdc7ed4a1",
+  "repository_basis_commit": "40f1635985380223e61a98b5d4be26ebf8e4b816",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -56,8 +56,8 @@
     "scope": "D0-02G-production-stage-prep-closeout",
     "run_id": 35710280140,
     "conclusion": "PASS",
-    "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact HEAD 0c76ee26b0f17004f3658e6918ebc7fcdc7ed4a1 passed 718/718 Core tests. Production-stage-prep gate r0001 rerun 35710280089 passed with artifact 10685229667 digest sha256:34b2471796bed7a456c69159ba5ae476aaa917bcb3d51ea99f902d178252f115. No real production authorization or VPS stage exists."
+    "relevance": "LAST_COHERENT_BASELINE_BEFORE_D0_02H_R0001_SOURCE_CORRECTION",
+    "note": "D0-02H authority-gate r0001 run 35712566897 and Core run 35712566899 failed only because the newly introduced issuer source had three escaping/newline syntax defects. All prior current gates remained green; no production/VPS/Drive mutation occurred."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02H_AUTHORIZATION_PROVENANCE",
-    "description": "Resolve operation-control-r0007 stage-authority gate r0001. Qualification must prove issuer/consumer separation using disposable Git history: fresh boundary evidence in an issuer checkpoint, an isolated direct-child authorization commit adding exactly one canonical transaction path, exact Git blob and SHA binding, immutable transaction/path semantics, exact replay, fail-closed substitution/collision/permission-widening/non-isolated-commit/boundary-binding cases, and a consumer-created IssuedStageAuthorization that cannot be replaced by a raw dict. No real authorization record, real VPS stage or activation is allowed in D0-02H.",
+    "description": "Resolve stage-authority gate r0002 over unchanged authorization-provenance semantics. r0002 corrects only issuer source escaping/newline literals and advances the gate/framework revision; it must prove issuer/consumer separation, isolated direct-child authority commit provenance, exact Git blob and boundary evidence binding, exact replay, fail-closed substitution/collision/permission widening/non-isolated commit cases, and rejection of raw dict self-authorization. No real authorization record, VPS stage or activation is allowed.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

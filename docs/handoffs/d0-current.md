@@ -678,3 +678,24 @@ Disposable qualification scenarios:
 
 D0-02H does not add any real `docs/authorizations/...json` record. The gate explicitly fails if such a record exists. It does not perform VPS staging and does not expose activation authority.
 
+### D0-02H stage-authority gate r0001 failure / r0002 correction
+
+D0-02H r0001 commit `40f1635985380223e61a98b5d4be26ebf8e4b816` introduced the intended issuer/consumer protocol, but the first gate stopped at syntax-check before qualification:
+- stage-authority gate r0001 run `35712566897` — FAIL;
+- Zero-based Core run `35712566899` — FAIL with exactly one import error; 719 tests were started and all other executed tests passed;
+- production-stage-prep, stage gate and bootstrap-prep r0002 remained PASS.
+
+Root cause was source-generation escaping only in `tools/operation_control_r0007_stage_authority_issue.py`:
+1. the backslash path guard became an unterminated string;
+2. canonical `"\\n"` became a literal line break inside the Python string;
+3. `newline="\\n"` became a literal line break inside the call.
+
+No authority/provenance semantics were invalidated and no production action was reached.
+
+Correction policy:
+- r0001 remains immutable failed gate evidence;
+- issuer escaping is corrected once;
+- stage-authority framework/gate revision advances to `operation-control-r0007-stage-authority-gate-r0002`;
+- no real `docs/authorizations/...json` record is created;
+- no VPS/Drive/legacy-Hub mutation is authorized or performed.
+

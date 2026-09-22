@@ -61,7 +61,7 @@ def render_record(
         not isinstance(boundary_evidence_path, str)
         or not boundary_evidence_path.startswith("docs/evidence/")
         or boundary_evidence_path.startswith("/")
-        or "\" in boundary_evidence_path
+        or "\\" in boundary_evidence_path
         or "\x00" in boundary_evidence_path
         or ".." in boundary_evidence_path.split("/")
     ):
@@ -102,8 +102,7 @@ def _canonical(value: Any) -> str:
             sort_keys=True,
             separators=(",", ":"),
         )
-        + "
-"
+        + "\n"
     )
 
 
@@ -149,8 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     raw = _canonical(value)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(raw, encoding="utf-8", newline="
-")
+        args.output.write_text(raw, encoding="utf-8", newline="\n")
     print(raw, end="")
     return 0
 
