@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -111,6 +112,36 @@ class R0007BootstrapPrepTests(unittest.TestCase):
                 "partial successor residue",
             ):
                 r0007._recorded_boundary(root)
+
+    def test_predecessor_materialize_import_supports_dataclass_module(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            releases = Path(td)
+            module_path = (
+                releases
+                / r0007.PREDECESSOR_SOURCE_COMMIT
+                / "deploy"
+                / "zero-based-vps"
+                / "materialize_payload.py"
+            )
+            module_path.parent.mkdir(parents=True)
+            module_path.write_text(
+                "from dataclasses import dataclass\n"
+                "@dataclass(frozen=True)\n"
+                "class Marker:\n"
+                "    value: str = 'ok'\n",
+                encoding="utf-8",
+            )
+            module_name = "keelaryn_r0005_materialize_exact"
+            previous = sys.modules.pop(module_name, None)
+            try:
+                with mock.patch.object(r0007, "RELEASES_ROOT", releases):
+                    loaded = r0007._load_predecessor_materialize()
+                self.assertEqual(loaded.Marker().value, "ok")
+                self.assertIs(sys.modules.get(module_name), loaded)
+            finally:
+                sys.modules.pop(module_name, None)
+                if previous is not None:
+                    sys.modules[module_name] = previous
 
     def test_reconcile_requires_identical_two_pass_boundary(self) -> None:
         anchor = {
