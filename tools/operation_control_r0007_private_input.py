@@ -569,12 +569,6 @@ def _parser() -> argparse.ArgumentParser:
         "--expected-branch-tip",
         required=True,
     )
-    parser.add_argument(
-        "--input-root",
-        type=Path,
-        default=DEFAULT_INPUT_ROOT,
-    )
-    parser.add_argument("--output", type=Path)
     return parser
 
 
@@ -585,13 +579,13 @@ def main(argv: list[str] | None = None) -> int:
             value = reconcile(
                 repository_root=args.repository_root,
                 expected_branch_tip=args.expected_branch_tip,
-                input_root=args.input_root,
+                input_root=DEFAULT_INPUT_ROOT,
             )
         elif args.command == "acquire":
             value = acquire(
                 repository_root=args.repository_root,
                 expected_branch_tip=args.expected_branch_tip,
-                input_root=args.input_root,
+                input_root=DEFAULT_INPUT_ROOT,
             )
         else:
             raise PrivateInputError("COMMAND_INVALID", "unsupported command")
@@ -633,9 +627,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         + "\n"
     )
-    if args.output is not None:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(raw, encoding="utf-8", newline="\n")
     print(raw, end="")
     return 0
 

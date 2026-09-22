@@ -146,6 +146,41 @@ class R0007PrivateInputTests(unittest.TestCase):
         self.assertNotIn("stage", action.choices)
         self.assertNotIn("activate", action.choices)
 
+    def test_cli_has_no_input_root_or_output_override(self) -> None:
+        parser = private_input._parser()
+        destinations = {item.dest for item in parser._actions}
+        self.assertNotIn("input_root", destinations)
+        self.assertNotIn("output", destinations)
+
+    def test_cli_main_pins_default_input_root(self) -> None:
+        expected_tip = "3" * 40
+        value = {
+            "schema": private_input.SCHEMA,
+            "command": "reconcile",
+        }
+        with mock.patch.object(
+            private_input,
+            "reconcile",
+            return_value=value,
+        ) as reconcile_call, mock.patch(
+            "builtins.print",
+        ):
+            rc = private_input.main(
+                [
+                    "reconcile",
+                    "--repository-root",
+                    str(ROOT),
+                    "--expected-branch-tip",
+                    expected_tip,
+                ]
+            )
+        self.assertEqual(rc, 0)
+        reconcile_call.assert_called_once_with(
+            repository_root=ROOT,
+            expected_branch_tip=expected_tip,
+            input_root=private_input.DEFAULT_INPUT_ROOT,
+        )
+
     def test_transaction_binding_is_exact(self) -> None:
         self.assertEqual(
             private_input.TRANSACTION_ID,

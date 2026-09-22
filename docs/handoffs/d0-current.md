@@ -1050,3 +1050,20 @@ The tool requires:
 `acquire` has no release-publication, stage-witness or activation command/surface. It cannot mutate legacy Hub, writer, credential or Drive.
 
 No real VPS private input was acquired in this development commit.
+
+### D0-02M CLI location hardening
+
+On predecessor HEAD `69c167ddb5576a0941fe9dc43adb78dbe2e7ecca`:
+- Zero-based Core run `35768695386` PASS;
+- private-input gate r0001 run `35768695814` PASS, 9/9 regressions;
+- bootstrap-prep r0002, production-stage-prep and stage gate PASS.
+
+The operational private-input CLI is now intentionally narrower:
+- operator cannot override the private input root;
+- canonical root is always `/var/lib/keelaryn/operation-control/r0007-stage-input`;
+- operator cannot redirect tool output to an arbitrary filesystem path;
+- output is stdout only;
+- library-level `input_root` parameters remain solely for disposable regression tests;
+- CLI commands remain exactly `reconcile` and `acquire`.
+
+The next real action is **read-only reconcile only**. It must not be combined with `acquire`.
