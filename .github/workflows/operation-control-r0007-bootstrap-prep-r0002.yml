@@ -10,6 +10,7 @@ on:
       - '.github/workflows/operation-control-r0007-bootstrap-prep-r0002.yml'
       - 'docs/candidates/operation-control-r0007-20260921-01.json'
       - 'docs/evidence/D0_02D_LEGACY_RUNTIME_RECONCILE_2026-09-21T201610Z.json'
+      - 'docs/evidence/R0007_STAGE_BOUNDARY_*.json'
       - 'DEVELOPMENT_STATE.json'
   workflow_dispatch:
 
@@ -90,7 +91,12 @@ jobs:
               raise SystemExit("bootstrap-prep payload identity mismatch")
 
           recorded = value.get("recorded_live_boundary", {})
-          if recorded.get("evidence_path") != "docs/evidence/D0_02D_LEGACY_RUNTIME_RECONCILE_2026-09-21T201610Z.json":
+          with open("DEVELOPMENT_STATE.json", encoding="utf-8") as handle:
+              current_state = json.load(handle)
+          expected_evidence_path = current_state.get("production_boundary", {}).get(
+              "evidence_path"
+          )
+          if recorded.get("evidence_path") != expected_evidence_path:
               raise SystemExit("bootstrap-prep live evidence path mismatch")
           if recorded.get("production_source_commit") != "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f":
               raise SystemExit("bootstrap-prep production source mismatch")
