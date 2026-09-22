@@ -1152,3 +1152,27 @@ Mutation scope was exactly limited to private input:
 Sanitized evidence: `docs/evidence/R0007_PRIVATE_INPUT_ACQUIRE_20260922.json`.
 
 Next lifecycle step is D0-02N: prepare/qualify the inert release-publication transaction. Release publication is a separate production-filesystem mutation and is not performed by this checkpoint.
+
+### D0-02N operational stage runtime
+
+D0-02M private input is already exact and durably checkpointed. Review confirmed that the lower-level stage implementation is qualified but all existing CLIs expose only `qualify`.
+
+This revision adds `tools/operation_control_r0007_stage_runtime.py` as the narrow real-host surface:
+- commands only `reconcile` and `stage`;
+- no repository/input/release/witness/output path overrides;
+- self-locates the exact Git checkout;
+- reuses the issued-authority resolver and exact live-boundary verifier;
+- verifies the canonical acquired input before any stage work;
+- loads the exact frozen r0007 materializer, never a mutable development materializer;
+- release root fixed to `/opt/keelaryn/releases`;
+- witness root fixed to `/var/lib/keelaryn/operation-control/r0007-stage-witness`;
+- read-only reconcile never creates the witness root;
+- stage revalidates Git/authority/runtime/input at the mutation boundary;
+- witness root creation is owner-only 0700;
+- execution delegates to the already-qualified monotonic `execute_once` PREPARED -> immutable release -> COMPLETED protocol;
+- activation/Hub/writer/credential/Drive mutation surfaces do not exist;
+- a stage failure reports release/witness outcome as unknown and requires reconcile rather than falsely claiming zero mutation.
+
+The old private-input gate is also made lifecycle-aware by removing its obsolete requirement that the current objective still be D0-02M.
+
+Next action after green CI is one real read-only stage-runtime `reconcile` only.

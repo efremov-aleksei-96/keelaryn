@@ -39,10 +39,6 @@ jobs:
           import json
           from pathlib import Path
 
-          state = json.loads(Path("DEVELOPMENT_STATE.json").read_text(encoding="utf-8"))
-          if state.get("next_objective", {}).get("id") != "D0-02M_REAL_STAGE_PRIVATE_INPUT_ACQUIRE":
-              raise SystemExit("private-input gate objective mismatch")
-
           root = Path("docs/authorizations/operation-control-r0007-stage")
           files = sorted(path for path in root.glob("*.json") if path.is_file())
           expected = root / "e7869ce5efd9d63da191e30f7c4e2c2b.json"
