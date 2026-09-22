@@ -1073,3 +1073,18 @@ The next real action is **read-only reconcile only**. It must not be combined wi
 HEAD `a8058d9fbbba0ef8bcdbeeadc49ffa0bbd1fe8cd` reached the intended production fail-closed branch-drift path. Both the dedicated private-input gate and full Core suite failed only because one regression still matched the obsolete text `branch tip`; the implementation now reports `local HEAD, authoritative branch and live remote branch differ`.
 
 This checkpoint changes only that test expectation and state metadata. No production/private-input/VPS mutation is performed.
+
+### D0-02M self-locating production CLI
+
+A real read-only reconcile on `d3eebd7c25ae49e7e9500f7d19834342985c14f0` failed closed with `REPOSITORY_INVALID` even though the surrounding shell had successfully executed Git commands against the same disposable checkout. No mutation occurred.
+
+The production CLI now removes the last path argument:
+- no `--repository-root`;
+- repository root is `Path(__file__).resolve().parents[1]`;
+- no `--expected-branch-tip`;
+- no `--input-root`;
+- no `--output`;
+- CLI surface is only `reconcile` or `acquire`.
+
+Therefore the next VPS wrapper only needs to fetch/checkout exact HEAD and execute:
+`python3 -B tools/operation_control_r0007_private_input.py reconcile`.

@@ -153,8 +153,9 @@ class R0007PrivateInputTests(unittest.TestCase):
         self.assertNotIn("input_root", destinations)
         self.assertNotIn("output", destinations)
         self.assertNotIn("expected_branch_tip", destinations)
+        self.assertNotIn("repository_root", destinations)
 
-    def test_cli_main_pins_default_input_root(self) -> None:
+    def test_cli_main_pins_script_repository_and_default_input_root(self) -> None:
         value = {
             "schema": private_input.SCHEMA,
             "command": "reconcile",
@@ -166,16 +167,10 @@ class R0007PrivateInputTests(unittest.TestCase):
         ) as reconcile_call, mock.patch(
             "builtins.print",
         ):
-            rc = private_input.main(
-                [
-                    "reconcile",
-                    "--repository-root",
-                    str(ROOT),
-                ]
-            )
+            rc = private_input.main(["reconcile"])
         self.assertEqual(rc, 0)
         reconcile_call.assert_called_once_with(
-            repository_root=ROOT,
+            repository_root=private_input.SCRIPT_REPOSITORY_ROOT,
             input_root=private_input.DEFAULT_INPUT_ROOT,
         )
 
@@ -213,6 +208,7 @@ class R0007PrivateInputTests(unittest.TestCase):
             private_input.DEFAULT_INPUT_ROOT,
             Path("/var/lib/keelaryn/operation-control/r0007-stage-input"),
         )
+        self.assertEqual(private_input.SCRIPT_REPOSITORY_ROOT, ROOT)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 43,
+  "revision": 44,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "a8058d9fbbba0ef8bcdbeeadc49ffa0bbd1fe8cd",
+  "repository_basis_commit": "d3eebd7c25ae49e7e9500f7d19834342985c14f0",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02M-self-derived-branch-tip-harness-correction",
-    "run_id": 35770850107,
+    "scope": "D0-02M-private-input-harness-PASS",
+    "run_id": 35771464755,
     "conclusion": "PASS",
-    "relevance": "PRODUCT_LOGIC_PASS_HARNESS_ONLY_SUCCESSOR",
-    "note": "HEAD a8058d9fbbba0ef8bcdbeeadc49ffa0bbd1fe8cd changed private-input branch identity from operator-supplied expected tip to self-derived equality of local HEAD, local authoritative branch and live GitHub branch. Core executed 753 tests with exactly one harness failure: the remote-drift test still expected the obsolete message fragment 'branch tip' while production correctly raised BRANCH_TIP_DRIFT with 'local HEAD, authoritative branch and live remote branch differ'. This commit changes only that assertion text plus durable checkpoint metadata. No product/runtime logic or VPS/Drive mutation occurs."
+    "relevance": "CURRENT_FULLY_GREEN_PRE_RECONCILE_BASELINE",
+    "note": "Exact HEAD d3eebd7c25ae49e7e9500f7d19834342985c14f0 passed Zero-based Core run 35771464755, private-input gate r0001 run 35771464303, bootstrap-prep r0002, production-stage-prep and stage gate. A subsequent real VPS read-only reconcile failed closed with REPOSITORY_INVALID even though the wrapper had successfully operated on the same disposable Git checkout. To eliminate shell/arg ambiguity entirely, this successor removes --repository-root from the production CLI: the tool derives its repository root from its own exact __file__ path. CLI now exposes only the command token reconcile/acquire; canonical private input root and repository root are both non-overridable. No VPS input acquisition, release publication, witness, activation, Hub, writer, credential or Drive mutation occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02M_REAL_STAGE_PRIVATE_INPUT_ACQUIRE",
-    "description": "After this exact-head harness-only correction passes Zero-based Core and operation-control-r0007-private-input-gate-r0001, run exactly one real VPS read-only private-input reconcile using only --repository-root. The tool must derive and prove local HEAD = local dev/zero-based-keelaryn = live GitHub branch, resolve the issued authority, fresh-reconcile runtime state and inspect the fixed canonical private-input root without creating it. Do not run acquire in the same transaction.",
+    "description": "After this exact-head self-locating CLI hardening passes Zero-based Core and operation-control-r0007-private-input-gate-r0001, run exactly one real VPS read-only private-input reconcile by executing the checked-out tool with the single argument reconcile. The tool must derive its repository root from __file__, derive and prove local HEAD = local dev/zero-based-keelaryn = live GitHub branch, resolve the issued authority, fresh-reconcile runtime state and inspect the fixed canonical private-input root without creating it. Do not run acquire in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

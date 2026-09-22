@@ -115,6 +115,7 @@ jobs:
               'drive_mutations_performed": False',
               '/var/lib/keelaryn/operation-control/r0007-stage-input',
               'input_root=DEFAULT_INPUT_ROOT',
+              'repository_root=SCRIPT_REPOSITORY_ROOT',
           )
           for needle in required:
               if needle not in raw:
@@ -123,6 +124,7 @@ jobs:
               'parser.add_argument("--input-root"',
               'parser.add_argument("--output"',
               'parser.add_argument("--expected-branch-tip"',
+              'parser.add_argument("--repository-root"',
               'args.input_root',
               'args.output',
               'args.expected_branch_tip',

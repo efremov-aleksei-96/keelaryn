@@ -51,6 +51,8 @@ DEFAULT_INPUT_ROOT = Path(
     "/var/lib/keelaryn/operation-control/r0007-stage-input"
 )
 
+SCRIPT_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
 
 class PrivateInputError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
@@ -569,11 +571,6 @@ def _parser() -> argparse.ArgumentParser:
         prog="keelaryn-operation-control-r0007-private-input"
     )
     parser.add_argument("command", choices=("reconcile", "acquire"))
-    parser.add_argument(
-        "--repository-root",
-        type=Path,
-        default=Path.cwd(),
-    )
     return parser
 
 
@@ -582,12 +579,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "reconcile":
             value = reconcile(
-                repository_root=args.repository_root,
+                repository_root=SCRIPT_REPOSITORY_ROOT,
                 input_root=DEFAULT_INPUT_ROOT,
             )
         elif args.command == "acquire":
             value = acquire(
-                repository_root=args.repository_root,
+                repository_root=SCRIPT_REPOSITORY_ROOT,
                 input_root=DEFAULT_INPUT_ROOT,
             )
         else:
