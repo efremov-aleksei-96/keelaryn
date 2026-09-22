@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 39,
+  "revision": 40,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "b821bd44c82e853b7464664087d11cb39644d0df",
+  "repository_basis_commit": "b0fb9cd8f56c7c6fe8508e1fdb76cad6eeada077",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02L-real-stage-authority-issued",
-    "run_id": 35766748442,
+    "scope": "D0-02L-issued-authority-checkpoint-PASS",
+    "run_id": 35767460526,
     "conclusion": "PASS",
-    "relevance": "GREEN_ISSUER_CHECKPOINT_PLUS_VERIFIED_ISOLATED_AUTHORITY_COMMIT",
-    "note": "Issuer checkpoint 82b1a0107a7f7a01b674265d19e7ad0da93bab8d passed Zero-based Core run 35766748442 plus bootstrap-prep r0002, stage-authority r0003, stage-execution, real-stage-transaction r0002, stage gate and production-stage-prep. Its direct child b821bd44c82e853b7464664087d11cb39644d0df issued exactly one canonical R0007_RELEASE_STAGE_ONLY authorization for transaction e7869ce5efd9d63da191e30f7c4e2c2b at docs/authorizations/operation-control-r0007-stage/e7869ce5efd9d63da191e30f7c4e2c2b.json, Git blob 7bbb3196e1318bf808f40b2d89928a45ad2ee44a, SHA-256 002c725f8ddcd5ad1a579116d37ec4aad58521356bf11e57103f0babe81527f8. The authority binds canonical boundary evidence blob b91d6f11101aabf9beac1d180a29249fb4515449 / SHA-256 582970cacfa3e2e740379e7c4c9017037324a16a5c731b31246819e3df7f57f5. Commit verification proved exactly one added file and no other file mutation. No VPS input acquisition, release publication, activation, Hub, writer, credential or Drive mutation occurred."
+    "relevance": "CURRENT_POST_ISSUANCE_CORE_BASELINE",
+    "note": "Exact post-issuance checkpoint HEAD b0fb9cd8f56c7c6fe8508e1fdb76cad6eeada077 passed Zero-based Core run 35767460526; bootstrap-prep r0002, production-stage-prep and stage gate also passed. Pre-issuance authority/execution/real-stage workflows fail only at their intentional historical assertions that no real authority record may exist; those gates are superseded after D0-02L issuance. This successor commit adds the transaction-bound D0-02M private-input operational surface and dedicated post-issuance gate. No VPS input acquisition, release publication, stage witness, activation, Hub, writer, credential or Drive mutation occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02M_REAL_STAGE_PRIVATE_INPUT_ACQUIRE",
-    "description": "Reconcile the exact issued authority transaction e7869ce5efd9d63da191e30f7c4e2c2b from authority commit b821bd44c82e853b7464664087d11cb39644d0df / path docs/authorizations/operation-control-r0007-stage/e7869ce5efd9d63da191e30f7c4e2c2b.json / blob 7bbb3196e1318bf808f40b2d89928a45ad2ee44a. Before any VPS write, perform a fresh read-only reconcile of the transaction-bound private input path and the live runtime boundary. If the private input is absent and the authority/boundary remain exact, acquire the frozen r0007 payload autonomously on VPS using exact Git source/tree verification, deterministic double build, exact payload SHA/size/count verification, and O_EXCL/fsync publication to the transaction-bound 0600 private input path only. Do not publish into /opt/keelaryn/releases, create PREPARED/COMPLETED stage witnesses, activate r0007, mutate legacy Hub/writer/credential, or mutate Drive in the same transaction.",
+    "description": "Qualify the new transaction-bound private-input operational surface on exact HEAD. The tool is bound to transaction e7869ce5efd9d63da191e30f7c4e2c2b / authority commit b821bd44c82e853b7464664087d11cb39644d0df / authority blob 7bbb3196e1318bf808f40b2d89928a45ad2ee44a and exposes only reconcile/acquire. After Zero-based Core plus operation-control-r0007-private-input-gate-r0001 PASS, perform a real VPS read-only private-input reconcile first. Only if Git authority, remote branch tip, live runtime boundary and private input prestate are exact may a later separate transaction execute acquire into /var/lib/keelaryn/operation-control/r0007-stage-input. Release publication, PREPARED/COMPLETED stage witnesses, activation, legacy Hub/writer/credential mutation and Drive mutation remain forbidden.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

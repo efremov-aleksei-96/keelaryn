@@ -1018,3 +1018,35 @@ Acquisition contract:
 - publish only to transaction-bound `0600` private input with O_EXCL/fsync semantics.
 
 D0-02M must not publish into `/opt/keelaryn/releases`, create stage PREPARED/COMPLETED witnesses, activate r0007, mutate legacy Hub/writer/credential, or mutate Drive.
+
+## D0-02M — operational private-input surface
+
+Post-issuance checkpoint `b0fb9cd8f56c7c6fe8508e1fdb76cad6eeada077` passed Zero-based Core run `35767460526`.
+
+The real authority makes older D0-02H/I/J pre-issuance workflows intentionally inapplicable: their first assertions require that no real authority record exist. Current post-issuance safety is therefore carried by Core plus the dedicated D0-02M gate rather than interpreting those expected historical failures as authority defects.
+
+New operational tool:
+- `tools/operation_control_r0007_private_input.py`;
+- gate `operation-control-r0007-private-input-gate-r0001`;
+- transaction fixed to `e7869ce5efd9d63da191e30f7c4e2c2b`;
+- authority commit/path/blob/SHA fixed to the already issued D0-02L record;
+- default private root `/var/lib/keelaryn/operation-control/r0007-stage-input`;
+- CLI surface exactly `reconcile` and `acquire`.
+
+The tool requires:
+1. exact local HEAD and authoritative branch ref equal an explicit expected checkpoint;
+2. live GitHub branch tip equal the same checkpoint;
+3. Git-resolved immutable authority provenance;
+4. fresh two-pass real VPS runtime boundary equal the qualified exact runtime boundary;
+5. read-only private-input reconcile before any acquisition;
+6. exact frozen source fetch/tree/clean checkout;
+7. deterministic payload build twice and exact SHA/size/count/materializer verification;
+8. a second Git authority + branch + VPS runtime revalidation at the mutation boundary;
+9. secure current-user-owned private input root mode 0700;
+10. one transaction-bound mode-0600 O_EXCL/fsync publication and immediate exact postverify.
+
+`reconcile` does not create the input root when absent.
+
+`acquire` has no release-publication, stage-witness or activation command/surface. It cannot mutate legacy Hub, writer, credential or Drive.
+
+No real VPS private input was acquired in this development commit.
