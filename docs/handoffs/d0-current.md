@@ -1088,3 +1088,16 @@ The production CLI now removes the last path argument:
 
 Therefore the next VPS wrapper only needs to fetch/checkout exact HEAD and execute:
 `python3 -B tools/operation_control_r0007_private_input.py reconcile`.
+
+### D0-02M issued-record projection correction
+
+The first real self-locating VPS reconcile reached Git-resolved authority validation and failed closed with `AUTHORITY_IDENTITY_MISMATCH` on `transaction_id`. This was a D0-02M wrapper defect, not authority corruption.
+
+`authority.require_issued_authorization(issued)` intentionally returns a production-stage authorization projection and therefore omits `transaction_id`. The wrapper now:
+1. calls `require_issued_authorization(issued)` only to validate provenance/type;
+2. reads the immutable complete authority from `issued.record`;
+3. compares transaction/source/payload/scope/safety flags against that full record.
+
+A regression explicitly proves the wrapper does not depend on the projected return object for transaction identity.
+
+The failed VPS reconcile performed zero private-input/release/Drive/activation mutation.

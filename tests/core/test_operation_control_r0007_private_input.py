@@ -38,6 +38,69 @@ class R0007PrivateInputTests(unittest.TestCase):
             unit["sha256"] = "0" * 64
         return value
 
+    def test_resolved_authority_compares_full_issued_record(self) -> None:
+        record = {
+            "transaction_id": private_input.TRANSACTION_ID,
+            "scope": "R0007_RELEASE_STAGE_ONLY",
+            "candidate": "operation-control-r0007-20260921-01",
+            "source_commit": private_input.transaction.SOURCE_COMMIT,
+            "source_tree": private_input.transaction.SOURCE_TREE,
+            "payload_sha256": private_input.transaction.PAYLOAD_SHA256,
+            "payload_size": private_input.transaction.PAYLOAD_SIZE,
+            "file_count": private_input.transaction.PAYLOAD_FILE_COUNT,
+            "production_stage_authorized": True,
+            "activation_authorized": False,
+            "drive_content_mutation_authorized": False,
+            "legacy_hub_mutation_authorized": False,
+            "writer_mutation_authorized": False,
+            "credential_mutation_authorized": False,
+        }
+        provenance = {
+            "authority_commit": private_input.AUTHORITY_COMMIT,
+            "authority_path": private_input.AUTHORITY_PATH,
+            "authority_git_blob": private_input.AUTHORITY_BLOB,
+            "authority_sha256": private_input.AUTHORITY_SHA256,
+            "boundary_evidence_git_blob": private_input.BOUNDARY_BLOB,
+            "boundary_evidence_sha256": private_input.BOUNDARY_SHA256,
+        }
+
+        class FakeIssued:
+            @property
+            def record(self):
+                return dict(record)
+
+            @property
+            def provenance(self):
+                return dict(provenance)
+
+        issued = FakeIssued()
+        with mock.patch.object(
+            private_input.authority,
+            "resolve_git_authorization",
+            return_value=issued,
+        ), mock.patch.object(
+            private_input.authority,
+            "require_issued_authorization",
+            return_value={
+                "scope": "R0007_RELEASE_STAGE_ONLY",
+                "candidate": record["candidate"],
+                "source_commit": record["source_commit"],
+                "source_tree": record["source_tree"],
+                "payload_sha256": record["payload_sha256"],
+                "payload_size": record["payload_size"],
+                "file_count": record["file_count"],
+                "production_stage_authorized": True,
+                "activation_authorized": False,
+                "drive_content_mutation_authorized": False,
+                "legacy_hub_mutation_authorized": False,
+                "writer_mutation_authorized": False,
+                "credential_mutation_authorized": False,
+            },
+        ):
+            observed = private_input._resolve_issued(ROOT)
+
+        self.assertIs(observed, issued)
+
     def test_live_projection_matches_qualified_boundary(self) -> None:
         projected = private_input._project_live_boundary(self._live())
         self.assertEqual(

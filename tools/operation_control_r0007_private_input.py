@@ -173,7 +173,8 @@ def _resolve_issued(root: Path):
         authority_path_value=AUTHORITY_PATH,
         expected_authority_blob=AUTHORITY_BLOB,
     )
-    record = authority.require_issued_authorization(issued)
+    authority.require_issued_authorization(issued)
+    record = issued.record
     provenance = issued.provenance
     expected_record = {
         "transaction_id": TRANSACTION_ID,

@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 44,
+  "revision": 45,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "d3eebd7c25ae49e7e9500f7d19834342985c14f0",
+  "repository_basis_commit": "cdc9431bf38830db328aa277ca9a946b3f362a76",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02M-private-input-harness-PASS",
-    "run_id": 35771464755,
+    "scope": "D0-02M-self-locating-private-input-PASS",
+    "run_id": 35772905128,
     "conclusion": "PASS",
-    "relevance": "CURRENT_FULLY_GREEN_PRE_RECONCILE_BASELINE",
-    "note": "Exact HEAD d3eebd7c25ae49e7e9500f7d19834342985c14f0 passed Zero-based Core run 35771464755, private-input gate r0001 run 35771464303, bootstrap-prep r0002, production-stage-prep and stage gate. A subsequent real VPS read-only reconcile failed closed with REPOSITORY_INVALID even though the wrapper had successfully operated on the same disposable Git checkout. To eliminate shell/arg ambiguity entirely, this successor removes --repository-root from the production CLI: the tool derives its repository root from its own exact __file__ path. CLI now exposes only the command token reconcile/acquire; canonical private input root and repository root are both non-overridable. No VPS input acquisition, release publication, witness, activation, Hub, writer, credential or Drive mutation occurs."
+    "relevance": "CURRENT_GREEN_PRE_RECONCILE_BASELINE",
+    "note": "Exact HEAD cdc9431bf38830db328aa277ca9a946b3f362a76 passed Zero-based Core run 35772905128 and private-input gate r0001, with production-stage-prep and stage gate PASS. A real read-only VPS reconcile then passed repository/Git resolution and failed closed before runtime/private-input mutation with AUTHORITY_IDENTITY_MISMATCH on transaction_id. Root cause: the D0-02M wrapper treated require_issued_authorization() return value as the full issued record, but that API intentionally returns the production-stage projection which omits transaction_id and provenance-only fields. This successor validates issuance through require_issued_authorization() and compares exact transaction identity against issued.record. No VPS input acquisition, release publication, witness, activation, Hub, writer, credential or Drive mutation occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02M_REAL_STAGE_PRIVATE_INPUT_ACQUIRE",
-    "description": "After this exact-head self-locating CLI hardening passes Zero-based Core and operation-control-r0007-private-input-gate-r0001, run exactly one real VPS read-only private-input reconcile by executing the checked-out tool with the single argument reconcile. The tool must derive its repository root from __file__, derive and prove local HEAD = local dev/zero-based-keelaryn = live GitHub branch, resolve the issued authority, fresh-reconcile runtime state and inspect the fixed canonical private-input root without creating it. Do not run acquire in the same transaction.",
+    "description": "After this exact-head full-issued-record correction passes Zero-based Core and operation-control-r0007-private-input-gate-r0001, run exactly one real VPS read-only private-input reconcile by executing the checked-out tool with only reconcile. The tool must self-locate repository root, prove branch identity, validate issued authorization provenance, compare full issued.record identity, fresh-reconcile runtime state and inspect the fixed canonical private-input root without creating it. Do not run acquire in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
