@@ -1227,3 +1227,23 @@ The reconcile performed zero witness-root/release/witness/activation/Hub/writer/
 Sanitized evidence: `docs/evidence/R0007_STAGE_RUNTIME_RECONCILE_20260923.json`.
 
 Next transaction is one inert `stage` invocation only. It may create the witness root, PREPARED/COMPLETED immutable witnesses and the exact immutable r0007 release directory. It must not change `/opt/keelaryn/current` or any runtime/Hub/Drive state. After any interruption, reconcile before retry.
+
+### D0-02N real inert stage COMPLETED_EXACT
+
+The real VPS `stage` invocation from exact HEAD `6d35f444074ea094259a9d8a8569c31f4a3df42c` completed terminally.
+
+Durable result:
+- canonical witness root created;
+- immutable PREPARED witness committed;
+- exact immutable r0007 release published at `/opt/keelaryn/releases/833123b6a7ad2c61087ee8a86700bb9ad8a46298`;
+- immutable COMPLETED witness committed;
+- post-reconcile `PASS`;
+- execution `COMPLETED_EXACT`;
+- release `STAGED_EXACT`;
+- prepared SHA-256 `ca6af6239a042d96b2e3d2c3c600aba9d2f931eb4e54a82b5b0f1711c418341e`.
+
+The transaction did **not** activate r0007 or change `/opt/keelaryn/current`. Legacy Hub, writer, credential and Drive were not mutated.
+
+Sanitized evidence: `docs/evidence/R0007_STAGE_RUNTIME_COMPLETED_20260923.json`.
+
+Next lifecycle step is D0-02O: one fresh read-only post-stage reconcile and inspection of the existing activation/update protocol. No activation is authorized by this checkpoint.
