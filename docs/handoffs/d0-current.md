@@ -1205,3 +1205,25 @@ The wrapper now sets:
 - `stage = execution.stage`.
 
 A regression requires object identity between runtime execution, transaction execution and their authority modules. No production mutation is performed by this correction.
+
+### D0-02N live stage prestate PASS
+
+Real VPS stage-runtime `reconcile` on exact HEAD `84d352abefef2f301604951d6067a876ee8e7b8a` completed successfully.
+
+Verified:
+- exact issued authority/provenance;
+- transaction-bound private input `INPUT_EXACT`;
+- payload source `833123b6a7ad2c61087ee8a86700bb9ad8a46298`;
+- payload SHA-256 `c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9`;
+- payload size `414534`, file count `208`;
+- runtime boundary remains production source `e63f371d...`, control source r0005, legacy Hub PREPARED/OLD, writer INACTIVE, r0007 snapshot unit absent;
+- stage execution state `NEW`;
+- release state `NOT_STAGED`;
+- PREPARED/COMPLETED witnesses absent;
+- canonical witness root absent.
+
+The reconcile performed zero witness-root/release/witness/activation/Hub/writer/credential/Drive mutation.
+
+Sanitized evidence: `docs/evidence/R0007_STAGE_RUNTIME_RECONCILE_20260923.json`.
+
+Next transaction is one inert `stage` invocation only. It may create the witness root, PREPARED/COMPLETED immutable witnesses and the exact immutable r0007 release directory. It must not change `/opt/keelaryn/current` or any runtime/Hub/Drive state. After any interruption, reconcile before retry.
