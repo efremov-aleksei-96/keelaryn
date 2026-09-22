@@ -129,9 +129,11 @@ def _remote_branch_tip() -> str:
     return _hex(fields[0], 40, "remote branch tip")
 
 
-def _verify_repository(root: Path, expected_branch_tip: str) -> dict[str, str]:
+def _verify_repository(
+    root: Path,
+    expected_branch_tip: str | None = None,
+) -> dict[str, str]:
     root = root.resolve()
-    expected = _hex(expected_branch_tip, 40, "expected branch tip")
     if not (root / ".git").is_dir():
         raise PrivateInputError(
             "REPOSITORY_INVALID",
@@ -140,11 +142,20 @@ def _verify_repository(root: Path, expected_branch_tip: str) -> dict[str, str]:
     local_branch = _git_commit(root, f"refs/heads/{BRANCH}")
     local_head = _git_commit(root, "HEAD")
     remote_branch = _remote_branch_tip()
-    if local_branch != expected or local_head != expected or remote_branch != expected:
+    if local_branch != local_head or remote_branch != local_head:
         raise PrivateInputError(
             "BRANCH_TIP_DRIFT",
-            "local/remote authoritative branch tip is not the expected checkpoint",
+            "local HEAD, authoritative branch and live remote branch differ",
         )
+    if expected_branch_tip is not None:
+        expected = _hex(expected_branch_tip, 40, "expected branch tip")
+        if local_head != expected:
+            raise PrivateInputError(
+                "BRANCH_TIP_DRIFT",
+                "authoritative branch changed from the transaction precheck",
+            )
+    else:
+        expected = local_head
     return {
         "expected": expected,
         "local_branch": local_branch,
@@ -412,11 +423,10 @@ def _base_result(
 def reconcile(
     *,
     repository_root: Path,
-    expected_branch_tip: str,
     input_root: Path = DEFAULT_INPUT_ROOT,
 ) -> dict[str, Any]:
     repo = repository_root.resolve()
-    branch = _verify_repository(repo, expected_branch_tip)
+    branch = _verify_repository(repo)
     _resolve_issued(repo)
     live = _fresh_live_boundary()
 
@@ -444,11 +454,10 @@ def reconcile(
 def acquire(
     *,
     repository_root: Path,
-    expected_branch_tip: str,
     input_root: Path = DEFAULT_INPUT_ROOT,
 ) -> dict[str, Any]:
     repo = repository_root.resolve()
-    branch = _verify_repository(repo, expected_branch_tip)
+    branch = _verify_repository(repo)
     _resolve_issued(repo)
     live = _fresh_live_boundary()
     root = input_root.absolute()
@@ -485,7 +494,7 @@ def acquire(
         )
 
         # Mutation-boundary revalidation after all failure-prone network/build work.
-        branch2 = _verify_repository(repo, expected_branch_tip)
+        branch2 = _verify_repository(repo, branch["expected"])
         _resolve_issued(repo)
         live2 = _fresh_live_boundary()
         if branch2 != branch or live2 != live:
@@ -565,10 +574,6 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path.cwd(),
     )
-    parser.add_argument(
-        "--expected-branch-tip",
-        required=True,
-    )
     return parser
 
 
@@ -578,13 +583,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "reconcile":
             value = reconcile(
                 repository_root=args.repository_root,
-                expected_branch_tip=args.expected_branch_tip,
                 input_root=DEFAULT_INPUT_ROOT,
             )
         elif args.command == "acquire":
             value = acquire(
                 repository_root=args.repository_root,
-                expected_branch_tip=args.expected_branch_tip,
                 input_root=DEFAULT_INPUT_ROOT,
             )
         else:

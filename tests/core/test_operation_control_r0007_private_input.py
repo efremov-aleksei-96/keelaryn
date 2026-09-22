@@ -98,7 +98,7 @@ class R0007PrivateInputTests(unittest.TestCase):
             ):
                 private_input._inspect_parent_for_root(parent / "input")
 
-    def test_repository_verification_requires_exact_local_and_remote_tip(self) -> None:
+    def test_repository_verification_derives_exact_live_tip(self) -> None:
         expected = "1" * 40
         with mock.patch.object(
             private_input,
@@ -112,7 +112,8 @@ class R0007PrivateInputTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as td:
                 root = Path(td)
                 (root / ".git").mkdir()
-                value = private_input._verify_repository(root, expected)
+                value = private_input._verify_repository(root)
+        self.assertEqual(value["expected"], expected)
         self.assertEqual(value["remote_branch"], expected)
 
     def test_repository_verification_rejects_remote_drift(self) -> None:
@@ -133,7 +134,7 @@ class R0007PrivateInputTests(unittest.TestCase):
                     private_input.PrivateInputError,
                     "branch tip",
                 ):
-                    private_input._verify_repository(root, expected)
+                    private_input._verify_repository(root)
 
     def test_cli_exposes_no_stage_or_activation_command(self) -> None:
         parser = private_input._parser()
@@ -151,9 +152,9 @@ class R0007PrivateInputTests(unittest.TestCase):
         destinations = {item.dest for item in parser._actions}
         self.assertNotIn("input_root", destinations)
         self.assertNotIn("output", destinations)
+        self.assertNotIn("expected_branch_tip", destinations)
 
     def test_cli_main_pins_default_input_root(self) -> None:
-        expected_tip = "3" * 40
         value = {
             "schema": private_input.SCHEMA,
             "command": "reconcile",
@@ -170,16 +171,30 @@ class R0007PrivateInputTests(unittest.TestCase):
                     "reconcile",
                     "--repository-root",
                     str(ROOT),
-                    "--expected-branch-tip",
-                    expected_tip,
                 ]
             )
         self.assertEqual(rc, 0)
         reconcile_call.assert_called_once_with(
             repository_root=ROOT,
-            expected_branch_tip=expected_tip,
             input_root=private_input.DEFAULT_INPUT_ROOT,
         )
+
+    def test_mutation_boundary_recheck_can_pin_precheck_tip(self) -> None:
+        expected = "4" * 40
+        with mock.patch.object(
+            private_input,
+            "_git_commit",
+            side_effect=[expected, expected],
+        ), mock.patch.object(
+            private_input,
+            "_remote_branch_tip",
+            return_value=expected,
+        ):
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                (root / ".git").mkdir()
+                value = private_input._verify_repository(root, expected)
+        self.assertEqual(value["expected"], expected)
 
     def test_transaction_binding_is_exact(self) -> None:
         self.assertEqual(

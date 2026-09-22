@@ -122,8 +122,10 @@ jobs:
           forbidden_cli = (
               'parser.add_argument("--input-root"',
               'parser.add_argument("--output"',
+              'parser.add_argument("--expected-branch-tip"',
               'args.input_root',
               'args.output',
+              'args.expected_branch_tip',
           )
           for needle in forbidden_cli:
               if needle in raw:
