@@ -924,3 +924,38 @@ r0002 changes only wiring:
 
 No authority schema, transaction state machine, payload acquisition, witness, result checkpoint, frozen candidate bytes or production permissions change.
 
+
+## D0-02K — fresh real VPS pre-apply reconcile PASS
+
+Fresh control-channel selftest:
+- request `50000000000000000000000000000003`;
+- request comment `5780183513`;
+- terminal status comment `5780188716`;
+- exact installed r0005 source `08f2e211f53764590f6ff0f05f86b2de62c14418`;
+- `SUCCEEDED / READ_ONLY / PASS`;
+- timestamp `2026-09-22T16:31:38Z`.
+
+The first real reconcile attempt exposed a development-only Python 3.12 dynamic-import defect before boundary completion. That defect was fixed on `1908cf3d86c2ce6b2e75425826fc2b46bc489781`, covered by a real `@dataclass` regression, then checkpointed on `8594750510bd2698013382f5ace44e2243273442`. Exact-head Core run `35760845995` passed.
+
+The corrected root-only two-pass VPS reconcile returned PASS. Durable stage-boundary evidence is `docs/evidence/R0007_STAGE_BOUNDARY_20260922T173715Z.json`.
+
+Fresh boundary:
+- production source exact `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- control source exact r0005 `08f2e211f53764590f6ff0f05f86b2de62c14418`;
+- control payload exact: SHA `6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7`, 365052 bytes, 190 files;
+- operation agent and transport active/enabled with exact r0005 unit bytes;
+- writer `INACTIVE / MainPID 0`;
+- legacy Hub `PREPARED`, transaction `61a2bfb65c9a47d088a76eee0df89d14`, selector `OLD`;
+- mutation inhibit present and authority-matching;
+- credential SHA exact and bootstrap receipt exact;
+- r0007 snapshot unit absent;
+- production mutations false;
+- Drive mutations false.
+
+The reconcile implementation also fail-closed validates canonical credential actor/status-actor fields, exact legacy cutover tool/finalizer bytes, exact transaction SHA and OLD/NEW selector identities before returning this sanitized result. Raw Hub IDs and credential material are not stored.
+
+### Next permitted objective
+
+**D0-02L — issue one real r0007 stage-only Git authorization.**
+
+This must be an isolated Git child commit bound to this exact boundary-evidence checkpoint. Do not combine authority issuance with VPS payload acquisition or release publication. Activation, legacy-Hub mutation, writer mutation, credential mutation and Drive mutation remain forbidden.

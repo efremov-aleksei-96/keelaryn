@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 31,
+  "revision": 32,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "1908cf3d86c2ce6b2e75425826fc2b46bc489781",
+  "repository_basis_commit": "8594750510bd2698013382f5ace44e2243273442",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,16 +53,16 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02K-python312-reconcile-import-correction",
-    "run_id": 35759440550,
+    "scope": "D0-02K-real-vps-pre-apply-reconcile-PASS",
+    "run_id": 35760845995,
     "conclusion": "PASS",
-    "relevance": "TARGETED_RECONCILE_TOOLING_GREEN_PENDING_CHECKPOINT_CORE",
-    "note": "Exact HEAD 1908cf3d86c2ce6b2e75425826fc2b46bc489781 fixed the Python 3.12 dynamic-import defect exposed by the first real D0-02K read-only VPS reconcile attempt. The predecessor materialize module is now registered in sys.modules before exec_module and a real @dataclass regression test passes. Bootstrap-prep r0002 run 35759440550 and stage gate run 35759440407 passed. Zero-based Core run 35759440160 stopped only because DEVELOPMENT_STATE.json had not yet been advanced in the same HEAD, as required by the D0 checkpoint contract. The failed VPS attempt performed no production, Hub-selector, writer, credential or Drive mutation."
+    "relevance": "CURRENT_DEVELOPMENT_BASELINE",
+    "note": "Exact checkpoint predecessor HEAD 8594750510bd2698013382f5ace44e2243273442 passed Zero-based Core run 35760845995 after the Python 3.12 reconcile import correction. Fresh r0005 RUNTIME_SELFTEST request 50000000000000000000000000000003 passed, and a corrected two-pass root-only real VPS reconcile returned PASS with production source exact, control r0005 exact, legacy Hub PREPARED on OLD, writer INACTIVE/MainPID 0, mutation inhibit authority exact, operation agent/transport active with exact r0005 unit bytes, credential/bootstrap receipt exact, r0007 snapshot unit absent, and no production or Drive mutation."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
-    "observed_at_utc": "2026-09-21T20:16:10Z",
-    "evidence_path": "docs/evidence/D0_02D_LEGACY_RUNTIME_RECONCILE_2026-09-21T201610Z.json",
+    "observed_at_utc": "2026-09-22T17:37:15Z",
+    "evidence_path": "docs/evidence/R0007_STAGE_BOUNDARY_20260922T173715Z.json",
     "source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
     "hub_cutover_status": "PREPARED",
     "hub_transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
@@ -139,8 +139,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02K_REAL_VPS_PRE_APPLY_RECONCILE",
-    "description": "Repeat the fresh root-only read-only real VPS boundary reconcile using the corrected exact development tooling after this checkpoint passes Core CI. Require two identical observation passes for installed r0005 Operation Control/runtime, legacy Hub PREPARED transaction, OLD selector, inactive writer, deployment/mutation-inhibit state, service identities, credential/bootstrap identity and absence of r0007 successor residue. The previous attempt failed before observation completion because of a Python 3.12 dynamic-import wiring defect in development tooling and established no new VPS boundary. Real authority issuance, VPS payload acquisition/publication, activation, legacy-Hub mutation, writer mutation, credential mutation and Drive content mutation remain forbidden until the corrected reconcile PASS is durably evaluated.",
+    "id": "D0-02L_REAL_STAGE_AUTHORITY_ISSUE",
+    "description": "Issue exactly one unique immutable r0007 release-stage-only authorization as an isolated Git child commit from this fresh boundary checkpoint. Bind the authority to the exact checkpoint commit plus boundary evidence path/blob/SHA, frozen r0007 candidate/source/tree/payload identities and a unique transaction_id. The authority may authorize only inert r0007 release staging; activation, legacy-Hub mutation, writer mutation, credential mutation and Drive mutation remain forbidden. Do not acquire/publish the VPS payload or execute staging in the same transactional turn as authority issuance.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
