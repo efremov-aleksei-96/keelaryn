@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 45,
+  "revision": 46,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "cdc9431bf38830db328aa277ca9a946b3f362a76",
+  "repository_basis_commit": "2b6a92587a07b7f7529207c88dee07fbc0ba0048",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02M-self-locating-private-input-PASS",
-    "run_id": 35772905128,
+    "scope": "D0-02M-full-issued-record-PASS-plus-live-reconcile",
+    "run_id": 35773736969,
     "conclusion": "PASS",
-    "relevance": "CURRENT_GREEN_PRE_RECONCILE_BASELINE",
-    "note": "Exact HEAD cdc9431bf38830db328aa277ca9a946b3f362a76 passed Zero-based Core run 35772905128 and private-input gate r0001, with production-stage-prep and stage gate PASS. A real read-only VPS reconcile then passed repository/Git resolution and failed closed before runtime/private-input mutation with AUTHORITY_IDENTITY_MISMATCH on transaction_id. Root cause: the D0-02M wrapper treated require_issued_authorization() return value as the full issued record, but that API intentionally returns the production-stage projection which omits transaction_id and provenance-only fields. This successor validates issuance through require_issued_authorization() and compares exact transaction identity against issued.record. No VPS input acquisition, release publication, witness, activation, Hub, writer, credential or Drive mutation occurs."
+    "relevance": "CURRENT_GREEN_HEAD_AND_LIVE_VPS_PRESTATE",
+    "note": "Exact HEAD 2b6a92587a07b7f7529207c88dee07fbc0ba0048 passed Zero-based Core run 35773736969 and private-input gate r0001 run 35773737219, with bootstrap-prep r0002, production-stage-prep and stage gate PASS. A real VPS read-only reconcile then passed repository/branch identity, exact Git-resolved authority/provenance, and live runtime boundary validation. Canonical private-input root /var/lib/keelaryn/operation-control/r0007-stage-input is absent; no input root, payload, release, witness, activation, Hub, writer, credential or Drive mutation occurred. Sanitized result is durably recorded in docs/evidence/R0007_PRIVATE_INPUT_RECONCILE_20260922.json."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02M_REAL_STAGE_PRIVATE_INPUT_ACQUIRE",
-    "description": "After this exact-head full-issued-record correction passes Zero-based Core and operation-control-r0007-private-input-gate-r0001, run exactly one real VPS read-only private-input reconcile by executing the checked-out tool with only reconcile. The tool must self-locate repository root, prove branch identity, validate issued authorization provenance, compare full issued.record identity, fresh-reconcile runtime state and inspect the fixed canonical private-input root without creating it. Do not run acquire in the same transaction.",
+    "description": "Execute exactly one real VPS private-input acquire for transaction e7869ce5efd9d63da191e30f7c4e2c2b from the current exact branch. The acquire tool must self-locate the checkout, prove local HEAD = local dev/zero-based-keelaryn = live GitHub branch, revalidate the exact issued authority and live runtime boundary, fetch frozen source 833123b6a7ad2c61087ee8a86700bb9ad8a46298 / tree bbca9e3a17162e12a7a0f649138e8c469518ad2a, build the payload twice deterministically, verify SHA c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9 / size 414534 / file_count 208, then create only the canonical 0700 private-input root and one 0600 transaction-bound payload through O_EXCL/fsync and immediately postverify exact identity. Do not publish /opt/keelaryn/releases, create PREPARED/COMPLETED stage witnesses, activate r0007, mutate legacy Hub/writer/credential, or mutate Drive in the same transaction. After any interruption, reconcile before retry.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

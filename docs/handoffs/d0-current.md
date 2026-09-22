@@ -1101,3 +1101,26 @@ The first real self-locating VPS reconcile reached Git-resolved authority valida
 A regression explicitly proves the wrapper does not depend on the projected return object for transaction identity.
 
 The failed VPS reconcile performed zero private-input/release/Drive/activation mutation.
+
+### D0-02M live private-input prestate PASS
+
+Real VPS read-only reconcile on exact HEAD `2b6a92587a07b7f7529207c88dee07fbc0ba0048` completed successfully.
+
+Verified:
+- transaction `e7869ce5efd9d63da191e30f7c4e2c2b`;
+- authority commit `b821bd44c82e853b7464664087d11cb39644d0df`;
+- authority blob `7bbb3196e1318bf808f40b2d89928a45ad2ee44a`;
+- authority SHA-256 `002c725f8ddcd5ad1a579116d37ec4aad58521356bf11e57103f0babe81527f8`;
+- branch tip exact `2b6a92587a07b7f7529207c88dee07fbc0ba0048`;
+- control source remains r0005 `08f2e211f53764590f6ff0f05f86b2de62c14418`;
+- production source remains `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- legacy Hub remains `PREPARED`, selector `OLD`;
+- writer remains `INACTIVE/MainPID=0`;
+- r0007 snapshot unit remains absent;
+- canonical private-input root is absent.
+
+The reconcile performed zero private-input/root/release/witness/activation/Hub/writer/credential/Drive mutation.
+
+Sanitized evidence: `docs/evidence/R0007_PRIVATE_INPUT_RECONCILE_20260922.json`.
+
+Next transaction: one private-input `acquire` only. It may create the canonical private root and exact transaction-bound payload, but must not perform release publication, stage witnesses or activation.
