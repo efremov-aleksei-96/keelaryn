@@ -474,3 +474,42 @@ Observed failures caused only by this state mismatch:
 
 This correction restores r0007 to `FROZEN_TRANSITION_GATE_PASS`. Frozen source/tree/payload, bootstrap-prep framework, r0002 PASS evidence, D0-02D live VPS evidence, production state and next objective `D0-02F_STAGE_QUALIFICATION` are unchanged.
 
+## D0-02F — stage transaction qualification r0001
+
+Pre-write authority: `139addd9d1f48794f3a74823709322c250c084a2`; Core run `35654752516` SUCCESS with 703/703 tests; bootstrap-prep gate r0002 rerun `35654752660` SUCCESS.
+
+Qualification-only stage framework:
+- `tools/operation_control_r0007_stage.py`;
+- `tests/core/test_operation_control_r0007_stage.py`;
+- `.github/workflows/operation-control-r0007-stage-gate-r0001.yml`.
+
+The CLI exposes only `qualify`. It has no production `stage`, activation, upgrade, delete or rollback command.
+
+The transaction model is monotonic inert immutable release publication. The durable commit authority is the exact immutable release directory itself, not a second PREPARED metadata record.
+
+Frozen publication mechanism identity:
+- r0007 source `833123b6a7ad2c61087ee8a86700bb9ad8a46298`;
+- payload `c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9`, 414534 bytes, 208 files;
+- `materialize_payload.py` Git blob `ece36ad98d4a15442f5f081db76345525fe1b8c1`, identical between installed r0005 and frozen r0007.
+
+Stage qualification r0001 proves eight disposable scenarios:
+1. ABSENT → STAGED_EXACT;
+2. exact replay → ALREADY_STAGED_EXACT with no publication;
+3. foreign/partial destination → fail closed and untouched;
+4. prepublication stage residue → RECOVERY_REQUIRED and untouched;
+5. materializer publishes durably but caller sees an error → exact release recognized, retained, reconcile required;
+6. live boundary drift before mutation → abort before publication;
+7. boundary drift after durable publication → exact release retained, activation blocked, reconcile required;
+8. exact destination plus orphan stage residue → fail closed/recovery required without deleting either state.
+
+Non-release sentinels for production current, control-current, systemd control units, writer, credential, legacy Hub runtime boundary and Drive state must remain byte-unchanged in every scenario.
+
+D0-02F remains qualification-only:
+- `production_stage_cli_exposed=false`;
+- `activation_implemented=false`;
+- `production_mutation_allowed=false`;
+- `drive_content_mutation_allowed=false`;
+- `release_deletion_on_uncertainty_allowed=false`;
+- `blind_retry_allowed=false`;
+- fresh live mutation-boundary revalidation remains mandatory before any future real stage.
+

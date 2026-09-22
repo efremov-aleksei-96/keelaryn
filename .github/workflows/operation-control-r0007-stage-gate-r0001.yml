@@ -1,0 +1,166 @@
+name: Operation control r0007 stage gate r0001
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'tools/operation_control_r0007_stage.py'
+      - 'tests/core/test_operation_control_r0007_stage.py'
+      - '.github/workflows/operation-control-r0007-stage-gate-r0001.yml'
+      - 'tools/operation_control_r0007_vps.py'
+      - 'docs/candidates/operation-control-r0007-20260921-01.json'
+      - 'docs/evidence/D0_02D_LEGACY_RUNTIME_RECONCILE_2026-09-21T201610Z.json'
+      - 'DEVELOPMENT_STATE.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operation-control-r0007-stage-gate-r0001-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      FROZEN_SOURCE: 833123b6a7ad2c61087ee8a86700bb9ad8a46298
+      MATERIALIZER_BLOB: ece36ad98d4a15442f5f081db76345525fe1b8c1
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Syntax-check stage qualification tooling without residue
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          for name in (
+              "tools/operation_control_r0007_stage.py",
+              "tests/core/test_operation_control_r0007_stage.py",
+          ):
+              raw = Path(name).read_text(encoding="utf-8")
+              compile(raw, name, "exec", dont_inherit=True)
+          PY
+          test -z "$(git status --porcelain)"
+
+      - name: Verify frozen materializer Git identity
+        run: |
+          set -euo pipefail
+          observed="$(git rev-parse "$FROZEN_SOURCE:deploy/zero-based-vps/materialize_payload.py")"
+          test "$observed" = "$MATERIALIZER_BLOB"
+
+      - name: Run stage framework regression tests
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover             -s tests/core -p 'test_operation_control_r0007_stage.py' -v
+          test -z "$(git status --porcelain)"
+
+      - name: Qualify monotonic inert r0007 stage transaction
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/OPERATION_CONTROL_R0007_STAGE_QUALIFICATION.json"
+          stdout="$RUNNER_TEMP/stage-qualification-stdout.json"
+
+          PYTHONDONTWRITEBYTECODE=1 python3 -B             tools/operation_control_r0007_stage.py qualify             --repository-root "$GITHUB_WORKSPACE"             --output "$out"             > "$stdout"
+
+          cmp "$stdout" "$out"
+
+          python3 - "$out" <<'PY'
+          import json
+          import sys
+
+          value = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected_scenarios = {
+              "absent_to_staged_exact": "STAGED_EXACT",
+              "already_staged_exact": "ALREADY_STAGED_EXACT",
+              "foreign_partial": "FAIL_CLOSED_UNTOUCHED",
+              "prepublication_residue": "RECOVERY_REQUIRED_UNTOUCHED",
+              "postpublication_uncertainty": "STAGED_EXACT_AFTER_MATERIALIZER_UNCERTAINTY",
+              "prepublication_boundary_drift": "ABORTED_BEFORE_PUBLICATION",
+              "postpublication_boundary_drift": "STAGED_EXACT_BOUNDARY_DRIFT_RECONCILE_REQUIRED",
+              "exact_plus_residue": "FAIL_CLOSED_RECOVERY_REQUIRED",
+          }
+
+          if value.get("schema") != "keelaryn.operation-control-r0007-stage-qualification.v1":
+              raise SystemExit("stage qualification schema mismatch")
+          if value.get("gate_revision") != "operation-control-r0007-stage-gate-r0001":
+              raise SystemExit("stage gate revision mismatch")
+          if value.get("candidate") != "operation-control-r0007-20260921-01":
+              raise SystemExit("stage candidate mismatch")
+          if value.get("source_commit") != "833123b6a7ad2c61087ee8a86700bb9ad8a46298":
+              raise SystemExit("stage source mismatch")
+          if value.get("source_tree") != "bbca9e3a17162e12a7a0f649138e8c469518ad2a":
+              raise SystemExit("stage tree mismatch")
+          if value.get("materializer_git_blob") != "ece36ad98d4a15442f5f081db76345525fe1b8c1":
+              raise SystemExit("stage materializer identity mismatch")
+
+          expected_payload = {
+              "source_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
+              "payload_sha256": "c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9",
+              "payload_size": 414534,
+              "file_count": 208,
+          }
+          if value.get("payload") != expected_payload:
+              raise SystemExit("stage payload identity mismatch")
+
+          if value.get("scenario_count") != 8:
+              raise SystemExit("stage scenario count mismatch")
+          if value.get("scenarios") != expected_scenarios:
+              raise SystemExit(f"stage scenarios mismatch: {value.get('scenarios')}")
+          if value.get("transaction_model") != "MONOTONIC_INERT_IMMUTABLE_RELEASE_PUBLICATION":
+              raise SystemExit("stage transaction model mismatch")
+          if value.get("commit_authority") != "EXACT_IMMUTABLE_RELEASE_DIRECTORY":
+              raise SystemExit("stage commit authority mismatch")
+          if value.get("prepared_record_required") is not False:
+              raise SystemExit("stage unexpectedly requires PREPARED metadata")
+          if value.get("release_deletion_on_uncertainty_allowed") is not False:
+              raise SystemExit("stage permits unsafe release deletion")
+          if value.get("blind_retry_allowed") is not False:
+              raise SystemExit("stage permits blind retry")
+          if value.get("activation_implemented") is not False:
+              raise SystemExit("stage qualification unexpectedly implements activation")
+          if value.get("production_stage_cli_exposed") is not False:
+              raise SystemExit("stage qualification exposes production mutation CLI")
+          if value.get("production_mutation_allowed") is not False:
+              raise SystemExit("stage qualification authorizes production mutation")
+          if value.get("drive_content_mutation_allowed") is not False:
+              raise SystemExit("stage qualification authorizes Drive mutation")
+          if value.get("legacy_hub_authority_scope") != "RUNTIME_SAFETY_ONLY":
+              raise SystemExit("stage qualification widened legacy Hub authority")
+          if value.get("fresh_mutation_boundary_revalidation_required") is not True:
+              raise SystemExit("stage omits fresh mutation-boundary revalidation")
+          if value.get("disposable_only") is not True:
+              raise SystemExit("stage gate is not disposable-only")
+          if value.get("production_qualified") is not False:
+              raise SystemExit("stage qualification incorrectly claims production qualification")
+          if value.get("next_action") != "DESIGN_AUTHORIZED_PRODUCTION_STAGE_SURFACE":
+              raise SystemExit("stage next action mismatch")
+
+          recorded = value.get("recorded_live_boundary", {})
+          if recorded.get("legacy_hub", {}).get("authority_scope") != "RUNTIME_SAFETY_ONLY":
+              raise SystemExit("recorded legacy Hub authority mismatch")
+          if recorded.get("r0007_transition_gate") != "PASS":
+              raise SystemExit("recorded transition qualification missing")
+          PY
+
+          if grep -Eq '"(old_hub_root_id|new_hub_root_id|KEELARYN_GITHUB_OPERATIONS_TOKEN)"' "$out"; then
+            echo "stage qualification leaks forbidden raw authority material" >&2
+            exit 1
+          fi
+
+          test -z "$(git status --porcelain)"
+
+      - name: Upload compact stage qualification evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operation-control-r0007-stage-gate-r0001-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/OPERATION_CONTROL_R0007_STAGE_QUALIFICATION.json
+          if-no-files-found: error
+          retention-days: 3

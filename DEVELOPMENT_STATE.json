@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 17,
+  "revision": 18,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "5c4c06025c61f96b1533c81eb17a25a56759590a",
+  "repository_basis_commit": "139addd9d1f48794f3a74823709322c250c084a2",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02E-bootstrap-prep-qualified",
-    "run_id": 35653073690,
+    "scope": "D0-02E-lifecycle-corrected-bootstrap-prep",
+    "run_id": 35654752516,
     "conclusion": "PASS",
-    "relevance": "CURRENT_COHERENT_BASELINE_BEFORE_STATE_SEMANTIC_CORRECTION",
-    "note": "Bootstrap-prep gate r0002 run 35653073762 passed with artifact 10662513908 digest sha256:a40172fe907593867a4b331046edb76fa250efe97e44c117c22dbddf9695d48e. Subsequent HEAD 5c4c06025c61f96b1533c81eb17a25a56759590a failed only because constrained_candidates[].state was incorrectly used as an engineering-progress token; frozen candidate lifecycle remains FROZEN_TRANSITION_GATE_PASS."
+    "relevance": "CURRENT_DEVELOPMENT_BASELINE",
+    "note": "Exact HEAD 139addd9d1f48794f3a74823709322c250c084a2 passed 703/703 Core tests after restoring the stable r0007 candidate lifecycle token. Bootstrap-prep gate r0002 rerun 35654752660 also passed with artifact 10664025222 digest sha256:73c0b76c2f20d3c74d999a35624238ebca7428c0df2569e32c0801ce132b10e0."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02F_STAGE_QUALIFICATION",
-    "description": "Design and qualify a separate monotonic r0007 stage transaction that can publish the exact frozen r0007 release as an inert immutable object under /opt/keelaryn/releases without changing production current, control-current, installed systemd units, writer, credential, legacy Hub selector/transaction, or Google Drive. Qualification must prove ABSENT-to-STAGED_EXACT, ALREADY_STAGED_EXACT idempotence, fail-closed foreign/partial destination handling, interruption/post-publication reconciliation, and mandatory fresh read-only mutation-boundary revalidation. Do not perform the real VPS stage during this objective.",
+    "description": "Resolve operation-control-r0007 stage gate r0001. Qualification must remain disposable-only and prove monotonic inert immutable release publication across ABSENT-to-STAGED_EXACT, exact idempotent replay, foreign/partial fail-closed, prepublication residue recovery-required, postpublication uncertainty reconciliation, prepublication boundary drift abort, postpublication boundary drift preservation/reconcile-required, and exact-plus-residue fail-closed. No production stage CLI or real VPS/Drive mutation is allowed in D0-02F.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
