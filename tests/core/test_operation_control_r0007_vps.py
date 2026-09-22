@@ -164,7 +164,13 @@ class R0007BootstrapPrepTests(unittest.TestCase):
             evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
             evidence["mutation_inhibit_authority_matches"] = False
             evidence_path.write_text(
-                json.dumps(evidence),
+                json.dumps(
+                    evidence,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(

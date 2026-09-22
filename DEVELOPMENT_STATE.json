@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 36,
+  "revision": 37,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "c5d4a82efe0e1717bfe8a4eff25cd2c3f326a19d",
+  "repository_basis_commit": "24043e112df00344632e98112c4f8b9ae7d7799b",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02L-canonical-boundary-fixture-correction",
-    "run_id": 35763641266,
-    "conclusion": "PASS",
-    "relevance": "LAST_FULL_GREEN_BASELINE_BEFORE_HARNESS_ONLY_FIX",
-    "note": "Exact HEAD 8bd69a9abc92cc123a7ea2a6093dbd2e53d42f62 is the last fully green Core baseline (run 35763641266). Successor c5d4a82efe0e1717bfe8a4eff25cd2c3f326a19d canonicalized the fresh stage-boundary evidence correctly; current stage-authority r0003, production-stage-prep, stage gate, stage-execution and real-stage-transaction r0002 passed there. Bootstrap-prep r0002 failed only because the identity-drift regression fixture rewrote the modified evidence noncanonically and triggered the earlier canonicality guard. This commit changes only that fixture to preserve canonical serialization plus durable metadata. No authority, VPS, staging, activation, Hub, writer, credential or Drive mutation occurs."
+    "scope": "D0-02L-identity-drift-fixture-exact-correction",
+    "run_id": 35766016418,
+    "conclusion": "PENDING_EXACT_HEAD_REVERIFY",
+    "relevance": "HARNESS_ONLY_CORRECTION",
+    "note": "HEAD 24043e112df00344632e98112c4f8b9ae7d7799b retained the intended canonicality guard but the previous harness-only edit changed the adjacent legacy partial-residue fixture rather than the stage-boundary identity-drift fixture. This commit updates only the exact identity-drift test serialization plus durable metadata so the test preserves canonical JSON and exercises the intended identity mismatch path. No runtime/product logic, authority, VPS, staging, activation, Hub, writer, credential or Drive mutation occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02L_REAL_STAGE_AUTHORITY_ISSUE",
-    "description": "After this exact-head regression-fixture checkpoint passes Zero-based Core, bootstrap-prep r0002 and current r0007 gates, issue exactly one unique immutable r0007 release-stage-only authorization as an isolated Git child commit. Use the exact green HEAD as issuer_checkpoint so the authorization commit is its direct child, binding to docs/evidence/R0007_STAGE_BOUNDARY_20260922T173715Z.json at its canonical Git blob/SHA and observed timestamp. Do not acquire/publish the VPS payload or execute staging in the same transactional turn. Activation, legacy-Hub mutation, writer mutation, credential mutation and Drive mutation remain forbidden.",
+    "description": "Once this exact-head harness correction passes Zero-based Core, bootstrap-prep r0002 and current r0007 gates, issue exactly one unique immutable r0007 release-stage-only authorization as an isolated Git child commit. Use the exact green HEAD as issuer_checkpoint so the authorization commit is its direct child, binding to docs/evidence/R0007_STAGE_BOUNDARY_20260922T173715Z.json at its canonical Git blob/SHA and observed timestamp. Do not acquire/publish the VPS payload or execute staging in the same transactional turn. Activation, legacy-Hub mutation, writer mutation, credential mutation and Drive mutation remain forbidden.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
