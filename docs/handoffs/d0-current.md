@@ -855,3 +855,50 @@ No authority schema, Git provenance rule, candidate identity, stage permission o
 
 D0-02J transport direction is also fixed: do not depend on maintainer workstation/SCP. The future VPS-side acquisition path will fetch the exact frozen source commit from GitHub, verify exact HEAD/tree/clean checkout, rebuild the deterministic payload twice and require byte-identical output matching the frozen SHA/size/file-count before any PREPARED witness or release publication.
 
+## D0-02J — concrete real-stage transaction gate r0001
+
+Pre-write authority: `0005fe9fae42b87879881d0bf3bb57227fba5313`; Core 730/730 PASS, stage-authority r0003 PASS, stage-execution and all current downstream gates PASS. No real production authority/input/stage exists.
+
+New qualification-only transaction orchestrator:
+- `tools/operation_control_r0007_real_stage_transaction.py`;
+- `tests/core/test_operation_control_r0007_real_stage_transaction.py`;
+- `.github/workflows/operation-control-r0007-real-stage-transaction-gate-r0001.yml`.
+
+Autonomous payload acquisition model:
+1. VPS-side Git fetch of exact frozen source commit;
+2. verify exact HEAD `833123b6a7ad2c61087ee8a86700bb9ad8a46298`;
+3. verify exact source tree `bbca9e3a17162e12a7a0f649138e8c469518ad2a`;
+4. require clean checkout;
+5. run frozen `build_payload.py` twice;
+6. require byte-identical builds;
+7. require exact payload SHA `c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9`, size 414534, file count 208;
+8. verify payload again through the qualified materializer parser;
+9. publish bytes only to a private transaction-bound 0600 input path using O_EXCL/fsync semantics.
+
+This removes maintainer-workstation/SCP dependency. Production remote is pinned as `https://github.com/efremov-aleksei-96/keelaryn.git`; the disposable gate uses the checked-out repository as a local stand-in remote while exercising the same exact-SHA Git fetch algorithm.
+
+Transaction-level durable sequence qualified by r0001:
+- sanitized boundary evidence checkpoint;
+- isolated one-shot Git authority commit;
+- exact authority blob capture;
+- exact private input acquisition;
+- Git authority resolve;
+- qualified PREPARED → inert release publication → COMPLETED execution;
+- isolated sanitized result checkpoint.
+
+Result checkpoint is transaction-bound, requires the same authority commit/blob and exact source/payload as COMPLETED, never grants activation, and is idempotent if exact. A foreign result path fails closed.
+
+Qualification scenarios:
+1. evidence checkpoint → isolated authority PASS;
+2. authority branch drift FAIL_CLOSED;
+3. autonomous exact acquisition ACQUIRED_EXACT;
+4. acquisition replay ALREADY_ACQUIRED_EXACT;
+5. foreign private input FAIL_CLOSED_UNTOUCHED;
+6. one-shot execution COMPLETED_EXACT;
+7. result checkpoint RESULT_CHECKPOINTED_EXACT;
+8. result replay RESULT_ALREADY_CHECKPOINTED_EXACT;
+9. foreign result checkpoint FAIL_CLOSED;
+10. stale live boundary FAIL_BEFORE_PREPARED.
+
+The CLI remains `qualify` only. D0-02J creates no real authority/result record in the authoritative branch, performs no real VPS input acquisition/publication, and keeps activation as a later independent transaction.
+
