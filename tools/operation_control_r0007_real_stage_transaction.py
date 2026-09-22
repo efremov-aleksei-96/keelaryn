@@ -24,22 +24,20 @@ def _load(name: str, path: Path):
     return module
 
 
-authority = _load(
-    "keelaryn_r0007_real_stage_authority",
-    Path(__file__).with_name("operation_control_r0007_stage_authority.py"),
-)
-issuer = _load(
-    "keelaryn_r0007_real_stage_issuer",
-    Path(__file__).with_name("operation_control_r0007_stage_authority_issue.py"),
-)
 execution = _load(
     "keelaryn_r0007_real_stage_execution",
     Path(__file__).with_name("operation_control_r0007_stage_execution.py"),
 )
+# Reuse the exact trusted module/class graph already loaded and qualified by
+# the execution layer. Loading authority.py a second time would create a
+# different Python class identity for IssuedStageAuthorization and must not
+# be allowed at the real-stage transaction boundary.
+authority = execution.authority
+issuer = execution.issuer
 production = execution.production
 stage = execution.stage
 
-GATE_REVISION = "operation-control-r0007-real-stage-transaction-gate-r0001"
+GATE_REVISION = "operation-control-r0007-real-stage-transaction-gate-r0002"
 TRANSACTION_SCHEMA = "keelaryn.operation-control-r0007-real-stage-transaction-qualification.v1"
 RESULT_SCHEMA = "keelaryn.operation-control-r0007-stage-result-checkpoint.v1"
 

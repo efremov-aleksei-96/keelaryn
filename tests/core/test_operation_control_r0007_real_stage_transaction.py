@@ -21,6 +21,16 @@ SPEC.loader.exec_module(transaction)
 
 
 class RealStageTransactionTests(unittest.TestCase):
+    def test_real_stage_reuses_execution_trusted_module_graph(self) -> None:
+        self.assertIs(transaction.authority, transaction.execution.authority)
+        self.assertIs(transaction.issuer, transaction.execution.issuer)
+        self.assertIs(transaction.production, transaction.execution.production)
+        self.assertIs(transaction.stage, transaction.execution.stage)
+        self.assertIs(
+            transaction.authority.IssuedStageAuthorization,
+            transaction.execution.authority.IssuedStageAuthorization,
+        )
+
     def test_cli_is_qualification_only(self) -> None:
         parser = transaction._parser()
         action = next(item for item in parser._actions if item.dest == "command")

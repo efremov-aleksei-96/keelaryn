@@ -902,3 +902,25 @@ Qualification scenarios:
 
 The CLI remains `qualify` only. D0-02J creates no real authority/result record in the authoritative branch, performs no real VPS input acquisition/publication, and keeps activation as a later independent transaction.
 
+### D0-02J real-stage transaction r0001 failure / r0002 wiring correction
+
+On HEAD `87ccc0b01f2b412393860918b123f7ba3ed2ff83`:
+- Core run `35744268684` — SUCCESS, 735/735 tests;
+- stage-authority r0003, stage-execution, production-stage-prep and stage gate — PASS;
+- real-stage-transaction r0001 run `35744268814` — FAIL.
+
+r0001 syntax-check and all 5 real-stage unit regressions passed. The qualification reached the one-shot execution boundary, then rejected the otherwise valid Git-resolved authority with `AUTHORITY_PROVENANCE_REQUIRED`.
+
+Root cause: `operation_control_r0007_real_stage_transaction.py` independently loaded `operation_control_r0007_stage_authority.py` under a second module name. Python therefore created a distinct `IssuedStageAuthorization` class identity from the one already loaded/qualified inside `operation_control_r0007_stage_execution.py`. The execution layer's intentional `isinstance` provenance barrier correctly rejected that foreign class identity.
+
+r0002 changes only wiring:
+- load `operation_control_r0007_stage_execution.py` once;
+- bind `authority = execution.authority`;
+- bind `issuer = execution.issuer`;
+- bind `production = execution.production`;
+- bind `stage = execution.stage`;
+- add a regression test requiring object/class identity across the transaction/execution boundary;
+- advance gate revision to `operation-control-r0007-real-stage-transaction-gate-r0002`.
+
+No authority schema, transaction state machine, payload acquisition, witness, result checkpoint, frozen candidate bytes or production permissions change.
+
