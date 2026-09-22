@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 48,
+  "revision": 49,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "e854b7a7c09eb84a769f7490b5810850f7b80e48",
+  "repository_basis_commit": "efa6e2a1fca33bb7c7e0f34e66913e21df19d75b",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02M-private-input-acquire-checkpoint-PASS",
-    "run_id": 35776647018,
+    "scope": "D0-02N-stage-runtime-product-PASS-harness-successor",
+    "run_id": 35777412693,
     "conclusion": "PASS",
-    "relevance": "CURRENT_ACQUIRED_INPUT_BASELINE_BEFORE_STAGE_RUNTIME",
-    "note": "HEAD e854b7a7c09eb84a769f7490b5810850f7b80e48 records exact private-input acquisition and passed Zero-based Core run 35776647018, bootstrap-prep r0002, production-stage-prep and stage gate. The private-input gate failure on this checkpoint was lifecycle-only: it still required D0-02M objective after state advanced to D0-02N. This successor removes that objective coupling and adds the fail-closed operational stage runtime wrapper. No real release publication or stage witness mutation occurs in this development commit."
+    "relevance": "PRODUCT_LOGIC_PASS_HARNESS_ONLY_SUCCESSOR",
+    "note": "HEAD efa6e2a1fca33bb7c7e0f34e66913e21df19d75b passed Zero-based Core run 35777412693, private-input gate, production-stage-prep, bootstrap-prep r0002 and stage gate. The new stage-runtime gate passed authority/evidence verification, syntax and all 11 regressions; its only failure was a static assertion requiring the canonical input-root literal to be duplicated in the wrapper even though the wrapper intentionally inherits private_input.DEFAULT_INPUT_ROOT. This successor changes only that workflow assertion plus durable checkpoint metadata. No VPS release publication or stage witness mutation occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",

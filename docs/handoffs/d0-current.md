@@ -1176,3 +1176,19 @@ This revision adds `tools/operation_control_r0007_stage_runtime.py` as the narro
 The old private-input gate is also made lifecycle-aware by removing its obsolete requirement that the current objective still be D0-02M.
 
 Next action after green CI is one real read-only stage-runtime `reconcile` only.
+
+### D0-02N stage-runtime gate harness correction
+
+On HEAD `efa6e2a1fca33bb7c7e0f34e66913e21df19d75b`:
+- Core PASS;
+- private-input gate PASS;
+- production-stage-prep PASS;
+- bootstrap-prep r0002 PASS;
+- stage gate PASS;
+- stage-runtime authority/evidence checks PASS;
+- stage-runtime syntax PASS;
+- stage-runtime regressions 11/11 PASS.
+
+The stage-runtime gate failed only because its static source check required the literal private-input path to appear in the wrapper. The wrapper intentionally binds `DEFAULT_INPUT_ROOT = private_input.DEFAULT_INPUT_ROOT` so there is a single canonical path definition. The gate now verifies that inheritance instead of requiring duplicated configuration.
+
+No production mutation is performed by this harness-only correction.

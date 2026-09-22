@@ -125,7 +125,7 @@ jobs:
           required = (
               'choices=("reconcile", "stage")',
               '/opt/keelaryn/releases',
-              '/var/lib/keelaryn/operation-control/r0007-stage-input',
+              'DEFAULT_INPUT_ROOT = private_input.DEFAULT_INPUT_ROOT',
               '/var/lib/keelaryn/operation-control/r0007-stage-witness',
               'execution.execute_once(',
               'activation_performed": False',
