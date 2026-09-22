@@ -751,3 +751,45 @@ The D0-02I qualification must prove:
 
 D0-02I must not create a real `docs/authorizations/...json` record in the authoritative branch and must not perform real VPS publication.
 
+## D0-02I — one-shot stage execution/recovery gate r0001
+
+Pre-write authority: `5c4b8b679c8a67f41de3b976920608facd4755c3`; Core and stage-authority r0002 are PASS. No real production authorization exists and no real VPS stage is permitted.
+
+New qualification-only execution layer:
+- `tools/operation_control_r0007_stage_execution.py`;
+- `tests/core/test_operation_control_r0007_stage_execution.py`;
+- `.github/workflows/operation-control-r0007-stage-execution-gate-r0001.yml`.
+
+The execution model preserves the layered authorities:
+- Git `IssuedStageAuthorization` proves who/what authorized the one-shot stage;
+- immutable local PREPARED/COMPLETED witnesses prove which authority transaction the executor used;
+- the exact immutable r0007 release directory remains the physical commit authority for whether publication happened.
+
+Witness namespace is flat and transaction-bound:
+`<witness-root>/<transaction-id>.PREPARED.json`
+`<witness-root>/<transaction-id>.COMPLETED.json`.
+
+Witness files are canonical JSON, private mode 0600 on POSIX, published with O_EXCL + fsync + durable parent publication, and never overwritten.
+
+PREPARED is written only after:
+1. resolving an opaque Git-issued authorization;
+2. re-reading its authority-bound boundary evidence from the issuer checkpoint;
+3. performing a fresh stable live boundary observation;
+4. matching the critical live projection to authority-bound evidence;
+5. verifying the exact frozen r0007 payload/source/SHA/size/file-count.
+
+COMPLETED is written only after exact staged-release reconciliation and post-stage runtime reconcile.
+
+Disposable qualification r0001 covers nine scenarios:
+1. exact happy path → COMPLETED_EXACT;
+2. exact replay → IDEMPOTENT_COMPLETED_EXACT with no republication;
+3. crash after PREPARED before publication → reconcile required, blind retry forbidden;
+4. crash after durable publication before COMPLETED → recover COMPLETED without republication;
+5. stale/mismatched live boundary → fail before PREPARED;
+6. wrong payload → fail before PREPARED;
+7. foreign PREPARED witness → fail closed untouched;
+8. exact staged release without matching PREPARED → fail closed/no attribution claim;
+9. COMPLETED without PREPARED → fail closed.
+
+D0-02I still exposes only the `qualify` CLI. It creates no real `docs/authorizations/...json`, performs no real VPS publication and grants no activation authority.
+
