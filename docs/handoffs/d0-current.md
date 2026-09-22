@@ -837,3 +837,21 @@ Qualification must cover interruption after each boundary and prove that recover
 
 D0-02J itself remains disposable-only: no real authority issuance, no production payload transport, no real VPS publication, no activation, no legacy-Hub mutation and no Google Drive mutation.
 
+### Stage-authority disposable Git cleanup stabilization — r0003
+
+On closeout HEAD `ea0e7267565f9b88601c91cb4ce01e45f9112219`, current Core remained PASS (729/729) and stage-execution r0001 remained PASS. Stage-authority r0002 rerun `35724428492` failed only after all six authority regression tests and qualification logic had passed, during `TemporaryDirectory.cleanup()` with `OSError: [Errno 39] Directory not empty`.
+
+This is a disposable Git harness hygiene race, not an authorization/provenance semantic failure.
+
+r0003 stabilization:
+- `maintenance.auto=false`;
+- `gc.auto=0`;
+- `gc.autoPackLimit=0`;
+- regression test proves those repository-local settings;
+- framework/gate revision advances to `operation-control-r0007-stage-authority-gate-r0003`;
+- r0002 remains immutable historical evidence.
+
+No authority schema, Git provenance rule, candidate identity, stage permission or production behavior changes.
+
+D0-02J transport direction is also fixed: do not depend on maintainer workstation/SCP. The future VPS-side acquisition path will fetch the exact frozen source commit from GitHub, verify exact HEAD/tree/clean checkout, rebuild the deterministic payload twice and require byte-identical output matching the frozen SHA/size/file-count before any PREPARED witness or release publication.
+

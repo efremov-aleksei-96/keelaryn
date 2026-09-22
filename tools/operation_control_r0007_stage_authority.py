@@ -31,7 +31,7 @@ PREDECESSOR_SOURCE = "08f2e211f53764590f6ff0f05f86b2de62c14418"
 HUB_TRANSACTION_ID = "61a2bfb65c9a47d088a76eee0df89d14"
 CREDENTIAL_SHA256 = "7002ed72a223dd7fc860451c53a4ec8f264d14f7144000559a295522b7cbe928"
 
-GATE_REVISION = "operation-control-r0007-stage-authority-gate-r0002"
+GATE_REVISION = "operation-control-r0007-stage-authority-gate-r0003"
 
 
 class StageAuthorityError(RuntimeError):
@@ -572,6 +572,11 @@ def _init_repo(root: Path) -> None:
     _git(root, ["init", "-q", "-b", BRANCH])
     _git(root, ["config", "user.name", "Keelaryn CI"])
     _git(root, ["config", "user.email", "ci@keelaryn.invalid"])
+    # Disposable qualification repositories must not start asynchronous
+    # maintenance/GC that can race TemporaryDirectory cleanup.
+    _git(root, ["config", "maintenance.auto", "false"])
+    _git(root, ["config", "gc.auto", "0"])
+    _git(root, ["config", "gc.autoPackLimit", "0"])
 
 
 def _write_canonical(root: Path, relative: str, value: Any) -> None:

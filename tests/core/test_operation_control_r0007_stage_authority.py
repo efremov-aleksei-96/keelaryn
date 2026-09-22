@@ -95,6 +95,23 @@ class StageAuthorityTests(unittest.TestCase):
         with self.assertRaises(authority.StageAuthorityError):
             authority.validate_boundary_evidence(mutated)
 
+    def test_disposable_git_repo_disables_background_maintenance(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            authority._init_repo(root)
+
+            def config(name: str) -> str:
+                return authority._git(
+                    root,
+                    ["config", "--local", "--get", name],
+                ).stdout.decode("utf-8").strip()
+
+            self.assertEqual(config("maintenance.auto"), "false")
+            self.assertEqual(config("gc.auto"), "0")
+            self.assertEqual(config("gc.autoPackLimit"), "0")
+
     def test_disposable_git_provenance_qualification(self) -> None:
         value = authority.qualify(render_record=issuer.render_record)
         self.assertEqual(
