@@ -699,3 +699,55 @@ Correction policy:
 - no real `docs/authorizations/...json` record is created;
 - no VPS/Drive/legacy-Hub mutation is authorized or performed.
 
+## D0-02H authorization provenance PASS
+
+Authoritative qualification HEAD `d125368e4b9496c7ab18f8909b76d611c7d1c747`.
+
+Validation:
+- Zero-based Core run `35717172988` — SUCCESS, 724/724 tests;
+- stage-authority gate r0002 run `35717173008` — SUCCESS;
+- evidence artifact `10689587185`;
+- artifact ZIP SHA-256 `9ec645d7d4abdf33f9d05f2ebd32631d1cc9542f0ae888b4e147f7c120860cf0`.
+
+Qualified provenance model:
+- issuer and consumer are separate;
+- authority path is transaction-bound under `docs/authorizations/operation-control-r0007-stage/<transaction_id>.json`;
+- boundary evidence must already exist in the issuer checkpoint;
+- authority commit is a direct child of that checkpoint;
+- authority commit adds exactly one new canonical authority path;
+- expected Git blob identity is externally supplied and verified;
+- same-transaction substitution, wrong blob identity, permission widening, unrelated changes and boundary-binding substitution all fail closed;
+- consumer emits opaque `IssuedStageAuthorization`;
+- raw dict self-authorization is rejected;
+- exact immutable replay is deterministic and does not widen permissions.
+
+No real authorization record exists. No VPS stage, activation, Drive mutation or legacy-Hub mutation was performed. The r0007 constrained-candidate lifecycle remains `FROZEN_TRANSITION_GATE_PASS`.
+
+## D0-02I — real-stage authority/execution preparation
+
+The next layer qualifies the complete one-shot production-stage decision/execution boundary while still remaining disposable-only.
+
+Required future transaction sequence:
+1. obtain fresh live read-only r0005/legacy-runtime boundary evidence;
+2. durably checkpoint that sanitized evidence;
+3. issue one unique stage-only authorization as an isolated Git child commit;
+4. resolve exact Git provenance into `IssuedStageAuthorization`;
+5. acquire and verify exact frozen r0007 payload before publication;
+6. execute only the qualified inert release-stage operation;
+7. perform immediate postpublication runtime and staged-release reconcile;
+8. record a durable sanitized transaction result/consumption receipt;
+9. on interruption, reconcile authority commit, release destination and receipt before any retry.
+
+The D0-02I qualification must prove:
+- exact happy path;
+- exact replay/idempotent reconciliation;
+- authority content/blob substitution fails closed;
+- stale or mismatched fresh-boundary evidence fails closed;
+- payload mismatch fails before publication;
+- conflicting/foreign consumption receipt fails closed;
+- response loss after publication recognizes the exact staged release and never mints/retries authority blindly;
+- stage authorization never becomes activation authorization;
+- r0005→r0007 activation remains a later independent transaction.
+
+D0-02I must not create a real `docs/authorizations/...json` record in the authoritative branch and must not perform real VPS publication.
+
