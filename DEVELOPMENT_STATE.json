@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 30,
+  "revision": 31,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "0926a894e53e2e0a93dfb64155ab4c65f4f5ab60",
+  "repository_basis_commit": "1908cf3d86c2ce6b2e75425826fc2b46bc489781",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02J-real-stage-transaction-r0002-PASS",
-    "run_id": 35748469546,
+    "scope": "D0-02K-python312-reconcile-import-correction",
+    "run_id": 35759440550,
     "conclusion": "PASS",
-    "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact HEAD 0926a894e53e2e0a93dfb64155ab4c65f4f5ab60 passed real-stage-transaction r0002 run 35748469546 after isolating disposable authority repositories per transaction_id. Evidence artifact 10703602914 has digest sha256:3688767bb167ee5b927cf8b430e16e8385a38bd52032b55fbb63d43338306d12. Its parent development HEAD c42bad40cef9ad73bab69934b6b1675012ed43e0 passed Zero-based Core run 35746107914 with 736/736 tests. No real authorization, VPS payload acquisition/publication, activation, Hub mutation or Drive mutation occurred."
+    "relevance": "TARGETED_RECONCILE_TOOLING_GREEN_PENDING_CHECKPOINT_CORE",
+    "note": "Exact HEAD 1908cf3d86c2ce6b2e75425826fc2b46bc489781 fixed the Python 3.12 dynamic-import defect exposed by the first real D0-02K read-only VPS reconcile attempt. The predecessor materialize module is now registered in sys.modules before exec_module and a real @dataclass regression test passes. Bootstrap-prep r0002 run 35759440550 and stage gate run 35759440407 passed. Zero-based Core run 35759440160 stopped only because DEVELOPMENT_STATE.json had not yet been advanced in the same HEAD, as required by the D0 checkpoint contract. The failed VPS attempt performed no production, Hub-selector, writer, credential or Drive mutation."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -74,12 +74,12 @@
       "state": "INSTALLED_RUNTIME_ACCEPTED"
     },
     "read_only_selftest": {
-      "request_id": "50000000000000000000000000000002",
-      "request_comment_id": 5766792375,
-      "status_comment_id": 5766795620,
+      "request_id": "50000000000000000000000000000003",
+      "request_comment_id": 5780183513,
+      "status_comment_id": 5780188716,
       "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
       "status": "PASS",
-      "timestamp_utc": "2026-09-21T20:08:20Z"
+      "timestamp_utc": "2026-09-22T16:31:38Z"
     },
     "rule": "This evidence proves only the observed legacy runtime safety boundary. Re-read external authority immediately before any later production mutation; legacy Hub content/semantics remain non-authoritative."
   },
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02K_REAL_VPS_PRE_APPLY_RECONCILE",
-    "description": "Obtain a fresh read-only real VPS boundary before any real r0007 stage authority is issued. Reconcile the installed r0005 Operation Control/runtime, legacy Hub transaction PREPARED boundary, OLD selector, inactive writer, deployment/mutation-inhibit state, service identities, and absence of any prior real r0007 stage authority/input/release/result. The observation must be sanitized and compared with current GitHub authority. This objective is read-only only; real authority issuance, VPS payload acquisition/publication, activation, legacy-Hub mutation, writer mutation, credential mutation and Drive content mutation remain forbidden until the fresh reconcile is durably evaluated.",
+    "description": "Repeat the fresh root-only read-only real VPS boundary reconcile using the corrected exact development tooling after this checkpoint passes Core CI. Require two identical observation passes for installed r0005 Operation Control/runtime, legacy Hub PREPARED transaction, OLD selector, inactive writer, deployment/mutation-inhibit state, service identities, credential/bootstrap identity and absence of r0007 successor residue. The previous attempt failed before observation completion because of a Python 3.12 dynamic-import wiring defect in development tooling and established no new VPS boundary. Real authority issuance, VPS payload acquisition/publication, activation, legacy-Hub mutation, writer mutation, credential mutation and Drive content mutation remain forbidden until the corrected reconcile PASS is durably evaluated.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
