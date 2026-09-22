@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 42,
+  "revision": 43,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "193e824da3a6c6c044f8692a5c6530b73c0a7c48",
+  "repository_basis_commit": "a8058d9fbbba0ef8bcdbeeadc49ffa0bbd1fe8cd",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02M-private-input-cli-hardening-PASS",
-    "run_id": 35769348155,
+    "scope": "D0-02M-self-derived-branch-tip-harness-correction",
+    "run_id": 35770850107,
     "conclusion": "PASS",
-    "relevance": "CURRENT_PRIVATE_INPUT_PRE_RECONCILE_BASELINE",
-    "note": "HEAD 193e824da3a6c6c044f8692a5c6530b73c0a7c48 passed Core and the private-input gate. Two real read-only VPS reconcile attempts then failed closed before mutation on the operator-supplied expected-tip parameter despite shell-level exact SHA diagnostics. This commit removes that redundant operator input: the tool now proves local HEAD = local authoritative branch = live GitHub branch itself, and acquire pins that internally captured tip again at the mutation boundary. Canonical input root remains fixed and output remains stdout-only."
+    "relevance": "PRODUCT_LOGIC_PASS_HARNESS_ONLY_SUCCESSOR",
+    "note": "HEAD a8058d9fbbba0ef8bcdbeeadc49ffa0bbd1fe8cd changed private-input branch identity from operator-supplied expected tip to self-derived equality of local HEAD, local authoritative branch and live GitHub branch. Core executed 753 tests with exactly one harness failure: the remote-drift test still expected the obsolete message fragment 'branch tip' while production correctly raised BRANCH_TIP_DRIFT with 'local HEAD, authoritative branch and live remote branch differ'. This commit changes only that assertion text plus durable checkpoint metadata. No product/runtime logic or VPS/Drive mutation occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02M_REAL_STAGE_PRIVATE_INPUT_ACQUIRE",
-    "description": "After exact-head Core and private-input gate PASS, run one real VPS read-only private-input reconcile using only --repository-root. The tool must internally prove local HEAD = local dev/zero-based-keelaryn = live GitHub branch, resolve the issued authority, fresh-reconcile runtime state and inspect the fixed canonical private-input root without creating it. Do not run acquire in the same transaction.",
+    "description": "After this exact-head harness-only correction passes Zero-based Core and operation-control-r0007-private-input-gate-r0001, run exactly one real VPS read-only private-input reconcile using only --repository-root. The tool must derive and prove local HEAD = local dev/zero-based-keelaryn = live GitHub branch, resolve the issued authority, fresh-reconcile runtime state and inspect the fixed canonical private-input root without creating it. Do not run acquire in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

@@ -1067,3 +1067,9 @@ The operational private-input CLI is now intentionally narrower:
 - CLI commands remain exactly `reconcile` and `acquire`.
 
 The next real action is **read-only reconcile only**. It must not be combined with `acquire`.
+
+### D0-02M harness correction after self-derived branch tip
+
+HEAD `a8058d9fbbba0ef8bcdbeeadc49ffa0bbd1fe8cd` reached the intended production fail-closed branch-drift path. Both the dedicated private-input gate and full Core suite failed only because one regression still matched the obsolete text `branch tip`; the implementation now reports `local HEAD, authoritative branch and live remote branch differ`.
+
+This checkpoint changes only that test expectation and state metadata. No production/private-input/VPS mutation is performed.

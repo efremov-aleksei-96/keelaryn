@@ -132,7 +132,7 @@ class R0007PrivateInputTests(unittest.TestCase):
                 (root / ".git").mkdir()
                 with self.assertRaisesRegex(
                     private_input.PrivateInputError,
-                    "branch tip",
+                    "live remote branch differ",
                 ):
                     private_input._verify_repository(root)
 
