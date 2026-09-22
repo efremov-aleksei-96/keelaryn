@@ -132,7 +132,13 @@ class R0007BootstrapPrepTests(unittest.TestCase):
             )
             evidence["observation"]["r0007_snapshot_unit"] = "PRESENT"
             evidence_path.write_text(
-                json.dumps(evidence),
+                json.dumps(
+                    evidence,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(
