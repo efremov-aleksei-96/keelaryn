@@ -513,3 +513,51 @@ D0-02F remains qualification-only:
 - `blind_retry_allowed=false`;
 - fresh live mutation-boundary revalidation remains mandatory before any future real stage.
 
+## D0-02F stage qualification PASS
+
+Authoritative qualification HEAD `cea4591ed667a0968528758d8509a6cab7f1e6a8`.
+
+Validation:
+- Zero-based Core run `35692765529` — SUCCESS, 710/710 tests;
+- Operation control r0007 stage gate r0001 run `35692765474` — SUCCESS;
+- evidence artifact `10679088044`;
+- artifact ZIP SHA-256 `2fa4e7be4640bbb7c5a842cd740381bb975df8e97801513b9474f171c1b639b0`.
+
+Qualified transaction model:
+- `MONOTONIC_INERT_IMMUTABLE_RELEASE_PUBLICATION`;
+- commit authority = exact immutable r0007 release directory;
+- no separate PREPARED metadata record is required for the inert stage itself;
+- release deletion after uncertainty is forbidden;
+- blind retry is forbidden;
+- activation is not implemented by the stage framework;
+- production stage CLI is not exposed by the D0-02F qualification tool.
+
+Eight disposable scenarios passed:
+1. ABSENT → STAGED_EXACT;
+2. exact replay → ALREADY_STAGED_EXACT with no second publication;
+3. foreign/partial destination → fail closed untouched;
+4. prepublication stage residue → RECOVERY_REQUIRED untouched;
+5. durable publication followed by response loss → exact release recognized and retained;
+6. runtime boundary drift before mutation → abort before publication;
+7. runtime boundary drift after publication → exact release retained, activation blocked, reconcile required;
+8. exact destination plus orphan stage residue → fail closed/recovery required without deletion.
+
+The r0007 constrained-candidate lifecycle remains `FROZEN_TRANSITION_GATE_PASS`; D0-02F PASS is release-engineering evidence, not a new frozen-candidate lifecycle state.
+
+## D0-02G production stage preparation
+
+Next work is still qualification-only. It must design the actual authorized production-stage surface around the already-qualified monotonic stage primitive.
+
+Required contract:
+- exact r0007 payload/source identity bound before any write;
+- fresh live two-pass r0005/legacy-runtime safety observation at the mutation boundary;
+- current successor release state classified before any publication;
+- only `NOT_STAGED` may call the materializer;
+- `STAGED_EXACT` is idempotent no-op;
+- residue/foreign/partial states fail closed;
+- after materializer uncertainty, exact destination is recognized as durable commit and never deleted/retried blindly;
+- post-publication runtime anchors must be re-read and remain unchanged;
+- resulting evidence is sanitized and must not expose raw Hub IDs or secrets.
+
+D0-02G does not authorize the real VPS stage. It must not mutate `control-current`, systemd units, writer, credential, legacy Hub state or Google Drive corpus.
+

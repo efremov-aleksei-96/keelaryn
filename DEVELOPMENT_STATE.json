@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 18,
+  "revision": 19,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "139addd9d1f48794f3a74823709322c250c084a2",
+  "repository_basis_commit": "cea4591ed667a0968528758d8509a6cab7f1e6a8",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02E-lifecycle-corrected-bootstrap-prep",
-    "run_id": 35654752516,
+    "scope": "D0-02F-stage-qualified",
+    "run_id": 35692765529,
     "conclusion": "PASS",
     "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact HEAD 139addd9d1f48794f3a74823709322c250c084a2 passed 703/703 Core tests after restoring the stable r0007 candidate lifecycle token. Bootstrap-prep gate r0002 rerun 35654752660 also passed with artifact 10664025222 digest sha256:73c0b76c2f20d3c74d999a35624238ebca7428c0df2569e32c0801ce132b10e0."
+    "note": "Exact HEAD cea4591ed667a0968528758d8509a6cab7f1e6a8 passed 710/710 Core tests. Operation control r0007 stage gate r0001 run 35692765474 passed with artifact 10679088044 digest sha256:2fa4e7be4640bbb7c5a842cd740381bb975df8e97801513b9474f171c1b639b0. Qualification proved eight disposable monotonic staging/recovery scenarios and exposed no production stage CLI."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -139,8 +139,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02F_STAGE_QUALIFICATION",
-    "description": "Resolve operation-control-r0007 stage gate r0001. Qualification must remain disposable-only and prove monotonic inert immutable release publication across ABSENT-to-STAGED_EXACT, exact idempotent replay, foreign/partial fail-closed, prepublication residue recovery-required, postpublication uncertainty reconciliation, prepublication boundary drift abort, postpublication boundary drift preservation/reconcile-required, and exact-plus-residue fail-closed. No production stage CLI or real VPS/Drive mutation is allowed in D0-02F.",
+    "id": "D0-02G_PRODUCTION_STAGE_PREP",
+    "description": "Design and qualify the authorized production-stage surface without performing the real VPS stage. The surface must bind an exact frozen r0007 payload, require fresh live read-only r0005/legacy-runtime revalidation immediately before publication, classify current successor release state before any write, invoke the already-qualified monotonic materializer only for NOT_STAGED, fail closed on residue/foreign/partial states, recognize exact durable publication after uncertainty, verify all non-release runtime anchors unchanged after publication, and produce sanitized evidence. No control-current/systemd activation, legacy Hub mutation, writer mutation, credential mutation, Drive mutation or real production stage is allowed during D0-02G.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
