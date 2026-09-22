@@ -1247,3 +1247,24 @@ The transaction did **not** activate r0007 or change `/opt/keelaryn/current`. Le
 Sanitized evidence: `docs/evidence/R0007_STAGE_RUNTIME_COMPLETED_20260923.json`.
 
 Next lifecycle step is D0-02O: one fresh read-only post-stage reconcile and inspection of the existing activation/update protocol. No activation is authorized by this checkpoint.
+
+### D0-02O post-stage reconcile PASS
+
+Real VPS read-only post-stage reconcile on exact HEAD `e287d4bfd2b8432a620e8737da3f5d78a58b2196` completed successfully.
+
+Verified:
+- private input remains `INPUT_EXACT`;
+- stage witnesses are present and exact;
+- execution remains `COMPLETED_EXACT`;
+- release remains `STAGED_EXACT`;
+- control source remains predecessor r0005 `08f2e211f53764590f6ff0f05f86b2de62c14418`;
+- production source remains `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- legacy Hub remains PREPARED/OLD;
+- writer remains INACTIVE/MainPID=0;
+- r0007 snapshot unit remains absent.
+
+No witness/release/activation/Hub/writer/credential/Drive mutation occurred.
+
+Sanitized evidence: `docs/evidence/R0007_POST_STAGE_RECONCILE_20260923.json`.
+
+The next lifecycle step is D0-02P control-update preparation. The existing qualified D0 update protocol is `deploy/zero-based-vps/operation_control_d0_update.py`; it updates only the control plane (`control-current` plus control units/services), leaves production `current` unchanged, protects credential identity, and has rollback/recovery semantics. No control update is authorized by this checkpoint.
