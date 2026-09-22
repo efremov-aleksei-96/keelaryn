@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 29,
+  "revision": 30,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "87ccc0b01f2b412393860918b123f7ba3ed2ff83",
+  "repository_basis_commit": "0926a894e53e2e0a93dfb64155ab4c65f4f5ab60",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02J-r0001-import-wiring-correction",
-    "run_id": 35744268684,
+    "scope": "D0-02J-real-stage-transaction-r0002-PASS",
+    "run_id": 35748469546,
     "conclusion": "PASS",
-    "relevance": "CORE_GREEN_REAL_STAGE_R0001_WIRING_DEFECT_ONLY",
-    "note": "Exact HEAD 87ccc0b01f2b412393860918b123f7ba3ed2ff83 passed 735/735 Core tests; authority r0003, stage-execution, production-stage-prep and stage gates passed. Real-stage-transaction r0001 run 35744268814 failed only because the transaction tool loaded stage_authority.py a second time under a distinct module name, so a valid Git-resolved IssuedStageAuthorization failed isinstance at the already-qualified execution boundary. r0002 reuses execution.authority/issuer/production/stage identities and changes no protocol semantics."
+    "relevance": "CURRENT_DEVELOPMENT_BASELINE",
+    "note": "Exact HEAD 0926a894e53e2e0a93dfb64155ab4c65f4f5ab60 passed real-stage-transaction r0002 run 35748469546 after isolating disposable authority repositories per transaction_id. Evidence artifact 10703602914 has digest sha256:3688767bb167ee5b927cf8b430e16e8385a38bd52032b55fbb63d43338306d12. Its parent development HEAD c42bad40cef9ad73bab69934b6b1675012ed43e0 passed Zero-based Core run 35746107914 with 736/736 tests. No real authorization, VPS payload acquisition/publication, activation, Hub mutation or Drive mutation occurred."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -139,8 +139,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02J_REAL_STAGE_TRANSACTION_PREP",
-    "description": "Resolve operation-control-r0007 real-stage-transaction gate r0002 after correcting only trusted Python module/class graph wiring. r0002 must retain all D0-02J transaction semantics from r0001: sanitized boundary checkpoint before isolated authority, authority branch-drift fail-closed, autonomous exact Git source acquisition and deterministic double rebuild, immutable private input, qualified PREPARED/release/COMPLETED execution, isolated result checkpoint and stale-boundary fail-before-PREPARED. Real authority issuance, VPS input acquisition/publication, activation, Hub mutation and Drive mutation remain forbidden.",
+    "id": "D0-02K_REAL_VPS_PRE_APPLY_RECONCILE",
+    "description": "Obtain a fresh read-only real VPS boundary before any real r0007 stage authority is issued. Reconcile the installed r0005 Operation Control/runtime, legacy Hub transaction PREPARED boundary, OLD selector, inactive writer, deployment/mutation-inhibit state, service identities, and absence of any prior real r0007 stage authority/input/release/result. The observation must be sanitized and compared with current GitHub authority. This objective is read-only only; real authority issuance, VPS payload acquisition/publication, activation, legacy-Hub mutation, writer mutation, credential mutation and Drive content mutation remain forbidden until the fresh reconcile is durably evaluated.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
@@ -151,7 +151,8 @@
     "Activate the staged old Hub credential.",
     "Retry rejected Operation Control candidates.",
     "Treat development CI as production qualification.",
-    "Infer current VPS state from this file without fresh reconciliation before mutation."
+    "Infer current VPS state from this file without fresh reconciliation before mutation.",
+    "Issue a real r0007 stage authorization before a fresh VPS pre-apply reconcile is durably evaluated."
   ],
   "resume_procedure": [
     "Resolve authoritative_branch HEAD live.",
