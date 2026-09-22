@@ -595,3 +595,50 @@ Qualification scenarios cover exact authorization, widened-authorization rejecti
 
 Evidence must be sanitized: raw Hub IDs and credential token material are forbidden. D0-02G itself has `real_vps_stage_performed=false`, `production_stage_cli_exposed=false`, `production_mutation_allowed=false` and `drive_content_mutation_allowed=false`.
 
+## D0-02G production-stage preparation PASS
+
+Authoritative qualification HEAD `d458c351c2e9a8fb0b4efe8f0b6c25aca2689be1`.
+
+Validation:
+- Zero-based Core run `35702516892` — SUCCESS, 718/718 tests;
+- production-stage-prep gate r0001 run `35702517117` — SUCCESS;
+- evidence artifact `10683120485`;
+- artifact ZIP SHA-256 `9ddfe98ff081dff4357db45871b4616e61351638c7322f1894aa10039a9ba7bc`.
+
+Qualified production-stage surface:
+- internal function `execute_authorized_stage(...)`;
+- CLI remains qualification-only and exposes no real production stage command;
+- exact authorization scope `R0007_RELEASE_STAGE_ONLY`;
+- exact candidate/source/tree/payload bound;
+- activation, Drive, legacy-Hub, writer and credential mutation permissions are all false;
+- fresh two-pass live r0005/legacy-runtime precheck is mandatory;
+- successor release state is classified before any write;
+- publication delegates only to the qualified monotonic stage primitive;
+- postpublication runtime anchors are read-only reconciled twice;
+- exact publication survives response uncertainty without deletion/blind retry;
+- evidence is sanitized and rejects raw Hub IDs/token material.
+
+D0-02G performed no real VPS stage and did not authorize production mutation. The r0007 constrained-candidate lifecycle remains `FROZEN_TRANSITION_GATE_PASS`.
+
+## D0-02H — durable authorization provenance
+
+The next layer separates **authorization shape** from **authorization provenance**.
+
+A production executor must never be able to authorize itself merely by calling the authorization-template helper. A future real stage must consume a separately issued immutable authority record.
+
+Required one-shot authorization contract:
+- unique `transaction_id`;
+- exact candidate `operation-control-r0007-20260921-01`;
+- exact source `833123b6a7ad2c61087ee8a86700bb9ad8a46298`;
+- exact tree `bbca9e3a17162e12a7a0f649138e8c469518ad2a`;
+- exact payload SHA/size/file-count;
+- exact scope `R0007_RELEASE_STAGE_ONLY`;
+- exact issuing repository checkpoint identity;
+- binding to the fresh predecessor-boundary evidence used for the mutation decision;
+- `production_stage_authorized=true`;
+- activation/Drive/legacy-Hub/writer/credential mutation authorization all false.
+
+Authority must be immutable once issued. Exact replay may recognize the same authority/transaction during reconciliation but must never widen it, mint a replacement silently or convert it into activation authority.
+
+D0-02H is qualification-only. It must design and test issue/validate/reconcile/consume semantics without performing the real VPS release publication.
+
