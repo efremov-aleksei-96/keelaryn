@@ -679,7 +679,7 @@ def _init_transaction_authority(
     boundary: dict[str, Any],
     transaction_id: str,
 ) -> tuple[Path, authority.IssuedStageAuthorization, dict[str, Any]]:
-    repo = work / "transaction-authority"
+    repo = work / f"transaction-authority-{transaction_id}"
     repo.mkdir()
     authority._init_repo(repo)
 
