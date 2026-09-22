@@ -1,0 +1,162 @@
+name: Operation control r0007 stage authority gate r0001
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'tools/operation_control_r0007_stage_authority.py'
+      - 'tools/operation_control_r0007_stage_authority_issue.py'
+      - 'tests/core/test_operation_control_r0007_stage_authority.py'
+      - 'tests/ci/operation_control_r0007_stage_authority_gate.py'
+      - '.github/workflows/operation-control-r0007-stage-authority-gate-r0001.yml'
+      - 'tools/operation_control_r0007_production_stage.py'
+      - 'DEVELOPMENT_STATE.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operation-control-r0007-stage-authority-gate-r0001-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove no real stage authorization record exists
+        run: |
+          set -euo pipefail
+          if [ -d docs/authorizations/operation-control-r0007-stage ]; then
+            if find docs/authorizations/operation-control-r0007-stage -type f -print -quit | grep -q .; then
+              echo "D0-02H must not issue a real production-stage authorization record." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Syntax-check authority tooling without residue
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          for name in (
+              "tools/operation_control_r0007_stage_authority.py",
+              "tools/operation_control_r0007_stage_authority_issue.py",
+              "tests/core/test_operation_control_r0007_stage_authority.py",
+              "tests/ci/operation_control_r0007_stage_authority_gate.py",
+          ):
+              raw = Path(name).read_text(encoding="utf-8")
+              compile(raw, name, "exec", dont_inherit=True)
+          PY
+          test -z "$(git status --porcelain)"
+
+      - name: Run authority provenance regression tests
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover             -s tests/core -p 'test_operation_control_r0007_stage_authority.py' -v
+          test -z "$(git status --porcelain)"
+
+      - name: Qualify issuer-consumer Git provenance separation
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/OPERATION_CONTROL_R0007_STAGE_AUTHORITY_QUALIFICATION.json"
+          stdout="$RUNNER_TEMP/stage-authority-stdout.json"
+
+          PYTHONDONTWRITEBYTECODE=1 python3 -B             tests/ci/operation_control_r0007_stage_authority_gate.py             --output "$out"             > "$stdout"
+
+          cmp "$stdout" "$out"
+
+          python3 - "$out" <<'PY'
+          import json
+          import sys
+
+          value = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected_scenarios = {
+              "exact_issue_resolve": "PASS",
+              "exact_replay": "PASS",
+              "same_transaction_substitution": "FAIL_CLOSED",
+              "wrong_blob_identity": "FAIL_CLOSED",
+              "permission_widening": "FAIL_CLOSED",
+              "non_isolated_authority_commit": "FAIL_CLOSED",
+              "boundary_binding_substitution": "FAIL_CLOSED",
+          }
+
+          if value.get("schema") != "keelaryn.operation-control-r0007-stage-authority-qualification.v1":
+              raise SystemExit("stage-authority qualification schema mismatch")
+          if value.get("gate_revision") != "operation-control-r0007-stage-authority-gate-r0001":
+              raise SystemExit("stage-authority gate revision mismatch")
+          if value.get("authority_schema") != "keelaryn.operation-control-r0007-stage-authorization.v1":
+              raise SystemExit("stage-authority schema mismatch")
+          if value.get("boundary_schema") != "keelaryn.operation-control-r0007-stage-boundary-evidence.v1":
+              raise SystemExit("stage-authority boundary schema mismatch")
+          if value.get("candidate") != "operation-control-r0007-20260921-01":
+              raise SystemExit("stage-authority candidate mismatch")
+          if value.get("source_commit") != "833123b6a7ad2c61087ee8a86700bb9ad8a46298":
+              raise SystemExit("stage-authority source mismatch")
+          if value.get("source_tree") != "bbca9e3a17162e12a7a0f649138e8c469518ad2a":
+              raise SystemExit("stage-authority tree mismatch")
+          if value.get("payload_sha256") != "c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9":
+              raise SystemExit("stage-authority payload mismatch")
+          if value.get("scope") != "R0007_RELEASE_STAGE_ONLY":
+              raise SystemExit("stage-authority scope mismatch")
+          if value.get("authority_path_template") != "docs/authorizations/operation-control-r0007-stage/<transaction_id>.json":
+              raise SystemExit("stage-authority path template mismatch")
+          if value.get("authority_commit_parent_is_issuer_checkpoint") is not True:
+              raise SystemExit("stage-authority parent binding missing")
+          if value.get("authority_commit_adds_exactly_one_path") is not True:
+              raise SystemExit("stage-authority isolated commit rule missing")
+          if value.get("boundary_evidence_must_exist_in_issuer_checkpoint") is not True:
+              raise SystemExit("stage-authority boundary binding missing")
+          if value.get("consumer_can_mint_authority") is not False:
+              raise SystemExit("consumer can mint stage authority")
+          if value.get("exact_replay_allowed") is not True:
+              raise SystemExit("exact authority replay semantics missing")
+          if value.get("authority_replacement_allowed") is not False:
+              raise SystemExit("authority replacement unexpectedly allowed")
+          if value.get("permission_widening_allowed") is not False:
+              raise SystemExit("permission widening unexpectedly allowed")
+          for key in (
+              "activation_authorized",
+              "drive_content_mutation_authorized",
+              "legacy_hub_mutation_authorized",
+              "writer_mutation_authorized",
+              "credential_mutation_authorized",
+              "real_authorization_record_issued",
+              "real_vps_stage_performed",
+              "production_mutation_allowed",
+              "drive_content_mutation_allowed",
+              "production_qualified",
+          ):
+              if value.get(key) is not False:
+                  raise SystemExit(f"stage-authority unsafe flag: {key}")
+          if value.get("scenario_count") != 7:
+              raise SystemExit("stage-authority scenario count mismatch")
+          if value.get("scenarios") != expected_scenarios:
+              raise SystemExit(f"stage-authority scenarios mismatch: {value.get('scenarios')}")
+          if value.get("next_action") != "DESIGN_REAL_AUTHORITY_ISSUANCE_AND_STAGE_EXECUTION_BOUNDARY":
+              raise SystemExit("stage-authority next action mismatch")
+          PY
+
+          if grep -Eq '"(old_hub_root_id|new_hub_root_id|KEELARYN_GITHUB_OPERATIONS_TOKEN|token)"' "$out"; then
+            echo "stage-authority evidence leaks forbidden authority material" >&2
+            exit 1
+          fi
+
+          test -z "$(git status --porcelain)"
+
+      - name: Upload compact authority-provenance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operation-control-r0007-stage-authority-gate-r0001-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/OPERATION_CONTROL_R0007_STAGE_AUTHORITY_QUALIFICATION.json
+          if-no-files-found: error
+          retention-days: 3

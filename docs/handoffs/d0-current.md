@@ -642,3 +642,39 @@ Authority must be immutable once issued. Exact replay may recognize the same aut
 
 D0-02H is qualification-only. It must design and test issue/validate/reconcile/consume semantics without performing the real VPS release publication.
 
+## D0-02H — stage authorization provenance gate r0001
+
+Pre-write authority: `0c76ee26b0f17004f3658e6918ebc7fcdc7ed4a1`; Core and production-stage-prep qualification are PASS. No real production authorization exists.
+
+New qualification-only issuer/consumer protocol:
+- `tools/operation_control_r0007_stage_authority_issue.py` — issuer-side canonical record renderer only;
+- `tools/operation_control_r0007_stage_authority.py` — consumer-side Git provenance resolver only;
+- `tests/core/test_operation_control_r0007_stage_authority.py`;
+- `tests/ci/operation_control_r0007_stage_authority_gate.py`;
+- `.github/workflows/operation-control-r0007-stage-authority-gate-r0001.yml`.
+
+Authority path is transaction-bound:
+`docs/authorizations/operation-control-r0007-stage/<32-hex-transaction-id>.json`.
+
+A valid future authority requires:
+1. fresh sanitized stage-boundary evidence already committed in the issuer checkpoint;
+2. authorization commit is a direct child of that checkpoint;
+3. authorization commit adds exactly one new canonical authority path and no unrelated mutation;
+4. path did not exist in the checkpoint;
+5. expected Git blob identity is supplied externally and matches;
+6. canonical record binds exact candidate/source/tree/payload, repository/branch/checkpoint, boundary evidence Git blob + SHA-256 and scope `R0007_RELEASE_STAGE_ONLY`;
+7. activation/Drive/legacy-Hub/writer/credential mutation permissions are all false.
+
+Consumer returns an opaque `IssuedStageAuthorization`. Direct construction with an arbitrary object is rejected, and `require_issued_authorization(...)` rejects raw dictionaries.
+
+Disposable qualification scenarios:
+- exact issue + resolve PASS;
+- exact replay PASS;
+- same transaction/path substitution FAIL_CLOSED;
+- wrong expected authority blob FAIL_CLOSED;
+- permission widening FAIL_CLOSED;
+- authority commit containing unrelated mutation FAIL_CLOSED;
+- boundary-evidence binding substitution FAIL_CLOSED.
+
+D0-02H does not add any real `docs/authorizations/...json` record. The gate explicitly fails if such a record exists. It does not perform VPS staging and does not expose activation authority.
+
