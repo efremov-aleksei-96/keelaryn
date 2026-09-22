@@ -24,6 +24,11 @@ SPEC.loader.exec_module(runtime)
 
 
 class R0007StageRuntimeTests(unittest.TestCase):
+    def test_runtime_reuses_single_execution_authority_graph(self) -> None:
+        self.assertIs(runtime.execution, runtime.transaction.execution)
+        self.assertIs(runtime.execution.authority, runtime.private_input.authority)
+        self.assertIs(runtime.execution.authority, runtime.transaction.authority)
+
     def test_cli_surface_is_only_reconcile_or_stage(self) -> None:
         parser = runtime._parser()
         action = next(item for item in parser._actions if item.dest == "command")

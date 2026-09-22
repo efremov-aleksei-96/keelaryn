@@ -1192,3 +1192,16 @@ On HEAD `efa6e2a1fca33bb7c7e0f34e66913e21df19d75b`:
 The stage-runtime gate failed only because its static source check required the literal private-input path to appear in the wrapper. The wrapper intentionally binds `DEFAULT_INPUT_ROOT = private_input.DEFAULT_INPUT_ROOT` so there is a single canonical path definition. The gate now verifies that inheritance instead of requiring duplicated configuration.
 
 No production mutation is performed by this harness-only correction.
+
+### D0-02N single execution/authority module graph correction
+
+The first real stage-runtime read-only reconcile on `2fbda345919b6f0fcf8a3509b042c42f9b7c008b` failed closed with `AUTHORITY_PROVENANCE_REQUIRED` before any release/witness mutation.
+
+Root cause: the wrapper loaded `operation_control_r0007_stage_execution.py` a second time. The private-input path already reaches `real_stage_transaction.execution`, whose source explicitly requires reuse of one trusted execution/authority module graph because Python class identity differs across duplicate importlib loads.
+
+The wrapper now sets:
+- `transaction = private_input.transaction`;
+- `execution = transaction.execution`;
+- `stage = execution.stage`.
+
+A regression requires object identity between runtime execution, transaction execution and their authority modules. No production mutation is performed by this correction.

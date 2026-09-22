@@ -25,11 +25,12 @@ private_input = _load(
     "keelaryn_r0007_stage_runtime_private_input",
     Path(__file__).with_name("operation_control_r0007_private_input.py"),
 )
-execution = _load(
-    "keelaryn_r0007_stage_runtime_execution",
-    Path(__file__).with_name("operation_control_r0007_stage_execution.py"),
-)
 transaction = private_input.transaction
+# Reuse the exact execution/authority module graph already loaded by the
+# real-stage transaction layer. Loading stage_execution.py a second time
+# creates a different IssuedStageAuthorization class identity and must not
+# cross the production stage boundary.
+execution = transaction.execution
 stage = execution.stage
 
 GATE_REVISION = "operation-control-r0007-stage-runtime-gate-r0001"
