@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 46,
+  "revision": 47,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "2b6a92587a07b7f7529207c88dee07fbc0ba0048",
+  "repository_basis_commit": "4888cd7002c2f5522f10c87d509c1b319d72ad46",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02M-full-issued-record-PASS-plus-live-reconcile",
-    "run_id": 35773736969,
+    "scope": "D0-02M-live-private-input-acquire-exact",
+    "run_id": 35775316246,
     "conclusion": "PASS",
-    "relevance": "CURRENT_GREEN_HEAD_AND_LIVE_VPS_PRESTATE",
-    "note": "Exact HEAD 2b6a92587a07b7f7529207c88dee07fbc0ba0048 passed Zero-based Core run 35773736969 and private-input gate r0001 run 35773737219, with bootstrap-prep r0002, production-stage-prep and stage gate PASS. A real VPS read-only reconcile then passed repository/branch identity, exact Git-resolved authority/provenance, and live runtime boundary validation. Canonical private-input root /var/lib/keelaryn/operation-control/r0007-stage-input is absent; no input root, payload, release, witness, activation, Hub, writer, credential or Drive mutation occurred. Sanitized result is durably recorded in docs/evidence/R0007_PRIVATE_INPUT_RECONCILE_20260922.json."
+    "relevance": "CURRENT_GREEN_HEAD_AND_EXACT_PRIVATE_INPUT",
+    "note": "Exact checkpoint HEAD 4888cd7002c2f5522f10c87d509c1b319d72ad46 passed Zero-based Core run 35775316246, private-input gate r0001, bootstrap-prep r0002, production-stage-prep and stage gate. The subsequent real VPS acquire transaction revalidated exact Git authority and live runtime boundary, built the frozen r0007 payload deterministically, created the canonical private-input root, published exactly one transaction-bound payload, and immediately postverified INPUT_EXACT: source 833123b6a7ad2c61087ee8a86700bb9ad8a46298, SHA-256 c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9, size 414534, file_count 208. Release publication, stage witness, activation, Hub, writer, credential and Drive mutations remained false. Sanitized acquire evidence is docs/evidence/R0007_PRIVATE_INPUT_ACQUIRE_20260922.json."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -139,8 +139,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02M_REAL_STAGE_PRIVATE_INPUT_ACQUIRE",
-    "description": "Execute exactly one real VPS private-input acquire for transaction e7869ce5efd9d63da191e30f7c4e2c2b from the current exact branch. The acquire tool must self-locate the checkout, prove local HEAD = local dev/zero-based-keelaryn = live GitHub branch, revalidate the exact issued authority and live runtime boundary, fetch frozen source 833123b6a7ad2c61087ee8a86700bb9ad8a46298 / tree bbca9e3a17162e12a7a0f649138e8c469518ad2a, build the payload twice deterministically, verify SHA c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9 / size 414534 / file_count 208, then create only the canonical 0700 private-input root and one 0600 transaction-bound payload through O_EXCL/fsync and immediately postverify exact identity. Do not publish /opt/keelaryn/releases, create PREPARED/COMPLETED stage witnesses, activate r0007, mutate legacy Hub/writer/credential, or mutate Drive in the same transaction. After any interruption, reconcile before retry.",
+    "id": "D0-02N_REAL_STAGE_EXECUTION_PREP",
+    "description": "Reconcile the exact acquired private input for transaction e7869ce5efd9d63da191e30f7c4e2c2b and qualify the next inert release-publication transaction. Before any /opt/keelaryn/releases write, verify current branch/CI, exact issued authority, INPUT_EXACT private payload identity, fresh live runtime boundary, and the stage-execution tool contract. Determine and, if necessary, implement a fail-closed operational stage entrypoint that may publish only the immutable r0007 release and monotonic PREPARED/COMPLETED stage witnesses, never activate control-current and never mutate legacy Hub/writer/credential/Drive. Do not perform release publication in the same transaction as this checkpoint/preparation.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

@@ -1124,3 +1124,31 @@ The reconcile performed zero private-input/root/release/witness/activation/Hub/w
 Sanitized evidence: `docs/evidence/R0007_PRIVATE_INPUT_RECONCILE_20260922.json`.
 
 Next transaction: one private-input `acquire` only. It may create the canonical private root and exact transaction-bound payload, but must not perform release publication, stage witnesses or activation.
+
+### D0-02M real private-input acquire PASS
+
+Real VPS `acquire` completed successfully from exact checkpoint `4888cd7002c2f5522f10c87d509c1b319d72ad46`.
+
+Durable private input:
+- root `/var/lib/keelaryn/operation-control/r0007-stage-input` created;
+- transaction payload `e7869ce5efd9d63da191e30f7c4e2c2b.r0007.tar.gz`;
+- state `INPUT_EXACT / ACQUIRED_EXACT`;
+- source `833123b6a7ad2c61087ee8a86700bb9ad8a46298`;
+- payload SHA-256 `c833a385e03d313497f865a669dbce8050fa4b296dc587836dad2fa5d3f560e9`;
+- payload size `414534`;
+- file count `208`.
+
+The acquire transaction revalidated the exact authority and live boundary before publication and immediately postverified the written input.
+
+Mutation scope was exactly limited to private input:
+- private input: true;
+- private input root created: true;
+- release publication: false;
+- stage witness: false;
+- activation: false;
+- legacy Hub/writer/credential: false;
+- Drive: false.
+
+Sanitized evidence: `docs/evidence/R0007_PRIVATE_INPUT_ACQUIRE_20260922.json`.
+
+Next lifecycle step is D0-02N: prepare/qualify the inert release-publication transaction. Release publication is a separate production-filesystem mutation and is not performed by this checkpoint.
