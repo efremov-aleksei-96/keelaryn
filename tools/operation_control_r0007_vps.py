@@ -709,7 +709,8 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
     if evidence_path.is_symlink() or not evidence_path.is_file():
         raise PrepError("production boundary evidence missing/not regular")
 
-    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence_raw = evidence_path.read_bytes()
+    evidence = json.loads(evidence_raw.decode("utf-8"))
     if evidence.get("observed_at_utc") != production.get("observed_at_utc"):
         raise PrepError("production boundary evidence timestamp mismatch")
 
@@ -747,6 +748,17 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
     elif evidence_schema == (
         "keelaryn.operation-control-r0007-stage-boundary-evidence.v1"
     ):
+        canonical_stage_boundary = (
+            json.dumps(
+                evidence,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+        ).encode("utf-8")
+        if evidence_raw != canonical_stage_boundary:
+            raise PrepError("stage boundary evidence is not canonical JSON")
         expected_keys = {
             "schema",
             "observed_at_utc",

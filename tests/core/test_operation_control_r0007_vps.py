@@ -167,6 +167,24 @@ class R0007BootstrapPrepTests(unittest.TestCase):
             ):
                 r0007._recorded_boundary(root)
 
+    def test_recorded_boundary_rejects_noncanonical_stage_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = self._repo_fixture(Path(td))
+            state = json.loads(
+                (root / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
+            )
+            evidence_path = root / state["production_boundary"]["evidence_path"]
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            evidence_path.write_text(
+                json.dumps(evidence, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                r0007.PrepError,
+                "stage boundary evidence is not canonical JSON",
+            ):
+                r0007._recorded_boundary(root)
+
     def test_recorded_boundary_rejects_unsafe_evidence_path(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = self._repo_fixture(Path(td))
