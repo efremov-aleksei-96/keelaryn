@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 32,
+  "revision": 33,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "8594750510bd2698013382f5ace44e2243273442",
+  "repository_basis_commit": "efc058d5043cfa3ecccd099cd6c30c16067b2a9c",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02K-real-vps-pre-apply-reconcile-PASS",
+    "scope": "D0-02K-stage-boundary-checkpoint-compatibility-correction",
     "run_id": 35760845995,
     "conclusion": "PASS",
-    "relevance": "CURRENT_DEVELOPMENT_BASELINE",
-    "note": "Exact checkpoint predecessor HEAD 8594750510bd2698013382f5ace44e2243273442 passed Zero-based Core run 35760845995 after the Python 3.12 reconcile import correction. Fresh r0005 RUNTIME_SELFTEST request 50000000000000000000000000000003 passed, and a corrected two-pass root-only real VPS reconcile returned PASS with production source exact, control r0005 exact, legacy Hub PREPARED on OLD, writer INACTIVE/MainPID 0, mutation inhibit authority exact, operation agent/transport active with exact r0005 unit bytes, credential/bootstrap receipt exact, r0007 snapshot unit absent, and no production or Drive mutation."
+    "relevance": "PRE_FIX_GREEN_BASELINE_WITH_CURRENT_DEFECT_DIAGNOSED",
+    "note": "Predecessor checkpoint HEAD 8594750510bd2698013382f5ace44e2243273442 passed Zero-based Core run 35760845995. Fresh D0-02K boundary checkpoint efc058d5043cfa3ecccd099cd6c30c16067b2a9c then exposed a development-only compatibility defect: operation_control_r0007_vps._recorded_boundary still hardcoded the historical D0-02D evidence path and rejected the new qualified r0007 stage-boundary evidence before qualification logic. This successor commit updates only the recorded-evidence reader plus regressions; no VPS, authority, staging, activation, Hub, writer, credential or Drive mutation is performed."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02L_REAL_STAGE_AUTHORITY_ISSUE",
-    "description": "Issue exactly one unique immutable r0007 release-stage-only authorization as an isolated Git child commit from this fresh boundary checkpoint. Bind the authority to the exact checkpoint commit plus boundary evidence path/blob/SHA, frozen r0007 candidate/source/tree/payload identities and a unique transaction_id. The authority may authorize only inert r0007 release staging; activation, legacy-Hub mutation, writer mutation, credential mutation and Drive mutation remain forbidden. Do not acquire/publish the VPS payload or execute staging in the same transactional turn as authority issuance.",
+    "description": "After this exact-head compatibility correction passes Core and all applicable current r0007 gates, issue exactly one unique immutable r0007 release-stage-only authorization as an isolated Git child commit from the fresh D0-02K boundary checkpoint. Bind the authority to the exact boundary checkpoint commit plus evidence path/blob/SHA, frozen r0007 candidate/source/tree/payload identities and a unique transaction_id. Do not acquire/publish the VPS payload or execute staging in the same transactional turn as authority issuance. Activation, legacy-Hub mutation, writer mutation, credential mutation and Drive mutation remain forbidden.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

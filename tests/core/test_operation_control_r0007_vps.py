@@ -23,9 +23,13 @@ SPEC.loader.exec_module(r0007)
 
 class R0007BootstrapPrepTests(unittest.TestCase):
     def _repo_fixture(self, root: Path) -> Path:
+        state = json.loads(
+            (ROOT / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
+        )
+        evidence = Path(state["production_boundary"]["evidence_path"])
         for relative in (
             Path("DEVELOPMENT_STATE.json"),
-            Path(r0007.RECORDED_EVIDENCE),
+            evidence,
             Path("docs/candidates/operation-control-r0007-20260921-01.json"),
         ):
             source = ROOT / relative
@@ -33,6 +37,24 @@ class R0007BootstrapPrepTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
         return root
+
+    def _select_legacy_evidence(self, root: Path) -> Path:
+        relative = Path(r0007.RECORDED_EVIDENCE)
+        source = ROOT / relative
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+
+        evidence = json.loads(target.read_text(encoding="utf-8"))
+        state_path = root / "DEVELOPMENT_STATE.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["production_boundary"]["evidence_path"] = r0007.RECORDED_EVIDENCE
+        state["production_boundary"]["observed_at_utc"] = evidence["observed_at_utc"]
+        state_path.write_text(
+            json.dumps(state),
+            encoding="utf-8",
+        )
+        return target
 
     def test_parser_exposes_only_read_only_prep_commands(self) -> None:
         parser = r0007._parser()
@@ -72,6 +94,12 @@ class R0007BootstrapPrepTests(unittest.TestCase):
             value["r0007_transition_gate"],
             "PASS",
         )
+        self.assertEqual(
+            value["evidence_path"],
+            json.loads(
+                (ROOT / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
+            )["production_boundary"]["evidence_path"],
+        )
 
     def test_recorded_boundary_rejects_legacy_hub_authority_expansion(
         self,
@@ -98,7 +126,7 @@ class R0007BootstrapPrepTests(unittest.TestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = self._repo_fixture(Path(td))
-            evidence_path = root / r0007.RECORDED_EVIDENCE
+            evidence_path = self._select_legacy_evidence(root)
             evidence = json.loads(
                 evidence_path.read_text(encoding="utf-8")
             )
@@ -110,6 +138,48 @@ class R0007BootstrapPrepTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 r0007.PrepError,
                 "partial successor residue",
+            ):
+                r0007._recorded_boundary(root)
+
+    def test_recorded_boundary_accepts_legacy_d0_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = self._repo_fixture(Path(td))
+            self._select_legacy_evidence(root)
+            value = r0007._recorded_boundary(root)
+        self.assertEqual(value["evidence_path"], r0007.RECORDED_EVIDENCE)
+
+    def test_recorded_boundary_rejects_stage_boundary_identity_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = self._repo_fixture(Path(td))
+            state = json.loads(
+                (root / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
+            )
+            evidence_path = root / state["production_boundary"]["evidence_path"]
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            evidence["mutation_inhibit_authority_matches"] = False
+            evidence_path.write_text(
+                json.dumps(evidence),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                r0007.PrepError,
+                "stage boundary evidence identity mismatch",
+            ):
+                r0007._recorded_boundary(root)
+
+    def test_recorded_boundary_rejects_unsafe_evidence_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = self._repo_fixture(Path(td))
+            state_path = root / "DEVELOPMENT_STATE.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["production_boundary"]["evidence_path"] = "../escape.json"
+            state_path.write_text(
+                json.dumps(state),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                r0007.PrepError,
+                "evidence path unsafe",
             ):
                 r0007._recorded_boundary(root)
 

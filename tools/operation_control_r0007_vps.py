@@ -648,7 +648,6 @@ def _rebuild_frozen(source: Path, work: Path) -> dict[str, Any]:
 
 def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
     state_path = repository_root / "DEVELOPMENT_STATE.json"
-    evidence_path = repository_root / RECORDED_EVIDENCE
     candidate_path = (
         repository_root
         / "docs"
@@ -657,14 +656,12 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
     )
     for path, label in (
         (state_path, "development state"),
-        (evidence_path, "D0-02D evidence"),
         (candidate_path, "r0007 candidate receipt"),
     ):
         if path.is_symlink() or not path.is_file():
             raise PrepError(f"{label} missing/not regular")
 
     state = json.loads(state_path.read_text(encoding="utf-8"))
-    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
 
     architecture = state.get("architecture", {})
@@ -680,8 +677,6 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
     production = state.get("production_boundary", {})
     if production.get("freshness") != "LIVE_VERIFIED_READ_ONLY_D0":
         raise PrepError("production boundary is not live-verified read-only D0")
-    if production.get("evidence_path") != RECORDED_EVIDENCE:
-        raise PrepError("production boundary evidence path mismatch")
     if production.get("source_commit") != PRODUCTION_SOURCE:
         raise PrepError("production source boundary mismatch")
     installed = production.get("installed_operation_control", {})
@@ -700,37 +695,96 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
     if production.get("writer") != "INACTIVE_MAINPID_0":
         raise PrepError("recorded writer boundary mismatch")
 
-    if evidence.get("schema") != "keelaryn.d0-vps-reconcile-evidence.v1":
-        raise PrepError("recorded D0-02D evidence schema mismatch")
-    if evidence.get("evidence_class") != (
-        "production-read-only-legacy-runtime-safety"
+    evidence_ref = production.get("evidence_path")
+    if (
+        not isinstance(evidence_ref, str)
+        or not evidence_ref.startswith("docs/evidence/")
+        or not evidence_ref.endswith(".json")
+        or evidence_ref.startswith("/")
+        or "\\" in evidence_ref
+        or ".." in evidence_ref.split("/")
     ):
-        raise PrepError("recorded D0-02D evidence class mismatch")
-    if evidence.get("conclusion") != "PASS":
-        raise PrepError("recorded D0-02D evidence is not PASS")
-    if evidence.get("production_authorization") is not False:
-        raise PrepError("recorded D0-02D evidence improperly authorizes production")
-    observation = evidence.get("observation", {})
-    if observation.get("production_source_commit") != PRODUCTION_SOURCE:
-        raise PrepError("D0-02D observed production source mismatch")
-    if observation.get("control_source_commit") != PREDECESSOR_SOURCE_COMMIT:
-        raise PrepError("D0-02D observed control source mismatch")
-    if observation.get("r0007_snapshot_unit") != "ABSENT":
-        raise PrepError("D0-02D observed partial successor residue")
-    if observation.get("legacy_hub", {}).get("selector_role") != "OLD":
-        raise PrepError("D0-02D observed legacy selector mismatch")
-    if observation.get("legacy_hub", {}).get("status") != "PREPARED":
-        raise PrepError("D0-02D observed legacy status mismatch")
-    if observation.get("legacy_hub", {}).get("mutation_inhibit", {}).get(
-        "authority_matches"
-    ) is not True:
-        raise PrepError("D0-02D mutation inhibit authority mismatch")
-    if observation.get("credential", {}).get("sha256") != CREDENTIAL_SHA256:
-        raise PrepError("D0-02D credential identity mismatch")
-    if observation.get("production_mutations_performed") is not False:
-        raise PrepError("D0-02D evidence claims production mutation")
-    if observation.get("drive_mutations_performed") is not False:
-        raise PrepError("D0-02D evidence claims Drive mutation")
+        raise PrepError("production boundary evidence path unsafe")
+    evidence_path = repository_root / evidence_ref
+    if evidence_path.is_symlink() or not evidence_path.is_file():
+        raise PrepError("production boundary evidence missing/not regular")
+
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    if evidence.get("observed_at_utc") != production.get("observed_at_utc"):
+        raise PrepError("production boundary evidence timestamp mismatch")
+
+    evidence_schema = evidence.get("schema")
+    if evidence_schema == "keelaryn.d0-vps-reconcile-evidence.v1":
+        if evidence.get("evidence_class") != (
+            "production-read-only-legacy-runtime-safety"
+        ):
+            raise PrepError("recorded D0-02D evidence class mismatch")
+        if evidence.get("conclusion") != "PASS":
+            raise PrepError("recorded D0-02D evidence is not PASS")
+        if evidence.get("production_authorization") is not False:
+            raise PrepError("recorded D0-02D evidence improperly authorizes production")
+        observation = evidence.get("observation", {})
+        if observation.get("production_source_commit") != PRODUCTION_SOURCE:
+            raise PrepError("D0-02D observed production source mismatch")
+        if observation.get("control_source_commit") != PREDECESSOR_SOURCE_COMMIT:
+            raise PrepError("D0-02D observed control source mismatch")
+        if observation.get("r0007_snapshot_unit") != "ABSENT":
+            raise PrepError("D0-02D observed partial successor residue")
+        if observation.get("legacy_hub", {}).get("selector_role") != "OLD":
+            raise PrepError("D0-02D observed legacy selector mismatch")
+        if observation.get("legacy_hub", {}).get("status") != "PREPARED":
+            raise PrepError("D0-02D observed legacy status mismatch")
+        if observation.get("legacy_hub", {}).get("mutation_inhibit", {}).get(
+            "authority_matches"
+        ) is not True:
+            raise PrepError("D0-02D mutation inhibit authority mismatch")
+        if observation.get("credential", {}).get("sha256") != CREDENTIAL_SHA256:
+            raise PrepError("D0-02D credential identity mismatch")
+        if observation.get("production_mutations_performed") is not False:
+            raise PrepError("D0-02D evidence claims production mutation")
+        if observation.get("drive_mutations_performed") is not False:
+            raise PrepError("D0-02D evidence claims Drive mutation")
+    elif evidence_schema == (
+        "keelaryn.operation-control-r0007-stage-boundary-evidence.v1"
+    ):
+        expected_keys = {
+            "schema",
+            "observed_at_utc",
+            "conclusion",
+            "production_source_commit",
+            "control_source_commit",
+            "legacy_hub_status",
+            "legacy_hub_transaction_id",
+            "selector_role",
+            "writer",
+            "mutation_inhibit_authority_matches",
+            "credential_sha256",
+            "legacy_hub_authority_scope",
+            "production_mutations_performed",
+            "drive_mutations_performed",
+        }
+        if set(evidence) != expected_keys:
+            raise PrepError("stage boundary evidence keys mismatch")
+        expected_stage_boundary = {
+            "schema": "keelaryn.operation-control-r0007-stage-boundary-evidence.v1",
+            "observed_at_utc": production.get("observed_at_utc"),
+            "conclusion": "PASS",
+            "production_source_commit": PRODUCTION_SOURCE,
+            "control_source_commit": PREDECESSOR_SOURCE_COMMIT,
+            "legacy_hub_status": "PREPARED",
+            "legacy_hub_transaction_id": HUB_TRANSACTION_ID,
+            "selector_role": "OLD",
+            "writer": "INACTIVE_MAINPID_0",
+            "mutation_inhibit_authority_matches": True,
+            "credential_sha256": CREDENTIAL_SHA256,
+            "legacy_hub_authority_scope": "RUNTIME_SAFETY_ONLY",
+            "production_mutations_performed": False,
+            "drive_mutations_performed": False,
+        }
+        if evidence != expected_stage_boundary:
+            raise PrepError("stage boundary evidence identity mismatch")
+    else:
+        raise PrepError("production boundary evidence schema unsupported")
 
     if candidate.get("candidate") != CANDIDATE or candidate.get("frozen") is not True:
         raise PrepError("r0007 candidate receipt identity mismatch")
@@ -767,7 +821,7 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
 
     return {
         "observed_at_utc": production.get("observed_at_utc"),
-        "evidence_path": RECORDED_EVIDENCE,
+        "evidence_path": evidence_ref,
         "production_source_commit": PRODUCTION_SOURCE,
         "predecessor_source_commit": PREDECESSOR_SOURCE_COMMIT,
         "predecessor_payload_sha256": PREDECESSOR_PAYLOAD_SHA256,
@@ -780,7 +834,6 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
         "credential_sha256": CREDENTIAL_SHA256,
         "r0007_transition_gate": "PASS",
     }
-
 
 def _qualify_materialized_release(
     source: Path,
