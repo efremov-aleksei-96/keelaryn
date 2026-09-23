@@ -1563,3 +1563,15 @@ Observed at `2026-09-23T09:27:08Z`:
 The **exact captured JSON bytes** are committed as `docs/evidence/R0008_STAGE_BOUNDARY_20260923T092708Z.json`, and DEVELOPMENT_STATE.production_boundary now references this r0008 authority-grade evidence.
 
 No r0008 stage authority has been issued yet. Next objective is one separate GitHub-only release-stage authorization transaction, followed by exact read-back provenance verification before any VPS private-input/stage work.
+
+### D0-02W r0008 authority-prep compatibility correction
+
+After committing the canonical r0008 stage boundary, the r0008 production-prep gate failed before its regressions for one mechanical reason: it still expected exactly seven `operation_control_r0008_*.py` tools, while the newly qualified read-only boundary-capture primitive is the eighth.
+
+The r0008 VPS-prep provenance parser also still accepted only historical r0007 stage-boundary schema.
+
+This revision:
+- changes the prep-gate namespace count from 7 to 8;
+- accepts exact canonical r0008 stage-boundary evidence in addition to historical r0007 evidence;
+- keeps exact canonical byte/shape/identity checks unchanged;
+- does not issue authority and performs no VPS/Drive mutation.

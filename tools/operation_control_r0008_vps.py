@@ -745,8 +745,9 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
             raise PrepError("D0-02D evidence claims production mutation")
         if observation.get("drive_mutations_performed") is not False:
             raise PrepError("D0-02D evidence claims Drive mutation")
-    elif evidence_schema == (
-        "keelaryn.operation-control-r0007-stage-boundary-evidence.v1"
+    elif evidence_schema in (
+        "keelaryn.operation-control-r0007-stage-boundary-evidence.v1",
+        "keelaryn.operation-control-r0008-stage-boundary-evidence.v1",
     ):
         canonical_stage_boundary = (
             json.dumps(
@@ -778,7 +779,7 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
         if set(evidence) != expected_keys:
             raise PrepError("stage boundary evidence keys mismatch")
         expected_stage_boundary = {
-            "schema": "keelaryn.operation-control-r0007-stage-boundary-evidence.v1",
+            "schema": evidence_schema,
             "observed_at_utc": production.get("observed_at_utc"),
             "conclusion": "PASS",
             "production_source_commit": PRODUCTION_SOURCE,

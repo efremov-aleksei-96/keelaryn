@@ -90,7 +90,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           paths = sorted(Path("tools").glob("operation_control_r0008_*.py"))
-          if len(paths) != 7:
+          if len(paths) != 8:
               raise SystemExit(f"unexpected r0008 prep tool count: {len(paths)}")
           joined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
           required = (
