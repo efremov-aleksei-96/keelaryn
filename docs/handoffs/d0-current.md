@@ -1432,3 +1432,9 @@ Transition evidence has seven scenarios. The new `shared_outbox_upgrade` scenari
 No production or Drive mutation occurred.
 
 Next objective D0-02T: create and qualify r0008-specific production-prep/private-input/stage surfaces with new transaction roots/identities. r0007 staged/private-input/witness state remains immutable and must not be overwritten.
+
+### D0-02S transition evidence copy correction
+
+The first repository copy of the already-PASS r0008 transition artifact accidentally serialized the nested `scenarios` object as empty. This was a checkpoint serialization defect only.
+
+This revision replaces that file with the complete canonical artifact content, including all seven scenarios and the exact `shared_outbox_upgrade` result. Candidate bytes, gate runs and production state are unchanged.

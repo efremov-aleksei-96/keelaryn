@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 62,
+  "revision": 63,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "4c8cf7c69a6332daedbd4354e2f12d1dc7b7f5a8",
+  "repository_basis_commit": "d1dfb3d7be47c67ae9f900ac585a43265c47f2a0",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -57,7 +57,7 @@
     "run_id": 35828006786,
     "conclusion": "PASS",
     "relevance": "R0008_FROZEN_CANDIDATE_AND_7_SCENARIO_TRANSITION_QUALIFIED",
-    "note": "Frozen operation-control-r0008-20260923-01 candidate gate run 35828006786 PASS and transition gate run 35828006771 PASS. Candidate gate rebuilt/materialized exact source 20727893662cde92998d88ecdca730b69633eaaa payload bc74c0e5...b374d and ran full frozen Core/security validation. Transition qualification passed seven scenarios, including shared_outbox_upgrade with predecessor terminal relay compatibility, startup_probe_passed true and republished false. No production/Drive mutation occurred."
+    "note": "Frozen operation-control-r0008-20260923-01 candidate gate run 35828006786 PASS and transition gate run 35828006771 PASS. Candidate gate rebuilt/materialized exact source 20727893662cde92998d88ecdca730b69633eaaa payload bc74c0e5...b374d and ran full frozen Core/security validation. Transition qualification passed seven scenarios, including shared_outbox_upgrade with predecessor terminal relay compatibility, startup_probe_passed true and republished false. No production/Drive mutation occurred. Durable transition artifact copy was subsequently corrected to preserve the complete nested seven-scenario evidence; gate run identities and frozen bytes are unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
