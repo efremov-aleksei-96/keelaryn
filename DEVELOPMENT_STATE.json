@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 66,
+  "revision": 67,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "05f1d6bf82565490d620aedd6305ad67b344332e",
+  "repository_basis_commit": "af97effc0ad376b6aaa2f3dc693dac5fafb91f76",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -57,7 +57,7 @@
     "run_id": 35828006786,
     "conclusion": "PASS",
     "relevance": "R0008_FROZEN_CANDIDATE_AND_7_SCENARIO_TRANSITION_QUALIFIED",
-    "note": "Last coherent PASS remains r0008 candidate gate 35828006786 plus transition gate 35828006771. Subsequent production-prep runs 35831437056 and 35831762798 were development-gate failures only: first due py_compile residue, second exposed historical evidence retargeting and state-disposition issues. This successor corrects those without issuing authority or mutating VPS."
+    "note": "Last coherent PASS remains the r0008 candidate/transition qualification. Prep gate run 35832182708 reached regression execution and exposed only a DEVELOPMENT_STATE lifecycle-token mismatch: the canonical prep contract expects FROZEN_TRANSITION_GATE_PASS. This successor normalizes only that state token; no framework/product/VPS bytes change."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -123,7 +123,7 @@
     },
     {
       "candidate": "operation-control-r0008-20260923-01",
-      "state": "FROZEN_CANDIDATE_AND_TRANSITION_GATE_PASS",
+      "state": "FROZEN_TRANSITION_GATE_PASS",
       "source_commit": "20727893662cde92998d88ecdca730b69633eaaa",
       "retry": "NOT_A_RETRY_TARGET"
     }

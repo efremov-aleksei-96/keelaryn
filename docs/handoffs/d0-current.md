@@ -1488,3 +1488,9 @@ Correction:
 - r0008 is added as `FROZEN_CANDIDATE_AND_TRANSITION_GATE_PASS`.
 
 Also restored `last_coherent_ci.conclusion=PASS` per validator contract. No authority/VPS/Drive mutation.
+
+### D0-02T r0008 lifecycle-token normalization
+
+Prep gate run `35832182708` passed candidate, authority-absence, compile and namespace checks. VPS-prep tests then found only that DEVELOPMENT_STATE used `FROZEN_CANDIDATE_AND_TRANSITION_GATE_PASS` while the existing qualified prep contract requires canonical token `FROZEN_TRANSITION_GATE_PASS`.
+
+This revision changes only that state token. No framework/product/authority/VPS/Drive mutation.
