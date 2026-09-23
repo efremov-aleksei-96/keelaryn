@@ -1390,3 +1390,24 @@ Regression coverage is added for all three transition cases.
 Durable diagnosis: `docs/evidence/R0007_CONTROL_UPDATE_FAILURE_DIAGNOSIS_20260923.json`.
 
 Next objective is D0-02S: qualify this fix and freeze a **new successor candidate/version** with a new production transaction identity. Do not alter or retry r0007.
+
+### D0-02S r0008 successor candidate frozen
+
+Frozen candidate:
+- `operation-control-r0008-20260923-01`;
+- source `20727893662cde92998d88ecdca730b69633eaaa`;
+- source tree `c68bfe3dab53206439d1c42634f5c5ac602fb09c`;
+- payload SHA-256 `bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d`;
+- payload size `428403`;
+- file count `217`;
+- source Core run `35826924330`: 781 tests PASS;
+- deterministic r0005 -> r0008 control-update digest `83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58`.
+
+The frozen source is the parent commit. This revision adds only candidate receipt and qualification tooling; it does not alter frozen product bytes.
+
+New qualification:
+- candidate gate rebuilds/materializes exact frozen r0008 and runs full frozen Core/security validation;
+- transition gate retains the six r0007-era success/rollback/recovery cases, retargeted to r0008;
+- seventh scenario `shared_outbox_upgrade` recreates the real failure condition: an exact already-published terminal r0005 relay remains in the shared durable outbox when r0008 transport starts. r0008 must start successfully and must not create/update/re-adopt that predecessor publication.
+
+r0007 remains immutable rejected evidence; transaction `4832c22f...` remains terminal `ROLLED_BACK_EXACT` and is never reused.

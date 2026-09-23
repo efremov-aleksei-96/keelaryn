@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 59,
+  "revision": 60,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "229264126d28ca7ba90ee38847ae6616ad0bc77f",
+  "repository_basis_commit": "20727893662cde92998d88ecdca730b69633eaaa",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02R-r0007-control-update-failure-diagnosed",
-    "run_id": 35825833843,
+    "scope": "D0-02S-successor-source-Core-PASS-and-freeze",
+    "run_id": 35826924330,
     "conclusion": "PASS",
-    "relevance": "R0007_ROLLBACK_CHECKPOINT_GREEN_AND_PRODUCT_DEFECT_CONFIRMED",
-    "note": "HEAD 229264126d28ca7ba90ee38847ae6616ad0bc77f passed Zero-based Core run 35825833843 and control-update-runtime gate 35825833909 after the live r0007 control update rolled back exactly. VPS journal then identified the exact successor startup failure: operation relay source_commit mismatch. Static review proved r0005/r0007 transport and agent unit bytes are identical, terminal relay files persist in the shared outbox after publication, and r0007 _publish_statuses fatally rejects any predecessor-source relay. This successor development revision fixes the product behavior without modifying frozen r0007 bytes and adds upgrade regressions."
+    "relevance": "FROZEN_R0008_SOURCE_READY_FOR_CANDIDATE_AND_TRANSITION_GATES",
+    "note": "Source commit 20727893662cde92998d88ecdca730b69633eaaa passed 781 deterministic Core tests, cross-user relay DAC, deterministic payload rebuild/materialization/target-host validation and D0 control validation. Exact payload identity is bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d, size 428403, file_count 217, source tree c68bfe3dab53206439d1c42634f5c5ac602fb09c. This revision freezes operation-control-r0008-20260923-01 and adds candidate/transition qualification only; frozen source bytes remain at the parent commit."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02S_CONTROL_SUCCESSOR_QUALIFICATION",
-    "description": "Qualify the successor transport compatibility fix and create a new immutable control candidate/version rather than modifying or retrying r0007. First require exact-head Core and targeted operation_transport regressions to prove that a successor sharing a durable transport root ignores only exact already-published terminal predecessor relays, while mismatched nonterminal, unpublished terminal, malformed, or digest-conflicting relays fail closed. Then build a deterministic successor payload from the new source commit, assign a new candidate/version and new transaction identity, qualify the r0005 -> successor transition including rollback/recovery and a shared-outbox upgrade regression, and only after freeze/stage/live prestate issue a separate production transition. Preserve r0007 and transaction 4832c22f208742c3cf5a8e32a79fbf92bfb037acd81f21d1331904cb54f68073 as immutable rejected evidence.",
+    "description": "Require exact-head PASS for operation-control-r0008-gate-r0001 and operation-control-r0008-transition-gate-r0001. The candidate gate must rebuild and materialize frozen source 20727893662cde92998d88ecdca730b69633eaaa exactly and run the full frozen Core suite. The transition gate must qualify r0005 -> r0008 success, rollback, PREPARED/OLD recovery, PREPARED/NEW terminalization without republication, partial foreign fail-closed behavior, completed replay, and the seventh shared-outbox upgrade scenario reproducing an already-published terminal r0005 relay in the durable transport root. Do not stage or mutate VPS until both gates PASS and compact evidence is reviewed. Preserve r0007 and its rolled-back transaction as immutable rejected evidence.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
