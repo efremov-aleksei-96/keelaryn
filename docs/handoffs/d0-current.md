@@ -1411,3 +1411,9 @@ New qualification:
 - seventh scenario `shared_outbox_upgrade` recreates the real failure condition: an exact already-published terminal r0005 relay remains in the shared durable outbox when r0008 transport starts. r0008 must start successfully and must not create/update/re-adopt that predecessor publication.
 
 r0007 remains immutable rejected evidence; transaction `4832c22f...` remains terminal `ROLLED_BACK_EXACT` and is never reused.
+
+### D0-02S r0008 gate harness candidate-name correction
+
+The first r0008 candidate/transition gate runs failed before frozen-source checkout because generated qualification files referenced `operation-control-r0008-20260921-01` while the immutable receipt is correctly `operation-control-r0008-20260923-01`.
+
+This revision changes only that qualification metadata string in the r0008 candidate gate, transition gate and transition harness. Frozen source/tree/payload bytes are unchanged.

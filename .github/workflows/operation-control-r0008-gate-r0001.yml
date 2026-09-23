@@ -6,7 +6,7 @@ on:
       - 'dev/zero-based-keelaryn'
     paths:
       - '.github/workflows/operation-control-r0008-gate-r0001.yml'
-      - 'docs/candidates/operation-control-r0008-20260921-01.json'
+      - 'docs/candidates/operation-control-r0008-20260923-01.json'
   workflow_dispatch:
 
 permissions:
@@ -39,11 +39,11 @@ jobs:
           import json, os
           from pathlib import Path
 
-          path = Path("docs/candidates/operation-control-r0008-20260921-01.json")
+          path = Path("docs/candidates/operation-control-r0008-20260923-01.json")
           value = json.loads(path.read_text(encoding="utf-8"))
           expected = {
               "schema": "keelaryn.operation-control-candidate.v1",
-              "candidate": "operation-control-r0008-20260921-01",
+              "candidate": "operation-control-r0008-20260923-01",
               "frozen": True,
               "frozen_source_commit": os.environ["FROZEN_COMMIT"],
               "source_tree": os.environ["FROZEN_TREE"],
@@ -212,7 +212,7 @@ jobs:
           value = {
               "schema": "keelaryn.operation-control-d0-gate-evidence.v1",
               "gate_revision": "operation-control-d0-gate-r0001",
-              "candidate": "operation-control-r0008-20260921-01",
+              "candidate": "operation-control-r0008-20260923-01",
               "frozen_source_commit": "20727893662cde92998d88ecdca730b69633eaaa",
               "frozen_source_tree": "c68bfe3dab53206439d1c42634f5c5ac602fb09c",
               "payload_sha256": "bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d",

@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 60,
+  "revision": 61,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "20727893662cde92998d88ecdca730b69633eaaa",
+  "repository_basis_commit": "6222d562067dde2a6d05a17545d8b6d27c8cc04c",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02S-successor-source-Core-PASS-and-freeze",
-    "run_id": 35826924330,
-    "conclusion": "PASS",
-    "relevance": "FROZEN_R0008_SOURCE_READY_FOR_CANDIDATE_AND_TRANSITION_GATES",
-    "note": "Source commit 20727893662cde92998d88ecdca730b69633eaaa passed 781 deterministic Core tests, cross-user relay DAC, deterministic payload rebuild/materialization/target-host validation and D0 control validation. Exact payload identity is bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d, size 428403, file_count 217, source tree c68bfe3dab53206439d1c42634f5c5ac602fb09c. This revision freezes operation-control-r0008-20260923-01 and adds candidate/transition qualification only; frozen source bytes remain at the parent commit."
+    "scope": "D0-02S-r0008-freeze-gate-harness-correction",
+    "run_id": 35827482470,
+    "conclusion": "FAIL_HARNESS_ONLY",
+    "relevance": "FROZEN_BYTES_UNCHANGED",
+    "note": "Initial r0008 candidate and transition gates stopped before any frozen-source checkout/rebuild because the generated qualification files referenced operation-control-r0008-20260921-01 while the immutable receipt is correctly named operation-control-r0008-20260923-01. This revision changes only that candidate-name metadata in the r0008 gate, transition gate and qualification harness. Frozen source 20727893662cde92998d88ecdca730b69633eaaa, tree and payload identity are unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",

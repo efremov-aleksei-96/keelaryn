@@ -19,7 +19,7 @@ OLD_PAYLOAD = "6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7"
 NEW_SOURCE = "20727893662cde92998d88ecdca730b69633eaaa"
 NEW_PAYLOAD = "bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d"
 PRODUCTION_SOURCE = "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f"
-CANDIDATE = "operation-control-r0008-20260921-01"
+CANDIDATE = "operation-control-r0008-20260923-01"
 PREDECESSOR = "operation-control-r0005-20260921-01"
 PERSISTENT_UNITS = (
     "keelaryn-operation-transport.service",
