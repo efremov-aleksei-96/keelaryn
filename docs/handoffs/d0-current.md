@@ -1604,3 +1604,24 @@ The r0008 stage-runtime gate was already PASS. No VPS/Drive mutation occurs.
 The post-authority r0008 private-input, stage-runtime and boundary-capture gates are PASS. Production-prep failed only because it glob-counted all `operation_control_r0008_*.py` tools and therefore treated independently qualified private-input/stage-runtime tooling as unexpected.
 
 Production-prep now validates an explicit seven-tool prep framework instead of a global namespace count. No product/runtime/authority/VPS/Drive mutation occurs.
+
+### D0-02Y r0008 private-input clean prestate PASS
+
+Real VPS read-only `operation_control_r0008_private_input.py reconcile` on exact branch tip `c2fcaf269f2d40454c0781a96545b072d782cb81` returned the clean prestate required before acquisition.
+
+Verified:
+- transaction `a6383609e9a6442ad86445ba62baff93` and issued authority commit/blob/SHA are exact;
+- private input root is absent: `INPUT_ROOT_ABSENT`;
+- expected input filename is `a6383609e9a6442ad86445ba62baff93.r0008.tar.gz`;
+- production source remains `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- installed control source remains r0005 `08f2e211f53764590f6ff0f05f86b2de62c14418`;
+- legacy Hub remains `PREPARED / OLD`;
+- writer is `INACTIVE / MainPID=0`;
+- r0008 snapshot unit is absent;
+- private-input/root creation/release publication/stage witness/activation/legacy-Hub/writer/credential/Drive mutation flags are all false.
+
+Sanitized durable evidence: `docs/evidence/R0008_PRIVATE_INPUT_RECONCILE_20260923.json`.
+
+The reconcile output did not contain its own UTC observation timestamp, so this checkpoint intentionally does not invent one.
+
+Next transaction is exactly one r0008 private-input `acquire` invocation. It may create the isolated private-input root and publish only the transaction-bound r0008 input after its built-in Git/authority/live-boundary revalidation. It must not stage, activate, mutate the legacy Hub, writer, credential, production current, or Drive. After any result or interruption, reconcile before any retry or stage action.

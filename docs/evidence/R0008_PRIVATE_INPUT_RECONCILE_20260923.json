@@ -1,0 +1,48 @@
+{
+  "schema": "keelaryn.operation-control-r0008-private-input-reconcile-evidence.v1",
+  "repository": "efremov-aleksei-96/keelaryn",
+  "branch": "dev/zero-based-keelaryn",
+  "branch_tip": "c2fcaf269f2d40454c0781a96545b072d782cb81",
+  "command": "reconcile",
+  "gate_revision": "operation-control-r0008-private-input-gate-r0001",
+  "transaction_id": "a6383609e9a6442ad86445ba62baff93",
+  "authority": {
+    "commit": "03f3e794fdcbd18e07d21dcb633c463674ce4e6b",
+    "path": "docs/authorizations/operation-control-r0008-stage/a6383609e9a6442ad86445ba62baff93.json",
+    "git_blob": "101b05042471abf7d10415cea36ba3053093364d",
+    "sha256": "2bc92df91d1272c30783879c794a36e066e5ad024a262c70ba09c33ec50e7864"
+  },
+  "input_root": "/var/lib/keelaryn/operation-control/r0008-stage-input",
+  "input_state": {
+    "exact": false,
+    "path": "a6383609e9a6442ad86445ba62baff93.r0008.tar.gz",
+    "state": "INPUT_ROOT_ABSENT"
+  },
+  "live_boundary": {
+    "control_source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+    "legacy_hub_status": "PREPARED",
+    "legacy_hub_transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
+    "production_source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "r0008_snapshot_unit": "ABSENT",
+    "selector_role": "OLD",
+    "writer": {
+      "active_state": "INACTIVE",
+      "main_pid": 0
+    }
+  },
+  "mutations": {
+    "private_input": false,
+    "input_root_created": false,
+    "release_publication": false,
+    "stage_witness": false,
+    "activation": false,
+    "legacy_hub": false,
+    "writer": false,
+    "credential": false,
+    "drive": false
+  },
+  "observation_time_utc": null,
+  "observation_time_note": "The reconcile tool output did not emit an observation timestamp; do not infer one. Git commit time records only checkpoint time, not VPS observation time.",
+  "source": "maintainer-executed exact command output supplied to ChatGPT",
+  "conclusion": "PASS_CLEAN_PRIVATE_INPUT_PRESTATE"
+}
