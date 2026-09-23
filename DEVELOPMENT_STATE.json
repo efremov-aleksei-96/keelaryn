@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 56,
+  "revision": 57,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "9709b513d104daf984fc012c4825f2559d7cc460",
+  "repository_basis_commit": "32c115735b0835d30e8f6bc74d4553d6234c1d10",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02P-control-update-live-reconcile-PASS",
-    "run_id": 35824399724,
+    "scope": "D0-02Q-control-update-prestate-PASS-metadata-correction",
+    "run_id": 35824827577,
     "conclusion": "PASS",
-    "relevance": "CURRENT_GREEN_HEAD_AND_LIVE_CONTROL_UPDATE_PRESTATE",
-    "note": "Exact HEAD 9709b513d104daf984fc012c4825f2559d7cc460 passed Zero-based Core run 35824399724 and control-update-runtime gate r0001 plus applicable stage/private-input/bootstrap gates. A real VPS read-only control-update-runtime reconcile then proved exact staged witnesses, exact r0005 and r0007 releases, production current still releases/e63f..., exact credential SHA, idle operation/transport preconditions, control boundary OLD_EXACT, and control-update transaction NEW with update root absent. No mutation occurred. Sanitized result is docs/evidence/R0007_CONTROL_UPDATE_RECONCILE_20260923.json."
+    "relevance": "CONTROL_UPDATE_RUNTIME_GATE_PASS_CORE_METADATA_ONLY_FAILURE",
+    "note": "HEAD 32c115735b0835d30e8f6bc74d4553d6234c1d10 passed the control-update-runtime gate r0001 and recorded an exact real VPS prestate: OLD_EXACT, transaction NEW, update root absent, exact r0005/r0007 releases, production current unchanged, credential exact, zero mutations. Zero-based Core failed only because DEVELOPMENT_STATE.next_objective.production_mutation_allowed was set true, but D0 metadata must never authorize production mutation. This successor changes only that metadata flag back to false and preserves D0-02Q execution as a separately authority/protocol-governed transaction."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -141,7 +141,7 @@
   "next_objective": {
     "id": "D0-02Q_CONTROL_UPDATE_EXECUTION",
     "description": "Execute exactly one real r0005 -> r0007 D0 control-plane update using tools/operation_control_r0007_control_update_runtime.py update from the current exact branch. Before mutation the wrapper must reprove live branch identity, immutable stage witnesses, exact old/new releases, production current e63f..., exact credential, idle operation runtime/transport inbox, and actionable control-update transaction state. The frozen r0007 updater may create the canonical D0 update transaction root/PREPARED/COMPLETED records, stop the persistent operation-control services, atomically install the exact r0007 persistent/static unit bytes, switch only /opt/keelaryn/control-current from r0005 to r0007, daemon-reload/start services, prove stability and exact NEW_EXACT boundary, and rollback to r0005 on qualifying failure. It must not modify /opt/keelaryn/current, legacy Hub selector/content, credential contents, or Drive. On interruption/error/nonterminal output, never retry update blindly; reconcile first.",
-    "production_mutation_allowed": true,
+    "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
   "forbidden_actions": [

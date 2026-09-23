@@ -1336,3 +1336,13 @@ The reconcile performed zero control-update/production-current/Hub/credential/Dr
 Sanitized evidence: `docs/evidence/R0007_CONTROL_UPDATE_RECONCILE_20260923.json`.
 
 Next transaction is one r0005 -> r0007 control update invocation only. It may create D0 update PREPARED/COMPLETED records, replace exact control unit bytes, switch only `control-current`, and restart the persistent control services under the frozen transactional updater. Production `current`, legacy Hub, credential contents and Drive remain outside the allowed mutation set. After any interruption or uncertain result, reconcile before retry.
+
+### D0-02Q DEVELOPMENT_STATE mutation flag correction
+
+HEAD `32c115735b0835d30e8f6bc74d4553d6234c1d10` has a valid live control-update prestate and a green control-update-runtime gate. Zero-based Core rejected only the checkpoint metadata because D0 requires `next_objective.production_mutation_allowed=false` unconditionally.
+
+This revision changes only that metadata flag back to `false`.
+
+This does **not** revoke or weaken the separately qualified r0005 -> r0007 control-update protocol. Production mutation authority is carried by the transaction-specific protocol/evidence and must never be inferred from the generic D0 objective metadata.
+
+No VPS mutation occurs in this correction.
