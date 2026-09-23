@@ -1644,3 +1644,26 @@ Durable evidence: `docs/evidence/R0008_PRIVATE_INPUT_ACQUIRED_20260923.json`.
 Neither tool output emitted a UTC observation timestamp; none is invented here.
 
 Next objective is one read-only r0008 stage-runtime `reconcile` only. Expected clean stage prestate: `NEW / NOT_STAGED`, `prepared=false`, `completed=false`, witness root absent. Do not run `stage` until that prestate is separately verified and checkpointed.
+
+### D0-03A r0008 clean stage prestate PASS
+
+Real VPS read-only `operation_control_r0008_stage_runtime.py reconcile` on exact branch tip `5153a1b9210e565521c9752973b204d988d96cf8` returned the required clean prestate before release staging.
+
+Verified:
+- transaction `a6383609e9a6442ad86445ba62baff93` and issued authority remain exact;
+- private input remains `INPUT_EXACT` with frozen source `20727893662cde92998d88ecdca730b69633eaaa`, payload SHA-256 `bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d`, size `428403`, file count `217`;
+- stage execution state is `NEW`;
+- release state is `NOT_STAGED`;
+- `prepared=false`, `completed=false`;
+- witness root is `ABSENT`;
+- production source remains `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- control source remains exact r0005 `08f2e211f53764590f6ff0f05f86b2de62c14418`;
+- legacy Hub remains `PREPARED / OLD`;
+- writer remains inactive/MainPID=0;
+- witness-root creation, release publication, stage-witness, activation, legacy-Hub, writer, credential and Drive mutation flags are all false.
+
+Sanitized durable evidence: `docs/evidence/R0008_STAGE_PRESTATE_20260923.json`.
+
+The reconcile output contained no UTC observation timestamp, so none is invented.
+
+Next transaction is exactly one r0008 stage-runtime `stage` invocation. Its implementation performs a second Git/authority/runtime/private-input revalidation immediately before mutation. It may create the isolated witness root and publish only the exact frozen r0008 release under the already-issued `R0008_RELEASE_STAGE_ONLY` authority. Activation, legacy Hub, writer, credential, production-current selector and Drive remain outside the allowed mutation set. After any outcome or interruption, reconcile before any retry or later action.

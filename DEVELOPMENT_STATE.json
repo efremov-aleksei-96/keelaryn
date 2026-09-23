@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 80,
+  "revision": 81,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "67c30798d915765349b1f4f5270fb82974cbddc8",
+  "repository_basis_commit": "5153a1b9210e565521c9752973b204d988d96cf8",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02Y-r0008-private-input-prestate-checkpoint",
-    "run_id": 35908701650,
+    "scope": "D0-02Z-r0008-private-input-acquisition-checkpoint",
+    "run_id": 35909202753,
     "conclusion": "PASS",
-    "relevance": "CORE_AND_REQUIRED_R0008_GATES_PASS_ON_PRIVATE_INPUT_PRESTATE_CHECKPOINT",
-    "note": "Exact HEAD 67c30798d915765349b1f4f5270fb82974cbddc8: Zero-based Core run 35908701650 PASS; r0008 private-input, stage-runtime, production-prep and boundary-capture gates all PASS. The subsequent real VPS private-input acquire completed ACQUIRED_EXACT and post-acquire reconcile independently confirmed INPUT_EXACT with no further mutation."
+    "relevance": "CORE_AND_REQUIRED_R0008_STAGE_RUNTIME_PRODUCTION_PREP_BOUNDARY_CAPTURE_GATES_PASS",
+    "note": "Exact HEAD 5153a1b9210e565521c9752973b204d988d96cf8: Zero-based Core run 35909202753 PASS; r0008 stage-runtime, production-prep and boundary-capture gates PASS. Real VPS stage-runtime reconcile after exact private-input acquisition returned clean NEW/NOT_STAGED prestate with witness root absent and every mutation flag false."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02Z_R0008_STAGE_PRESTATE",
-    "description": "r0008 transaction-bound private input acquisition completed and was independently post-reconciled to INPUT_EXACT for transaction a6383609e9a6442ad86445ba62baff93 with frozen identity source 20727893662cde92998d88ecdca730b69633eaaa, payload bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d, size 428403, file_count 217. Next perform exactly one read-only r0008 stage-runtime reconcile. Expected clean stage prestate is state NEW, release_state NOT_STAGED, prepared false, completed false, witness_root_state ABSENT, with all mutation flags false. Do not run stage in the same transaction.",
+    "id": "D0-03A_R0008_STAGE_EXECUTION",
+    "description": "Clean real-VPS r0008 stage prestate is durably checkpointed for transaction a6383609e9a6442ad86445ba62baff93: private input INPUT_EXACT; execution state NEW; release_state NOT_STAGED; prepared false; completed false; witness root ABSENT; all reconcile mutation flags false. Next perform exactly one r0008 stage-runtime stage transaction. The stage path must revalidate Git/authority/runtime/private-input boundary immediately before mutation and fail closed on drift. After any success, failure, timeout or uncertain result, do not retry; first perform read-only stage-runtime reconcile and durable checkpoint. Activation, legacy Hub, writer, credential and Drive mutations remain forbidden.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
