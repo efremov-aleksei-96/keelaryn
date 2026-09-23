@@ -1525,3 +1525,24 @@ Verified:
 Sanitized evidence: `docs/evidence/R0008_LIVE_BOUNDARY_RECONCILE_20260923.json`.
 
 No r0008 authority has been issued. Next objective is bootstrap-input qualification only, still without VPS mutation.
+
+### D0-02U r0008 disposable bootstrap qualification PASS
+
+Real VPS `operation_control_r0008_vps.py qualify` on exact HEAD `a04a478c6165362ba2368667a322bf419df1dee0` completed successfully.
+
+Verified:
+- exact frozen source/tree/payload;
+- deterministic rebuild and disposable materialization;
+- target-host validation;
+- D0 installed-unit and snapshot-unit policy validation;
+- remote allowlist exactly `PRODUCTION_SNAPSHOT`, `RUNTIME_SELFTEST`;
+- zero remote mutation handlers;
+- production/Drive mutation permission false.
+
+The qualification's `recorded_live_boundary` still resolves historical canonical r0007 stage-boundary evidence. That remains valid compatibility provenance for disposable qualification, but it is not accepted as new r0008 production authority input.
+
+Durable qualification: `docs/evidence/R0008_BOOTSTRAP_INPUT_QUALIFICATION_20260923.json`.
+
+Added `tools/operation_control_r0008_boundary_capture.py`: a read-only primitive that performs r0008 reconcile, requires exact live service/runtime anchors, emits the exact r0008 stage-boundary evidence schema with a fresh UTC timestamp, and validates it through the r0008 authority contract before output.
+
+No r0008 authority, VPS mutation or Drive mutation is part of this checkpoint.

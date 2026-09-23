@@ -1,0 +1,78 @@
+name: Operation control r0008 boundary capture gate r0001
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'tools/operation_control_r0008_boundary_capture.py'
+      - 'tools/operation_control_r0008_vps.py'
+      - 'tools/operation_control_r0008_stage_authority.py'
+      - 'tests/core/test_operation_control_r0008_boundary_capture.py'
+      - '.github/workflows/operation-control-r0008-boundary-capture-gate-r0001.yml'
+      - 'DEVELOPMENT_STATE.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove authority still absent
+        run: |
+          set -euo pipefail
+          test ! -e docs/authorizations/operation-control-r0008-stage
+
+      - name: Compile without residue
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              "tools/operation_control_r0008_boundary_capture.py",
+              "tests/core/test_operation_control_r0008_boundary_capture.py",
+          ):
+              compile(Path(name).read_text(encoding="utf-8"), name, "exec")
+          PY
+          test -z "$(git status --porcelain)"
+
+      - name: Run boundary capture regressions
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover             -s tests/core -p 'test_operation_control_r0008_boundary_capture.py' -v
+          test -z "$(git status --porcelain)"
+
+      - name: Prove narrow read-only surface
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          raw = Path("tools/operation_control_r0008_boundary_capture.py").read_text(encoding="utf-8")
+          for needle in (
+              'choices=("capture",)',
+              'vps.reconcile()',
+              'authority.validate_boundary_evidence(value)',
+              '"production_mutations_performed": False',
+              '"drive_mutations_performed": False',
+          ):
+              if needle not in raw:
+                  raise SystemExit(f"missing boundary contract: {needle}")
+          for needle in (
+              "stage_once(",
+              "materialize_payload(",
+              "update_d0_control_plane(",
+              "os.mkdir(",
+              "write_text(",
+              "write_bytes(",
+          ):
+              if needle in raw:
+                  raise SystemExit(f"boundary capture write surface: {needle}")
+          PY
