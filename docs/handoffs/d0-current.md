@@ -1695,3 +1695,26 @@ Durable evidence: `docs/evidence/R0008_STAGE_COMPLETED_20260923.json`.
 Neither tool output emitted a UTC observation timestamp; none is invented.
 
 The r0008 stage transaction is complete and MUST NOT be replayed. The next engineering objective is an r0008-specific control-update runtime/gate. The old r0007 control-update runtime is candidate-bound to rejected r0007 and cannot be reused for the real switch. First build/qualify the r0008 runtime and perform a separate real-VPS read-only control-update prestate reconcile. Production `current`, legacy Hub, credential and Drive remain outside allowed mutation scope.
+
+### D0-03B r0008 control-update runtime implementation
+
+This successor adds an r0008-specific production control-update runtime derived from the previously qualified r0007 state machine but rebound to the accepted r0008 candidate and completed r0008 stage authority.
+
+New development surfaces:
+- `tools/operation_control_r0008_control_update_runtime.py`;
+- `tests/core/test_operation_control_r0008_control_update_runtime.py`;
+- `.github/workflows/operation-control-r0008-control-update-runtime-gate-r0001.yml`.
+
+The runtime is fixed to:
+- predecessor r0005 source `08f2e211f53764590f6ff0f05f86b2de62c14418`, payload `6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7`;
+- successor r0008 source `20727893662cde92998d88ecdca730b69633eaaa`, payload `bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d`, size `428403`, files `217`;
+- r0008 stage witness root and exact issued r0008 authority graph;
+- canonical deterministic control-update transaction `83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58`.
+
+The runtime exposes only `reconcile` and `update`. It verifies exact old/new releases, exact r0008 stage witnesses, production-current identity, credential identity, idle operation/transport boundaries, read-only remote agent contract, systemd unit policy and exact control-boundary classification. A newly added transaction-ID assertion fails closed if the frozen updater derives anything other than the candidate receipt's canonical r0008 control-update identity.
+
+The dedicated gate binds the runtime to the durable r0008 staged-release evidence and immutable candidate receipt, rejects stale r0007 successor identities, runs targeted regressions and proves the CLI/path/mutation surface remains narrow.
+
+No real VPS/control/production/Hub/credential/Drive mutation is performed by this development commit.
+
+Next: require exact-head Core + r0008 control-update-runtime gate PASS, then perform one real VPS `reconcile` only. Do not run `update` yet.

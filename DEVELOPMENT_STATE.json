@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 82,
+  "revision": 83,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "00fb90a9e9ab05bf655f8f0afad251d70d6480da",
+  "repository_basis_commit": "49f7aa504a4c517d26b3d7d97b3125717fbb4371",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -146,7 +146,7 @@
   },
   "next_objective": {
     "id": "D0-03B_R0008_CONTROL_UPDATE_RUNTIME",
-    "description": "r0008 release staging is complete and independently post-reconciled for transaction a6383609e9a6442ad86445ba62baff93: release STAGED_EXACT, execution COMPLETED_EXACT, witness root PRESENT, private input INPUT_EXACT, and production/Drive mutation flags false. Do not replay stage. Next create and qualify an r0008-specific control-update runtime derived from the rejected-r0007 flow but rebound to the exact r0008 source/payload/stage authority. It must first expose read-only reconcile, prove the current r0005 control boundary plus exact staged r0008 release/witness, and retain production current, legacy Hub, credential and Drive outside its mutation scope. No real r0005->r0008 control switch until the new runtime/gate is exact-head qualified and a fresh real-VPS read-only control-update prestate is durably checkpointed.",
+    "description": "r0008-specific control-update runtime, regressions and dedicated gate are added in this successor checkpoint. Require exact current-HEAD Zero-based Core and operation-control-r0008-control-update-runtime-gate-r0001 PASS. Only after both PASS, perform exactly one real-VPS read-only r0008 control-update reconcile. Expected safe prestate is exact r0005 control boundary, exact staged r0008 release/witness, unchanged production current/credential, and a new r0008 control-update transaction identity 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 with no mutation. Do not invoke update until that prestate is durably checkpointed.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
