@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 70,
+  "revision": 71,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "a04a478c6165362ba2368667a322bf419df1dee0",
+  "repository_basis_commit": "db323f41c393de0692431e1fda4b4353d8d52cd7",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,16 +53,16 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02U-r0008-bootstrap-input-qualification-PASS",
-    "run_id": 35835061918,
+    "scope": "D0-02V-r0008-canonical-stage-boundary-capture-PASS",
+    "run_id": 35837498468,
     "conclusion": "PASS",
-    "relevance": "R0008_DISPOSABLE_INPUT_QUALIFICATION_PASS_AUTHORITY_BOUNDARY_REFRESH_REQUIRED",
-    "note": "Exact HEAD a04a478c6165362ba2368667a322bf419df1dee0 passed Zero-based Core run 35835061904 and r0008 production-prep gate 35835061918. Real VPS qualify rebuilt/materialized exact frozen r0008 and passed D0 validation with no production/Drive mutation. Its recorded_live_boundary still resolves historical canonical r0007 boundary evidence, so it must not be used for new r0008 authority issuance. This successor adds a read-only canonical r0008 boundary-capture primitive."
+    "relevance": "R0008_AUTHORITY_GRADE_BOUNDARY_CAPTURED_AND_COMMITTED",
+    "note": "Exact HEAD db323f41c393de0692431e1fda4b4353d8d52cd7 passed Zero-based Core run 35837498010 and r0008 boundary-capture gate 35837498468. A real VPS read-only capture emitted exact canonical keelaryn.operation-control-r0008-stage-boundary-evidence.v1 observed at 2026-09-23T09:27:08Z with r0005 control, production e63f..., Hub PREPARED/OLD, writer INACTIVE, exact mutation inhibit/credential and zero production/Drive mutations. This exact captured JSON is committed as the current production_boundary evidence. No r0008 authority is issued in this checkpoint."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
-    "observed_at_utc": "2026-09-22T17:37:15Z",
-    "evidence_path": "docs/evidence/R0007_STAGE_BOUNDARY_20260922T173715Z.json",
+    "observed_at_utc": "2026-09-23T09:27:08Z",
+    "evidence_path": "docs/evidence/R0008_STAGE_BOUNDARY_20260923T092708Z.json",
     "source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
     "hub_cutover_status": "PREPARED",
     "hub_transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02V_R0008_BOUNDARY_CAPTURE",
-    "description": "Require exact-head Zero-based Core and operation-control-r0008-boundary-capture-gate-r0001 PASS. Then run exactly one real VPS read-only tools/operation_control_r0008_boundary_capture.py capture from the exact authoritative branch. The output must be canonical keelaryn.operation-control-r0008-stage-boundary-evidence.v1 with a fresh UTC timestamp and exact r0005/production/Hub/writer/mutation-inhibit/credential anchors. Commit that exact boundary evidence and update DEVELOPMENT_STATE.production_boundary to reference it before issuing any r0008 stage authority. Do not issue authority or mutate VPS/Drive in this objective.",
+    "id": "D0-02W_R0008_STAGE_AUTHORITY_ISSUANCE",
+    "description": "Prepare and issue exactly one r0008 release-stage-only authorization bound to the committed canonical boundary evidence docs/evidence/R0008_STAGE_BOUNDARY_20260923T092708Z.json. The authority must use a new transaction_id and r0008 authority namespace, authorize release staging only, and explicitly deny activation, Drive, legacy Hub, writer and credential mutation. First require exact-head Core and applicable r0008 authority/prod-stage qualification to PASS. Do not mutate VPS in the same transaction as authority issuance. After issuance, read back exact Git commit/blob/SHA provenance before any private-input acquisition.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

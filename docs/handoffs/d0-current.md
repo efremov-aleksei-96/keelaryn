@@ -1546,3 +1546,20 @@ Durable qualification: `docs/evidence/R0008_BOOTSTRAP_INPUT_QUALIFICATION_202609
 Added `tools/operation_control_r0008_boundary_capture.py`: a read-only primitive that performs r0008 reconcile, requires exact live service/runtime anchors, emits the exact r0008 stage-boundary evidence schema with a fresh UTC timestamp, and validates it through the r0008 authority contract before output.
 
 No r0008 authority, VPS mutation or Drive mutation is part of this checkpoint.
+
+### D0-02V canonical r0008 authority boundary PASS
+
+Real VPS boundary capture from exact HEAD `db323f41c393de0692431e1fda4b4353d8d52cd7` emitted canonical `keelaryn.operation-control-r0008-stage-boundary-evidence.v1`.
+
+Observed at `2026-09-23T09:27:08Z`:
+- production source `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- control source exact r0005 `08f2e211f53764590f6ff0f05f86b2de62c14418`;
+- legacy Hub `PREPARED / OLD`;
+- writer `INACTIVE_MAINPID_0`;
+- mutation inhibit authority exact;
+- credential SHA exact;
+- production and Drive mutations false.
+
+The **exact captured JSON bytes** are committed as `docs/evidence/R0008_STAGE_BOUNDARY_20260923T092708Z.json`, and DEVELOPMENT_STATE.production_boundary now references this r0008 authority-grade evidence.
+
+No r0008 stage authority has been issued yet. Next objective is one separate GitHub-only release-stage authorization transaction, followed by exact read-back provenance verification before any VPS private-input/stage work.
