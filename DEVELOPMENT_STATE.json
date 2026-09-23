@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 84,
+  "revision": 85,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "acb60bda9f7d81480b983495d3b7d627dd4332bf",
+  "repository_basis_commit": "4248a73be3f46329ad7dfc8d53cdb89d0cb65837",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03B-r0008-control-update-runtime",
-    "run_id": 35914550751,
+    "scope": "D0-03C-r0008-control-update-prestate-checkpoint",
+    "run_id": 35915910517,
     "conclusion": "PASS",
-    "relevance": "CORE_AND_R0008_CONTROL_UPDATE_RUNTIME_GATE_PASS",
-    "note": "Exact HEAD acb60bda9f7d81480b983495d3b7d627dd4332bf: Zero-based Core run 35914550751 PASS; r0008 control-update-runtime gate run 35914551105 PASS. Subsequent real VPS read-only reconcile returned exact r0005 control boundary, exact staged r0008 release/witness, canonical new r0008 control-update transaction 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 in NEW state, unchanged production current/credential, and zero mutations."
+    "relevance": "CORE_AND_R0008_CONTROL_UPDATE_RUNTIME_GATE_PASS_BEFORE_REAL_UPDATE",
+    "note": "Exact HEAD 4248a73be3f46329ad7dfc8d53cdb89d0cb65837: Zero-based Core run 35915910517 PASS; r0008 control-update-runtime gate run 35915910661 PASS. The subsequent one-time real r0005->r0008 control update failed during successor service verification and the frozen updater reported exact rollback. Mandatory independent read-only reconcile then proved OLD_EXACT and canonical transaction 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 terminal ROLLED_BACK_EXACT with production current, credential, legacy Hub and Drive unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -123,9 +123,9 @@
     },
     {
       "candidate": "operation-control-r0008-20260923-01",
-      "state": "FROZEN_TRANSITION_GATE_PASS",
+      "state": "REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT",
       "source_commit": "20727893662cde92998d88ecdca730b69633eaaa",
-      "retry": "NOT_A_RETRY_TARGET"
+      "retry": "FORBIDDEN"
     }
   ],
   "transaction_disposition": {
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03C_R0008_CONTROL_UPDATE_EXECUTION",
-    "description": "Clean real-VPS r0008 control-update prestate is durably checkpointed: control boundary OLD_EXACT on installed r0005; staged r0008 release/witness exact; production current remains releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f; credential SHA exact; canonical r0008 control-update transaction 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 is NEW with update root PRESENT; all reconcile mutation flags false. Next, after exact-head checkpoint CI PASS, perform exactly one r0008 control-update update invocation. This may mutate only control-current, exact control unit bytes/services and the transaction authority under the qualified D0 updater. Production current, legacy Hub, credential contents and Drive remain outside the allowed mutation set. After any outcome or interruption, never retry blindly; first run read-only r0008 control-update reconcile.",
+    "id": "D0-03D_R0008_FAILURE_DIAGNOSIS",
+    "description": "r0008 production control-update transaction 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 is independently reconciled terminal ROLLED_BACK_EXACT on OLD_EXACT predecessor boundary. r0008 must not be retried or modified in place. Next perform read-only failure diagnosis focused on the successor systemd static snapshot template probe that raised 'systemctl active-state probe failed'. Capture exact systemctl return code/stdout/stderr and unit LoadState/ActiveState/SubState/UnitFileState for keelaryn-production-snapshot@.service while confirming control boundary remains OLD_EXACT. Only after exact diagnosis design a new successor candidate/version and new control-update transaction identity.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

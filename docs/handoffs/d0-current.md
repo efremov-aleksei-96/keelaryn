@@ -1740,3 +1740,27 @@ Sanitized durable evidence: `docs/evidence/R0008_CONTROL_UPDATE_PRESTATE_2026092
 The reconcile output contained no UTC observation timestamp, so none is invented.
 
 Next transaction is exactly one r0008 control-update `update` invocation after this checkpoint itself passes exact-head CI. The qualified updater may switch only the D0 control plane from exact r0005 to exact r0008, including transaction authority, `control-current`, exact control-unit bytes and service restart/stability checks. Production `current`, legacy Hub, credential contents and Drive remain immutable boundaries. After any result or interruption, reconcile before any retry.
+
+### D0-03D r0008 control update ROLLED_BACK_EXACT
+
+The one permitted real r0005 -> r0008 D0 control update for transaction `83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58` failed during successor service verification.
+
+Observed failure:
+- frozen updater reached `_verify_services()`;
+- `active_probe(STATIC_UNIT)` called the legacy `systemctl is-active --quiet` wrapper for `keelaryn-production-snapshot@.service`;
+- the wrapper returned a code outside its accepted inactive set and raised `ControlPlaneUpdateError: systemctl active-state probe failed`;
+- the frozen updater then reported `D0 control update failed and rolled back exactly`.
+
+Mandatory independent post-failure read-only reconcile on exact branch tip `4248a73be3f46329ad7dfc8d53cdb89d0cb65837` proved:
+- control boundary `OLD_EXACT`;
+- canonical r0008 control-update transaction is terminal `ROLLED_BACK_EXACT`;
+- update root remains present;
+- r0005 predecessor release remains exact;
+- r0008 staged release and stage witness remain exact;
+- production current remains `releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- credential SHA remains exact;
+- legacy Hub and Drive were not mutated.
+
+Durable evidence: `docs/evidence/R0008_CONTROL_UPDATE_ROLLED_BACK_20260924.json`.
+
+This transaction is terminal and MUST NOT be retried. r0008 is now rejected after exact rollback. The next objective is read-only diagnosis of the systemd static template-unit probe: capture the exact `systemctl is-active` return code/stdout/stderr and `systemctl show` state for `keelaryn-production-snapshot@.service` without changing any unit or runtime state. A fix, if required, must be frozen as a new successor candidate/version with a new control-update transaction identity.
