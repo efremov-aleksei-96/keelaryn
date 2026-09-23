@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 67,
+  "revision": 68,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "af97effc0ad376b6aaa2f3dc693dac5fafb91f76",
+  "repository_basis_commit": "ec70efb1959462cb1e87f9c2331b681312e13974",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02S-r0008-candidate-and-transition-gates-PASS",
-    "run_id": 35828006786,
+    "scope": "D0-02T-r0008-production-prep-gate-PASS-before-r0007-historical-test-correction",
+    "run_id": 35832395232,
     "conclusion": "PASS",
-    "relevance": "R0008_FROZEN_CANDIDATE_AND_7_SCENARIO_TRANSITION_QUALIFIED",
-    "note": "Last coherent PASS remains the r0008 candidate/transition qualification. Prep gate run 35832182708 reached regression execution and exposed only a DEVELOPMENT_STATE lifecycle-token mismatch: the canonical prep contract expects FROZEN_TRANSITION_GATE_PASS. This successor normalizes only that state token; no framework/product/VPS bytes change."
+    "relevance": "R0008_PRODUCTION_PREP_GATE_PASS_CORE_BLOCKED_BY_RETIRED_R0007_TEST_EXPECTATION",
+    "note": "Exact HEAD ec70efb1959462cb1e87f9c2331b681312e13974 passed operation-control-r0008-production-prep-gate-r0001 run 35832395232 completely, including authority absence, namespace isolation and all r0008 prep regressions. Zero-based Core failed only because two historical r0007 VPS-prep tests still expected r0007 to remain transition-qualified after its real control update rolled back exactly and DEVELOPMENT_STATE correctly marked it rejected/forbidden. This successor changes only r0007 test fixtures/expectations; r0007 runtime/tool remains fail-closed and r0008 framework bytes are unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",

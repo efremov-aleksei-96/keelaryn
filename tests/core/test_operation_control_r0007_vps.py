@@ -38,6 +38,23 @@ class R0007BootstrapPrepTests(unittest.TestCase):
             shutil.copyfile(source, target)
         return root
 
+    def _mark_r0007_qualified_fixture(self, root: Path) -> None:
+        state_path = root / "DEVELOPMENT_STATE.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        matches = [
+            item
+            for item in state["constrained_candidates"]
+            if item.get("candidate")
+            == "operation-control-r0007-20260921-01"
+        ]
+        self.assertEqual(len(matches), 1)
+        matches[0]["state"] = "FROZEN_TRANSITION_GATE_PASS"
+        matches[0]["retry"] = "NOT_A_RETRY_TARGET"
+        state_path.write_text(
+            json.dumps(state),
+            encoding="utf-8",
+        )
+
     def _select_legacy_evidence(self, root: Path) -> Path:
         relative = Path(r0007.RECORDED_EVIDENCE)
         source = ROOT / relative
@@ -76,30 +93,26 @@ class R0007BootstrapPrepTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden + "}", rendered)
 
-    def test_recorded_boundary_accepts_current_layered_authority(self) -> None:
-        value = r0007._recorded_boundary(ROOT)
-        self.assertEqual(
-            value["production_source_commit"],
-            r0007.PRODUCTION_SOURCE,
+    def test_recorded_boundary_rejects_current_rejected_candidate(self) -> None:
+        state = json.loads(
+            (ROOT / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
+        )
+        r0007_state = next(
+            item
+            for item in state["constrained_candidates"]
+            if item.get("candidate")
+            == "operation-control-r0007-20260921-01"
         )
         self.assertEqual(
-            value["predecessor_source_commit"],
-            r0007.PREDECESSOR_SOURCE_COMMIT,
+            r0007_state["state"],
+            "REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT",
         )
-        self.assertEqual(
-            value["legacy_hub"]["authority_scope"],
-            "RUNTIME_SAFETY_ONLY",
-        )
-        self.assertEqual(
-            value["r0007_transition_gate"],
-            "PASS",
-        )
-        self.assertEqual(
-            value["evidence_path"],
-            json.loads(
-                (ROOT / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
-            )["production_boundary"]["evidence_path"],
-        )
+        self.assertEqual(r0007_state["retry"], "FORBIDDEN")
+        with self.assertRaisesRegex(
+            r0007.PrepError,
+            "transition qualification is not durably PASS",
+        ):
+            r0007._recorded_boundary(ROOT)
 
     def test_recorded_boundary_rejects_legacy_hub_authority_expansion(
         self,
@@ -151,6 +164,7 @@ class R0007BootstrapPrepTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = self._repo_fixture(Path(td))
             self._select_legacy_evidence(root)
+            self._mark_r0007_qualified_fixture(root)
             value = r0007._recorded_boundary(root)
         self.assertEqual(value["evidence_path"], r0007.RECORDED_EVIDENCE)
 

@@ -1494,3 +1494,15 @@ Also restored `last_coherent_ci.conclusion=PASS` per validator contract. No auth
 Prep gate run `35832182708` passed candidate, authority-absence, compile and namespace checks. VPS-prep tests then found only that DEVELOPMENT_STATE used `FROZEN_CANDIDATE_AND_TRANSITION_GATE_PASS` while the existing qualified prep contract requires canonical token `FROZEN_TRANSITION_GATE_PASS`.
 
 This revision changes only that state token. No framework/product/authority/VPS/Drive mutation.
+
+### D0-02T retired r0007 test expectation correction
+
+On HEAD `ec70efb1959462cb1e87f9c2331b681312e13974`, r0008 production-prep gate run `35832395232` passed completely.
+
+Zero-based Core failed only because two old `test_operation_control_r0007_vps.py` tests still expected the repository's current r0007 disposition to be `FROZEN_TRANSITION_GATE_PASS`. The real r0007 production transaction is terminal `ROLLED_BACK_EXACT`, so current DEVELOPMENT_STATE correctly marks r0007 `REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT / FORBIDDEN`.
+
+Regression correction:
+- current repository state explicitly tests that r0007 prep fails closed;
+- historical legacy-evidence parser compatibility uses an isolated synthetic fixture with r0007 temporarily marked pre-rejection qualified.
+
+No r0007 runtime/tool behavior changed. No r0008 framework/product/authority/VPS/Drive mutation.
