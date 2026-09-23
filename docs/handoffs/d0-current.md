@@ -1575,3 +1575,16 @@ This revision:
 - accepts exact canonical r0008 stage-boundary evidence in addition to historical r0007 evidence;
 - keeps exact canonical byte/shape/identity checks unchanged;
 - does not issue authority and performs no VPS/Drive mutation.
+
+### D0-02W retired r0007 fixture correction after r0008 boundary promotion
+
+After DEVELOPMENT_STATE.production_boundary correctly moved to canonical r0008 boundary evidence, Core exposed three stale r0007 VPS-prep tests that still treated the current production boundary as an r0007 historical fixture.
+
+The failures were test-only:
+- current rejected-r0007 disposition test;
+- r0007 stage-boundary identity-drift test;
+- r0007 noncanonical-stage-boundary test.
+
+All three now explicitly select preserved historical `R0007_STAGE_BOUNDARY_20260922T173715Z.json` inside disposable fixtures. r0007 runtime/parser bytes are unchanged and remain rejected provenance.
+
+r0008 production-prep and boundary-capture gates were already PASS. No authority/VPS/Drive mutation occurs in this correction.

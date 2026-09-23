@@ -38,6 +38,28 @@ class R0007BootstrapPrepTests(unittest.TestCase):
             shutil.copyfile(source, target)
         return root
 
+    def _select_r0007_stage_boundary(self, root: Path) -> Path:
+        relative = Path(
+            "docs/evidence/R0007_STAGE_BOUNDARY_20260922T173715Z.json"
+        )
+        source = ROOT / relative
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+
+        evidence = json.loads(target.read_text(encoding="utf-8"))
+        state_path = root / "DEVELOPMENT_STATE.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["production_boundary"]["evidence_path"] = relative.as_posix()
+        state["production_boundary"]["observed_at_utc"] = (
+            evidence["observed_at_utc"]
+        )
+        state_path.write_text(
+            json.dumps(state),
+            encoding="utf-8",
+        )
+        return target
+
     def _mark_r0007_qualified_fixture(self, root: Path) -> None:
         state_path = root / "DEVELOPMENT_STATE.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -108,11 +130,15 @@ class R0007BootstrapPrepTests(unittest.TestCase):
             "REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT",
         )
         self.assertEqual(r0007_state["retry"], "FORBIDDEN")
-        with self.assertRaisesRegex(
-            r0007.PrepError,
-            "transition qualification is not durably PASS",
-        ):
-            r0007._recorded_boundary(ROOT)
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self._repo_fixture(Path(td))
+            self._select_r0007_stage_boundary(root)
+            with self.assertRaisesRegex(
+                r0007.PrepError,
+                "transition qualification is not durably PASS",
+            ):
+                r0007._recorded_boundary(root)
 
     def test_recorded_boundary_rejects_legacy_hub_authority_expansion(
         self,
@@ -171,10 +197,7 @@ class R0007BootstrapPrepTests(unittest.TestCase):
     def test_recorded_boundary_rejects_stage_boundary_identity_drift(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = self._repo_fixture(Path(td))
-            state = json.loads(
-                (root / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
-            )
-            evidence_path = root / state["production_boundary"]["evidence_path"]
+            evidence_path = self._select_r0007_stage_boundary(root)
             evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
             evidence["mutation_inhibit_authority_matches"] = False
             evidence_path.write_text(
@@ -196,10 +219,7 @@ class R0007BootstrapPrepTests(unittest.TestCase):
     def test_recorded_boundary_rejects_noncanonical_stage_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = self._repo_fixture(Path(td))
-            state = json.loads(
-                (root / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
-            )
-            evidence_path = root / state["production_boundary"]["evidence_path"]
+            evidence_path = self._select_r0007_stage_boundary(root)
             evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
             evidence_path.write_text(
                 json.dumps(evidence, indent=2) + "\n",
