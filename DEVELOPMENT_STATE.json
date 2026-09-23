@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 75,
+  "revision": 76,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "030678828efd9473280c9b6855bd8b0bf1efb348",
+  "repository_basis_commit": "7812caf5303b62857bf06af88579fbaad8c4ce5a",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02X-r0008-private-input-stage-runtime-implementation",
-    "run_id": 35844046715,
+    "scope": "D0-02X-r0008-tooling-binding-correction",
+    "run_id": 35847107585,
     "conclusion": "PASS",
-    "relevance": "AUTHORITY_PROVENANCE_CHECKPOINT_GREEN_BASE_FOR_R0008_TOOLING",
-    "note": "Revision 74 checkpointed the isolated r0008 stage authority provenance after green Core and r0008 prep/boundary gates. This successor adds only isolated r0008 private-input/stage-runtime tooling, regressions and CI gates bound to the exact issued authority and r0008-only private input/witness roots. No VPS or Drive mutation occurs in this implementation commit."
+    "relevance": "PRIVATE_INPUT_GATE_PASS_STAGE_RUNTIME_CONTRACT_ONLY_FAILURE",
+    "note": "HEAD 7812caf5303b62857bf06af88579fbaad8c4ce5a passed the r0008 private-input gate. Stage-runtime regressions also passed, but its surface gate incorrectly required the inherited private-input root literal in the stage-runtime source. Independent binding review also found private_input expected candidate date 20260921 instead of frozen r0008 candidate 20260923. This successor fixes the exact candidate binding and corrects/strengthens the two CI contracts. No VPS or Drive mutation occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -146,7 +146,7 @@
   },
   "next_objective": {
     "id": "D0-02X_R0008_TOOLING_QUALIFICATION",
-    "description": "Require exact-head Zero-based Core, operation-control-r0008-private-input-gate-r0001 and operation-control-r0008-stage-runtime-gate-r0001 PASS. The private-input gate must prove exact issued authority, fixed r0008-stage-input root and reconcile/acquire-only surface. The stage-runtime gate must prove fixed r0008-stage-input/r0008-stage-witness roots, reconcile/stage-only inert surface and no activation/Hub/Drive capability. After all PASS, perform one real VPS read-only private-input reconcile only. Do not acquire or stage in the same transaction.",
+    "description": "Require exact-head Zero-based Core, r0008 private-input gate and r0008 stage-runtime gate PASS after exact candidate-date and inherited-root gate corrections. Verify private-input resolves candidate operation-control-r0008-20260923-01 and exact issued authority provenance. After all PASS, perform exactly one real VPS read-only private-input reconcile only; expected clean prestate is INPUT_ROOT_ABSENT with no mutation. Do not acquire or stage in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

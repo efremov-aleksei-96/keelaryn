@@ -179,7 +179,7 @@ def _resolve_issued(root: Path):
     expected_record = {
         "transaction_id": TRANSACTION_ID,
         "scope": "R0008_RELEASE_STAGE_ONLY",
-        "candidate": "operation-control-r0008-20260921-01",
+        "candidate": "operation-control-r0008-20260923-01",
         "source_commit": transaction.SOURCE_COMMIT,
         "source_tree": transaction.SOURCE_TREE,
         "payload_sha256": transaction.PAYLOAD_SHA256,

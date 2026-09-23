@@ -78,7 +78,7 @@ jobs:
           raw = Path("tools/operation_control_r0008_stage_runtime.py").read_text(encoding="utf-8")
           required = (
               'choices=("reconcile", "stage")',
-              '/var/lib/keelaryn/operation-control/r0008-stage-input',
+              'DEFAULT_INPUT_ROOT = private_input.DEFAULT_INPUT_ROOT',
               '/var/lib/keelaryn/operation-control/r0008-stage-witness',
               '/opt/keelaryn/releases',
               'execution.execute_once(',

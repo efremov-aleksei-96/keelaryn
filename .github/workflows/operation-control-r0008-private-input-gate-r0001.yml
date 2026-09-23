@@ -92,6 +92,7 @@ jobs:
               '03f3e794fdcbd18e07d21dcb633c463674ce4e6b',
               '101b05042471abf7d10415cea36ba3053093364d',
               '2bc92df91d1272c30783879c794a36e066e5ad024a262c70ba09c33ec50e7864',
+              'operation-control-r0008-20260923-01',
               'release_publication_performed": False',
               'stage_witness_mutation_performed": False',
               'activation_performed": False',
@@ -102,6 +103,7 @@ jobs:
                   raise SystemExit(f"missing r0008 private-input contract: {needle}")
           forbidden = (
               '/r0007-stage-input',
+              'operation-control-r0008-20260921-01',
               'parser.add_argument("--input-root"',
               'parser.add_argument("--repository-root"',
               '"activate"',
