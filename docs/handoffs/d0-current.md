@@ -1506,3 +1506,22 @@ Regression correction:
 - historical legacy-evidence parser compatibility uses an isolated synthetic fixture with r0007 temporarily marked pre-rejection qualified.
 
 No r0007 runtime/tool behavior changed. No r0008 framework/product/authority/VPS/Drive mutation.
+
+### D0-02T fresh r0008 live boundary PASS
+
+Exact-head read-only VPS reconcile on `c81affd43ec6cff3801be8e8e35de6670df6bc4b` passed.
+
+Verified:
+- control source remains exact r0005 `08f2e211...`;
+- production source remains `e63f371d...`;
+- both persistent operation-control services are ACTIVE/enabled with exact release bytes;
+- legacy Hub remains `PREPARED / OLD` under `RUNTIME_SAFETY_ONLY`;
+- mutation inhibit authority remains exact;
+- writer remains INACTIVE/MainPID=0;
+- credential remains exact;
+- r0008 snapshot unit is ABSENT;
+- production/Drive mutations are false.
+
+Sanitized evidence: `docs/evidence/R0008_LIVE_BOUNDARY_RECONCILE_20260923.json`.
+
+No r0008 authority has been issued. Next objective is bootstrap-input qualification only, still without VPS mutation.

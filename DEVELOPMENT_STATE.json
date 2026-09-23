@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 68,
+  "revision": 69,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "ec70efb1959462cb1e87f9c2331b681312e13974",
+  "repository_basis_commit": "c81affd43ec6cff3801be8e8e35de6670df6bc4b",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02T-r0008-production-prep-gate-PASS-before-r0007-historical-test-correction",
-    "run_id": 35832395232,
+    "scope": "D0-02T-r0008-production-prep-and-live-boundary-PASS",
+    "run_id": 35832841690,
     "conclusion": "PASS",
-    "relevance": "R0008_PRODUCTION_PREP_GATE_PASS_CORE_BLOCKED_BY_RETIRED_R0007_TEST_EXPECTATION",
-    "note": "Exact HEAD ec70efb1959462cb1e87f9c2331b681312e13974 passed operation-control-r0008-production-prep-gate-r0001 run 35832395232 completely, including authority absence, namespace isolation and all r0008 prep regressions. Zero-based Core failed only because two historical r0007 VPS-prep tests still expected r0007 to remain transition-qualified after its real control update rolled back exactly and DEVELOPMENT_STATE correctly marked it rejected/forbidden. This successor changes only r0007 test fixtures/expectations; r0007 runtime/tool remains fail-closed and r0008 framework bytes are unchanged."
+    "relevance": "R0008_PRODUCTION_PREP_GREEN_AND_FRESH_LIVE_BOUNDARY",
+    "note": "Exact HEAD c81affd43ec6cff3801be8e8e35de6670df6bc4b passed Zero-based Core run 35832841587 and r0008 production-prep gate 35832841690. A subsequent exact-head real VPS read-only reconcile proved r0005 control exact and active, production source e63f..., legacy Hub PREPARED/OLD under RUNTIME_SAFETY_ONLY, writer inactive, credential exact, mutation inhibit exact, and r0008 snapshot unit absent. No production or Drive mutation occurred. Sanitized evidence is docs/evidence/R0008_LIVE_BOUNDARY_RECONCILE_20260923.json."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02T_R0008_PREP_GATE",
-    "description": "Require exact-head Zero-based Core and operation-control-r0008-production-prep-gate-r0001 PASS. The prep gate must prove the isolated r0008 VPS/stage/production-stage/authority/execution/real-stage framework is bound only to operation-control-r0008-20260923-01 and exact frozen source/payload, while docs/authorizations/operation-control-r0008-stage remains absent and immutable r0007 authority/state is not reused. After green CI, perform one fresh read-only VPS r0008 live-boundary reconcile using operation_control_r0008_vps.py. Do not issue r0008 stage authority or mutate VPS until that live reconcile is durably checkpointed.",
+    "id": "D0-02U_R0008_BOOTSTRAP_INPUT_QUALIFICATION",
+    "description": "Qualify r0008 bootstrap/stage inputs against the fresh read-only VPS boundary without issuing production stage authority and without mutating VPS. Use operation_control_r0008_vps.py qualify on the exact authoritative branch, record deterministic candidate/payload/materializer identities and qualified live boundary, and confirm r0008 authority remains absent and r0007 authority/private-input/stage witnesses remain untouched. Only after qualification PASS should a separate r0008 stage authorization be designed/issued against a fresh committed boundary evidence checkpoint.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
