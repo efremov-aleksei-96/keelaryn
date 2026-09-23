@@ -118,9 +118,17 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          paths = sorted(Path("tools").glob("operation_control_r0008_*.py"))
-          if len(paths) != 8:
-              raise SystemExit(f"unexpected r0008 prep tool count: {len(paths)}")
+          paths = [
+              Path("tools/operation_control_r0008_vps.py"),
+              Path("tools/operation_control_r0008_stage.py"),
+              Path("tools/operation_control_r0008_production_stage.py"),
+              Path("tools/operation_control_r0008_stage_authority.py"),
+              Path("tools/operation_control_r0008_stage_authority_issue.py"),
+              Path("tools/operation_control_r0008_stage_execution.py"),
+              Path("tools/operation_control_r0008_real_stage_transaction.py"),
+          ]
+          if any(not path.is_file() for path in paths):
+              raise SystemExit("r0008 prep tool set incomplete")
           joined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
           required = (
               "operation-control-r0008-20260923-01",

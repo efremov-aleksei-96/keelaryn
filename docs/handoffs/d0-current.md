@@ -1598,3 +1598,9 @@ Exact-head qualification after adding r0008 private-input/stage-runtime tooling 
 This revision changes no product/runtime or authority bytes. It corrects the synthetic fixture and makes both historical prep gates verify the one exact canonical stage-only r0008 authority instead of requiring absence.
 
 The r0008 stage-runtime gate was already PASS. No VPS/Drive mutation occurs.
+
+### D0-02X production-prep explicit toolset correction
+
+The post-authority r0008 private-input, stage-runtime and boundary-capture gates are PASS. Production-prep failed only because it glob-counted all `operation_control_r0008_*.py` tools and therefore treated independently qualified private-input/stage-runtime tooling as unexpected.
+
+Production-prep now validates an explicit seven-tool prep framework instead of a global namespace count. No product/runtime/authority/VPS/Drive mutation occurs.

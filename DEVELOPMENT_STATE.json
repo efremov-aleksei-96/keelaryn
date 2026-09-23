@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 77,
+  "revision": 78,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "1e7b85342643580af3a9cf2ee4f927b79505e7b1",
+  "repository_basis_commit": "ab5b95621ccd12dfe425c5237a62b22d90f73ebf",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02X-r0008-tooling-lifecycle-fixture-correction",
-    "run_id": 35847813000,
+    "scope": "D0-02X-r0008-production-prep-explicit-toolset-correction",
+    "run_id": 35904445915,
     "conclusion": "PASS",
-    "relevance": "STAGE_RUNTIME_PASS_PRIVATE_INPUT_TEST_FIXTURE_AND_POST_ISSUANCE_GATE_LIFECYCLE_CORRECTION",
-    "note": "On HEAD 1e7b85342643580af3a9cf2ee4f927b79505e7b1 the r0008 stage-runtime gate passed. Private-input/Core failed one synthetic test whose candidate fixture still used 20260921 instead of issued r0008 candidate 20260923. Boundary-capture and production-prep gates failed only because they still asserted that r0008 authority must be absent after authority issuance. This successor changes test/CI lifecycle expectations only: synthetic candidate date is corrected, and post-issuance gates verify the exact single safe r0008 authority. Product/runtime bytes and authority bytes are unchanged."
+    "relevance": "PRIVATE_INPUT_STAGE_RUNTIME_BOUNDARY_GATES_PASS_PREP_ONLY_GLOB_COUNT_STALE",
+    "note": "On HEAD ab5b95621ccd12dfe425c5237a62b22d90f73ebf, r0008 private-input, stage-runtime and boundary-capture gates passed. Production-prep failed only because its namespace assertion globbed every operation_control_r0008_*.py file and now counted 10 after adding independently qualified private-input/stage-runtime tools. This successor changes the prep gate to an explicit seven-tool production-prep set. No product/runtime/authority/VPS/Drive bytes or state change."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -146,7 +146,7 @@
   },
   "next_objective": {
     "id": "D0-02X_R0008_TOOLING_QUALIFICATION",
-    "description": "Require exact-head Zero-based Core, r0008 private-input gate, r0008 stage-runtime gate, r0008 production-prep gate and r0008 boundary-capture gate PASS after post-issuance lifecycle/test corrections. Verify the exact single authority a6383609e9a6442ad86445ba62baff93 remains canonical and stage-only. After all PASS, perform exactly one real VPS read-only private-input reconcile only; expected clean prestate is INPUT_ROOT_ABSENT with no mutation. Do not acquire or stage in the same transaction.",
+    "description": "Require exact-head Zero-based Core, r0008 private-input gate, r0008 stage-runtime gate, r0008 production-prep gate and r0008 boundary-capture gate PASS after production-prep explicit-toolset correction. Verify the exact single authority a6383609e9a6442ad86445ba62baff93 remains canonical and stage-only. After all PASS, perform exactly one real VPS read-only private-input reconcile only; expected clean prestate is INPUT_ROOT_ABSENT with no mutation. Do not acquire or stage in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
