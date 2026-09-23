@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 63,
+  "revision": 64,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "d1dfb3d7be47c67ae9f900ac585a43265c47f2a0",
+  "repository_basis_commit": "184d02ec909a6c03f556e5d03c1731491d7ab6f5",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02S-r0008-candidate-and-transition-gates-PASS",
+    "scope": "D0-02S-r0008-qualified-before-production-prep",
     "run_id": 35828006786,
     "conclusion": "PASS",
-    "relevance": "R0008_FROZEN_CANDIDATE_AND_7_SCENARIO_TRANSITION_QUALIFIED",
-    "note": "Frozen operation-control-r0008-20260923-01 candidate gate run 35828006786 PASS and transition gate run 35828006771 PASS. Candidate gate rebuilt/materialized exact source 20727893662cde92998d88ecdca730b69633eaaa payload bc74c0e5...b374d and ran full frozen Core/security validation. Transition qualification passed seven scenarios, including shared_outbox_upgrade with predecessor terminal relay compatibility, startup_probe_passed true and republished false. No production/Drive mutation occurred. Durable transition artifact copy was subsequently corrected to preserve the complete nested seven-scenario evidence; gate run identities and frozen bytes are unchanged."
+    "relevance": "R0008_CANDIDATE_AND_7_SCENARIO_TRANSITION_QUALIFIED",
+    "note": "r0008 candidate gate 35828006786 PASS and transition gate 35828006771 PASS with complete seven-scenario evidence, including shared_outbox_upgrade startup_probe_passed=true and republished=false. This successor checkpoint adds only r0008-specific production-prep/authority/stage framework and CI derived from the already-qualified r0007 framework with candidate/source/payload/schema namespaces retargeted. No r0008 authority is issued and no VPS/Drive mutation occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -139,8 +139,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02T_R0008_PRODUCTION_PREP",
-    "description": "Prepare the production-safe r0008 staging lifecycle without mutating VPS. Build r0008-specific authority/private-input/stage-runtime wrappers from the already-qualified r0007 framework while binding the immutable r0008 candidate operation-control-r0008-20260923-01, source 20727893662cde92998d88ecdca730b69633eaaa, payload bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d and new transaction identities/roots. The wrappers must coexist with immutable r0007 private-input/stage witnesses and must never overwrite or reuse r0007 transaction state. First qualify read-only live reconcile and private input/stage protocols in CI. Do not issue a production stage authority or mutate VPS until exact r0008 preparation gates pass and a fresh read-only VPS boundary is reconciled.",
+    "id": "D0-02T_R0008_PREP_GATE",
+    "description": "Require exact-head Zero-based Core and operation-control-r0008-production-prep-gate-r0001 PASS. The prep gate must prove the isolated r0008 VPS/stage/production-stage/authority/execution/real-stage framework is bound only to operation-control-r0008-20260923-01 and exact frozen source/payload, while docs/authorizations/operation-control-r0008-stage remains absent and immutable r0007 authority/state is not reused. After green CI, perform one fresh read-only VPS r0008 live-boundary reconcile using operation_control_r0008_vps.py. Do not issue r0008 stage authority or mutate VPS until that live reconcile is durably checkpointed.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

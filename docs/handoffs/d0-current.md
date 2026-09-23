@@ -1438,3 +1438,27 @@ Next objective D0-02T: create and qualify r0008-specific production-prep/private
 The first repository copy of the already-PASS r0008 transition artifact accidentally serialized the nested `scenarios` object as empty. This was a checkpoint serialization defect only.
 
 This revision replaces that file with the complete canonical artifact content, including all seven scenarios and the exact `shared_outbox_upgrade` result. Candidate bytes, gate runs and production state are unchanged.
+
+### D0-02T r0008 production-prep framework
+
+Added an isolated r0008 staging/authority framework, derived from the qualified r0007 framework but rebound to:
+- candidate `operation-control-r0008-20260923-01`;
+- source `20727893662cde92998d88ecdca730b69633eaaa`;
+- tree `c68bfe3dab53206439d1c42634f5c5ac602fb09c`;
+- payload `bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d`, size 428403, files 217;
+- r0008 schemas/scope/authority root.
+
+New tools:
+- `operation_control_r0008_vps.py`;
+- `operation_control_r0008_stage.py`;
+- `operation_control_r0008_production_stage.py`;
+- `operation_control_r0008_stage_authority.py`;
+- `operation_control_r0008_stage_authority_issue.py`;
+- `operation_control_r0008_stage_execution.py`;
+- `operation_control_r0008_real_stage_transaction.py`.
+
+The r0008 authority directory is intentionally still absent. No authority has been issued. No private-input/stage-runtime binding is created yet, because those must bind the exact Git provenance of the authority issued only after a fresh live VPS boundary reconcile.
+
+The consolidated production-prep gate proves candidate binding, namespace isolation from r0007, protocol regressions, and authority absence. r0007 authority/private-input/stage witnesses remain immutable.
+
+Next after green CI: one read-only r0008 live-boundary reconcile. No VPS mutation.
