@@ -1346,3 +1346,21 @@ This revision changes only that metadata flag back to `false`.
 This does **not** revoke or weaken the separately qualified r0005 -> r0007 control-update protocol. Production mutation authority is carried by the transaction-specific protocol/evidence and must never be inferred from the generic D0 objective metadata.
 
 No VPS mutation occurs in this correction.
+
+### D0-02Q control update ROLLED_BACK_EXACT
+
+The first real r0005 -> r0007 D0 control update failed when systemd could not start `keelaryn-operation-transport.service`.
+
+The frozen updater reported exact rollback. Mandatory post-failure read-only reconcile on exact HEAD `0680919dc54699880e5fcd91ec2994f280b7e16e` proved:
+- control boundary `OLD_EXACT`;
+- transaction `4832c22f208742c3cf5a8e32a79fbf92bfb037acd81f21d1331904cb54f68073` is `ROLLED_BACK_EXACT`;
+- update root is present;
+- r0005 release remains exact;
+- r0007 staged release/witnesses remain exact;
+- production `current` remains `releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- credential remains exact;
+- Hub/Drive were not mutated.
+
+Sanitized evidence: `docs/evidence/R0007_CONTROL_UPDATE_ROLLED_BACK_20260923.json`.
+
+This transaction is terminal and must never be retried. Next objective is read-only failure diagnosis. If a correction changes frozen successor product bytes or transition behavior, create a new successor candidate/transaction rather than altering or replaying r0007.
