@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 86,
+  "revision": 87,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "d6bc6c743a7484668fb4bef44db48580e2069a36",
+  "repository_basis_commit": "ec1ad98b630bb0cec7123f454c57aa6d02e7dc66",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03C-r0008-control-update-prestate-checkpoint",
-    "run_id": 35915910517,
+    "scope": "D0-03D-r0008-rollback-lifecycle-fixture-correction",
+    "run_id": 35917065818,
     "conclusion": "PASS",
-    "relevance": "CORE_AND_R0008_CONTROL_UPDATE_RUNTIME_GATE_PASS_BEFORE_REAL_UPDATE",
-    "note": "Exact HEAD 4248a73be3f46329ad7dfc8d53cdb89d0cb65837: Zero-based Core run 35915910517 PASS; r0008 control-update-runtime gate run 35915910661 PASS. The subsequent one-time real r0005->r0008 control update failed during successor service verification and the frozen updater reported exact rollback. Mandatory independent read-only reconcile then proved OLD_EXACT and canonical transaction 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 terminal ROLLED_BACK_EXACT with production current, credential, legacy Hub and Drive unchanged."
+    "relevance": "CORE_AND_R0008_CONTROL_UPDATE_RUNTIME_GATE_PASS_AFTER_TERMINAL_R0008_REJECTION",
+    "note": "Exact HEAD ec1ad98b630bb0cec7123f454c57aa6d02e7dc66: Zero-based Core run 35917065818 PASS after test-only lifecycle fixture correction; r0008 control-update-runtime gate run 35917065724 PASS. r0008 remains rejected/terminal and no product/runtime bytes changed."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03D_R0008_FAILURE_DIAGNOSIS",
-    "description": "r0008 remains terminal REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT and must not be retried. Exact-head Core on the rollback checkpoint exposed only two historical r0008 bootstrap-prep fixture errors because those tests read the now-correct rejected current DEVELOPMENT_STATE. This checkpoint corrects tests only: historical positive paths receive an explicit pre-rejection FROZEN_TRANSITION_GATE_PASS fixture, while a new regression requires the current rejected r0008 state to fail closed. Product/runtime/candidate bytes are unchanged. Require exact-head Core PASS, then continue read-only systemd diagnosis using the exact unit name keelaryn-production-snapshot@.service with no backslash.",
+    "id": "D0-03E_R0009_SUCCESSOR_FIX",
+    "description": "r0008 failure diagnosis is complete. On Ubuntu 24.04 systemd 255.4, the exact bare template unit keelaryn-production-snapshot@.service is a valid staged unit file (systemd-analyze verify rc=0) but systemctl is-active [--quiet] on the bare template name returns rc=1 with 'neither a valid invocation ID nor unit name'. r0008 updater incorrectly routes this bare template through the generic service _is_active() boolean probe, which accepts only rc 0/3/4 and therefore aborts successor verification; exact rollback is already terminal and r0008 retry is forbidden. Next design and freeze a new successor candidate/version that replaces only the bare-template inactivity verification with a template-appropriate fail-closed check, adds regression coverage for systemd rc=1 invalid bare-template active-state semantics, and preserves all r0008 safety/identity/transaction invariants with a new source/payload and new control-update transaction identity. Do not widen generic _is_active() semantics and do not mutate VPS until the new candidate is independently qualified and staged under a new authority.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

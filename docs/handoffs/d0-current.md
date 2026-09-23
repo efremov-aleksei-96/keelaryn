@@ -1777,3 +1777,29 @@ This checkpoint changes tests only:
 No r0008 product/runtime/candidate bytes are modified. The terminal rollback disposition and retry prohibition remain unchanged.
 
 The first systemd diagnostic command also accidentally passed a literal backslash in the unit name (`keelaryn-production-snapshot\@.service`), so its rc=1/not-found output is not evidence for the original updater defect. The next VPS action remains read-only and must probe the exact frozen constant `keelaryn-production-snapshot@.service`.
+
+### D0-03E r0008 systemd template-probe defect confirmed
+
+Read-only diagnosis on exact rollback-safe state confirmed the r0008 control-update failure mechanism.
+
+Environment:
+- Ubuntu 24.04 systemd `255 (255.4-1ubuntu8.17)`;
+- exact unit `keelaryn-production-snapshot@.service`;
+- staged unit file present with SHA-256 `9a967b1571cebd48f8248ed5e572ccb6448d20d0ff0368f543c4e91fd45466b6`;
+- `systemd-analyze verify` returns rc=0.
+
+Observed bare-template behavior:
+- `systemctl is-active --quiet keelaryn-production-snapshot@.service` -> rc=1;
+- verbose `systemctl is-active` -> rc=1 with `neither a valid invocation ID nor unit name`;
+- the updater's generic `_is_active()` accepts only rc 0/3/4 and therefore raises `systemctl active-state probe failed`.
+
+This precisely matches the r0008 failure stack:
+`operation_control_d0_update._verify_services -> active_probe(STATIC_UNIT) -> operation_control_plane_update._is_active`.
+
+The staged template itself is valid; the defect is querying active-state on an uninstantiated bare systemd template as if it were a concrete service unit. The correct successor fix must be template-specific and fail closed. Do **not** globally reinterpret rc=1 as inactive, because that would weaken error detection for ordinary services.
+
+After exact rollback, the installed successor template is absent as expected on r0005; this is not evidence of a missing staged file or rollback defect.
+
+Durable evidence: `docs/evidence/R0008_SYSTEMD_TEMPLATE_DIAGNOSIS_20260924.json`.
+
+The terminal r0008 transaction remains non-retryable. Next engineering objective is a new successor candidate/version with a template-appropriate inactivity verification, regression coverage for the observed systemd semantics, and a new control-update transaction identity.

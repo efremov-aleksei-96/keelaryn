@@ -1,0 +1,60 @@
+{
+  "schema": "keelaryn.operation-control-r0008-systemd-template-diagnosis.v1",
+  "repository": "efremov-aleksei-96/keelaryn",
+  "branch": "dev/zero-based-keelaryn",
+  "branch_tip": "ec1ad98b630bb0cec7123f454c57aa6d02e7dc66",
+  "candidate": "operation-control-r0008-20260923-01",
+  "candidate_disposition": "REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT",
+  "retry_allowed": false,
+  "control_reconcile": {
+    "control_boundary": "OLD_EXACT",
+    "transaction_id": "83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58",
+    "transaction_state": "ROLLED_BACK_EXACT",
+    "update_root_state": "PRESENT",
+    "production_current": "releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "credential_sha256": "7002ed72a223dd7fc860451c53a4ec8f264d14f7144000559a295522b7cbe928",
+    "mutation_flags_all_false": true
+  },
+  "systemd": {
+    "version": "255 (255.4-1ubuntu8.17)",
+    "unit": "keelaryn-production-snapshot@.service",
+    "staged_path": "/opt/keelaryn/releases/20727893662cde92998d88ecdca730b69633eaaa/deploy/zero-based-vps/keelaryn-production-snapshot@.service",
+    "staged_file_present": true,
+    "staged_file_sha256": "9a967b1571cebd48f8248ed5e572ccb6448d20d0ff0368f543c4e91fd45466b6",
+    "installed_file_present_after_exact_rollback": false,
+    "systemd_analyze_verify": {
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "is_active_quiet": {
+      "rc": 1,
+      "stdout": "",
+      "stderr": "Failed to retrieve unit state: Unit name keelaryn-production-snapshot@.service is neither a valid invocation ID nor unit name."
+    },
+    "is_active": {
+      "rc": 1,
+      "stdout": "",
+      "stderr": "Failed to retrieve unit state: Unit name keelaryn-production-snapshot@.service is neither a valid invocation ID nor unit name."
+    },
+    "is_enabled": {
+      "rc": 4,
+      "stdout": "not-found",
+      "stderr": "",
+      "interpretation": "Observed after exact rollback when predecessor r0005 does not install the successor static template."
+    }
+  },
+  "diagnosis": {
+    "failure_site": "deploy/zero-based-vps/operation_control_d0_update.py::_verify_services -> active_probe(STATIC_UNIT)",
+    "generic_probe": "deploy/zero-based-vps/operation_control_plane_update.py::_is_active",
+    "root_cause": "Bare systemd template unit active-state is queried as if it were a concrete service instance. systemctl rejects the bare template with rc=1; generic _is_active treats rc=1 as probe failure, causing successor verification to abort and exact rollback.",
+    "safe_fix_direction": "Do not broaden generic _is_active rc handling. Introduce a template-appropriate inactivity verification that validates template unit-file state/policy without querying active-state of the uninstantiated bare template, and regression-test the observed systemd behavior.",
+    "staged_unit_invalid": false,
+    "rollback_failure": false
+  },
+  "transcript_escape_note": "The chat transcript renders @ with a preceding backslash in copied terminal text (for example root@host also appears as root\\@host). The effective unit identity is the frozen constant keelaryn-production-snapshot@.service; the second probe additionally constructed it via printf octal 100 and reproduced the same result.",
+  "observation_time_utc": null,
+  "observation_time_note": "The read-only diagnostic command emitted no UTC observation timestamp; none is inferred.",
+  "source": "maintainer-executed exact VPS read-only diagnostic output supplied to ChatGPT",
+  "conclusion": "PASS_R0008_SYSTEMD_BARE_TEMPLATE_ACTIVE_PROBE_DEFECT_CONFIRMED"
+}
