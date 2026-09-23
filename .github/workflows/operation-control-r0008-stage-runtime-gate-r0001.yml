@@ -1,0 +1,107 @@
+name: Operation control r0008 stage runtime gate r0001
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'tools/operation_control_r0008_stage_runtime.py'
+      - 'tools/operation_control_r0008_private_input.py'
+      - 'tools/operation_control_r0008_stage_execution.py'
+      - 'tests/core/test_operation_control_r0008_stage_runtime.py'
+      - '.github/workflows/operation-control-r0008-stage-runtime-gate-r0001.yml'
+      - 'docs/authorizations/operation-control-r0008-stage/**'
+      - 'DEVELOPMENT_STATE.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact authority remains inert-stage-only
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          path = Path("docs/authorizations/operation-control-r0008-stage/a6383609e9a6442ad86445ba62baff93.json")
+          raw = path.read_bytes()
+          value = json.loads(raw.decode("utf-8"))
+          if hashlib.sha256(raw).hexdigest() != "2bc92df91d1272c30783879c794a36e066e5ad024a262c70ba09c33ec50e7864":
+              raise SystemExit("r0008 authority SHA mismatch")
+          if value.get("production_stage_authorized") is not True:
+              raise SystemExit("stage permission absent")
+          for key in (
+              "activation_authorized",
+              "drive_content_mutation_authorized",
+              "legacy_hub_mutation_authorized",
+              "writer_mutation_authorized",
+              "credential_mutation_authorized",
+          ):
+              if value.get(key) is not False:
+                  raise SystemExit(f"unsafe authority flag: {key}")
+          PY
+
+      - name: Compile stage-runtime tooling
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              "tools/operation_control_r0008_stage_runtime.py",
+              "tests/core/test_operation_control_r0008_stage_runtime.py",
+          ):
+              compile(Path(name).read_text(encoding="utf-8"), name, "exec", dont_inherit=True)
+          PY
+          test -z "$(git status --porcelain)"
+
+      - name: Run stage-runtime regressions
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover             -s tests/core -p 'test_operation_control_r0008_stage_runtime.py' -v
+          test -z "$(git status --porcelain)"
+
+      - name: Prove isolated narrow inert-stage surface
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          raw = Path("tools/operation_control_r0008_stage_runtime.py").read_text(encoding="utf-8")
+          required = (
+              'choices=("reconcile", "stage")',
+              '/var/lib/keelaryn/operation-control/r0008-stage-input',
+              '/var/lib/keelaryn/operation-control/r0008-stage-witness',
+              '/opt/keelaryn/releases',
+              'execution.execute_once(',
+              'activation_performed": False',
+              'drive_mutations_performed": False',
+              'release_publication_performed": None if stage_command else False',
+              'stage_witness_mutation_performed": None if stage_command else False',
+          )
+          for needle in required:
+              if needle not in raw:
+                  raise SystemExit(f"missing r0008 stage-runtime contract: {needle}")
+          forbidden = (
+              '/r0007-stage-input',
+              '/r0007-stage-witness',
+              'parser.add_argument("--input-root"',
+              'parser.add_argument("--witness-root"',
+              'parser.add_argument("--releases-root"',
+              'parser.add_argument("--repository-root"',
+              '"activate"',
+              'release_switch',
+              'hub_cutover',
+          )
+          for needle in forbidden:
+              if needle in raw:
+                  raise SystemExit(f"unsafe/stale stage-runtime surface: {needle}")
+          PY

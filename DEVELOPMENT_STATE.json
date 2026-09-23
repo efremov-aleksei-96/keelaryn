@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 74,
+  "revision": 75,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "03f3e794fdcbd18e07d21dcb633c463674ce4e6b",
+  "repository_basis_commit": "030678828efd9473280c9b6855bd8b0bf1efb348",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02W-r0008-stage-authority-issued",
+    "scope": "D0-02X-r0008-private-input-stage-runtime-implementation",
     "run_id": 35844046715,
     "conclusion": "PASS",
-    "relevance": "R0008_STAGE_AUTHORITY_ISSUED_AFTER_CORE_AND_PREP_GATES_PASS",
-    "note": "Issuer checkpoint 103164f63be410e2d7acbaea5aab4422d9f2b0c6 passed Core 35844046715, r0008 production-prep 35844046752 and boundary-capture 35844046759. Isolated commit 03f3e794fdcbd18e07d21dcb633c463674ce4e6b added only authority transaction a6383609e9a6442ad86445ba62baff93. Read-back verified exact authority and boundary provenance. No VPS or Drive mutation occurred."
+    "relevance": "AUTHORITY_PROVENANCE_CHECKPOINT_GREEN_BASE_FOR_R0008_TOOLING",
+    "note": "Revision 74 checkpointed the isolated r0008 stage authority provenance after green Core and r0008 prep/boundary gates. This successor adds only isolated r0008 private-input/stage-runtime tooling, regressions and CI gates bound to the exact issued authority and r0008-only private input/witness roots. No VPS or Drive mutation occurs in this implementation commit."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02X_R0008_PRIVATE_INPUT_AND_STAGE_RUNTIME",
-    "description": "Create and qualify isolated r0008 private-input/stage-runtime tooling bound to issued authority commit 03f3e794fdcbd18e07d21dcb633c463674ce4e6b, blob 101b05042471abf7d10415cea36ba3053093364d, SHA-256 2bc92df91d1272c30783879c794a36e066e5ad024a262c70ba09c33ec50e7864 and transaction a6383609e9a6442ad86445ba62baff93. Use r0008-only private-input and witness roots; never reuse r0007 roots or witnesses. First implement and exact-head qualify reconcile/acquire/stage-runtime surfaces with no activation capability. Then perform only a read-only VPS private-input reconcile. Do not acquire or stage in the same transaction.",
+    "id": "D0-02X_R0008_TOOLING_QUALIFICATION",
+    "description": "Require exact-head Zero-based Core, operation-control-r0008-private-input-gate-r0001 and operation-control-r0008-stage-runtime-gate-r0001 PASS. The private-input gate must prove exact issued authority, fixed r0008-stage-input root and reconcile/acquire-only surface. The stage-runtime gate must prove fixed r0008-stage-input/r0008-stage-witness roots, reconcile/stage-only inert surface and no activation/Hub/Drive capability. After all PASS, perform one real VPS read-only private-input reconcile only. Do not acquire or stage in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
