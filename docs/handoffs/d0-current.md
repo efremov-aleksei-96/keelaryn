@@ -1294,3 +1294,23 @@ This revision adds `tools/operation_control_r0007_control_update_runtime.py`:
 - has no Hub or Drive mutation surface.
 
 Next action after green CI is one real VPS `reconcile` only.
+
+### D0-02P frozen sibling import correction
+
+The first real control-update-runtime read-only reconcile on `ed87796a79e67168b1f9083295f31f2a6d2afc09` failed before control-state classification and before any write.
+
+Observed exception: frozen `operation_control_plane_update.py` could not resolve its canonical sibling import `materialize_payload`.
+
+Root cause: the verified staged updater was loaded through `importlib`, so Python did not automatically place its frozen `deploy/zero-based-vps` directory on `sys.path`.
+
+The runtime loader now:
+- verifies the staged r0007 release first;
+- explicitly loads the exact staged sibling `materialize_payload.py` under the canonical module name;
+- temporarily prepends only the verified frozen deploy directory while loading the updater;
+- refuses to let a cached dev `materialize_payload` satisfy the frozen dependency;
+- restores prior `sys.path` and prior canonical module binding after import;
+- converts import failures to structured `FROZEN_UPDATER_IMPORT_FAILED` fail-closed output.
+
+Regressions cover cached-module shadowing, frozen sibling selection, namespace restoration and structured import failure.
+
+No control-current/systemd/service/credential/Hub/Drive/production-current mutation occurred.

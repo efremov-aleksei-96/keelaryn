@@ -54,6 +54,77 @@ class R0007ControlUpdateRuntimeTests(unittest.TestCase):
             "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
         )
 
+    def test_frozen_updater_loader_uses_exact_sibling_materializer(self) -> None:
+        import sys
+        import types
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / runtime.NEW_SOURCE
+            deploy = root / "deploy" / "zero-based-vps"
+            deploy.mkdir(parents=True)
+            (deploy / "materialize_payload.py").write_text(
+                "SENTINEL = 'frozen'\n",
+                encoding="utf-8",
+            )
+            (deploy / "operation_control_d0_update.py").write_text(
+                "import materialize_payload\n"
+                "SENTINEL = materialize_payload.SENTINEL\n",
+                encoding="utf-8",
+            )
+
+            previous = sys.modules.get("materialize_payload")
+            cached = types.ModuleType("materialize_payload")
+            cached.SENTINEL = "cached-dev"
+            sys.modules["materialize_payload"] = cached
+            path_before = list(sys.path)
+            try:
+                with mock.patch.object(
+                    runtime,
+                    "RELEASES_ROOT",
+                    Path(td),
+                ), mock.patch.object(
+                    runtime,
+                    "_frozen_release_identity",
+                    return_value={},
+                ):
+                    loaded = runtime._load_frozen_updater(object())
+                self.assertEqual(loaded.SENTINEL, "frozen")
+                self.assertIs(sys.modules["materialize_payload"], cached)
+                self.assertEqual(sys.path, path_before)
+            finally:
+                if previous is None:
+                    sys.modules.pop("materialize_payload", None)
+                else:
+                    sys.modules["materialize_payload"] = previous
+
+    def test_frozen_updater_import_failure_is_structured(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / runtime.NEW_SOURCE
+            deploy = root / "deploy" / "zero-based-vps"
+            deploy.mkdir(parents=True)
+            (deploy / "materialize_payload.py").write_text(
+                "SENTINEL = 'frozen'\n",
+                encoding="utf-8",
+            )
+            (deploy / "operation_control_d0_update.py").write_text(
+                "raise RuntimeError('boom')\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(
+                runtime,
+                "RELEASES_ROOT",
+                Path(td),
+            ), mock.patch.object(
+                runtime,
+                "_frozen_release_identity",
+                return_value={},
+            ):
+                with self.assertRaisesRegex(
+                    runtime.ControlUpdateRuntimeError,
+                    "exact frozen r0007 control updater",
+                ):
+                    runtime._load_frozen_updater(object())
+
     def test_runtime_reuses_authority_graph(self) -> None:
         self.assertIs(
             runtime.execution,

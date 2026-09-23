@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 54,
+  "revision": 55,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "19ecd5d61fce93ee64cf623a965d79e7f9d0648e",
+  "repository_basis_commit": "ed87796a79e67168b1f9083295f31f2a6d2afc09",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02P-post-stage-checkpoint-PASS-before-control-update-runtime",
-    "run_id": 35781436372,
+    "scope": "D0-02P-control-update-runtime-PASS-before-live-import-defect",
+    "run_id": 35782116812,
     "conclusion": "PASS",
-    "relevance": "CURRENT_POST_STAGE_BASELINE",
-    "note": "HEAD 19ecd5d61fce93ee64cf623a965d79e7f9d0648e passed Zero-based Core run 35781436372 plus stage-runtime/private-input/bootstrap-prep/production-stage-prep/stage gates. D0-02P review found the frozen operation_control_d0_update.py protocol is the correct r0005->r0007 control transition but its generic CLI exposes path and identity overrides and has no dedicated read-only reconcile surface. This successor adds a narrow fixed-identity runtime wrapper. No control-current, systemd service/unit, credential, Hub, Drive or production-current mutation occurs in this development commit."
+    "relevance": "CURRENT_GREEN_RUNTIME_BEFORE_LIVE_RECONCILE_IMPORT_DEFECT",
+    "note": "HEAD ed87796a79e67168b1f9083295f31f2a6d2afc09 passed Zero-based Core run 35782116812 and control-update-runtime gate r0001 plus applicable stage/private-input gates. The first real VPS read-only control-update reconcile then failed before any mutation while importing the verified staged r0007 updater: its legacy module performs a canonical sibling import of materialize_payload, but the dev wrapper had loaded the updater by importlib without exposing the frozen deploy directory. This successor explicitly binds the exact frozen sibling materialize_payload during import, restores prior sys.path/module state afterwards, wraps import failures as structured fail-closed errors, and adds regressions. No VPS control update or other production mutation occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -140,7 +140,7 @@
   },
   "next_objective": {
     "id": "D0-02P_CONTROL_UPDATE_PREP",
-    "description": "After exact-head Core and operation-control-r0007-control-update-runtime gate PASS, execute exactly one real VPS read-only control-update-runtime reconcile. It must self-locate and prove the live Git branch and exact stage authority, verify immutable stage witnesses and exact r0005/r0007 releases, prove production current remains e63f..., credential identity unchanged, operation runtime and transport inbox idle, persistent predecessor control services active/enabled, control boundary OLD_EXACT, and control-update transaction state NEW or an explicitly classified recoverable state without creating update-root. Do not invoke update in the same transaction. If reconcile returns OLD_EXACT + NEW with no mutation, checkpoint it before any separate control switch.",
+    "description": "After this exact frozen-sibling import correction passes Zero-based Core and operation-control-r0007-control-update-runtime gate r0001, execute exactly one real VPS read-only control-update-runtime reconcile. It must self-locate and prove the live Git branch and exact stage authority, verify immutable stage witnesses and exact r0005/r0007 releases, import the mutation engine and canonical sibling dependencies only from the verified staged r0007 release, prove production current remains e63f..., credential identity unchanged, operation runtime and transport inbox idle, persistent predecessor control services active/enabled, control boundary OLD_EXACT, and control-update transaction state NEW or an explicitly classified recoverable state without creating update-root. Do not invoke update in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

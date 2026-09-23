@@ -135,17 +135,47 @@ def _load_frozen_updater(materializer: Any):
         NEW_SIZE,
         NEW_COUNT,
     )
-    path = (
+    deploy = (
         RELEASES_ROOT
         / NEW_SOURCE
         / "deploy"
         / "zero-based-vps"
-        / "operation_control_d0_update.py"
     )
-    return _load(
-        "keelaryn_r0007_control_update_frozen",
-        path,
+    path = deploy / "operation_control_d0_update.py"
+    sibling_materializer = deploy / "materialize_payload.py"
+
+    # The frozen updater's legacy module intentionally imports
+    # "materialize_payload" by its canonical sibling module name. Load that
+    # exact staged-release sibling explicitly and expose the frozen deploy
+    # directory only for the duration of the import. Never let an already
+    # cached dev module satisfy the frozen updater dependency.
+    previous_path = list(sys.path)
+    marker = object()
+    previous_materializer = sys.modules.get(
+        "materialize_payload",
+        marker,
     )
+    try:
+        _load(
+            "materialize_payload",
+            sibling_materializer,
+        )
+        sys.path.insert(0, str(deploy))
+        return _load(
+            "keelaryn_r0007_control_update_frozen",
+            path,
+        )
+    except Exception as exc:
+        raise ControlUpdateRuntimeError(
+            "FROZEN_UPDATER_IMPORT_FAILED",
+            "cannot load exact frozen r0007 control updater",
+        ) from exc
+    finally:
+        sys.path[:] = previous_path
+        if previous_materializer is marker:
+            sys.modules.pop("materialize_payload", None)
+        else:
+            sys.modules["materialize_payload"] = previous_materializer
 
 
 def _verify_stage_witnesses(
