@@ -1625,3 +1625,22 @@ Sanitized durable evidence: `docs/evidence/R0008_PRIVATE_INPUT_RECONCILE_2026092
 The reconcile output did not contain its own UTC observation timestamp, so this checkpoint intentionally does not invent one.
 
 Next transaction is exactly one r0008 private-input `acquire` invocation. It may create the isolated private-input root and publish only the transaction-bound r0008 input after its built-in Git/authority/live-boundary revalidation. It must not stage, activate, mutate the legacy Hub, writer, credential, production current, or Drive. After any result or interruption, reconcile before any retry or stage action.
+
+### D0-02Z r0008 private input acquired and post-verified
+
+One real VPS private-input `acquire` transaction on exact branch tip `67c30798d915765349b1f4f5270fb82974cbddc8` completed successfully for authority transaction `a6383609e9a6442ad86445ba62baff93`.
+
+Acquire result:
+- input root was created;
+- transaction-bound file `a6383609e9a6442ad86445ba62baff93.r0008.tar.gz` reconciled as `INPUT_EXACT / ACQUIRED_EXACT`;
+- identity is exact frozen r0008 source `20727893662cde92998d88ecdca730b69633eaaa`, payload SHA-256 `bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d`, size `428403`, file count `217`;
+- the only reported mutation was isolated private-input/root creation;
+- release publication, stage witness, activation, legacy Hub, writer, credential and Drive mutations were false.
+
+Mandatory independent post-acquire read-only reconcile then returned the same `INPUT_EXACT` identity with all mutation flags false. Live safety boundary remained r0005 control source, production source `e63f371d...`, legacy Hub `PREPARED / OLD`, writer inactive/MainPID=0 and r0008 snapshot unit absent.
+
+Durable evidence: `docs/evidence/R0008_PRIVATE_INPUT_ACQUIRED_20260923.json`.
+
+Neither tool output emitted a UTC observation timestamp; none is invented here.
+
+Next objective is one read-only r0008 stage-runtime `reconcile` only. Expected clean stage prestate: `NEW / NOT_STAGED`, `prepared=false`, `completed=false`, witness root absent. Do not run `stage` until that prestate is separately verified and checkpointed.
