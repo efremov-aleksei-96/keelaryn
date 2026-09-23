@@ -26,10 +26,39 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Prove authority still absent
+      - name: Prove exact issued r0008 authority
         run: |
           set -euo pipefail
-          test ! -e docs/authorizations/operation-control-r0008-stage
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path("docs/authorizations/operation-control-r0008-stage")
+          path = root / "a6383609e9a6442ad86445ba62baff93.json"
+          files = sorted(root.glob("*.json"))
+          if files != [path]:
+              raise SystemExit(f"unexpected r0008 authority set: {files}")
+          raw = path.read_bytes()
+          value = json.loads(raw.decode("utf-8"))
+          canonical = (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode()
+          if raw != canonical:
+              raise SystemExit("r0008 authority is not canonical")
+          if hashlib.sha256(raw).hexdigest() != "2bc92df91d1272c30783879c794a36e066e5ad024a262c70ba09c33ec50e7864":
+              raise SystemExit("r0008 authority SHA mismatch")
+          exact = {
+              "transaction_id": "a6383609e9a6442ad86445ba62baff93",
+              "scope": "R0008_RELEASE_STAGE_ONLY",
+              "candidate": "operation-control-r0008-20260923-01",
+              "production_stage_authorized": True,
+              "activation_authorized": False,
+              "drive_content_mutation_authorized": False,
+              "legacy_hub_mutation_authorized": False,
+              "writer_mutation_authorized": False,
+              "credential_mutation_authorized": False,
+          }
+          for key, expected in exact.items():
+              if value.get(key) != expected:
+                  raise SystemExit(f"r0008 authority mismatch: {key}")
+          PY
 
       - name: Compile without residue
         run: |

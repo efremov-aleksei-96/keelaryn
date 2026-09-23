@@ -1588,3 +1588,13 @@ The failures were test-only:
 All three now explicitly select preserved historical `R0007_STAGE_BOUNDARY_20260922T173715Z.json` inside disposable fixtures. r0007 runtime/parser bytes are unchanged and remain rejected provenance.
 
 r0008 production-prep and boundary-capture gates were already PASS. No authority/VPS/Drive mutation occurs in this correction.
+
+### D0-02X post-authority lifecycle fixture correction
+
+Exact-head qualification after adding r0008 private-input/stage-runtime tooling exposed only lifecycle/test issues:
+- the private-input synthetic authority fixture still named `operation-control-r0008-20260921-01` instead of the issued candidate `operation-control-r0008-20260923-01`;
+- boundary-capture and production-prep gates still required r0008 authority absence, invalid after isolated issuance.
+
+This revision changes no product/runtime or authority bytes. It corrects the synthetic fixture and makes both historical prep gates verify the one exact canonical stage-only r0008 authority instead of requiring absence.
+
+The r0008 stage-runtime gate was already PASS. No VPS/Drive mutation occurs.

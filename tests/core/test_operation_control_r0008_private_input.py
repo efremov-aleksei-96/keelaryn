@@ -42,7 +42,7 @@ class R0008PrivateInputTests(unittest.TestCase):
         record = {
             "transaction_id": private_input.TRANSACTION_ID,
             "scope": "R0008_RELEASE_STAGE_ONLY",
-            "candidate": "operation-control-r0008-20260921-01",
+            "candidate": "operation-control-r0008-20260923-01",
             "source_commit": private_input.transaction.SOURCE_COMMIT,
             "source_tree": private_input.transaction.SOURCE_TREE,
             "payload_sha256": private_input.transaction.PAYLOAD_SHA256,
