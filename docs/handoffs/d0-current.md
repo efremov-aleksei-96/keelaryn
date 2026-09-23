@@ -1764,3 +1764,16 @@ Mandatory independent post-failure read-only reconcile on exact branch tip `4248
 Durable evidence: `docs/evidence/R0008_CONTROL_UPDATE_ROLLED_BACK_20260924.json`.
 
 This transaction is terminal and MUST NOT be retried. r0008 is now rejected after exact rollback. The next objective is read-only diagnosis of the systemd static template-unit probe: capture the exact `systemctl is-active` return code/stdout/stderr and `systemctl show` state for `keelaryn-production-snapshot@.service` without changing any unit or runtime state. A fix, if required, must be frozen as a new successor candidate/version with a new control-update transaction identity.
+
+### D0-03D rollback lifecycle fixture correction
+
+Exact-head Core on the r0008 rollback checkpoint ran 866 tests and failed only two historical bootstrap-prep tests. Both called `operation_control_r0008_vps._recorded_boundary()` against the current authoritative DEVELOPMENT_STATE, where r0008 is now correctly terminal `REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT`. The production helper correctly failed closed with `r0008 transition qualification is not durably PASS`.
+
+This checkpoint changes tests only:
+- historical positive bootstrap-prep fixtures explicitly restore the historical `FROZEN_TRANSITION_GATE_PASS` lifecycle state inside a disposable repository fixture;
+- the former current-state positive test now uses that historical fixture;
+- a new regression asserts that the actual current rejected r0008 DEVELOPMENT_STATE is rejected by the retired bootstrap-prep path.
+
+No r0008 product/runtime/candidate bytes are modified. The terminal rollback disposition and retry prohibition remain unchanged.
+
+The first systemd diagnostic command also accidentally passed a literal backslash in the unit name (`keelaryn-production-snapshot\@.service`), so its rc=1/not-found output is not evidence for the original updater defect. The next VPS action remains read-only and must probe the exact frozen constant `keelaryn-production-snapshot@.service`.

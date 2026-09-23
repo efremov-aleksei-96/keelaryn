@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 85,
+  "revision": 86,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "4248a73be3f46329ad7dfc8d53cdb89d0cb65837",
+  "repository_basis_commit": "d6bc6c743a7484668fb4bef44db48580e2069a36",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -146,7 +146,7 @@
   },
   "next_objective": {
     "id": "D0-03D_R0008_FAILURE_DIAGNOSIS",
-    "description": "r0008 production control-update transaction 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 is independently reconciled terminal ROLLED_BACK_EXACT on OLD_EXACT predecessor boundary. r0008 must not be retried or modified in place. Next perform read-only failure diagnosis focused on the successor systemd static snapshot template probe that raised 'systemctl active-state probe failed'. Capture exact systemctl return code/stdout/stderr and unit LoadState/ActiveState/SubState/UnitFileState for keelaryn-production-snapshot@.service while confirming control boundary remains OLD_EXACT. Only after exact diagnosis design a new successor candidate/version and new control-update transaction identity.",
+    "description": "r0008 remains terminal REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT and must not be retried. Exact-head Core on the rollback checkpoint exposed only two historical r0008 bootstrap-prep fixture errors because those tests read the now-correct rejected current DEVELOPMENT_STATE. This checkpoint corrects tests only: historical positive paths receive an explicit pre-rejection FROZEN_TRANSITION_GATE_PASS fixture, while a new regression requires the current rejected r0008 state to fail closed. Product/runtime/candidate bytes are unchanged. Require exact-head Core PASS, then continue read-only systemd diagnosis using the exact unit name keelaryn-production-snapshot@.service with no backslash.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

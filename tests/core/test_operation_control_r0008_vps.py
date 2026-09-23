@@ -26,6 +26,13 @@ class R0008BootstrapPrepTests(unittest.TestCase):
         state = json.loads(
             (ROOT / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
         )
+        for item in state.get("constrained_candidates", []):
+            if item.get("candidate") == r0008.CANDIDATE:
+                item["state"] = "FROZEN_TRANSITION_GATE_PASS"
+                item["retry"] = "NOT_A_RETRY_TARGET"
+                break
+        else:
+            raise AssertionError("r0008 candidate missing from fixture state")
         evidence = Path(state["production_boundary"]["evidence_path"])
         for relative in (
             Path("DEVELOPMENT_STATE.json"),
@@ -36,6 +43,10 @@ class R0008BootstrapPrepTests(unittest.TestCase):
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
+        (root / "DEVELOPMENT_STATE.json").write_text(
+            json.dumps(state, ensure_ascii=False, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
         return root
 
     def _select_legacy_evidence(self, root: Path) -> Path:
@@ -76,8 +87,13 @@ class R0008BootstrapPrepTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden + "}", rendered)
 
-    def test_recorded_boundary_accepts_current_layered_authority(self) -> None:
-        value = r0008._recorded_boundary(ROOT)
+    def test_recorded_boundary_accepts_historical_layered_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = self._repo_fixture(Path(td))
+            value = r0008._recorded_boundary(root)
+            fixture_state = json.loads(
+                (root / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
+            )
         self.assertEqual(
             value["production_source_commit"],
             r0008.PRODUCTION_SOURCE,
@@ -96,10 +112,15 @@ class R0008BootstrapPrepTests(unittest.TestCase):
         )
         self.assertEqual(
             value["evidence_path"],
-            json.loads(
-                (ROOT / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
-            )["production_boundary"]["evidence_path"],
+            fixture_state["production_boundary"]["evidence_path"],
         )
+
+    def test_recorded_boundary_rejects_current_rejected_r0008(self) -> None:
+        with self.assertRaisesRegex(
+            r0008.PrepError,
+            "r0008 transition qualification is not durably PASS",
+        ):
+            r0008._recorded_boundary(ROOT)
 
     def test_recorded_boundary_rejects_legacy_hub_authority_expansion(
         self,
