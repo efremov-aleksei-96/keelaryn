@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 73,
+  "revision": 74,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "2bc4e7d465ab2fc15b3f992da6a0c9971df5d05d",
+  "repository_basis_commit": "03f3e794fdcbd18e07d21dcb633c463674ce4e6b",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02W-r0008-authority-prep-r0007-fixture-correction",
-    "run_id": 35843594570,
+    "scope": "D0-02W-r0008-stage-authority-issued",
+    "run_id": 35844046715,
     "conclusion": "PASS",
-    "relevance": "R0008_PREP_AND_BOUNDARY_GATES_PASS_CORE_ONLY_STALE_R0007_FIXTURES",
-    "note": "On HEAD 2bc4e7d465ab2fc15b3f992da6a0c9971df5d05d, r0008 production-prep gate 35843594570 and boundary-capture gate 35843594401 both passed. Zero-based Core run 35843594480 failed only three retired r0007 VPS-prep tests because they implicitly used current DEVELOPMENT_STATE.production_boundary, which now correctly references canonical r0008 boundary evidence unsupported by the historical r0007 parser. This successor changes only those test fixtures to select preserved canonical R0007_STAGE_BOUNDARY_20260922T173715Z.json explicitly. r0007 runtime/tool bytes remain unchanged. No authority/VPS/Drive mutation occurs."
+    "relevance": "R0008_STAGE_AUTHORITY_ISSUED_AFTER_CORE_AND_PREP_GATES_PASS",
+    "note": "Issuer checkpoint 103164f63be410e2d7acbaea5aab4422d9f2b0c6 passed Core 35844046715, r0008 production-prep 35844046752 and boundary-capture 35844046759. Isolated commit 03f3e794fdcbd18e07d21dcb633c463674ce4e6b added only authority transaction a6383609e9a6442ad86445ba62baff93. Read-back verified exact authority and boundary provenance. No VPS or Drive mutation occurred."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02W_R0008_STAGE_AUTHORITY_ISSUANCE",
-    "description": "Require exact-head Zero-based Core, r0008 production-prep gate and boundary-capture gate PASS after retiring the stale r0007 test-fixture dependency on current production_boundary. Then issue exactly one GitHub-only r0008 release-stage authorization bound to docs/evidence/R0008_STAGE_BOUNDARY_20260923T092708Z.json, with a new transaction_id and explicit denial of activation, Drive, legacy Hub, writer and credential mutation. Do not touch VPS in the same transaction. Immediately read back authority commit/blob/SHA provenance before any private-input acquisition.",
+    "id": "D0-02X_R0008_PRIVATE_INPUT_AND_STAGE_RUNTIME",
+    "description": "Create and qualify isolated r0008 private-input/stage-runtime tooling bound to issued authority commit 03f3e794fdcbd18e07d21dcb633c463674ce4e6b, blob 101b05042471abf7d10415cea36ba3053093364d, SHA-256 2bc92df91d1272c30783879c794a36e066e5ad024a262c70ba09c33ec50e7864 and transaction a6383609e9a6442ad86445ba62baff93. Use r0008-only private-input and witness roots; never reuse r0007 roots or witnesses. First implement and exact-head qualify reconcile/acquire/stage-runtime surfaces with no activation capability. Then perform only a read-only VPS private-input reconcile. Do not acquire or stage in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
