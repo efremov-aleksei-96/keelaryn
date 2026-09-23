@@ -1,0 +1,46 @@
+{
+  "schema": "keelaryn.operation-control-r0008-control-update-prestate-evidence.v1",
+  "repository": "efremov-aleksei-96/keelaryn",
+  "branch": "dev/zero-based-keelaryn",
+  "branch_tip": "acb60bda9f7d81480b983495d3b7d627dd4332bf",
+  "command": "reconcile",
+  "gate_revision": "operation-control-r0008-control-update-runtime-gate-r0001",
+  "stage_transaction_id": "a6383609e9a6442ad86445ba62baff93",
+  "stage_witness": {
+    "post_reconcile": "PASS",
+    "prepared_sha256": "c89be4c90ffde0c4ec6e6d3d9ce5348faf213f7a41a93dd4b9f7fe94c9f6f582",
+    "release_state": "STAGED_EXACT",
+    "stage_state": "STAGED_EXACT"
+  },
+  "old_release": {
+    "file_count": 190,
+    "payload_sha256": "6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7",
+    "payload_size": 365052,
+    "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418"
+  },
+  "new_release": {
+    "file_count": 217,
+    "payload_sha256": "bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d",
+    "payload_size": 428403,
+    "source_commit": "20727893662cde92998d88ecdca730b69633eaaa"
+  },
+  "production_current": "releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+  "credential_sha256": "7002ed72a223dd7fc860451c53a4ec8f264d14f7144000559a295522b7cbe928",
+  "control_boundary": "OLD_EXACT",
+  "control_update": {
+    "state": "NEW",
+    "transaction_id": "83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58",
+    "update_root_state": "PRESENT"
+  },
+  "mutations": {
+    "control_update": false,
+    "production_current": false,
+    "legacy_hub": false,
+    "credential": false,
+    "drive": false
+  },
+  "observation_time_utc": null,
+  "observation_time_note": "The control-update reconcile output did not emit an observation timestamp; none is inferred.",
+  "source": "maintainer-executed exact VPS command output supplied to ChatGPT",
+  "conclusion": "PASS_CLEAN_R0008_CONTROL_UPDATE_PRESTATE"
+}

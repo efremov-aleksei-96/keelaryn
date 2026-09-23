@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 83,
+  "revision": 84,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "49f7aa504a4c517d26b3d7d97b3125717fbb4371",
+  "repository_basis_commit": "acb60bda9f7d81480b983495d3b7d627dd4332bf",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03A-r0008-clean-stage-prestate-checkpoint",
-    "run_id": 35909573611,
+    "scope": "D0-03B-r0008-control-update-runtime",
+    "run_id": 35914550751,
     "conclusion": "PASS",
-    "relevance": "CORE_AND_REQUIRED_R0008_PRIVATE_INPUT_STAGE_RUNTIME_PRODUCTION_PREP_BOUNDARY_CAPTURE_GATES_PASS",
-    "note": "Exact HEAD 00fb90a9e9ab05bf655f8f0afad251d70d6480da: Zero-based Core run 35909573611 PASS; required r0008 gates PASS. One real VPS stage transaction then completed STAGED_EXACT/COMPLETED_EXACT and mandatory post-stage reconcile independently confirmed the durable staged release and witness with no activation, legacy-Hub, writer, credential or Drive mutation."
+    "relevance": "CORE_AND_R0008_CONTROL_UPDATE_RUNTIME_GATE_PASS",
+    "note": "Exact HEAD acb60bda9f7d81480b983495d3b7d627dd4332bf: Zero-based Core run 35914550751 PASS; r0008 control-update-runtime gate run 35914551105 PASS. Subsequent real VPS read-only reconcile returned exact r0005 control boundary, exact staged r0008 release/witness, canonical new r0008 control-update transaction 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 in NEW state, unchanged production current/credential, and zero mutations."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03B_R0008_CONTROL_UPDATE_RUNTIME",
-    "description": "r0008-specific control-update runtime, regressions and dedicated gate are added in this successor checkpoint. Require exact current-HEAD Zero-based Core and operation-control-r0008-control-update-runtime-gate-r0001 PASS. Only after both PASS, perform exactly one real-VPS read-only r0008 control-update reconcile. Expected safe prestate is exact r0005 control boundary, exact staged r0008 release/witness, unchanged production current/credential, and a new r0008 control-update transaction identity 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 with no mutation. Do not invoke update until that prestate is durably checkpointed.",
+    "id": "D0-03C_R0008_CONTROL_UPDATE_EXECUTION",
+    "description": "Clean real-VPS r0008 control-update prestate is durably checkpointed: control boundary OLD_EXACT on installed r0005; staged r0008 release/witness exact; production current remains releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f; credential SHA exact; canonical r0008 control-update transaction 83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58 is NEW with update root PRESENT; all reconcile mutation flags false. Next, after exact-head checkpoint CI PASS, perform exactly one r0008 control-update update invocation. This may mutate only control-current, exact control unit bytes/services and the transaction authority under the qualified D0 updater. Production current, legacy Hub, credential contents and Drive remain outside the allowed mutation set. After any outcome or interruption, never retry blindly; first run read-only r0008 control-update reconcile.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

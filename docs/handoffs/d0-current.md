@@ -1718,3 +1718,25 @@ The dedicated gate binds the runtime to the durable r0008 staged-release evidenc
 No real VPS/control/production/Hub/credential/Drive mutation is performed by this development commit.
 
 Next: require exact-head Core + r0008 control-update-runtime gate PASS, then perform one real VPS `reconcile` only. Do not run `update` yet.
+
+### D0-03C r0008 control-update clean prestate PASS
+
+Real VPS read-only `operation_control_r0008_control_update_runtime.py reconcile` on exact branch tip `acb60bda9f7d81480b983495d3b7d627dd4332bf` returned the required clean prestate before the control-plane switch.
+
+Verified:
+- current control boundary is exact predecessor r0005: `OLD_EXACT`;
+- old release is exact r0005 source `08f2e211f53764590f6ff0f05f86b2de62c14418`, payload `6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7`;
+- new staged release is exact r0008 source `20727893662cde92998d88ecdca730b69633eaaa`, payload `bc74c0e5b7eba90465fb8d59c5bb9a619ebc1f2c737c06fbf357ae062c5b374d`, size `428403`, files `217`;
+- r0008 stage witness remains `STAGED_EXACT` with post-reconcile PASS;
+- production current remains `releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- credential SHA-256 remains `7002ed72a223dd7fc860451c53a4ec8f264d14f7144000559a295522b7cbe928`;
+- canonical r0008 control-update transaction is `83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58`;
+- that transaction is `NEW`;
+- update root is `PRESENT`, which is compatible with retained terminal history from the rejected r0007 transaction;
+- control-update, production-current, legacy-Hub, credential and Drive mutation flags are all false.
+
+Sanitized durable evidence: `docs/evidence/R0008_CONTROL_UPDATE_PRESTATE_20260924.json`.
+
+The reconcile output contained no UTC observation timestamp, so none is invented.
+
+Next transaction is exactly one r0008 control-update `update` invocation after this checkpoint itself passes exact-head CI. The qualified updater may switch only the D0 control plane from exact r0005 to exact r0008, including transaction authority, `control-current`, exact control-unit bytes and service restart/stability checks. Production `current`, legacy Hub, credential contents and Drive remain immutable boundaries. After any result or interruption, reconcile before any retry.
