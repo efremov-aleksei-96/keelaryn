@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 81,
+  "revision": 82,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "5153a1b9210e565521c9752973b204d988d96cf8",
+  "repository_basis_commit": "00fb90a9e9ab05bf655f8f0afad251d70d6480da",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02Z-r0008-private-input-acquisition-checkpoint",
-    "run_id": 35909202753,
+    "scope": "D0-03A-r0008-clean-stage-prestate-checkpoint",
+    "run_id": 35909573611,
     "conclusion": "PASS",
-    "relevance": "CORE_AND_REQUIRED_R0008_STAGE_RUNTIME_PRODUCTION_PREP_BOUNDARY_CAPTURE_GATES_PASS",
-    "note": "Exact HEAD 5153a1b9210e565521c9752973b204d988d96cf8: Zero-based Core run 35909202753 PASS; r0008 stage-runtime, production-prep and boundary-capture gates PASS. Real VPS stage-runtime reconcile after exact private-input acquisition returned clean NEW/NOT_STAGED prestate with witness root absent and every mutation flag false."
+    "relevance": "CORE_AND_REQUIRED_R0008_PRIVATE_INPUT_STAGE_RUNTIME_PRODUCTION_PREP_BOUNDARY_CAPTURE_GATES_PASS",
+    "note": "Exact HEAD 00fb90a9e9ab05bf655f8f0afad251d70d6480da: Zero-based Core run 35909573611 PASS; required r0008 gates PASS. One real VPS stage transaction then completed STAGED_EXACT/COMPLETED_EXACT and mandatory post-stage reconcile independently confirmed the durable staged release and witness with no activation, legacy-Hub, writer, credential or Drive mutation."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03A_R0008_STAGE_EXECUTION",
-    "description": "Clean real-VPS r0008 stage prestate is durably checkpointed for transaction a6383609e9a6442ad86445ba62baff93: private input INPUT_EXACT; execution state NEW; release_state NOT_STAGED; prepared false; completed false; witness root ABSENT; all reconcile mutation flags false. Next perform exactly one r0008 stage-runtime stage transaction. The stage path must revalidate Git/authority/runtime/private-input boundary immediately before mutation and fail closed on drift. After any success, failure, timeout or uncertain result, do not retry; first perform read-only stage-runtime reconcile and durable checkpoint. Activation, legacy Hub, writer, credential and Drive mutations remain forbidden.",
+    "id": "D0-03B_R0008_CONTROL_UPDATE_RUNTIME",
+    "description": "r0008 release staging is complete and independently post-reconciled for transaction a6383609e9a6442ad86445ba62baff93: release STAGED_EXACT, execution COMPLETED_EXACT, witness root PRESENT, private input INPUT_EXACT, and production/Drive mutation flags false. Do not replay stage. Next create and qualify an r0008-specific control-update runtime derived from the rejected-r0007 flow but rebound to the exact r0008 source/payload/stage authority. It must first expose read-only reconcile, prove the current r0005 control boundary plus exact staged r0008 release/witness, and retain production current, legacy Hub, credential and Drive outside its mutation scope. No real r0005->r0008 control switch until the new runtime/gate is exact-head qualified and a fresh real-VPS read-only control-update prestate is durably checkpointed.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
@@ -167,7 +167,7 @@
     "Resolve the commit that last changed DEVELOPMENT_STATE.json and compare it with current HEAD.",
     "Resolve current HEAD CI live and distinguish it from recorded historical CI.",
     "Require repository_basis_commit to be the checkpoint commit first parent when CI enforces a fresh checkpoint.",
-    "Before any r0007 private-input or stage action, resolve transaction e7869ce5efd9d63da191e30f7c4e2c2b from authority commit b821bd44c82e853b7464664087d11cb39644d0df and verify exact authority path/blob plus bound canonical boundary evidence.",
+    "Before any r0008 control-update action, resolve exact transaction a6383609e9a6442ad86445ba62baff93 from authority commit 03f3e794fdcbd18e07d21dcb633c463674ce4e6b, verify exact authority path/blob/SHA, exact staged release/witness, and fresh live VPS boundary.",
     "Read fresh VPS state only when the next action depends on VPS reality.",
     "Read Google Drive only when the next action depends on corpus or Drive evidence.",
     "Continue only from next_objective or the first objectively uncompleted prerequisite.",

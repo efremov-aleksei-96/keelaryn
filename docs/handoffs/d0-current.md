@@ -1667,3 +1667,31 @@ Sanitized durable evidence: `docs/evidence/R0008_STAGE_PRESTATE_20260923.json`.
 The reconcile output contained no UTC observation timestamp, so none is invented.
 
 Next transaction is exactly one r0008 stage-runtime `stage` invocation. Its implementation performs a second Git/authority/runtime/private-input revalidation immediately before mutation. It may create the isolated witness root and publish only the exact frozen r0008 release under the already-issued `R0008_RELEASE_STAGE_ONLY` authority. Activation, legacy Hub, writer, credential, production-current selector and Drive remain outside the allowed mutation set. After any outcome or interruption, reconcile before any retry or later action.
+
+### D0-03B r0008 stage completed and post-verified
+
+One real VPS r0008 stage-runtime `stage` transaction on exact branch tip `00fb90a9e9ab05bf655f8f0afad251d70d6480da` completed successfully for authority transaction `a6383609e9a6442ad86445ba62baff93`.
+
+Stage result:
+- prestate was `NEW / NOT_STAGED`;
+- execution completed `COMPLETED_EXACT`;
+- release is `STAGED_EXACT`;
+- prepared witness SHA-256 is `c89be4c90ffde0c4ec6e6d3d9ce5348faf213f7a41a93dd4b9f7fe94c9f6f582`;
+- release publication and isolated stage-witness/root creation occurred;
+- `blind_retry_allowed=false`, `exact_replay=false`, release deletion forbidden;
+- activation was not authorized or performed;
+- legacy Hub, writer, credential and Drive mutations were false.
+
+Mandatory independent post-stage read-only reconcile then proved:
+- execution remains `COMPLETED_EXACT`;
+- release remains `STAGED_EXACT`;
+- witness root is `PRESENT`;
+- private input remains `INPUT_EXACT`;
+- witness records production and Drive mutations as false;
+- the reconcile itself performed no release/witness/activation/Hub/writer/credential/Drive mutation.
+
+Durable evidence: `docs/evidence/R0008_STAGE_COMPLETED_20260923.json`.
+
+Neither tool output emitted a UTC observation timestamp; none is invented.
+
+The r0008 stage transaction is complete and MUST NOT be replayed. The next engineering objective is an r0008-specific control-update runtime/gate. The old r0007 control-update runtime is candidate-bound to rejected r0007 and cannot be reused for the real switch. First build/qualify the r0008 runtime and perform a separate real-VPS read-only control-update prestate reconcile. Production `current`, legacy Hub, credential and Drive remain outside allowed mutation scope.
