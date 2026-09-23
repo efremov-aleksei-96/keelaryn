@@ -1417,3 +1417,18 @@ r0007 remains immutable rejected evidence; transaction `4832c22f...` remains ter
 The first r0008 candidate/transition gate runs failed before frozen-source checkout because generated qualification files referenced `operation-control-r0008-20260921-01` while the immutable receipt is correctly `operation-control-r0008-20260923-01`.
 
 This revision changes only that qualification metadata string in the r0008 candidate gate, transition gate and transition harness. Frozen source/tree/payload bytes are unchanged.
+
+### D0-02S r0008 candidate + transition qualification PASS
+
+Artifacts reviewed and durably copied into repository:
+- candidate gate run `35828006786` PASS; artifact digest `70831d0ac95213ac8fc9c39c73358c7a233e7da9e2efaf0f99c1abe9a452d9d4`;
+- transition gate run `35828006771` PASS; artifact digest `ded3a9442770be5ca283a5039c24b65247f443971561dc42bec1d1222dfb4988`.
+
+Transition evidence has seven scenarios. The new `shared_outbox_upgrade` scenario proves:
+- predecessor r0005 terminal relay remains in the shared durable outbox;
+- r0008 successor startup probe passes;
+- predecessor status is not created/updated/republished by r0008.
+
+No production or Drive mutation occurred.
+
+Next objective D0-02T: create and qualify r0008-specific production-prep/private-input/stage surfaces with new transaction roots/identities. r0007 staged/private-input/witness state remains immutable and must not be overwritten.
