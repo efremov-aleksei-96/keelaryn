@@ -130,7 +130,7 @@ class R0008BootstrapPrepTests(unittest.TestCase):
             evidence = json.loads(
                 evidence_path.read_text(encoding="utf-8")
             )
-            evidence["observation"]["r0008_snapshot_unit"] = "PRESENT"
+            evidence["observation"]["r0007_snapshot_unit"] = "PRESENT"
             evidence_path.write_text(
                 json.dumps(
                     evidence,

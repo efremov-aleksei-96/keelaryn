@@ -1470,3 +1470,21 @@ First prep gate run `35831437056` passed candidate identity and authority-absenc
 This changes only the gate compile method to residue-free built-in `compile()`.
 
 No r0008 framework/product bytes changed. No authority/VPS/Drive mutation occurred.
+
+### D0-02T historical-boundary compatibility correction
+
+The second r0008 production-prep run reached candidate/authority-absence/compile/namespace checks and then failed in the cloned VPS-prep regression.
+
+Root cause:
+- r0008 candidate/authority namespace was correctly retargeted;
+- but the current durable production-boundary evidence is still an r0007 stage-boundary record, and legacy D0 evidence still names `r0007_snapshot_unit`;
+- these are historical provenance inputs, not r0007 authority reuse.
+
+Correction:
+- r0008 VPS prep accepts exact canonical `keelaryn.operation-control-r0007-stage-boundary-evidence.v1` as the current recorded boundary input;
+- legacy D0 evidence continues to read `r0007_snapshot_unit`;
+- r0008 candidate/source/payload/authority root/scope remain strictly r0008;
+- DEVELOPMENT_STATE now records r0007 as `REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT / FORBIDDEN`;
+- r0008 is added as `FROZEN_CANDIDATE_AND_TRANSITION_GATE_PASS`.
+
+Also restored `last_coherent_ci.conclusion=PASS` per validator contract. No authority/VPS/Drive mutation.

@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 65,
+  "revision": 66,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "481709d2ee45a9705159ffa188d5d91f0b37fc8e",
+  "repository_basis_commit": "05f1d6bf82565490d620aedd6305ad67b344332e",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02T-r0008-production-prep-gate-harness-correction",
-    "run_id": 35831437056,
-    "conclusion": "FAIL_HARNESS_ONLY",
-    "relevance": "R0008_PREP_MODULES_COMPILED_BUT_PY_COMPILE_CREATED_UNTRACKED_BYTECODE",
-    "note": "The first r0008 production-prep gate passed exact candidate and authority-absence checks. Its compile step produced no syntax error, but python -m py_compile created __pycache__ and the following clean-worktree assertion failed. This successor changes only the gate compile method to residue-free built-in compile(); r0008 framework/product identities are unchanged and no VPS mutation occurred."
+    "scope": "D0-02S-r0008-candidate-and-transition-gates-PASS",
+    "run_id": 35828006786,
+    "conclusion": "PASS",
+    "relevance": "R0008_FROZEN_CANDIDATE_AND_7_SCENARIO_TRANSITION_QUALIFIED",
+    "note": "Last coherent PASS remains r0008 candidate gate 35828006786 plus transition gate 35828006771. Subsequent production-prep runs 35831437056 and 35831762798 were development-gate failures only: first due py_compile residue, second exposed historical evidence retargeting and state-disposition issues. This successor corrects those without issuing authority or mutating VPS."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -117,8 +117,14 @@
     },
     {
       "candidate": "operation-control-r0007-20260921-01",
-      "state": "FROZEN_TRANSITION_GATE_PASS",
+      "state": "REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT",
       "source_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
+      "retry": "FORBIDDEN"
+    },
+    {
+      "candidate": "operation-control-r0008-20260923-01",
+      "state": "FROZEN_CANDIDATE_AND_TRANSITION_GATE_PASS",
+      "source_commit": "20727893662cde92998d88ecdca730b69633eaaa",
       "retry": "NOT_A_RETRY_TARGET"
     }
   ],

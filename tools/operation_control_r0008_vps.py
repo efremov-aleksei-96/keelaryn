@@ -729,7 +729,7 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
             raise PrepError("D0-02D observed production source mismatch")
         if observation.get("control_source_commit") != PREDECESSOR_SOURCE_COMMIT:
             raise PrepError("D0-02D observed control source mismatch")
-        if observation.get("r0008_snapshot_unit") != "ABSENT":
+        if observation.get("r0007_snapshot_unit") != "ABSENT":
             raise PrepError("D0-02D observed partial successor residue")
         if observation.get("legacy_hub", {}).get("selector_role") != "OLD":
             raise PrepError("D0-02D observed legacy selector mismatch")
@@ -746,7 +746,7 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
         if observation.get("drive_mutations_performed") is not False:
             raise PrepError("D0-02D evidence claims Drive mutation")
     elif evidence_schema == (
-        "keelaryn.operation-control-r0008-stage-boundary-evidence.v1"
+        "keelaryn.operation-control-r0007-stage-boundary-evidence.v1"
     ):
         canonical_stage_boundary = (
             json.dumps(
@@ -778,7 +778,7 @@ def _recorded_boundary(repository_root: Path) -> dict[str, Any]:
         if set(evidence) != expected_keys:
             raise PrepError("stage boundary evidence keys mismatch")
         expected_stage_boundary = {
-            "schema": "keelaryn.operation-control-r0008-stage-boundary-evidence.v1",
+            "schema": "keelaryn.operation-control-r0007-stage-boundary-evidence.v1",
             "observed_at_utc": production.get("observed_at_utc"),
             "conclusion": "PASS",
             "production_source_commit": PRODUCTION_SOURCE,
