@@ -37,6 +37,7 @@ ROLLED_BACK_SCHEMA = "keelaryn.operation-control-d0-update-rolled-back.v1"
 
 PERSISTENT_UNITS = legacy.PERSISTENT_UNITS
 STATIC_UNIT = "keelaryn-production-snapshot@.service"
+STATIC_INSTANCE_PATTERN = "keelaryn-production-snapshot@*.service"
 SERVICE_STABILITY_SECONDS = 12.0
 
 D0ControlUpdateError = legacy.ControlPlaneUpdateError
@@ -248,6 +249,53 @@ def _installed_optional_matches(
     )
 
 
+
+def _template_has_active_instances(unit: str) -> bool:
+    if unit != STATIC_UNIT:
+        raise D0ControlUpdateError(
+            "unexpected production snapshot template unit"
+        )
+    completed = legacy._systemctl(
+        [
+            "list-units",
+            "--type=service",
+            "--state=active",
+            "--no-legend",
+            "--plain",
+            STATIC_INSTANCE_PATTERN,
+        ]
+    )
+    if completed.returncode != 0:
+        raise D0ControlUpdateError(
+            "systemctl template-instance probe failed"
+        )
+    if completed.stderr.strip():
+        raise D0ControlUpdateError(
+            "systemctl template-instance probe emitted stderr"
+        )
+
+    prefix = STATIC_UNIT.removesuffix("@.service") + "@"
+    observed: list[str] = []
+    for raw_line in completed.stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        fields = line.split()
+        if not fields:
+            continue
+        name = fields[0]
+        if (
+            name == STATIC_UNIT
+            or not name.startswith(prefix)
+            or not name.endswith(".service")
+        ):
+            raise D0ControlUpdateError(
+                "systemctl template-instance probe returned unexpected unit"
+            )
+        observed.append(name)
+    return bool(observed)
+
+
 def _transaction_digest(
     *,
     old_source: str,
@@ -347,6 +395,7 @@ def _verify_persistent_services(
 def _verify_services(
     *,
     active_probe: Callable[[str], bool],
+    template_active_probe: Callable[[str], bool],
     enabled_probe: Callable[[str], str],
     restart_probe: Callable[[str], int],
     restart_anchor: dict[str, int] | None = None,
@@ -361,7 +410,7 @@ def _verify_services(
         raise D0ControlUpdateError(
             "production snapshot template must be systemd-static"
         )
-    if active_probe(STATIC_UNIT):
+    if template_active_probe(STATIC_UNIT):
         raise D0ControlUpdateError(
             "production snapshot template must be inactive outside request"
         )
@@ -382,6 +431,7 @@ def update_d0_control_plane(
     expected_new_payload_sha256: str,
     systemctl: Callable[[list[str]], None] = legacy._must_systemctl,
     active_probe: Callable[[str], bool] = legacy._is_active,
+    template_active_probe: Callable[[str], bool] = _template_has_active_instances,
     enabled_probe: Callable[[str], str] = legacy._enabled_state,
     restart_probe: Callable[[str], int] = legacy._restart_count,
     sleeper: Callable[[float], None] = time.sleep,
@@ -638,12 +688,14 @@ def update_d0_control_plane(
                     systemctl(["start", unit])
         anchors = _verify_services(
             active_probe=active_probe,
+            template_active_probe=template_active_probe,
             enabled_probe=enabled_probe,
             restart_probe=restart_probe,
         )
         sleeper(SERVICE_STABILITY_SECONDS)
         _verify_services(
             active_probe=active_probe,
+            template_active_probe=template_active_probe,
             enabled_probe=enabled_probe,
             restart_probe=restart_probe,
             restart_anchor=anchors,
@@ -684,12 +736,14 @@ def update_d0_control_plane(
             systemctl(["start", unit])
         anchors = _verify_services(
             active_probe=active_probe,
+            template_active_probe=template_active_probe,
             enabled_probe=enabled_probe,
             restart_probe=restart_probe,
         )
         sleeper(SERVICE_STABILITY_SECONDS)
         _verify_services(
             active_probe=active_probe,
+            template_active_probe=template_active_probe,
             enabled_probe=enabled_probe,
             restart_probe=restart_probe,
             restart_anchor=anchors,
@@ -840,6 +894,7 @@ def update_d0_control_plane(
             )
         anchors = _verify_services(
             active_probe=active_probe,
+            template_active_probe=template_active_probe,
             enabled_probe=enabled_probe,
             restart_probe=restart_probe,
         )
@@ -848,6 +903,7 @@ def update_d0_control_plane(
         )
         _verify_services(
             active_probe=active_probe,
+            template_active_probe=template_active_probe,
             enabled_probe=enabled_probe,
             restart_probe=restart_probe,
             restart_anchor=anchors,

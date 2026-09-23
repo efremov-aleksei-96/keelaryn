@@ -1803,3 +1803,27 @@ After exact rollback, the installed successor template is absent as expected on 
 Durable evidence: `docs/evidence/R0008_SYSTEMD_TEMPLATE_DIAGNOSIS_20260924.json`.
 
 The terminal r0008 transaction remains non-retryable. Next engineering objective is a new successor candidate/version with a template-appropriate inactivity verification, regression coverage for the observed systemd semantics, and a new control-update transaction identity.
+
+### D0-03E r0009 successor fix implementation
+
+A minimal successor fix is implemented in development only; frozen r0008 remains immutable and terminal-rejected.
+
+Product change:
+- generic `legacy._is_active()` is unchanged;
+- persistent operation-control services continue to use the generic `active_probe`;
+- the static snapshot template now uses a separate `template_active_probe`;
+- its production default calls `systemctl list-units --type=service --state=active --no-legend --plain keelaryn-production-snapshot@*.service`;
+- nonzero systemctl status or stderr fails closed;
+- any returned active template instance blocks the control update;
+- no active instances is the required outside-request state.
+
+This avoids asking `systemctl is-active` for the uninstantiated bare template `keelaryn-production-snapshot@.service`, which Ubuntu 24.04 systemd 255.4 rejects with rc=1.
+
+Regression coverage now proves:
+- no-active-instance output is accepted;
+- an active instantiated snapshot unit is detected;
+- systemctl probe failure remains fatal;
+- the generic active probe is never called with the bare template;
+- an active template instance blocks successor verification.
+
+No candidate receipt or authority is issued in this commit and no VPS/Drive mutation occurs. Next require exact-head Core/deterministic payload PASS; only then freeze a new r0009 candidate/version with new source/payload and control-update transaction identity.

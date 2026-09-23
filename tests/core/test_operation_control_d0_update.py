@@ -327,6 +327,7 @@ HANDLERS: dict[str, OperationHandler] = {
             "expected_new_payload_sha256": self.NEW_PAYLOAD,
             "systemctl": systemctl,
             "active_probe": active_probe,
+            "template_active_probe": lambda unit: False,
             "enabled_probe": enabled_probe,
             "restart_probe": lambda unit: 0,
             "sleeper": lambda seconds: None,
@@ -371,6 +372,116 @@ HANDLERS: dict[str, OperationHandler] = {
                 result,
                 active,
                 calls,
+            )
+
+
+    def test_template_probe_accepts_no_active_instances(self):
+        completed = mock.Mock(
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+        with mock.patch.object(
+            update.legacy,
+            "_systemctl",
+            return_value=completed,
+        ) as systemctl:
+            self.assertFalse(
+                update._template_has_active_instances(
+                    update.STATIC_UNIT
+                )
+            )
+        systemctl.assert_called_once_with(
+            [
+                "list-units",
+                "--type=service",
+                "--state=active",
+                "--no-legend",
+                "--plain",
+                update.STATIC_INSTANCE_PATTERN,
+            ]
+        )
+
+    def test_template_probe_detects_active_instance(self):
+        completed = mock.Mock(
+            returncode=0,
+            stdout=(
+                "keelaryn-production-snapshot@abc.service "
+                "loaded active running test\n"
+            ),
+            stderr="",
+        )
+        with mock.patch.object(
+            update.legacy,
+            "_systemctl",
+            return_value=completed,
+        ):
+            self.assertTrue(
+                update._template_has_active_instances(
+                    update.STATIC_UNIT
+                )
+            )
+
+    def test_template_probe_fails_closed_on_systemctl_error(self):
+        completed = mock.Mock(
+            returncode=1,
+            stdout="",
+            stderr=(
+                "Failed to retrieve unit state: Unit name "
+                "keelaryn-production-snapshot@.service is neither "
+                "a valid invocation ID nor unit name.\n"
+            ),
+        )
+        with mock.patch.object(
+            update.legacy,
+            "_systemctl",
+            return_value=completed,
+        ):
+            with self.assertRaisesRegex(
+                update.D0ControlUpdateError,
+                "template-instance probe failed",
+            ):
+                update._template_has_active_instances(
+                    update.STATIC_UNIT
+                )
+
+    def test_verify_services_never_uses_generic_probe_for_bare_template(self):
+        def active_probe(unit):
+            if unit == update.STATIC_UNIT:
+                raise update.D0ControlUpdateError(
+                    "systemctl active-state probe failed"
+                )
+            return True
+
+        observed = update._verify_services(
+            active_probe=active_probe,
+            template_active_probe=lambda unit: False,
+            enabled_probe=lambda unit: (
+                "static"
+                if unit == update.STATIC_UNIT
+                else "enabled"
+            ),
+            restart_probe=lambda unit: 0,
+        )
+        self.assertEqual(
+            set(observed),
+            set(update.PERSISTENT_UNITS),
+        )
+
+    def test_verify_services_blocks_active_template_instance(self):
+        with self.assertRaisesRegex(
+            update.D0ControlUpdateError,
+            "template must be inactive",
+        ):
+            update._verify_services(
+                active_probe=lambda unit: True,
+                template_active_probe=lambda unit: True,
+                enabled_probe=lambda unit: (
+                    "static"
+                    if unit == update.STATIC_UNIT
+                    else "enabled"
+                ),
+                restart_probe=lambda unit: 0,
             )
 
     def test_success_installs_read_only_d0_boundary(
