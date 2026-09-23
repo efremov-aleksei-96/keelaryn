@@ -1314,3 +1314,25 @@ The runtime loader now:
 Regressions cover cached-module shadowing, frozen sibling selection, namespace restoration and structured import failure.
 
 No control-current/systemd/service/credential/Hub/Drive/production-current mutation occurred.
+
+### D0-02P live control-update prestate PASS
+
+Real VPS `control-update-runtime reconcile` on exact HEAD `9709b513d104daf984fc012c4825f2559d7cc460` completed successfully.
+
+Verified:
+- stage transaction `e7869ce5efd9d63da191e30f7c4e2c2b` remains exact and completed;
+- staged r0007 release remains exact;
+- installed predecessor r0005 release remains exact;
+- `control-current` + installed control units classify `OLD_EXACT`;
+- D0 control-update transaction ID `4832c22f208742c3cf5a8e32a79fbf92bfb037acd81f21d1331904cb54f68073`;
+- control-update state `NEW`;
+- control-update root absent;
+- production `current` remains `releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- credential SHA remains exact;
+- operation runtime and transport inbox passed idle checks.
+
+The reconcile performed zero control-update/production-current/Hub/credential/Drive mutation.
+
+Sanitized evidence: `docs/evidence/R0007_CONTROL_UPDATE_RECONCILE_20260923.json`.
+
+Next transaction is one r0005 -> r0007 control update invocation only. It may create D0 update PREPARED/COMPLETED records, replace exact control unit bytes, switch only `control-current`, and restart the persistent control services under the frozen transactional updater. Production `current`, legacy Hub, credential contents and Drive remain outside the allowed mutation set. After any interruption or uncertain result, reconcile before retry.
