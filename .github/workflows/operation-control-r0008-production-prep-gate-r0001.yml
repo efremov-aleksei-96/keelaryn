@@ -68,7 +68,20 @@ jobs:
       - name: Compile isolated r0008 production-prep tooling
         run: |
           set -euo pipefail
-          python3 -B -m py_compile             tools/operation_control_r0008_vps.py             tools/operation_control_r0008_stage.py             tools/operation_control_r0008_production_stage.py             tools/operation_control_r0008_stage_authority.py             tools/operation_control_r0008_stage_authority_issue.py             tools/operation_control_r0008_stage_execution.py             tools/operation_control_r0008_real_stage_transaction.py
+          python3 - <<'PY'
+          from pathlib import Path
+          names = (
+              "tools/operation_control_r0008_vps.py",
+              "tools/operation_control_r0008_stage.py",
+              "tools/operation_control_r0008_production_stage.py",
+              "tools/operation_control_r0008_stage_authority.py",
+              "tools/operation_control_r0008_stage_authority_issue.py",
+              "tools/operation_control_r0008_stage_execution.py",
+              "tools/operation_control_r0008_real_stage_transaction.py",
+          )
+          for name in names:
+              compile(Path(name).read_text(encoding="utf-8"), name, "exec", dont_inherit=True)
+          PY
           test -z "$(git status --porcelain)"
 
       - name: Prove candidate and namespace binding

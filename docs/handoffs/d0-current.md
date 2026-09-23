@@ -1462,3 +1462,11 @@ The r0008 authority directory is intentionally still absent. No authority has be
 The consolidated production-prep gate proves candidate binding, namespace isolation from r0007, protocol regressions, and authority absence. r0007 authority/private-input/stage witnesses remain immutable.
 
 Next after green CI: one read-only r0008 live-boundary reconcile. No VPS mutation.
+
+### D0-02T r0008 production-prep gate harness correction
+
+First prep gate run `35831437056` passed candidate identity and authority-absence checks. The seven r0008 modules compiled without a syntax error, but `python -m py_compile` wrote `__pycache__`; the subsequent clean-worktree assertion failed.
+
+This changes only the gate compile method to residue-free built-in `compile()`.
+
+No r0008 framework/product bytes changed. No authority/VPS/Drive mutation occurred.
