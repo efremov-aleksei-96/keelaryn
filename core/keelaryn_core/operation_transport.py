@@ -647,12 +647,31 @@ class GitHubOperationTransport:
         for path in sorted(self.outbox.glob("*.json")):
             _regular(path, "operation outbox status", RELAY_FILE_MODE)
             value = _relay_status(path.read_bytes())
-            if value["source_commit"] != self.source_commit:
-                raise GitHubTransportError("operation relay source_commit mismatch")
             request_id = value["operation_id"]
             body = self._status_body(value)
             digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
             publication = state["status_comments"].get(request_id)
+
+            if value["source_commit"] != self.source_commit:
+                # The transport root is durable across exact control-release
+                # upgrades. A terminal predecessor relay may remain in the
+                # shared outbox indefinitely after it was published. Accept
+                # that historical residue only when the private transport
+                # state proves that this exact status body was already
+                # published. Never adopt or publish it as the successor.
+                if not value["terminal"]:
+                    raise GitHubTransportError(
+                        "nonterminal operation relay source_commit mismatch"
+                    )
+                if publication is None:
+                    raise GitHubTransportError(
+                        "historical terminal operation relay is not proven published"
+                    )
+                if publication["body_sha256"] != digest:
+                    raise GitHubTransportError(
+                        "historical terminal operation relay publication mismatch"
+                    )
+                continue
 
             if publication is None:
                 matches = discovered.get(request_id, [])

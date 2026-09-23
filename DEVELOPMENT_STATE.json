@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 58,
+  "revision": 59,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "0680919dc54699880e5fcd91ec2994f280b7e16e",
+  "repository_basis_commit": "229264126d28ca7ba90ee38847ae6616ad0bc77f",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-02Q-control-update-ROLLED_BACK_EXACT",
-    "run_id": 35825227629,
+    "scope": "D0-02R-r0007-control-update-failure-diagnosed",
+    "run_id": 35825833843,
     "conclusion": "PASS",
-    "relevance": "CURRENT_GREEN_HEAD_AND_EXACT_ROLLBACK",
-    "note": "Exact HEAD 0680919dc54699880e5fcd91ec2994f280b7e16e passed Zero-based Core run 35825227629 and control-update-runtime gate r0001. The first real r0005->r0007 control update failed while starting keelaryn-operation-transport.service; the frozen updater reported exact rollback. A mandatory post-failure read-only reconcile then proved control boundary OLD_EXACT and transaction ROLLED_BACK_EXACT, with production current releases/e63f..., credential exact, stage release/witnesses intact and no Hub/Drive mutation. This exact transaction must not be retried. Sanitized evidence is docs/evidence/R0007_CONTROL_UPDATE_ROLLED_BACK_20260923.json."
+    "relevance": "R0007_ROLLBACK_CHECKPOINT_GREEN_AND_PRODUCT_DEFECT_CONFIRMED",
+    "note": "HEAD 229264126d28ca7ba90ee38847ae6616ad0bc77f passed Zero-based Core run 35825833843 and control-update-runtime gate 35825833909 after the live r0007 control update rolled back exactly. VPS journal then identified the exact successor startup failure: operation relay source_commit mismatch. Static review proved r0005/r0007 transport and agent unit bytes are identical, terminal relay files persist in the shared outbox after publication, and r0007 _publish_statuses fatally rejects any predecessor-source relay. This successor development revision fixes the product behavior without modifying frozen r0007 bytes and adds upgrade regressions."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -139,8 +139,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-02R_CONTROL_UPDATE_FAILURE_DIAGNOSIS",
-    "description": "Diagnose the r0007 control-update failure without retrying transaction 4832c22f208742c3cf5a8e32a79fbf92bfb037acd81f21d1331904cb54f68073. Perform read-only comparison of frozen r0005/r0007 operation-control transport service bytes and dependencies, inspect the transactional updater start ordering, and collect read-only VPS systemd status/journal/unit verification for keelaryn-operation-transport.service sufficient to identify the exact successor startup failure. Preserve the ROLLED_BACK_EXACT transaction as terminal evidence. If product bytes or transition logic must change, issue a new frozen successor candidate/version and a new transaction identity; never reuse or overwrite the rolled-back r0007 transaction. Do not mutate production, Hub, credential or Drive during diagnosis.",
+    "id": "D0-02S_CONTROL_SUCCESSOR_QUALIFICATION",
+    "description": "Qualify the successor transport compatibility fix and create a new immutable control candidate/version rather than modifying or retrying r0007. First require exact-head Core and targeted operation_transport regressions to prove that a successor sharing a durable transport root ignores only exact already-published terminal predecessor relays, while mismatched nonterminal, unpublished terminal, malformed, or digest-conflicting relays fail closed. Then build a deterministic successor payload from the new source commit, assign a new candidate/version and new transaction identity, qualify the r0005 -> successor transition including rollback/recovery and a shared-outbox upgrade regression, and only after freeze/stage/live prestate issue a separate production transition. Preserve r0007 and transaction 4832c22f208742c3cf5a8e32a79fbf92bfb037acd81f21d1331904cb54f68073 as immutable rejected evidence.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

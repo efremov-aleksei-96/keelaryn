@@ -1364,3 +1364,29 @@ The frozen updater reported exact rollback. Mandatory post-failure read-only rec
 Sanitized evidence: `docs/evidence/R0007_CONTROL_UPDATE_ROLLED_BACK_20260923.json`.
 
 This transaction is terminal and must never be retried. Next objective is read-only failure diagnosis. If a correction changes frozen successor product bytes or transition behavior, create a new successor candidate/transaction rather than altering or replaying r0007.
+
+### D0-02R exact failure diagnosis and successor fix
+
+VPS journal proves the failed r0007 control switch reached successor transport startup, which exited with `ERROR: operation relay source_commit mismatch`; rollback then restored r0005 transport successfully.
+
+Static analysis proves:
+- r0005/r0007 transport unit bytes are identical;
+- r0005/r0007 agent unit bytes are identical;
+- the transport root/outbox is durable and shared across control releases;
+- terminal relay files remain in outbox after publication;
+- r0007 `GitHubOperationTransport._publish_statuses()` fatally rejects every relay whose `source_commit` differs from the running release.
+
+Therefore r0007 has a product-level upgrade-compatibility defect. It remains frozen/rejected and transaction `4832c22f...` remains terminal `ROLLED_BACK_EXACT`.
+
+Development fix:
+- historical predecessor relay is tolerated only when it is terminal **and** private transport state proves the exact status body SHA-256 was already published;
+- it is never republished/adopted as successor output;
+- mismatched nonterminal relay fails closed;
+- mismatched terminal relay without publication proof fails closed;
+- publication digest conflict fails closed.
+
+Regression coverage is added for all three transition cases.
+
+Durable diagnosis: `docs/evidence/R0007_CONTROL_UPDATE_FAILURE_DIAGNOSIS_20260923.json`.
+
+Next objective is D0-02S: qualify this fix and freeze a **new successor candidate/version** with a new production transaction identity. Do not alter or retry r0007.

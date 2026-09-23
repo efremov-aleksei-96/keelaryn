@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -239,6 +240,152 @@ class GitHubOperationTransportTests(unittest.TestCase):
             again = transport.poll_once()
             self.assertEqual(again["status_created"], 0)
             self.assertEqual(again["status_updated"], 0)
+
+    def test_successor_ignores_exact_published_terminal_predecessor_relay(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            api = FakeGitHub()
+            transport_root = root / "transport"
+            os.mkdir(transport_root, 0o750)
+            os.chmod(transport_root, 0o750)
+            successor = GitHubOperationTransport(
+                transport_root,
+                api,
+                source_commit="b" * 40,
+                allowed_actors={"alexey"},
+                status_actor="keelaryn-bot",
+                clock=Clock(),
+            )
+
+            relay = {
+                "schema": "keelaryn.operation-relay-status.v1",
+                "operation_id": self.REQUEST_ID,
+                "operation": "RUNTIME_SELFTEST",
+                "source_commit": self.COMMIT,
+                "execution_state": "SUCCEEDED",
+                "observed_state": "SUCCEEDED",
+                "mutation_state": "READ_ONLY",
+                "phase": "COMPLETE",
+                "event": "TERMINAL",
+                "sequence": 0,
+                "timestamp_utc": "2026-01-01T00:00:00Z",
+                "next_action": "NONE",
+                "terminal": True,
+                "outcome": "PASS",
+            }
+            relay_path = successor.outbox / f"{self.REQUEST_ID}.json"
+            relay_path.write_bytes(canonical(relay))
+            os.chmod(relay_path, 0o640)
+            body = STATUS_MARKER + canonical(relay).decode("utf-8").rstrip("\n")
+            successor._write_state(
+                {
+                    "schema": "keelaryn.github-operation-transport-state.v1",
+                    "last_comment_id": 0,
+                    "status_comments": {
+                        self.REQUEST_ID: {
+                            "comment_id": 55,
+                            "body_sha256": hashlib.sha256(
+                                body.encode("utf-8")
+                            ).hexdigest(),
+                            "published_at": 1_800_000_000.0,
+                        }
+                    },
+                }
+            )
+
+            result = successor.poll_once()
+
+            self.assertEqual(result["status_created"], 0)
+            self.assertEqual(result["status_updated"], 0)
+            self.assertEqual(api.created, [])
+            self.assertEqual(api.updated, [])
+
+    def test_successor_rejects_unpublished_terminal_predecessor_relay(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            api = FakeGitHub()
+            transport_root = root / "transport"
+            os.mkdir(transport_root, 0o750)
+            os.chmod(transport_root, 0o750)
+            successor = GitHubOperationTransport(
+                transport_root,
+                api,
+                source_commit="b" * 40,
+                allowed_actors={"alexey"},
+                status_actor="keelaryn-bot",
+                clock=Clock(),
+            )
+
+            relay = {
+                "schema": "keelaryn.operation-relay-status.v1",
+                "operation_id": self.REQUEST_ID,
+                "operation": "RUNTIME_SELFTEST",
+                "source_commit": self.COMMIT,
+                "execution_state": "SUCCEEDED",
+                "observed_state": "SUCCEEDED",
+                "mutation_state": "READ_ONLY",
+                "phase": "COMPLETE",
+                "event": "TERMINAL",
+                "sequence": 0,
+                "timestamp_utc": "2026-01-01T00:00:00Z",
+                "next_action": "NONE",
+                "terminal": True,
+                "outcome": "PASS",
+            }
+            relay_path = successor.outbox / f"{self.REQUEST_ID}.json"
+            relay_path.write_bytes(canonical(relay))
+            os.chmod(relay_path, 0o640)
+
+            with self.assertRaisesRegex(
+                GitHubTransportError,
+                "not proven published",
+            ):
+                successor.poll_once()
+
+    def test_successor_rejects_nonterminal_predecessor_relay(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            os.chmod(root, 0o700)
+            api = FakeGitHub()
+            transport_root = root / "transport"
+            os.mkdir(transport_root, 0o750)
+            os.chmod(transport_root, 0o750)
+            successor = GitHubOperationTransport(
+                transport_root,
+                api,
+                source_commit="b" * 40,
+                allowed_actors={"alexey"},
+                status_actor="keelaryn-bot",
+                clock=Clock(),
+            )
+
+            relay = {
+                "schema": "keelaryn.operation-relay-status.v1",
+                "operation_id": self.REQUEST_ID,
+                "operation": "RUNTIME_SELFTEST",
+                "source_commit": self.COMMIT,
+                "execution_state": "RUNNING",
+                "observed_state": "RUNNING",
+                "mutation_state": "READ_ONLY",
+                "phase": "RUN",
+                "event": "STATUS",
+                "sequence": 1,
+                "timestamp_utc": "2026-01-01T00:00:00Z",
+                "next_action": "CONTINUE",
+                "terminal": False,
+                "outcome": None,
+            }
+            relay_path = successor.outbox / f"{self.REQUEST_ID}.json"
+            relay_path.write_bytes(canonical(relay))
+            os.chmod(relay_path, 0o640)
+
+            with self.assertRaisesRegex(
+                GitHubTransportError,
+                "nonterminal operation relay source_commit mismatch",
+            ):
+                successor.poll_once()
 
     def test_untrusted_remote_status_cannot_be_adopted_as_transport_publication(self) -> None:
         with tempfile.TemporaryDirectory() as td:
