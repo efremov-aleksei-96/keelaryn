@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 9,
+  "revision": 10,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -32,11 +32,12 @@
     "LEGACY_DRIVE_AUTOSTART_DISABLED_VERIFIED",
     "C0_FINAL_RECONCILE_PASS",
     "C0_CLOSED",
-    "D0_CLOSED"
+    "D0_CLOSED",
+    "P0_00_GO_BASELINE_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_00_GO_SPIKE_BASELINE",
-    "description": "Start the smallest Go technology spike on the clean branch. First prove one executable can model Artifact/ProviderObject/Locator/Revision/Observation in-memory and perform a read-only local filesystem discovery path with deterministic tests. Do not add SQLite, rclone, extraction, MCP or web UI until this first coherent identity/discovery slice is green; reuse survey remains mandatory before each new subsystem.",
+    "id": "P0_00_QUALIFY_GO_BASELINE",
+    "description": "Wait for and inspect exact-head Corpus-first CI for the minimal Go baseline. If green, checkpoint qualification and advance to the smallest next identity/reconciliation slice. If red, reconcile the exact failing job and fix only the proven defect; do not expand scope.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -69,7 +70,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "1d77c2478049b92d42dc64e90a612dbfdea4278f",
+  "repository_basis_commit": "764f218bcf4d6793e2c221a420d344719d2c36e0",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -317,5 +318,31 @@
     "Remove obsolete /etc/keelaryn legacy credentials/config only after exact need and recovery disposition are verified.",
     "Retest keelaryn-vps-ops after Gateway non-root remote-helper behavior is fixed; do not grant broad sudo as a workaround.",
     "Refresh public GitHub repository description/default-main content before first public Corpus-first candidate/release."
-  ]
+  ],
+  "p0_00": {
+    "status": "IMPLEMENTED_AWAITING_EXACT_HEAD_CI",
+    "reuse_decision": "GO_STDLIB_ONLY",
+    "dependencies_added": 0,
+    "scope": [
+      "Artifact/ProviderObject/Locator/Revision/Observation in-memory model",
+      "read-only local filesystem discovery",
+      "deterministic lexical observation order",
+      "symlink observed but not followed",
+      "no fabricated ProviderObject identity",
+      "minimal JSON scan CLI",
+      "deterministic/safety regression tests"
+    ],
+    "explicitly_deferred": [
+      "artifact continuity reconciliation",
+      "native cross-platform local filesystem object identity",
+      "content hashing",
+      "SQLite",
+      "rclone",
+      "extraction",
+      "MCP",
+      "web UI",
+      "filesystem watcher"
+    ],
+    "reuse_ledger": "docs/REUSE_LEDGER.md"
+  }
 }

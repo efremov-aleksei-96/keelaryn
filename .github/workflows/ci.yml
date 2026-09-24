@@ -49,3 +49,10 @@ jobs:
           for p in manager hub core deploy spec tools tests; do
             test ! -e "$p"
           done
+
+      - name: Go baseline
+        run: |
+          set -euo pipefail
+          go version
+          go test ./...
+          go vet ./...
