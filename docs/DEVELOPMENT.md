@@ -25,4 +25,4 @@ Before custom implementation, evaluate existing standards/projects for fit, inva
 
 Preferred order: reuse → wrap → subprocess/service integration → permissive fork/upstream → reuse design/tests → custom Keelaryn-specific gap.
 
-P0 development starts only after C0 completes.
+C0 is closed. Active development is now the minimal P0 technology spike. Deferred inert legacy cleanup must not silently become active architecture or block P0.

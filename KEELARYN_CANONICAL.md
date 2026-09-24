@@ -917,7 +917,7 @@ Preserve transaction/reconcile/no-blind-retry lessons from the old operation run
 
 ## 26. Clean-slate convergence (C0) — immediate priority
 
-No new Corpus-first product feature development begins until C0 completes.
+No new Corpus-first product feature development begins until C0 completes. C0 completed on the active Corpus-first line once all correctness/data-safety blockers were removed; explicitly inert tooling-blocked/deferred cleanup may remain under the rule in C0.4.
 
 ### C0.1 Freeze the pre-P0 world
 
@@ -959,6 +959,16 @@ After approval, obsolete Keelaryn/Hub/Manager/CorpusBootstrap development materi
 ```
 
 Real user corpus/projects are not archived merely because Keelaryn development changed.
+
+C0 may close with an explicitly recorded `TOOLING_BLOCKED` or `DEFERRED_CLEANUP` item only when all of the following are true:
+
+- the remaining item is inert and non-authoritative;
+- it cannot auto-start or mutate the corpus;
+- its exact desired disposition is durably recorded;
+- its deferral does not weaken identity/correctness/data-safety guarantees;
+- continuing to wait would only block product development on an external tooling limitation or optional historical cleanup.
+
+Such deferral does not reclassify the item as accepted active architecture.
 
 ### C0.5 Clean Git active line
 

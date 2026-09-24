@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Validate clean-slate metadata
+      - name: Validate current development authority
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -37,11 +37,10 @@ jobs:
           assert state["schema"] == "keelaryn.development-state.v2"
           assert state["authoritative_branch"] == "dev/corpus-first-p0"
           assert state["architecture_authority"] == "KEELARYN_CANONICAL.md"
-          assert state["phase"] == "C0_CLEAN_SLATE"
+          assert state["phase"] == "P0_TECHNOLOGY_SPIKE"
+          assert state["product_level"] == "P0_SPIKE_STARTED"
+          assert "C0_CLOSED" in state["completed"]
           assert Path("KEELARYN_CANONICAL.md").is_file()
-          assert Path("docs/C0_ABSORPTION_MANIFEST.md").is_file()
-          assert Path("docs/C0_CLEANUP_MANIFEST.md").is_file()
-          assert Path("docs/C0_RUNTIME_DECOMMISSION.md").is_file()
           PY
 
       - name: Prove legacy implementation is absent
