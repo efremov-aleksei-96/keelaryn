@@ -138,3 +138,28 @@ Rules:
 - invalid candidates/decision states fail without mutation.
 
 IDs use a simple session counter in this spike. This is deliberate: UUID/ULID/KSUID format choice belongs to the persistence layer and must not be confused with continuity correctness.
+
+
+## P0-07 — content evidence and Revision semantics
+
+**Decision:** use Go standard-library `crypto/sha256` for the first correctness spike; add no hashing dependency.
+
+Why SHA-256 now:
+- built into the toolchain and available on every target platform;
+- sufficient deterministic evidence for semantic tests;
+- throughput is not yet a measured P0 bottleneck;
+- the model records the algorithm explicitly, so a later benchmark can justify BLAKE3 or another implementation without changing Artifact/Revision semantics.
+
+Alternatives noted for later benchmark:
+- `zeebo/blake3` — active pure-Go implementation, license metadata requires explicit review before adoption;
+- `lukechampine/blake3` — MIT, optimized BLAKE3 implementation.
+
+Safety:
+- digest is content evidence only, never ArtifactID or RevisionID;
+- fingerprinting is on-demand, not eager full-corpus hashing;
+- local fingerprinting is bound to a prior Snapshot and revalidates `os.SameFile` after opening, so replacement at the same path fails closed;
+- first evidence creates Revision 1;
+- unchanged evidence reuses current Revision;
+- changed evidence creates a new Revision;
+- A→B→A creates a third Revision even when its digest equals Revision 1;
+- changing evidence algorithm is non-comparable and fails without mutation in this minimal model.
