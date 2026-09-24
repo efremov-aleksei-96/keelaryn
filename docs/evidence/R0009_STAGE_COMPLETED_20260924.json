@@ -1,0 +1,82 @@
+{
+  "schema": "keelaryn.operation-control-r0009-stage-completed-evidence.v1",
+  "repository": "efremov-aleksei-96/keelaryn",
+  "branch": "dev/zero-based-keelaryn",
+  "stage_branch_tip": "d21e7eda4b2f5e010af40d49180b07bd79058bd3",
+  "transaction_id": "92aea51ee7f80a8e8b84fffa9315bf9e",
+  "authority": {
+    "commit": "f2dd7b8875d423a197c27642f8c4b1db8bbcf786",
+    "path": "docs/authorizations/operation-control-r0009-stage/92aea51ee7f80a8e8b84fffa9315bf9e.json",
+    "git_blob": "f903c62370dc27e3fb0264c56e6fc76e56f3afa3",
+    "sha256": "56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919"
+  },
+  "frozen_identity": {
+    "source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+    "payload_sha256": "8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876",
+    "payload_size": 442514,
+    "file_count": 227
+  },
+  "stage_result": {
+    "execution_state": "COMPLETED_EXACT",
+    "release_state": "STAGED_EXACT",
+    "stage_state": "STAGED_EXACT",
+    "prepared_sha256": "d04430a3da9e830671ea108c980712f9f36b8cb2942deb69a65da4d7ce686909",
+    "blind_retry_allowed": false,
+    "exact_replay": false,
+    "release_deletion_allowed": false,
+    "release_publication_performed": true,
+    "stage_witness_mutation_performed": true,
+    "witness_root_created": true,
+    "activation_authorized": false,
+    "activation_performed": false,
+    "legacy_hub_mutation_performed": false,
+    "writer_mutation_performed": false,
+    "credential_mutation_performed": false,
+    "drive_mutations_performed": false
+  },
+  "post_stage_reconcile": {
+    "execution": {
+      "completed": true,
+      "prepared": true,
+      "production_mutations_performed": false,
+      "drive_mutations_performed": false,
+      "release_state": "STAGED_EXACT",
+      "state": "COMPLETED_EXACT",
+      "witness_root_state": "PRESENT"
+    },
+    "input_state": {
+      "state": "INPUT_EXACT",
+      "exact": true,
+      "identity": {
+        "source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+        "payload_sha256": "8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876",
+        "payload_size": 442514,
+        "file_count": 227
+      }
+    },
+    "release_publication_performed": false,
+    "stage_witness_mutation_performed": false,
+    "witness_root_created": false,
+    "activation_performed": false,
+    "legacy_hub_mutation_performed": false,
+    "writer_mutation_performed": false,
+    "credential_mutation_performed": false,
+    "drive_mutations_performed": false
+  },
+  "live_boundary": {
+    "control_source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+    "production_source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "legacy_hub_status": "PREPARED",
+    "legacy_hub_transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
+    "selector_role": "OLD",
+    "writer": {
+      "active_state": "INACTIVE",
+      "main_pid": 0
+    },
+    "r0009_snapshot_unit": "ABSENT"
+  },
+  "observation_time_utc": null,
+  "observation_time_note": "Neither stage nor post-stage reconcile emitted an observation timestamp; none is inferred.",
+  "source": "maintainer-executed exact VPS command outputs supplied to ChatGPT",
+  "conclusion": "PASS_R0009_STAGE_COMPLETED_AND_POSTVERIFIED_EXACT"
+}

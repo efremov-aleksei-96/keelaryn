@@ -2134,3 +2134,34 @@ Verified:
 Durable evidence: `docs/evidence/R0009_STAGE_PRESTATE_20260924.json`.
 
 Next transaction may perform exactly one r0009 `stage`. The stage runtime must repeat all Git/authority/runtime/private-input checks at the mutation boundary. On any interruption or ambiguous result, do not retry; reconcile first.
+
+### D0-03N r0009 staged release PASS
+
+A single r0009 stage transaction was executed on exact qualified branch tip `d21e7eda4b2f5e010af40d49180b07bd79058bd3`.
+
+Stage result:
+- transaction `92aea51ee7f80a8e8b84fffa9315bf9e`;
+- execution `COMPLETED_EXACT`;
+- release `STAGED_EXACT`;
+- prepared witness SHA-256 `d04430a3da9e830671ea108c980712f9f36b8cb2942deb69a65da4d7ce686909`;
+- release publication performed exactly once;
+- r0009 witness root created and mutated;
+- blind retry forbidden;
+- exact replay false;
+- release deletion forbidden.
+
+Mandatory post-stage read-only reconcile independently confirmed:
+- execution `COMPLETED_EXACT`;
+- release `STAGED_EXACT`;
+- witness root `PRESENT`;
+- private input `INPUT_EXACT`;
+- production mutation false;
+- Drive mutation false.
+
+Production current remains `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`; installed control remains r0005 `08f2e211f53764590f6ff0f05f86b2de62c14418`; legacy Hub remains `PREPARED / OLD`; writer remains inactive; r0009 snapshot unit remains absent.
+
+No activation, production-current switch, legacy Hub, writer, credential or Drive mutation occurred.
+
+Durable evidence: `docs/evidence/R0009_STAGE_COMPLETED_20260924.json`.
+
+Do **not** replay stage. Next development transaction is r0009-specific control-update runtime/reconcile qualification. A real r0005→r0009 control switch remains forbidden until that runtime is qualified and a fresh control-update prestate is checkpointed.

@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 103,
+  "revision": 104,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "8941d51c2292e3e19c1a099196679755ef4a1d5f",
+  "repository_basis_commit": "d21e7eda4b2f5e010af40d49180b07bd79058bd3",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03L-r0009-stage-prestate-clean",
-    "run_id": 35977634818,
+    "scope": "D0-03M-r0009-clean-stage-prestate-checkpoint",
+    "run_id": 35978122222,
     "conclusion": "PASS",
-    "relevance": "CORE_946_AND_ALL_REQUIRED_R0009_GATES_PASS_BEFORE_STAGE_PRESTATE_RECONCILE",
-    "note": "Exact HEAD 8941d51c2292e3e19c1a099196679755ef4a1d5f passed Zero-based Core run 35977634818 with 946 tests plus r0009 private-input 35977634736, stage-runtime 35977634672, production-prep 35977634847 and boundary-capture 35977634812 gates. Real VPS read-only stage-runtime reconcile then proved exact private input, execution NEW, release NOT_STAGED, witness root ABSENT, and all publication/mutation flags false while the r0005 production boundary remained unchanged."
+    "relevance": "CORE_946_AND_ALL_REQUIRED_R0009_GATES_PASS_BEFORE_SINGLE_STAGE_EXECUTION",
+    "note": "Exact HEAD d21e7eda4b2f5e010af40d49180b07bd79058bd3 passed Zero-based Core run 35978122222 with 946 tests plus r0009 private-input, stage-runtime, production-prep and boundary-capture gates. One real VPS stage transaction then completed STAGED_EXACT/COMPLETED_EXACT for transaction 92aea51ee7f80a8e8b84fffa9315bf9e with prepared witness SHA d04430a3da9e830671ea108c980712f9f36b8cb2942deb69a65da4d7ce686909; mandatory post-stage reconcile independently confirmed exact staged release, witness PRESENT and private input INPUT_EXACT. Production current and all activation/Hub/writer/credential/Drive mutation surfaces remained unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03M_R0009_STAGE_EXECUTION",
-    "description": "Perform exactly one r0009 stage-runtime stage transaction pinned to the qualified branch and exact authority transaction 92aea51ee7f80a8e8b84fffa9315bf9e. Before mutation, stage-runtime must revalidate Git branch tip, issued authority, live r0005 production boundary, exact r0009 private input and frozen payload identity, then require clean execution prestate NEW / NOT_STAGED with witness root absent. The only permitted durable mutations are creation of the r0009 stage witness root and exact publication of the r0009 release under /opt/keelaryn/releases. Activation, production-current switch, legacy Hub, writer, credential and Drive mutations remain forbidden. After any success, failure, timeout or uncertain result, never retry stage blindly; first run read-only stage-runtime reconcile and checkpoint the durable outcome.",
+    "id": "D0-03N_R0009_CONTROL_UPDATE_RUNTIME",
+    "description": "r0009 release staging is complete and independently post-reconciled for transaction 92aea51ee7f80a8e8b84fffa9315bf9e: release STAGED_EXACT, execution COMPLETED_EXACT, witness root PRESENT, private input INPUT_EXACT, prepared witness SHA d04430a3da9e830671ea108c980712f9f36b8cb2942deb69a65da4d7ce686909, and production/Drive mutation flags false. Do not replay stage. Next create and qualify an r0009-specific control-update runtime derived from the corrected r0008 flow, rebound to exact r0009 source/payload/stage authority and the already-qualified deterministic control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce. It must first expose read-only reconcile, prove current r0005 control boundary plus exact staged r0009 release/witness, and keep production current, legacy Hub, credential and Drive outside mutation scope. No real r0005->r0009 control switch until the new runtime/gate is exact-head qualified and a fresh real-VPS read-only control-update prestate is durably checkpointed.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
