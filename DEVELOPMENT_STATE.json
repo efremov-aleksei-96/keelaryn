@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 101,
+  "revision": 102,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "c1c981f3edec0b5a444e48ba1c83f45debe06db5",
+  "repository_basis_commit": "82875e12a505a2d5b321730e19c2943373849abd",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03J-r0009-private-input-stage-runtime-qualified-and-clean-prestate",
-    "run_id": 35970912445,
+    "scope": "D0-03K-r0009-private-input-acquired",
+    "run_id": 35971296745,
     "conclusion": "PASS",
-    "relevance": "CORE_946_AND_ALL_FOUR_R0009_GATES_PASS_PLUS_REAL_VPS_PRIVATE_INPUT_RECONCILE_CLEAN",
-    "note": "Exact HEAD c1c981f3edec0b5a444e48ba1c83f45debe06db5 passed Zero-based Core run 35970912445 with 946 tests, r0009 private-input gate 35970912342, stage-runtime gate 35970912458, production-prep gate 35970912595 and boundary-capture gate 35970912923. A subsequent real VPS read-only private-input reconcile resolved exact authority f2dd7b.../f903c.../56c161... and transaction 92aea51e..., proved live r0005 boundary unchanged, and found /var/lib/keelaryn/operation-control/r0009-stage-input absent. All mutation/publication flags were false."
+    "relevance": "CORE_946_AND_REQUIRED_R0009_GATES_PASS_BEFORE_ACQUIRE_POSTVERIFY_INPUT_EXACT",
+    "note": "Exact HEAD 82875e12a505a2d5b321730e19c2943373849abd passed Zero-based Core run 35971296745 with 946 tests plus r0009 private-input 35971296632, stage-runtime 35971296660, production-prep 35971296669 and boundary-capture 35971296858 gates. Real VPS acquire then created only the r0009 private-input root and published transaction-bound payload 92aea51ee7f80a8e8b84fffa9315bf9e.r0009.tar.gz. acquire returned ACQUIRED_EXACT with frozen identity source e42a4f..., payload 8592a3..., size 442514, file_count 227; immediate read-only reconcile independently returned INPUT_EXACT. No release/witness/activation/Hub/writer/credential/Drive mutation occurred."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03K_R0009_PRIVATE_INPUT_ACQUISITION",
-    "description": "Perform exactly one controlled r0009 private-input acquisition transaction using operation_control_r0009_private_input.py acquire, pinned to the currently qualified branch. Before mutation the tool must re-resolve the exact issued authority, rebuild/materialize the frozen r0009 payload deterministically, revalidate branch tip and live production boundary at the mutation boundary, and require the private input prestate to remain absent or exact. The only permitted durable VPS mutation is creation of the r0009 private input root and publication of transaction-bound payload 92aea51ee7f80a8e8b84fffa9315bf9e.r0009.tar.gz under /var/lib/keelaryn/operation-control/r0009-stage-input. No release publication, stage witness, activation, legacy Hub, writer, credential or Drive mutation is authorized. After acquisition, immediately run read-only reconcile and checkpoint exact durable input identity before any stage operation.",
+    "id": "D0-03L_R0009_STAGE_PRESTATE",
+    "description": "Perform exactly one real VPS read-only operation_control_r0009_stage_runtime.py reconcile pinned to the qualified branch after exact private-input acquisition. Require private input INPUT_EXACT with frozen identity source e42a4f156abb048f5c8f0bd1884fcae51674a55f, payload 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876, size 442514, file_count 227. Expected clean execution prestate is state NEW, release_state NOT_STAGED, prepared false, completed false, witness_root_state ABSENT, witness_root_created false, with all publication/mutation flags false. Do not run stage in the same transaction. If any exact release exists without a canonical witness, fail closed and reconcile before further action.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

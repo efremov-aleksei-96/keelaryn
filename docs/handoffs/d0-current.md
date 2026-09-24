@@ -2087,3 +2087,26 @@ Durable evidence: `docs/evidence/R0009_PRIVATE_INPUT_PRESTATE_20260924.json`.
 The reconcile output carried no timestamp, so none is inferred.
 
 Next transaction may perform exactly one controlled private-input `acquire`. It must remain confined to the r0009 private-input root and must immediately be followed by read-only reconciliation before any release staging.
+
+### D0-03L r0009 private-input acquisition PASS
+
+A single controlled r0009 private-input acquisition was executed on exact qualified branch tip `82875e12a505a2d5b321730e19c2943373849abd`.
+
+Acquire result:
+- r0009 input root created at `/var/lib/keelaryn/operation-control/r0009-stage-input`;
+- transaction payload `92aea51ee7f80a8e8b84fffa9315bf9e.r0009.tar.gz`;
+- state `INPUT_EXACT / ACQUIRED_EXACT`;
+- source `e42a4f156abb048f5c8f0bd1884fcae51674a55f`;
+- payload SHA-256 `8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876`;
+- size `442514`;
+- file count `227`.
+
+The tool revalidated Git, issued authority and live runtime boundary immediately before publication, then post-verified exact input identity.
+
+Immediate independent read-only reconcile again returned `INPUT_EXACT` with the same identity and no mutation.
+
+No release publication, stage witness, activation, legacy Hub, writer, credential or Drive mutation occurred.
+
+Durable evidence: `docs/evidence/R0009_PRIVATE_INPUT_ACQUIRED_20260924.json`.
+
+Next: perform one real VPS **read-only stage-runtime reconcile** only. Expected clean state is `NEW / NOT_STAGED` with witness root absent and every mutation flag false. Do not run `stage` in the same transaction.
