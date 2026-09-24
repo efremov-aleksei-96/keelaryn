@@ -1920,3 +1920,24 @@ Verified live boundary:
 Sanitized durable evidence: `docs/evidence/R0009_LIVE_BOUNDARY_RECONCILE_20260924.json`.
 
 The reconcile emitted no timestamp, so this checkpoint does **not** replace the canonical timestamped `production_boundary` record in DEVELOPMENT_STATE. The next isolated development transaction is to add and qualify canonical r0009 boundary capture. Stage authority, private input and release staging remain forbidden until that boundary is captured and durably accepted.
+
+### D0-03H r0009 canonical boundary-capture tooling
+
+Added the pre-authority r0009 canonical boundary-capture surface:
+- `tools/operation_control_r0009_boundary_capture.py`;
+- `tests/core/test_operation_control_r0009_boundary_capture.py`;
+- `.github/workflows/operation-control-r0009-boundary-capture-gate-r0001.yml`.
+
+The implementation follows the original pre-authority r0008 boundary-capture model:
+1. invoke only the qualified r0009 `vps.reconcile()` read-only boundary;
+2. require exact candidate, no production authorization, no production/Drive mutation, legacy-Hub scope `RUNTIME_SAFETY_ONLY`, r0009 snapshot unit absent, writer inactive, and both persistent control units active/enabled/byte-exact;
+3. add a UTC timestamp locally;
+4. construct `keelaryn.operation-control-r0009-stage-boundary-evidence.v1`;
+5. pass the result through the r0009 stage-authority boundary validator;
+6. print canonical JSON only.
+
+The dedicated gate requires that `docs/authorizations/operation-control-r0009-stage` is still absent, while retained r0007/r0008 authority roots remain historical evidence. It syntax-checks without residue, runs targeted regressions and rejects any write-capable surface.
+
+No r0009 authority is issued and no VPS/Drive mutation occurs in this commit.
+
+Next: require exact-head Core + boundary-capture gate PASS, then execute one real-VPS read-only `capture` and durably record its exact timestamped JSON before authority issuance.
