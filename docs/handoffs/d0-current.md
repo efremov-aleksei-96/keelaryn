@@ -2003,3 +2003,24 @@ The authority is bound to canonical boundary `docs/evidence/R0009_STAGE_BOUNDARY
 Authorization permits release staging only. Activation, Drive, legacy Hub, writer and credential mutation remain explicitly denied. The issuance commit changed exactly one file. No VPS or Drive mutation occurred.
 
 Next: build and qualify r0009-only private-input and stage-runtime tooling bound to this exact authority commit/blob/SHA/transaction. Do not reuse r0007/r0008 private roots or witnesses, and do not acquire/stage in the same transaction as tooling creation.
+
+### D0-03J r0009 post-authority gate alignment
+
+After the exact r0009 authority was issued and checkpointed, the two pre-authority qualification gates behaved fail-closed as designed:
+- production-prep run `35969310183` passed candidate validation and failed only at `authority has not been issued`;
+- boundary-capture run `35969310171` failed only at the equivalent pre-authority assertion;
+- exact-head Core `35969310230` passed 921 tests.
+
+This revision changes only those workflow lifecycle expectations. Both gates now require:
+- exactly one r0009 authority JSON;
+- transaction `92aea51ee7f80a8e8b84fffa9315bf9e`;
+- canonical SHA-256 `56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919`;
+- exact candidate/source/payload/stage-only deny flags;
+- issuer checkpoint `86aa3a92f860d9ab96ad54c6d75f9adbcf723026`;
+- exact boundary blob/SHA provenance.
+
+The production-prep artifact now records `r0009_authority_issued=true` and points next to private-input/stage-runtime qualification.
+
+No runtime, frozen candidate or authority bytes change. No VPS/Drive mutation occurs.
+
+Next: require exact-head Core + both aligned r0009 gates PASS. Only then create r0009 private-input/stage-runtime tooling in a separate transaction.
