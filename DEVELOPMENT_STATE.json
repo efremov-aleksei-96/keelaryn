@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 99,
+  "revision": 100,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "8f948ff6125fdbbabe5ed4f6b204ea7e1082270d",
+  "repository_basis_commit": "a89fdd53d5c55a10fc293802e1f9a0b8849aa7cb",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03J-r0009-post-authority-gates-PASS",
-    "run_id": 35970049721,
+    "scope": "D0-03J-r0009-private-input-stage-runtime-harness-correction",
+    "run_id": 35970536531,
     "conclusion": "PASS",
-    "relevance": "R0009_POST_AUTHORITY_CORE_PREP_AND_BOUNDARY_GATES_PASS",
-    "note": "Exact HEAD 8f948ff6125fdbbabe5ed4f6b204ea7e1082270d: Zero-based Core run 35970049721 PASS, r0009 production-prep gate run 35970050183 PASS and r0009 boundary-capture gate run 35970049807 PASS. Both gates verify the exact issued stage-only authority transaction 92aea51ee7f80a8e8b84fffa9315bf9e and its issuer/boundary provenance. This successor adds isolated r0009 private-input and stage-runtime tooling only; no VPS mutation, input acquisition or release staging occurs."
+    "relevance": "CORE_946_PASS_PRIVATE_INPUT_AND_BOUNDARY_GATES_PASS_TWO_WORKFLOW_ONLY_FAILURES",
+    "note": "Exact HEAD a89fdd53d5c55a10fc293802e1f9a0b8849aa7cb passed Zero-based Core run 35970536531 with 946 tests, r0009 private-input gate run 35970536634 and r0009 boundary-capture gate run 35970536339. r0009 stage-runtime run 35970536768 failed before runtime tests because its workflow authority-check had an IndentationError introduced by the provenance assertion insertion. r0009 production-prep run 35970536423 passed candidate/authority/syntax checks and failed only because its namespace count still expected 8 tools after private_input and stage_runtime increased the set to 10. This successor changes only those two workflows; runtime/test/authority bytes remain unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -152,7 +152,7 @@
   },
   "next_objective": {
     "id": "D0-03J_R0009_PRIVATE_INPUT_STAGE_RUNTIME_QUALIFICATION",
-    "description": "Require exact-head PASS for Zero-based Core, r0009 private-input gate, r0009 stage-runtime gate, r0009 production-prep gate and r0009 boundary-capture gate. New private-input tooling must resolve exact authority commit f2dd7b8875d423a197c27642f8c4b1db8bbcf786/blob f903c62370dc27e3fb0264c56e6fc76e56f3afa3/SHA 56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919 and transaction 92aea51ee7f80a8e8b84fffa9315bf9e, using only /var/lib/keelaryn/operation-control/r0009-stage-input and r0009-stage-witness roots. Stage-runtime must expose only reconcile/stage, with no activation capability. After all gates PASS, perform exactly one real VPS read-only private-input reconcile; expected clean prestate is INPUT_ROOT_ABSENT and no mutation. Do not acquire private input or stage in the same transaction.",
+    "description": "Require exact-head PASS for Zero-based Core, r0009 private-input gate, r0009 stage-runtime gate, r0009 production-prep gate and r0009 boundary-capture gate after workflow-only harness corrections. Production-prep must syntax-check all ten r0009 tools and accept exactly ten. Stage-runtime authority verification must parse and enforce the exact stage-only authority before running runtime regressions. On all PASS, perform exactly one real VPS read-only operation_control_r0009_private_input.py reconcile pinned to that qualified HEAD. Expected clean prestate is INPUT_ROOT_ABSENT with all mutation/publication flags false. Do not run acquire or stage in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

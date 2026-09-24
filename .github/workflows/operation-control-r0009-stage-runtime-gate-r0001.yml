@@ -45,6 +45,7 @@ jobs:
           if value.get("boundary_evidence_sha256") != "d6ea834ff31d9a5269cee573009c256f6871e437ba5635c8d047602d8b1f0117":
               raise SystemExit("r0009 authority boundary SHA mismatch")
           if value.get("production_stage_authorized") is not True:
+              raise SystemExit("stage permission absent")
           for key in (
               "activation_authorized",
               "drive_content_mutation_authorized",

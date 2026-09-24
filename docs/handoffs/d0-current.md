@@ -2046,3 +2046,20 @@ The private-input CLI exposes only `reconcile|acquire`. The stage-runtime CLI ex
 No VPS action, private-input acquisition or release staging occurs in this commit.
 
 Next: require Core + r0009 private-input + stage-runtime + production-prep + boundary-capture gates PASS. Then run one real VPS **read-only private-input reconcile only**.
+
+### D0-03J private-input/stage-runtime gate harness correction
+
+Qualification of the first r0009 private-input/stage-runtime commit produced:
+- Zero-based Core `35970536531`: PASS, 946 tests;
+- r0009 private-input gate `35970536634`: PASS;
+- r0009 boundary-capture gate `35970536339`: PASS;
+- r0009 stage-runtime gate `35970536768`: workflow-only failure before runtime regressions because the inserted `production_stage_authorized` check lost its indented failure body;
+- r0009 production-prep gate `35970536423`: candidate, exact authority and syntax checks PASS; namespace-binding step failed because the gate expected eight r0009 tools after private-input and stage-runtime increased the set to ten.
+
+This revision changes only the two workflow harnesses:
+- restore the fail-closed `stage permission absent` body;
+- syntax-check the two new tools and require exactly ten r0009 tools.
+
+No runtime, test, frozen candidate, authority, VPS, private-input, witness, release, Hub or Drive state changes.
+
+Next: require all five exact-head prerequisites PASS. Then run one real VPS read-only private-input `reconcile` only.
