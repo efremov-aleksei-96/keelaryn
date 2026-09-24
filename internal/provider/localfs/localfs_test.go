@@ -52,6 +52,110 @@ func TestDiscoverIsDeterministicAndNested(t *testing.T) {
 	}
 }
 
+func TestSnapshotRenameIsSameProviderObject(t *testing.T) {
+	root := t.TempDir()
+	oldPath := filepath.Join(root, "before.txt")
+	newPath := filepath.Join(root, "after.txt")
+	mustWrite(t, oldPath, []byte("same bytes"))
+
+	p := localfs.New("localfs-test")
+	before, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		t.Fatal(err)
+	}
+	after, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	same, err := before.SameProviderObject("before.txt", after, "after.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !same {
+		t.Fatal("rename lost physical provider-object continuity")
+	}
+}
+
+func TestSnapshotByteIdenticalCopyIsDifferentProviderObject(t *testing.T) {
+	root := t.TempDir()
+	original := filepath.Join(root, "original.bin")
+	copyPath := filepath.Join(root, "copy.bin")
+	content := []byte("identical content")
+	mustWrite(t, original, content)
+
+	p := localfs.New("localfs-test")
+	before, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, copyPath, content)
+	after, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	same, err := before.SameProviderObject("original.bin", after, "copy.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if same {
+		t.Fatal("byte-identical copy collapsed into original provider object")
+	}
+}
+
+func TestSnapshotHardLinkIsSameProviderObjectWithAnotherLocator(t *testing.T) {
+	root := t.TempDir()
+	original := filepath.Join(root, "original.bin")
+	link := filepath.Join(root, "hardlink.bin")
+	mustWrite(t, original, []byte("one object"))
+
+	if err := os.Link(original, link); err != nil {
+		t.Skipf("hard links unavailable on this filesystem: %v", err)
+	}
+
+	p := localfs.New("localfs-test")
+	snapshot, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	same, err := snapshot.SameProviderObject("original.bin", snapshot, "hardlink.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !same {
+		t.Fatal("hard-link locators were not recognized as the same provider object")
+	}
+}
+
+func TestSnapshotSymlinkHasNoRegularFileIdentityEvidence(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	outside := filepath.Join(base, "outside.txt")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, outside, []byte("outside"))
+
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink unavailable on this platform: %v", err)
+	}
+
+	p := localfs.New("localfs-test")
+	snapshot, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = snapshot.SameProviderObject("link", snapshot, "link")
+	if !errors.Is(err, localfs.ErrIdentityEvidenceAbsent) {
+		t.Fatalf("error=%v, want ErrIdentityEvidenceAbsent", err)
+	}
+}
+
 func TestDiscoverDoesNotFollowSymlink(t *testing.T) {
 	base := t.TempDir()
 	root := filepath.Join(base, "root")
@@ -134,6 +238,21 @@ func TestDiscoverRejectsNonDirectoryRoot(t *testing.T) {
 	_, err := p.Discover(context.Background(), path)
 	if !errors.Is(err, localfs.ErrRootNotDirectory) {
 		t.Fatalf("error = %v, want ErrRootNotDirectory", err)
+	}
+}
+
+func TestSnapshotUnknownLocatorFailsClosed(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "known.txt"), []byte("x"))
+
+	p := localfs.New("localfs-test")
+	snapshot, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = snapshot.SameProviderObject("missing.txt", snapshot, "known.txt")
+	if !errors.Is(err, localfs.ErrLocatorNotObserved) {
+		t.Fatalf("error=%v, want ErrLocatorNotObserved", err)
 	}
 }
 
