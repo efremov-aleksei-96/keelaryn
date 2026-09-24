@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 108,
+  "revision": 109,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "66013f2d99e68f6200637a84fba86076af113fbf",
+  "repository_basis_commit": "a2629275dbeec1f9d38912fc7345a8b87a392953",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03P-r0009-wrapper-recovery-qualified",
-    "run_id": 35982810051,
+    "scope": "D0-04-gateway-operator-channel-checkpoint",
+    "run_id": 35985027612,
     "conclusion": "PASS",
-    "relevance": "CORE_960_AND_ALL_REQUIRED_R0009_GATES_PASS_BEFORE_GATEWAY_READ_ONLY_RECOVERY_RECONCILE",
-    "note": "Exact HEAD 66013f2d99e68f6200637a84fba86076af113fbf passed Zero-based Core run 35982810051 with 960 tests and all required r0009 gates. Gateway SSH was then bootstrapped and verified against independently confirmed VPS ED25519 host key SHA256:P1+i/M2gFIZHMiaN+gJ0rv0Bpp96wv1ICjM90sRQ4zw. A direct Gateway read-only r0009 reconcile proved control boundary NEW_EXACT and canonical control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce COMPLETED_EXACT, with production current, credential, legacy Hub and Drive unchanged."
+    "relevance": "CORE_AND_REQUIRED_R0009_GATES_PASS_AFTER_GATEWAY_OPERATOR_CHANNEL_CHECKPOINT",
+    "note": "Exact HEAD a2629275dbeec1f9d38912fc7345a8b87a392953 passed Zero-based Core run 35985027612 and the required r0009 gates. Subsequent read-only architecture/VPS audit confirmed Gateway is the direct operator channel while keelaryn-operation-agent.service and keelaryn-operation-transport.service remain active transition state; no runtime or production mutation occurred."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-04_GATEWAY_OPERATOR_CHANNEL_HARDENING",
-    "description": "D0 Operator Channel is now functional: ChatGPT can directly access the owned VPS through Gateway using a managed SSH key and pinned ED25519 host key, and has independently reconciled r0009 to NEW_EXACT/COMPLETED_EXACT without maintainer PowerShell. Next harden this path: document Gateway server identity and trust evidence, prefer Gateway for all VPS reads/writes, design a non-root keelaryn-ops account plus restricted sudo/operator surface, then continue autonomous D0 development from remote authority. Do not require maintainer SSH unless evidence genuinely depends on the workstation or Gateway is unavailable.",
+    "id": "D0-04A_GATEWAY_SIMPLIFICATION_SCHEMA",
+    "description": "Gateway adoption makes the GitHub-Issues transport/relay obsolete as the normal D0 ChatGPT-to-VPS execution path. Before stopping any existing operation-control service, migrate DEVELOPMENT_STATE schema/validator/tests and D0 CI from the hard-coded r0005/GitHub-Issues selftest model to an explicit Gateway operator-channel model, while preserving historical relay evidence and Keelaryn-specific transaction/reconcile semantics. No service decommission, production mutation or Drive mutation in this objective.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
@@ -165,7 +165,8 @@
     "Treat development CI as production qualification.",
     "Infer current VPS state from this file without fresh reconciliation before mutation.",
     "Issue a real r0007 stage authorization before a fresh VPS pre-apply reconcile is durably evaluated.",
-    "Issue a second real r0007 stage authorization for the issued transaction; use only the exact Git-resolved authority or fail closed."
+    "Issue a second real r0007 stage authorization for the issued transaction; use only the exact Git-resolved authority or fail closed.",
+    "Do not decommission operation-agent/operation-transport before the Gateway state-schema migration and a fresh live reconcile are durably qualified."
   ],
   "resume_procedure": [
     "Resolve authoritative_branch HEAD live.",
@@ -177,7 +178,8 @@
     "Read fresh VPS state only when the next action depends on VPS reality.",
     "Read Google Drive only when the next action depends on corpus or Drive evidence.",
     "Continue only from next_objective or the first objectively uncompleted prerequisite.",
-    "After interruption, reconcile authority before any retry."
+    "After interruption, reconcile authority before any retry.",
+    "Use Gateway as the preferred normal VPS execution channel; require maintainer SSH only for workstation-specific evidence or Gateway recovery."
   ],
   "product_after_d0": {
     "target_level": "P0",

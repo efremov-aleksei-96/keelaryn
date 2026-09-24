@@ -2270,3 +2270,29 @@ Operational policy from here:
 - manual local execution is reserved for workstation-specific evidence or Gateway unavailability;
 - next hardening should replace routine root access with a dedicated `keelaryn-ops` account and restricted sudo/operator surface.
 
+### D0-04A Gateway simplification audit PASS
+
+A read-only repository and live VPS audit was performed after Gateway became the direct ChatGPT-to-VPS execution channel.
+
+Live VPS:
+- `keelaryn-operation-agent.service`: active/running;
+- `keelaryn-operation-transport.service`: active/running;
+- `keelaryn-drive.service`: inactive/dead;
+- no failed `keelaryn-*` service observed.
+
+Architecture classification:
+- **retain** Keelaryn-specific release/materialization identity, qualification, transactions, validation, reconciliation, rollback and Corpus-first product semantics;
+- **supersede for D0 remote execution** the GitHub Issues transport/relay and its relay-only credential role;
+- **transition-only** the currently installed operation-agent/transport services and their bootstrap/update machinery until safe decommission is separately qualified;
+- **review/simplify** Operation Runtime to preserve only domain-specific durable mutation/recovery semantics that add value beyond Gateway durable jobs.
+
+A state-schema defect/debt was also identified: the current `DEVELOPMENT_STATE` validator hard-binds installed operation-control source to the historical GitHub-Issues read-only selftest source. Therefore the state cannot truthfully switch to the current r0009/Gateway operator model without a validator/schema migration.
+
+No VPS service, production state, credential or Drive content was changed.
+
+Durable architecture: `docs/architecture/D0_GATEWAY_SIMPLIFICATION_20260924.md`.
+
+Durable audit evidence: `docs/evidence/D0_GATEWAY_SIMPLIFICATION_AUDIT_20260924.json`.
+
+Next: migrate the development-state schema/validator/tests to the Gateway operator-channel model. Do not decommission the old relay services before that migration itself passes exact-head CI and a fresh Gateway reconcile proves the live boundary.
+
