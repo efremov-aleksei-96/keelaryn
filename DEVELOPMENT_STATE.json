@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 98,
+  "revision": 99,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "53a90597ae4ea4757b83a31874921dfdba478186",
+  "repository_basis_commit": "8f948ff6125fdbbabe5ed4f6b204ea7e1082270d",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03J-r0009-post-authority-gate-alignment",
-    "run_id": 35969310230,
+    "scope": "D0-03J-r0009-post-authority-gates-PASS",
+    "run_id": 35970049721,
     "conclusion": "PASS",
-    "relevance": "CORE_PASS_AUTHORITY_PROVENANCE_EXACT_PRE_AUTHORITY_GATE_EXPECTATIONS_OBSOLETE",
-    "note": "Exact HEAD 53a90597ae4ea4757b83a31874921dfdba478186 passed Zero-based Core run 35969310230 with 921 tests. r0009 production-prep run 35969310183 and boundary-capture run 35969310171 failed only on their now-obsolete assertions that r0009 authority must be absent; both stopped before runtime/regression steps. This successor changes only those two workflow lifecycle checks to require the exact single canonical issued authority transaction 92aea51ee7f80a8e8b84fffa9315bf9e with SHA-256 56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919 and exact issuer/boundary provenance. Runtime, candidate and authority bytes are unchanged."
+    "relevance": "R0009_POST_AUTHORITY_CORE_PREP_AND_BOUNDARY_GATES_PASS",
+    "note": "Exact HEAD 8f948ff6125fdbbabe5ed4f6b204ea7e1082270d: Zero-based Core run 35970049721 PASS, r0009 production-prep gate run 35970050183 PASS and r0009 boundary-capture gate run 35970049807 PASS. Both gates verify the exact issued stage-only authority transaction 92aea51ee7f80a8e8b84fffa9315bf9e and its issuer/boundary provenance. This successor adds isolated r0009 private-input and stage-runtime tooling only; no VPS mutation, input acquisition or release staging occurs."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03J_R0009_POST_AUTHORITY_GATE_QUALIFICATION",
-    "description": "Require exact-head PASS for Zero-based Core, r0009 production-prep gate and r0009 boundary-capture gate after post-authority alignment. Both gates must verify exactly one canonical authority transaction 92aea51ee7f80a8e8b84fffa9315bf9e, SHA-256 56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919, issuer checkpoint 86aa3a92f860d9ab96ad54c6d75f9adbcf723026 and exact canonical boundary provenance. On PASS, the next separate development transaction may add r0009 private-input and stage-runtime tooling bound to authority commit f2dd7b8875d423a197c27642f8c4b1db8bbcf786. Do not mutate VPS or acquire private input in this gate-alignment transaction.",
+    "id": "D0-03J_R0009_PRIVATE_INPUT_STAGE_RUNTIME_QUALIFICATION",
+    "description": "Require exact-head PASS for Zero-based Core, r0009 private-input gate, r0009 stage-runtime gate, r0009 production-prep gate and r0009 boundary-capture gate. New private-input tooling must resolve exact authority commit f2dd7b8875d423a197c27642f8c4b1db8bbcf786/blob f903c62370dc27e3fb0264c56e6fc76e56f3afa3/SHA 56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919 and transaction 92aea51ee7f80a8e8b84fffa9315bf9e, using only /var/lib/keelaryn/operation-control/r0009-stage-input and r0009-stage-witness roots. Stage-runtime must expose only reconcile/stage, with no activation capability. After all gates PASS, perform exactly one real VPS read-only private-input reconcile; expected clean prestate is INPUT_ROOT_ABSENT and no mutation. Do not acquire private input or stage in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

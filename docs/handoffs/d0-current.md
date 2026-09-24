@@ -2024,3 +2024,25 @@ The production-prep artifact now records `r0009_authority_issued=true` and point
 No runtime, frozen candidate or authority bytes change. No VPS/Drive mutation occurs.
 
 Next: require exact-head Core + both aligned r0009 gates PASS. Only then create r0009 private-input/stage-runtime tooling in a separate transaction.
+
+### D0-03J isolated r0009 private-input and stage-runtime tooling
+
+Added r0009-only private-input and stage-runtime surfaces by rebinding the corrected r0008 pattern to the exact issued r0009 authority.
+
+Exact bindings:
+- authority commit `f2dd7b8875d423a197c27642f8c4b1db8bbcf786`;
+- authority blob `f903c62370dc27e3fb0264c56e6fc76e56f3afa3`;
+- authority SHA-256 `56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919`;
+- transaction `92aea51ee7f80a8e8b84fffa9315bf9e`;
+- boundary blob `0d29ddb050143b953157e961e40d6c63d75df916`;
+- boundary SHA-256 `d6ea834ff31d9a5269cee573009c256f6871e437ba5635c8d047602d8b1f0117`;
+- frozen source `e42a4f156abb048f5c8f0bd1884fcae51674a55f`;
+- payload `8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876`.
+
+Private input is isolated at `/var/lib/keelaryn/operation-control/r0009-stage-input`; stage witness is isolated at `/var/lib/keelaryn/operation-control/r0009-stage-witness`. Gates explicitly reject r0007/r0008 private roots.
+
+The private-input CLI exposes only `reconcile|acquire`. The stage-runtime CLI exposes only `reconcile|stage`; there is no activation command. Failure reporting retains unknown publication/witness outcome where appropriate and always reports activation/Hub/writer/credential/Drive mutation as false.
+
+No VPS action, private-input acquisition or release staging occurs in this commit.
+
+Next: require Core + r0009 private-input + stage-runtime + production-prep + boundary-capture gates PASS. Then run one real VPS **read-only private-input reconcile only**.
