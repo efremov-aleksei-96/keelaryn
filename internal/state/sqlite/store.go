@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/google/uuid"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/google/uuid"
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitemigration"
 	"zombiezen.com/go/sqlite/sqlitex"
@@ -58,7 +58,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		Flags:    sqlite.OpenReadWrite | sqlite.OpenCreate,
 		PoolSize: 1,
 		PrepareConn: func(conn *sqlite.Conn) error {
-			return sqlitex.ExecuteTransient(conn, "PRAGMA foreign_keys = ON;", nil)
+			return sqlitex.ExecuteTransient(conn, "PRAGMA foreign_keys = ON", nil)
 		},
 	})
 
@@ -95,7 +95,7 @@ func (s *Store) AdoptArtifact(ctx context.Context) (corpus.Artifact, error) {
 
 	artifact := corpus.Artifact{ID: corpus.ArtifactID("art_" + uuid.NewString())}
 	err = sqlitex.Execute(conn,
-		"INSERT INTO artifacts (artifact_id) VALUES (?1);",
+		"INSERT INTO artifacts (artifact_id) VALUES (?1)",
 		&sqlitex.ExecOptions{Args: []any{string(artifact.ID)}})
 	if err != nil {
 		return corpus.Artifact{}, fmt.Errorf("insert Artifact: %w", err)
@@ -115,7 +115,7 @@ func (s *Store) ArtifactExists(ctx context.Context, artifactID corpus.ArtifactID
 func artifactExists(conn *sqlite.Conn, artifactID corpus.ArtifactID) (bool, error) {
 	var exists bool
 	err := sqlitex.Execute(conn,
-		"SELECT 1 FROM artifacts WHERE artifact_id = ?1 LIMIT 1;",
+		"SELECT 1 FROM artifacts WHERE artifact_id = ?1 LIMIT 1",
 		&sqlitex.ExecOptions{
 			Args: []any{string(artifactID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
@@ -185,12 +185,7 @@ func (s *Store) ObserveRevision(ctx context.Context, artifactID corpus.ArtifactI
 		Evidence: evidence,
 	}
 
-	err = sqlitex.Execute(conn, `
-INSERT INTO revisions (
-	revision_id, artifact_id, sequence,
-	content_algorithm, content_digest, content_size
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6);
-`, &sqlitex.ExecOptions{
+	err = sqlitex.Execute(conn, "INSERT INTO revisions (revision_id, artifact_id, sequence, content_algorithm, content_digest, content_size) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", &sqlitex.ExecOptions{
 		Args: []any{
 			string(record.Revision.ID),
 			string(record.Revision.ArtifactID),
@@ -210,13 +205,7 @@ INSERT INTO revisions (
 func currentRevision(conn *sqlite.Conn, artifactID corpus.ArtifactID) (corpus.RevisionRecord, bool, error) {
 	var record corpus.RevisionRecord
 	var found bool
-	err := sqlitex.Execute(conn, `
-SELECT revision_id, sequence, content_algorithm, content_digest, content_size
-FROM revisions
-WHERE artifact_id = ?1
-ORDER BY sequence DESC
-LIMIT 1;
-`, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(conn, "SELECT revision_id, sequence, content_algorithm, content_digest, content_size FROM revisions WHERE artifact_id = ?1 ORDER BY sequence DESC LIMIT 1", &sqlitex.ExecOptions{
 		Args: []any{string(artifactID)},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			found = true
@@ -249,12 +238,7 @@ func (s *Store) RevisionHistory(ctx context.Context, artifactID corpus.ArtifactI
 	defer s.pool.Put(conn)
 
 	var history []corpus.RevisionRecord
-	err = sqlitex.Execute(conn, `
-SELECT revision_id, sequence, content_algorithm, content_digest, content_size
-FROM revisions
-WHERE artifact_id = ?1
-ORDER BY sequence;
-`, &sqlitex.ExecOptions{
+	err = sqlitex.Execute(conn, "SELECT revision_id, sequence, content_algorithm, content_digest, content_size FROM revisions WHERE artifact_id = ?1 ORDER BY sequence", &sqlitex.ExecOptions{
 		Args: []any{string(artifactID)},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			history = append(history, corpus.RevisionRecord{

@@ -67,15 +67,9 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Go dependency resolution, test and vet
+      - name: Go dependency lock, test and vet
         run: |
           go version
-          go mod tidy
-          echo "=== KEELARYN_TIDY_GO_MOD_BEGIN ==="
-          cat go.mod
-          echo "=== KEELARYN_TIDY_GO_MOD_END ==="
-          echo "=== KEELARYN_TIDY_GO_SUM_BEGIN ==="
-          cat go.sum
-          echo "=== KEELARYN_TIDY_GO_SUM_END ==="
+          go mod tidy -diff
           go test ./...
           go vet ./...

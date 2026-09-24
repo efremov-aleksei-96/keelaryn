@@ -220,3 +220,16 @@ Durable identity uses `github.com/google/uuid v1.6.0` (BSD-3-Clause):
 UUID generation establishes globally unique durable identifiers; it does **not** establish continuity. Continuity remains governed by the separate evidence/decision model.
 
 The store uses zombiezen's `sqlitemigration` rather than a Keelaryn-specific migration framework, including a fixed SQLite `application_id` (`KLRY`) to fail closed on a foreign database file.
+
+
+### P0-08 first-CI correction
+
+Exact-head run `36057871299` resolved and printed the canonical dependency lock, but the Ubuntu store tests exposed a strict `zombiezen/sqlitex.Execute` contract: cached single-statement execution rejects trailing bytes after the prepared statement.
+
+The initial multiline SELECT/INSERT strings ended with a semicolon plus newline, so SQLite parsed one statement and `Conn.Prepare` correctly rejected the remaining bytes.
+
+Correction:
+- every `sqlitex.Execute` query is one exact statement with no trailing semicolon/newline;
+- migration SQL remains a script and keeps normal semicolon delimiters under `sqlitemigration`;
+- exact GitHub-hosted `go mod tidy` output from run `36057871299` is committed as `go.mod/go.sum`;
+- CI returns to `go mod tidy -diff`, making dependency drift a failure rather than an implicit mutation.

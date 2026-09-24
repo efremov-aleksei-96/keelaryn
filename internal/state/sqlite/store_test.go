@@ -231,7 +231,7 @@ func TestStoreSchemaContainsOnlyIdentityTables(t *testing.T) {
 
 	var names []string
 	err = sqlitex.Execute(conn,
-		"SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;",
+		"SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
 		&sqlitex.ExecOptions{ResultFunc: func(stmt *sqlite.Stmt) error {
 			names = append(names, stmt.ColumnText(0))
 			return nil
