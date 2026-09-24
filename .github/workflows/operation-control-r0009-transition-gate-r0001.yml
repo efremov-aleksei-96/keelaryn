@@ -1,0 +1,256 @@
+name: Operation control r0009 transition gate r0001
+
+on:
+  push:
+    branches:
+      - 'dev/zero-based-keelaryn'
+    paths:
+      - 'tests/ci/operation_control_r0009_transition.py'
+      - '.github/workflows/operation-control-r0009-transition-gate-r0001.yml'
+      - 'docs/candidates/operation-control-r0005-20260921-01.json'
+      - 'docs/candidates/operation-control-r0009-20260924-01.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operation-control-r0009-transition-gate-r0001-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      OLD_SOURCE: 08f2e211f53764590f6ff0f05f86b2de62c14418
+      OLD_TREE: 8b73bb1e19f554099c81374cb957c588f479d666
+      OLD_PAYLOAD: 6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7
+      OLD_SIZE: '365052'
+      OLD_COUNT: '190'
+      NEW_SOURCE: e42a4f156abb048f5c8f0bd1884fcae51674a55f
+      NEW_TREE: 4eccddde06351d91e9bb2dcffa37e77344651621
+      NEW_PAYLOAD: 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876
+      NEW_SIZE: '442514'
+      NEW_COUNT: '227'
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compile qualification-only transition harness
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile tests/ci/operation_control_r0009_transition.py
+
+      - name: Verify frozen candidate receipts
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          old = json.loads(Path("docs/candidates/operation-control-r0005-20260921-01.json").read_text(encoding="utf-8"))
+          new = json.loads(Path("docs/candidates/operation-control-r0009-20260924-01.json").read_text(encoding="utf-8"))
+
+          if old.get("candidate") != "operation-control-r0005-20260921-01":
+              raise SystemExit("r0005 candidate receipt identity mismatch")
+          if old.get("source_commit") != os.environ["OLD_SOURCE"] or old.get("source_tree") != os.environ["OLD_TREE"]:
+              raise SystemExit("r0005 source/tree identity mismatch")
+          if old.get("payload") != {
+              "schema": "keelaryn.zero-vps-payload.v1",
+              "sha256": os.environ["OLD_PAYLOAD"],
+              "size": int(os.environ["OLD_SIZE"]),
+              "file_count": int(os.environ["OLD_COUNT"]),
+          }:
+              raise SystemExit("r0005 payload identity mismatch")
+
+          if new.get("candidate") != "operation-control-r0009-20260924-01":
+              raise SystemExit("r0009 candidate receipt identity mismatch")
+          if new.get("frozen_source_commit") != os.environ["NEW_SOURCE"] or new.get("source_tree") != os.environ["NEW_TREE"]:
+              raise SystemExit("r0009 source/tree identity mismatch")
+          if new.get("payload") != {
+              "schema": "keelaryn.zero-vps-payload.v1",
+              "sha256": os.environ["NEW_PAYLOAD"],
+              "size": int(os.environ["NEW_SIZE"]),
+              "file_count": int(os.environ["NEW_COUNT"]),
+          }:
+              raise SystemExit("r0009 payload identity mismatch")
+          security = new.get("security_contract", {})
+          if security.get("remote_allowlist") != ["PRODUCTION_SNAPSHOT", "RUNTIME_SELFTEST"]:
+              raise SystemExit("r0009 read-only allowlist mismatch")
+          if security.get("remote_mutation_handlers") != 0:
+              raise SystemExit("r0009 exposes a remote mutation handler")
+          fix = new.get("defect_fix_contract", {})
+          if fix.get("generic_active_probe_semantics_changed") is not False:
+              raise SystemExit("r0009 widened generic active-probe semantics")
+          if fix.get("template_pattern") != "keelaryn-production-snapshot@*.service":
+              raise SystemExit("r0009 template pattern mismatch")
+          tx = new.get("control_update_transaction", {})
+          if tx.get("deterministic_id") != "24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce":
+              raise SystemExit("r0009 control-update transaction mismatch")
+          if tx.get("distinct_from_rejected_r0007") is not True or tx.get("distinct_from_rejected_r0008") is not True:
+              raise SystemExit("r0009 transaction is not distinct from rejected attempts")
+          PY
+
+      - name: Check out exact frozen predecessor and candidate sources
+        run: |
+          set -euo pipefail
+          old="$RUNNER_TEMP/r0005-source"
+          new="$RUNNER_TEMP/r0009-source"
+          git worktree add --detach "$old" "$OLD_SOURCE"
+          git worktree add --detach "$new" "$NEW_SOURCE"
+
+          test "$(git -C "$old" rev-parse HEAD)" = "$OLD_SOURCE"
+          test "$(git -C "$old" rev-parse 'HEAD^{tree}')" = "$OLD_TREE"
+          test -z "$(git -C "$old" status --porcelain)"
+
+          test "$(git -C "$new" rev-parse HEAD)" = "$NEW_SOURCE"
+          test "$(git -C "$new" rev-parse 'HEAD^{tree}')" = "$NEW_TREE"
+          test -z "$(git -C "$new" status --porcelain)"
+
+      - name: Rebuild both frozen payloads twice
+        run: |
+          set -euo pipefail
+          old="$RUNNER_TEMP/r0005-source"
+          new="$RUNNER_TEMP/r0009-source"
+
+          python3 "$old/deploy/zero-based-vps/build_payload.py"             --repo-root "$old" --source-commit "$OLD_SOURCE"             --output "$RUNNER_TEMP/r0005-a.tar.gz" > "$RUNNER_TEMP/r0005-a.json"
+          python3 "$old/deploy/zero-based-vps/build_payload.py"             --repo-root "$old" --source-commit "$OLD_SOURCE"             --output "$RUNNER_TEMP/r0005-b.tar.gz" > "$RUNNER_TEMP/r0005-b.json"
+          cmp "$RUNNER_TEMP/r0005-a.tar.gz" "$RUNNER_TEMP/r0005-b.tar.gz"
+
+          python3 "$new/deploy/zero-based-vps/build_payload.py"             --repo-root "$new" --source-commit "$NEW_SOURCE"             --output "$RUNNER_TEMP/r0009-a.tar.gz" > "$RUNNER_TEMP/r0009-a.json"
+          python3 "$new/deploy/zero-based-vps/build_payload.py"             --repo-root "$new" --source-commit "$NEW_SOURCE"             --output "$RUNNER_TEMP/r0009-b.tar.gz" > "$RUNNER_TEMP/r0009-b.json"
+          cmp "$RUNNER_TEMP/r0009-a.tar.gz" "$RUNNER_TEMP/r0009-b.tar.gz"
+
+          python3 - "$RUNNER_TEMP/r0005-a.json" "$RUNNER_TEMP/r0009-a.json" <<'PY'
+          import json, os, sys
+
+          cases = [
+              (
+                  json.load(open(sys.argv[1], encoding="utf-8")),
+                  os.environ["OLD_SOURCE"],
+                  os.environ["OLD_PAYLOAD"],
+                  int(os.environ["OLD_SIZE"]),
+                  int(os.environ["OLD_COUNT"]),
+              ),
+              (
+                  json.load(open(sys.argv[2], encoding="utf-8")),
+                  os.environ["NEW_SOURCE"],
+                  os.environ["NEW_PAYLOAD"],
+                  int(os.environ["NEW_SIZE"]),
+                  int(os.environ["NEW_COUNT"]),
+              ),
+          ]
+          for value, source, digest, size, count in cases:
+              observed = {
+                  "source_commit": value.get("source_commit"),
+                  "payload_sha256": value.get("payload_sha256"),
+                  "payload_size": value.get("payload_size"),
+                  "file_count": value.get("file_count"),
+              }
+              expected = {
+                  "source_commit": source,
+                  "payload_sha256": digest,
+                  "payload_size": size,
+                  "file_count": count,
+              }
+              if observed != expected:
+                  raise SystemExit(f"frozen payload mismatch: {observed}")
+          PY
+
+      - name: Materialize exact frozen releases
+        run: |
+          set -euo pipefail
+          new="$RUNNER_TEMP/r0009-source"
+          releases="$RUNNER_TEMP/template/releases"
+          mkdir -p "$RUNNER_TEMP/template"
+
+          PYTHONDONTWRITEBYTECODE=1 python3 -B             "$new/deploy/zero-based-vps/materialize_payload.py"             --payload "$RUNNER_TEMP/r0005-a.tar.gz"             --releases-root "$releases"             --expected-source-commit "$OLD_SOURCE"             --expected-payload-sha256 "$OLD_PAYLOAD"             > "$RUNNER_TEMP/r0005-materialized.json"
+
+          PYTHONDONTWRITEBYTECODE=1 python3 -B             "$new/deploy/zero-based-vps/materialize_payload.py"             --payload "$RUNNER_TEMP/r0009-a.tar.gz"             --releases-root "$releases"             --expected-source-commit "$NEW_SOURCE"             --expected-payload-sha256 "$NEW_PAYLOAD"             > "$RUNNER_TEMP/r0009-materialized.json"
+
+          test -f "$releases/$OLD_SOURCE/PAYLOAD_IDENTITY.json"
+          test -f "$releases/$NEW_SOURCE/PAYLOAD_IDENTITY.json"
+
+      - name: Qualify exact r0005 to r0009 transition and recovery
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B             tests/ci/operation_control_r0009_transition.py             --template-releases "$RUNNER_TEMP/template/releases"             --work-root "$RUNNER_TEMP/transition-scenarios"             --output "$RUNNER_TEMP/OPERATION_CONTROL_R0009_TRANSITION.json"             > "$RUNNER_TEMP/transition-stdout.json"
+
+          cmp             "$RUNNER_TEMP/transition-stdout.json"             "$RUNNER_TEMP/OPERATION_CONTROL_R0009_TRANSITION.json"
+
+          python3 - "$RUNNER_TEMP/OPERATION_CONTROL_R0009_TRANSITION.json" <<'PY'
+          import json, sys
+          value = json.load(open(sys.argv[1], encoding="utf-8"))
+          if value.get("schema") != "keelaryn.operation-control-r0009-transition-qualification.v1":
+              raise SystemExit("transition evidence schema mismatch")
+          if value.get("qualification_result") != "PASS":
+              raise SystemExit("transition qualification did not PASS")
+          if value.get("scenario_count") != 8:
+              raise SystemExit("transition qualification scenario count mismatch")
+          if value.get("production_current_mutated") is not False:
+              raise SystemExit("transition qualification claims production mutation")
+          if value.get("credential_mutated") is not False:
+              raise SystemExit("transition qualification claims credential mutation")
+          if value.get("hub_selector_mutated") is not False:
+              raise SystemExit("transition qualification claims Hub selector mutation")
+          if value.get("drive_mutations_performed") is not False:
+              raise SystemExit("transition qualification claims Drive mutation")
+          if value.get("production_vps_mutations_performed") is not False:
+              raise SystemExit("transition qualification claims production VPS mutation")
+          if value.get("production_qualified") is not False:
+              raise SystemExit("disposable transition gate must not claim production qualification")
+          expected = {
+              "success": "COMPLETED",
+              "rollback": "ROLLED_BACK",
+              "prepared_old_exact": "RECOVERED_TO_COMPLETED",
+              "prepared_new_exact": "TERMINALIZED_WITHOUT_REPUBLICATION",
+              "partial_foreign": "FAIL_CLOSED_RECONCILE_REQUIRED",
+              "completed_replay": "IDEMPOTENT_SERVICE_RECOVERY",
+              "active_template_instance": "ACTIVE_TEMPLATE_INSTANCE_BLOCKED_AND_ROLLED_BACK",
+              "shared_outbox_upgrade": "PUBLISHED_TERMINAL_PREDECESSOR_RELAY_COMPATIBLE",
+          }
+          observed = {
+              name: entry.get("result")
+              for name, entry in value.get("scenarios", {}).items()
+          }
+          if observed != expected:
+              raise SystemExit(f"transition scenario evidence mismatch: {observed}")
+          PY
+
+      - name: Prove frozen releases remained immutable
+        run: |
+          set -euo pipefail
+          releases="$RUNNER_TEMP/template/releases"
+          new="$RUNNER_TEMP/r0009-source"
+
+          PYTHONDONTWRITEBYTECODE=1 python3 -B             "$new/deploy/zero-based-vps/materialize_payload.py" --help >/dev/null
+
+          python3 - "$releases" <<'PY'
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1])
+          forbidden = [
+              path
+              for path in root.rglob("*")
+              if path.name == "__pycache__"
+              or (path.is_file() and path.suffix in {".pyc", ".pyo"})
+          ]
+          if forbidden:
+              raise SystemExit(
+                  "qualification mutated frozen releases: "
+                  + ", ".join(str(path.relative_to(root)) for path in forbidden[:10])
+              )
+          PY
+
+      - name: Upload compact transition evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operation-control-r0009-transition-gate-r0001-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/OPERATION_CONTROL_R0009_TRANSITION.json
+          if-no-files-found: error
+          retention-days: 3

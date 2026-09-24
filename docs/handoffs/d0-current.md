@@ -1827,3 +1827,28 @@ Regression coverage now proves:
 - an active template instance blocks successor verification.
 
 No candidate receipt or authority is issued in this commit and no VPS/Drive mutation occurs. Next require exact-head Core/deterministic payload PASS; only then freeze a new r0009 candidate/version with new source/payload and control-update transaction identity.
+
+### D0-03F r0009 candidate freeze
+
+Frozen successor candidate issued:
+
+- candidate: `operation-control-r0009-20260924-01`;
+- frozen source: `e42a4f156abb048f5c8f0bd1884fcae51674a55f`;
+- source tree: `4eccddde06351d91e9bb2dcffa37e77344651621`;
+- payload SHA-256: `8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876`;
+- payload size: `442514`;
+- file count: `227`;
+- source Core run: `35918927163`, 872 tests PASS;
+- payload artifact: `10775714106`, ZIP SHA-256 `38cf9b06d1eb2edee742937ff73e2d16be7f0faee3c36126859f8ad34cf1c4d2`;
+- deterministic r0005 -> r0009 control-update transaction: `24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce`.
+
+The frozen source is the parent commit; this freeze commit contains qualification metadata/harness/workflows only and does not alter product bytes.
+
+New qualification:
+- `operation-control-r0009-gate-r0001` rebuilds the frozen payload twice, runs the full frozen Core suite, verifies cross-user relay DAC, materialization, target-host validation, D0 control validation and the explicit template-probe fix contract;
+- `operation-control-r0009-transition-gate-r0001` runs eight disposable transition/recovery scenarios;
+- the transition harness universally fails if the generic active probe is ever called for the bare snapshot template;
+- the eighth scenario forces an active snapshot instance and requires fail-closed exact rollback;
+- the existing shared-outbox predecessor-relay scenario remains required.
+
+r0007 and r0008 remain immutable terminal rejected evidence. No VPS, production current, Hub, credential or Drive mutation occurs during freeze.

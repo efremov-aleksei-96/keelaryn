@@ -1,0 +1,133 @@
+{
+  "schema": "keelaryn.operation-control-candidate.v1",
+  "candidate": "operation-control-r0009-20260924-01",
+  "frozen": true,
+  "frozen_source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+  "source_tree": "4eccddde06351d91e9bb2dcffa37e77344651621",
+  "payload": {
+    "schema": "keelaryn.zero-vps-payload.v1",
+    "sha256": "8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876",
+    "size": 442514,
+    "file_count": 227
+  },
+  "development_evidence": {
+    "core_run_id": 35918927163,
+    "core_run_attempt": 1,
+    "core_conclusion": "success",
+    "deterministic_core_tests": 872,
+    "deterministic_rebuild": true,
+    "materialization_verified": true,
+    "target_host_validator_verified": true,
+    "target_host_config_validator_verified": true,
+    "d0_control_validator_verified": true,
+    "cross_user_relay_verified": true,
+    "hub_cutover_rehearsal_verified": true,
+    "payload_artifact_id": 10775714106,
+    "payload_artifact_zip_sha256": "38cf9b06d1eb2edee742937ff73e2d16be7f0faee3c36126859f8ad34cf1c4d2",
+    "windows_workflow_applicable": false,
+    "windows_surface_relation": "CORE_OPERATION_TRANSPORT_ONLY_NO_WINDOWS_PRODUCT_SURFACE_CHANGE"
+  },
+  "predecessor": {
+    "candidate": "operation-control-r0005-20260921-01",
+    "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+    "payload_sha256": "6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7",
+    "production_state": "INSTALLED_RUNTIME_ACCEPTED_AND_R0008_LIVE_ROLLBACK_RESTORED"
+  },
+  "rejected_attempt": {
+    "candidate": "operation-control-r0008-20260923-01",
+    "source_commit": "20727893662cde92998d88ecdca730b69633eaaa",
+    "control_update_transaction_id": "83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58",
+    "terminal_state": "ROLLED_BACK_EXACT",
+    "retry_allowed": false,
+    "diagnosis_evidence": "docs/evidence/R0008_SYSTEMD_TEMPLATE_DIAGNOSIS_20260924.json"
+  },
+  "rejected_history": [
+    {
+      "candidate": "operation-control-r0007-20260921-01",
+      "source_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
+      "control_update_transaction_id": "4832c22f208742c3cf5a8e32a79fbf92bfb037acd81f21d1331904cb54f68073",
+      "terminal_state": "ROLLED_BACK_EXACT",
+      "retry_allowed": false
+    },
+    {
+      "candidate": "operation-control-r0008-20260923-01",
+      "source_commit": "20727893662cde92998d88ecdca730b69633eaaa",
+      "control_update_transaction_id": "83e20aeecd4ecd7a8288816065fa700ab3e99b8017177df215e18e03695d4e58",
+      "terminal_state": "ROLLED_BACK_EXACT",
+      "retry_allowed": false
+    }
+  ],
+  "production_anchor": {
+    "freshness": "LIVE_R0008_ROLLBACK_RECONCILED",
+    "production_source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "control_source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+    "hub_cutover_status": "PREPARED",
+    "hub_transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
+    "selector": "OLD",
+    "writer": "INACTIVE_MAINPID_0"
+  },
+  "control_channel": {
+    "repository": "efremov-aleksei-96/keelaryn",
+    "issue": 65,
+    "status_actor": "efremov-aleksei-96"
+  },
+  "security_contract": {
+    "remote_allowlist": [
+      "PRODUCTION_SNAPSHOT",
+      "RUNTIME_SELFTEST"
+    ],
+    "remote_mutation_handlers": 0,
+    "snapshot_worker": "keelaryn-production-snapshot@.service",
+    "snapshot_worker_network": "PRIVATE",
+    "snapshot_worker_linux_capabilities": "NONE",
+    "old_hub_mutation_authorized": false
+  },
+  "defect_fix_contract": {
+    "predecessor_defect_candidate": "operation-control-r0008-20260923-01",
+    "predecessor_defect_evidence": "docs/evidence/R0008_SYSTEMD_TEMPLATE_DIAGNOSIS_20260924.json",
+    "generic_active_probe_semantics_changed": false,
+    "template_probe": "SYSTEMD_ACTIVE_INSTANCE_PATTERN",
+    "template_pattern": "keelaryn-production-snapshot@*.service",
+    "template_probe_fail_closed": true,
+    "bare_template_is_active_forbidden": true
+  },
+  "upgrade_compatibility_contract": {
+    "shared_transport_root": true,
+    "published_terminal_predecessor_relay": "TOLERATED_WITH_EXACT_PRIVATE_PUBLICATION_PROOF",
+    "mismatched_nonterminal_relay": "FAIL_CLOSED",
+    "unpublished_terminal_relay": "FAIL_CLOSED",
+    "publication_digest_conflict": "FAIL_CLOSED",
+    "predecessor_relay_republished_by_successor": false
+  },
+  "control_update_transaction": {
+    "deterministic_id": "24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce",
+    "predecessor_source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+    "successor_source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+    "distinct_from_rejected_r0007": true,
+    "distinct_from_rejected_r0008": true
+  },
+  "gate": {
+    "revision": "operation-control-d0-gate-r0001",
+    "workflow": ".github/workflows/operation-control-r0009-gate-r0001.yml",
+    "state": "PENDING_FIRST_RUN"
+  },
+  "transition_gate": {
+    "revision": "operation-control-r0009-transition-gate-r0001",
+    "workflow": ".github/workflows/operation-control-r0009-transition-gate-r0001.yml",
+    "scenario_count": 8,
+    "state": "PENDING_FIRST_RUN"
+  },
+  "qualification_state": "FROZEN_NOT_PRODUCTION_QUALIFIED",
+  "constraints": [
+    "candidate source/payload bytes are immutable after this receipt is issued",
+    "r0007 and r0008 remain immutable rejected evidence and their rolled-back transactions must never be retried",
+    "gate/framework/evidence-only corrections must not alter frozen r0009 source bytes",
+    "development CI and candidate gates are not production qualification",
+    "production /opt/keelaryn/current must remain unchanged by r0009 qualification and control update",
+    "old Hub cutover remains paused and r0009 cannot authorize HUB_PRE_APPLY or any remote mutation handler",
+    "r0009 remote allowlist remains exactly RUNTIME_SELFTEST plus PRODUCTION_SNAPSHOT, both read-only",
+    "r0005-to-r0009 transition qualification must reproduce durable shared-outbox predecessor-relay compatibility",
+    "r0005-to-r0009 transition qualification must prove generic active_probe is never used for the bare systemd template and active snapshot instances fail closed",
+    "after any interrupted or failed production update attempt, perform read-only reconciliation before considering any new transaction"
+  ]
+}

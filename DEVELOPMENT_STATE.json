@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 88,
+  "revision": 89,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "ca6db2889a2276f2f44dd864985d0f08754fd523",
+  "repository_basis_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03D-r0008-rollback-lifecycle-fixture-correction",
-    "run_id": 35917065818,
+    "scope": "D0-03E-r0009-successor-source-Core-PASS-and-freeze",
+    "run_id": 35918927163,
     "conclusion": "PASS",
-    "relevance": "CORE_AND_R0008_CONTROL_UPDATE_RUNTIME_GATE_PASS_AFTER_TERMINAL_R0008_REJECTION",
-    "note": "Exact HEAD ec1ad98b630bb0cec7123f454c57aa6d02e7dc66: Zero-based Core run 35917065818 PASS after test-only lifecycle fixture correction; r0008 control-update-runtime gate run 35917065724 PASS. r0008 remains rejected/terminal and no product/runtime bytes changed."
+    "relevance": "FROZEN_R0009_SOURCE_READY_FOR_CANDIDATE_AND_TRANSITION_GATES",
+    "note": "Source commit e42a4f156abb048f5c8f0bd1884fcae51674a55f passed 872 deterministic Core tests, cross-user relay DAC, deterministic payload rebuild/materialization/target-host validation and D0 control validation. Exact payload identity is 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876, size 442514, file_count 227, source tree 4eccddde06351d91e9bb2dcffa37e77344651621. This revision freezes operation-control-r0009-20260924-01 and adds candidate/transition qualification only; frozen source bytes remain at the parent commit."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -145,8 +145,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03E_R0009_FIX_QUALIFICATION",
-    "description": "A development successor fix for the confirmed r0008 bare-template systemd defect is committed without changing frozen r0008 bytes. The D0 updater now keeps generic persistent-service active_probe semantics unchanged and uses a separate fail-closed template_active_probe that queries active instantiated units with systemctl list-units --type=service --state=active --no-legend --plain keelaryn-production-snapshot@*.service. Regressions preserve the observed rc=1 bare-template failure as an error, prove the generic probe is never used for the bare template, detect active instances, and fail closed on template-probe errors. Require exact-head Core PASS and deterministic payload qualification. Only after green CI may this source be frozen as new candidate r0009 with a new payload and deterministic control-update transaction identity. No VPS mutation is allowed yet.",
+    "id": "D0-03F_R0009_CANDIDATE_QUALIFICATION",
+    "description": "Require exact-head PASS for operation-control-r0009-gate-r0001 and operation-control-r0009-transition-gate-r0001. The candidate gate must rebuild and materialize frozen source e42a4f156abb048f5c8f0bd1884fcae51674a55f exactly and run the full frozen Core suite. The transition gate must qualify r0005 -> r0009 success, exact rollback, PREPARED/OLD recovery, PREPARED/NEW terminalization without republication, partial foreign fail-closed behavior, completed replay, active-template-instance fail-closed exact rollback, and shared-outbox upgrade compatibility. Do not stage or mutate VPS until both gates PASS and compact evidence is reviewed. Preserve r0007/r0008 and their rolled-back transaction identities as immutable rejected evidence.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
@@ -167,7 +167,7 @@
     "Resolve the commit that last changed DEVELOPMENT_STATE.json and compare it with current HEAD.",
     "Resolve current HEAD CI live and distinguish it from recorded historical CI.",
     "Require repository_basis_commit to be the checkpoint commit first parent when CI enforces a fresh checkpoint.",
-    "Before any r0008 control-update action, resolve exact transaction a6383609e9a6442ad86445ba62baff93 from authority commit 03f3e794fdcbd18e07d21dcb633c463674ce4e6b, verify exact authority path/blob/SHA, exact staged release/witness, and fresh live VPS boundary.",
+    "Before any r0009 production action, resolve the frozen r0009 candidate receipt and exact gate evidence live, then reconcile VPS from the r0005 OLD_EXACT boundary; never reuse r0007/r0008 stage/control-update authority or transaction identities.",
     "Read fresh VPS state only when the next action depends on VPS reality.",
     "Read Google Drive only when the next action depends on corpus or Drive evidence.",
     "Continue only from next_objective or the first objectively uncompleted prerequisite.",
