@@ -1888,3 +1888,15 @@ Current production-boundary state still cites canonical r0008 stage-boundary evi
 No r0009 authority is issued in this commit. r0007/r0008 authorities and transaction state are read-only historical evidence and are not imported or reused.
 
 Next: require exact-head Core and r0009 production-prep gate PASS, then run one fresh real-VPS read-only r0009 reconcile. Canonical r0009 boundary capture remains a separate later transaction.
+
+### D0-03G r0009 production-prep gate harness correction
+
+The first r0009 production-prep gate run `35963547025` failed at its syntax-check step after:
+- exact frozen r0009 candidate validation PASS;
+- confirmation that no r0009 stage authority exists PASS.
+
+The Python modules produced no syntax traceback. The failure came from `python -m py_compile` creating unignored `__pycache__/*.pyc` files, after which the gate's own `git status --porcelain` cleanliness assertion failed.
+
+This correction changes **only** the workflow harness: the seven r0009 prep modules are now syntax-checked using Python's in-memory `compile()` over source text. No product/runtime/test file is changed. Exact-head Core run `35963546919` on the framework commit is PASS.
+
+Next: require the corrected r0009 production-prep gate and exact-head Core to PASS. Only then perform one real-VPS read-only r0009 reconcile.

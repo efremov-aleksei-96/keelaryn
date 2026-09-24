@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 91,
+  "revision": 92,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "0f31fea177d7e7fcad32794a967c0f52ade90b67",
+  "repository_basis_commit": "0bf3e1eb328954171d1f35a125df3240e8642eb2",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03F-r0009-candidate-and-transition-gates-PASS",
-    "run_id": 35960522322,
+    "scope": "D0-03G-r0009-production-prep-framework-harness-correction",
+    "run_id": 35963546919,
     "conclusion": "PASS",
-    "relevance": "R0009_FROZEN_CANDIDATE_8_SCENARIO_TRANSITION_AND_EXACT_HEAD_CORE_QUALIFIED",
-    "note": "Exact HEAD ac9f89cbf13eebc77cf4417c187268170cf62e80: r0009 candidate gate run 35960522322 PASS, r0009 transition gate run 35960522374 PASS, Zero-based Core run 35960522210 PASS. Frozen source e42a4f156abb048f5c8f0bd1884fcae51674a55f, tree 4eccddde06351d91e9bb2dcffa37e77344651621, payload 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876 size 442514 file_count 227. Transition gate passed 8 disposable scenarios including active-template-instance fail-closed exact rollback and shared-outbox compatibility. No production or Drive mutation occurred."
+    "relevance": "EXACT_HEAD_CORE_PASS_PRODUCT_BYTES_VALID_PREP_GATE_FAILURE_HARNESS_ONLY",
+    "note": "Exact HEAD 0bf3e1eb328954171d1f35a125df3240e8642eb2 passed Zero-based Core run 35963546919. r0009 production-prep gate run 35963547025 passed exact candidate and authority-absence checks, then failed only because its py_compile syntax step created unignored __pycache__/pyc files and the immediate clean-tree assertion detected them. No Python traceback occurred. This successor changes only the workflow syntax-check to in-memory compile(); r0009 product/runtime/test bytes remain unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -152,7 +152,7 @@
   },
   "next_objective": {
     "id": "D0-03G_R0009_PRODUCTION_PREP_QUALIFICATION",
-    "description": "An isolated r0009 production-prep framework is added without issuing authority or mutating VPS. Require exact-head PASS for operation-control-r0009-production-prep-gate-r0001 and Zero-based Core. The framework is bound to immutable operation-control-r0009-20260924-01 source e42a4f156abb048f5c8f0bd1884fcae51674a55f payload 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876, the exact systemd template defect-fix contract and control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce. It may accept r0007/r0008 stage-boundary evidence only as read-only predecessor provenance but must not import, reuse or overwrite rejected authority namespaces. After both gates PASS, perform exactly one fresh real-VPS read-only operation_control_r0009_vps.py reconcile from r0005 OLD_EXACT. Do not issue r0009 stage authority or mutate VPS yet.",
+    "description": "The r0009 production-prep framework product/runtime/test bytes remain unchanged; only the dedicated gate syntax-check harness is corrected to use in-memory compile() so it cannot dirty the checkout. Require exact-head PASS for operation-control-r0009-production-prep-gate-r0001 and Zero-based Core. On PASS, perform exactly one fresh real-VPS read-only operation_control_r0009_vps.py reconcile from the r0005 OLD_EXACT boundary. Do not issue r0009 stage authority, create private input, stage a release, or mutate VPS before that reconcile is evaluated.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
