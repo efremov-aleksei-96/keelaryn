@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 3,
+  "revision": 4,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -23,14 +23,14 @@
     "DRIVE_PUBLIC_KEELARYN_FOLDER_ARCHIVED",
     "LEGACY_RUNTIME_DECOMMISSION_PRESTATE_RECONCILED",
     "LEGACY_RUNTIME_DECOMMISSION_PLAN_READY",
-    "C0_CI_MINIMIZED"
+    "C0_CI_MINIMIZED",
+    "LEGACY_RUNTIME_DECOMMISSION_EXECUTED_VERIFIED"
   ],
   "next_objective": {
-    "id": "C0_LEGACY_RUNTIME_DECOMMISSION",
-    "description": "Execute the already reconciled reversible disable+stop of keelaryn-operation-agent.service and keelaryn-operation-transport.service as one coherent VPS transaction, immediately verify both disabled/inactive and Gateway still functional, then checkpoint the result. Do not delete units, credentials, runtime state, releases, or Drive content in that transaction.",
+    "id": "C0_POST_DECOMMISSION_CONVERGENCE",
+    "description": "Finish remaining C0 convergence without resurrecting legacy runtime: verify the clean CI on this checkpoint, reconcile the tooling-blocked keelaryn-private Drive archive path using a different safe identity-preserving connector path if available, then decide least-privilege Gateway/operator hardening and delayed deletion/archive of obsolete runtime credentials/unit files/state. Do not blind-retry the timed-out Drive update action and do not delete legacy runtime evidence yet.",
     "drive_mutation_approved": false,
-    "deletion_approved": false,
-    "runtime_mutation_scope": "DISABLE_STOP_LEGACY_AGENT_TRANSPORT_ONLY"
+    "deletion_approved": false
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -61,7 +61,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "f95b806e4e0fa6cb6fd5d1b50f94a5902c239113",
+  "repository_basis_commit": "fdecb7fbf010f11e0817e8678b8d70ba0ee9e2c0",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -141,21 +141,23 @@
     "disposition": "DO_NOT_BYPASS_MUTATION_INHIBIT_TO_MOVE_DRIVE_CONTENT"
   },
   "runtime_decommission": {
-    "status": "READY_NOT_EXECUTED",
-    "observed": {
-      "agent": "active_enabled",
-      "transport": "active_enabled",
-      "drive_service": "inactive_enabled",
-      "operation_records": 3,
-      "all_operation_records": "READ_ONLY_SUCCEEDED_COMPLETE_NEXT_NONE",
-      "transport_inbox_entries": 0,
-      "transport_outbox_entries": 3,
-      "all_outbox": "TERMINAL_PUBLISHED"
+    "status": "COMPLETED_VERIFIED",
+    "mutation_job_id": "job_01M3A00X3YR994NAM07WR48C0A",
+    "verification_job_id": "job_01M3A06BKE43536DM5DS431B7E",
+    "result": {
+      "agent": "inactive_disabled",
+      "transport": "inactive_disabled",
+      "drive_service": "inactive_enabled_unchanged",
+      "matching_processes": "ABSENT",
+      "gateway_post_mutation_read": "PASS",
+      "legacy_state_hashes": "EXACT",
+      "credential_hash": "EXACT",
+      "unit_files_deleted": false,
+      "runtime_state_deleted": false,
+      "credential_deleted": false,
+      "releases_deleted": false
     },
-    "plan_document": "docs/C0_RUNTIME_DECOMMISSION.md",
-    "first_mutation": "DISABLE_AND_STOP_AGENT_AND_TRANSPORT_ONLY",
-    "deletes_files": false,
-    "deletes_state": false,
-    "rollback": "ENABLE_AND_START_TRANSPORT_THEN_AGENT"
+    "rollback": "systemctl enable --now keelaryn-operation-transport.service keelaryn-operation-agent.service",
+    "plan_document": "docs/C0_RUNTIME_DECOMMISSION.md"
   }
 }

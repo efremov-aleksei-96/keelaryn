@@ -1,6 +1,6 @@
 # C0 Legacy Runtime Decommission Plan
 
-Status: **READY FOR EXECUTION, NOT YET EXECUTED**  
+Status: **COMPLETED AND VERIFIED**  
 Observed through Gateway on 2026-09-24.
 
 ## Current live state
@@ -117,3 +117,25 @@ Only after a stable observation period:
 - decide disposition of old `/opt/keelaryn` releases.
 
 None of those actions are part of the first decommission.
+
+
+## Execution result
+
+Executed through Gateway as one coherent VPS mutation:
+
+`systemctl disable --now keelaryn-operation-agent.service keelaryn-operation-transport.service`
+
+Gateway durable mutation job: `job_01M3A00X3YR994NAM07WR48C0A`.
+
+Post-verification:
+
+- `keelaryn-operation-agent.service` = `inactive/dead`, `disabled`;
+- `keelaryn-operation-transport.service` = `inactive/dead`, `disabled`;
+- `keelaryn-drive.service` remained `inactive/dead`, `enabled`;
+- no operation-agent/transport process remains;
+- Gateway SSH read after mutation = PASS;
+- all pre-captured hashes under legacy operation/transport/control state = EXACT;
+- GitHub-operation credential hash = EXACT;
+- no unit file, credential, release or runtime evidence was deleted.
+
+Verification job: `job_01M3A06BKE43536DM5DS431B7E`.
