@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 104,
+  "revision": 105,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "d21e7eda4b2f5e010af40d49180b07bd79058bd3",
+  "repository_basis_commit": "95853a827e35c41c8021f2908e1aa86503ba7641",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03M-r0009-clean-stage-prestate-checkpoint",
-    "run_id": 35978122222,
+    "scope": "D0-03N-r0009-staged-release-checkpoint",
+    "run_id": 35978766717,
     "conclusion": "PASS",
-    "relevance": "CORE_946_AND_ALL_REQUIRED_R0009_GATES_PASS_BEFORE_SINGLE_STAGE_EXECUTION",
-    "note": "Exact HEAD d21e7eda4b2f5e010af40d49180b07bd79058bd3 passed Zero-based Core run 35978122222 with 946 tests plus r0009 private-input, stage-runtime, production-prep and boundary-capture gates. One real VPS stage transaction then completed STAGED_EXACT/COMPLETED_EXACT for transaction 92aea51ee7f80a8e8b84fffa9315bf9e with prepared witness SHA d04430a3da9e830671ea108c980712f9f36b8cb2942deb69a65da4d7ce686909; mandatory post-stage reconcile independently confirmed exact staged release, witness PRESENT and private input INPUT_EXACT. Production current and all activation/Hub/writer/credential/Drive mutation surfaces remained unchanged."
+    "relevance": "CORE_946_AND_REQUIRED_R0009_GATES_PASS_AFTER_STAGED_RELEASE_CHECKPOINT",
+    "note": "Exact HEAD 95853a827e35c41c8021f2908e1aa86503ba7641 passed Zero-based Core run 35978766717 with 946 tests and all required r0009 private-input, stage-runtime, production-prep and boundary-capture gates. The staged-release checkpoint records COMPLETED_EXACT/STAGED_EXACT with witness PRESENT, private input INPUT_EXACT and production current unchanged. This successor adds only r0009 control-update runtime/reconcile development tooling and adjusts the r0009 prep namespace count to eleven; it does not perform a control update."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03N_R0009_CONTROL_UPDATE_RUNTIME",
-    "description": "r0009 release staging is complete and independently post-reconciled for transaction 92aea51ee7f80a8e8b84fffa9315bf9e: release STAGED_EXACT, execution COMPLETED_EXACT, witness root PRESENT, private input INPUT_EXACT, prepared witness SHA d04430a3da9e830671ea108c980712f9f36b8cb2942deb69a65da4d7ce686909, and production/Drive mutation flags false. Do not replay stage. Next create and qualify an r0009-specific control-update runtime derived from the corrected r0008 flow, rebound to exact r0009 source/payload/stage authority and the already-qualified deterministic control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce. It must first expose read-only reconcile, prove current r0005 control boundary plus exact staged r0009 release/witness, and keep production current, legacy Hub, credential and Drive outside mutation scope. No real r0005->r0009 control switch until the new runtime/gate is exact-head qualified and a fresh real-VPS read-only control-update prestate is durably checkpointed.",
+    "id": "D0-03N_R0009_CONTROL_UPDATE_RUNTIME_QUALIFICATION",
+    "description": "Require exact-head PASS for Zero-based Core, r0009 control-update-runtime gate, r0009 private-input gate, r0009 stage-runtime gate, r0009 production-prep gate and r0009 boundary-capture gate. The new runtime is bound to predecessor r0005 source/payload, staged r0009 source e42a4f156abb048f5c8f0bd1884fcae51674a55f and payload 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876, exact stage witnesses under r0009-stage-witness, and deterministic control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce. Its staged frozen updater must carry the exact systemd active-instance defect fix. After all gates PASS, run exactly one real VPS read-only operation_control_r0009_control_update_runtime.py reconcile and durably checkpoint the control-update prestate. Do not run update in the same transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

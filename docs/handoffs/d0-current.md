@@ -2165,3 +2165,26 @@ No activation, production-current switch, legacy Hub, writer, credential or Driv
 Durable evidence: `docs/evidence/R0009_STAGE_COMPLETED_20260924.json`.
 
 Do **not** replay stage. Next development transaction is r0009-specific control-update runtime/reconcile qualification. A real r0005→r0009 control switch remains forbidden until that runtime is qualified and a fresh control-update prestate is checkpointed.
+
+### D0-03N isolated r0009 control-update runtime
+
+Added r0009-specific control-update runtime and regressions plus `operation-control-r0009-control-update-runtime-gate-r0001`.
+
+The runtime is rebound to:
+- predecessor r0005 source `08f2e211f53764590f6ff0f05f86b2de62c14418` / payload `6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7`;
+- staged successor source `e42a4f156abb048f5c8f0bd1884fcae51674a55f`;
+- successor payload `8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876`, size `442514`, file count `227`;
+- r0009 stage witness root;
+- deterministic r0005→r0009 control-update transaction `24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce`.
+
+The runtime loads `operation_control_d0_update.py` from the **exact staged r0009 frozen release**, not from the development checkout. Therefore a real update can use only the already-frozen candidate implementation.
+
+The dedicated gate additionally requires the exact r0009 systemd-template defect-fix contract and proves that the new control-update transaction is distinct from both rejected r0007 and r0008 transaction identities.
+
+CLI surface remains only `reconcile|update`. Production current, legacy Hub and Drive remain outside the mutation scope; update failures report mutation outcome unknown and require reconciliation.
+
+The r0009 production-prep namespace now contains eleven tools, including this control-update runtime.
+
+No VPS control-update action occurs in this commit.
+
+Next: require exact-head Core + all r0009 gates PASS. Then execute one real VPS **read-only control-update reconcile only** and checkpoint that prestate before considering `update`.
