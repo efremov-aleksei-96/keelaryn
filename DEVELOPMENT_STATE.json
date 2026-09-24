@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 109,
+  "revision": 110,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "a2629275dbeec1f9d38912fc7345a8b87a392953",
+  "repository_basis_commit": "a49731720868988f3e3b436cf8b2cb47897608a6",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-04-gateway-operator-channel-checkpoint",
-    "run_id": 35985027612,
+    "scope": "C0-precanonical-baseline",
+    "run_id": 35985675915,
     "conclusion": "PASS",
-    "relevance": "CORE_AND_REQUIRED_R0009_GATES_PASS_AFTER_GATEWAY_OPERATOR_CHANNEL_CHECKPOINT",
-    "note": "Exact HEAD a2629275dbeec1f9d38912fc7345a8b87a392953 passed Zero-based Core run 35985027612 and the required r0009 gates. Subsequent read-only architecture/VPS audit confirmed Gateway is the direct operator channel while keelaryn-operation-agent.service and keelaryn-operation-transport.service remain active transition state; no runtime or production mutation occurred."
+    "relevance": "LAST_EXACT_HEAD_CORE_PASS_BEFORE_CANONICAL_CLEAN_SLATE_CONVERGENCE",
+    "note": "Exact HEAD a49731720868988f3e3b436cf8b2cb47897608a6 passed Zero-based Core validation before the canonical architecture reset. This CI primarily validates legacy Hub/D0 implementation and is retained only as pre-cleanup engineering evidence; it is not evidence that Corpus-first P0 exists."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-04A_GATEWAY_SIMPLIFICATION_SCHEMA",
-    "description": "Gateway adoption makes the GitHub-Issues transport/relay obsolete as the normal D0 ChatGPT-to-VPS execution path. Before stopping any existing operation-control service, migrate DEVELOPMENT_STATE schema/validator/tests and D0 CI from the hard-coded r0005/GitHub-Issues selftest model to an explicit Gateway operator-channel model, while preserving historical relay evidence and Keelaryn-specific transaction/reconcile semantics. No service decommission, production mutation or Drive mutation in this objective.",
+    "id": "C0_CLEAN_SLATE_MANIFEST",
+    "description": "Treat KEELARYN_CANONICAL.md as the sole current product/architecture authority. Before new P0 product code, perform read-only C0 cleanup inventory and classify Git plus Google Drive Keelaryn-development material as KEEP/ABSORB/ARCHIVE/DELETE_CANDIDATE/REVIEW. Freeze the pre-P0 Git world, absorb unique knowledge, then create a minimal active Corpus-first line. Do not mutate Google Drive until an exact proposed move/delete manifest is shown to and explicitly approved by the maintainer.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
@@ -166,9 +166,12 @@
     "Infer current VPS state from this file without fresh reconciliation before mutation.",
     "Issue a real r0007 stage authorization before a fresh VPS pre-apply reconcile is durably evaluated.",
     "Issue a second real r0007 stage authorization for the issued transaction; use only the exact Git-resolved authority or fail closed.",
-    "Do not decommission operation-agent/operation-transport before the Gateway state-schema migration and a fresh live reconcile are durably qualified."
+    "Do not decommission operation-agent/operation-transport before the Gateway state-schema migration and a fresh live reconcile are durably qualified.",
+    "Do not treat superseded Hub-first/Zero-Based/spec/roadmap documents as current product architecture; KEELARYN_CANONICAL.md is the sole current product/architecture authority.",
+    "Do not begin new Corpus-first P0 feature development before C0 clean-slate convergence completes."
   ],
   "resume_procedure": [
+    "Read KEELARYN_CANONICAL.md first for current product architecture; conflicting older architecture/spec/roadmap material is provenance only.",
     "Resolve authoritative_branch HEAD live.",
     "Read and strictly validate DEVELOPMENT_STATE.json.",
     "Resolve the commit that last changed DEVELOPMENT_STATE.json and compare it with current HEAD.",
