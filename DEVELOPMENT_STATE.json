@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 28,
+  "revision": 29,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -55,11 +55,12 @@
     "P0_08_DEPENDENCY_LOCK_CAPTURED",
     "P0_08_SQLITEX_TRAILING_BYTES_DEFECT_FIXED",
     "P0_08_SQLITE_DURABLE_STATE_QUALIFIED",
-    "P0_09_DURABLE_OBSERVATION_LOCATOR_IMPLEMENTED"
+    "P0_09_DURABLE_OBSERVATION_LOCATOR_IMPLEMENTED",
+    "P0_09_DURABLE_OBSERVATION_LOCATOR_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_09_QUALIFY_DURABLE_OBSERVATIONS",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass v1→v2 migration, unresolved/assigned observation durability, multiple-locator, repeated-path non-identity, FK/assignment fail-closed tests, go mod tidy -diff and go vet. If green, qualify P0-09 and implement scan/session boundaries needed to derive an honest inventory/current-locator view.",
+    "id": "P0_10_SCAN_SESSION_INVENTORY",
+    "description": "Add durable scan sessions with OPEN/COMPLETE/ABORTED states. Bind new observations atomically to an OPEN scan, enforce provider/root consistency, and derive inventory plus Artifact current locators only from the latest COMPLETE scan for that provider/root. A newer OPEN or ABORTED scan must not affect results; a newer COMPLETE unresolved observation must not preserve a stale Artifact locator. Do not add provider polling, watcher, extraction, or search.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -92,7 +93,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "2ba10eca1c40dbcccab80ac63e3d646e9945db79",
+  "repository_basis_commit": "fe88b38b8b9e12abb440322495a211c64207959b",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -727,7 +728,7 @@
     }
   },
   "p0_09": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Persist append-only ProviderObject occurrences, Observations, and Locator snapshots without turning Locator into identity or guessing Artifact assignment.",
     "reuse_basis": [
       "Perkeep stable anchor + append-only claim pattern informs separation between durable object identity and historical evidence.",
@@ -772,6 +773,38 @@
         "extraction",
         "search"
       ]
+    },
+    "qualification": {
+      "exact_head": "fe88b38b8b9e12abb440322495a211c64207959b",
+      "ci_run_id": 36059020523,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "gates": [
+        "v1→v2 schema migration",
+        "unresolved observation durability",
+        "assigned Artifact/Revision durability",
+        "multiple Locators per occurrence",
+        "same path across observations is not identity",
+        "provider/Artifact/Revision mismatch fail-closed",
+        "go mod tidy -diff",
+        "go vet"
+      ]
     }
+  },
+  "p0_10": {
+    "status": "PLANNED",
+    "objective": "Add scan/session completeness so inventory and current locator derive only from a fully committed observation set.",
+    "invariants": [
+      "OPEN scan never changes authoritative inventory/current locator",
+      "ABORTED scan never changes authoritative inventory/current locator",
+      "only latest COMPLETE scan for one provider/root is eligible",
+      "observations cannot be added after scan leaves OPEN",
+      "one OPEN scan per provider/root",
+      "ambiguous/unresolved latest COMPLETE observation removes any claim of current Artifact locator",
+      "current locator remains a derived query, not stored authority"
+    ]
   }
 }
