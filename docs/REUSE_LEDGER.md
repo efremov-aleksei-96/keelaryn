@@ -94,3 +94,25 @@ This logic is Keelaryn-specific policy, not generic infrastructure:
 The local filesystem `os.SameFile` adapter always maps to `SUPPORTING`.
 
 This layer intentionally does not allocate Artifact IDs yet. It establishes the safety contract that every later evidence source (fsnotify, provider change feed, direct Keelaryn mutation provenance, user confirmation) must satisfy.
+
+
+## P0-05 — local temporal evidence reuse research
+
+**Decision:** do not add a watcher dependency yet. Prefer `fsnotify/fsnotify` as the future notification substrate, but its current public API is not sufficient to authorize Artifact continuity.
+
+Survey:
+- `fsnotify/fsnotify v1.10.1` — BSD-3-Clause, active, Linux inotify + Windows ReadDirectoryChangesW. It detects event overflow on both platforms.
+- Upstream merged PR #628 already pairs Linux move cookies and Windows old/new rename records internally.
+- The paired old path is stored as an unexported `Event.renamedFrom`; issue #26 remains the public-API tracker. Public callers therefore still see rename-old plus create-new without a reliable exported pairing key.
+- `fswatcher/fswatcher` — MIT and active, but its public Event also exposes only Name+Op and discards native rename pairing.
+- `radovskyb/watcher` — BSD-3-Clause and exposes OldPath, but it is polling-based and recognizes moves by `sameFile`; this inherits the native-ID reuse limitation already rejected for automatic continuity.
+
+Disposition:
+1. Do not write a new generic watcher.
+2. Do not parse `fsnotify.Event.String()` or use unsafe/reflection to reach the private rename field.
+3. Do not treat rename-old/create-new adjacency as continuity proof.
+4. Keep `fsnotify` as the preferred future event transport.
+5. If P0/P1 requires conclusive local rename evidence, first attempt an upstream-compatible exported rename-pair API; otherwise maintain the smallest pinned BSD-licensed fork/patch of fsnotify's existing implementation.
+6. Any overflow/gap invalidates assumptions based on event-stream completeness and requires read-only rescan/reconcile.
+
+P0 continues with first-class ambiguity instead of waiting for this optional stronger evidence source.
