@@ -116,3 +116,25 @@ Disposition:
 6. Any overflow/gap invalidates assumptions based on event-stream completeness and requires read-only rescan/reconcile.
 
 P0 continues with first-class ambiguity instead of waiting for this optional stronger evidence source.
+
+
+## P0-06 — ambiguity-first Artifact registry
+
+**Decision:** implement directly in the Keelaryn domain layer; add no dependency.
+
+This is product-specific identity policy, not reusable infrastructure.
+
+The registry is intentionally provider-neutral and never receives:
+- paths/Locators;
+- content hashes;
+- native filesystem IDs;
+- provider object IDs.
+
+Rules:
+- first adoption with no continuity candidate creates a process-local Artifact ID;
+- `CONFIRMED_SAME` preserves the existing Artifact;
+- `CONFIRMED_DISTINCT` creates a new Artifact;
+- `AMBIGUOUS` and `UNRESOLVED` create nothing and return the prior Artifact only as an explicit candidate;
+- invalid candidates/decision states fail without mutation.
+
+IDs use a simple session counter in this spike. This is deliberate: UUID/ULID/KSUID format choice belongs to the persistence layer and must not be confused with continuity correctness.

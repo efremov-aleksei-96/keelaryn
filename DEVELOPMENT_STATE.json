@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 19,
+  "revision": 20,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -44,11 +44,12 @@
     "P0_03_CONTINUITY_EVIDENCE_QUALIFIED",
     "P0_04_CONTINUITY_DECISION_MODEL_IMPLEMENTED",
     "P0_04_CONTINUITY_DECISION_MODEL_QUALIFIED",
-    "P0_05_TEMPORAL_EVIDENCE_REUSE_RESEARCH_COMPLETE"
+    "P0_05_TEMPORAL_EVIDENCE_REUSE_RESEARCH_COMPLETE",
+    "P0_06_AMBIGUITY_FIRST_ARTIFACT_REGISTRY_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_06_AMBIGUITY_FIRST_ARTIFACT_REGISTRY",
-    "description": "Implement a provider-neutral in-memory Artifact registry. First adoption of an observed provider object creates a process-local Artifact identity. Later reconciliation preserves an existing Artifact only for CONFIRMED_SAME, creates a new Artifact for CONFIRMED_DISTINCT, and performs no identity mutation for AMBIGUOUS or UNRESOLVED. Return an explicit unresolved assignment with candidate Artifact IDs instead of guessing. No persistence, hashes, Revision logic, watcher dependency, or UUID dependency yet.",
+    "id": "P0_06_QUALIFY_AMBIGUITY_FIRST_ARTIFACT_REGISTRY",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass registry identity-safety tests and all prior continuity tests. If green, checkpoint P0-06 and start the minimal content Revision layer: observe content evidence without making hash equal Artifact identity, prove unchanged content does not create a new Revision, changed content does, and A→B→A remains three distinct revision events. Keep persistence deferred until semantics are qualified.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -81,7 +82,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "dbfd510fc6092f6e4788ecbe44b6a1b9279a221d",
+  "repository_basis_commit": "ce6f6c50cb4996ca483e9cb70c8eb4b704782c0a",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -544,7 +545,18 @@
     "disposition": "Continue P0 with ambiguity-first Artifact registry; revisit fsnotify through upstream contribution or minimal pinned fork only when required."
   },
   "p0_06": {
-    "status": "PLANNED",
-    "objective": "Create the minimal in-memory Artifact registry that can establish identity at adoption, preserve it only on CONFIRMED_SAME, allocate a new Artifact on CONFIRMED_DISTINCT, and leave current objects unassigned on AMBIGUOUS/UNRESOLVED."
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "dependencies_added": 0,
+    "persistence": false,
+    "id_format": "session-artifact-NNNNNN",
+    "invariants": [
+      "first adoption creates a new Artifact",
+      "CONFIRMED_SAME preserves Artifact identity",
+      "CONFIRMED_DISTINCT creates a new Artifact",
+      "AMBIGUOUS creates no Artifact and returns candidate identity explicitly",
+      "UNRESOLVED creates no Artifact and returns candidate identity explicitly",
+      "unknown candidate/decision fails without mutation",
+      "registry has no Locator/hash/native-ID/provider-ID input"
+    ]
   }
 }
