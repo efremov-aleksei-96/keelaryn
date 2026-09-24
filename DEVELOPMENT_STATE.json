@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 110,
+  "revision": 111,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "a49731720868988f3e3b436cf8b2cb47897608a6",
+  "repository_basis_commit": "fb74959ff3cbd58bee8e154d012e1bd023ed075c",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "C0-precanonical-baseline",
-    "run_id": 35985675915,
+    "scope": "C0-canonical-authority-commit-observed",
+    "run_id": 35998858715,
     "conclusion": "PASS",
-    "relevance": "LAST_EXACT_HEAD_CORE_PASS_BEFORE_CANONICAL_CLEAN_SLATE_CONVERGENCE",
-    "note": "Exact HEAD a49731720868988f3e3b436cf8b2cb47897608a6 passed Zero-based Core validation before the canonical architecture reset. This CI primarily validates legacy Hub/D0 implementation and is retained only as pre-cleanup engineering evidence; it is not evidence that Corpus-first P0 exists."
+    "relevance": "HISTORICAL_BASELINE_PLUS_EXPECTED_VALIDATOR_MIGRATION",
+    "note": "The canonical authority commit itself triggered legacy Zero-based Core run 35998858715; it failed only because the old objective-id regex rejected the new C0_CLEAN_SLATE_MANIFEST identifier before any tests ran. This checkpoint repairs only that operational validator grammar and adds regression coverage. Product architecture remains KEELARYN_CANONICAL.md."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",

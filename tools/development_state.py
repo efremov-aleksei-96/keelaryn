@@ -14,7 +14,7 @@ STATE_SCHEMA = "keelaryn.autonomous-development-state.v1"
 SNAPSHOT_SCHEMA = "keelaryn.autonomous-development-snapshot.v1"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 TOKEN_RE = re.compile(r"^[A-Z0-9][A-Z0-9_.:-]{0,127}$")
-OBJECTIVE_RE = re.compile(r"^D[0-9]+-[0-9]+[A-Z]?(?:_[A-Z0-9_-]+)?$")
+OBJECTIVE_RE = re.compile(r"^(?:D[0-9]+-[0-9]+[A-Z]?|C[0-9]+)(?:_[A-Z0-9_-]+)?$")
 
 
 class DevelopmentStateError(RuntimeError):

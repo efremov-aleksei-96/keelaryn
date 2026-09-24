@@ -201,6 +201,17 @@ class DevelopmentStateValidationTests(unittest.TestCase):
         with self.assertRaises(development_state.DevelopmentStateError):
             development_state.validate_state(value)
 
+    def test_clean_slate_objective_id_is_valid(self) -> None:
+        value = _state("0" * 40)
+        value["next_objective"]["id"] = "C0_CLEAN_SLATE_MANIFEST"
+        development_state.validate_state(value)
+
+    def test_invalid_objective_id_is_rejected(self) -> None:
+        value = _state("0" * 40)
+        value["next_objective"]["id"] = "CLEANUP"
+        with self.assertRaises(development_state.DevelopmentStateError):
+            development_state.validate_state(value)
+
     def test_live_vps_evidence_requires_read_only_selftest_source_binding(self) -> None:
         value = _state("0" * 40)
         value["production_boundary"]["read_only_selftest"]["source_commit"] = "f" * 40
