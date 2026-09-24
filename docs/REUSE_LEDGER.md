@@ -233,3 +233,22 @@ Correction:
 - migration SQL remains a script and keeps normal semicolon delimiters under `sqlitemigration`;
 - exact GitHub-hosted `go mod tidy` output from run `36057871299` is committed as `go.mod/go.sum`;
 - CI returns to `go mod tidy -diff`, making dependency drift a failure rather than an implicit mutation.
+
+
+## P0-09 — durable Observation and Locator evidence
+
+**Decision:** reuse the existing SQLite/sqlitemigration stack; add no dependency.
+
+Design borrows two proven ideas without adopting their storage models:
+- Perkeep separates a stable object anchor from append-only claims that describe changing state over time.
+- DataLad separates dataset/content identity from location/provenance tracking.
+
+Keelaryn applies the same separation to an existing external corpus:
+- `Artifact` remains the stable Keelaryn identity;
+- a `ProviderObjectOccurrence` is one durable record of the physical object evidenced in one observation and does **not** claim cross-scan continuity;
+- `Observation` is append-only evidence;
+- `Locator` records where that occurrence was observed and may have multiple rows (for example hard links);
+- the same path in two observations is allowed and creates no identity relation;
+- unresolved observations persist with NULL Artifact/Revision rather than being guessed.
+
+Schema v2 intentionally does **not** implement a `current_locator` table/view. Without a complete scan/session boundary, "latest historical locator" is not equivalent to "current locator".

@@ -7,6 +7,9 @@ import "time"
 type ArtifactID string
 type ProviderID string
 type ProviderObjectID string
+type ProviderObjectOccurrenceID string
+type ObservationID string
+type LocatorID string
 type RevisionID string
 
 // Artifact is Keelaryn's stable logical identity for a tracked thing.
@@ -79,4 +82,48 @@ func NewCatalog() *Catalog {
 		ProviderObjects: make(map[ProviderObjectID]ProviderObject),
 		Revisions:       make(map[RevisionID]Revision),
 	}
+}
+
+
+// ObservationRecordInput is provider-neutral append-only evidence to persist.
+// Empty ArtifactID/RevisionID with AssignmentUnresolved is a valid first-class
+// state and must not be "fixed" by guessing identity.
+type ObservationRecordInput struct {
+	ProviderObject  ProviderObject  `json:"provider_object"`
+	Locators        []Locator       `json:"locators"`
+	ArtifactID      ArtifactID      `json:"artifact_id,omitempty"`
+	RevisionID      RevisionID      `json:"revision_id,omitempty"`
+	AssignmentState AssignmentState `json:"assignment_state"`
+	ObservedAt      time.Time       `json:"observed_at"`
+	Kind            EntryKind       `json:"kind"`
+	Size            int64           `json:"size"`
+	Mode            uint32          `json:"mode"`
+	ModifiedAt      time.Time       `json:"modified_at"`
+}
+
+// LocatorRecord gives an observation-time Locator its own record identity.
+// LocatorID is provenance bookkeeping, not Artifact or ProviderObject identity.
+type LocatorRecord struct {
+	ID            LocatorID      `json:"id"`
+	ObservationID ObservationID  `json:"observation_id"`
+	Locator       Locator        `json:"locator"`
+}
+
+// ObservationRecord is the durable append-only form of discovery evidence.
+// ProviderObjectOccurrenceID names this observation's physical-object
+// occurrence record; it deliberately does not claim continuity with any other
+// occurrence.
+type ObservationRecord struct {
+	ID                       ObservationID              `json:"id"`
+	ProviderObjectOccurrenceID ProviderObjectOccurrenceID `json:"provider_object_occurrence_id"`
+	ProviderObject           ProviderObject             `json:"provider_object"`
+	Locators                 []LocatorRecord            `json:"locators"`
+	ArtifactID               ArtifactID                 `json:"artifact_id,omitempty"`
+	RevisionID               RevisionID                 `json:"revision_id,omitempty"`
+	AssignmentState          AssignmentState            `json:"assignment_state"`
+	ObservedAt               time.Time                  `json:"observed_at"`
+	Kind                     EntryKind                  `json:"kind"`
+	Size                     int64                      `json:"size"`
+	Mode                     uint32                     `json:"mode"`
+	ModifiedAt               time.Time                  `json:"modified_at"`
 }

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 27,
+  "revision": 28,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -54,11 +54,12 @@
     "P0_08_SQLITE_DURABLE_STATE_IMPLEMENTED",
     "P0_08_DEPENDENCY_LOCK_CAPTURED",
     "P0_08_SQLITEX_TRAILING_BYTES_DEFECT_FIXED",
-    "P0_08_SQLITE_DURABLE_STATE_QUALIFIED"
+    "P0_08_SQLITE_DURABLE_STATE_QUALIFIED",
+    "P0_09_DURABLE_OBSERVATION_LOCATOR_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_09_DURABLE_OBSERVATION_LOCATOR",
-    "description": "Extend SQLite schema with minimal provider_objects, observations, and locators. Record append-only observations with zero/one Artifact and Revision assignment, allow unresolved provider-object identity, support multiple locators for one observed provider object, preserve ambiguity by allowing NULL Artifact/Revision, and prove reopen durability. Do not implement current-locator view, scan sessions, provider sync, extraction, or search yet.",
+    "id": "P0_09_QUALIFY_DURABLE_OBSERVATIONS",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass v1→v2 migration, unresolved/assigned observation durability, multiple-locator, repeated-path non-identity, FK/assignment fail-closed tests, go mod tidy -diff and go vet. If green, qualify P0-09 and implement scan/session boundaries needed to derive an honest inventory/current-locator view.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -91,7 +92,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "c28ff667ca55cb27ba8339ff38fc94bfcf0cfd47",
+  "repository_basis_commit": "2ba10eca1c40dbcccab80ac63e3d646e9945db79",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -726,7 +727,7 @@
     }
   },
   "p0_09": {
-    "status": "PLANNED",
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Persist append-only ProviderObject occurrences, Observations, and Locator snapshots without turning Locator into identity or guessing Artifact assignment.",
     "reuse_basis": [
       "Perkeep stable anchor + append-only claim pattern informs separation between durable object identity and historical evidence.",
@@ -740,6 +741,37 @@
       "Locator is observation data, never a primary Artifact/ProviderObject identity.",
       "One observed provider object may have multiple locators in the same observation.",
       "Current locator is deferred to scan/session semantics and must not be inferred merely from newest historical row."
-    ]
+    ],
+    "implementation": {
+      "schema_version": 2,
+      "dependencies_added": 0,
+      "tables_added": [
+        "provider_object_occurrences",
+        "observations",
+        "locators"
+      ],
+      "record_ids": {
+        "provider_object_occurrence": "pobjocc_<UUIDv4>",
+        "observation": "obs_<UUIDv4>",
+        "locator": "loc_<UUIDv4>"
+      },
+      "guarantees": [
+        "observations are append-only",
+        "unresolved observation persists with NULL Artifact/Revision",
+        "provider-native identity may remain unresolved",
+        "multiple locators may belong to one observed provider-object occurrence",
+        "same locator may recur in separate observations without becoming identity",
+        "assigned Revision must belong to assigned Artifact",
+        "qualified schema v1 migrates transactionally to v2"
+      ],
+      "explicitly_deferred": [
+        "current locator",
+        "scan/session completeness",
+        "cross-observation ProviderObject continuity",
+        "provider synchronization",
+        "extraction",
+        "search"
+      ]
+    }
   }
 }

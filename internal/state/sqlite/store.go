@@ -35,6 +35,64 @@ CREATE TABLE revisions (
 CREATE INDEX revisions_artifact_sequence
 	ON revisions (artifact_id, sequence);
 `,
+		`
+CREATE UNIQUE INDEX revisions_identity_artifact
+	ON revisions (revision_id, artifact_id);
+
+CREATE TABLE provider_object_occurrences (
+	occurrence_id TEXT PRIMARY KEY NOT NULL,
+	provider_id TEXT NOT NULL,
+	native_object_id TEXT,
+	identity_state TEXT NOT NULL
+		CHECK (identity_state IN ('UNRESOLVED', 'OBSERVED')),
+	CHECK (
+		(identity_state = 'UNRESOLVED' AND native_object_id IS NULL)
+		OR
+		(identity_state = 'OBSERVED' AND native_object_id IS NOT NULL)
+	)
+) STRICT;
+
+CREATE TABLE observations (
+	observation_id TEXT PRIMARY KEY NOT NULL,
+	occurrence_id TEXT NOT NULL
+		REFERENCES provider_object_occurrences(occurrence_id) ON DELETE RESTRICT,
+	artifact_id TEXT REFERENCES artifacts(artifact_id) ON DELETE RESTRICT,
+	revision_id TEXT,
+	assignment_state TEXT NOT NULL
+		CHECK (assignment_state IN ('ASSIGNED', 'UNRESOLVED')),
+	observed_at TEXT NOT NULL,
+	kind TEXT NOT NULL
+		CHECK (kind IN ('REGULAR_FILE', 'SYMLINK', 'OTHER')),
+	size INTEGER NOT NULL CHECK (size >= 0),
+	mode INTEGER NOT NULL CHECK (mode >= 0),
+	modified_at TEXT NOT NULL,
+	CHECK (
+		(assignment_state = 'ASSIGNED' AND artifact_id IS NOT NULL)
+		OR
+		(assignment_state = 'UNRESOLVED' AND artifact_id IS NULL AND revision_id IS NULL)
+	),
+	CHECK (revision_id IS NULL OR artifact_id IS NOT NULL),
+	FOREIGN KEY (revision_id, artifact_id)
+		REFERENCES revisions(revision_id, artifact_id) ON DELETE RESTRICT
+) STRICT;
+
+CREATE TABLE locators (
+	locator_id TEXT PRIMARY KEY NOT NULL,
+	observation_id TEXT NOT NULL
+		REFERENCES observations(observation_id) ON DELETE RESTRICT,
+	provider_id TEXT NOT NULL,
+	root TEXT NOT NULL,
+	path TEXT NOT NULL,
+	UNIQUE (observation_id, provider_id, root, path)
+) STRICT;
+
+CREATE INDEX observations_occurrence
+	ON observations (occurrence_id);
+CREATE INDEX observations_artifact
+	ON observations (artifact_id);
+CREATE INDEX locators_observation
+	ON locators (observation_id);
+`,
 	},
 }
 
