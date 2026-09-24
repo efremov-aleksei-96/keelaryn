@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 20,
+  "revision": 21,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -45,11 +45,12 @@
     "P0_04_CONTINUITY_DECISION_MODEL_IMPLEMENTED",
     "P0_04_CONTINUITY_DECISION_MODEL_QUALIFIED",
     "P0_05_TEMPORAL_EVIDENCE_REUSE_RESEARCH_COMPLETE",
-    "P0_06_AMBIGUITY_FIRST_ARTIFACT_REGISTRY_IMPLEMENTED"
+    "P0_06_AMBIGUITY_FIRST_ARTIFACT_REGISTRY_IMPLEMENTED",
+    "P0_06_AMBIGUITY_FIRST_ARTIFACT_REGISTRY_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_06_QUALIFY_AMBIGUITY_FIRST_ARTIFACT_REGISTRY",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass registry identity-safety tests and all prior continuity tests. If green, checkpoint P0-06 and start the minimal content Revision layer: observe content evidence without making hash equal Artifact identity, prove unchanged content does not create a new Revision, changed content does, and A→B→A remains three distinct revision events. Keep persistence deferred until semantics are qualified.",
+    "id": "P0_07_REVISION_SEMANTICS",
+    "description": "Implement a process-local RevisionTracker tied to ArtifactRegistry and a read-only local SHA-256 evidence function. First content observation creates Revision 1; identical repeated evidence reuses the current Revision; changed evidence creates a new Revision; A→B→A creates three distinct Revision identities even though the third digest equals the first. Evidence algorithm changes must fail closed rather than invent a revision. No persistence or eager full-corpus hashing yet.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -82,7 +83,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "ce6f6c50cb4996ca483e9cb70c8eb4b704782c0a",
+  "repository_basis_commit": "e4c5bd1c8b1a6025d2946a72d0417d3d9b833a13",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -545,7 +546,7 @@
     "disposition": "Continue P0 with ambiguity-first Artifact registry; revisit fsnotify through upstream contribution or minimal pinned fork only when required."
   },
   "p0_06": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "dependencies_added": 0,
     "persistence": false,
     "id_format": "session-artifact-NNNNNN",
@@ -557,6 +558,20 @@
       "UNRESOLVED creates no Artifact and returns candidate identity explicitly",
       "unknown candidate/decision fails without mutation",
       "registry has no Locator/hash/native-ID/provider-ID input"
-    ]
+    ],
+    "qualification": {
+      "exact_head": "e4c5bd1c8b1a6025d2946a72d0417d3d9b833a13",
+      "ci_run_id": 36056529052,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "invariant": "AMBIGUOUS/UNRESOLVED never allocate or mutate Artifact identity"
+    }
+  },
+  "p0_07": {
+    "status": "PLANNED",
+    "objective": "Add minimal Revision semantics tied to a known Artifact. Content hash is evidence only, never Artifact or Revision identity."
   }
 }
