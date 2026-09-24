@@ -179,3 +179,26 @@ Correction:
 - Artifact assignment still requires the separate continuity decision layer.
 
 This defect is retained as a regression lesson: native identity evidence cannot safely bind a later path lookup to an older observation after an unobserved gap.
+
+
+## P0-08 — durable state store selection
+
+**Decision:** first spike uses `zombiezen.com/go/sqlite v1.4.2` (ISC).
+
+Why:
+- no CGO; compatible with the single-binary/cross-platform direction;
+- built on the mature pure-Go `modernc.org/sqlite` substrate;
+- already provides `sqlitemigration` with transactional migrations, `PRAGMA application_id` protection, version tracking, and pool lifecycle;
+- exposes SQLite online backup API;
+- avoids us writing a custom migration framework merely to reach P0 durability.
+
+Alternatives reviewed:
+- `github.com/ncruces/go-sqlite3 v0.35.6` — MIT, no-CGO, database/sql and online backup; excellent candidate if zombiezen footprint/API becomes problematic, but migration policy would still be ours and the public version is pre-v1.
+- `modernc.org/sqlite` — BSD-3-Clause, no-CGO, selected indirectly as zombiezen's SQLite substrate.
+- `github.com/mattn/go-sqlite3` — MIT but requires CGO/GCC, rejected for the base portable binary.
+
+Hard boundary:
+- SQLite is **Keelaryn control state**, not corpus storage.
+- An open DB must live on local/runtime storage, not in a synchronized/network corpus root.
+- First schema contains only non-rebuildable Artifact/Revision identity state and minimal content evidence.
+- Extracted text, embeddings, previews, indexes, and file bytes remain outside this durable identity schema and are not introduced by P0-08.
