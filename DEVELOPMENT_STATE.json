@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 100,
+  "revision": 101,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "a89fdd53d5c55a10fc293802e1f9a0b8849aa7cb",
+  "repository_basis_commit": "c1c981f3edec0b5a444e48ba1c83f45debe06db5",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03J-r0009-private-input-stage-runtime-harness-correction",
-    "run_id": 35970536531,
+    "scope": "D0-03J-r0009-private-input-stage-runtime-qualified-and-clean-prestate",
+    "run_id": 35970912445,
     "conclusion": "PASS",
-    "relevance": "CORE_946_PASS_PRIVATE_INPUT_AND_BOUNDARY_GATES_PASS_TWO_WORKFLOW_ONLY_FAILURES",
-    "note": "Exact HEAD a89fdd53d5c55a10fc293802e1f9a0b8849aa7cb passed Zero-based Core run 35970536531 with 946 tests, r0009 private-input gate run 35970536634 and r0009 boundary-capture gate run 35970536339. r0009 stage-runtime run 35970536768 failed before runtime tests because its workflow authority-check had an IndentationError introduced by the provenance assertion insertion. r0009 production-prep run 35970536423 passed candidate/authority/syntax checks and failed only because its namespace count still expected 8 tools after private_input and stage_runtime increased the set to 10. This successor changes only those two workflows; runtime/test/authority bytes remain unchanged."
+    "relevance": "CORE_946_AND_ALL_FOUR_R0009_GATES_PASS_PLUS_REAL_VPS_PRIVATE_INPUT_RECONCILE_CLEAN",
+    "note": "Exact HEAD c1c981f3edec0b5a444e48ba1c83f45debe06db5 passed Zero-based Core run 35970912445 with 946 tests, r0009 private-input gate 35970912342, stage-runtime gate 35970912458, production-prep gate 35970912595 and boundary-capture gate 35970912923. A subsequent real VPS read-only private-input reconcile resolved exact authority f2dd7b.../f903c.../56c161... and transaction 92aea51e..., proved live r0005 boundary unchanged, and found /var/lib/keelaryn/operation-control/r0009-stage-input absent. All mutation/publication flags were false."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03J_R0009_PRIVATE_INPUT_STAGE_RUNTIME_QUALIFICATION",
-    "description": "Require exact-head PASS for Zero-based Core, r0009 private-input gate, r0009 stage-runtime gate, r0009 production-prep gate and r0009 boundary-capture gate after workflow-only harness corrections. Production-prep must syntax-check all ten r0009 tools and accept exactly ten. Stage-runtime authority verification must parse and enforce the exact stage-only authority before running runtime regressions. On all PASS, perform exactly one real VPS read-only operation_control_r0009_private_input.py reconcile pinned to that qualified HEAD. Expected clean prestate is INPUT_ROOT_ABSENT with all mutation/publication flags false. Do not run acquire or stage in the same transaction.",
+    "id": "D0-03K_R0009_PRIVATE_INPUT_ACQUISITION",
+    "description": "Perform exactly one controlled r0009 private-input acquisition transaction using operation_control_r0009_private_input.py acquire, pinned to the currently qualified branch. Before mutation the tool must re-resolve the exact issued authority, rebuild/materialize the frozen r0009 payload deterministically, revalidate branch tip and live production boundary at the mutation boundary, and require the private input prestate to remain absent or exact. The only permitted durable VPS mutation is creation of the r0009 private input root and publication of transaction-bound payload 92aea51ee7f80a8e8b84fffa9315bf9e.r0009.tar.gz under /var/lib/keelaryn/operation-control/r0009-stage-input. No release publication, stage witness, activation, legacy Hub, writer, credential or Drive mutation is authorized. After acquisition, immediately run read-only reconcile and checkpoint exact durable input identity before any stage operation.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

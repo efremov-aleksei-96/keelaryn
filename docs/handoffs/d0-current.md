@@ -2063,3 +2063,27 @@ This revision changes only the two workflow harnesses:
 No runtime, test, frozen candidate, authority, VPS, private-input, witness, release, Hub or Drive state changes.
 
 Next: require all five exact-head prerequisites PASS. Then run one real VPS read-only private-input `reconcile` only.
+
+### D0-03K r0009 private-input clean prestate PASS
+
+One real VPS **read-only** `operation_control_r0009_private_input.py reconcile` was executed on exact branch tip `c1c981f3edec0b5a444e48ba1c83f45debe06db5`.
+
+Verified:
+- exact authority commit `f2dd7b8875d423a197c27642f8c4b1db8bbcf786`;
+- authority blob `f903c62370dc27e3fb0264c56e6fc76e56f3afa3`;
+- authority SHA-256 `56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919`;
+- transaction `92aea51ee7f80a8e8b84fffa9315bf9e`;
+- live production source remains `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- installed control source remains r0005 `08f2e211f53764590f6ff0f05f86b2de62c14418`;
+- legacy Hub remains `PREPARED / OLD`;
+- writer remains `INACTIVE / MainPID=0`;
+- r0009 snapshot unit remains absent;
+- private input root `/var/lib/keelaryn/operation-control/r0009-stage-input` is absent;
+- transaction payload path would be `92aea51ee7f80a8e8b84fffa9315bf9e.r0009.tar.gz`;
+- all mutation/publication/activation/Hub/writer/credential/Drive flags are false.
+
+Durable evidence: `docs/evidence/R0009_PRIVATE_INPUT_PRESTATE_20260924.json`.
+
+The reconcile output carried no timestamp, so none is inferred.
+
+Next transaction may perform exactly one controlled private-input `acquire`. It must remain confined to the r0009 private-input root and must immediately be followed by read-only reconciliation before any release staging.
