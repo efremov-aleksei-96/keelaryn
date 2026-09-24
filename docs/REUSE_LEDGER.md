@@ -79,3 +79,18 @@ Durable/global ID libraries surveyed for the later persistence layer:
 - `segmentio/ksuid` — MIT.
 
 None is added now because identifier-format choice is orthogonal to continuity correctness and P0-03 remains non-persistent.
+
+
+## P0-04 — continuity decision model
+
+**Decision:** implement the tiny domain resolver directly; no external dependency.
+
+This logic is Keelaryn-specific policy, not generic infrastructure:
+- `SUPPORTING` evidence informs but cannot mutate Artifact identity;
+- `CONCLUSIVE` evidence may confirm same/distinct only when non-conflicting;
+- no evidence => `UNRESOLVED`;
+- supporting-only or conflicting evidence => `AMBIGUOUS`.
+
+The local filesystem `os.SameFile` adapter always maps to `SUPPORTING`.
+
+This layer intentionally does not allocate Artifact IDs yet. It establishes the safety contract that every later evidence source (fsnotify, provider change feed, direct Keelaryn mutation provenance, user confirmation) must satisfy.

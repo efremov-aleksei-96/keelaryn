@@ -15,10 +15,28 @@ const (
 // P0-03 because native filesystem identifiers can be reused after deletion or
 // otherwise fail to be globally stable over time.
 type ContinuityEvidence struct {
-	Kind                 ContinuityEvidenceKind `json:"kind"`
-	ProviderID           ProviderID             `json:"provider_id"`
-	PreviousLocators     []Locator              `json:"previous_locators"`
-	CurrentLocators      []Locator              `json:"current_locators"`
-	Basis                string                 `json:"basis"`
-	AutomaticMergeAllowed bool                  `json:"automatic_merge_allowed"`
+	Kind                  ContinuityEvidenceKind `json:"kind"`
+	ProviderID            ProviderID             `json:"provider_id"`
+	PreviousLocators      []Locator              `json:"previous_locators"`
+	CurrentLocators       []Locator              `json:"current_locators"`
+	Basis                 string                 `json:"basis"`
+	AutomaticMergeAllowed bool                   `json:"automatic_merge_allowed"`
+}
+
+// DecisionEvidence converts provider-native continuity evidence into the
+// provider-neutral resolver model. Local filesystem SameFile evidence is
+// always supporting, never conclusive.
+func (e ContinuityEvidence) DecisionEvidence() DecisionEvidence {
+	direction := DirectionUnknown
+	switch e.Kind {
+	case ContinuityNativeIdentityMatch:
+		direction = DirectionSupportsSame
+	case ContinuityNativeIdentityMismatch:
+		direction = DirectionSupportsDistinct
+	}
+	return DecisionEvidence{
+		Source:    e.Basis,
+		Direction: direction,
+		Strength:  EvidenceSupporting,
+	}
 }

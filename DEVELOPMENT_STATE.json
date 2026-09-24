@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 16,
+  "revision": 17,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -40,11 +40,13 @@
     "P0_02_PROVIDER_OBJECT_GROUPS_IMPLEMENTED",
     "P0_02_PROVIDER_OBJECT_GROUPS_QUALIFIED",
     "P0_03_UNSAFE_AUTO_MERGE_PLAN_REJECTED",
-    "P0_03_CONTINUITY_EVIDENCE_IMPLEMENTED"
+    "P0_03_CONTINUITY_EVIDENCE_IMPLEMENTED",
+    "P0_03_CONTINUITY_EVIDENCE_QUALIFIED",
+    "P0_04_CONTINUITY_DECISION_MODEL_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_03_QUALIFY_CONTINUITY_EVIDENCE",
-    "description": "Require Ubuntu and Windows 2025 CI to prove rename emits NATIVE_IDENTITY_MATCH evidence, independent byte-identical copy emits NATIVE_IDENTITY_MISMATCH evidence, and no native-ID evidence can automatically merge Artifacts. If green, choose the smallest additional evidence source that can safely strengthen continuity (provider change events/direct operation provenance) rather than prematurely allocating stable Artifact IDs.",
+    "id": "P0_04_QUALIFY_CONTINUITY_DECISION_MODEL",
+    "description": "Require Ubuntu and Windows 2025 CI to pass fail-closed continuity resolution tests. If green, survey the smallest practical source of conclusive temporal continuity evidence for local filesystems. Evaluate fsnotify first as reusable cross-platform event transport, but do not assume its events are durable or sufficient; preserve ambiguity on overflow/gaps/unpaired renames.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -77,7 +79,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "6e7c2687082412f0ce4c0998ba1ca59d7d86fe33",
+  "repository_basis_commit": "4abf52f94e4b46dd3dc6096efd7520b0d6c362a8",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -438,7 +440,7 @@
     }
   },
   "p0_03": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "original_plan": "Assign stable in-memory Artifact identity directly from native provider-object identity matches.",
     "correction": "REJECTED_AS_UNSAFE",
     "rationale": "Native filesystem IDs are lifetime-scoped evidence and may be reused after deletion; a scan gap cannot prove no delete/recreate occurred.",
@@ -470,6 +472,31 @@
         "license": "MIT",
         "decision": "DEFER_TO_PERSISTENCE"
       }
-    ]
+    ],
+    "qualification": {
+      "exact_head": "4abf52f94e4b46dd3dc6096efd7520b0d6c362a8",
+      "ci_run_id": 36048225726,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "invariant": "native identity evidence never auto-merges Artifact identity"
+    }
+  },
+  "p0_04": {
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "dependencies_added": 0,
+    "states": [
+      "UNRESOLVED",
+      "AMBIGUOUS",
+      "CONFIRMED_SAME",
+      "CONFIRMED_DISTINCT"
+    ],
+    "evidence_strengths": [
+      "SUPPORTING",
+      "CONCLUSIVE"
+    ],
+    "safety_rule": "Only non-conflicting CONCLUSIVE evidence can confirm continuity; supporting-only evidence is AMBIGUOUS."
   }
 }
