@@ -1852,3 +1852,27 @@ New qualification:
 - the existing shared-outbox predecessor-relay scenario remains required.
 
 r0007 and r0008 remain immutable terminal rejected evidence. No VPS, production current, Hub, credential or Drive mutation occurs during freeze.
+
+### D0-03G r0009 candidate qualification checkpoint
+
+Frozen `operation-control-r0009-20260924-01` is now durably recorded as `FROZEN_TRANSITION_GATE_PASS`.
+
+Exact qualified identities:
+- source `e42a4f156abb048f5c8f0bd1884fcae51674a55f`;
+- tree `4eccddde06351d91e9bb2dcffa37e77344651621`;
+- payload SHA-256 `8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876`;
+- payload size `442514`;
+- file count `227`;
+- deterministic r0005 -> r0009 control-update transaction `24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce`.
+
+Qualification:
+- candidate gate run `35960522322` PASS, artifact `10791109816`;
+- transition gate run `35960522374` PASS, artifact `10792505159`;
+- exact-head Core run `35960522210` PASS;
+- transition qualification passed eight disposable scenarios, including active snapshot-template instance fail-closed exact rollback and shared-outbox predecessor-relay compatibility.
+
+No production VPS, production current, Hub, credential or Drive mutation occurred.
+
+Durable evidence: `docs/evidence/R0009_QUALIFICATION_20260924.json`.
+
+Next objective is a **new r0009 production-prep chain**. Reuse of r0007/r0008 stage authority, witness roots, private-input transaction identity or control-update transaction identity is forbidden. First build and qualify r0009-specific read-only preparation/reconcile tooling in CI; only then obtain a fresh real-VPS read-only boundary before issuing any new stage authority.

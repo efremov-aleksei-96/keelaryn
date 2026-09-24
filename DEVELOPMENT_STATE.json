@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 89,
+  "revision": 90,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+  "repository_basis_commit": "ac9f89cbf13eebc77cf4417c187268170cf62e80",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03E-r0009-successor-source-Core-PASS-and-freeze",
-    "run_id": 35918927163,
+    "scope": "D0-03F-r0009-candidate-and-transition-gates-PASS",
+    "run_id": 35960522322,
     "conclusion": "PASS",
-    "relevance": "FROZEN_R0009_SOURCE_READY_FOR_CANDIDATE_AND_TRANSITION_GATES",
-    "note": "Source commit e42a4f156abb048f5c8f0bd1884fcae51674a55f passed 872 deterministic Core tests, cross-user relay DAC, deterministic payload rebuild/materialization/target-host validation and D0 control validation. Exact payload identity is 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876, size 442514, file_count 227, source tree 4eccddde06351d91e9bb2dcffa37e77344651621. This revision freezes operation-control-r0009-20260924-01 and adds candidate/transition qualification only; frozen source bytes remain at the parent commit."
+    "relevance": "R0009_FROZEN_CANDIDATE_8_SCENARIO_TRANSITION_AND_EXACT_HEAD_CORE_QUALIFIED",
+    "note": "Exact HEAD ac9f89cbf13eebc77cf4417c187268170cf62e80: r0009 candidate gate run 35960522322 PASS, r0009 transition gate run 35960522374 PASS, Zero-based Core run 35960522210 PASS. Frozen source e42a4f156abb048f5c8f0bd1884fcae51674a55f, tree 4eccddde06351d91e9bb2dcffa37e77344651621, payload 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876 size 442514 file_count 227. Transition gate passed 8 disposable scenarios including active-template-instance fail-closed exact rollback and shared-outbox compatibility. No production or Drive mutation occurred."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -126,6 +126,12 @@
       "state": "REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT",
       "source_commit": "20727893662cde92998d88ecdca730b69633eaaa",
       "retry": "FORBIDDEN"
+    },
+    {
+      "candidate": "operation-control-r0009-20260924-01",
+      "state": "FROZEN_TRANSITION_GATE_PASS",
+      "source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+      "retry": "NOT_A_RETRY_TARGET"
     }
   ],
   "transaction_disposition": {
@@ -145,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03F_R0009_CANDIDATE_QUALIFICATION",
-    "description": "Require exact-head PASS for operation-control-r0009-gate-r0001 and operation-control-r0009-transition-gate-r0001. The candidate gate must rebuild and materialize frozen source e42a4f156abb048f5c8f0bd1884fcae51674a55f exactly and run the full frozen Core suite. The transition gate must qualify r0005 -> r0009 success, exact rollback, PREPARED/OLD recovery, PREPARED/NEW terminalization without republication, partial foreign fail-closed behavior, completed replay, active-template-instance fail-closed exact rollback, and shared-outbox upgrade compatibility. Do not stage or mutate VPS until both gates PASS and compact evidence is reviewed. Preserve r0007/r0008 and their rolled-back transaction identities as immutable rejected evidence.",
+    "id": "D0-03G_R0009_PRODUCTION_PREP",
+    "description": "Prepare a new production-safe r0009 staging lifecycle without mutating VPS. Build r0009-specific production-prep, boundary-capture, private-input, stage-authority/stage-runtime and later control-update wrappers by rebinding the already-proven framework to immutable candidate operation-control-r0009-20260924-01, frozen source e42a4f156abb048f5c8f0bd1884fcae51674a55f, payload 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876 and control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce. r0007/r0008 stage and control-update authorities/roots remain immutable rejected evidence and must not be reused or overwritten. First qualify the new r0009 prep/reconcile protocols in CI, then perform a fresh real-VPS read-only boundary reconcile from the r0005 OLD_EXACT control boundary. Do not issue r0009 stage authority or mutate VPS before those prerequisites pass.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
