@@ -163,3 +163,19 @@ Safety:
 - changed evidence creates a new Revision;
 - A→B→A creates a third Revision even when its digest equals Revision 1;
 - changing evidence algorithm is non-comparable and fails without mutation in this minimal model.
+
+
+### P0-07 correction after CI
+
+The first implementation attempted to bind an on-demand content read to an older `Snapshot` using `os.SameFile(oldInfo, openedInfo)`.
+
+Ubuntu CI disproved this: deleting a file and immediately creating a replacement at the same path reused the inode, so `os.SameFile` returned true. This is a concrete reproduction of the native-ID reuse risk already identified in P0-03.
+
+Correction:
+- remove the unsafe `Snapshot.ContentEvidence` API;
+- on-demand hashing now creates a **fresh content observation** anchored to the open file handle;
+- pre-open and post-read locator checks occur while the handle is open;
+- the result does not claim continuity with any earlier Snapshot or Artifact;
+- Artifact assignment still requires the separate continuity decision layer.
+
+This defect is retained as a regression lesson: native identity evidence cannot safely bind a later path lookup to an older observation after an unobserved gap.

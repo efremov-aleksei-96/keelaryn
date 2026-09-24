@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 22,
+  "revision": 23,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -47,11 +47,13 @@
     "P0_05_TEMPORAL_EVIDENCE_REUSE_RESEARCH_COMPLETE",
     "P0_06_AMBIGUITY_FIRST_ARTIFACT_REGISTRY_IMPLEMENTED",
     "P0_06_AMBIGUITY_FIRST_ARTIFACT_REGISTRY_QUALIFIED",
-    "P0_07_REVISION_SEMANTICS_IMPLEMENTED"
+    "P0_07_REVISION_SEMANTICS_IMPLEMENTED",
+    "P0_07_SNAPSHOT_HASH_BINDING_DEFECT_REPRODUCED",
+    "P0_07_FRESH_CONTENT_OBSERVATION_FIX_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_07_QUALIFY_REVISION_SEMANTICS",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass SHA-256 snapshot binding and RevisionTracker tests. If green, checkpoint P0-07. Then evaluate the first durable state store for P0: SQLite is the preferred candidate, but qualify a minimal schema that separates non-rebuildable identity/provenance from rebuildable caches and does not place an open SQLite database inside a synced/network corpus root.",
+    "id": "P0_07_REQUALIFY_REVISION_SEMANTICS",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass the corrected fresh content observation tests plus RevisionTracker semantics. Specifically retain the regression that delete+recreate at the same locator is sampled as a fresh observation and never claimed to be bound to an older Snapshot. If green, qualify P0-07 and proceed to persistence reuse research.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -84,7 +86,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "f23162c87c48b03a623c6b2255b176d146789b89",
+  "repository_basis_commit": "46066f9fc7a1d2b23cbbbbebdecdd3bffa68ded5",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -572,7 +574,7 @@
     }
   },
   "p0_07": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "FIX_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "dependencies_added": 0,
     "hash_algorithm": "sha256_stdlib",
     "hashing_mode": "ON_DEMAND_SNAPSHOT_BOUND",
@@ -586,6 +588,25 @@
       "A→B→A creates three distinct Revision IDs",
       "algorithm change fails without mutation",
       "replacement at same locator after Snapshot fails identity revalidation"
-    ]
+    ],
+    "first_ci": {
+      "exact_head": "46066f9fc7a1d2b23cbbbbebdecdd3bffa68ded5",
+      "run_id": 36056902018,
+      "conclusion": "FAILURE",
+      "proven_defect": "Ubuntu delete+recreate reused native filesystem identity; old Snapshot FileInfo falsely matched replacement at same locator."
+    },
+    "correction": {
+      "removed_unsafe_api": "Snapshot.ContentEvidence",
+      "replacement_api": "Provider.ReadContentEvidence(root, locator)",
+      "semantics": "fresh observation only; no continuity claim to earlier Snapshot/Artifact",
+      "safety": [
+        "reject path traversal",
+        "reject symlink/non-regular locator",
+        "anchor hashing to open file handle",
+        "recheck locator against open handle before close",
+        "reject size/mtime instability during read",
+        "Artifact assignment remains a separate continuity decision"
+      ]
+    }
   }
 }

@@ -11,75 +11,53 @@ import (
 	"github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 )
 
-func TestSnapshotContentEvidenceSHA256(t *testing.T) {
+func TestReadContentEvidenceSHA256(t *testing.T) {
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "abc.txt"), []byte("abc"))
 
 	p := localfs.New("localfs-test")
-	snapshot, err := p.Snapshot(context.Background(), root)
+	got, err := p.ReadContentEvidence(context.Background(), root, "abc.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	got, err := snapshot.ContentEvidence(context.Background(), "abc.txt")
-	if err != nil {
-		t.Fatal(err)
+	if got.Evidence.Algorithm != corpus.ContentAlgorithmSHA256 {
+		t.Fatalf("algorithm=%q", got.Evidence.Algorithm)
 	}
-	if got.Algorithm != corpus.ContentAlgorithmSHA256 {
-		t.Fatalf("algorithm=%q", got.Algorithm)
+	if got.Evidence.Digest != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" {
+		t.Fatalf("digest=%q", got.Evidence.Digest)
 	}
-	if got.Digest != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" {
-		t.Fatalf("digest=%q", got.Digest)
+	if got.Evidence.Size != 3 || got.Observation.Size != 3 {
+		t.Fatalf("sizes evidence=%d observation=%d", got.Evidence.Size, got.Observation.Size)
 	}
-	if got.Size != 3 {
-		t.Fatalf("size=%d, want 3", got.Size)
+	if got.Observation.Locator.Path != "abc.txt" {
+		t.Fatalf("path=%q", got.Observation.Locator.Path)
+	}
+	if got.Observation.ProviderObject.ID != "" {
+		t.Fatalf("content sample invented ProviderObject ID: %#v", got.Observation.ProviderObject)
 	}
 }
 
-func TestSnapshotContentEvidenceAllowsContentChangeOnSameProviderObject(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, "file.txt")
-	mustWrite(t, path, []byte("A"))
-
-	p := localfs.New("localfs-test")
-	snapshot, err := p.Snapshot(context.Background(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	mustWrite(t, path, []byte("B"))
-	got, err := snapshot.ContentEvidence(context.Background(), "file.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Size != 1 {
-		t.Fatalf("size=%d, want 1", got.Size)
-	}
-}
-
-func TestSnapshotContentEvidenceRejectsReplacementAtSameLocator(t *testing.T) {
+func TestReadContentEvidenceSamplesReplacementAsNewObservation(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "file.txt")
 	mustWrite(t, path, []byte("old"))
-
-	p := localfs.New("localfs-test")
-	snapshot, err := p.Snapshot(context.Background(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
 	mustWrite(t, path, []byte("new"))
 
-	_, err = snapshot.ContentEvidence(context.Background(), "file.txt")
-	if !errors.Is(err, localfs.ErrObservedObjectChanged) {
-		t.Fatalf("error=%v, want ErrObservedObjectChanged", err)
+	p := localfs.New("localfs-test")
+	got, err := p.ReadContentEvidence(context.Background(), root, "file.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Evidence.Digest != "11507a0e2f5e69d5dfa40a62a1bd7b6ee57e6bcd85c67c9b8431b36fff21c437" {
+		t.Fatalf("digest=%q, want digest of current bytes", got.Evidence.Digest)
 	}
 }
 
-func TestSnapshotContentEvidenceRejectsSymlinkIdentity(t *testing.T) {
+func TestReadContentEvidenceRejectsSymlink(t *testing.T) {
 	base := t.TempDir()
 	root := filepath.Join(base, "root")
 	target := filepath.Join(base, "target.txt")
@@ -92,29 +70,33 @@ func TestSnapshotContentEvidenceRejectsSymlinkIdentity(t *testing.T) {
 	}
 
 	p := localfs.New("localfs-test")
-	snapshot, err := p.Snapshot(context.Background(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = snapshot.ContentEvidence(context.Background(), "link")
-	if !errors.Is(err, localfs.ErrIdentityEvidenceAbsent) {
-		t.Fatalf("error=%v, want ErrIdentityEvidenceAbsent", err)
+	_, err := p.ReadContentEvidence(context.Background(), root, "link")
+	if !errors.Is(err, localfs.ErrContentNotRegular) {
+		t.Fatalf("error=%v, want ErrContentNotRegular", err)
 	}
 }
 
-func TestSnapshotContentEvidenceHonorsCanceledContext(t *testing.T) {
+func TestReadContentEvidenceRejectsTraversal(t *testing.T) {
+	root := t.TempDir()
+	p := localfs.New("localfs-test")
+
+	for _, path := range []string{"../outside", "../../outside"} {
+		_, err := p.ReadContentEvidence(context.Background(), root, path)
+		if !errors.Is(err, localfs.ErrInvalidContentLocator) {
+			t.Fatalf("path=%q error=%v, want ErrInvalidContentLocator", path, err)
+		}
+	}
+}
+
+func TestReadContentEvidenceHonorsCanceledContext(t *testing.T) {
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "file.txt"), []byte("content"))
 
-	p := localfs.New("localfs-test")
-	snapshot, err := p.Snapshot(context.Background(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = snapshot.ContentEvidence(ctx, "file.txt")
+
+	p := localfs.New("localfs-test")
+	_, err := p.ReadContentEvidence(ctx, root, "file.txt")
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error=%v, want context.Canceled", err)
 	}
