@@ -180,6 +180,105 @@ func TestSnapshotObjectGroupsSeparateObjectFromLocators(t *testing.T) {
 	}
 }
 
+func TestCompareObjectGroupsRenameIsEvidenceNotAutomaticMerge(t *testing.T) {
+	root := t.TempDir()
+	beforePath := filepath.Join(root, "before.txt")
+	afterPath := filepath.Join(root, "after.txt")
+	mustWrite(t, beforePath, []byte("same bytes"))
+
+	p := localfs.New("localfs-test")
+	before, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeGroups := before.ObjectGroups()
+	if len(beforeGroups) != 1 {
+		t.Fatalf("before groups=%d, want 1", len(beforeGroups))
+	}
+
+	if err := os.Rename(beforePath, afterPath); err != nil {
+		t.Fatal(err)
+	}
+	after, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterGroups := after.ObjectGroups()
+	if len(afterGroups) != 1 {
+		t.Fatalf("after groups=%d, want 1", len(afterGroups))
+	}
+
+	evidence, err := localfs.CompareObjectGroups(before, beforeGroups[0], after, afterGroups[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evidence.Kind != corpus.ContinuityNativeIdentityMatch {
+		t.Fatalf("kind=%q, want %q", evidence.Kind, corpus.ContinuityNativeIdentityMatch)
+	}
+	if evidence.AutomaticMergeAllowed {
+		t.Fatal("native file identity must not auto-authorize Artifact merge")
+	}
+	if !reflect.DeepEqual(pathsFromLocators(evidence.PreviousLocators), []string{"before.txt"}) {
+		t.Fatalf("previous locators=%#v", evidence.PreviousLocators)
+	}
+	if !reflect.DeepEqual(pathsFromLocators(evidence.CurrentLocators), []string{"after.txt"}) {
+		t.Fatalf("current locators=%#v", evidence.CurrentLocators)
+	}
+}
+
+func TestCompareObjectGroupsCopyIsMismatchEvidence(t *testing.T) {
+	root := t.TempDir()
+	original := filepath.Join(root, "original.bin")
+	copyPath := filepath.Join(root, "copy.bin")
+	content := []byte("identical bytes")
+	mustWrite(t, original, content)
+
+	p := localfs.New("localfs-test")
+	before, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, copyPath, content)
+	after, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	beforeGroup := groupContaining(t, before.ObjectGroups(), "original.bin")
+	copyGroup := groupContaining(t, after.ObjectGroups(), "copy.bin")
+	evidence, err := localfs.CompareObjectGroups(before, beforeGroup, after, copyGroup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evidence.Kind != corpus.ContinuityNativeIdentityMismatch {
+		t.Fatalf("kind=%q, want %q", evidence.Kind, corpus.ContinuityNativeIdentityMismatch)
+	}
+	if evidence.AutomaticMergeAllowed {
+		t.Fatal("mismatch evidence cannot authorize merge")
+	}
+}
+
+func groupContaining(t *testing.T, groups []localfs.ObjectGroup, path string) localfs.ObjectGroup {
+	t.Helper()
+	for _, group := range groups {
+		for _, locator := range group.Locators {
+			if locator.Path == path {
+				return group
+			}
+		}
+	}
+	t.Fatalf("group containing %q not found in %#v", path, groups)
+	return localfs.ObjectGroup{}
+}
+
+func pathsFromLocators(locators []corpus.Locator) []string {
+	out := make([]string, len(locators))
+	for i := range locators {
+		out[i] = locators[i].Path
+	}
+	return out
+}
+
 func TestSnapshotSymlinkHasNoRegularFileIdentityEvidence(t *testing.T) {
 	base := t.TempDir()
 	root := filepath.Join(base, "root")

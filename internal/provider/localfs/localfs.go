@@ -110,6 +110,53 @@ func (s *Snapshot) ObjectGroups() []ObjectGroup {
 //
 // The comparison is pairwise evidence only. It does not allocate an Artifact
 // ID, Revision ID, or durable ProviderObject ID.
+// CompareObjectGroups emits provider continuity evidence between two
+// regular-file groups. A native-ID match is useful evidence, but never an
+// automatic Artifact-merge authorization.
+func CompareObjectGroups(previous *Snapshot, previousGroup ObjectGroup, current *Snapshot, currentGroup ObjectGroup) (corpus.ContinuityEvidence, error) {
+	evidence := corpus.ContinuityEvidence{
+		ProviderID:            providerIDForGroups(previousGroup, currentGroup),
+		PreviousLocators:      append([]corpus.Locator(nil), previousGroup.Locators...),
+		CurrentLocators:       append([]corpus.Locator(nil), currentGroup.Locators...),
+		Basis:                 "go:os.SameFile",
+		AutomaticMergeAllowed: false,
+	}
+
+	if len(previousGroup.Locators) == 0 || len(currentGroup.Locators) == 0 {
+		evidence.Kind = corpus.ContinuityEvidenceUnavailable
+		return evidence, nil
+	}
+
+	same, err := previous.SameProviderObject(
+		previousGroup.Locators[0].Path,
+		current,
+		currentGroup.Locators[0].Path,
+	)
+	if err != nil {
+		if errors.Is(err, ErrIdentityEvidenceAbsent) || errors.Is(err, ErrLocatorNotObserved) {
+			evidence.Kind = corpus.ContinuityEvidenceUnavailable
+			return evidence, nil
+		}
+		return corpus.ContinuityEvidence{}, err
+	}
+	if same {
+		evidence.Kind = corpus.ContinuityNativeIdentityMatch
+		return evidence, nil
+	}
+	evidence.Kind = corpus.ContinuityNativeIdentityMismatch
+	return evidence, nil
+}
+
+func providerIDForGroups(previous, current ObjectGroup) corpus.ProviderID {
+	if len(previous.Locators) > 0 {
+		return previous.Locators[0].ProviderID
+	}
+	if len(current.Locators) > 0 {
+		return current.Locators[0].ProviderID
+	}
+	return ""
+}
+
 func (s *Snapshot) SameProviderObject(path string, other *Snapshot, otherPath string) (bool, error) {
 	left, ok := s.identityInfo[path]
 	if !ok {

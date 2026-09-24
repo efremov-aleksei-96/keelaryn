@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 15,
+  "revision": 16,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -38,11 +38,13 @@
     "P0_01_LOCAL_CONTINUITY_IMPLEMENTED",
     "P0_01_LOCAL_CONTINUITY_QUALIFIED",
     "P0_02_PROVIDER_OBJECT_GROUPS_IMPLEMENTED",
-    "P0_02_PROVIDER_OBJECT_GROUPS_QUALIFIED"
+    "P0_02_PROVIDER_OBJECT_GROUPS_QUALIFIED",
+    "P0_03_UNSAFE_AUTO_MERGE_PLAN_REJECTED",
+    "P0_03_CONTINUITY_EVIDENCE_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_03_IN_MEMORY_ARTIFACT_CONTINUITY",
-    "description": "Implement the smallest in-memory reconciler that assigns an Artifact ID to each observed provider-object group, preserves the Artifact across rename/hard-link locator changes when SameFile proves continuity, creates a new Artifact for a copy/new provider object, and does not reuse Artifact identity for a different provider object after disappearance. Keep IDs process-local and explicitly non-durable; do not add SQLite or content revision logic yet.",
+    "id": "P0_03_QUALIFY_CONTINUITY_EVIDENCE",
+    "description": "Require Ubuntu and Windows 2025 CI to prove rename emits NATIVE_IDENTITY_MATCH evidence, independent byte-identical copy emits NATIVE_IDENTITY_MISMATCH evidence, and no native-ID evidence can automatically merge Artifacts. If green, choose the smallest additional evidence source that can safely strengthen continuity (provider change events/direct operation provenance) rather than prematurely allocating stable Artifact IDs.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -75,7 +77,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "487b60194aea82b22ca674bd29fd3e1cd30ef7dc",
+  "repository_basis_commit": "6e7c2687082412f0ce4c0998ba1ca59d7d86fe33",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -436,10 +438,38 @@
     }
   },
   "p0_03": {
-    "status": "PLANNED",
-    "objective": "Assign stable in-memory Artifact identity across successive local snapshots using only strong provider-object continuity evidence.",
-    "persistence": false,
-    "content_revision_logic": false,
-    "external_dependency_needed": false
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "original_plan": "Assign stable in-memory Artifact identity directly from native provider-object identity matches.",
+    "correction": "REJECTED_AS_UNSAFE",
+    "rationale": "Native filesystem IDs are lifetime-scoped evidence and may be reused after deletion; a scan gap cannot prove no delete/recreate occurred.",
+    "implementation": {
+      "abstraction": "corpus.ContinuityEvidence",
+      "kinds": [
+        "NATIVE_IDENTITY_MATCH",
+        "NATIVE_IDENTITY_MISMATCH",
+        "EVIDENCE_UNAVAILABLE"
+      ],
+      "automatic_merge_allowed": false,
+      "artifact_ids_allocated": false,
+      "persistence": false,
+      "third_party_dependencies_added": 0
+    },
+    "external_id_libraries_surveyed": [
+      {
+        "project": "google/uuid",
+        "license": "BSD-3-Clause",
+        "decision": "DEFER_TO_PERSISTENCE"
+      },
+      {
+        "project": "oklog/ulid",
+        "license": "Apache-2.0",
+        "decision": "DEFER_TO_PERSISTENCE"
+      },
+      {
+        "project": "segmentio/ksuid",
+        "license": "MIT",
+        "decision": "DEFER_TO_PERSISTENCE"
+      }
+    ]
   }
 }

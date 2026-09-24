@@ -51,3 +51,31 @@ Implementation deliberately uses a simple O(n²) representative comparison:
 - the grouping algorithm is replaceable and does not define Keelaryn identity semantics.
 
 A group has multiple Locators but intentionally no durable ProviderObject/Artifact ID yet. Symlinks and other entries without regular-file identity evidence remain outside groups rather than inheriting target identity.
+
+
+## P0-03 — cross-snapshot continuity evidence, not Artifact auto-merge
+
+Initial plan was to assign stable in-memory Artifact IDs directly from `os.SameFile` matches. Research rejected that plan as unsafe.
+
+Primary platform evidence:
+- Microsoft SMB FileId requirements say an ID persists for the lifetime of a file, but **may be reused after the file is deleted**.
+- Microsoft filesystem documentation says file reference numbers are not guaranteed unique over time because a filesystem may reuse them.
+- Unix inode identity is filesystem-local; after the last link/open reference is gone the object is deleted and its resources are available for reuse.
+
+Therefore a native-ID match across two scans is **continuity evidence**, not proof that no delete/recreate occurred between observations.
+
+P0-03 records:
+- `NATIVE_IDENTITY_MATCH`;
+- `NATIVE_IDENTITY_MISMATCH`;
+- `EVIDENCE_UNAVAILABLE`.
+
+All P0-03 evidence has `automatic_merge_allowed=false`.
+
+Durable Artifact continuity must later combine stronger temporal/provider evidence or remain ambiguous. This preserves the canonical rule that ambiguity is preferable to invented identity.
+
+Durable/global ID libraries surveyed for the later persistence layer:
+- `google/uuid` — BSD-3-Clause;
+- `oklog/ulid` — Apache-2.0;
+- `segmentio/ksuid` — MIT.
+
+None is added now because identifier-format choice is orthogonal to continuity correctness and P0-03 remains non-persistent.
