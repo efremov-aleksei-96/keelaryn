@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 107,
+  "revision": 108,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "34781bf31c1b25552e032d1aaf15dbc94bc90c0d",
+  "repository_basis_commit": "66013f2d99e68f6200637a84fba86076af113fbf",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03O-r0009-control-update-prestate-checkpoint",
-    "run_id": 35982273554,
+    "scope": "D0-03P-r0009-wrapper-recovery-qualified",
+    "run_id": 35982810051,
     "conclusion": "PASS",
-    "relevance": "CORE_959_AND_ALL_REQUIRED_R0009_GATES_PASS_BEFORE_SINGLE_REAL_CONTROL_UPDATE",
-    "note": "Exact HEAD 34781bf31c1b25552e032d1aaf15dbc94bc90c0d passed Zero-based Core run 35982273554 plus r0009 control-update-runtime 35982273627, private-input 35982273602, stage-runtime 35982273593, production-prep 35982273543 and boundary-capture 35982273608. One r0009 control-update invocation was then attempted. The frozen updater returned, but the development wrapper failed during its own NEW_EXACT post-context because it omitted the new required template_active_probe argument. The independent wrapper reconcile hit the same defect. Do not rerun update; qualify the wrapper-only repair and then reconcile read-only."
+    "relevance": "CORE_960_AND_ALL_REQUIRED_R0009_GATES_PASS_BEFORE_GATEWAY_READ_ONLY_RECOVERY_RECONCILE",
+    "note": "Exact HEAD 66013f2d99e68f6200637a84fba86076af113fbf passed Zero-based Core run 35982810051 with 960 tests and all required r0009 gates. Gateway SSH was then bootstrapped and verified against independently confirmed VPS ED25519 host key SHA256:P1+i/M2gFIZHMiaN+gJ0rv0Bpp96wv1ICjM90sRQ4zw. A direct Gateway read-only r0009 reconcile proved control boundary NEW_EXACT and canonical control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce COMPLETED_EXACT, with production current, credential, legacy Hub and Drive unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03P_R0009_POST_UPDATE_RECONCILE_RECOVERY",
-    "description": "The one permitted r0009 control-update invocation has already occurred for transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce. Frozen updater returned, after which the development wrapper failed in NEW_EXACT post-context because updater._verify_services now requires template_active_probe. Independent wrapper reconcile failed for the same reason. This checkpoint repairs only the wrapper call by binding template_active_probe to the exact frozen updater helper _template_has_active_instances and adds regression/gate coverage. After exact-head CI PASS, run reconcile only. Never invoke update again unless future reconciliation and explicit transaction semantics prove that separately safe; current recovery rule is NO RETRY.",
+    "id": "D0-04_GATEWAY_OPERATOR_CHANNEL_HARDENING",
+    "description": "D0 Operator Channel is now functional: ChatGPT can directly access the owned VPS through Gateway using a managed SSH key and pinned ED25519 host key, and has independently reconciled r0009 to NEW_EXACT/COMPLETED_EXACT without maintainer PowerShell. Next harden this path: document Gateway server identity and trust evidence, prefer Gateway for all VPS reads/writes, design a non-root keelaryn-ops account plus restricted sudo/operator surface, then continue autonomous D0 development from remote authority. Do not require maintainer SSH unless evidence genuinely depends on the workstation or Gateway is unavailable.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

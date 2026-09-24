@@ -2237,3 +2237,36 @@ Safety disposition:
 
 Durable evidence: `docs/evidence/R0009_CONTROL_UPDATE_WRAPPER_FAILURE_20260924.json`.
 
+### D0-04 Gateway operator channel PASS
+
+ChatGPT now has a direct auditable VPS execution path through Gateway.
+
+Bootstrap/trust:
+- Gateway server: `keelaryn-vps`;
+- endpoint: `138.124.242.44:22`;
+- SSH user: `root` for bootstrap phase;
+- Gateway managed key fingerprint: `SHA256:5IBhCk6xyeiYb1Hj+JSbZj4Z2G5oOW4lud2w+5popNQ`;
+- VPS ED25519 host key independently confirmed through the maintainer's pre-existing trusted SSH path and pinned as `SHA256:P1+i/M2gFIZHMiaN+gJ0rv0Bpp96wv1ICjM90sRQ4zw`;
+- Gateway key verification PASS;
+- direct Gateway shell proved `whoami=root` on Linux 6.8.0-139-generic x86_64.
+
+First autonomous VPS recovery action:
+- exact branch tip `66013f2d99e68f6200637a84fba86076af113fbf` fetched on the VPS;
+- repaired r0009 read-only reconcile executed directly by ChatGPT through Gateway;
+- `control_boundary=NEW_EXACT`;
+- canonical r0009 control-update transaction `24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce` is `COMPLETED_EXACT`;
+- production current remains `releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- credential SHA remains exact;
+- legacy Hub and Drive remain unchanged;
+- reconcile itself performed no mutation.
+
+This resolves the r0009 ambiguous wrapper failure: the frozen updater had in fact completed successfully before the wrapper-only post-context TypeError.
+
+Durable evidence: `docs/evidence/D0_GATEWAY_OPERATOR_CHANNEL_R0009_RECOVERY_20260924.json`.
+
+Operational policy from here:
+- Gateway is the preferred normal VPS execution channel;
+- maintainer PowerShell/SSH is no longer part of the standard D0 loop;
+- manual local execution is reserved for workstation-specific evidence or Gateway unavailability;
+- next hardening should replace routine root access with a dedicated `keelaryn-ops` account and restricted sudo/operator surface.
+

@@ -1,0 +1,61 @@
+{
+  "schema": "keelaryn.d0-gateway-operator-channel-and-r0009-recovery-evidence.v1",
+  "repository": "efremov-aleksei-96/keelaryn",
+  "branch": "dev/zero-based-keelaryn",
+  "branch_tip": "66013f2d99e68f6200637a84fba86076af113fbf",
+  "gateway": {
+    "server_name": "keelaryn-vps",
+    "endpoint": "138.124.242.44:22",
+    "ssh_username": "root",
+    "managed_key_fingerprint": "SHA256:5IBhCk6xyeiYb1Hj+JSbZj4Z2G5oOW4lud2w+5popNQ",
+    "trusted_host_key": {
+      "algorithm": "ssh-ed25519",
+      "fingerprint": "SHA256:P1+i/M2gFIZHMiaN+gJ0rv0Bpp96wv1ICjM90sRQ4zw",
+      "confirmation_source": "maintainer-existing-trusted-ssh-channel"
+    },
+    "verification": "PASS",
+    "direct_shell": {
+      "whoami": "root",
+      "kernel": "Linux 6.8.0-139-generic x86_64 GNU/Linux"
+    }
+  },
+  "r0009_reconcile": {
+    "command": "reconcile",
+    "control_boundary": "NEW_EXACT",
+    "control_update": {
+      "state": "COMPLETED_EXACT",
+      "transaction_id": "24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce",
+      "update_root_state": "PRESENT"
+    },
+    "old_release": {
+      "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+      "payload_sha256": "6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7",
+      "payload_size": 365052,
+      "file_count": 190
+    },
+    "new_release": {
+      "source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+      "payload_sha256": "8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876",
+      "payload_size": 442514,
+      "file_count": 227
+    },
+    "production_current": "releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "credential_sha256": "7002ed72a223dd7fc860451c53a4ec8f264d14f7144000559a295522b7cbe928",
+    "stage_transaction_id": "92aea51ee7f80a8e8b84fffa9315bf9e",
+    "stage_witness": {
+      "post_reconcile": "PASS",
+      "prepared_sha256": "d04430a3da9e830671ea108c980712f9f36b8cb2942deb69a65da4d7ce686909",
+      "release_state": "STAGED_EXACT",
+      "stage_state": "STAGED_EXACT"
+    },
+    "mutations": {
+      "control_update": false,
+      "production_current": false,
+      "legacy_hub": false,
+      "credential": false,
+      "drive": false
+    }
+  },
+  "disposition": "PASS_D0_GATEWAY_OPERATOR_CHANNEL_AND_R0009_COMPLETED_EXACT",
+  "maintainer_manual_ssh_required_for_normal_vps_work": false
+}
