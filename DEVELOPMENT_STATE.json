@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 12,
+  "revision": 13,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -35,11 +35,12 @@
     "D0_CLOSED",
     "P0_00_GO_BASELINE_IMPLEMENTED",
     "P0_00_GO_BASELINE_QUALIFIED",
-    "P0_01_LOCAL_CONTINUITY_IMPLEMENTED"
+    "P0_01_LOCAL_CONTINUITY_IMPLEMENTED",
+    "P0_01_LOCAL_CONTINUITY_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_01_QUALIFY_LOCAL_CONTINUITY",
-    "description": "Inspect exact-head CI for both ubuntu-24.04 and windows-2025. Require rename continuity, copy distinction, hard-link semantics, symlink isolation, existing P0-00 safety tests, and go vet to pass on both platforms. If green, checkpoint P0-01 and plan the smallest reconciliation layer that turns strong provider continuity evidence into stable in-memory Artifact identity without persistence yet.",
+    "id": "P0_02_PROVIDER_OBJECT_GROUPS",
+    "description": "Add deterministic in-memory provider-object grouping inside one local filesystem Snapshot. Multiple hard-link locators must form one group; independent byte-identical files must form separate groups; symlinks/unsupported identity entries must remain ungrouped rather than inherit target identity. Keep groups ephemeral and ID-less; do not allocate Artifact IDs or persist anything yet.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -72,7 +73,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "8e1096778e3640ba84705aeb858ac2e9f1a5f4a9",
+  "repository_basis_commit": "d6df2fdacf52536222aa1bf3d239dd9d82188e0c",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -360,7 +361,7 @@
     }
   },
   "p0_01": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Prove in-memory local filesystem continuity evidence across rename without inventing persistent identity.",
     "reuse_decision": "GO_STDLIB_OS_SAMEFILE",
     "research": {
@@ -381,6 +382,29 @@
         "symlink => no target identity evidence",
         "unknown locator => fail closed"
       ]
+    },
+    "qualification": {
+      "exact_head": "d6df2fdacf52536222aa1bf3d239dd9d82188e0c",
+      "ci_run_id": 36040475293,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "semantics": [
+        "rename_same_provider_object",
+        "byte_identical_copy_distinct_provider_object",
+        "hardlink_same_provider_object_multiple_locators",
+        "symlink_target_identity_not_inherited",
+        "unknown_locator_fail_closed"
+      ],
+      "go_vet": "PASS_BOTH_PLATFORMS"
     }
+  },
+  "p0_02": {
+    "status": "PLANNED",
+    "objective": "Operationalize ProviderObject != Locator within one local filesystem snapshot by grouping regular-file locators using already-qualified SameFile evidence.",
+    "dependencies_added": 0,
+    "algorithm": "small deterministic equivalence grouping; optimization deferred until measured need"
   }
 }
