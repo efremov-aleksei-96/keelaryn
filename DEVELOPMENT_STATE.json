@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 6,
+  "revision": 7,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -26,11 +26,13 @@
     "C0_CI_MINIMIZED",
     "LEGACY_RUNTIME_DECOMMISSION_EXECUTED_VERIFIED",
     "GATEWAY_LEAST_PRIVILEGE_PENDING_IDENTITY_CREATED",
-    "OPERATOR_ACCOUNT_BOOTSTRAPPED_VERIFIED"
+    "OPERATOR_ACCOUNT_BOOTSTRAPPED_VERIFIED",
+    "NONROOT_GATEWAY_KEY_AUTH_VERIFIED",
+    "NONROOT_GATEWAY_EXECUTION_BLOCKER_DIAGNOSED"
   ],
   "next_objective": {
-    "id": "C0_OPERATOR_ENDPOINT_VERIFY",
-    "description": "Bind pending Gateway server srv_01M3A22AVW9ZVAEBPPYHQ2DJCN to 138.124.242.44:22 as ssh user keelaryn-ops using the independently verified ED25519 host fingerprint SHA256:P1+i/M2gFIZHMiaN+gJ0rv0Bpp96wv1ICjM90sRQ4zw, let Gateway verify the installed managed key, then prove non-root execution (whoami/id/home) succeeds and sudo remains unavailable. Do not modify or remove the existing root Gateway channel in this transaction.",
+    "id": "C0_DISABLE_LEGACY_DRIVE_AUTOSTART",
+    "description": "Read-only inspect keelaryn-drive.service exact unit/dependencies and confirm it is the superseded zero-based Drive poller. If confirmed inactive and unrelated to current Corpus-first development, disable it so a VPS reboot cannot resurrect legacy behavior. Do not delete its unit/state in the same transaction.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -63,7 +65,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "c80a9f201a92cd1e2a6fe523283e1366d15bc223",
+  "repository_basis_commit": "324546dc4893318b4a60a658b6853b441c94db52",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -171,20 +173,31 @@
     "plan_document": "docs/C0_RUNTIME_DECOMMISSION.md"
   },
   "operator_channel_hardening": {
-    "status": "ACCOUNT_BOOTSTRAPPED_ENDPOINT_PENDING",
+    "status": "NONROOT_GATEWAY_EXECUTION_BLOCKED_EXTERNAL",
     "current_root_server": {
       "id": "srv_01M39DDDYY8KX413YWQXH2XEKQ",
       "name": "keelaryn-vps",
       "ssh_user": "root",
-      "role": "TEMPORARY_ADMIN_EMERGENCY_CHANNEL"
+      "role": "TEMPORARY_DEFAULT_DEVELOPMENT_AND_ADMIN_CHANNEL_DUE_TO_GATEWAY_NONROOT_BLOCKER"
     },
     "pending_default_server": {
       "id": "srv_01M3A22AVW9ZVAEBPPYHQ2DJCN",
       "name": "keelaryn-vps-ops",
       "ssh_user": "keelaryn-ops",
-      "status": "awaiting_endpoint",
+      "status": "ready_key_verified_execution_blocked",
       "gateway_identity_id": "sid_01M3A22DVSHRZ7HPQJY6CJ35FR",
-      "key_fingerprint": "SHA256:7H0JSU59UMcYvTUsZAiUK3b7pa6fF8UU+C/peYO4R0M"
+      "key_fingerprint": "SHA256:7H0JSU59UMcYvTUsZAiUK3b7pa6fF8UU+C/peYO4R0M",
+      "host_trust": {
+        "rsa": "SHA256:ZVwLKEE+YKp7mJ9Yy0UuJJT8y0d/Kh9F2MiyIbZgdVc",
+        "ecdsa": "SHA256:MTcvSxd3RyQ0PzS72EN0W1/rnXPoQvFqBVUa04eqLSU",
+        "ed25519": "SHA256:P1+i/M2gFIZHMiaN+gJ0rv0Bpp96wv1ICjM90sRQ4zw",
+        "source": "independently read through trusted root Gateway channel"
+      },
+      "key_auth": {
+        "verified": true,
+        "verification_job_id": "job_01M3A8K3WHJ1SBPTXW9NNEYP5J",
+        "managed_key_fingerprint": "SHA256:7H0JSU59UMcYvTUsZAiUK3b7pa6fF8UU+C/peYO4R0M"
+      }
     },
     "design": [
       "Create separate locked-password interactive SSH account keelaryn-ops; do not reuse service account keelaryn.",
@@ -220,6 +233,19 @@
     "root_keys_unchanged": {
       "count": 2,
       "state_hash": "sha256:66a1a29d9f1e276b079ca4769a04b85ceb22d1d3aacd317ee6eb8dbf31520950"
+    },
+    "external_blocker": {
+      "classification": "GATEWAY_REMOTE_HELPER_NONROOT_EXECUTION_FAILURE",
+      "evidence": [
+        "SSH journal shows Accepted publickey and pam_unix session opened for keelaryn-ops repeatedly.",
+        "Local runuser as keelaryn-ops successfully executes whoami, id and bash.",
+        "Gateway execute_command exits 125 with no target output.",
+        "Gateway execute_argv fails before target executable is launched.",
+        "Gateway list_available_shells fails similarly.",
+        "Gateway file.stat and file.read also fail through the non-root profile.",
+        "No sudo policy is granted to keelaryn-ops."
+      ],
+      "disposition": "Do not weaken host security or build a custom transport. Keep existing root Gateway as temporary OperatorChannel for development; non-root profile remains installed for future Gateway fix/retest."
     }
   }
 }

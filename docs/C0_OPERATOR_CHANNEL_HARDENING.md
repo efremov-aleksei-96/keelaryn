@@ -75,3 +75,34 @@ Do not grant `systemctl`, shell, filesystem utilities or ALL via broad passwordl
 4. Assign endpoint `138.124.242.44:22` to the pending Gateway server with independently verified ED25519 host fingerprint `SHA256:P1+i/M2gFIZHMiaN+gJ0rv0Bpp96wv1ICjM90sRQ4zw`.
 5. Verify non-root Gateway execution.
 6. Keep root Gateway untouched until a later independent decision.
+
+
+## Non-root Gateway verification result
+
+Gateway key authentication is **verified** for `keelaryn-vps-ops`.
+
+All three VPS host-key algorithms were independently read through the already-trusted root channel and pinned exactly:
+
+- RSA: `SHA256:ZVwLKEE+YKp7mJ9Yy0UuJJT8y0d/Kh9F2MiyIbZgdVc`;
+- ECDSA: `SHA256:MTcvSxd3RyQ0PzS72EN0W1/rnXPoQvFqBVUa04eqLSU`;
+- ED25519: `SHA256:P1+i/M2gFIZHMiaN+gJ0rv0Bpp96wv1ICjM90sRQ4zw`.
+
+Verification job `job_01M3A8K3WHJ1SBPTXW9NNEYP5J` succeeded.
+
+However, the current Gateway remote execution layer is unusable through this non-root identity:
+
+- SSH journal repeatedly records `Accepted publickey` and an opened PAM session for `keelaryn-ops`;
+- root-side `runuser -u keelaryn-ops` successfully launches `whoami`, `id` and `bash`;
+- Gateway `execute_command` exits 125 before useful output;
+- Gateway `execute_argv` reports that the remote argv helper stopped before launching the target;
+- `list_available_shells`, `file.stat` and `file.read` fail through the same profile.
+
+Therefore the blocker is classified as **Gateway non-root remote-helper/tooling behavior**, not a Linux account/SSH-key problem.
+
+Disposition:
+
+- do not grant broad sudo merely to satisfy the plugin;
+- do not build another custom relay;
+- keep `keelaryn-vps-ops` and its key for future retest;
+- continue current development through the existing root Gateway channel as a temporary tool-specific exception;
+- Keelaryn product architecture remains independent of Gateway.
