@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 1,
+  "revision": 2,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -17,12 +17,15 @@
     "CANONICAL_ARCHITECTURE_ESTABLISHED",
     "PRE_P0_GIT_WORLD_FROZEN",
     "LEGACY_ABSORPTION_MANIFEST_ESTABLISHED",
-    "CLEAN_ACTIVE_GIT_TREE_CREATED"
+    "CLEAN_ACTIVE_GIT_TREE_CREATED",
+    "DRIVE_ARCHIVE_ROOT_CREATED",
+    "DRIVE_PRECORPUSP0_CONTAINER_CREATED",
+    "DRIVE_PUBLIC_KEELARYN_FOLDER_ARCHIVED"
   ],
   "next_objective": {
-    "id": "C0_DRIVE_ARCHIVE",
-    "description": "Create the approved Google Drive archive path and move only the two approved Keelaryn development folders with read-only verification after each mutation. CorpusBootstrap remains in place.",
-    "drive_mutation_approved": true,
+    "id": "C0_LEGACY_RUNTIME_DECOMMISSION_PREP",
+    "description": "Continue C0 without waiting for unrelated user-corpus projects. Read-only reconcile old VPS operation-agent/transport/control runtime and identify exact safe decommission plan now that Gateway is the OperatorChannel. Keep keelaryn-private as an explicit tooling-blocked Drive cleanup item; do not blind-retry its connector move. The next natural Git checkpoint should also re-test the single clean CI workflow.",
+    "drive_mutation_approved": false,
     "deletion_approved": false
   },
   "approved_drive_plan": {
@@ -53,5 +56,76 @@
     "DELETE_GOOGLE_DRIVE_CONTENT_WITHOUT_SEPARATE_APPROVAL",
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
-  ]
+  ],
+  "repository_basis_commit": "78ad81ee2fdcf6b30b4f7668be1a919bb5d20819",
+  "drive_cleanup": {
+    "archive_root": {
+      "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
+      "keelaryn_legacy_id": "1JO9ldvqef64ymCcKnWsYFDiPori1fuVb",
+      "precorpus_p0_id": "1iMVDc-jnEQoABqsksCixD--nfmECi2AZ"
+    },
+    "archived": [
+      {
+        "source_path": "0__Core/keelaryn",
+        "id": "13Du6Dbgq2H9zX7mGnmih5pU7k9EvZS3H",
+        "target_path": "9__Archive/KeelarynLegacy/2026-09-24__PreCorpusP0/keelaryn",
+        "id_preserved": true,
+        "verified": true
+      }
+    ],
+    "blocked": [
+      {
+        "source_path": "0__Core/keelaryn-private",
+        "id": "1BFoaqU8a3arOFHUMWlsuoPgs1YCKR-56",
+        "desired_target": "9__Archive/KeelarynLegacy/2026-09-24__PreCorpusP0/keelaryn-private",
+        "classification": "BLOCKED_BY_GOOGLE_DRIVE_CONNECTOR_UPDATE_TIMEOUT",
+        "attempts": 3,
+        "reconciled_result": "NOT_COMMITTED_EACH_TIME",
+        "current_parent_id": "1u63Rqen7jC_Pf2UvlOsAy4ANuzIkmiVV",
+        "account_role": "owner",
+        "warning": "Do not blind-retry update_file. Find a different safe Drive mutation path or wait for connector recovery. Do not copy/delete because Drive object identity must be preserved."
+      }
+    ]
+  },
+  "external_corpus_projects": {
+    "corpus_bootstrap": {
+      "id": "1tKmVnS9oSHkOxwqk4FmXceaLo4JjSUz1",
+      "status": "WAITING",
+      "blocker": "Yota archive waits for SemanticArchiveAudit to release 9__Archive READ_ONLY hold",
+      "keelaryn_c0_blocker": false,
+      "rationale": "CorpusBootstrap is real user-corpus migration provenance/work, not Keelaryn product-development infrastructure."
+    },
+    "semantic_archive_audit": {
+      "id": "14G9cZjFynHHa9rV76U3PCFKGb3epnHh_",
+      "state_revision": "SAA-R0078",
+      "status": "ACTIVE",
+      "source_mutation_policy": "READ_ONLY",
+      "remaining_scope": "School52/11a SportingEvents, SchoolReunion, OverallPhoto, Unsorted plus explicit large-video blockers",
+      "keelaryn_c0_blocker": false
+    },
+    "yota": {
+      "id": "1boOuylBA1rRm970n_WJeIq9TWud4FeLR",
+      "status": "CLOSED_PENDING_ARCHIVE",
+      "archive_blocked_by": "SemanticArchiveAudit READ_ONLY policy",
+      "keelaryn_c0_blocker": false
+    }
+  },
+  "ci": {
+    "workflow": "Corpus-first development",
+    "first_run_id": 36003118232,
+    "head": "78ad81ee2fdcf6b30b4f7668be1a919bb5d20819",
+    "conclusion": "startup_failure",
+    "jobs_created": 0,
+    "rerun_failed_jobs_api": "403_THIS_WORKFLOW_RUN_CANNOT_BE_RETRIED",
+    "classification": "PRE_JOB_GITHUB_ACTIONS_STARTUP_FAILURE",
+    "code_failure_proven": false,
+    "next_action": "Let the next natural clean-branch commit trigger CI again; do not manufacture code changes solely to retrigger."
+  },
+  "vps_legacy": {
+    "drive_service": "inactive_enabled",
+    "drive_mutation_inhibit": "PRESENT",
+    "production_current": "/opt/keelaryn/releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
+    "google_oauth_runtime_present": true,
+    "disposition": "DO_NOT_BYPASS_MUTATION_INHIBIT_TO_MOVE_DRIVE_CONTENT"
+  }
 }
