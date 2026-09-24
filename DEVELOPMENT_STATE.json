@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 7,
+  "revision": 8,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -28,11 +28,12 @@
     "GATEWAY_LEAST_PRIVILEGE_PENDING_IDENTITY_CREATED",
     "OPERATOR_ACCOUNT_BOOTSTRAPPED_VERIFIED",
     "NONROOT_GATEWAY_KEY_AUTH_VERIFIED",
-    "NONROOT_GATEWAY_EXECUTION_BLOCKER_DIAGNOSED"
+    "NONROOT_GATEWAY_EXECUTION_BLOCKER_DIAGNOSED",
+    "LEGACY_DRIVE_AUTOSTART_DISABLED_VERIFIED"
   ],
   "next_objective": {
-    "id": "C0_DISABLE_LEGACY_DRIVE_AUTOSTART",
-    "description": "Read-only inspect keelaryn-drive.service exact unit/dependencies and confirm it is the superseded zero-based Drive poller. If confirmed inactive and unrelated to current Corpus-first development, disable it so a VPS reboot cannot resurrect legacy behavior. Do not delete its unit/state in the same transaction.",
+    "id": "C0_FINAL_RECONCILE",
+    "description": "Perform a final read-only C0 audit across the clean Git branch, GitHub CI, VPS legacy/runtime residue, Gateway operator channels, and Google Drive cleanup status. Classify every remaining item as BLOCKER / DEFERRED_CLEANUP / TOOLING_BLOCKED / SAFE_LEGACY_PROVENANCE. If no correctness blocker remains, durably close C0 and begin the minimal Go P0 technology spike; do not let tooling-blocked archival or optional legacy deletion hold P0.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -65,7 +66,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "324546dc4893318b4a60a658b6853b441c94db52",
+  "repository_basis_commit": "cc725287f353179cd677bd73f4bc27611013f686",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -247,5 +248,19 @@
       ],
       "disposition": "Do not weaken host security or build a custom transport. Keep existing root Gateway as temporary OperatorChannel for development; non-root profile remains installed for future Gateway fix/retest."
     }
+  },
+  "legacy_services": {
+    "keelaryn-drive.service": "inactive_disabled",
+    "keelaryn-operation-agent.service": "inactive_disabled",
+    "keelaryn-operation-transport.service": "inactive_disabled"
+  },
+  "legacy_drive_service": {
+    "classification": "SUPERSEDED_ZERO_BASED_GOOGLE_DRIVE_POLLER",
+    "unit_path": "/etc/systemd/system/keelaryn-drive.service",
+    "mutation_job_id": "job_01M3A9DCZ2QFK47CV9FX5XJY8B",
+    "state": "inactive_disabled",
+    "unit_deleted": false,
+    "runtime_state_deleted": false,
+    "corpus_mutation_performed": false
   }
 }
