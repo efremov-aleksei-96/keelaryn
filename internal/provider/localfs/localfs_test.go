@@ -131,6 +131,55 @@ func TestSnapshotHardLinkIsSameProviderObjectWithAnotherLocator(t *testing.T) {
 	}
 }
 
+func TestSnapshotObjectGroupsSeparateObjectFromLocators(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	original := filepath.Join(root, "original.bin")
+	hardlink := filepath.Join(root, "hardlink.bin")
+	copyPath := filepath.Join(root, "copy.bin")
+	symlink := filepath.Join(root, "symlink.bin")
+	content := []byte("same bytes")
+	mustWrite(t, original, content)
+	mustWrite(t, copyPath, content)
+
+	if err := os.Link(original, hardlink); err != nil {
+		t.Skipf("hard links unavailable on this filesystem: %v", err)
+	}
+	symlinkCreated := os.Symlink(original, symlink) == nil
+
+	p := localfs.New("localfs-test")
+	snapshot, err := p.Snapshot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	groups := snapshot.ObjectGroups()
+	if len(groups) != 2 {
+		t.Fatalf("groups=%d, want 2: %#v", len(groups), groups)
+	}
+
+	got := make([][]string, len(groups))
+	for i, group := range groups {
+		for _, locator := range group.Locators {
+			got[i] = append(got[i], locator.Path)
+			if symlinkCreated && locator.Path == "symlink.bin" {
+				t.Fatal("symlink inherited target provider-object group")
+			}
+		}
+	}
+	want := [][]string{
+		{"copy.bin"},
+		{"hardlink.bin", "original.bin"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("groups=%#v, want %#v", got, want)
+	}
+}
+
 func TestSnapshotSymlinkHasNoRegularFileIdentityEvidence(t *testing.T) {
 	base := t.TempDir()
 	root := filepath.Join(base, "root")

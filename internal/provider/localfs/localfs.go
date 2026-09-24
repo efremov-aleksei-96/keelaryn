@@ -51,6 +51,59 @@ func (s *Snapshot) Observations() []corpus.Observation {
 	return out
 }
 
+
+// ObjectGroup is one ephemeral provider-object equivalence class inside a
+// Snapshot. Multiple Locators can describe the same physical provider object
+// (for example, filesystem hard links). Groups intentionally have no durable
+// ID yet.
+type ObjectGroup struct {
+	Locators []corpus.Locator `json:"locators"`
+}
+
+// ObjectGroups deterministically groups regular-file locators using the same
+// already-qualified platform identity semantics as SameProviderObject.
+// Entries without identity evidence (such as symlinks) are deliberately not
+// assigned to a group.
+func (s *Snapshot) ObjectGroups() []ObjectGroup {
+	type workingGroup struct {
+		representative os.FileInfo
+		locators       []corpus.Locator
+	}
+
+	working := make([]workingGroup, 0)
+	for _, observation := range s.observations {
+		info, ok := s.identityInfo[observation.Locator.Path]
+		if !ok {
+			continue
+		}
+
+		match := -1
+		for i := range working {
+			if os.SameFile(working[i].representative, info) {
+				match = i
+				break
+			}
+		}
+
+		if match < 0 {
+			working = append(working, workingGroup{
+				representative: info,
+				locators:       []corpus.Locator{observation.Locator},
+			})
+			continue
+		}
+		working[match].locators = append(working[match].locators, observation.Locator)
+	}
+
+	out := make([]ObjectGroup, len(working))
+	for i := range working {
+		locators := make([]corpus.Locator, len(working[i].locators))
+		copy(locators, working[i].locators)
+		out[i] = ObjectGroup{Locators: locators}
+	}
+	return out
+}
+
 // SameProviderObject reports whether two regular-file locators are backed by
 // the same physical filesystem object according to Go's platform-specific
 // os.SameFile implementation.

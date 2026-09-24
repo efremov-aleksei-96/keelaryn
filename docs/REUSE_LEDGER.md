@@ -37,3 +37,17 @@ Safety rules:
 - byte-identical copies are expected to compare as different provider objects.
 
 Qualification runs the same tests on GitHub-hosted Ubuntu and Windows 2025. If either platform disproves the stdlib approach, replace only the provider evidence adapter rather than changing the Keelaryn identity model.
+
+
+## P0-02 — ProviderObject grouping inside one snapshot
+
+**Decision:** no new dependency.
+
+The input relation is already supplied by the qualified Go stdlib `os.SameFile` evidence from P0-01. P0-02 only computes deterministic equivalence groups over a single bounded snapshot.
+
+Implementation deliberately uses a simple O(n²) representative comparison:
+- transparent correctness is more valuable than premature indexing in the technology spike;
+- actual corpus benchmarks must justify a more complex grouping/index structure;
+- the grouping algorithm is replaceable and does not define Keelaryn identity semantics.
+
+A group has multiple Locators but intentionally no durable ProviderObject/Artifact ID yet. Symlinks and other entries without regular-file identity evidence remain outside groups rather than inheriting target identity.

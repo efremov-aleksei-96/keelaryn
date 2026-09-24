@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 13,
+  "revision": 14,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -36,11 +36,12 @@
     "P0_00_GO_BASELINE_IMPLEMENTED",
     "P0_00_GO_BASELINE_QUALIFIED",
     "P0_01_LOCAL_CONTINUITY_IMPLEMENTED",
-    "P0_01_LOCAL_CONTINUITY_QUALIFIED"
+    "P0_01_LOCAL_CONTINUITY_QUALIFIED",
+    "P0_02_PROVIDER_OBJECT_GROUPS_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_02_PROVIDER_OBJECT_GROUPS",
-    "description": "Add deterministic in-memory provider-object grouping inside one local filesystem Snapshot. Multiple hard-link locators must form one group; independent byte-identical files must form separate groups; symlinks/unsupported identity entries must remain ungrouped rather than inherit target identity. Keep groups ephemeral and ID-less; do not allocate Artifact IDs or persist anything yet.",
+    "id": "P0_02_QUALIFY_PROVIDER_OBJECT_GROUPS",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass the deterministic ProviderObject grouping tests and all earlier safety/continuity tests. If green, checkpoint P0-02 and move to the smallest cross-snapshot reconciliation layer that assigns stable in-memory Artifact identity from strong provider-object continuity, still without persistence or content revision logic.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -73,7 +74,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "d6df2fdacf52536222aa1bf3d239dd9d82188e0c",
+  "repository_basis_commit": "849cdb8106be49326ee9b54a79f0ef2f2f1a25fd",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -402,9 +403,21 @@
     }
   },
   "p0_02": {
-    "status": "PLANNED",
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Operationalize ProviderObject != Locator within one local filesystem snapshot by grouping regular-file locators using already-qualified SameFile evidence.",
     "dependencies_added": 0,
-    "algorithm": "small deterministic equivalence grouping; optimization deferred until measured need"
+    "algorithm": "small deterministic equivalence grouping; optimization deferred until measured need",
+    "implementation": {
+      "type": "ephemeral deterministic provider-object equivalence groups",
+      "durable_id_allocated": false,
+      "algorithm": "representative pairwise os.SameFile",
+      "complexity": "O(n^2) spike; optimize only after benchmark evidence",
+      "third_party_dependencies_added": 0,
+      "expected_semantics": [
+        "hard links => one provider-object group / multiple locators",
+        "byte-identical independent files => different groups",
+        "symlinks => no inherited target group"
+      ]
+    }
   }
 }
