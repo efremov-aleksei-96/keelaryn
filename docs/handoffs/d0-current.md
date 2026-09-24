@@ -2110,3 +2110,27 @@ No release publication, stage witness, activation, legacy Hub, writer, credentia
 Durable evidence: `docs/evidence/R0009_PRIVATE_INPUT_ACQUIRED_20260924.json`.
 
 Next: perform one real VPS **read-only stage-runtime reconcile** only. Expected clean state is `NEW / NOT_STAGED` with witness root absent and every mutation flag false. Do not run `stage` in the same transaction.
+
+### D0-03M r0009 clean stage prestate PASS
+
+One real VPS **read-only** `operation_control_r0009_stage_runtime.py reconcile` was executed on exact branch tip `8941d51c2292e3e19c1a099196679755ef4a1d5f`.
+
+Verified:
+- private input `INPUT_EXACT`;
+- source `e42a4f156abb048f5c8f0bd1884fcae51674a55f`;
+- payload SHA-256 `8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876`;
+- payload size `442514`;
+- file count `227`;
+- execution state `NEW`;
+- release state `NOT_STAGED`;
+- `prepared=false`;
+- `completed=false`;
+- witness root state `ABSENT`;
+- witness root was not created;
+- no release publication;
+- no witness, activation, legacy Hub, writer, credential or Drive mutation;
+- live production/control boundary remains r0005 exact with writer inactive and legacy Hub `PREPARED / OLD`.
+
+Durable evidence: `docs/evidence/R0009_STAGE_PRESTATE_20260924.json`.
+
+Next transaction may perform exactly one r0009 `stage`. The stage runtime must repeat all Git/authority/runtime/private-input checks at the mutation boundary. On any interruption or ambiguous result, do not retry; reconcile first.
