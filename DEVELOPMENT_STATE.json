@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 17,
+  "revision": 18,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -42,11 +42,12 @@
     "P0_03_UNSAFE_AUTO_MERGE_PLAN_REJECTED",
     "P0_03_CONTINUITY_EVIDENCE_IMPLEMENTED",
     "P0_03_CONTINUITY_EVIDENCE_QUALIFIED",
-    "P0_04_CONTINUITY_DECISION_MODEL_IMPLEMENTED"
+    "P0_04_CONTINUITY_DECISION_MODEL_IMPLEMENTED",
+    "P0_04_CONTINUITY_DECISION_MODEL_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_04_QUALIFY_CONTINUITY_DECISION_MODEL",
-    "description": "Require Ubuntu and Windows 2025 CI to pass fail-closed continuity resolution tests. If green, survey the smallest practical source of conclusive temporal continuity evidence for local filesystems. Evaluate fsnotify first as reusable cross-platform event transport, but do not assume its events are durable or sufficient; preserve ambiguity on overflow/gaps/unpaired renames.",
+    "id": "P0_05_TEMPORAL_EVIDENCE_REUSE_RESEARCH",
+    "description": "Inspect fsnotify rename semantics on Linux and Windows and compare them with native inotify move-cookie / ReadDirectoryChangesW old+new rename semantics. Adopt fsnotify only if its public API preserves enough pairing/gap information for a correctness-safe evidence adapter; otherwise keep it as a wake-up/invalidation mechanism and evaluate a minimal native event adapter. No dependency addition until this decision is qualified.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -79,7 +80,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "4abf52f94e4b46dd3dc6096efd7520b0d6c362a8",
+  "repository_basis_commit": "7ca01c72866fd688745595ba9f3998397c871811",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -485,7 +486,7 @@
     }
   },
   "p0_04": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "dependencies_added": 0,
     "states": [
       "UNRESOLVED",
@@ -497,6 +498,28 @@
       "SUPPORTING",
       "CONCLUSIVE"
     ],
-    "safety_rule": "Only non-conflicting CONCLUSIVE evidence can confirm continuity; supporting-only evidence is AMBIGUOUS."
+    "safety_rule": "Only non-conflicting CONCLUSIVE evidence can confirm continuity; supporting-only evidence is AMBIGUOUS.",
+    "qualification": {
+      "exact_head": "7ca01c72866fd688745595ba9f3998397c871811",
+      "ci_run_id": 36048491529,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "invariant": "supporting evidence cannot confirm Artifact continuity; conflicting conclusive evidence is ambiguous"
+    }
+  },
+  "p0_05": {
+    "status": "REUSE_RESEARCH",
+    "objective": "Find the smallest reusable temporal evidence source capable of strengthening local rename continuity without hiding event gaps.",
+    "candidate": "fsnotify/fsnotify v1.10.1",
+    "initial_findings": [
+      "BSD-3-Clause, actively maintained, cross-platform Windows/Linux/macOS/BSD/illumos.",
+      "Linux backend uses inotify; Windows backend uses ReadDirectoryChangesW.",
+      "ErrEventOverflow exists on Linux and Windows and must invalidate continuity across the gap.",
+      "fsnotify watches are not recursive by default and network filesystems may not support notifications.",
+      "Need to verify whether cross-platform API preserves paired old/new rename identity strongly enough; do not adopt until proven."
+    ]
   }
 }
