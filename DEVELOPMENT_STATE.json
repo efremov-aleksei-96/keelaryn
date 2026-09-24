@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 2,
+  "revision": 3,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -20,13 +20,17 @@
     "CLEAN_ACTIVE_GIT_TREE_CREATED",
     "DRIVE_ARCHIVE_ROOT_CREATED",
     "DRIVE_PRECORPUSP0_CONTAINER_CREATED",
-    "DRIVE_PUBLIC_KEELARYN_FOLDER_ARCHIVED"
+    "DRIVE_PUBLIC_KEELARYN_FOLDER_ARCHIVED",
+    "LEGACY_RUNTIME_DECOMMISSION_PRESTATE_RECONCILED",
+    "LEGACY_RUNTIME_DECOMMISSION_PLAN_READY",
+    "C0_CI_MINIMIZED"
   ],
   "next_objective": {
-    "id": "C0_LEGACY_RUNTIME_DECOMMISSION_PREP",
-    "description": "Continue C0 without waiting for unrelated user-corpus projects. Read-only reconcile old VPS operation-agent/transport/control runtime and identify exact safe decommission plan now that Gateway is the OperatorChannel. Keep keelaryn-private as an explicit tooling-blocked Drive cleanup item; do not blind-retry its connector move. The next natural Git checkpoint should also re-test the single clean CI workflow.",
+    "id": "C0_LEGACY_RUNTIME_DECOMMISSION",
+    "description": "Execute the already reconciled reversible disable+stop of keelaryn-operation-agent.service and keelaryn-operation-transport.service as one coherent VPS transaction, immediately verify both disabled/inactive and Gateway still functional, then checkpoint the result. Do not delete units, credentials, runtime state, releases, or Drive content in that transaction.",
     "drive_mutation_approved": false,
-    "deletion_approved": false
+    "deletion_approved": false,
+    "runtime_mutation_scope": "DISABLE_STOP_LEGACY_AGENT_TRANSPORT_ONLY"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -57,7 +61,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "78ad81ee2fdcf6b30b4f7668be1a919bb5d20819",
+  "repository_basis_commit": "f95b806e4e0fa6cb6fd5d1b50f94a5902c239113",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -119,7 +123,15 @@
     "rerun_failed_jobs_api": "403_THIS_WORKFLOW_RUN_CANNOT_BE_RETRIED",
     "classification": "PRE_JOB_GITHUB_ACTIONS_STARTUP_FAILURE",
     "code_failure_proven": false,
-    "next_action": "Let the next natural clean-branch commit trigger CI again; do not manufacture code changes solely to retrigger."
+    "next_action": "Let the next natural clean-branch commit trigger CI again; do not manufacture code changes solely to retrigger.",
+    "observed_runs": [
+      36003118232,
+      36007594035,
+      36007635671
+    ],
+    "observed_conclusion": "startup_failure",
+    "observed_jobs_created": 0,
+    "current_change": "Removed unnecessary setup-go and all Go execution from C0 workflow; C0 now validates metadata and clean-tree boundary only. Go setup returns in P0 technology spike."
   },
   "vps_legacy": {
     "drive_service": "inactive_enabled",
@@ -127,5 +139,23 @@
     "production_current": "/opt/keelaryn/releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
     "google_oauth_runtime_present": true,
     "disposition": "DO_NOT_BYPASS_MUTATION_INHIBIT_TO_MOVE_DRIVE_CONTENT"
+  },
+  "runtime_decommission": {
+    "status": "READY_NOT_EXECUTED",
+    "observed": {
+      "agent": "active_enabled",
+      "transport": "active_enabled",
+      "drive_service": "inactive_enabled",
+      "operation_records": 3,
+      "all_operation_records": "READ_ONLY_SUCCEEDED_COMPLETE_NEXT_NONE",
+      "transport_inbox_entries": 0,
+      "transport_outbox_entries": 3,
+      "all_outbox": "TERMINAL_PUBLISHED"
+    },
+    "plan_document": "docs/C0_RUNTIME_DECOMMISSION.md",
+    "first_mutation": "DISABLE_AND_STOP_AGENT_AND_TRANSPORT_ONLY",
+    "deletes_files": false,
+    "deletes_state": false,
+    "rollback": "ENABLE_AND_START_TRANSPORT_THEN_AGENT"
   }
 }

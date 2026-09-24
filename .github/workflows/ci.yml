@@ -2,42 +2,51 @@ name: Corpus-first development
 
 on:
   push:
-    branches: [dev/corpus-first-p0]
+    branches:
+      - 'dev/corpus-first-p0'
   pull_request:
-    branches: [dev/corpus-first-p0]
+    branches:
+      - 'dev/corpus-first-p0'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: corpus-first-${{ github.workflow }}-${{ github.ref }}
+  group: corpus-first-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   validate:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 1
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: .go-version
-          cache: false
-      - name: Validate clean state
+
+      - name: Validate clean-slate metadata
         run: |
           set -euo pipefail
-          test "$(go env GOVERSION)" = "go$(cat .go-version)"
           python3 - <<'PY'
           import json
           from pathlib import Path
-          state=json.loads(Path("DEVELOPMENT_STATE.json").read_text())
-          assert state["schema"]=="keelaryn.development-state.v2"
-          assert state["authoritative_branch"]=="dev/corpus-first-p0"
-          assert state["architecture_authority"]=="KEELARYN_CANONICAL.md"
+
+          state = json.loads(Path("DEVELOPMENT_STATE.json").read_text(encoding="utf-8"))
+          assert state["schema"] == "keelaryn.development-state.v2"
+          assert state["authoritative_branch"] == "dev/corpus-first-p0"
+          assert state["architecture_authority"] == "KEELARYN_CANONICAL.md"
+          assert state["phase"] == "C0_CLEAN_SLATE"
+          assert Path("KEELARYN_CANONICAL.md").is_file()
           assert Path("docs/C0_ABSORPTION_MANIFEST.md").is_file()
           assert Path("docs/C0_CLEANUP_MANIFEST.md").is_file()
+          assert Path("docs/C0_RUNTIME_DECOMMISSION.md").is_file()
           PY
-          go mod tidy -diff
-          go test ./...
+
+      - name: Prove legacy implementation is absent
+        run: |
+          set -euo pipefail
+          for p in manager hub core deploy spec tools tests; do
+            test ! -e "$p"
+          done
