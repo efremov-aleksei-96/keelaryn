@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 10,
+  "revision": 11,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -33,11 +33,12 @@
     "C0_FINAL_RECONCILE_PASS",
     "C0_CLOSED",
     "D0_CLOSED",
-    "P0_00_GO_BASELINE_IMPLEMENTED"
+    "P0_00_GO_BASELINE_IMPLEMENTED",
+    "P0_00_GO_BASELINE_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_00_QUALIFY_GO_BASELINE",
-    "description": "Wait for and inspect exact-head Corpus-first CI for the minimal Go baseline. If green, checkpoint qualification and advance to the smallest next identity/reconciliation slice. If red, reconcile the exact failing job and fix only the proven defect; do not expand scope.",
+    "id": "P0_01_LOCAL_CONTINUITY_SPIKE",
+    "description": "Using Go stdlib os.SameFile as provider-specific in-memory identity evidence, add a local filesystem snapshot layer that can prove same physical provider object across rename without using path/hash as identity. Force SameFile evidence materialization while the original path exists, test rename continuity and copy distinction, and run the Go suite on both ubuntu-24.04 and windows-2025. Do not persist native IDs yet and do not add third-party dependencies.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -70,7 +71,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "764f218bcf4d6793e2c221a420d344719d2c36e0",
+  "repository_basis_commit": "82cfb9e855310b976798d373ad7ba5c5055fbb9d",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -320,7 +321,7 @@
     "Refresh public GitHub repository description/default-main content before first public Corpus-first candidate/release."
   ],
   "p0_00": {
-    "status": "IMPLEMENTED_AWAITING_EXACT_HEAD_CI",
+    "status": "QUALIFIED",
     "reuse_decision": "GO_STDLIB_ONLY",
     "dependencies_added": 0,
     "scope": [
@@ -343,6 +344,29 @@
       "web UI",
       "filesystem watcher"
     ],
-    "reuse_ledger": "docs/REUSE_LEDGER.md"
+    "reuse_ledger": "docs/REUSE_LEDGER.md",
+    "qualification": {
+      "exact_head": "82cfb9e855310b976798d373ad7ba5c5055fbb9d",
+      "ci_run_id": 36039924182,
+      "conclusion": "SUCCESS",
+      "go_version": "go1.27.1 linux/amd64",
+      "tests": [
+        "cmd/keelaryn PASS",
+        "internal/corpus PASS",
+        "internal/provider/localfs PASS"
+      ],
+      "go_vet": "PASS"
+    }
+  },
+  "p0_01": {
+    "status": "PLANNED",
+    "objective": "Prove in-memory local filesystem continuity evidence across rename without inventing persistent identity.",
+    "reuse_decision": "GO_STDLIB_OS_SAMEFILE",
+    "research": {
+      "unix": "Go os.SameFile compares device+inode.",
+      "windows": "Go os.SameFile compares volume serial + file index and loads them through a file handle.",
+      "third_party_dependency_needed": false
+    },
+    "qualification_target": "ubuntu-24.04 and windows-2025"
   }
 }
