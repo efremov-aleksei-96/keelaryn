@@ -1980,3 +1980,26 @@ This correction is qualification/test-only:
 No r0008/r0009 runtime tool, frozen candidate, VPS, authority, Hub, credential or Drive state is changed.
 
 Next: require exact-head Core + r0009 prep gate + r0009 boundary gate PASS. Only then issue one GitHub-only r0009 release-stage authority.
+
+### D0-03J r0009 stage authority provenance checkpoint
+
+Exactly one r0009 release-stage authority has been issued and independently read back.
+
+Authority:
+- commit `f2dd7b8875d423a197c27642f8c4b1db8bbcf786`;
+- transaction `92aea51ee7f80a8e8b84fffa9315bf9e`;
+- path `docs/authorizations/operation-control-r0009-stage/92aea51ee7f80a8e8b84fffa9315bf9e.json`;
+- Git blob `f903c62370dc27e3fb0264c56e6fc76e56f3afa3`;
+- canonical SHA-256 `56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919`;
+- scope `R0009_RELEASE_STAGE_ONLY`.
+
+Issuer checkpoint `86aa3a92f860d9ab96ad54c6d75f9adbcf723026` passed:
+- Zero-based Core `35968684813`, 921 tests PASS;
+- r0009 production-prep gate `35968684863` PASS;
+- r0009 boundary-capture gate `35968684721` PASS.
+
+The authority is bound to canonical boundary `docs/evidence/R0009_STAGE_BOUNDARY_20260924T071001Z.json`, blob `0d29ddb050143b953157e961e40d6c63d75df916`, SHA-256 `d6ea834ff31d9a5269cee573009c256f6871e437ba5635c8d047602d8b1f0117`.
+
+Authorization permits release staging only. Activation, Drive, legacy Hub, writer and credential mutation remain explicitly denied. The issuance commit changed exactly one file. No VPS or Drive mutation occurred.
+
+Next: build and qualify r0009-only private-input and stage-runtime tooling bound to this exact authority commit/blob/SHA/transaction. Do not reuse r0007/r0008 private roots or witnesses, and do not acquire/stage in the same transaction as tooling creation.

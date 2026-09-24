@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 96,
+  "revision": 97,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "c628e51daa7386e256d33b0991251f2e3919e9cb",
+  "repository_basis_commit": "f2dd7b8875d423a197c27642f8c4b1db8bbcf786",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03I-r0009-boundary-checkpoint-compatibility-correction",
-    "run_id": 35968348470,
+    "scope": "D0-03I-r0009-stage-authority-issued",
+    "run_id": 35968684813,
     "conclusion": "PASS",
-    "relevance": "R0009_CANONICAL_BOUNDARY_GATE_PASS_WITH_PREP_COUNT_AND_RETIRED_R0008_FIXTURE_CORRECTION_PENDING",
-    "note": "Exact HEAD c628e51daa7386e256d33b0991251f2e3919e9cb has canonical r0009 boundary evidence and r0009 boundary-capture gate run 35968348470 PASS. r0009 production-prep gate run 35968348607 failed only because its namespace count still expected seven r0009 tools after boundary_capture became the eighth. Zero-based Core run 35968348460 ran 921 tests and failed only four retired r0008 fixture tests because they inherited the new current r0009 production_boundary schema instead of pinning their historical r0008 stage-boundary evidence. This successor changes only the r0009 gate count/syntax list and retired r0008 test fixtures; runtime/candidate bytes remain unchanged."
+    "relevance": "R0009_STAGE_AUTHORITY_ISSUED_AFTER_CORE_PREP_AND_BOUNDARY_GATES_PASS",
+    "note": "Issuer checkpoint 86aa3a92f860d9ab96ad54c6d75f9adbcf723026 passed Zero-based Core run 35968684813 with 921 tests, r0009 production-prep gate run 35968684863 and r0009 boundary-capture gate run 35968684721. Isolated commit f2dd7b8875d423a197c27642f8c4b1db8bbcf786 added exactly one authority record for transaction 92aea51ee7f80a8e8b84fffa9315bf9e. Read-back verified authority blob f903c62370dc27e3fb0264c56e6fc76e56f3afa3, canonical SHA-256 56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919, exact boundary provenance and stage-only scope. No VPS or Drive mutation occurred."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03I_R0009_STAGE_AUTHORITY_PREREQUISITES",
-    "description": "Require exact-head PASS for Zero-based Core, operation-control-r0009-production-prep-gate-r0001 and operation-control-r0009-boundary-capture-gate-r0001 after compatibility corrections. The production-prep gate must recognize eight r0009 prep tools including boundary_capture. Retired r0008 tests must pin their own R0008_STAGE_BOUNDARY_20260923T092708Z fixture instead of current r0009 production_boundary. No runtime/product/candidate bytes are changed. Only after all three exact-head prerequisites PASS may exactly one GitHub-only r0009 release-stage authority be issued, bound to docs/evidence/R0009_STAGE_BOUNDARY_20260924T071001Z.json. Do not mutate VPS in the authority-issuance transaction.",
+    "id": "D0-03J_R0009_PRIVATE_INPUT_AND_STAGE_RUNTIME",
+    "description": "Create and qualify isolated r0009 private-input and stage-runtime tooling bound exactly to issued authority commit f2dd7b8875d423a197c27642f8c4b1db8bbcf786, authority blob f903c62370dc27e3fb0264c56e6fc76e56f3afa3, authority SHA-256 56c16168d4ad473757342251c2791fd148ef578630136f7626226425257b4919 and stage transaction 92aea51ee7f80a8e8b84fffa9315bf9e. Use r0009-only private-input and witness roots; never reuse r0007/r0008 roots, witnesses or transaction identities. First implement and exact-head qualify reconcile/acquire/stage-runtime surfaces with no activation capability. Then perform only a read-only VPS private-input reconcile. Do not acquire private input or stage the release in the same transaction as tooling creation.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
