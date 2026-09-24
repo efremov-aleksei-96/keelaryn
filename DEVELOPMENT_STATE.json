@@ -1,201 +1,57 @@
 {
-  "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 111,
+  "schema": "keelaryn.development-state.v2",
+  "revision": 1,
   "repository": "efremov-aleksei-96/keelaryn",
-  "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "fb74959ff3cbd58bee8e154d012e1bd023ed075c",
-  "qualification_state": "UNQUALIFIED_DEVELOPMENT",
-  "head_resolution": {
-    "mode": "RESOLVE_BRANCH_REF_LIVE",
-    "state_file_commit_mode": "RESOLVE_LAST_CHANGE_LIVE",
-    "rule": "Resolve authoritative branch HEAD and current HEAD CI live; never treat chat or an older handoff HEAD as current authority."
+  "authoritative_branch": "dev/corpus-first-p0",
+  "architecture_authority": "KEELARYN_CANONICAL.md",
+  "phase": "C0_CLEAN_SLATE",
+  "status": "IN_PROGRESS",
+  "product_level": "P0_NOT_STARTED",
+  "language_direction": "GO",
+  "legacy": {
+    "frozen_ref": "legacy/pre-corpus-p0-20260924",
+    "frozen_commit": "ece811aea9bbf73d46460f5bb022013a5dfa6038",
+    "old_development_branch": "dev/zero-based-keelaryn"
   },
-  "capability": {
-    "current_level": "D0",
-    "name": "AUTONOMOUS_ENGINEERING",
-    "status": "IN_PROGRESS",
-    "product_level": "P0_NOT_STARTED"
+  "completed": [
+    "CANONICAL_ARCHITECTURE_ESTABLISHED",
+    "PRE_P0_GIT_WORLD_FROZEN",
+    "LEGACY_ABSORPTION_MANIFEST_ESTABLISHED",
+    "CLEAN_ACTIVE_GIT_TREE_CREATED"
+  ],
+  "next_objective": {
+    "id": "C0_DRIVE_ARCHIVE",
+    "description": "Create the approved Google Drive archive path and move only the two approved Keelaryn development folders with read-only verification after each mutation. CorpusBootstrap remains in place.",
+    "drive_mutation_approved": true,
+    "deletion_approved": false
   },
-  "architecture": {
-    "model": "CORPUS_FIRST",
-    "old_hub_first_r2": "PROVENANCE_RESEARCH_ONLY",
-    "old_hub_cutover": "PAUSED_LEGACY_RUNTIME_ONLY",
-    "authority_model": "LAYERED_CORPUS_FIRST",
-    "object_authority": "PHYSICAL_CORPUS_OBJECT_EXISTENCE_BYTES_IDENTITY_LOCATION",
-    "operational_state_authority": "EXPLICIT_PROJECT_WORKSPACE_STATE",
-    "lifeos_authority": "CROSS_LIFE_ORCHESTRATION_SEMANTICS_ONLY",
-    "control_semantic_plane": "INDEXES_FINGERPRINTS_RELATIONS_CLASSIFICATIONS_DERIVED_TRANSACTION_RECOVERY_METADATA",
-    "semantic_rule": "SEMANTICS_DO_NOT_OVERRIDE_OBJECT_AND_LOCATION_DOES_NOT_DEFINE_COMPLETE_MEANING",
-    "legacy_hub_authority": "PROVENANCE_AND_TEMPORARY_PRE_CUTOVER_RUNTIME_BOUNDARY_ONLY",
-    "chat_is_durable_state": false
-  },
-  "authority": {
-    "github": [
-      "source",
-      "branch_head",
-      "specifications",
-      "ci",
-      "development_history",
-      "sanitized_checkpoints"
+  "approved_drive_plan": {
+    "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
+    "target_relative_path": "KeelarynLegacy/2026-09-24__PreCorpusP0",
+    "move_folder_ids": [
+      "13Du6Dbgq2H9zX7mGnmih5pU7k9EvZS3H",
+      "1BFoaqU8a3arOFHUMWlsuoPgs1YCKR-56"
     ],
-    "vps": [
-      "controlled_runtime",
-      "integration_state",
-      "production_specific_state"
-    ],
-    "google_drive": [
-      "real_corpus",
-      "corpus_specific_evidence"
-    ],
-    "chatgpt": [
-      "engineer",
-      "orchestrator"
+    "leave_in_place": [
+      "1tKmVnS9oSHkOxwqk4FmXceaLo4JjSUz1"
     ]
   },
-  "last_coherent_ci": {
-    "scope": "C0-canonical-authority-commit-observed",
-    "run_id": 35998858715,
-    "conclusion": "PASS",
-    "relevance": "HISTORICAL_BASELINE_PLUS_EXPECTED_VALIDATOR_MIGRATION",
-    "note": "The canonical authority commit itself triggered legacy Zero-based Core run 35998858715; it failed only because the old objective-id regex rejected the new C0_CLEAN_SLATE_MANIFEST identifier before any tests ran. This checkpoint repairs only that operational validator grammar and adds regression coverage. Product architecture remains KEELARYN_CANONICAL.md."
+  "operator_channel": {
+    "abstraction": "OperatorChannel",
+    "current_implementation": "Gateway SSH",
+    "product_dependency": false
   },
-  "production_boundary": {
-    "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
-    "observed_at_utc": "2026-09-24T07:10:01Z",
-    "evidence_path": "docs/evidence/R0009_STAGE_BOUNDARY_20260924T071001Z.json",
-    "source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
-    "hub_cutover_status": "PREPARED",
-    "hub_transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
-    "selector": "OLD",
-    "writer": "INACTIVE_MAINPID_0",
-    "installed_operation_control": {
-      "candidate": "operation-control-r0005-20260921-01",
-      "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
-      "state": "INSTALLED_RUNTIME_ACCEPTED"
-    },
-    "read_only_selftest": {
-      "request_id": "50000000000000000000000000000003",
-      "request_comment_id": 5780183513,
-      "status_comment_id": 5780188716,
-      "source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
-      "status": "PASS",
-      "timestamp_utc": "2026-09-22T16:31:38Z"
-    },
-    "rule": "This evidence proves only the observed legacy runtime safety boundary. Re-read external authority immediately before any later production mutation; legacy Hub content/semantics remain non-authoritative."
-  },
-  "constrained_candidates": [
-    {
-      "candidate": "operation-control-r0001-20260920-01",
-      "state": "REJECTED_BEFORE_BOOTSTRAP",
-      "retry": "FORBIDDEN"
-    },
-    {
-      "candidate": "operation-control-r0002-20260920-01",
-      "state": "REJECTED_BEFORE_VPS_MATERIALIZATION",
-      "retry": "FORBIDDEN"
-    },
-    {
-      "candidate": "operation-control-r0003-20260920-01",
-      "state": "REJECTED_AFTER_BOOTSTRAP_COMMIT_BEFORE_RUNTIME_ACCEPTANCE",
-      "retry": "FORBIDDEN"
-    },
-    {
-      "candidate": "operation-control-r0004-20260920-01",
-      "state": "REJECTED_AFTER_BOOTSTRAP_ROLLBACK_BEFORE_RUNTIME_ACCEPTANCE",
-      "retry": "FORBIDDEN"
-    },
-    {
-      "candidate": "operation-control-r0005-20260921-01",
-      "state": "INSTALLED_RUNTIME_ACCEPTED",
-      "retry": "NOT_A_RETRY_TARGET"
-    },
-    {
-      "candidate": "operation-control-r0006-20260921-01",
-      "state": "FROZEN_PRODUCT_OLD_ARCHITECTURE_LINE_PAUSED",
-      "source_commit": "b371a9b9f28fe668cc8073019a3d5f352f9d9bf3",
-      "retry": "FORBIDDEN_LEGACY_HUB_LINE"
-    },
-    {
-      "candidate": "operation-control-r0007-20260921-01",
-      "state": "REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT",
-      "source_commit": "833123b6a7ad2c61087ee8a86700bb9ad8a46298",
-      "retry": "FORBIDDEN"
-    },
-    {
-      "candidate": "operation-control-r0008-20260923-01",
-      "state": "REJECTED_AFTER_CONTROL_UPDATE_ROLLBACK_EXACT",
-      "source_commit": "20727893662cde92998d88ecdca730b69633eaaa",
-      "retry": "FORBIDDEN"
-    },
-    {
-      "candidate": "operation-control-r0009-20260924-01",
-      "state": "FROZEN_TRANSITION_GATE_PASS",
-      "source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
-      "retry": "NOT_A_RETRY_TARGET"
-    }
+  "transaction_rules": [
+    "READ_ONLY_PRESTATE",
+    "ONE_COHERENT_MUTATION",
+    "IMMEDIATE_READ_ONLY_VERIFY",
+    "CHECKPOINT",
+    "NO_BLIND_RETRY_AFTER_INTERRUPTION"
   ],
-  "transaction_disposition": {
-    "old_hub_cutover": {
-      "state": "PAUSED_LEGACY_RUNTIME_ONLY",
-      "transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
-      "mutation_allowed": false
-    },
-    "d0": {
-      "state": "ACTIVE",
-      "mutation_scope": "DEVELOPMENT_CONTROL_PLANE_ONLY"
-    }
-  },
-  "checkpoint_sources": {
-    "primary_human_handoff": "docs/handoffs/d0-current.md",
-    "historical_handoff": "docs/handoffs/zero-based-current.md",
-    "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
-  },
-  "next_objective": {
-    "id": "C0_CLEAN_SLATE_MANIFEST",
-    "description": "Treat KEELARYN_CANONICAL.md as the sole current product/architecture authority. Before new P0 product code, perform read-only C0 cleanup inventory and classify Git plus Google Drive Keelaryn-development material as KEEP/ABSORB/ARCHIVE/DELETE_CANDIDATE/REVIEW. Freeze the pre-P0 Git world, absorb unique knowledge, then create a minimal active Corpus-first line. Do not mutate Google Drive until an exact proposed move/delete manifest is shown to and explicitly approved by the maintainer.",
-    "production_mutation_allowed": false,
-    "drive_content_mutation_allowed": false
-  },
-  "forbidden_actions": [
-    "Blindly retry any interrupted or failed durable mutation.",
-    "Continue the old Hub selector apply or old Hub content cutover.",
-    "Restart the old writer as part of D0.",
-    "Activate the staged old Hub credential.",
-    "Retry rejected Operation Control candidates.",
-    "Treat development CI as production qualification.",
-    "Infer current VPS state from this file without fresh reconciliation before mutation.",
-    "Issue a real r0007 stage authorization before a fresh VPS pre-apply reconcile is durably evaluated.",
-    "Issue a second real r0007 stage authorization for the issued transaction; use only the exact Git-resolved authority or fail closed.",
-    "Do not decommission operation-agent/operation-transport before the Gateway state-schema migration and a fresh live reconcile are durably qualified.",
-    "Do not treat superseded Hub-first/Zero-Based/spec/roadmap documents as current product architecture; KEELARYN_CANONICAL.md is the sole current product/architecture authority.",
-    "Do not begin new Corpus-first P0 feature development before C0 clean-slate convergence completes."
-  ],
-  "resume_procedure": [
-    "Read KEELARYN_CANONICAL.md first for current product architecture; conflicting older architecture/spec/roadmap material is provenance only.",
-    "Resolve authoritative_branch HEAD live.",
-    "Read and strictly validate DEVELOPMENT_STATE.json.",
-    "Resolve the commit that last changed DEVELOPMENT_STATE.json and compare it with current HEAD.",
-    "Resolve current HEAD CI live and distinguish it from recorded historical CI.",
-    "Require repository_basis_commit to be the checkpoint commit first parent when CI enforces a fresh checkpoint.",
-    "Before any r0009 production action, resolve the frozen r0009 candidate receipt and exact gate evidence live, then reconcile VPS from the r0005 OLD_EXACT boundary; never reuse r0007/r0008 stage/control-update authority or transaction identities.",
-    "Read fresh VPS state only when the next action depends on VPS reality.",
-    "Read Google Drive only when the next action depends on corpus or Drive evidence.",
-    "Continue only from next_objective or the first objectively uncompleted prerequisite.",
-    "After interruption, reconcile authority before any retry.",
-    "Use Gateway as the preferred normal VPS execution channel; require maintainer SSH only for workstation-specific evidence or Gateway recovery."
-  ],
-  "product_after_d0": {
-    "target_level": "P0",
-    "path": [
-      "PHYSICAL_CORPUS",
-      "READ_ONLY_DISCOVERY",
-      "INVENTORY",
-      "ARTIFACT_IDENTITY",
-      "CURRENT_LOCATOR",
-      "BASIC_OBSERVATION_REVISION",
-      "MINIMAL_EXTRACTION",
-      "TASK_SPECIFIC_AI_CONTEXT"
-    ],
-    "destructive_normalization_required": false
-  }
+  "forbidden": [
+    "START_P0_FEATURES_BEFORE_C0_COMPLETE",
+    "DELETE_GOOGLE_DRIVE_CONTENT_WITHOUT_SEPARATE_APPROVAL",
+    "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
+    "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
+  ]
 }
