@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 92,
+  "revision": 93,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "0bf3e1eb328954171d1f35a125df3240e8642eb2",
+  "repository_basis_commit": "c02b4bb308be131aded9f99a748c297869aff0f6",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03G-r0009-production-prep-framework-harness-correction",
-    "run_id": 35963546919,
+    "scope": "D0-03G-r0009-production-prep-qualified-and-live-boundary-reconciled",
+    "run_id": 35967011494,
     "conclusion": "PASS",
-    "relevance": "EXACT_HEAD_CORE_PASS_PRODUCT_BYTES_VALID_PREP_GATE_FAILURE_HARNESS_ONLY",
-    "note": "Exact HEAD 0bf3e1eb328954171d1f35a125df3240e8642eb2 passed Zero-based Core run 35963546919. r0009 production-prep gate run 35963547025 passed exact candidate and authority-absence checks, then failed only because its py_compile syntax step created unignored __pycache__/pyc files and the immediate clean-tree assertion detected them. No Python traceback occurred. This successor changes only the workflow syntax-check to in-memory compile(); r0009 product/runtime/test bytes remain unchanged."
+    "relevance": "EXACT_HEAD_CORE_AND_R0009_PRODUCTION_PREP_GATE_PASS_PLUS_FRESH_VPS_READ_ONLY_BOUNDARY",
+    "note": "Exact HEAD c02b4bb308be131aded9f99a748c297869aff0f6: Zero-based Core run 35967011494 PASS and r0009 production-prep gate run 35967011469 PASS. A subsequent exact-head real VPS read-only r0009 reconcile proved installed r0005 control release exact, operation agent/transport active+enabled on exact predecessor unit bytes, writer INACTIVE/MainPID=0, legacy Hub PREPARED/OLD with matching mutation inhibit, credential exact, r0009 snapshot unit absent, and zero production/Drive mutations."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03G_R0009_PRODUCTION_PREP_QUALIFICATION",
-    "description": "The r0009 production-prep framework product/runtime/test bytes remain unchanged; only the dedicated gate syntax-check harness is corrected to use in-memory compile() so it cannot dirty the checkout. Require exact-head PASS for operation-control-r0009-production-prep-gate-r0001 and Zero-based Core. On PASS, perform exactly one fresh real-VPS read-only operation_control_r0009_vps.py reconcile from the r0005 OLD_EXACT boundary. Do not issue r0009 stage authority, create private input, stage a release, or mutate VPS before that reconcile is evaluated.",
+    "id": "D0-03H_R0009_CANONICAL_BOUNDARY_CAPTURE",
+    "description": "Fresh real-VPS r0009 read-only reconcile is durably checkpointed and clean: predecessor r0005 control release exact; production source e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f unchanged; operation agent/transport active+enabled with exact predecessor bytes; writer INACTIVE/MainPID=0; legacy Hub PREPARED/OLD with matching mutation inhibit; credential exact; r0009 snapshot unit ABSENT; production_authorized false; all production/Drive mutation flags false. Next add and qualify a canonical r0009 boundary-capture tool/gate as a separate development transaction. It must capture a timestamped canonical boundary from the qualified r0009 reconcile without issuing stage authority or mutating VPS. Do not issue r0009 authority, create private input, or stage the release before that canonical boundary is durably captured and qualified.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

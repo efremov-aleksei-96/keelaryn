@@ -1900,3 +1900,23 @@ The Python modules produced no syntax traceback. The failure came from `python -
 This correction changes **only** the workflow harness: the seven r0009 prep modules are now syntax-checked using Python's in-memory `compile()` over source text. No product/runtime/test file is changed. Exact-head Core run `35963546919` on the framework commit is PASS.
 
 Next: require the corrected r0009 production-prep gate and exact-head Core to PASS. Only then perform one real-VPS read-only r0009 reconcile.
+
+### D0-03H fresh r0009 live boundary reconcile PASS
+
+After exact-head qualification of the corrected r0009 production-prep framework, one real VPS **read-only** `operation_control_r0009_vps.py reconcile` was executed on branch tip `c02b4bb308be131aded9f99a748c297869aff0f6`.
+
+Verified live boundary:
+- predecessor control candidate is `operation-control-r0005-20260921-01`;
+- control source `08f2e211f53764590f6ff0f05f86b2de62c14418` and its 190-file payload are exact;
+- production source remains `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- operation agent and transport are ACTIVE, enabled and byte-exact to the predecessor release;
+- writer is exact `INACTIVE / MainPID=0`;
+- legacy Hub remains `PREPARED / OLD` with mutation-inhibit authority matching;
+- credential SHA-256 remains exact;
+- r0009 snapshot unit is `ABSENT`;
+- `production_authorized=false`;
+- production and Drive mutation flags are false.
+
+Sanitized durable evidence: `docs/evidence/R0009_LIVE_BOUNDARY_RECONCILE_20260924.json`.
+
+The reconcile emitted no timestamp, so this checkpoint does **not** replace the canonical timestamped `production_boundary` record in DEVELOPMENT_STATE. The next isolated development transaction is to add and qualify canonical r0009 boundary capture. Stage authority, private input and release staging remain forbidden until that boundary is captured and durably accepted.
