@@ -641,6 +641,7 @@ def _context() -> dict[str, Any]:
     elif live == "NEW_EXACT":
         updater._verify_services(
             active_probe=updater.legacy._is_active,
+            template_active_probe=updater._template_has_active_instances,
             enabled_probe=updater.legacy._enabled_state,
             restart_probe=updater.legacy._restart_count,
         )

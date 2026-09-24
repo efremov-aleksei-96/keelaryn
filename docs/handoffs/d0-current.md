@@ -2210,3 +2210,30 @@ Sanitized durable evidence: `docs/evidence/R0009_CONTROL_UPDATE_PRESTATE_2026092
 The reconcile output contained no UTC observation timestamp, so none is invented.
 
 Next transaction is exactly one r0009 control-update `update` invocation only after this checkpoint itself passes exact-head CI. The qualified runtime delegates mutation to the updater frozen inside staged r0009, which carries the systemd active-instance defect fix. It may switch only the D0 control plane from exact r0005 to exact r0009, including transaction authority, `control-current`, exact control-unit bytes and service restart/stability checks. Production `current`, legacy Hub, credential contents and Drive remain immutable boundaries. After any result or interruption, reconcile before any retry.
+
+### D0-03P r0009 wrapper post-update recovery
+
+The one permitted r0009 control-update invocation ran on exact qualified branch tip `34781bf31c1b25552e032d1aaf15dbc94bc90c0d`.
+
+Observed:
+- the frozen staged r0009 updater call returned to the development wrapper;
+- the wrapper then entered its own post-update `_context()`;
+- `_live_boundary()` selected `NEW_EXACT`, causing the wrapper to call frozen `_verify_services()`;
+- that call failed with `TypeError: _verify_services() missing 1 required keyword-only argument: 'template_active_probe'`;
+- update process exit code was 1;
+- mandatory independent wrapper `reconcile` reached the same `NEW_EXACT` branch and failed with the same TypeError.
+
+This is a wrapper integration defect introduced when r0009 frozen updater changed `_verify_services()` to require the dedicated systemd template-instance probe. The frozen updater itself already uses `template_active_probe=_template_has_active_instances`; the wrapper omitted it only in its direct read-only NEW_EXACT verification call.
+
+Because the updater returned before the wrapper failure, the control flow strongly indicates that the frozen updater completed its own successor verification and wrote COMPLETED before returning. This remains an inference until a repaired independent read-only reconcile confirms durable authority.
+
+Safety disposition:
+- **do not invoke r0009 update again**;
+- durable transaction outcome remains `RECONCILE_REQUIRED`;
+- repair only the development wrapper call;
+- bind `template_active_probe=updater._template_has_active_instances`;
+- add regression and gate coverage;
+- after exact-head CI PASS, execute only `operation_control_r0009_control_update_runtime.py reconcile`.
+
+Durable evidence: `docs/evidence/R0009_CONTROL_UPDATE_WRAPPER_FAILURE_20260924.json`.
+

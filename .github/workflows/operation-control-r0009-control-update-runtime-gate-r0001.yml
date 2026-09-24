@@ -141,6 +141,7 @@ jobs:
               'NEW_SOURCE = "e42a4f156abb048f5c8f0bd1884fcae51674a55f"',
               'NEW_PAYLOAD = "8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876"',
               'CONTROL_UPDATE_TRANSACTION_ID = "24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce"',
+              'template_active_probe=updater._template_has_active_instances,',
               'updater.update_d0_control_plane(',
               '"production_current_mutation_performed": False',
               '"legacy_hub_mutation_performed": False',

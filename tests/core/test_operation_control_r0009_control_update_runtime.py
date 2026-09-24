@@ -218,6 +218,13 @@ class R0009ControlUpdateRuntimeTests(unittest.TestCase):
                         live="NEW_EXACT",
                     )
 
+    def test_new_exact_context_uses_frozen_template_instance_probe(self) -> None:
+        raw = MODULE.read_text(encoding="utf-8")
+        self.assertIn(
+            "template_active_probe=updater._template_has_active_instances,",
+            raw,
+        )
+
     def test_rolled_back_state_is_not_actionable(self) -> None:
         before = {
             "transaction": {"state": "ROLLED_BACK_EXACT"},
