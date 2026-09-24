@@ -41,6 +41,14 @@ type RevisionTracker struct {
 	history  map[ArtifactID][]RevisionRecord
 }
 
+// ValidateContentEvidence applies provider-neutral evidence sanity rules.
+func ValidateContentEvidence(evidence ContentEvidence) error {
+	if evidence.Algorithm == "" || evidence.Digest == "" || evidence.Size < 0 {
+		return ErrInvalidContentEvidence
+	}
+	return nil
+}
+
 func NewRevisionTracker(registry *ArtifactRegistry) *RevisionTracker {
 	return &RevisionTracker{
 		registry: registry,
@@ -56,8 +64,8 @@ func (t *RevisionTracker) Observe(artifactID ArtifactID, evidence ContentEvidenc
 	if _, ok := t.registry.Artifact(artifactID); !ok {
 		return RevisionObservation{}, fmt.Errorf("%w: %s", ErrArtifactNotFound, artifactID)
 	}
-	if evidence.Algorithm == "" || evidence.Digest == "" || evidence.Size < 0 {
-		return RevisionObservation{}, ErrInvalidContentEvidence
+	if err := ValidateContentEvidence(evidence); err != nil {
+		return RevisionObservation{}, err
 	}
 
 	previous, exists := t.current[artifactID]

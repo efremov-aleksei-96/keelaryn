@@ -202,3 +202,21 @@ Hard boundary:
 - An open DB must live on local/runtime storage, not in a synchronized/network corpus root.
 - First schema contains only non-rebuildable Artifact/Revision identity state and minimal content evidence.
 - Extracted text, embeddings, previews, indexes, and file bytes remain outside this durable identity schema and are not introduced by P0-08.
+
+
+### P0-08 implementation boundary
+
+The first durable schema is intentionally only:
+
+- `artifacts(artifact_id)`;
+- `revisions(revision_id, artifact_id, sequence, content_algorithm, content_digest, content_size)`.
+
+No Locator, path, provider-native ID, file bytes, extracted text, preview, embedding, or search index is stored in schema v1.
+
+Durable identity uses `github.com/google/uuid v1.6.0` (BSD-3-Clause):
+- `art_<UUIDv4>`;
+- `rev_<UUIDv4>`.
+
+UUID generation establishes globally unique durable identifiers; it does **not** establish continuity. Continuity remains governed by the separate evidence/decision model.
+
+The store uses zombiezen's `sqlitemigration` rather than a Keelaryn-specific migration framework, including a fixed SQLite `application_id` (`KLRY`) to fail closed on a foreign database file.

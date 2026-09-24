@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 24,
+  "revision": 25,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -50,11 +50,12 @@
     "P0_07_REVISION_SEMANTICS_IMPLEMENTED",
     "P0_07_SNAPSHOT_HASH_BINDING_DEFECT_REPRODUCED",
     "P0_07_FRESH_CONTENT_OBSERVATION_FIX_IMPLEMENTED",
-    "P0_07_REVISION_SEMANTICS_QUALIFIED"
+    "P0_07_REVISION_SEMANTICS_QUALIFIED",
+    "P0_08_SQLITE_DURABLE_STATE_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_08_SQLITE_DURABLE_STATE_SPIKE",
-    "description": "Add the smallest durable control-state store using zombiezen/go-sqlite v1.4.2 and its sqlitemigration package. Schema v1 must persist Artifact identity and Revision records/content evidence only, with explicit foreign keys and application_id. Prove reopen durability, unchanged-content idempotence, A→B→A distinct revisions, migration idempotence, wrong-database application_id rejection, and that no Locator/file bytes are required for identity storage. Keep DB path caller-supplied and outside corpus by policy; do not add caches/extraction/search yet.",
+    "id": "P0_08_QUALIFY_AND_LOCK_SQLITE_STATE",
+    "description": "Inspect exact-head Ubuntu/Windows CI. The dependency-bearing CI must run go mod tidy, print canonical go.mod/go.sum, then run all tests/vet. If green, commit the exact tidy outputs, restore strict go mod tidy -diff enforcement, rerun CI, and qualify durable state only after the locked exact head is green.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -87,7 +88,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "5f117459ea3813af063365d0da6b87b768a64f33",
+  "repository_basis_commit": "946c12249f311ceecac864af4f73e6861afbe812",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -621,7 +622,7 @@
     }
   },
   "p0_08": {
-    "status": "PLANNED",
+    "status": "IMPLEMENTED_AWAITING_DEPENDENCY_LOCK_AND_CROSS_PLATFORM_CI",
     "objective": "Prove the first durable non-rebuildable control-state store without turning SQLite into corpus storage.",
     "selected_candidate": {
       "project": "zombiezen/go-sqlite",
@@ -659,6 +660,35 @@
       }
     ],
     "store_location_rule": "Runtime-local control state only; never keep an open SQLite DB inside synced/network corpus storage.",
-    "scope": "Artifacts + Revisions + minimal metadata only; no extracted text, previews, embeddings, or mirrored file bytes."
+    "scope": "Artifacts + Revisions + minimal metadata only; no extracted text, previews, embeddings, or mirrored file bytes.",
+    "implementation": {
+      "package": "internal/state/sqlite",
+      "schema_version": 1,
+      "application_id": "KLRY",
+      "tables": [
+        "artifacts",
+        "revisions"
+      ],
+      "durable_id_provider": "github.com/google/uuid v1.6.0",
+      "sqlite_stack": "zombiezen.com/go/sqlite v1.4.2 -> modernc.org/sqlite",
+      "migration_framework": "zombiezen sqlitemigration",
+      "foreign_keys": true,
+      "pool_size": 1,
+      "wal_enabled": false,
+      "database_path": "caller-supplied runtime-local path",
+      "excluded": [
+        "Locators",
+        "provider-native IDs",
+        "corpus file bytes",
+        "extracted text",
+        "previews",
+        "embeddings",
+        "search indexes"
+      ]
+    },
+    "dependency_lock": {
+      "status": "AWAITING_GITHUB_HOSTED_TIDY_OUTPUT",
+      "reason": "First dependency-bearing clean-line commit; CI will resolve pinned direct dependencies and print canonical go.mod/go.sum, then a follow-up checkpoint will commit exact lock data and restore tidy-diff enforcement."
+    }
   }
 }
