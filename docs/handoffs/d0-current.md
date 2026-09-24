@@ -2188,3 +2188,25 @@ The r0009 production-prep namespace now contains eleven tools, including this co
 No VPS control-update action occurs in this commit.
 
 Next: require exact-head Core + all r0009 gates PASS. Then execute one real VPS **read-only control-update reconcile only** and checkpoint that prestate before considering `update`.
+
+### D0-03O r0009 control-update clean prestate PASS
+
+Real VPS read-only `operation_control_r0009_control_update_runtime.py reconcile` on exact branch tip `1de3d409e31efe8e210ed48061c45f8af9419127` returned the required clean prestate before the control-plane switch.
+
+Verified:
+- current control boundary is exact predecessor r0005: `OLD_EXACT`;
+- old release is exact r0005 source `08f2e211f53764590f6ff0f05f86b2de62c14418`, payload `6272afbe918d33c29a3f72354baca9e781b3960b3f0f465e1598b5bbc794a7e7`;
+- new staged release is exact r0009 source `e42a4f156abb048f5c8f0bd1884fcae51674a55f`, payload `8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876`, size `442514`, files `227`;
+- r0009 stage witness remains `STAGED_EXACT` with post-reconcile PASS and prepared SHA-256 `d04430a3da9e830671ea108c980712f9f36b8cb2942deb69a65da4d7ce686909`;
+- production current remains `releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- credential SHA-256 remains `7002ed72a223dd7fc860451c53a4ec8f264d14f7144000559a295522b7cbe928`;
+- canonical r0009 control-update transaction is `24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce`;
+- that transaction is `NEW`;
+- update root is `PRESENT`, compatible with retained terminal control-update history;
+- control-update, production-current, legacy-Hub, credential and Drive mutation flags are all false.
+
+Sanitized durable evidence: `docs/evidence/R0009_CONTROL_UPDATE_PRESTATE_20260924.json`.
+
+The reconcile output contained no UTC observation timestamp, so none is invented.
+
+Next transaction is exactly one r0009 control-update `update` invocation only after this checkpoint itself passes exact-head CI. The qualified runtime delegates mutation to the updater frozen inside staged r0009, which carries the systemd active-instance defect fix. It may switch only the D0 control plane from exact r0005 to exact r0009, including transaction authority, `control-current`, exact control-unit bytes and service restart/stability checks. Production `current`, legacy Hub, credential contents and Drive remain immutable boundaries. After any result or interruption, reconcile before any retry.

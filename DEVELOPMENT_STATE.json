@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 105,
+  "revision": 106,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "95853a827e35c41c8021f2908e1aa86503ba7641",
+  "repository_basis_commit": "1de3d409e31efe8e210ed48061c45f8af9419127",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03N-r0009-staged-release-checkpoint",
-    "run_id": 35978766717,
+    "scope": "D0-03N-r0009-control-update-runtime",
+    "run_id": 35979421165,
     "conclusion": "PASS",
-    "relevance": "CORE_946_AND_REQUIRED_R0009_GATES_PASS_AFTER_STAGED_RELEASE_CHECKPOINT",
-    "note": "Exact HEAD 95853a827e35c41c8021f2908e1aa86503ba7641 passed Zero-based Core run 35978766717 with 946 tests and all required r0009 private-input, stage-runtime, production-prep and boundary-capture gates. The staged-release checkpoint records COMPLETED_EXACT/STAGED_EXACT with witness PRESENT, private input INPUT_EXACT and production current unchanged. This successor adds only r0009 control-update runtime/reconcile development tooling and adjusts the r0009 prep namespace count to eleven; it does not perform a control update."
+    "relevance": "CORE_959_AND_REQUIRED_R0009_CONTROL_UPDATE_QUALIFICATION_GATES_PASS",
+    "note": "Exact HEAD 1de3d409e31efe8e210ed48061c45f8af9419127 passed Zero-based Core run 35979421165 with 959 tests; r0009 control-update-runtime gate run 35979421390 PASS; r0009 private-input, stage-runtime, production-prep and boundary-capture gates also PASS. Subsequent real VPS read-only reconcile returned exact r0005 control boundary, exact staged r0009 release/witness, canonical r0009 control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce in NEW state with update root PRESENT, unchanged production current/credential, and zero mutations."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03N_R0009_CONTROL_UPDATE_RUNTIME_QUALIFICATION",
-    "description": "Require exact-head PASS for Zero-based Core, r0009 control-update-runtime gate, r0009 private-input gate, r0009 stage-runtime gate, r0009 production-prep gate and r0009 boundary-capture gate. The new runtime is bound to predecessor r0005 source/payload, staged r0009 source e42a4f156abb048f5c8f0bd1884fcae51674a55f and payload 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876, exact stage witnesses under r0009-stage-witness, and deterministic control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce. Its staged frozen updater must carry the exact systemd active-instance defect fix. After all gates PASS, run exactly one real VPS read-only operation_control_r0009_control_update_runtime.py reconcile and durably checkpoint the control-update prestate. Do not run update in the same transaction.",
+    "id": "D0-03O_R0009_CONTROL_UPDATE_EXECUTION",
+    "description": "Clean real-VPS r0009 control-update prestate is durably checkpointed: control boundary OLD_EXACT on installed r0005; staged r0009 release/witness exact; production current remains releases/e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f; credential SHA exact; canonical r0009 control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce is NEW with update root PRESENT; all reconcile mutation flags false. Next, only after this checkpoint itself passes exact-head CI, perform exactly one r0009 control-update update invocation. It may mutate only control-current, exact control-unit bytes/services and the transaction authority under the qualified frozen r0009 updater. Production current, legacy Hub, credential contents and Drive remain outside the allowed mutation set. After any outcome or interruption, never retry blindly; first run read-only r0009 control-update reconcile.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },
