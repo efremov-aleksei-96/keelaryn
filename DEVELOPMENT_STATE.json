@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 5,
+  "revision": 6,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -25,14 +25,14 @@
     "LEGACY_RUNTIME_DECOMMISSION_PLAN_READY",
     "C0_CI_MINIMIZED",
     "LEGACY_RUNTIME_DECOMMISSION_EXECUTED_VERIFIED",
-    "GATEWAY_LEAST_PRIVILEGE_PENDING_IDENTITY_CREATED"
+    "GATEWAY_LEAST_PRIVILEGE_PENDING_IDENTITY_CREATED",
+    "OPERATOR_ACCOUNT_BOOTSTRAPPED_VERIFIED"
   ],
   "next_objective": {
-    "id": "C0_OPERATOR_ACCOUNT_BOOTSTRAP",
-    "description": "Using the still-working root Gateway admin channel, create locked-password local user keelaryn-ops with /home/keelaryn-ops and /bin/bash, install only the pending Gateway public key for srv_01M3A22AVW9ZVAEBPPYHQ2DJCN, verify key fingerprint and SSH account state, then assign the independently known VPS endpoint/host-key fingerprint to the pending Gateway server and verify non-root access. Do not grant sudo in the initial account bootstrap and do not remove root access in the same transaction.",
+    "id": "C0_OPERATOR_ENDPOINT_VERIFY",
+    "description": "Bind pending Gateway server srv_01M3A22AVW9ZVAEBPPYHQ2DJCN to 138.124.242.44:22 as ssh user keelaryn-ops using the independently verified ED25519 host fingerprint SHA256:P1+i/M2gFIZHMiaN+gJ0rv0Bpp96wv1ICjM90sRQ4zw, let Gateway verify the installed managed key, then prove non-root execution (whoami/id/home) succeeds and sudo remains unavailable. Do not modify or remove the existing root Gateway channel in this transaction.",
     "drive_mutation_approved": false,
-    "deletion_approved": false,
-    "privilege_policy": "NO_SUDO_INITIAL_DEFAULT_OPERATOR"
+    "deletion_approved": false
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -63,7 +63,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "3d6a47cc67a830eb6dab958f651d60ce5336252c",
+  "repository_basis_commit": "c80a9f201a92cd1e2a6fe523283e1366d15bc223",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -171,7 +171,7 @@
     "plan_document": "docs/C0_RUNTIME_DECOMMISSION.md"
   },
   "operator_channel_hardening": {
-    "status": "IN_PROGRESS",
+    "status": "ACCOUNT_BOOTSTRAPPED_ENDPOINT_PENDING",
     "current_root_server": {
       "id": "srv_01M39DDDYY8KX413YWQXH2XEKQ",
       "name": "keelaryn-vps",
@@ -202,6 +202,24 @@
       "root_key_count": 2,
       "maintainer_root_key_fingerprint": "SHA256:rcBMGtftkOpueFZrjd1gk9GKT335RaSP83ajS1E2EvE",
       "old_gateway_root_key_fingerprint": "SHA256:5IBhCk6xyeiYb1Hj+JSbZj4Z2G5oOW4lud2w+5popNQ"
+    },
+    "account": {
+      "username": "keelaryn-ops",
+      "uid": 1000,
+      "gid": 1000,
+      "home": "/home/keelaryn-ops",
+      "shell": "/bin/bash",
+      "password_status": "locked",
+      "supplementary_groups": [],
+      "sudo_policy_allows": false,
+      "authorized_key_count": 1,
+      "authorized_key_fingerprint": "SHA256:7H0JSU59UMcYvTUsZAiUK3b7pa6fF8UU+C/peYO4R0M",
+      "authorized_keys_state_hash": "sha256:a5dd0212b36dbc868d9d73b0a5c02efff7be1c662e728d3a9c1396312c653ad7",
+      "bootstrap_job_id": "job_01M3A8506Y6E73434QMKMZ8WVR"
+    },
+    "root_keys_unchanged": {
+      "count": 2,
+      "state_hash": "sha256:66a1a29d9f1e276b079ca4769a04b85ceb22d1d3aacd317ee6eb8dbf31520950"
     }
   }
 }
