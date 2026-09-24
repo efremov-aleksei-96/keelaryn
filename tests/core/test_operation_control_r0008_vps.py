@@ -22,20 +22,38 @@ SPEC.loader.exec_module(r0008)
 
 
 class R0008BootstrapPrepTests(unittest.TestCase):
-    def _repo_fixture(self, root: Path) -> Path:
+    HISTORICAL_STAGE_EVIDENCE = Path(
+        "docs/evidence/R0008_STAGE_BOUNDARY_20260923T092708Z.json"
+    )
+
+    def _repo_fixture(
+        self,
+        root: Path,
+        *,
+        qualify_r0008: bool = True,
+    ) -> Path:
         state = json.loads(
             (ROOT / "DEVELOPMENT_STATE.json").read_text(encoding="utf-8")
         )
         for item in state.get("constrained_candidates", []):
             if item.get("candidate") == r0008.CANDIDATE:
-                item["state"] = "FROZEN_TRANSITION_GATE_PASS"
-                item["retry"] = "NOT_A_RETRY_TARGET"
+                if qualify_r0008:
+                    item["state"] = "FROZEN_TRANSITION_GATE_PASS"
+                    item["retry"] = "NOT_A_RETRY_TARGET"
                 break
         else:
             raise AssertionError("r0008 candidate missing from fixture state")
-        evidence = Path(state["production_boundary"]["evidence_path"])
+
+        evidence = self.HISTORICAL_STAGE_EVIDENCE
+        evidence_value = json.loads(
+            (ROOT / evidence).read_text(encoding="utf-8")
+        )
+        state["production_boundary"]["evidence_path"] = str(evidence)
+        state["production_boundary"]["observed_at_utc"] = (
+            evidence_value["observed_at_utc"]
+        )
+
         for relative in (
-            Path("DEVELOPMENT_STATE.json"),
             evidence,
             Path("docs/candidates/operation-control-r0008-20260923-01.json"),
         ):
@@ -43,7 +61,9 @@ class R0008BootstrapPrepTests(unittest.TestCase):
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
-        (root / "DEVELOPMENT_STATE.json").write_text(
+        state_path = root / "DEVELOPMENT_STATE.json"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(
             json.dumps(state, ensure_ascii=False, sort_keys=True) + "\n",
             encoding="utf-8",
         )
@@ -116,11 +136,16 @@ class R0008BootstrapPrepTests(unittest.TestCase):
         )
 
     def test_recorded_boundary_rejects_current_rejected_r0008(self) -> None:
-        with self.assertRaisesRegex(
-            r0008.PrepError,
-            "r0008 transition qualification is not durably PASS",
-        ):
-            r0008._recorded_boundary(ROOT)
+        with tempfile.TemporaryDirectory() as td:
+            root = self._repo_fixture(
+                Path(td),
+                qualify_r0008=False,
+            )
+            with self.assertRaisesRegex(
+                r0008.PrepError,
+                "r0008 transition qualification is not durably PASS",
+            ):
+                r0008._recorded_boundary(root)
 
     def test_recorded_boundary_rejects_legacy_hub_authority_expansion(
         self,

@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 95,
+  "revision": 96,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "e7e2d2f3e4560bd243bb4fe75235b63bf10fe0ff",
+  "repository_basis_commit": "c628e51daa7386e256d33b0991251f2e3919e9cb",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,11 +53,11 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03H-r0009-canonical-stage-boundary-capture-PASS",
-    "run_id": 35967908013,
+    "scope": "D0-03I-r0009-boundary-checkpoint-compatibility-correction",
+    "run_id": 35968348470,
     "conclusion": "PASS",
-    "relevance": "R0009_AUTHORITY_GRADE_BOUNDARY_CAPTURED_AND_COMMITTED",
-    "note": "Exact HEAD e7e2d2f3e4560bd243bb4fe75235b63bf10fe0ff passed r0009 boundary-capture gate run 35967908013 and Zero-based Core run 35967907969. A real VPS read-only capture emitted exact canonical keelaryn.operation-control-r0009-stage-boundary-evidence.v1 observed at 2026-09-24T07:10:01Z with r0005 control, production e63f..., Hub PREPARED/OLD, writer INACTIVE, exact mutation-inhibit/credential anchors and zero production/Drive mutations. This exact captured JSON is committed as the current production_boundary evidence. No r0009 authority is issued in this checkpoint."
+    "relevance": "R0009_CANONICAL_BOUNDARY_GATE_PASS_WITH_PREP_COUNT_AND_RETIRED_R0008_FIXTURE_CORRECTION_PENDING",
+    "note": "Exact HEAD c628e51daa7386e256d33b0991251f2e3919e9cb has canonical r0009 boundary evidence and r0009 boundary-capture gate run 35968348470 PASS. r0009 production-prep gate run 35968348607 failed only because its namespace count still expected seven r0009 tools after boundary_capture became the eighth. Zero-based Core run 35968348460 ran 921 tests and failed only four retired r0008 fixture tests because they inherited the new current r0009 production_boundary schema instead of pinning their historical r0008 stage-boundary evidence. This successor changes only the r0009 gate count/syntax list and retired r0008 test fixtures; runtime/candidate bytes remain unchanged."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03I_R0009_STAGE_AUTHORITY_ISSUANCE",
-    "description": "Prepare and issue exactly one r0009 release-stage-only authorization bound to committed canonical boundary evidence docs/evidence/R0009_STAGE_BOUNDARY_20260924T071001Z.json. The authority must use a new transaction_id and the r0009 authority namespace, authorize release staging only, and explicitly deny activation, Drive, legacy Hub, writer and credential mutation. First require exact-head Core, r0009 production-prep gate and r0009 boundary-capture gate PASS on this checkpoint. Do not mutate VPS in the same transaction as authority issuance. After issuance, read back exact Git commit/blob/SHA provenance before any private-input acquisition.",
+    "id": "D0-03I_R0009_STAGE_AUTHORITY_PREREQUISITES",
+    "description": "Require exact-head PASS for Zero-based Core, operation-control-r0009-production-prep-gate-r0001 and operation-control-r0009-boundary-capture-gate-r0001 after compatibility corrections. The production-prep gate must recognize eight r0009 prep tools including boundary_capture. Retired r0008 tests must pin their own R0008_STAGE_BOUNDARY_20260923T092708Z fixture instead of current r0009 production_boundary. No runtime/product/candidate bytes are changed. Only after all three exact-head prerequisites PASS may exactly one GitHub-only r0009 release-stage authority be issued, bound to docs/evidence/R0009_STAGE_BOUNDARY_20260924T071001Z.json. Do not mutate VPS in the authority-issuance transaction.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

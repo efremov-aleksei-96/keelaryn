@@ -1964,3 +1964,19 @@ Exact boundary:
 This exact evidence now replaces the older r0008 boundary pointer in DEVELOPMENT_STATE as the current timestamped production boundary. It does not authorize staging or any production mutation.
 
 Next objective: issue exactly one GitHub-only r0009 release-stage authority bound to this evidence after exact-head Core + r0009 prep + r0009 boundary gates PASS. VPS must remain untouched during authority issuance.
+
+### D0-03I boundary checkpoint compatibility correction
+
+The canonical r0009 boundary checkpoint exposed two expected lifecycle-qualification mismatches:
+
+1. r0009 production-prep gate run `35968348607` passed candidate validation, authority absence and syntax checks, then failed because it still expected seven `operation_control_r0009_*.py` files. Boundary capture is now the eighth qualified prep tool.
+2. Zero-based Core run `35968348460` ran 921 tests and failed only four retired r0008 bootstrap-prep tests. Those tests cloned the **current** DEVELOPMENT_STATE production-boundary pointer, which is now correctly r0009 schema, so the retired r0008 parser failed closed before reaching the historical assertions.
+
+This correction is qualification/test-only:
+- r0009 prep gate expects eight tools and syntax-checks `operation_control_r0009_boundary_capture.py`;
+- historical r0008 fixtures explicitly pin `docs/evidence/R0008_STAGE_BOUNDARY_20260923T092708Z.json`;
+- the r0008 rejected-lifecycle test uses that historical boundary while retaining the current rejected r0008 lifecycle token, so it continues testing the intended fail-closed reason.
+
+No r0008/r0009 runtime tool, frozen candidate, VPS, authority, Hub, credential or Drive state is changed.
+
+Next: require exact-head Core + r0009 prep gate + r0009 boundary gate PASS. Only then issue one GitHub-only r0009 release-stage authority.

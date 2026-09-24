@@ -98,6 +98,7 @@ jobs:
               "tools/operation_control_r0009_stage_authority_issue.py",
               "tools/operation_control_r0009_stage_execution.py",
               "tools/operation_control_r0009_real_stage_transaction.py",
+              "tools/operation_control_r0009_boundary_capture.py",
           )
           for name in paths:
               compile(
@@ -115,7 +116,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           paths = sorted(Path("tools").glob("operation_control_r0009_*.py"))
-          if len(paths) != 7:
+          if len(paths) != 8:
               raise SystemExit(f"unexpected r0009 prep tool count: {len(paths)}")
           joined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
           for needle in (
