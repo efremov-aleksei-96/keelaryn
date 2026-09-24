@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 4,
+  "revision": 5,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -24,13 +24,15 @@
     "LEGACY_RUNTIME_DECOMMISSION_PRESTATE_RECONCILED",
     "LEGACY_RUNTIME_DECOMMISSION_PLAN_READY",
     "C0_CI_MINIMIZED",
-    "LEGACY_RUNTIME_DECOMMISSION_EXECUTED_VERIFIED"
+    "LEGACY_RUNTIME_DECOMMISSION_EXECUTED_VERIFIED",
+    "GATEWAY_LEAST_PRIVILEGE_PENDING_IDENTITY_CREATED"
   ],
   "next_objective": {
-    "id": "C0_POST_DECOMMISSION_CONVERGENCE",
-    "description": "Finish remaining C0 convergence without resurrecting legacy runtime: verify the clean CI on this checkpoint, reconcile the tooling-blocked keelaryn-private Drive archive path using a different safe identity-preserving connector path if available, then decide least-privilege Gateway/operator hardening and delayed deletion/archive of obsolete runtime credentials/unit files/state. Do not blind-retry the timed-out Drive update action and do not delete legacy runtime evidence yet.",
+    "id": "C0_OPERATOR_ACCOUNT_BOOTSTRAP",
+    "description": "Using the still-working root Gateway admin channel, create locked-password local user keelaryn-ops with /home/keelaryn-ops and /bin/bash, install only the pending Gateway public key for srv_01M3A22AVW9ZVAEBPPYHQ2DJCN, verify key fingerprint and SSH account state, then assign the independently known VPS endpoint/host-key fingerprint to the pending Gateway server and verify non-root access. Do not grant sudo in the initial account bootstrap and do not remove root access in the same transaction.",
     "drive_mutation_approved": false,
-    "deletion_approved": false
+    "deletion_approved": false,
+    "privilege_policy": "NO_SUDO_INITIAL_DEFAULT_OPERATOR"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -61,7 +63,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "fdecb7fbf010f11e0817e8678b8d70ba0ee9e2c0",
+  "repository_basis_commit": "3d6a47cc67a830eb6dab958f651d60ce5336252c",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -89,7 +91,15 @@
         "account_role": "owner",
         "warning": "Do not blind-retry update_file. Find a different safe Drive mutation path or wait for connector recovery. Do not copy/delete because Drive object identity must be preserved."
       }
-    ]
+    ],
+    "keelaryn_private": {
+      "id": "1BFoaqU8a3arOFHUMWlsuoPgs1YCKR-56",
+      "desired_target": "9__Archive/KeelarynLegacy/2026-09-24__PreCorpusP0/keelaryn-private",
+      "status": "TOOLING_BLOCKED",
+      "exact_move_primitive": "Google_Drive.update_file(addParents/removeParents)",
+      "alternate_identity_preserving_connector_primitive": "NONE_FOUND",
+      "rule": "Do not retry blindly; do not substitute copy/delete; do not bypass with legacy VPS OAuth."
+    }
   },
   "external_corpus_projects": {
     "corpus_bootstrap": {
@@ -159,5 +169,39 @@
     },
     "rollback": "systemctl enable --now keelaryn-operation-transport.service keelaryn-operation-agent.service",
     "plan_document": "docs/C0_RUNTIME_DECOMMISSION.md"
+  },
+  "operator_channel_hardening": {
+    "status": "IN_PROGRESS",
+    "current_root_server": {
+      "id": "srv_01M39DDDYY8KX413YWQXH2XEKQ",
+      "name": "keelaryn-vps",
+      "ssh_user": "root",
+      "role": "TEMPORARY_ADMIN_EMERGENCY_CHANNEL"
+    },
+    "pending_default_server": {
+      "id": "srv_01M3A22AVW9ZVAEBPPYHQ2DJCN",
+      "name": "keelaryn-vps-ops",
+      "ssh_user": "keelaryn-ops",
+      "status": "awaiting_endpoint",
+      "gateway_identity_id": "sid_01M3A22DVSHRZ7HPQJY6CJ35FR",
+      "key_fingerprint": "SHA256:7H0JSU59UMcYvTUsZAiUK3b7pa6fF8UU+C/peYO4R0M"
+    },
+    "design": [
+      "Create separate locked-password interactive SSH account keelaryn-ops; do not reuse service account keelaryn.",
+      "Default operator account receives no sudo initially.",
+      "Routine development uses keelaryn-vps-ops once verified.",
+      "Existing root Gateway remains temporary emergency/admin path until non-root channel proves sufficient.",
+      "Do not build a custom root wrapper or broad sudo policy until an actual recurring privileged operation justifies it.",
+      "After stable validation, remove Gateway root key or retain only an explicitly governed emergency path according to final security decision."
+    ],
+    "ssh_prestate": {
+      "pubkey_authentication": true,
+      "password_authentication": false,
+      "keyboard_interactive": false,
+      "root_login": "without-password",
+      "root_key_count": 2,
+      "maintainer_root_key_fingerprint": "SHA256:rcBMGtftkOpueFZrjd1gk9GKT335RaSP83ajS1E2EvE",
+      "old_gateway_root_key_fingerprint": "SHA256:5IBhCk6xyeiYb1Hj+JSbZj4Z2G5oOW4lud2w+5popNQ"
+    }
   }
 }
