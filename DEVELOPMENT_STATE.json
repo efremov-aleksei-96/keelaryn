@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 94,
+  "revision": 95,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "a43bc86a8f63d191eabdbf072781de9750480f1a",
+  "repository_basis_commit": "e7e2d2f3e4560bd243bb4fe75235b63bf10fe0ff",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -53,16 +53,16 @@
     ]
   },
   "last_coherent_ci": {
-    "scope": "D0-03H-r0009-live-boundary-checkpoint",
-    "run_id": 35967610767,
+    "scope": "D0-03H-r0009-canonical-stage-boundary-capture-PASS",
+    "run_id": 35967908013,
     "conclusion": "PASS",
-    "relevance": "EXACT_HEAD_CORE_AND_R0009_PREP_GATE_PASS_AFTER_FRESH_READ_ONLY_VPS_BOUNDARY",
-    "note": "Exact HEAD a43bc86a8f63d191eabdbf072781de9750480f1a: Zero-based Core run 35967610767 PASS and r0009 production-prep gate run 35967610839 PASS. The committed live-boundary evidence records a clean read-only r0005 production/control boundary with no production or Drive mutation. This successor adds only r0009 canonical boundary-capture development tooling/gate; no stage authority is issued."
+    "relevance": "R0009_AUTHORITY_GRADE_BOUNDARY_CAPTURED_AND_COMMITTED",
+    "note": "Exact HEAD e7e2d2f3e4560bd243bb4fe75235b63bf10fe0ff passed r0009 boundary-capture gate run 35967908013 and Zero-based Core run 35967907969. A real VPS read-only capture emitted exact canonical keelaryn.operation-control-r0009-stage-boundary-evidence.v1 observed at 2026-09-24T07:10:01Z with r0005 control, production e63f..., Hub PREPARED/OLD, writer INACTIVE, exact mutation-inhibit/credential anchors and zero production/Drive mutations. This exact captured JSON is committed as the current production_boundary evidence. No r0009 authority is issued in this checkpoint."
   },
   "production_boundary": {
     "freshness": "LIVE_VERIFIED_READ_ONLY_D0",
-    "observed_at_utc": "2026-09-23T09:27:08Z",
-    "evidence_path": "docs/evidence/R0008_STAGE_BOUNDARY_20260923T092708Z.json",
+    "observed_at_utc": "2026-09-24T07:10:01Z",
+    "evidence_path": "docs/evidence/R0009_STAGE_BOUNDARY_20260924T071001Z.json",
     "source_commit": "e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f",
     "hub_cutover_status": "PREPARED",
     "hub_transaction_id": "61a2bfb65c9a47d088a76eee0df89d14",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03H_R0009_CANONICAL_BOUNDARY_CAPTURE_QUALIFICATION",
-    "description": "r0009 canonical boundary-capture tool/regression/gate are added in a pre-authority state. Require exact-head PASS for operation-control-r0009-boundary-capture-gate-r0001 and Zero-based Core. The gate must prove docs/authorizations/operation-control-r0009-stage is absent and the capture surface is read-only. After both PASS, run exactly one real-VPS operation_control_r0009_boundary_capture.py capture pinned to the qualified HEAD. That capture may only perform read-only reconcile and emit canonical timestamped boundary JSON; it must not write VPS state or issue authority. Then durably checkpoint the exact captured boundary before any r0009 authority issuance.",
+    "id": "D0-03I_R0009_STAGE_AUTHORITY_ISSUANCE",
+    "description": "Prepare and issue exactly one r0009 release-stage-only authorization bound to committed canonical boundary evidence docs/evidence/R0009_STAGE_BOUNDARY_20260924T071001Z.json. The authority must use a new transaction_id and the r0009 authority namespace, authorize release staging only, and explicitly deny activation, Drive, legacy Hub, writer and credential mutation. First require exact-head Core, r0009 production-prep gate and r0009 boundary-capture gate PASS on this checkpoint. Do not mutate VPS in the same transaction as authority issuance. After issuance, read back exact Git commit/blob/SHA provenance before any private-input acquisition.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

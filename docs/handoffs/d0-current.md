@@ -1941,3 +1941,26 @@ The dedicated gate requires that `docs/authorizations/operation-control-r0009-st
 No r0009 authority is issued and no VPS/Drive mutation occurs in this commit.
 
 Next: require exact-head Core + boundary-capture gate PASS, then execute one real-VPS read-only `capture` and durably record its exact timestamped JSON before authority issuance.
+
+### D0-03I canonical r0009 stage boundary committed
+
+The real VPS read-only r0009 boundary capture emitted canonical authority-grade evidence observed at `2026-09-24T07:10:01Z`.
+
+Committed evidence:
+`docs/evidence/R0009_STAGE_BOUNDARY_20260924T071001Z.json`
+
+Exact boundary:
+- schema `keelaryn.operation-control-r0009-stage-boundary-evidence.v1`;
+- conclusion `PASS`;
+- production source `e63f371d14eb9b6069cb2f1b5fad5f4b68a49d4f`;
+- control source `08f2e211f53764590f6ff0f05f86b2de62c14418`;
+- legacy Hub `PREPARED / OLD`, transaction `61a2bfb65c9a47d088a76eee0df89d14`;
+- writer `INACTIVE_MAINPID_0`;
+- mutation-inhibit authority matches;
+- credential SHA-256 `7002ed72a223dd7fc860451c53a4ec8f264d14f7144000559a295522b7cbe928`;
+- legacy-Hub authority scope `RUNTIME_SAFETY_ONLY`;
+- production and Drive mutation flags false.
+
+This exact evidence now replaces the older r0008 boundary pointer in DEVELOPMENT_STATE as the current timestamped production boundary. It does not authorize staging or any production mutation.
+
+Next objective: issue exactly one GitHub-only r0009 release-stage authority bound to this evidence after exact-head Core + r0009 prep + r0009 boundary gates PASS. VPS must remain untouched during authority issuance.
