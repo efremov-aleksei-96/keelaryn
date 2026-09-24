@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 26,
+  "revision": 27,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -53,11 +53,12 @@
     "P0_07_REVISION_SEMANTICS_QUALIFIED",
     "P0_08_SQLITE_DURABLE_STATE_IMPLEMENTED",
     "P0_08_DEPENDENCY_LOCK_CAPTURED",
-    "P0_08_SQLITEX_TRAILING_BYTES_DEFECT_FIXED"
+    "P0_08_SQLITEX_TRAILING_BYTES_DEFECT_FIXED",
+    "P0_08_SQLITE_DURABLE_STATE_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_08_REQUALIFY_LOCKED_SQLITE_STATE",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass go mod tidy -diff, complete durable SQLite state tests, all prior identity/revision tests, and go vet. If green, qualify P0-08 and proceed to the smallest durable Observation/Locator slice; do not add extraction/search/provider sync yet.",
+    "id": "P0_09_DURABLE_OBSERVATION_LOCATOR",
+    "description": "Extend SQLite schema with minimal provider_objects, observations, and locators. Record append-only observations with zero/one Artifact and Revision assignment, allow unresolved provider-object identity, support multiple locators for one observed provider object, preserve ambiguity by allowing NULL Artifact/Revision, and prove reopen durability. Do not implement current-locator view, scan sessions, provider sync, extraction, or search yet.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -90,7 +91,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "05ac5668496a1e31aa55fde330ced2bee52e0b59",
+  "repository_basis_commit": "c28ff667ca55cb27ba8339ff38fc94bfcf0cfd47",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -624,7 +625,7 @@
     }
   },
   "p0_08": {
-    "status": "FIX_IMPLEMENTED_LOCKED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Prove the first durable non-rebuildable control-state store without turning SQLite into corpus storage.",
     "selected_candidate": {
       "project": "zombiezen/go-sqlite",
@@ -705,6 +706,40 @@
       "conclusion": "FAILURE",
       "proven_defect": "zombiezen sqlitex.Execute single-statement queries contained trailing bytes after the parsed statement",
       "architecture_failure": false
+    },
+    "qualification": {
+      "exact_head": "c28ff667ca55cb27ba8339ff38fc94bfcf0cfd47",
+      "ci_run_id": 36058408527,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "gates": [
+        "go mod tidy -diff",
+        "SQLite migration/application_id tests",
+        "reopen durability",
+        "Artifact/Revision UUID separation from content hash",
+        "A→B→A Revision semantics",
+        "go vet"
+      ]
     }
+  },
+  "p0_09": {
+    "status": "PLANNED",
+    "objective": "Persist append-only ProviderObject occurrences, Observations, and Locator snapshots without turning Locator into identity or guessing Artifact assignment.",
+    "reuse_basis": [
+      "Perkeep stable anchor + append-only claim pattern informs separation between durable object identity and historical evidence.",
+      "DataLad identity/location/provenance separation supports keeping location metadata distinct from content identity.",
+      "Existing zombiezen/sqlitemigration remains the storage/migration mechanism; no new dependency is needed."
+    ],
+    "safety_rules": [
+      "Observation is append-only evidence.",
+      "ProviderObject occurrence may remain identity-unresolved.",
+      "Observation may have no Artifact assignment.",
+      "Locator is observation data, never a primary Artifact/ProviderObject identity.",
+      "One observed provider object may have multiple locators in the same observation.",
+      "Current locator is deferred to scan/session semantics and must not be inferred merely from newest historical row."
+    ]
   }
 }
