@@ -1,0 +1,187 @@
+name: Operation control r0009 production prep gate r0001
+
+on:
+  push:
+    branches: ['dev/zero-based-keelaryn']
+    paths:
+      - 'tools/operation_control_r0009_*.py'
+      - 'tests/core/test_operation_control_r0009_*.py'
+      - '.github/workflows/operation-control-r0009-production-prep-gate-r0001.yml'
+      - 'docs/candidates/operation-control-r0009-20260924-01.json'
+      - 'docs/evidence/R0009_*.json'
+      - 'DEVELOPMENT_STATE.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operation-control-r0009-production-prep-gate-r0001-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact frozen r0009 candidate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path("docs/candidates/operation-control-r0009-20260924-01.json").read_text(encoding="utf-8"))
+          expected = {
+              "candidate": "operation-control-r0009-20260924-01",
+              "frozen": True,
+              "frozen_source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+              "source_tree": "4eccddde06351d91e9bb2dcffa37e77344651621",
+              "qualification_state": "FROZEN_NOT_PRODUCTION_QUALIFIED",
+          }
+          for key, wanted in expected.items():
+              if value.get(key) != wanted:
+                  raise SystemExit(f"r0009 candidate mismatch: {key}")
+          if value.get("payload") != {
+              "schema": "keelaryn.zero-vps-payload.v1",
+              "sha256": "8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876",
+              "size": 442514,
+              "file_count": 227,
+          }:
+              raise SystemExit("r0009 payload identity mismatch")
+          rejected = value.get("rejected_attempt", {})
+          if rejected.get("candidate") != "operation-control-r0008-20260923-01":
+              raise SystemExit("r0008 rejected candidate provenance mismatch")
+          if rejected.get("terminal_state") != "ROLLED_BACK_EXACT" or rejected.get("retry_allowed") is not False:
+              raise SystemExit("r0008 rejected provenance missing")
+          if value.get("defect_fix_contract", {}) != {
+              "predecessor_defect_candidate": "operation-control-r0008-20260923-01",
+              "predecessor_defect_evidence": "docs/evidence/R0008_SYSTEMD_TEMPLATE_DIAGNOSIS_20260924.json",
+              "generic_active_probe_semantics_changed": False,
+              "template_probe": "SYSTEMD_ACTIVE_INSTANCE_PATTERN",
+              "template_pattern": "keelaryn-production-snapshot@*.service",
+              "template_probe_fail_closed": True,
+              "bare_template_is_active_forbidden": True,
+          }:
+              raise SystemExit("r0009 defect-fix contract mismatch")
+          if value.get("control_update_transaction", {}) != {
+              "deterministic_id": "24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce",
+              "predecessor_source_commit": "08f2e211f53764590f6ff0f05f86b2de62c14418",
+              "successor_source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+              "distinct_from_rejected_r0007": True,
+              "distinct_from_rejected_r0008": True,
+          }:
+              raise SystemExit("r0009 control-update transaction mismatch")
+          PY
+
+      - name: Prove r0009 production authority has not been issued
+        run: |
+          set -euo pipefail
+          test ! -e docs/authorizations/operation-control-r0009-stage
+          test -e docs/authorizations/operation-control-r0008-stage
+          test -e docs/authorizations/operation-control-r0007-stage
+
+      - name: Compile isolated r0009 production-prep tooling
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile \
+            tools/operation_control_r0009_vps.py \
+            tools/operation_control_r0009_stage.py \
+            tools/operation_control_r0009_production_stage.py \
+            tools/operation_control_r0009_stage_authority.py \
+            tools/operation_control_r0009_stage_authority_issue.py \
+            tools/operation_control_r0009_stage_execution.py \
+            tools/operation_control_r0009_real_stage_transaction.py
+          test -z "$(git status --porcelain)"
+
+      - name: Prove candidate and namespace binding
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          paths = sorted(Path("tools").glob("operation_control_r0009_*.py"))
+          if len(paths) != 7:
+              raise SystemExit(f"unexpected r0009 prep tool count: {len(paths)}")
+          joined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+          for needle in (
+              "operation-control-r0009-20260924-01",
+              "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+              "8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876",
+              "docs/authorizations/operation-control-r0009-stage",
+              "R0009_RELEASE_STAGE_ONLY",
+              "24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce",
+              "R0008_SYSTEMD_TEMPLATE_DIAGNOSIS_20260924.json",
+          ):
+              if needle not in joined:
+                  raise SystemExit(f"missing r0009 binding: {needle}")
+          for needle in (
+              "operation_control_r0007",
+              "operation_control_r0008",
+              "docs/authorizations/operation-control-r0007-stage",
+              "docs/authorizations/operation-control-r0008-stage",
+              "R0007_RELEASE_STAGE_ONLY",
+              "R0008_RELEASE_STAGE_ONLY",
+          ):
+              if needle in joined:
+                  raise SystemExit(f"rejected authority namespace leaked into r0009 framework: {needle}")
+          PY
+
+      - name: Run r0009 production-prep regressions
+        run: |
+          set -euo pipefail
+          for pattern in \
+            test_operation_control_r0009_vps.py \
+            test_operation_control_r0009_stage.py \
+            test_operation_control_r0009_production_stage.py \
+            test_operation_control_r0009_stage_authority.py \
+            test_operation_control_r0009_stage_execution.py \
+            test_operation_control_r0009_real_stage_transaction.py
+          do
+            PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests/core -p "$pattern" -v
+          done
+          test -z "$(git status --porcelain)"
+
+      - name: Emit compact r0009 production-prep evidence
+        env:
+          OUT: ${{ runner.temp }}/OPERATION_CONTROL_R0009_PRODUCTION_PREP.json
+        run: |
+          python3 - "$OUT" <<'PY'
+          import json, os, sys
+          value = {
+              "schema": "keelaryn.operation-control-r0009-production-prep-gate.v1",
+              "gate_revision": "operation-control-r0009-production-prep-gate-r0001",
+              "candidate": "operation-control-r0009-20260924-01",
+              "source_commit": "e42a4f156abb048f5c8f0bd1884fcae51674a55f",
+              "source_tree": "4eccddde06351d91e9bb2dcffa37e77344651621",
+              "payload_sha256": "8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876",
+              "payload_size": 442514,
+              "file_count": 227,
+              "control_update_transaction_id": "24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce",
+              "r0007_authority_reused": False,
+              "r0008_authority_reused": False,
+              "r0007_state_mutated": False,
+              "r0008_state_mutated": False,
+              "r0009_authority_issued": False,
+              "production_mutations_performed": False,
+              "drive_mutations_performed": False,
+              "github_run_id": os.environ["GITHUB_RUN_ID"],
+              "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "qualification_result": "PASS",
+              "next_action": "FRESH_R0009_LIVE_BOUNDARY_RECONCILE",
+          }
+          with open(sys.argv[1], "w", encoding="utf-8", newline="\n") as stream:
+              json.dump(value, stream, sort_keys=True, separators=(",", ":"))
+              stream.write("\n")
+          PY
+
+      - name: Upload compact r0009 production-prep evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operation-control-r0009-production-prep-gate-r0001-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/OPERATION_CONTROL_R0009_PRODUCTION_PREP.json
+          if-no-files-found: error
+          retention-days: 3

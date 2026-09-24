@@ -1,9 +1,9 @@
 {
   "schema": "keelaryn.autonomous-development-state.v1",
-  "revision": 90,
+  "revision": 91,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/zero-based-keelaryn",
-  "repository_basis_commit": "ac9f89cbf13eebc77cf4417c187268170cf62e80",
+  "repository_basis_commit": "0f31fea177d7e7fcad32794a967c0f52ade90b67",
   "qualification_state": "UNQUALIFIED_DEVELOPMENT",
   "head_resolution": {
     "mode": "RESOLVE_BRANCH_REF_LIVE",
@@ -151,8 +151,8 @@
     "manager_legacy_state": "MANAGER_DEVELOPMENT_STATE.json"
   },
   "next_objective": {
-    "id": "D0-03G_R0009_PRODUCTION_PREP",
-    "description": "Prepare a new production-safe r0009 staging lifecycle without mutating VPS. Build r0009-specific production-prep, boundary-capture, private-input, stage-authority/stage-runtime and later control-update wrappers by rebinding the already-proven framework to immutable candidate operation-control-r0009-20260924-01, frozen source e42a4f156abb048f5c8f0bd1884fcae51674a55f, payload 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876 and control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce. r0007/r0008 stage and control-update authorities/roots remain immutable rejected evidence and must not be reused or overwritten. First qualify the new r0009 prep/reconcile protocols in CI, then perform a fresh real-VPS read-only boundary reconcile from the r0005 OLD_EXACT control boundary. Do not issue r0009 stage authority or mutate VPS before those prerequisites pass.",
+    "id": "D0-03G_R0009_PRODUCTION_PREP_QUALIFICATION",
+    "description": "An isolated r0009 production-prep framework is added without issuing authority or mutating VPS. Require exact-head PASS for operation-control-r0009-production-prep-gate-r0001 and Zero-based Core. The framework is bound to immutable operation-control-r0009-20260924-01 source e42a4f156abb048f5c8f0bd1884fcae51674a55f payload 8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876, the exact systemd template defect-fix contract and control-update transaction 24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce. It may accept r0007/r0008 stage-boundary evidence only as read-only predecessor provenance but must not import, reuse or overwrite rejected authority namespaces. After both gates PASS, perform exactly one fresh real-VPS read-only operation_control_r0009_vps.py reconcile from r0005 OLD_EXACT. Do not issue r0009 stage authority or mutate VPS yet.",
     "production_mutation_allowed": false,
     "drive_content_mutation_allowed": false
   },

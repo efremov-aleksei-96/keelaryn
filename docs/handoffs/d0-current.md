@@ -1876,3 +1876,15 @@ No production VPS, production current, Hub, credential or Drive mutation occurre
 Durable evidence: `docs/evidence/R0009_QUALIFICATION_20260924.json`.
 
 Next objective is a **new r0009 production-prep chain**. Reuse of r0007/r0008 stage authority, witness roots, private-input transaction identity or control-update transaction identity is forbidden. First build and qualify r0009-specific read-only preparation/reconcile tooling in CI; only then obtain a fresh real-VPS read-only boundary before issuing any new stage authority.
+
+### D0-03G isolated r0009 production-prep framework
+
+Added seven r0009-only prep/qualification tools and six targeted regression modules, plus `operation-control-r0009-production-prep-gate-r0001`.
+
+The framework is fixed to `operation-control-r0009-20260924-01`, source `e42a4f156abb048f5c8f0bd1884fcae51674a55f`, payload `8592a314b084a2a1ccc1608168b3c0776cccb1277ffc049f42f3efd5291d4876`, and future control-update transaction `24e9df7d9d305450acd11a8dc8f638769ad87444a9b5d16c8befed76a89c52ce`. It also requires the exact r0009 systemd template-probe defect-fix contract.
+
+Current production-boundary state still cites canonical r0008 stage-boundary evidence after the exact r0008 rollback. r0009 therefore accepts r0007/r0008 stage-boundary schemas strictly as predecessor provenance while emitting only r0009 schemas and using only the r0009 authority namespace.
+
+No r0009 authority is issued in this commit. r0007/r0008 authorities and transaction state are read-only historical evidence and are not imported or reused.
+
+Next: require exact-head Core and r0009 production-prep gate PASS, then run one fresh real-VPS read-only r0009 reconcile. Canonical r0009 boundary capture remains a separate later transaction.
