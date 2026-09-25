@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 69,
+  "revision": 70,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -100,11 +100,12 @@
     "P0_24B_DEPENDENCY_LOCK_CURSOR_MARKER_DEFECT_FIXED",
     "P0_24B_DEPENDENCY_LOCK_TRAILING_BLANK_DEFECT_FIXED",
     "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_QUALIFIED",
-    "P0_25_CLOSURE_REAUDIT_COMPLETE"
+    "P0_25_CLOSURE_REAUDIT_COMPLETE",
+    "P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT",
-    "description": "Research and define the smallest provider-neutral, fail-closed contract for admitting a newly appearing occurrence as a new Artifact after bootstrap. It must not treat absence of path/hash candidates as proof; it must require qualified completeness/distinctness evidence, preserve ambiguity otherwise, and define atomic Artifact/Revision/Observation/provenance semantics. Reuse-before-build research first; no corpus mutation.",
+    "id": "P0_27_IMPLEMENT_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION",
+    "description": "Implement the provider-neutral occurrence identity/admission model and SQLite atomic RESOLVED_NEW transaction using deterministic fake candidate-universe completeness proofs. Preserve existing CandidateSetResolution and RESOLVED_SAME behavior. Add durable admission provenance and replay/dedup boundary. Do not wire live OAuth/Drive yet and do not mutate corpus.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -137,7 +138,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "77dc552482b79260fa8a5ad462dc42732c506f75",
+  "repository_basis_commit": "952e6d0508e469c094b078ae04fba844bfdeb008",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2030,6 +2031,72 @@
       "derived_rebuild_without_identity_change": "PARTIAL_FTS_ABSENT",
       "context_exact_revision_source": "QUALIFIED",
       "corpus_bytes_unchanged": "QUALIFIED_IMPLEMENTED_PATHS"
+    },
+    "qualification": {
+      "exact_head": "952e6d0508e469c094b078ae04fba844bfdeb008",
+      "ci_run_id": 36108179380,
+      "conclusion": "SUCCESS",
+      "jobs": {
+        "validate": "PASS",
+        "go (ubuntu-24.04)": "PASS",
+        "go (windows-2025)": "PASS"
+      }
+    }
+  },
+  "p0_26": {
+    "status": "RESEARCH_COMPLETE_CONTRACT_DECIDED",
+    "objective": "Define the minimum provider-neutral, fail-closed contract for allocating a new Artifact after bootstrap.",
+    "evidence_document": "docs/P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT.md",
+    "dependencies_added": 0,
+    "corpus_mutations": 0,
+    "live_oauth_used": false,
+    "design": {
+      "occurrence_identity_states": [
+        "UNRESOLVED",
+        "AMBIGUOUS",
+        "RESOLVED_SAME",
+        "RESOLVED_NEW"
+      ],
+      "candidate_set_reused": true,
+      "new_is_not_continuity_with_nothing": true,
+      "new_semantics": "FIRST_KNOWN_NEW_TO_KEELARYN_UNDER_EXPLICIT_POLICY_NOT_PHYSICAL_CREATION_TIME",
+      "candidate_universe_coverage": [
+        "UNKNOWN",
+        "COMPLETE"
+      ],
+      "resolved_new_requires": [
+        "exact scope/policy match",
+        "COMPLETE candidate universe under qualified evidence source",
+        "no plausible SAME predecessor",
+        "all represented predecessors conclusively distinct or legitimately zero candidates",
+        "no durable accepted prior binding for current provider identity in relevant identity domain",
+        "reproducible retained provenance"
+      ],
+      "forbidden_new_evidence": [
+        "path absence alone",
+        "hash inequality/equality alone",
+        "empty candidate list alone",
+        "race-prone enumeration alone",
+        "AI inference"
+      ],
+      "localfs_current_policy": "FAIL_CLOSED_NO_AUTOMATIC_POST_BOOTSTRAP_NEW",
+      "first_real_completeness_producer": "GOOGLE_DRIVE_REMOTE_HISTORY",
+      "atomic_acceptance": [
+        "validate RESOLVED_NEW + complete-universe proof",
+        "revalidate open scan/scope and prior binding at mutation boundary",
+        "create Artifact",
+        "create Revision 1 when content evidence exists",
+        "record assigned Observation",
+        "record separate accepted admission provenance",
+        "single transaction"
+      ],
+      "replay_rule": "admission must have durable dedup/reconciliation identity; never blind-mint a second Artifact after interruption"
+    },
+    "reuse_research": {
+      "google_drive": "stable fileId + start token + changes + terminal newStartPageToken; removal is not deletion; copy creates a new file resource",
+      "microsoft_graph": "initial delta enumeration + nextLink + deltaLink + deleted facet validates complete-state/cursor abstraction",
+      "dropbox": "list_folder cursor/continue + deletion entries + unique file IDs validates cursor-backed state abstraction",
+      "new_core_dependency": false
     }
   }
 }

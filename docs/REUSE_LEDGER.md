@@ -803,3 +803,36 @@ Disposable verification used exact base `2b1ce1a46a8c553aa630e505fabc3b85091ced1
 
 Cross-platform product policy was also made explicit in the canonical architecture: Android and Windows are first-class product targets; Linux is a first-class server/CI target; the Core remains platform-neutral and Android filesystem/SAF behavior belongs behind adapters.
 
+## P0-26 — post-bootstrap new-Artifact admission reuse research
+
+Research conclusion: **reuse provider cursor/delta semantics; implement only the Keelaryn-specific admission decision.**
+
+Cross-provider evidence reviewed:
+- Google Drive v3: stable file IDs for file lifetime; start-page token; paginated changes; terminal new-start token; removals; copy produces a new file resource/ID.
+- Microsoft Graph `driveItem/delta`: race-safe initial enumeration, intermediate `@odata.nextLink`, terminal `@odata.deltaLink`, deleted facets and ID-based item tracking.
+- Dropbox `list_folder` / `list_folder/continue`: cursor-backed local-state maintenance, deletion entries, unique file IDs and file-ID revision history across moves/renames.
+
+Reusable architectural pattern:
+
+```text
+complete baseline
++ durable cursor
++ continuous incremental history
++ stable provider-object identity
+= candidate-universe completeness evidence
+```
+
+This pattern can support **first-known/new-to-Keelaryn** admission. It does not prove physical creation time.
+
+Decision:
+- keep existing `CandidateSetResolution`;
+- do not model NEW as "continuity with nothing";
+- add a higher-level occurrence identity outcome with `RESOLVED_NEW`;
+- require an explicit provider-neutral candidate-universe completeness proof before NEW;
+- absence of path/hash/candidates is never sufficient;
+- keep current localfs post-bootstrap NEW fail-closed until a qualified durable evidence source exists;
+- use the already-qualified Google Drive RemoteHistory path as the first planned real completeness-proof producer;
+- no new dependency is required for the Core admission model.
+
+Detailed contract: `docs/P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT.md`.
+
