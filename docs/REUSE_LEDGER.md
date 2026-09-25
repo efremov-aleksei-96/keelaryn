@@ -754,3 +754,21 @@ Core invariant:
 Removal remains `REMOVED` from the history/scope. The Core does not infer physical deletion.
 
 The fake-adapter contract suite explicitly couples the resulting coverage to the already-qualified P0-21 `GoogleDriveFileIDContract`: equal stable-lifetime IDs become conclusive only after a terminal CONTINUOUS cycle.
+
+## P0-24A — Google Drive RemoteHistory semantic adapter
+
+Implemented with **zero new dependencies** in `internal/remotehistory/gdrive` before binding the official SDK.
+
+The Drive-specific layer now proves:
+- exact stream binding for one My Drive root or one shared drive;
+- bootstrap as `start-page-token fence -> complete enumeration -> catch-up replay -> terminal cursor`;
+- deterministic My Drive bootstrap membership from the parent graph;
+- shared-drive scope by exact `driveId`;
+- transient pagination tokens never become durable cursors;
+- `removed`, trashed, or out-of-stream items become Core `REMOVED` semantics, not claims of physical deletion;
+- Drive-level change records are ignored by the file-object adapter rather than fabricated into file identity;
+- shortcut resources retain the shortcut file's own `fileId`; the target ID is not substituted as ProviderObject identity;
+- provider access locator `file-id/<escaped fileId>` remains a Locator, never Artifact identity;
+- client-classified GAP / invalid-cursor / scope-mismatch / insufficient-history conditions fail closed.
+
+The narrow client interface deliberately mirrors only the provider operations needed by the already-qualified RemoteHistory contract: obtain a start token, enumerate files, and list changes. The next layer (P0-24B) is a thin binding to the reviewed official `google.golang.org/api/drive/v3` client. OAuth/live corpus access remains deferred until the deterministic SDK binding itself is qualified.

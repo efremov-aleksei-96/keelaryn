@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 63,
+  "revision": 64,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -93,11 +93,12 @@
     "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_QUALIFIED",
     "P0_22_REMOTE_HISTORY_REUSE_RESEARCH_COMPLETE",
     "P0_23_REMOTE_HISTORY_CONTRACT_MODEL_IMPLEMENTED",
-    "P0_23_REMOTE_HISTORY_CONTRACT_QUALIFIED"
+    "P0_23_REMOTE_HISTORY_CONTRACT_QUALIFIED",
+    "P0_24A_DRIVE_HISTORY_SEMANTICS_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_24_IMPLEMENT_GOOGLE_DRIVE_HISTORY_ADAPTER",
-    "description": "Implement the first read-only Google Drive RemoteHistory adapter behind the provider-neutral contract using the reviewed official google.golang.org/api/drive/v3 client. Keep Google-specific stream/scope, page-token, removed/current-state, shared-drive, parent/root and shortcut semantics inside the adapter; no corpus mutation. Add deterministic fake-client contract tests before any live OAuth integration, then require exact-head Ubuntu 24.04 and Windows 2025 CI including all prior tests, go mod tidy -diff and go vet.",
+    "id": "P0_24A_QUALIFY_DRIVE_HISTORY_SEMANTICS",
+    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI for the dependency-free Google Drive RemoteHistory semantic adapter and fake-client suite. If green, qualify P0-24A and add the thin official google.golang.org/api/drive/v3 client binding as P0-24B, then regenerate the dependency lock deterministically before any live OAuth integration.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -130,7 +131,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "e3dc003a3a8cf6af0134bcdb016b674d30d75e07",
+  "repository_basis_commit": "5c6ae64a15f320c220d80090d0abdd4d7dcd239e",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1802,5 +1803,33 @@
         "go vet"
       ]
     }
+  },
+  "p0_24": {
+    "status": "SEMANTIC_ADAPTER_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "objective": "Implement Google Drive-specific RemoteHistory semantics behind a narrow client interface before binding the official SDK or live OAuth.",
+    "package": "internal/remotehistory/gdrive",
+    "dependencies_added": 0,
+    "live_oauth_used": false,
+    "corpus_mutations": 0,
+    "streams": {
+      "my_drive": "exact My Drive root stream; bootstrap filters full enumeration by parent reachability and incremental client must use the provider's My Drive restriction",
+      "shared_drive": "exact shared-drive stream; DriveID equals stream root"
+    },
+    "bootstrap": "start-page-token fence -> complete enumeration -> catch-up replay -> terminal cursor",
+    "cursor_rule": "continuation tokens stay transient; only terminal newStartPageToken becomes durable cursor",
+    "removal_rule": "removed/trashed/out-of-stream becomes REMOVED_FROM_SCOPE semantics, never an inferred physical deletion",
+    "shortcut_rule": "shortcut file resource keeps its own Drive fileId as ProviderObject identity; target ID is not substituted",
+    "locator_rule": "file-id/<escaped Drive fileId> is a provider access locator only, never Artifact identity",
+    "failure_mapping": [
+      "HISTORY_GAP",
+      "INVALID_CURSOR",
+      "SCOPE_MISMATCH",
+      "INSUFFICIENT_HISTORY"
+    ],
+    "validation": {
+      "local_compile_harness": "PASS_GO1_23_SYNTAX_AND_TESTS_WITH_EXACT_CONTRACT_STUBS",
+      "official_ci": "PENDING"
+    },
+    "next_layer": "P0-24B official google.golang.org/api/drive/v3 binding; no live OAuth yet"
   }
 }

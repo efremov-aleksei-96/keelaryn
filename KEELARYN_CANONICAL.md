@@ -414,7 +414,7 @@ Google Drive specifics MUST stay inside the Drive adapter:
 - `removed` semantics;
 - parent graph / root membership;
 - Google Workspace export semantics;
-- shortcut normalization.
+- shortcut normalization. The first Drive adapter treats the shortcut file resource as its own ProviderObject: the shortcut file ID remains identity evidence, while the target ID is relation/metadata and MUST NOT replace shortcut identity.
 
 Keelaryn MUST remain usable without Google.
 
