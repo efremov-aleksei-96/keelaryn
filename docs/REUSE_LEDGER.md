@@ -392,3 +392,25 @@ Set-level rules:
 - two conclusive-same candidates are still `AMBIGUOUS`.
 
 The model sorts candidates deterministically by ArtifactID and performs no persistence mutation.
+
+
+### P0-13 localfs base candidate generation
+
+Base localfs reconciliation is deliberately cheap and read-only:
+
+1. Read only the latest COMPLETE inventory for the exact provider/root.
+2. Ignore prior unresolved rows as Artifact candidates.
+3. Index assigned prior inventory by Locator path.
+4. For each current regular-file ObjectGroup, union candidates across all current Locators.
+5. For symlink/other occurrences, use the single current Locator.
+6. Emit one SUPPORTING `LOCATOR_OVERLAP` signal per overlapping path/Artifact.
+7. Resolve through the already-qualified provider-neutral `ResolveCandidateSet`.
+
+Consequences:
+- same path with one prior Artifact remains `AMBIGUOUS`;
+- a current hard-link occurrence can legitimately contain multiple prior Artifact candidates if its two Locators previously belonged to different Artifacts;
+- no overlap is `UNRESOLVED`;
+- unresolved prior inventory cannot become an Artifact candidate;
+- generation is deterministic by current first Locator, ArtifactID, and evidence source.
+
+No content hash or native identity comparison runs automatically. Optional enrichment remains explicit: callers retain `OccurrenceCandidateSet.Inputs`, append deliberately sampled DecisionEvidence, and invoke `ResolveCandidateSet` again.

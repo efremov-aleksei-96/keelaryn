@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 40,
+  "revision": 41,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -70,11 +70,12 @@
     "P0_12_FIRST_OBSERVATION_ADOPTION_QUALIFIED",
     "P0_13_REUSE_REVIEW_COMPLETE",
     "P0_13_CANDIDATE_SET_MODEL_IMPLEMENTED",
-    "P0_13_CANDIDATE_SET_MODEL_QUALIFIED"
+    "P0_13_CANDIDATE_SET_MODEL_QUALIFIED",
+    "P0_13_LOCALFS_CANDIDATE_GENERATION_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_13_LOCALFS_CANDIDATE_GENERATION",
-    "description": "Implement read-only localfs candidate generation against the latest COMPLETE inventory. Base generation must be cheap and bounded: locator overlap groups prior assigned inventory rows by Artifact and emits LOCATOR_OVERLAP SUPPORTING evidence; unresolved prior rows are not Artifact candidates. Preserve hard-link/current occurrence grouping. Do not hash the whole corpus or persist reconciliation. Add optional evidence-enrichment API separately so content/native signals can be supplied only when explicitly sampled. Prove same path remains AMBIGUOUS, multiple prior Artifacts at plausible locators remain multiple candidates, and no overlap remains UNRESOLVED.",
+    "id": "P0_13_QUALIFY_LOCALFS_CANDIDATE_GENERATION",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass same-path ambiguity, no-overlap unresolved, hard-link multi-Artifact candidate union, unresolved-prior exclusion, deterministic generation, all earlier identity/scan/adoption tests, go mod tidy -diff and go vet. If green, qualify P0-13 and add explicit optional content-evidence enrichment for selected candidate sets without hashing the whole corpus.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -107,7 +108,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "5b760e1edf244134ab6b25752ab2ad8c46221a98",
+  "repository_basis_commit": "b9aacea3530327f1450ddb685215bb7b464e89c1",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1022,7 +1023,7 @@
     }
   },
   "p0_13": {
-    "status": "CANDIDATE_SET_MODEL_QUALIFIED_LOCALFS_GENERATION_PENDING",
+    "status": "LOCALFS_CANDIDATE_GENERATION_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Generate durable-safe continuity candidates between the latest COMPLETE assigned inventory and a fresh localfs Snapshot, classify available evidence, and keep supporting-only matches AMBIGUOUS.",
     "invariants": [
       "path equality is candidate discovery only, never continuity proof",
@@ -1101,6 +1102,28 @@
         "all known candidates conclusive-distinct leaves current identity UNRESOLVED",
         "go mod tidy -diff",
         "go vet"
+      ]
+    },
+    "localfs_generation": {
+      "dependencies_added": 0,
+      "package": "internal/reconcile/localfs",
+      "storage_contract": "InventoryReader interface",
+      "automatic_signals": [
+        "LOCATOR_OVERLAP"
+      ],
+      "automatic_hashing": false,
+      "automatic_native_identity_comparison": false,
+      "persistence_mutation": false,
+      "rules": [
+        "only latest COMPLETE inventory is read",
+        "only prior ASSIGNED rows produce Artifact candidates",
+        "regular hard-link current groups union candidates across all locators",
+        "same-path single candidate remains AMBIGUOUS",
+        "multiple prior Artifact overlaps remain multiple AMBIGUOUS candidates",
+        "no overlap is UNRESOLVED",
+        "unresolved prior inventory is ignored as an Artifact candidate",
+        "candidate generation is deterministic",
+        "OccurrenceCandidateSet.Inputs are retained for explicit later evidence enrichment"
       ]
     }
   }

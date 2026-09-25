@@ -163,3 +163,17 @@ type InventoryEntry struct {
 	Size            int64          `json:"size"`
 	ModifiedAt      time.Time      `json:"modified_at"`
 }
+
+
+// OccurrenceCandidateSet is a read-only reconciliation view for one currently
+// observed provider-object occurrence. It carries every current Locator plus
+// the provider-neutral candidate-set resolution.
+//
+// Inputs are retained so callers can explicitly add stronger evidence and call
+// ResolveCandidateSet again without re-running candidate discovery.
+type OccurrenceCandidateSet struct {
+	Locators    []Locator                `json:"locators"`
+	Kind        EntryKind                `json:"kind"`
+	Inputs      []ArtifactCandidateInput `json:"inputs"`
+	Resolution  CandidateSetResolution   `json:"resolution"`
+}
