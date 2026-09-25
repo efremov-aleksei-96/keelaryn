@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 48,
+  "revision": 49,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -78,11 +78,12 @@
     "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_IMPLEMENTED",
     "P0_15_TEST_ERRORS_IMPORT_FIXED",
     "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_QUALIFIED",
-    "P0_16_EXTRACTION_CONTEXT_REUSE_RESEARCH_COMPLETE"
+    "P0_16_EXTRACTION_CONTEXT_REUSE_RESEARCH_COMPLETE",
+    "P0_17_REVISION_BOUND_TEXT_EXTRACTION_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_17_REVISION_BOUND_TEXT_EXTRACTION",
-    "description": "Implement provider-neutral ExtractionResult statuses and a localfs built-in text extractor for .txt/.md/.markdown. Read at most a configured byte limit; require an assigned ArtifactID+RevisionID and the exact referenced Revision evidence; safely read/hash current regular-file bytes through one handle; return EXTRACTED only when evidence matches, UTF-8 is valid and size is within limit. Return UNSUPPORTED for other extensions, OPAQUE for non-UTF8, STALE_REVISION for evidence mismatch, and LIMIT_EXCEEDED without persisting derived text. Add no dependency and do not modify durable identity state.",
+    "id": "P0_17_QUALIFY_REVISION_BOUND_TEXT_EXTRACTION",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass exact-provenance text/Markdown extraction, unsupported no-read, opaque non-UTF8, stale-revision, limit-exceeded, unassigned rejection, missing-revision fail-closed, bounded content-reader regressions, all prior tests, go mod tidy -diff and go vet. If green, qualify P0-17 and implement a minimal task-specific ContextBundle builder over explicitly selected current assigned inventory entries, using extraction results and strict provenance/character budget without persistence.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -115,7 +116,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "a49ff9b80a403ccaf8990863f98bb279cd938110",
+  "repository_basis_commit": "94a842e8ed34ecb5ec8f969a3249520e0d9a69c4",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1339,7 +1340,40 @@
     ]
   },
   "p0_17": {
-    "status": "PLANNED",
-    "objective": "Implement the first on-demand, derived, revision-bound text extraction result."
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "objective": "Implement the first on-demand, derived, revision-bound text extraction result.",
+    "implementation": {
+      "dependencies_added": 0,
+      "extractor_id": "builtin:text-utf8:v1",
+      "formats": {
+        ".txt": "text/plain",
+        ".md": "text/markdown",
+        ".markdown": "text/markdown"
+      },
+      "statuses": [
+        "EXTRACTED",
+        "UNSUPPORTED",
+        "OPAQUE",
+        "STALE_REVISION",
+        "LIMIT_EXCEEDED"
+      ],
+      "persistence": "NONE",
+      "provenance": [
+        "ArtifactID",
+        "RevisionID",
+        "Locator",
+        "ExtractorID",
+        "ContentEvidence"
+      ],
+      "safety": [
+        "assigned Artifact+Revision required",
+        "exact referenced Revision required",
+        "bounded one-handle bytes+SHA256 read",
+        "revision evidence equality required before accepting text",
+        "UTF-8 required",
+        "unsupported extension does not read file",
+        "derived extraction does not mutate durable state"
+      ]
+    }
   }
 }

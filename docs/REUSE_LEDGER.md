@@ -515,3 +515,31 @@ The first extractor therefore uses only Go stdlib:
 - extraction is derived/non-authoritative and not persisted in the durable identity database.
 
 Architecture keeps a replaceable extractor interface so MarkItDown/Docling/Tika adapters can be added later without changing Artifact/Revision semantics.
+
+
+### P0-17 built-in revision-bound text extraction
+
+The first extractor is intentionally narrow and derived-only.
+
+Supported:
+- `.txt` → `text/plain`;
+- `.md`, `.markdown` → `text/markdown`.
+
+Result states:
+- `EXTRACTED`;
+- `UNSUPPORTED`;
+- `OPAQUE`;
+- `STALE_REVISION`;
+- `LIMIT_EXCEEDED`.
+
+Safety/provenance:
+- extraction requires a current inventory row already assigned to both ArtifactID and RevisionID;
+- the exact referenced Revision record must exist;
+- local bytes and SHA-256 evidence are produced from one bounded, open-handle-anchored read;
+- bytes are accepted only when current algorithm/digest/size exactly match the referenced Revision evidence;
+- non-UTF8 supported-extension content is `OPAQUE`;
+- unsupported extension returns without reading the file;
+- over-limit files return without derived text;
+- extraction performs no durable write and does not modify Revision history.
+
+The localfs content reader is refactored so both SHA-256-only sampling and byte-retaining extraction share the same path traversal, regular-file, handle identity, stability and post-read locator validation.
