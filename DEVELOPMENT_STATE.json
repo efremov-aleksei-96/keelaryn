@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 66,
+  "revision": 67,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -97,11 +97,12 @@
     "P0_24A_DRIVE_HISTORY_SEMANTICS_IMPLEMENTED",
     "P0_24A_DRIVE_HISTORY_SEMANTICS_QUALIFIED",
     "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_IMPLEMENTED",
-    "P0_24B_DEPENDENCY_LOCK_CURSOR_MARKER_DEFECT_FIXED"
+    "P0_24B_DEPENDENCY_LOCK_CURSOR_MARKER_DEFECT_FIXED",
+    "P0_24B_DEPENDENCY_LOCK_TRAILING_BLANK_DEFECT_FIXED"
   ],
   "next_objective": {
     "id": "P0_24B_REQUALIFY_OFFICIAL_DRIVE_CLIENT_BINDING",
-    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI after removing the accidental durable-output marker from go.sum. Qualify the official Drive binding only if validate, both platforms, go mod tidy -diff, all tests and go vet pass. Do not start live OAuth or mutate Google Drive.",
+    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI after normalizing go.sum to exactly one terminating newline. Qualify only if validate, both platforms, go mod tidy -diff, all tests and go vet pass. Do not start live OAuth or mutate Google Drive.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -134,7 +135,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "7747a6a7c266fff0fdfbce4c059389eda030718f",
+  "repository_basis_commit": "dcf06affc19ba242128e365432fc90afe21f1f7b",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1915,6 +1916,15 @@
         "classification": "DURABLE_JOB_OUTPUT_CURSOR_MARKER_ACCIDENTALLY_APPENDED_TO_GO_SUM",
         "product_code_failure": false,
         "fix": "REMOVE_EXACT_TRAILING_MARKER_ONLY"
+      },
+      "dependency_lock_trailing_blank_defect": {
+        "affected_head": "dcf06affc19ba242128e365432fc90afe21f1f7b",
+        "ci_run_id": 36107274885,
+        "ubuntu": "FAIL_GO_MOD_TIDY_DIFF",
+        "classification": "ONE_EXTRA_BLANK_LINE_AT_GO_SUM_EOF",
+        "product_code_failure": false,
+        "dependency_change": false,
+        "fix": "NORMALIZE_GO_SUM_TO_SINGLE_TERMINATING_NEWLINE"
       }
     }
   },
