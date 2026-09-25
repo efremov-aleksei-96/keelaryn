@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 72,
+  "revision": 73,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -103,11 +103,12 @@
     "P0_25_CLOSURE_REAUDIT_COMPLETE",
     "P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT_DECIDED",
     "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_IMPLEMENTED",
-    "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_QUALIFIED"
+    "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_QUALIFIED",
+    "P0_FOUNDATION_RETROSPECTIVE_AUDIT_COMPLETE"
   ],
   "next_objective": {
-    "id": "P0_28_REMOTE_HISTORY_DURABLE_PUBLICATION_CONTRACT",
-    "description": "Research and define the minimum provider-neutral durable publication contract that turns a qualified RemoteHistory bootstrap/change cycle into authoritative persisted stream/cursor state plus durable provider-object observations/bindings. Cursor advancement must be atomic with publication, gaps must fail closed, and bootstrap must seed provider identity authority without treating transport pagination as durable state. Reuse-before-build first; no live OAuth or corpus mutation.",
+    "id": "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT",
+    "description": "Before any RemoteHistory/live-provider wiring, define and then implement the hardened identity mutation boundary: trusted durable evidence references instead of caller-authored authority, stable replay IDs for SAME and NEW, idempotency parameter fingerprint/mismatch semantics, and precise RESOLVED_NEW semantics. Preserve current mechanics but do not expose them as runtime trust boundaries. Then proceed to history generation/publication and provider-object lifetime segments.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -140,7 +141,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "e068fcc94666592488d66fd445c2e22323209ac8",
+  "repository_basis_commit": "21217a626b328d7de6487555e8ac7d6892a72707",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1612,6 +1613,13 @@
         "go mod tidy -diff",
         "go vet"
       ]
+    },
+    "retro_audit": {
+      "status": "MECHANICS_QUALIFIED_HARDEN_BEFORE_RUNTIME_WIRING",
+      "gaps": [
+        "caller-authored evidence strength is not authenticated at SQLite mutation boundary",
+        "no stable replay/request ID for accepted SAME mutation"
+      ]
     }
   },
   "p0_21": {
@@ -1678,6 +1686,10 @@
         "go mod tidy -diff",
         "go vet"
       ]
+    },
+    "retro_audit": {
+      "status": "POLICY_MODEL_QUALIFIED_OBJECT_LEVEL_COVERAGE_REQUIRED",
+      "gap": "stable-for-resource-lifetime SAME must use object-specific uninterrupted continuity, not stream-level completeness alone"
     }
   },
   "p0_22": {
@@ -1812,6 +1824,10 @@
         "go mod tidy -diff",
         "go vet"
       ]
+    },
+    "retro_audit": {
+      "status": "REMOTE_HISTORY_TRANSPORT_MODEL_QUALIFIED",
+      "clarification": "cycle completeness proves the stream interval was read completely; it does not by itself prove one object's lifetime was uninterrupted"
     }
   },
   "p0_24": {
@@ -1969,6 +1985,10 @@
           "product_code_failure": false
         }
       ]
+    },
+    "retro_audit": {
+      "status": "DRIVE_ADAPTER_QUALIFIED_FOR_HISTORY_TRANSPORT_SEMANTICS",
+      "clarification": "live durable publication must add history generation and object-presence continuity before fileId can authorize SAME"
     }
   },
   "platform_targets": {
@@ -2196,6 +2216,34 @@
       "live_drive_used": false,
       "corpus_mutations": 0
     },
-    "next_layer": "Define and qualify durable RemoteHistory publication: persisted stream/cursor authority, atomic bootstrap/cycle publication, and provider-object binding integration before any live Google Drive OAuth run."
+    "next_layer": "Define and qualify durable RemoteHistory publication: persisted stream/cursor authority, atomic bootstrap/cycle publication, and provider-object binding integration before any live Google Drive OAuth run.",
+    "retro_audit": {
+      "status": "TRANSACTION_MECHANICS_QUALIFIED_HARDEN_BEFORE_RUNTIME_WIRING",
+      "gaps": [
+        "COMPLETE proof is caller-authored rather than loaded from durable authority",
+        "AdmissionRequestID is not parameter-bound",
+        "provider Artifact binding is not scoped to a resource-lifetime/object-presence segment"
+      ]
+    }
+  },
+  "p0_28": {
+    "status": "PAUSED_FOR_FOUNDATION_HARDENING",
+    "original_objective": "Define durable RemoteHistory publication before live provider wiring.",
+    "retrospective_audit": "docs/P0_FOUNDATION_RETRO_AUDIT_20260925.md",
+    "conclusion": "Do not wire RemoteHistory to identity acceptance yet. Previous mechanics remain qualified, but trust/replay/provider-lifetime boundaries require hardening first.",
+    "blockers": [
+      "acceptance trusts caller-authored CONCLUSIVE/COMPLETE evidence",
+      "RESOLVED_SAME lacks stable replay request identity",
+      "NEW request ID is not bound to semantic parameters",
+      "provider Artifact binding lacks resource-lifetime/history-generation context",
+      "stream completeness is conflated with per-object unbroken continuity"
+    ],
+    "additional_findings": [
+      "RemoteHistory is identity/membership evidence, not a full metadata Observation",
+      "RESOLVED_NEW wording should mean first accepted Artifact identity under policy, not first physical/known occurrence",
+      "bootstrap multi-occurrence crash/resume remains a later reliability gap"
+    ],
+    "corpus_mutations": 0,
+    "live_oauth_used": false
   }
 }

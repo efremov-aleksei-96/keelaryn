@@ -870,3 +870,28 @@ Tests cover:
 
 The implementation still uses deterministic fake completeness proofs only. Live Google Drive/OAuth and corpus mutation remain deferred.
 
+## P0 foundation retrospective — reuse corrections before RemoteHistory publication
+
+A read-only retrospective of P0-20 through P0-27 found that the existing mechanics are useful but several trust/replay/lifetime boundaries must be hardened before live provider wiring.
+
+New reuse sources applied:
+- **Syncthing BEP delta indexes:** reuse the idea of an index/generation identity plus an advancing sequence; reset creates a new identity. Keelaryn will analogously separate local history generation from opaque provider cursor.
+- **rclone bisync:** reuse last-known-good snapshot, recovery/lockout, and fail-closed interruption principles; do not use bisync as Artifact identity authority.
+- **AWS/Stripe idempotency:** same request token must be bound to the same semantic parameters; mismatched reuse is an explicit error and exact replay reconciles the original result.
+- **Drive/Graph/Dropbox delta APIs:** reinforce complete initial state + continuation + terminal future cursor, but stream completeness must not be confused with one object's uninterrupted resource lifetime.
+- **Perkeep:** continues to validate stable logical identity separated from mutable provenance, without importing CAS authority.
+
+Corrections required before product/live-provider wiring:
+1. acceptance must revalidate authority-bearing evidence from durable trusted state rather than trust caller-authored CONCLUSIVE/COMPLETE flags;
+2. RESOLVED_SAME needs replay/request identity just like NEW;
+3. request IDs need parameter fingerprints/mismatch semantics;
+4. provider-object bindings need lifetime/continuity context;
+5. stream completeness must be distinct from object continuity;
+6. history gaps/rebootstrap create a new local history generation;
+7. REMOVED breaks stable-lifetime automatic SAME;
+8. RemoteHistory identity/membership publication remains distinct from full metadata Observation;
+9. RESOLVED_NEW means first accepted Artifact identity under policy, not necessarily first observation or physical creation;
+10. bootstrap crash-resume is retained as a later reliability gap.
+
+Detailed audit: `docs/P0_FOUNDATION_RETRO_AUDIT_20260925.md`.
+
