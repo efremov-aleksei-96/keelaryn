@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 68,
+  "revision": 69,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -99,11 +99,12 @@
     "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_IMPLEMENTED",
     "P0_24B_DEPENDENCY_LOCK_CURSOR_MARKER_DEFECT_FIXED",
     "P0_24B_DEPENDENCY_LOCK_TRAILING_BLANK_DEFECT_FIXED",
-    "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_QUALIFIED"
+    "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_QUALIFIED",
+    "P0_25_CLOSURE_REAUDIT_COMPLETE"
   ],
   "next_objective": {
-    "id": "P0_25_REAUDIT_P0_CLOSURE",
-    "description": "Refresh the P0 closure audit against current authoritative code/state after qualified P0-20 through P0-24. Determine the earliest remaining product-path gap before implementing FTS, product access surfaces, remote scan wiring, or Android-specific runtime work. This is read-only analysis/documentation first; no Google Drive or corpus mutation.",
+    "id": "P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT",
+    "description": "Research and define the smallest provider-neutral, fail-closed contract for admitting a newly appearing occurrence as a new Artifact after bootstrap. It must not treat absence of path/hash candidates as proof; it must require qualified completeness/distinctness evidence, preserve ambiguity otherwise, and define atomic Artifact/Revision/Observation/provenance semantics. Reuse-before-build research first; no corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -136,7 +137,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "237899f25c997607bdc4c4ed3e6ba39f05b1970b",
+  "repository_basis_commit": "77dc552482b79260fa8a5ad462dc42732c506f75",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1503,7 +1504,7 @@
     }
   },
   "p0_19": {
-    "status": "COMPLETE_P0_NOT_CLOSED",
+    "status": "SUPERSEDED_BY_P0_25_REAUDIT",
     "evidence_document": "docs/P0_CLOSURE_AUDIT_20260925.md",
     "conclusion": "P0 is not closed. The earliest correctness gap is durable application of a uniquely resolved continuity decision; FTS/access/remote-provider gaps come after that bridge.",
     "required_path": {
@@ -1536,7 +1537,8 @@
       "rclone-backed remote provider spike",
       "minimal web status spike",
       "conclusive continuity evidence source"
-    ]
+    ],
+    "superseded_by": "p0_25"
   },
   "p0_20": {
     "status": "QUALIFIED",
@@ -1987,5 +1989,47 @@
       "windows-2025"
     ],
     "android_ci_status": "PLANNED_NOT_YET_QUALIFIED"
+  },
+  "p0_25": {
+    "status": "COMPLETE_P0_NOT_CLOSED",
+    "objective": "Re-audit P0 closure after qualification of P0-20 through P0-24 and identify the earliest remaining correctness gap.",
+    "evidence_document": "docs/P0_CLOSURE_AUDIT_20260925.md",
+    "evidence_head": "77dc552482b79260fa8a5ad462dc42732c506f75",
+    "evidence_ci_run_id": 36107693557,
+    "evidence_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+    "conclusion": "P0 remains open. The earliest correctness gap is safe post-bootstrap new-Artifact admission; FTS/MCP/web and remote scan wiring come after the identity lifecycle can represent both SAME and NEW outcomes safely.",
+    "earliest_gap": "POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION",
+    "key_findings": [
+      "P0-20 closed atomic RESOLVED_SAME acceptance.",
+      "P0-21 through P0-24 provide qualified Drive native-ID/history semantics and official client binding.",
+      "AdoptObservationInScan is bootstrap-only and StartBootstrapScan rejects scopes with prior history.",
+      "AcceptResolvedObservationInScan accepts only RESOLVED_SAME.",
+      "A new file or copy appearing after bootstrap therefore cannot yet become a new Artifact safely.",
+      "FTS5, usable MCP/HTTP product access, remote durable scan wiring and embedded web status remain later gaps."
+    ],
+    "required_path": {
+      "local_root": "QUALIFIED",
+      "read_only_discovery": "QUALIFIED",
+      "durable_observation_locator": "QUALIFIED_LOCAL",
+      "artifact_identity": "PARTIAL_POST_BOOTSTRAP_NEW_ADMISSION_ABSENT",
+      "revision_continuity": "PARTIAL_END_TO_END_WIRING",
+      "inventory": "QUALIFIED",
+      "minimal_extraction": "QUALIFIED",
+      "sqlite_fts": "ABSENT",
+      "context_bundle": "QUALIFIED",
+      "product_access_surface": "PARTIAL_SCAN_CLI_ONLY"
+    },
+    "proof_cases": {
+      "unchanged_rescan_same_artifact_revision": "PARTIAL_COMPONENTS_NOT_END_TO_END",
+      "rename_move_same_artifact_revision_new_locator": "PARTIAL_COMPONENTS_NOT_END_TO_END",
+      "content_modify_same_artifact_new_revision": "PARTIAL_COMPONENTS_NOT_END_TO_END",
+      "true_copy_new_artifact_identical_bytes": "PARTIAL_BOOTSTRAP_ONLY",
+      "ambiguity_no_silent_merge": "QUALIFIED",
+      "unsupported_valid_artifact": "QUALIFIED",
+      "restart_exact_durable_identity": "QUALIFIED",
+      "derived_rebuild_without_identity_change": "PARTIAL_FTS_ABSENT",
+      "context_exact_revision_source": "QUALIFIED",
+      "corpus_bytes_unchanged": "QUALIFIED_IMPLEMENTED_PATHS"
+    }
   }
 }

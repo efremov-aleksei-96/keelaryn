@@ -1,62 +1,117 @@
-# P0 Closure Audit — 2026-09-25
+# P0 Closure Re-audit — 2026-09-25
 
 Status: **P0 NOT CLOSED**
 
-Authority: this is an implementation/evidence audit. `KEELARYN_CANONICAL.md` remains the sole product architecture authority.
+Authority: this document is an implementation/evidence audit. `KEELARYN_CANONICAL.md` remains the sole product architecture authority.
+
+Evidence basis:
+- authoritative branch: `dev/corpus-first-p0`;
+- audited head: `77dc552482b79260fa8a5ad462dc42732c506f75`;
+- exact-head CI: `36107693557` — validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS;
+- P0-20 through P0-24 are now qualified and supersede the earlier audit's continuity/history gaps.
 
 ## Required P0 path
 
-| Canonical capability | Status | Active-line evidence / gap |
+| Canonical capability | Current status | Active-line evidence / remaining gap |
 |---|---|---|
-| one existing corpus root | QUALIFIED | localfs provider snapshots a user-selected root |
-| read-only discovery | QUALIFIED | localfs Snapshot; symlinks not followed |
-| durable ProviderObject/Locator observations | PARTIAL | append-only occurrences/observations/locators are durable; localfs native identity intentionally remains process-local/unresolved |
-| Artifact identity | PARTIAL | explicit first-observation bootstrap creates durable Artifacts; post-bootstrap continuity is not yet durably applied |
-| Revision continuity | PARTIAL | Revision semantics and durable history are qualified; no end-to-end post-bootstrap continuity commit path yet |
-| inventory | QUALIFIED | latest COMPLETE scan is authoritative; OPEN/ABORTED ignored |
+| one existing corpus root | QUALIFIED | localfs provider can read a user-selected existing root without reorganizing it |
+| read-only discovery | QUALIFIED | localfs Snapshot; corpus bytes are not mutated |
+| durable ProviderObject/Locator observations | QUALIFIED FOR LOCAL INGEST | append-only occurrences, observations and locators are durable; localfs native object identity remains intentionally unresolved across durable gaps |
+| Artifact identity | PARTIAL END-TO-END | bootstrap adoption is qualified; `RESOLVED_SAME` acceptance is qualified; there is still no safe post-bootstrap path that creates a new Artifact for a newly appearing/distinct occurrence |
+| Revision continuity | PARTIAL END-TO-END | P0-20 atomically reuses/creates Revision once continuity is `RESOLVED_SAME`; provider evidence is not yet wired into a complete scan/reconcile/accept loop |
+| inventory | QUALIFIED | latest COMPLETE scan is authoritative; OPEN/ABORTED scans are excluded |
 | minimal extraction | QUALIFIED | bounded revision-bound UTF-8 text/Markdown extraction |
-| SQLite FTS search | ABSENT | no FTS schema/query implementation in active tree |
-| task-specific ContextBundle | QUALIFIED | explicit-selection derived bundle with exact Artifact/Revision/source provenance |
-| MCP/HTTP/CLI access | ABSENT as product access surface | active tree has no inventory/search/context API endpoint or usable product CLI surface |
+| SQLite FTS search | ABSENT | no FTS5 schema/query implementation in the active tree |
+| task-specific ContextBundle | QUALIFIED | explicit-selection bundle with exact Artifact/Revision/source provenance |
+| MCP/HTTP/CLI product access | PARTIAL | a minimal `scan` CLI exists, but there is no usable inventory/search/context product API surface yet |
+
+## Provider/continuity state
+
+### Local filesystem
+
+Qualified:
+- read-only discovery and durable complete-scan ingestion;
+- first-observation Artifact adoption;
+- candidate generation;
+- selective content evidence;
+- in-process native `os.SameFile` evidence;
+- explicit ambiguity;
+- atomic `RESOLVED_SAME` acceptance.
+
+Important limitation:
+- path, content equality and current local native evidence are intentionally not treated as durable conclusive identity across an observation gap;
+- therefore local post-bootstrap continuity remains fail-closed when no stronger evidence exists.
+
+### Google Drive / RemoteHistory
+
+Qualified components:
+- provider-native identity semantics for Drive file IDs;
+- provider-neutral RemoteHistory contract;
+- Google Drive fence -> enumerate -> catch-up -> terminal-cursor semantics;
+- official `google.golang.org/api/drive/v3` binding;
+- My Drive/shared-drive query binding;
+- shortcut resource identity preservation;
+- terminal cursor discipline;
+- Ubuntu + Windows cross-platform qualification.
+
+Still absent:
+- a real remote discovery/ingest path that turns Drive objects/history into durable Keelaryn scan observations and reconciliation inputs;
+- live OAuth/provider qualification;
+- any Google Drive corpus mutation (correctly out of scope).
 
 ## Canonical P0 proof cases
 
-| Proof | Status | Reason |
+| Proof | Current status | Reason |
 |---|---|---|
-| unchanged rescan -> same Artifact and Revision | ABSENT end-to-end | candidate/evidence model exists but resolved continuity is not committed to the next observation |
-| rename/move with strong evidence -> same Artifact/Revision, new Locator | PARTIAL | in-process native matching can discover an AMBIGUOUS candidate; no conclusive provider path + no commit path |
-| content modification -> same Artifact, new Revision | PARTIAL | Revision engine proves A->B semantics, but scan reconciliation cannot yet assign the modified occurrence to the existing Artifact |
-| true copy -> new Artifact despite identical bytes | QUALIFIED for adoption semantics | bootstrap identical independent files become distinct Artifacts with identical content evidence |
-| ambiguous continuity -> explicit ambiguity, no silent merge | QUALIFIED | candidate set and ingestion remain unresolved without conclusive evidence |
-| unsupported content -> valid Artifact + unsupported extraction | QUALIFIED | bootstrap identity exists; extractor returns UNSUPPORTED without reading unsupported type |
-| restart -> exact durable identity state resumes | QUALIFIED | SQLite reopen tests preserve Artifact/Revision/Observation/inventory authority |
-| derived extraction/index rebuild without identity change | PARTIAL | extraction is rebuildable/non-mutating; FTS index not implemented yet |
+| unchanged object rescanned -> same Artifact and Revision | PARTIAL COMPONENTS | same-continuity transaction exists, and Drive can supply conclusive continuity under continuous history, but no complete provider->reconcile->accept product loop is wired |
+| rename/move with strong evidence -> same Artifact/Revision, new Locator | PARTIAL COMPONENTS | acceptance semantics are qualified; conclusive provider evidence and durable scan wiring are not yet connected end-to-end |
+| content modification -> same Artifact, new Revision | PARTIAL COMPONENTS | P0-20 proves the atomic changed-content behavior after `RESOLVED_SAME`; end-to-end evidence/wiring remains |
+| true copy -> new Artifact despite identical bytes | PARTIAL | first bootstrap preserves distinct copies, but a copy/new occurrence appearing after bootstrap cannot yet be safely admitted as a new Artifact |
+| ambiguous continuity -> explicit ambiguity, no silent merge | QUALIFIED | supporting evidence alone cannot authorize identity mutation |
+| unsupported content -> valid Artifact + unsupported extraction | QUALIFIED | identity survives unsupported extraction |
+| restart -> exact durable identity state resumes | QUALIFIED | SQLite authority survives reopen and qualified migrations |
+| derived extraction/index rebuild without identity change | PARTIAL | extraction is derived/rebuildable; FTS is not implemented |
 | ContextBundle cites exact Revision/source evidence | QUALIFIED | P0-18 |
-| corpus bytes unchanged by P0 operations | QUALIFIED for implemented local path | discovery, reconciliation, extraction and context operations are read-only against corpus |
+| corpus bytes unchanged by P0 operations | QUALIFIED FOR IMPLEMENTED PATHS | active discovery/reconciliation/extraction/history work is read-only against corpus; no live Drive mutation has occurred |
 
-## P0 technology-spike checklist
+## Technology-spike checklist
 
 | Spike item | Status |
 |---|---|
-| one Go executable direction | PARTIAL — Go cmd exists, but product access surface is not yet useful |
+| one Go executable direction | PARTIAL — executable exists; product access surface is still too narrow |
 | SQLite state | QUALIFIED |
 | local read-only scan | QUALIFIED |
-| one rclone-backed remote scan | ABSENT |
-| provider/native identity evidence preserved | PARTIAL — process-local localfs evidence only |
+| one real remote scan | ABSENT — Drive history adapter is qualified but not yet wired as a durable remote scan/provider path |
+| provider/native identity evidence preserved | PARTIAL END-TO-END — Drive contract/history is qualified; local durable conclusive identity remains intentionally unavailable |
 | FTS query | ABSENT |
 | minimal MCP endpoint | ABSENT |
 | embedded minimal web status page | ABSENT |
 
-## Priority decision
+## Earliest remaining correctness gap
 
-Do **not** implement FTS/MCP/remote provider next merely because they are visible missing boxes.
+The previous audit identified `RESOLVED_SAME -> durable acceptance`; P0-20 closed that gap.
 
-The earliest incomplete correctness edge is:
+The next earlier correctness edge is now **post-bootstrap new-Artifact admission**.
 
-`resolved continuity -> durable observation assignment -> same/new Revision -> accepted-decision provenance`.
+Current asymmetry:
+- `StartBootstrapScan + AdoptObservationInScan` may create Artifacts only when the provider/root has no prior observation history;
+- `AcceptResolvedObservationInScan` may mutate identity only for a uniquely `RESOLVED_SAME` result;
+- the candidate-set model has no accepted `RESOLVED_NEW` / first-known-object state;
+- therefore a genuinely new file, a proven copy, or another newly appearing distinct provider object after bootstrap remains unresolved indefinitely.
 
-Until that exists, post-bootstrap Artifact identity is not a complete product path.
+This is a correctness gap before search/UI ergonomics. Implementing FTS/MCP first would make an incomplete identity lifecycle easier to query without completing it.
 
-Therefore the next objective is P0-20: a provider-neutral, fail-closed transaction that accepts only a uniquely `RESOLVED_SAME` candidate set, assigns the current observation to that existing Artifact, reuses or creates its Revision from current content evidence, and durably records the accepted continuity resolution/provenance in the same transaction.
+## Next objective
 
-After P0-20, add/prove a conclusive evidence source; then re-audit continuity proofs before FTS/search/access surfaces.
+Define the smallest provider-neutral contract for **safe post-bootstrap new Artifact admission** before implementing it.
+
+The contract must:
+- never equate "no path candidate" with "new Artifact";
+- require explicit evidence that the current occurrence has no accepted predecessor under the qualified scope/provider-history policy;
+- preserve ambiguity when that proof is unavailable;
+- create Artifact + initial Revision (when content evidence exists) + assigned Observation + non-rebuildable acceptance provenance atomically;
+- distinguish "new Keelaryn Artifact because this is first known occurrence" from claims about physical creation time;
+- preserve true-copy semantics: identical bytes do not imply same Artifact;
+- remain compatible with later cross-root/cross-provider reconciliation.
+
+After that contract and transaction are qualified, wire one conclusive provider path end-to-end (Google Drive is the current first candidate), then re-audit before FTS/search/access work.
