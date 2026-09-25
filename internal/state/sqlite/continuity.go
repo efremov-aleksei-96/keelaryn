@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
@@ -19,157 +18,144 @@ var (
 	ErrAcceptedContinuityNotFound  = errors.New("accepted continuity decision not found")
 )
 
-// AcceptResolvedObservationInScan atomically commits one already-resolved
-// continuity decision. This function does not infer or strengthen evidence.
-func (s *Store) AcceptResolvedObservationInScan(
-	ctx context.Context,
-	scanID corpus.ScanSessionID,
-	input corpus.ObservationRecordInput,
-	resolution corpus.CandidateSetResolution,
-	evidence *corpus.ContentEvidence,
-	decidedAt time.Time,
-	policyID string,
-) (out corpus.ContinuityAcceptance, err error) {
-	if err := validateObservationInput(input); err != nil {
+// AcceptSameObservationInScan loads durable authority and derives SAME inside
+// the mutation transaction. Caller cannot submit a pre-resolved decision.
+func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.IdentityMutationRequest) (out corpus.ContinuityAcceptance, err error) {
+	if err := validateIdentityMutationRequest(request, true); err != nil {
 		return corpus.ContinuityAcceptance{}, err
 	}
-	if input.AssignmentState != corpus.AssignmentUnresolved ||
-		input.ArtifactID != "" ||
-		input.RevisionID != "" {
-		return corpus.ContinuityAcceptance{}, fmt.Errorf("%w: input must be unresolved", ErrInvalidContinuityAcceptance)
-	}
-	if scanID == "" || decidedAt.IsZero() || strings.TrimSpace(policyID) == "" {
-		return corpus.ContinuityAcceptance{}, ErrInvalidContinuityAcceptance
-	}
-	if err := corpus.ValidateCandidateSetResolution(resolution); err != nil {
-		return corpus.ContinuityAcceptance{}, err
-	}
-	if resolution.State != corpus.CandidateSetResolvedSame || resolution.SelectedArtifactID == "" {
-		return corpus.ContinuityAcceptance{}, fmt.Errorf("%w: state=%s", ErrInvalidContinuityAcceptance, resolution.State)
-	}
-
-	switch input.Kind {
-	case corpus.EntryRegularFile:
-		if evidence == nil {
-			return corpus.ContinuityAcceptance{}, fmt.Errorf("%w: regular file requires content evidence", ErrInvalidContinuityAcceptance)
-		}
-		if err := corpus.ValidateContentEvidence(*evidence); err != nil {
-			return corpus.ContinuityAcceptance{}, err
-		}
-		if evidence.Size != input.Size {
-			return corpus.ContinuityAcceptance{}, fmt.Errorf(
-				"%w: evidence size=%d observation size=%d",
-				ErrInvalidContinuityAcceptance,
-				evidence.Size,
-				input.Size,
-			)
-		}
-	default:
-		if evidence != nil {
-			return corpus.ContinuityAcceptance{}, fmt.Errorf("%w: non-regular entry has content evidence", ErrInvalidContinuityAcceptance)
-		}
-	}
-
-	resolutionJSON, err := json.Marshal(resolution)
+	fingerprint, err := corpus.FingerprintIdentityMutation(corpus.IdentityMutationSame, request)
 	if err != nil {
-		return corpus.ContinuityAcceptance{}, fmt.Errorf("marshal continuity resolution: %w", err)
+		return corpus.ContinuityAcceptance{}, err
 	}
+	var replay *identityMutationRequestRecord
 
 	conn, err := s.pool.Get(ctx)
 	if err != nil {
 		return corpus.ContinuityAcceptance{}, fmt.Errorf("get state connection: %w", err)
 	}
-	defer s.pool.Put(conn)
-
-	end, err := sqlitex.ImmediateTransaction(conn)
-	if err != nil {
-		return corpus.ContinuityAcceptance{}, fmt.Errorf("begin continuity acceptance transaction: %w", err)
-	}
-	defer end(&err)
-
-	scan, err := scanSessionConn(conn, scanID)
-	if err != nil {
-		return corpus.ContinuityAcceptance{}, err
-	}
-	if scan.Status != corpus.ScanOpen {
-		return corpus.ContinuityAcceptance{}, fmt.Errorf("%w: %s", ErrScanNotOpen, scanID)
-	}
-	if input.ProviderObject.ProviderID != scan.ProviderID {
-		return corpus.ContinuityAcceptance{}, fmt.Errorf(
-			"%w: provider=%s scan_provider=%s",
-			ErrScanScopeMismatch,
-			input.ProviderObject.ProviderID,
-			scan.ProviderID,
-		)
-	}
-	for _, locator := range input.Locators {
-		if locator.ProviderID != scan.ProviderID || locator.Root != scan.Root {
-			return corpus.ContinuityAcceptance{}, fmt.Errorf(
-				"%w: locator=%#v scan=%s/%s",
-				ErrScanScopeMismatch,
-				locator,
-				scan.ProviderID,
-				scan.Root,
-			)
+	err = func() (txErr error) {
+		end, txErr := sqlitex.ImmediateTransaction(conn)
+		if txErr != nil {
+			return fmt.Errorf("begin SAME acceptance transaction: %w", txErr)
 		}
-	}
+		defer end(&txErr)
 
-	exists, err := artifactExists(conn, resolution.SelectedArtifactID)
+		existing, found, txErr := identityMutationRequestConn(conn, request.ID)
+		if txErr != nil {
+			return txErr
+		}
+		if found {
+			if txErr := reconcileExistingIdentityMutation(existing, corpus.IdentityMutationSame, fingerprint); txErr != nil {
+				return txErr
+			}
+			value := existing
+			replay = &value
+			return nil
+		}
+		scan, txErr := scanSessionConn(conn, request.ScanID)
+		if txErr != nil {
+			return txErr
+		}
+		if scan.Status != corpus.ScanOpen {
+			return fmt.Errorf("%w: %s", ErrScanNotOpen, request.ScanID)
+		}
+		authority, txErr := identityAuthoritySetConn(conn, request.AuthoritySetID)
+		if txErr != nil {
+			return txErr
+		}
+		if txErr := validateAuthorityScope(authority, scan, request.Observation); txErr != nil {
+			return txErr
+		}
+		resolution, txErr := candidateResolutionFromAuthority(authority)
+		if txErr != nil {
+			return txErr
+		}
+		if resolution.State != corpus.CandidateSetResolvedSame || resolution.SelectedArtifactID == "" {
+			return fmt.Errorf("%w: derived state=%s", ErrInvalidContinuityAcceptance, resolution.State)
+		}
+		exists, txErr := artifactExists(conn, resolution.SelectedArtifactID)
+		if txErr != nil {
+			return txErr
+		}
+		if !exists {
+			return fmt.Errorf("%w: %s", corpus.ErrArtifactNotFound, resolution.SelectedArtifactID)
+		}
+
+		input := request.Observation
+		revision, txErr := observeRevisionConn(conn, resolution.SelectedArtifactID, *request.ContentEvidence)
+		if txErr != nil {
+			return txErr
+		}
+		input.ArtifactID = resolution.SelectedArtifactID
+		input.RevisionID = revision.Current.Revision.ID
+		input.AssignmentState = corpus.AssignmentAssigned
+		observation, txErr := recordObservationConn(conn, request.ScanID, input)
+		if txErr != nil {
+			return txErr
+		}
+		resolutionJSON, txErr := json.Marshal(resolution)
+		if txErr != nil {
+			return fmt.Errorf("marshal continuity resolution: %w", txErr)
+		}
+		decision := corpus.AcceptedContinuityRecord{
+			ID:             corpus.AcceptedContinuityID("cont_" + uuid.NewString()),
+			RequestID:      request.ID,
+			AuthoritySetID: request.AuthoritySetID,
+			ObservationID:  observation.ID,
+			ArtifactID:     resolution.SelectedArtifactID,
+			State:          resolution.State,
+			PolicyID:       authority.PolicyID,
+			Resolution:     resolution,
+			DecidedAt:      request.DecidedAt.UTC(),
+		}
+		if txErr := sqlitex.Execute(conn,
+			"INSERT INTO accepted_continuity_decisions (decision_id, observation_id, artifact_id, decision_state, policy_id, resolution_json, decided_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+			&sqlitex.ExecOptions{Args: []any{
+				string(decision.ID), string(decision.ObservationID), string(decision.ArtifactID),
+				string(decision.State), decision.PolicyID, string(resolutionJSON),
+				decision.DecidedAt.Format(time.RFC3339Nano),
+			}}); txErr != nil {
+			return fmt.Errorf("insert accepted continuity decision: %w", txErr)
+		}
+		if txErr := insertIdentityMutationRequestConn(conn, identityMutationRequestRecord{
+			RequestID: request.ID, Kind: corpus.IdentityMutationSame, Fingerprint: fingerprint,
+			AuthoritySetID: request.AuthoritySetID, ObservationID: observation.ID,
+			ArtifactID: decision.ArtifactID, RevisionID: revision.Current.Revision.ID,
+			RevisionCreated: revision.Created, DecisionKind: "CONTINUITY",
+			DecisionID: string(decision.ID), AcceptedAt: decision.DecidedAt,
+		}); txErr != nil {
+			return txErr
+		}
+		out = corpus.ContinuityAcceptance{Observation: observation, Revision: &revision, Decision: decision}
+		return nil
+	}()
+	s.pool.Put(conn)
 	if err != nil {
 		return corpus.ContinuityAcceptance{}, err
 	}
-	if !exists {
-		return corpus.ContinuityAcceptance{}, fmt.Errorf(
-			"%w: %s",
-			corpus.ErrArtifactNotFound,
-			resolution.SelectedArtifactID,
-		)
+	if replay == nil {
+		return out, nil
 	}
 
+	observation, err := s.Observation(ctx, replay.ObservationID)
+	if err != nil {
+		return corpus.ContinuityAcceptance{}, err
+	}
+	decision, err := s.AcceptedContinuity(ctx, replay.ObservationID)
+	if err != nil {
+		return corpus.ContinuityAcceptance{}, err
+	}
 	var revisionObservation *corpus.RevisionObservation
-	if evidence != nil {
-		revision, err := observeRevisionConn(conn, resolution.SelectedArtifactID, *evidence)
+	if replay.RevisionID != "" {
+		record, err := s.revisionRecordByID(ctx, replay.ArtifactID, replay.RevisionID)
 		if err != nil {
 			return corpus.ContinuityAcceptance{}, err
 		}
-		revisionObservation = &revision
-		input.RevisionID = revision.Current.Revision.ID
+		revisionObservation = &corpus.RevisionObservation{Current: record, Created: replay.RevisionCreated}
 	}
-
-	input.ArtifactID = resolution.SelectedArtifactID
-	input.AssignmentState = corpus.AssignmentAssigned
-	observation, err := recordObservationConn(conn, scanID, input)
-	if err != nil {
-		return corpus.ContinuityAcceptance{}, err
-	}
-
-	decision := corpus.AcceptedContinuityRecord{
-		ID:            corpus.AcceptedContinuityID("cont_" + uuid.NewString()),
-		ObservationID: observation.ID,
-		ArtifactID:    resolution.SelectedArtifactID,
-		State:         resolution.State,
-		PolicyID:      policyID,
-		Resolution:    resolution,
-		DecidedAt:     decidedAt.UTC(),
-	}
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO accepted_continuity_decisions (decision_id, observation_id, artifact_id, decision_state, policy_id, resolution_json, decided_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-		&sqlitex.ExecOptions{Args: []any{
-			string(decision.ID),
-			string(decision.ObservationID),
-			string(decision.ArtifactID),
-			string(decision.State),
-			decision.PolicyID,
-			string(resolutionJSON),
-			decision.DecidedAt.Format(time.RFC3339Nano),
-		}}); err != nil {
-		return corpus.ContinuityAcceptance{}, fmt.Errorf("insert accepted continuity decision: %w", err)
-	}
-
 	return corpus.ContinuityAcceptance{
-		Observation: observation,
-		Revision:    revisionObservation,
-		Decision:    decision,
+		Observation: observation, Revision: revisionObservation, Decision: decision, Replayed: true,
 	}, nil
 }
 
@@ -179,7 +165,6 @@ func (s *Store) AcceptedContinuity(ctx context.Context, observationID corpus.Obs
 		return corpus.AcceptedContinuityRecord{}, fmt.Errorf("get state connection: %w", err)
 	}
 	defer s.pool.Put(conn)
-
 	var record corpus.AcceptedContinuityRecord
 	var resolutionJSON, decidedText string
 	var found bool
@@ -214,6 +199,19 @@ func (s *Store) AcceptedContinuity(ctx context.Context, observationID corpus.Obs
 	record.DecidedAt, err = time.Parse(time.RFC3339Nano, decidedText)
 	if err != nil {
 		return corpus.AcceptedContinuityRecord{}, fmt.Errorf("parse accepted continuity timestamp: %w", err)
+	}
+	err = sqlitex.Execute(conn,
+		"SELECT request_id, authority_set_id FROM identity_mutation_requests WHERE observation_id = ?1 AND operation_kind = 'SAME' LIMIT 1",
+		&sqlitex.ExecOptions{
+			Args: []any{string(observationID)},
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				record.RequestID = corpus.IdentityMutationRequestID(stmt.ColumnText(0))
+				record.AuthoritySetID = corpus.IdentityAuthoritySetID(stmt.ColumnText(1))
+				return nil
+			},
+		})
+	if err != nil {
+		return corpus.AcceptedContinuityRecord{}, fmt.Errorf("query continuity mutation provenance: %w", err)
 	}
 	return record, nil
 }

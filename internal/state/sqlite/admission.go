@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
@@ -15,239 +14,194 @@ import (
 )
 
 var (
-	ErrInvalidArtifactAdmission         = errors.New("invalid Artifact admission")
-	ErrAdmissionAlreadyAccepted         = errors.New("Artifact admission request already accepted")
-	ErrAcceptedAdmissionNotFound        = errors.New("accepted Artifact admission not found")
-	ErrProviderObjectAlreadyBound       = errors.New("provider object already bound to an Artifact")
-	ErrProviderArtifactBindingNotFound  = errors.New("provider Artifact binding not found")
+	ErrInvalidArtifactAdmission        = errors.New("invalid Artifact admission")
+	ErrAcceptedAdmissionNotFound       = errors.New("accepted Artifact admission not found")
+	ErrProviderObjectAlreadyBound      = errors.New("provider object already bound to an Artifact")
+	ErrProviderArtifactBindingNotFound = errors.New("provider Artifact binding not found")
 )
 
-// AcceptResolvedNewObservationInScan atomically admits exactly one occurrence
-// whose provider-neutral identity result is already RESOLVED_NEW.
-//
-// It never infers candidate-universe completeness. A stable requestID is the
-// replay/reconciliation key: retrying an already accepted request cannot mint
-// another Artifact.
-func (s *Store) AcceptResolvedNewObservationInScan(
-	ctx context.Context,
-	requestID corpus.AdmissionRequestID,
-	scanID corpus.ScanSessionID,
-	input corpus.ObservationRecordInput,
-	resolution corpus.OccurrenceIdentityResolution,
-	evidence *corpus.ContentEvidence,
-	decidedAt time.Time,
-	policyID string,
-) (out corpus.ArtifactAdmissionAcceptance, err error) {
-	if err := validateObservationInput(input); err != nil {
+// AcceptNewObservationInScan loads durable authority and derives NEW inside the
+// transaction. Caller cannot submit COMPLETE/CONCLUSIVE/resolved state.
+func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.IdentityMutationRequest) (out corpus.ArtifactAdmissionAcceptance, err error) {
+	if err := validateIdentityMutationRequest(request, false); err != nil {
 		return corpus.ArtifactAdmissionAcceptance{}, err
 	}
-	if strings.TrimSpace(string(requestID)) == "" ||
-		scanID == "" ||
-		decidedAt.IsZero() ||
-		strings.TrimSpace(policyID) == "" {
-		return corpus.ArtifactAdmissionAcceptance{}, ErrInvalidArtifactAdmission
-	}
-	if input.AssignmentState != corpus.AssignmentUnresolved ||
-		input.ArtifactID != "" ||
-		input.RevisionID != "" {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("%w: input must be unresolved", ErrInvalidArtifactAdmission)
-	}
-	if input.ProviderObject.IdentityState != corpus.ObjectIdentityObserved ||
-		input.ProviderObject.ID == "" {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("%w: admission requires observed provider identity", ErrInvalidArtifactAdmission)
-	}
-	if err := corpus.ValidateOccurrenceIdentityResolution(resolution); err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, err
-	}
-	if resolution.State != corpus.OccurrenceIdentityResolvedNew ||
-		resolution.SelectedArtifactID != "" ||
-		resolution.Universe == nil ||
-		resolution.Universe.Coverage != corpus.CandidateUniverseComplete {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("%w: state=%s", ErrInvalidArtifactAdmission, resolution.State)
-	}
-	proof := *resolution.Universe
-	if proof.PolicyID != policyID ||
-		proof.ProviderID != input.ProviderObject.ProviderID ||
-		proof.CurrentObjectID != input.ProviderObject.ID {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("%w: proof/input policy or identity mismatch", ErrInvalidArtifactAdmission)
-	}
-	if evidence != nil {
-		if input.Kind != corpus.EntryRegularFile {
-			return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("%w: content evidence on non-regular entry", ErrInvalidArtifactAdmission)
-		}
-		if err := corpus.ValidateContentEvidence(*evidence); err != nil {
-			return corpus.ArtifactAdmissionAcceptance{}, err
-		}
-		if evidence.Size != input.Size {
-			return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf(
-				"%w: evidence size=%d observation size=%d",
-				ErrInvalidArtifactAdmission,
-				evidence.Size,
-				input.Size,
-			)
-		}
-	}
-
-	resolutionJSON, err := json.Marshal(resolution)
+	fingerprint, err := corpus.FingerprintIdentityMutation(corpus.IdentityMutationNew, request)
 	if err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("marshal admission resolution: %w", err)
+		return corpus.ArtifactAdmissionAcceptance{}, err
 	}
+	var replay *identityMutationRequestRecord
 
 	conn, err := s.pool.Get(ctx)
 	if err != nil {
 		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("get state connection: %w", err)
 	}
-	defer s.pool.Put(conn)
-
-	end, err := sqlitex.ImmediateTransaction(conn)
-	if err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("begin Artifact admission transaction: %w", err)
-	}
-	defer end(&err)
-
-	accepted, err := admissionRequestExistsConn(conn, requestID)
-	if err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, err
-	}
-	if accepted {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("%w: %s", ErrAdmissionAlreadyAccepted, requestID)
-	}
-
-	scan, err := scanSessionConn(conn, scanID)
-	if err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, err
-	}
-	if scan.Status != corpus.ScanOpen {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("%w: %s", ErrScanNotOpen, scanID)
-	}
-	if input.ProviderObject.ProviderID != scan.ProviderID ||
-		proof.ProviderID != scan.ProviderID ||
-		proof.ScopeID != scan.Root {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf(
-			"%w: admission proof/input scan scope mismatch",
-			ErrScanScopeMismatch,
-		)
-	}
-	for _, locator := range input.Locators {
-		if locator.ProviderID != scan.ProviderID || locator.Root != scan.Root {
-			return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf(
-				"%w: locator=%#v scan=%s/%s",
-				ErrScanScopeMismatch,
-				locator,
-				scan.ProviderID,
-				scan.Root,
-			)
+	err = func() (txErr error) {
+		end, txErr := sqlitex.ImmediateTransaction(conn)
+		if txErr != nil {
+			return fmt.Errorf("begin NEW acceptance transaction: %w", txErr)
 		}
-	}
+		defer end(&txErr)
 
-	bound, _, err := providerArtifactBindingConn(
-		conn,
-		proof.IdentityDomain,
-		proof.ProviderID,
-		proof.CurrentObjectID,
-	)
+		existing, found, txErr := identityMutationRequestConn(conn, request.ID)
+		if txErr != nil {
+			return txErr
+		}
+		if found {
+			if txErr := reconcileExistingIdentityMutation(existing, corpus.IdentityMutationNew, fingerprint); txErr != nil {
+				return txErr
+			}
+			value := existing
+			replay = &value
+			return nil
+		}
+		scan, txErr := scanSessionConn(conn, request.ScanID)
+		if txErr != nil {
+			return txErr
+		}
+		if scan.Status != corpus.ScanOpen {
+			return fmt.Errorf("%w: %s", ErrScanNotOpen, request.ScanID)
+		}
+		authority, txErr := identityAuthoritySetConn(conn, request.AuthoritySetID)
+		if txErr != nil {
+			return txErr
+		}
+		if txErr := validateAuthorityScope(authority, scan, request.Observation); txErr != nil {
+			return txErr
+		}
+		resolution, txErr := occurrenceResolutionFromAuthority(authority)
+		if txErr != nil {
+			return txErr
+		}
+		if resolution.State != corpus.OccurrenceIdentityResolvedNew ||
+			resolution.SelectedArtifactID != "" ||
+			resolution.Universe == nil ||
+			resolution.Universe.Coverage != corpus.CandidateUniverseComplete {
+			return fmt.Errorf("%w: derived state=%s", ErrInvalidArtifactAdmission, resolution.State)
+		}
+		bound, _, txErr := providerArtifactBindingConn(conn, authority.IdentityDomain, authority.ProviderID, authority.CurrentObjectID)
+		if txErr != nil {
+			return txErr
+		}
+		if bound {
+			return fmt.Errorf("%w: %s/%s/%s", ErrProviderObjectAlreadyBound, authority.IdentityDomain, authority.ProviderID, authority.CurrentObjectID)
+		}
+
+		artifactID := corpus.ArtifactID("art_" + uuid.NewString())
+		if txErr := sqlitex.Execute(conn,
+			"INSERT INTO artifacts (artifact_id) VALUES (?1)",
+			&sqlitex.ExecOptions{Args: []any{string(artifactID)}}); txErr != nil {
+			return fmt.Errorf("insert admitted Artifact: %w", txErr)
+		}
+		input := request.Observation
+		var revisionObservation *corpus.RevisionObservation
+		if request.ContentEvidence != nil {
+			revision, txErr := observeRevisionConn(conn, artifactID, *request.ContentEvidence)
+			if txErr != nil {
+				return txErr
+			}
+			revisionObservation = &revision
+			input.RevisionID = revision.Current.Revision.ID
+		}
+		input.ArtifactID = artifactID
+		input.AssignmentState = corpus.AssignmentAssigned
+		observation, txErr := recordObservationConn(conn, request.ScanID, input)
+		if txErr != nil {
+			return txErr
+		}
+		binding := corpus.ProviderArtifactBinding{
+			IdentityDomain: authority.IdentityDomain, ProviderID: authority.ProviderID,
+			ProviderObjectID: authority.CurrentObjectID, ArtifactID: artifactID,
+			PolicyID: authority.PolicyID, AcceptedAt: request.DecidedAt.UTC(),
+		}
+		if txErr := sqlitex.Execute(conn,
+			"INSERT INTO provider_artifact_bindings (identity_domain, provider_id, native_object_id, artifact_id, policy_id, accepted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+			&sqlitex.ExecOptions{Args: []any{
+				binding.IdentityDomain, string(binding.ProviderID), string(binding.ProviderObjectID),
+				string(binding.ArtifactID), binding.PolicyID, binding.AcceptedAt.Format(time.RFC3339Nano),
+			}}); txErr != nil {
+			return fmt.Errorf("insert provider Artifact binding: %w", txErr)
+		}
+		resolutionJSON, txErr := json.Marshal(resolution)
+		if txErr != nil {
+			return fmt.Errorf("marshal admission resolution: %w", txErr)
+		}
+		decision := corpus.AcceptedAdmissionRecord{
+			RequestID: request.ID, AuthoritySetID: request.AuthoritySetID,
+			ObservationID: observation.ID, ArtifactID: artifactID, State: resolution.State,
+			PolicyID: authority.PolicyID, IdentityDomain: authority.IdentityDomain,
+			ProviderID: authority.ProviderID, ProviderObjectID: authority.CurrentObjectID,
+			Resolution: resolution, DecidedAt: request.DecidedAt.UTC(),
+		}
+		if txErr := sqlitex.Execute(conn,
+			"INSERT INTO accepted_artifact_admissions (request_id, observation_id, artifact_id, identity_domain, provider_id, native_object_id, decision_state, policy_id, resolution_json, decided_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+			&sqlitex.ExecOptions{Args: []any{
+				string(decision.RequestID), string(decision.ObservationID), string(decision.ArtifactID),
+				decision.IdentityDomain, string(decision.ProviderID), string(decision.ProviderObjectID),
+				string(decision.State), decision.PolicyID, string(resolutionJSON),
+				decision.DecidedAt.Format(time.RFC3339Nano),
+			}}); txErr != nil {
+			return fmt.Errorf("insert accepted Artifact admission: %w", txErr)
+		}
+		revisionID := corpus.RevisionID("")
+		revisionCreated := false
+		if revisionObservation != nil {
+			revisionID = revisionObservation.Current.Revision.ID
+			revisionCreated = revisionObservation.Created
+		}
+		if txErr := insertIdentityMutationRequestConn(conn, identityMutationRequestRecord{
+			RequestID: request.ID, Kind: corpus.IdentityMutationNew, Fingerprint: fingerprint,
+			AuthoritySetID: request.AuthoritySetID, ObservationID: observation.ID,
+			ArtifactID: artifactID, RevisionID: revisionID, RevisionCreated: revisionCreated,
+			DecisionKind: "ADMISSION", DecisionID: string(decision.RequestID), AcceptedAt: decision.DecidedAt,
+		}); txErr != nil {
+			return txErr
+		}
+		out = corpus.ArtifactAdmissionAcceptance{
+			Observation: observation, Revision: revisionObservation, Decision: decision, Binding: binding,
+		}
+		return nil
+	}()
+	s.pool.Put(conn)
 	if err != nil {
 		return corpus.ArtifactAdmissionAcceptance{}, err
 	}
-	if bound {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf(
-			"%w: %s/%s/%s",
-			ErrProviderObjectAlreadyBound,
-			proof.IdentityDomain,
-			proof.ProviderID,
-			proof.CurrentObjectID,
-		)
+	if replay == nil {
+		return out, nil
 	}
 
-	artifactID := corpus.ArtifactID("art_" + uuid.NewString())
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO artifacts (artifact_id) VALUES (?1)",
-		&sqlitex.ExecOptions{Args: []any{string(artifactID)}}); err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("insert admitted Artifact: %w", err)
+	observation, err := s.Observation(ctx, replay.ObservationID)
+	if err != nil {
+		return corpus.ArtifactAdmissionAcceptance{}, err
 	}
-
+	decision, err := s.AcceptedAdmission(ctx, replay.RequestID)
+	if err != nil {
+		return corpus.ArtifactAdmissionAcceptance{}, err
+	}
+	binding, err := s.ProviderArtifactBinding(ctx, decision.IdentityDomain, decision.ProviderID, decision.ProviderObjectID)
+	if err != nil {
+		return corpus.ArtifactAdmissionAcceptance{}, err
+	}
 	var revisionObservation *corpus.RevisionObservation
-	if evidence != nil {
-		revision, err := observeRevisionConn(conn, artifactID, *evidence)
+	if replay.RevisionID != "" {
+		record, err := s.revisionRecordByID(ctx, replay.ArtifactID, replay.RevisionID)
 		if err != nil {
 			return corpus.ArtifactAdmissionAcceptance{}, err
 		}
-		revisionObservation = &revision
-		input.RevisionID = revision.Current.Revision.ID
+		revisionObservation = &corpus.RevisionObservation{Current: record, Created: replay.RevisionCreated}
 	}
-
-	input.ArtifactID = artifactID
-	input.AssignmentState = corpus.AssignmentAssigned
-	observation, err := recordObservationConn(conn, scanID, input)
-	if err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, err
-	}
-
-	binding := corpus.ProviderArtifactBinding{
-		IdentityDomain:   proof.IdentityDomain,
-		ProviderID:       proof.ProviderID,
-		ProviderObjectID: proof.CurrentObjectID,
-		ArtifactID:       artifactID,
-		PolicyID:         policyID,
-		AcceptedAt:       decidedAt.UTC(),
-	}
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO provider_artifact_bindings (identity_domain, provider_id, native_object_id, artifact_id, policy_id, accepted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-		&sqlitex.ExecOptions{Args: []any{
-			binding.IdentityDomain,
-			string(binding.ProviderID),
-			string(binding.ProviderObjectID),
-			string(binding.ArtifactID),
-			binding.PolicyID,
-			binding.AcceptedAt.Format(time.RFC3339Nano),
-		}}); err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("insert provider Artifact binding: %w", err)
-	}
-
-	decision := corpus.AcceptedAdmissionRecord{
-		RequestID:        requestID,
-		ObservationID:    observation.ID,
-		ArtifactID:       artifactID,
-		State:            resolution.State,
-		PolicyID:         policyID,
-		IdentityDomain:   proof.IdentityDomain,
-		ProviderID:       proof.ProviderID,
-		ProviderObjectID: proof.CurrentObjectID,
-		Resolution:       resolution,
-		DecidedAt:        decidedAt.UTC(),
-	}
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO accepted_artifact_admissions (request_id, observation_id, artifact_id, identity_domain, provider_id, native_object_id, decision_state, policy_id, resolution_json, decided_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-		&sqlitex.ExecOptions{Args: []any{
-			string(decision.RequestID),
-			string(decision.ObservationID),
-			string(decision.ArtifactID),
-			decision.IdentityDomain,
-			string(decision.ProviderID),
-			string(decision.ProviderObjectID),
-			string(decision.State),
-			decision.PolicyID,
-			string(resolutionJSON),
-			decision.DecidedAt.Format(time.RFC3339Nano),
-		}}); err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("insert accepted Artifact admission: %w", err)
-	}
-
 	return corpus.ArtifactAdmissionAcceptance{
-		Observation: observation,
-		Revision:    revisionObservation,
-		Decision:    decision,
-		Binding:     binding,
+		Observation: observation, Revision: revisionObservation, Decision: decision,
+		Binding: binding, Replayed: true,
 	}, nil
 }
 
-func (s *Store) AcceptedAdmission(ctx context.Context, requestID corpus.AdmissionRequestID) (corpus.AcceptedAdmissionRecord, error) {
+func (s *Store) AcceptedAdmission(ctx context.Context, requestID corpus.IdentityMutationRequestID) (corpus.AcceptedAdmissionRecord, error) {
 	conn, err := s.pool.Get(ctx)
 	if err != nil {
 		return corpus.AcceptedAdmissionRecord{}, fmt.Errorf("get state connection: %w", err)
 	}
 	defer s.pool.Put(conn)
-
 	var record corpus.AcceptedAdmissionRecord
 	var resolutionJSON, decidedText string
 	var found bool
@@ -295,59 +249,38 @@ func (s *Store) AcceptedAdmission(ctx context.Context, requestID corpus.Admissio
 	if err != nil {
 		return corpus.AcceptedAdmissionRecord{}, fmt.Errorf("parse admission timestamp: %w", err)
 	}
+	err = sqlitex.Execute(conn,
+		"SELECT authority_set_id FROM identity_mutation_requests WHERE request_id = ?1 AND operation_kind = 'NEW' LIMIT 1",
+		&sqlitex.ExecOptions{
+			Args: []any{string(requestID)},
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				record.AuthoritySetID = corpus.IdentityAuthoritySetID(stmt.ColumnText(0))
+				return nil
+			},
+		})
+	if err != nil {
+		return corpus.AcceptedAdmissionRecord{}, fmt.Errorf("query admission mutation provenance: %w", err)
+	}
 	return record, nil
 }
 
-func (s *Store) ProviderArtifactBinding(
-	ctx context.Context,
-	identityDomain string,
-	providerID corpus.ProviderID,
-	objectID corpus.ProviderObjectID,
-) (corpus.ProviderArtifactBinding, error) {
+func (s *Store) ProviderArtifactBinding(ctx context.Context, identityDomain string, providerID corpus.ProviderID, objectID corpus.ProviderObjectID) (corpus.ProviderArtifactBinding, error) {
 	conn, err := s.pool.Get(ctx)
 	if err != nil {
 		return corpus.ProviderArtifactBinding{}, fmt.Errorf("get state connection: %w", err)
 	}
 	defer s.pool.Put(conn)
-
 	found, binding, err := providerArtifactBindingConn(conn, identityDomain, providerID, objectID)
 	if err != nil {
 		return corpus.ProviderArtifactBinding{}, err
 	}
 	if !found {
-		return corpus.ProviderArtifactBinding{}, fmt.Errorf(
-			"%w: %s/%s/%s",
-			ErrProviderArtifactBindingNotFound,
-			identityDomain,
-			providerID,
-			objectID,
-		)
+		return corpus.ProviderArtifactBinding{}, fmt.Errorf("%w: %s/%s/%s", ErrProviderArtifactBindingNotFound, identityDomain, providerID, objectID)
 	}
 	return binding, nil
 }
 
-func admissionRequestExistsConn(conn *sqlite.Conn, requestID corpus.AdmissionRequestID) (bool, error) {
-	var exists bool
-	if err := sqlitex.Execute(conn,
-		"SELECT 1 FROM accepted_artifact_admissions WHERE request_id = ?1 LIMIT 1",
-		&sqlitex.ExecOptions{
-			Args: []any{string(requestID)},
-			ResultFunc: func(*sqlite.Stmt) error {
-				exists = true
-				return nil
-			},
-		}); err != nil {
-		return false, fmt.Errorf("query Artifact admission request: %w", err)
-	}
-	return exists, nil
-}
-
-func providerArtifactBindingConn(
-	conn *sqlite.Conn,
-	identityDomain string,
-	providerID corpus.ProviderID,
-	objectID corpus.ProviderObjectID,
-) (bool, corpus.ProviderArtifactBinding, error) {
+func providerArtifactBindingConn(conn *sqlite.Conn, identityDomain string, providerID corpus.ProviderID, objectID corpus.ProviderObjectID) (bool, corpus.ProviderArtifactBinding, error) {
 	var binding corpus.ProviderArtifactBinding
 	var acceptedText string
 	var found bool

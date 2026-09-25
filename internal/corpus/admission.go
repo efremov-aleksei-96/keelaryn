@@ -12,7 +12,7 @@ var (
 	ErrInvalidOccurrenceIdentityResolution = errors.New("invalid occurrence identity resolution")
 )
 
-type AdmissionRequestID string
+type AdmissionRequestID = IdentityMutationRequestID
 
 type CandidateUniverseCoverage string
 
@@ -161,7 +161,8 @@ type ProviderArtifactBinding struct {
 }
 
 type AcceptedAdmissionRecord struct {
-	RequestID        AdmissionRequestID           `json:"request_id"`
+	RequestID        IdentityMutationRequestID    `json:"request_id"`
+	AuthoritySetID   IdentityAuthoritySetID       `json:"authority_set_id,omitempty"`
 	ObservationID    ObservationID                `json:"observation_id"`
 	ArtifactID        ArtifactID                  `json:"artifact_id"`
 	State             OccurrenceIdentityState      `json:"state"`
@@ -178,4 +179,5 @@ type ArtifactAdmissionAcceptance struct {
 	Revision    *RevisionObservation     `json:"revision,omitempty"`
 	Decision    AcceptedAdmissionRecord `json:"decision"`
 	Binding     ProviderArtifactBinding  `json:"binding"`
+	Replayed    bool                     `json:"replayed"`
 }

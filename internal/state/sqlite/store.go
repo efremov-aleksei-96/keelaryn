@@ -175,6 +175,62 @@ CREATE TABLE accepted_artifact_admissions (
 CREATE INDEX accepted_artifact_admissions_artifact
 	ON accepted_artifact_admissions (artifact_id);
 `,
+		`
+CREATE TABLE identity_authority_sets (
+	authority_set_id TEXT PRIMARY KEY NOT NULL,
+	policy_id TEXT NOT NULL,
+	provider_id TEXT NOT NULL,
+	identity_domain TEXT NOT NULL,
+	scope_id TEXT NOT NULL,
+	current_object_id TEXT NOT NULL,
+	universe_coverage TEXT NOT NULL
+		CHECK (universe_coverage IN ('UNKNOWN', 'COMPLETE')),
+	generation_id TEXT,
+	lifetime_segment_id TEXT,
+	source_refs_json TEXT NOT NULL,
+	created_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE identity_authority_candidates (
+	authority_set_id TEXT NOT NULL
+		REFERENCES identity_authority_sets(authority_set_id) ON DELETE RESTRICT,
+	artifact_id TEXT NOT NULL
+		REFERENCES artifacts(artifact_id) ON DELETE RESTRICT,
+	direction TEXT NOT NULL
+		CHECK (direction IN ('SUPPORTS_SAME', 'SUPPORTS_DISTINCT')),
+	source_ref TEXT NOT NULL,
+	PRIMARY KEY (authority_set_id, artifact_id, direction, source_ref)
+) STRICT;
+
+CREATE TABLE identity_mutation_requests (
+	request_id TEXT PRIMARY KEY NOT NULL,
+	operation_kind TEXT NOT NULL
+		CHECK (operation_kind IN ('SAME', 'NEW')),
+	fingerprint_version TEXT NOT NULL,
+	fingerprint_sha256 TEXT NOT NULL,
+	authority_set_id TEXT NOT NULL
+		REFERENCES identity_authority_sets(authority_set_id) ON DELETE RESTRICT,
+	observation_id TEXT NOT NULL UNIQUE
+		REFERENCES observations(observation_id) ON DELETE RESTRICT,
+	artifact_id TEXT NOT NULL
+		REFERENCES artifacts(artifact_id) ON DELETE RESTRICT,
+	revision_id TEXT,
+	revision_created INTEGER NOT NULL
+		CHECK (revision_created IN (0, 1)),
+	decision_kind TEXT NOT NULL
+		CHECK (decision_kind IN ('CONTINUITY', 'ADMISSION')),
+	decision_id TEXT NOT NULL,
+	accepted_at TEXT NOT NULL,
+	FOREIGN KEY (revision_id, artifact_id)
+		REFERENCES revisions(revision_id, artifact_id) ON DELETE RESTRICT,
+	UNIQUE (decision_kind, decision_id)
+) STRICT;
+
+CREATE INDEX identity_mutation_artifact
+	ON identity_mutation_requests (artifact_id);
+CREATE INDEX identity_mutation_authority
+	ON identity_mutation_requests (authority_set_id);
+`,
 	},
 }
 

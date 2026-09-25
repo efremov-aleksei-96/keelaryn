@@ -914,3 +914,20 @@ Detailed contract: `docs/P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT.md`.
 
 Regular audit cadence is now mandatory in `docs/ENGINEERING_AUDIT_POLICY.md` and canonical section 17.1.
 
+## P0-28A implementation — hardened identity mutation boundary
+
+Implemented with zero new dependencies.
+
+- Old exported SQLite methods accepting caller-constructed resolved SAME/NEW inputs were removed from the product surface.
+- New public mutation boundary: `AcceptSameObservationInScan` / `AcceptNewObservationInScan`.
+- Callers pass intent plus one immutable durable `IdentityAuthoritySetID`; they cannot pass raw authority strength or COMPLETE coverage.
+- SQLite v6 adds `identity_authority_sets`, `identity_authority_candidates`, and `identity_mutation_requests`.
+- There is deliberately no exported generic authority writer. Deterministic tests inject sets through an unexported package helper; later P0-28B/C source-specific producers will write production authority.
+- Authority candidates carry no strength field. The transaction loads the entire persisted set and only then converts its trusted facts to conclusive decision evidence.
+- SAME/NEW is derived inside the same SQLite transaction that performs the identity mutation.
+- Versioned SHA-256 request fingerprints canonicalize locator order and bind request ID to semantic parameters. Request ID and decision timestamp are excluded.
+- Same request ID + same fingerprint returns the original durable result with zero mutation.
+- Same request ID + changed semantics returns `ErrIdentityMutationParameterMismatch`.
+- Replay loads happen only after releasing the transaction connection, avoiding self-deadlock with the current single-connection SQLite pool.
+- Schema reserves generation/lifetime-segment fields, but current provider binding is still fail-closed for live providers until P0-28B/C.
+

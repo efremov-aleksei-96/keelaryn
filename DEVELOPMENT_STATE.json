@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 74,
+  "revision": 75,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -106,11 +106,12 @@
     "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_QUALIFIED",
     "P0_FOUNDATION_RETROSPECTIVE_AUDIT_COMPLETE",
     "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT_DECIDED",
-    "REGULAR_ENGINEERING_AUDIT_POLICY_ESTABLISHED"
+    "REGULAR_ENGINEERING_AUDIT_POLICY_ESTABLISHED",
+    "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_28A_IMPLEMENT_IDENTITY_ACCEPTANCE_HARDENING",
-    "description": "Implement the P0-28A contract: durable/versioned identity-mutation request fingerprints, SAME and NEW request reconciliation/mismatch semantics, durable authority-reference records, and in-transaction derivation from trusted authority rather than caller-authored CONCLUSIVE/COMPLETE fields. Keep current provider-lifetime binding fail-closed until P0-28B/C. No live OAuth or corpus mutation.",
+    "id": "P0_28A_QUALIFY_IDENTITY_ACCEPTANCE_HARDENING",
+    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI for SQLite v6, immutable authority-set consumption, in-transaction SAME/NEW derivation, unified request fingerprint/replay/mismatch semantics, removal of old exported raw acceptance APIs, migrations and all prior tests. If green, perform the mandatory risk-trigger retrospective before beginning P0-28B history generation/publication.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -143,7 +144,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "467b4e810041532ed39e47dd8b5c16a98c3df5dc",
+  "repository_basis_commit": "b0df605b142bbf6076b62b9e1f299e1061aa235d",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2259,7 +2260,7 @@
       "ci_run_id": 36110946306,
       "conclusion": "SUCCESS"
     },
-    "substantive_slices_since_last_retrospective": 0,
+    "substantive_slices_since_last_retrospective": 1,
     "mandatory_triggers": [
       "before new live external/provider trust boundary",
       "before new durable user/corpus mutation path",
@@ -2271,7 +2272,7 @@
     "blocker_rule": "BLOCKER findings pause dependent work until durably resolved or explicitly re-scoped"
   },
   "p0_28a": {
-    "status": "CONTRACT_DECIDED_AWAITING_IMPLEMENTATION",
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Harden SAME/NEW identity acceptance so caller-authored authority cannot authorize durable identity mutation and retries are semantically idempotent.",
     "evidence_document": "docs/P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT.md",
     "audited_head": "467b4e810041532ed39e47dd8b5c16a98c3df5dc",
@@ -2299,6 +2300,75 @@
       "Stripe idempotent request parameter matching/result replay",
       "Syncthing index generation + sequence",
       "rclone bisync last-known-good/recovery lockout"
+    ],
+    "schema_version": 6,
+    "implementation": {
+      "exported_acceptance": [
+        "AcceptSameObservationInScan",
+        "AcceptNewObservationInScan"
+      ],
+      "removed_raw_exported_acceptance": [
+        "AcceptResolvedObservationInScan",
+        "AcceptResolvedNewObservationInScan"
+      ],
+      "durable_tables": [
+        "identity_authority_sets",
+        "identity_authority_candidates",
+        "identity_mutation_requests"
+      ],
+      "generic_authority_writer_exported": false,
+      "authority_consumption": "caller passes one immutable IdentityAuthoritySetID; full set loaded and decision derived inside SQLite transaction",
+      "request_fingerprint": {
+        "version": "identity-mutation-fingerprint:v1",
+        "algorithm": "SHA-256",
+        "canonicalizes": [
+          "locator order",
+          "UTC timestamps"
+        ],
+        "excludes": [
+          "request ID",
+          "decidedAt"
+        ],
+        "includes": [
+          "operation kind",
+          "scan",
+          "provider occurrence",
+          "locators",
+          "observation metadata",
+          "content evidence",
+          "authority set ID"
+        ]
+      },
+      "replay": {
+        "same_key_same_fingerprint": "RETURN_ORIGINAL_DURABLE_RESULT_ZERO_MUTATION",
+        "same_key_different_fingerprint": "ErrIdentityMutationParameterMismatch",
+        "sqlite_pool_deadlock_guard": "release mutation connection before replay readback"
+      },
+      "future_history_fields": [
+        "generation_id",
+        "lifetime_segment_id"
+      ],
+      "live_provider_boundary": "BLOCKED_UNTIL_P0_28B_28C"
+    },
+    "tests": [
+      "fingerprint canonical locator ordering",
+      "fingerprint semantic mismatch",
+      "SAME derives persisted authority",
+      "SAME unchanged revision reuse",
+      "SAME changed revision",
+      "SAME exact replay zero mutation",
+      "SAME parameter mismatch zero mutation",
+      "SAME rejects distinct authority",
+      "SAME replay survives reopen",
+      "NEW derives COMPLETE authority",
+      "NEW exact replay zero mutation",
+      "NEW parameter mismatch zero mutation",
+      "UNKNOWN authority cannot authorize NEW",
+      "SAME candidate cannot authorize NEW",
+      "identical-byte copy remains distinct",
+      "bound provider object cannot be readmitted",
+      "NEW replay survives reopen",
+      "v5-to-v6 migration"
     ]
   }
 }
