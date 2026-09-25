@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 43,
+  "revision": 44,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -73,11 +73,12 @@
     "P0_13_CANDIDATE_SET_MODEL_QUALIFIED",
     "P0_13_LOCALFS_CANDIDATE_GENERATION_IMPLEMENTED",
     "P0_13_LOCALFS_CANDIDATE_GENERATION_QUALIFIED",
-    "P0_14_SELECTIVE_CONTENT_ENRICHMENT_IMPLEMENTED"
+    "P0_14_SELECTIVE_CONTENT_ENRICHMENT_IMPLEMENTED",
+    "P0_14_SELECTIVE_CONTENT_ENRICHMENT_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_14_QUALIFY_SELECTIVE_CONTENT_ENRICHMENT",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass content-equal supporting/AMBIGUOUS, content-mismatch no-negative-signal, no-Revision no-signal, zero-candidate no-read, locator-group validation, non-regular rejection, all P0-13 candidate tests, go mod tidy -diff and go vet. If green, qualify P0-14 and add explicit local native-identity enrichment only where both snapshots coexist in the same process, still SUPPORTING and non-persistent.",
+    "id": "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY",
+    "description": "Implement explicit localfs native candidate enrichment/discovery that accepts the previous Snapshot, current Snapshot, previous latest-COMPLETE Inventory, and base current OccurrenceCandidateSets. For regular groups only, compare previous/current groups with os.SameFile while both snapshots coexist; map native matches through prior assigned inventory to Artifact candidates and append PROVIDER_CONTINUITY_MATCH SUPPORTING evidence. Do not emit mismatch elimination evidence. Prove rename discovers the prior Artifact but remains AMBIGUOUS, delete+recreate cannot resolve identity, hard-link mappings preserve multiple candidates, scope mismatch fails closed, and no persistence mutation occurs.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -110,7 +111,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "0dfaf6c5ac62004bacac663f282b93798527ffd9",
+  "repository_basis_commit": "1e8bae52792f3c96bb41fa50101c318d4c852524",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1148,7 +1149,7 @@
     }
   },
   "p0_14": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Add explicit per-occurrence content-evidence enrichment without eager corpus hashing or identity mutation.",
     "invariants": [
       "caller explicitly chooses one regular-file OccurrenceCandidateSet to enrich",
@@ -1179,6 +1180,40 @@
         "non-regular or locator-set mismatch fails closed",
         "enrichment returns copied inputs and does not mutate the base set"
       ]
+    },
+    "qualification": {
+      "exact_head": "1e8bae52792f3c96bb41fa50101c318d4c852524",
+      "ci_run_id": 36096152879,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "gates": [
+        "content equality adds SUPPORTING evidence and remains AMBIGUOUS",
+        "content mismatch adds no DISTINCT evidence",
+        "candidate without Revision adds no content signal",
+        "zero-candidate set performs no filesystem read",
+        "locator-set mismatch fails closed",
+        "non-regular candidate set rejects content enrichment",
+        "go mod tidy -diff",
+        "go vet"
+      ]
     }
+  },
+  "p0_15": {
+    "status": "PLANNED",
+    "objective": "Use simultaneous previous/current localfs Snapshots as an optional in-process candidate discovery channel for rename/move continuity, without persisting native IDs.",
+    "invariants": [
+      "previous and current Snapshots must have identical provider/root scope",
+      "previous assigned COMPLETE inventory maps previous Snapshot locators to Artifact candidates",
+      "os.SameFile matching between previous/current regular groups adds PROVIDER_CONTINUITY_MATCH SUPPORTING evidence",
+      "native mismatch adds no elimination signal",
+      "rename with no locator overlap can discover prior Artifact candidate",
+      "native match alone remains AMBIGUOUS",
+      "multiple prior Artifact mappings for one previous physical group remain multiple candidates",
+      "no native identity data is serialized or persisted",
+      "API requires both Snapshots to coexist in one process"
+    ]
   }
 }
