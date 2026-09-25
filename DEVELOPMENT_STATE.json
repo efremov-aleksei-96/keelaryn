@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 67,
+  "revision": 68,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -98,11 +98,12 @@
     "P0_24A_DRIVE_HISTORY_SEMANTICS_QUALIFIED",
     "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_IMPLEMENTED",
     "P0_24B_DEPENDENCY_LOCK_CURSOR_MARKER_DEFECT_FIXED",
-    "P0_24B_DEPENDENCY_LOCK_TRAILING_BLANK_DEFECT_FIXED"
+    "P0_24B_DEPENDENCY_LOCK_TRAILING_BLANK_DEFECT_FIXED",
+    "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_24B_REQUALIFY_OFFICIAL_DRIVE_CLIENT_BINDING",
-    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI after normalizing go.sum to exactly one terminating newline. Qualify only if validate, both platforms, go mod tidy -diff, all tests and go vet pass. Do not start live OAuth or mutate Google Drive.",
+    "id": "P0_25_REAUDIT_P0_CLOSURE",
+    "description": "Refresh the P0 closure audit against current authoritative code/state after qualified P0-20 through P0-24. Determine the earliest remaining product-path gap before implementing FTS, product access surfaces, remote scan wiring, or Android-specific runtime work. This is read-only analysis/documentation first; no Google Drive or corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -135,7 +136,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "dcf06affc19ba242128e365432fc90afe21f1f7b",
+  "repository_basis_commit": "237899f25c997607bdc4c4ed3e6ba39f05b1970b",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1809,7 +1810,7 @@
     }
   },
   "p0_24": {
-    "status": "OFFICIAL_CLIENT_BINDING_IMPLEMENTED_AWAITING_REQUALIFICATION",
+    "status": "QUALIFIED",
     "objective": "Implement Google Drive-specific RemoteHistory semantics behind a narrow client interface before binding the official SDK or live OAuth.",
     "package": "internal/remotehistory/gdrive",
     "dependencies_added": 1,
@@ -1832,9 +1833,9 @@
     ],
     "validation": {
       "local_compile_harness": "PASS_GO1_23_SYNTAX_AND_TESTS_WITH_EXACT_CONTRACT_STUBS",
-      "official_ci": "P0_24A_PASS_RUN_36102156496"
+      "official_ci": "PASS_RUN_36107391063"
     },
-    "next_layer": "P0-24B exact-head Ubuntu+Windows qualification; live OAuth remains deferred.",
+    "next_layer": "Re-audit the remaining P0 closure gaps from current authoritative state before selecting the next implementation objective.",
     "semantic_adapter_qualification": {
       "exact_head": "2b1ce1a46a8c553aa630e505fabc3b85091ced11",
       "ci_run_id": 36102156496,
@@ -1925,7 +1926,44 @@
         "product_code_failure": false,
         "dependency_change": false,
         "fix": "NORMALIZE_GO_SUM_TO_SINGLE_TERMINATING_NEWLINE"
-      }
+      },
+      "qualification": {
+        "exact_head": "237899f25c997607bdc4c4ed3e6ba39f05b1970b",
+        "ci_run_id": 36107391063,
+        "conclusion": "SUCCESS",
+        "jobs": {
+          "validate": "PASS",
+          "go (ubuntu-24.04)": "PASS",
+          "go (windows-2025)": "PASS"
+        },
+        "gates": [
+          "go mod tidy -diff",
+          "all prior tests",
+          "Google Drive official-client deterministic HTTP binding tests",
+          "My Drive query binding",
+          "shared-drive query binding",
+          "start-page-token binding",
+          "shortcut identity mapping",
+          "go vet"
+        ],
+        "live_oauth_used": false,
+        "live_drive_used": false,
+        "corpus_mutations": 0
+      },
+      "superseded_prequalification_failures": [
+        {
+          "head": "7747a6a7c266fff0fdfbce4c059389eda030718f",
+          "run_id": 36103645777,
+          "classification": "GO_SUM_DURABLE_OUTPUT_MARKER_CONTAMINATION",
+          "product_code_failure": false
+        },
+        {
+          "head": "dcf06affc19ba242128e365432fc90afe21f1f7b",
+          "run_id": 36107274885,
+          "classification": "GO_SUM_EXTRA_EOF_BLANK_LINE",
+          "product_code_failure": false
+        }
+      ]
     }
   },
   "platform_targets": {
