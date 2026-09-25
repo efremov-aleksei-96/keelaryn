@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 47,
+  "revision": 48,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -77,11 +77,12 @@
     "P0_14_SELECTIVE_CONTENT_ENRICHMENT_QUALIFIED",
     "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_IMPLEMENTED",
     "P0_15_TEST_ERRORS_IMPORT_FIXED",
-    "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_QUALIFIED"
+    "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_QUALIFIED",
+    "P0_16_EXTRACTION_CONTEXT_REUSE_RESEARCH_COMPLETE"
   ],
   "next_objective": {
-    "id": "P0_16_EXTRACTION_CONTEXT_REUSE_RESEARCH",
-    "description": "Review existing extraction components before writing code. Compare Microsoft MarkItDown, Docling, Apache Tika and Go-native/simple approaches against P0 constraints: single-binary direction, Windows/Linux, no authoritative content mirror, lazy/on-demand extraction, exact Artifact/Revision provenance, and graceful OPAQUE/UNSUPPORTED handling. Select only what is needed for the first minimal useful extraction/context slice; do not add a heavyweight runtime merely for broad format coverage.",
+    "id": "P0_17_REVISION_BOUND_TEXT_EXTRACTION",
+    "description": "Implement provider-neutral ExtractionResult statuses and a localfs built-in text extractor for .txt/.md/.markdown. Read at most a configured byte limit; require an assigned ArtifactID+RevisionID and the exact referenced Revision evidence; safely read/hash current regular-file bytes through one handle; return EXTRACTED only when evidence matches, UTF-8 is valid and size is within limit. Return UNSUPPORTED for other extensions, OPAQUE for non-UTF8, STALE_REVISION for evidence mismatch, and LIMIT_EXCEEDED without persisting derived text. Add no dependency and do not modify durable identity state.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -114,7 +115,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "9eeaf6b548818f1c9d7fde373ce11f430ba6d1b0",
+  "repository_basis_commit": "a49ff9b80a403ccaf8990863f98bb279cd938110",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1286,7 +1287,59 @@
     ]
   },
   "p0_16": {
-    "status": "REUSE_RESEARCH",
-    "objective": "Choose the smallest useful extraction/context layer compatible with a portable Go binary and derived/non-authoritative semantics."
+    "status": "REUSE_RESEARCH_COMPLETE",
+    "selected_first_slice": {
+      "implementation": "BUILTIN_GO_BOUNDED_UTF8_TEXT",
+      "dependencies_added": 0,
+      "formats": [
+        ".txt",
+        ".md",
+        ".markdown"
+      ],
+      "persistence": "NONE_DERIVED_ON_DEMAND",
+      "requirements": [
+        "bounded read",
+        "UTF-8 validation",
+        "exact Artifact/Revision provenance",
+        "current content evidence must equal referenced Revision evidence",
+        "unsupported/opaque are first-class non-error outcomes"
+      ]
+    },
+    "future_adapters": [
+      {
+        "project": "microsoft/markitdown",
+        "license": "MIT",
+        "role": "preferred lightweight broad LLM-oriented extraction adapter",
+        "mandatory": false
+      },
+      {
+        "project": "docling-project/docling",
+        "license": "MIT",
+        "role": "preferred advanced layout/table/OCR extraction adapter",
+        "mandatory": false
+      },
+      {
+        "project": "apache/tika",
+        "license": "Apache-2.0",
+        "role": "optional very-broad format compatibility/server fallback",
+        "mandatory": false
+      }
+    ],
+    "mime_candidates": [
+      {
+        "project": "gabriel-vasile/mimetype",
+        "license": "MIT",
+        "decision": "DEFER_UNTIL_SNIFFING_NEEDED"
+      },
+      {
+        "project": "h2non/filetype",
+        "license": "MIT",
+        "decision": "DEFER_UNTIL_BINARY_TYPE_DETECTION_NEEDED"
+      }
+    ]
+  },
+  "p0_17": {
+    "status": "PLANNED",
+    "objective": "Implement the first on-demand, derived, revision-bound text extraction result."
   }
 }

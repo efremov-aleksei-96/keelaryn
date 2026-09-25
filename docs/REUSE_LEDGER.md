@@ -457,3 +457,61 @@ Candidate behavior:
 - if one previous physical group was mapped to several Artifacts, all remain candidates.
 
 This feature is opportunistic acceleration/evidence, not durable identity authority. It disappears safely across process restart.
+
+
+## P0-16 — extraction/context reuse review
+
+**Decision:** keep the Keelaryn extraction contract small and provider-neutral, implement only a built-in bounded UTF-8 text/Markdown extractor for the first P0 slice, and reserve broad document conversion for optional adapters.
+
+Reviewed current upstreams (2026-09-25):
+
+### Microsoft MarkItDown
+
+- project: `microsoft/markitdown`;
+- license: MIT;
+- runtime: Python 3.10–3.14;
+- purpose: lightweight conversion to Markdown specifically for LLM/text-analysis use;
+- formats include PDF, Word, PowerPoint, Excel, images/OCR, audio/transcription, HTML, CSV/JSON/XML, ZIP, EPUB and more;
+- has a plugin architecture and MCP package.
+
+**Keelaryn disposition:** preferred future **lightweight broad-extraction adapter**. Do not make Python or MarkItDown mandatory for the base Go binary.
+
+### Docling
+
+- project: `docling-project/docling`;
+- license: MIT;
+- runtime: Python;
+- production/stable;
+- unified document representation plus advanced PDF/layout/table/OCR/chunking workflows;
+- current `docling-slim` declares a minimal base around ~50 MB before optional format/model extras; broad Office/PDF/OCR/audio/video capabilities add more runtime/model dependencies.
+
+**Keelaryn disposition:** preferred future **advanced extraction/layout/OCR adapter**, likely optional local sidecar/service. Too heavy for the mandatory P0 runtime.
+
+### Apache Tika
+
+- project: `apache/tika`;
+- license: Apache-2.0;
+- runtime: Java/JVM;
+- detects/extracts metadata and text from over a thousand file types.
+
+**Keelaryn disposition:** optional broad compatibility/server fallback where JVM cost is acceptable. Not a base-binary dependency.
+
+### Go-native MIME detection
+
+- `gabriel-vasile/mimetype` — MIT, active, magic-number MIME detection;
+- `h2non/filetype` — MIT, active, dependency-free magic-number binary type detection.
+
+**Keelaryn disposition:** both are viable when content sniffing becomes necessary. Do not add either for the first text-only slice because an explicit supported-extension allow-list plus UTF-8 validation is enough and avoids a dependency that would not improve current correctness.
+
+### First P0 extraction boundary
+
+The first extractor therefore uses only Go stdlib:
+- explicit supported extensions: `.txt`, `.md`, `.markdown`;
+- bounded on-demand reads;
+- UTF-8 validation;
+- exact ArtifactID + RevisionID provenance;
+- current bytes must match the referenced Revision's content evidence before text is accepted;
+- unsupported types and opaque/non-UTF8 content are valid non-error outcomes;
+- extraction is derived/non-authoritative and not persisted in the durable identity database.
+
+Architecture keeps a replaceable extractor interface so MarkItDown/Docling/Tika adapters can be added later without changing Artifact/Revision semantics.
