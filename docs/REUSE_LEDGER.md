@@ -307,3 +307,26 @@ Safety:
 - empty snapshots are valid and can publish empty inventory.
 
 The orchestration depends only on `ScanStore`, not SQLite, preserving the ability to change the control-state adapter later without changing provider semantics.
+
+
+## P0-12 — explicit first-observation adoption
+
+**Decision:** identity adoption is a separate explicit bootstrap operation, not implicit behavior of every local scan.
+
+Why:
+- a later path/native-ID/hash match is insufficient to prove Artifact continuity;
+- the first observation of a scope with no prior object history has no continuity candidate and may safely mint a new Artifact;
+- once any object history exists — including an ABORTED scan — automatic bootstrap is refused.
+
+Storage guarantees:
+- `StartBootstrapScan` performs the no-history check and OPEN-scan creation in one SQLite IMMEDIATE transaction;
+- `AdoptObservationInScan` creates Artifact + optional Revision 1 + assigned Observation in one transaction;
+- regular files require fresh SHA-256 evidence whose size matches the sampled observation;
+- symlink/other entries may get Artifact identity but no content Revision in this slice.
+
+Provider guarantee:
+- regular hard-link groups are content-sampled while an open representative file handle anchors object identity;
+- every group locator is revalidated before and after hashing while that handle remains open;
+- a changed/split group fails closed before the bootstrap scan is opened.
+
+Ordinary `LocalFS` remains ambiguity-first and unresolved. After bootstrap, a repeat scan does **not** reuse Artifact identity from path, hash, or supporting native identity.
