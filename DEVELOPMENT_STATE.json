@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 54,
+  "revision": 55,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -84,11 +84,12 @@
     "P0_17_REVISION_BOUND_TEXT_EXTRACTION_QUALIFIED",
     "P0_18_EXPLICIT_SELECTION_CONTEXT_BUNDLE_IMPLEMENTED",
     "P0_18_TEST_CORPUS_IMPORT_FIXED",
-    "P0_18_EXPLICIT_SELECTION_CONTEXT_BUNDLE_QUALIFIED"
+    "P0_18_EXPLICIT_SELECTION_CONTEXT_BUNDLE_QUALIFIED",
+    "P0_19_FORMAL_P0_CLOSURE_AUDIT_COMPLETE"
   ],
   "next_objective": {
-    "id": "P0_19_FORMAL_P0_CLOSURE_AUDIT",
-    "description": "Perform a read-only requirement-by-requirement audit of canonical Product P0 and P0 technology spike. Mark each required path component/proof case as QUALIFIED, PARTIAL, or ABSENT with concrete active-tree evidence. Identify the smallest next capability that closes the highest-value missing P0 edge. Do not implement extra reliability/P1 features during this audit.",
+    "id": "P0_20_ACCEPT_RESOLVED_CONTINUITY_TRANSACTION",
+    "description": "Extend durable state with accepted continuity provenance and one atomic acceptance operation. Input: OPEN scan, unresolved ObservationRecordInput, CandidateSetResolution, current ContentEvidence for regular files, decision timestamp/policy. Require RESOLVED_SAME and existing selected Artifact. Reuse current Revision when evidence matches; otherwise create the next Revision of that same Artifact. Persist assigned Observation plus full resolution/evidence provenance in the same SQLite IMMEDIATE transaction. Fail closed with zero durable identity mutation for AMBIGUOUS, UNRESOLVED, selected/missing mismatch, invalid content evidence or scan-scope error. Add no provider-specific inference in this layer.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -121,7 +122,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "42476a2b27de532a14cd1842b93e065697f27bc3",
+  "repository_basis_commit": "de9fd1a7c4a6355830bf9bf8278bbf6c4b9503f3",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1488,14 +1489,59 @@
     }
   },
   "p0_19": {
+    "status": "COMPLETE_P0_NOT_CLOSED",
+    "evidence_document": "docs/P0_CLOSURE_AUDIT_20260925.md",
+    "conclusion": "P0 is not closed. The earliest correctness gap is durable application of a uniquely resolved continuity decision; FTS/access/remote-provider gaps come after that bridge.",
+    "required_path": {
+      "local_root": "QUALIFIED",
+      "read_only_discovery": "QUALIFIED",
+      "durable_observation_locator": "PARTIAL",
+      "artifact_identity": "PARTIAL",
+      "revision_continuity": "PARTIAL",
+      "inventory": "QUALIFIED",
+      "minimal_extraction": "QUALIFIED",
+      "sqlite_fts": "ABSENT",
+      "context_bundle": "QUALIFIED",
+      "product_access_surface": "ABSENT"
+    },
+    "proof_cases": {
+      "unchanged_rescan_same_artifact_revision": "ABSENT_END_TO_END",
+      "rename_move_same_artifact_revision_new_locator": "PARTIAL",
+      "content_modify_same_artifact_new_revision": "PARTIAL",
+      "true_copy_new_artifact_identical_bytes": "QUALIFIED_ADOPTION",
+      "ambiguity_no_silent_merge": "QUALIFIED",
+      "unsupported_valid_artifact": "QUALIFIED",
+      "restart_exact_durable_identity": "QUALIFIED",
+      "derived_rebuild_without_identity_change": "PARTIAL_FTS_ABSENT",
+      "context_exact_revision_source": "QUALIFIED",
+      "corpus_bytes_unchanged": "QUALIFIED_IMPLEMENTED_LOCAL_PATH"
+    },
+    "confirmed_later_gaps": [
+      "SQLite FTS5 search",
+      "usable CLI/MCP/HTTP access",
+      "rclone-backed remote provider spike",
+      "minimal web status spike",
+      "conclusive continuity evidence source"
+    ]
+  },
+  "p0_20": {
     "status": "PLANNED",
-    "objective": "Audit the implemented clean-line product against canonical P0 required path, proof cases and technology-spike requirements before adding another subsystem.",
-    "audit_basis": [
-      "KEELARYN_CANONICAL.md sections 20-21",
-      "active Git tree only",
-      "qualified DEVELOPMENT_STATE objectives",
-      "exact-head GitHub CI evidence"
+    "objective": "Atomically apply only a uniquely RESOLVED_SAME continuity result to a current scan observation, update/reuse Revision from current evidence, and preserve accepted decision provenance.",
+    "reuse_basis": [
+      "reuse existing SQLite IMMEDIATE transactions/sqlitemigration",
+      "reuse ResolveCandidateSet and Revision semantics",
+      "no generic matching/workflow dependency is appropriate because acceptance policy is Keelaryn-specific"
     ],
-    "rule": "Do not declare P0 complete while any canonical required capability/proof remains absent or only conceptual."
+    "invariants": [
+      "only CandidateSetResolvedSame with non-empty SelectedArtifactID may be accepted",
+      "selected Artifact must durably exist",
+      "full candidate-set resolution/evidence provenance must be retained",
+      "regular assigned observation requires valid current content evidence",
+      "unchanged content reuses current Revision",
+      "changed content creates next Revision of the same Artifact",
+      "Artifact+Revision assignment, Observation and accepted continuity provenance commit atomically",
+      "AMBIGUOUS/UNRESOLVED/invalid resolutions cause no identity mutation",
+      "operation is provider-neutral and does not infer evidence"
+    ]
   }
 }

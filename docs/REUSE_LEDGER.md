@@ -573,3 +573,21 @@ This is a test-only compile defect detected immediately after publication. Produ
 Correction:
 - add the missing test import;
 - require the corrected exact head to pass both Ubuntu and Windows before P0-18 qualification.
+
+
+## P0-19 — formal closure audit
+
+Result: **P0 NOT CLOSED**.
+
+The detailed audit is `docs/P0_CLOSURE_AUDIT_20260925.md`.
+
+Most important finding: P0 currently has bootstrap identity, durable revisions, ambiguity-preserving candidate generation/enrichment, extraction and ContextBundle, but lacks the transactional bridge from a uniquely `RESOLVED_SAME` reconciliation result to the next durable assigned Observation/Revision plus accepted-decision provenance.
+
+This is a more fundamental gap than FTS/MCP/remote-provider work and is therefore sequenced first.
+
+Other confirmed canonical gaps remain:
+- SQLite FTS search;
+- useful product CLI/MCP/HTTP access;
+- one remote/rclone-backed provider spike;
+- web status spike;
+- a conclusive continuity evidence source sufficient to prove unchanged/move/modify end-to-end.
