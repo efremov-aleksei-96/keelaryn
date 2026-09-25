@@ -663,3 +663,69 @@ This deliberately separates:
 3. **coverage of the interval between observations** (change/feed/session evidence).
 
 No rclone dependency or OAuth is added by P0-21; this layer only qualifies the semantics before remote-provider integration.
+
+
+## P0-22 — remote-history reuse research
+
+**Decision:** separate generic provider I/O from durable provider history.
+
+### rclone
+
+Reviewed current rclone source (MIT):
+- `fs.IDer` exposes optional native object ID;
+- `fs.ListRer` exposes recursive listing;
+- public `fs.ChangeNotifier` emits only changed path + entry type;
+- Drive/OneDrive/Dropbox backends internally use richer start-page-token / delta-token / cursor APIs, but these tokens and provider object IDs are not part of the public ChangeNotifier callback.
+
+Disposition:
+- **reuse rclone for broad provider I/O/auth/list/read where its public semantics fit;**
+- **do not use public ChangeNotify as continuity authority;**
+- do not depend on unexported backend methods or private fields;
+- do not fork rclone solely to expose Drive history for the first adapter.
+
+### First remote-history adapter
+
+Selected implementation candidate:
+- provider: Google Drive;
+- client: `google.golang.org/api/drive/v3` from `googleapis/google-api-go-client`;
+- version reviewed: `v0.299.0`;
+- license: BSD-3-Clause;
+- architecture role: provider-specific adapter behind a provider-neutral RemoteHistory contract.
+
+Why:
+- official generated Go client exposes `changes.getStartPageToken` and `changes.list`;
+- Drive change records retain `fileId`, current file state and `removed`;
+- terminal `newStartPageToken` is distinct from intermediate `nextPageToken`;
+- Google documents Drive page/start tokens as non-expiring;
+- Google documents file IDs as stable throughout a file's lifetime;
+- shared drives have their own change logs, so history-stream identity must include the relevant user/shared-drive log.
+
+The Drive adapter SHOULD initially use the official client end-to-end for Drive listing/history/read metadata rather than combine two auth/client stacks. rclone remains available for later broad-provider adapters or byte transport if it materially reduces implementation without weakening identity/history semantics.
+
+### Provider-neutral contract
+
+A qualified RemoteHistory adapter must provide:
+
+- complete read-only bootstrap;
+- stable native object IDs;
+- an opaque durable history-stream identity;
+- an opaque committed cursor;
+- incremental current-state changes including removal/tombstone identity;
+- terminal next cursor only after complete page consumption;
+- explicit history-gap / invalid-cursor / scope-mismatch handling;
+- replay-safe semantics from the previous committed cursor;
+- no silent conversion of removal into physical deletion.
+
+Bootstrap must have no uncovered race:
+- native initial-delta snapshot is acceptable; or
+- cursor fence → full list → catch-up replay → atomic snapshot+cursor publication.
+
+Cursor advancement is a transaction boundary: intermediate page tokens are transport state, not durable continuity authority.
+
+### Cross-provider validation
+
+The contract is intentionally not Drive-shaped:
+- Microsoft Graph `driveItem/delta` provides initial enumeration, `@odata.nextLink`, terminal `@odata.deltaLink`, stable item IDs and deleted facets.
+- Dropbox exposes list-folder cursors/continue semantics and deletion entries; rclone internally consumes these but public ChangeNotify hides the cursor/details.
+
+Therefore Google is the first adapter, not the Core architecture.

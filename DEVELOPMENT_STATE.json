@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 60,
+  "revision": 61,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -90,11 +90,12 @@
     "P0_20_TEST_FILEPATH_IMPORT_FIXED",
     "P0_20_ACCEPT_RESOLVED_CONTINUITY_TRANSACTION_QUALIFIED",
     "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_IMPLEMENTED",
-    "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_QUALIFIED"
+    "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_QUALIFIED",
+    "P0_22_REMOTE_HISTORY_REUSE_RESEARCH_COMPLETE"
   ],
   "next_objective": {
-    "id": "P0_22_REMOTE_HISTORY_REUSE_RESEARCH",
-    "description": "Research reusable OSS/provider APIs for a remote adapter that exposes: full read-only discovery, native object IDs, durable cursor acquisition, incremental changes with deletions/moves, explicit cursor advancement only after complete consumption, and gap/invalid-cursor detection. Prefer rclone for listing/auth/object access where its public APIs preserve required semantics, but do not treat path-only ChangeNotify as identity authority. Evaluate Drive as the first adapter without making Google a Keelaryn architectural dependency. Produce a provider-neutral contract and implementation decision before adding dependencies.",
+    "id": "P0_23_REMOTE_HISTORY_CONTRACT_MODEL",
+    "description": "Implement provider-neutral RemoteHistory domain types and a fake-adapter contract test harness with zero external dependencies. Model HistoryStreamID, opaque HistoryCursor, RemoteObjectState, RemoteChange UPSERT/REMOVED, bootstrap result, terminal cursor advancement, explicit GAP/INVALID/SCOPE_MISMATCH states, and replay from the previous committed cursor. Prove that intermediate continuation never becomes committed coverage and that stable-lifetime native ID can become conclusive only when the resulting coverage is CONTINUOUS. Do not add the Google API dependency until this contract is qualified.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -127,7 +128,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "0ebf1193e31b75e2565ca3b8fe3350a8c96c529f",
+  "repository_basis_commit": "ad22cd7a3e35f5848525ee809b0d7ec82645feb9",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1667,7 +1668,69 @@
     }
   },
   "p0_22": {
-    "status": "REUSE_RESEARCH",
-    "objective": "Define the smallest provider-neutral remote-history adapter contract and select a first reusable backend that provides full discovery, stable native object IDs, and a durable complete change cursor."
+    "status": "RESEARCH_COMPLETE_IMPLEMENTATION_DECIDED",
+    "objective": "Define the smallest provider-neutral remote-history adapter contract and select a first reusable backend that provides full discovery, stable native object IDs, and a durable complete change cursor.",
+    "decision": {
+      "core_contract": "REMOTE_HISTORY_SEPARATE_FROM_GENERIC_PROVIDER_IO",
+      "rclone": {
+        "role": "BROAD_PROVIDER_IO_SUBSTRATE",
+        "license": "MIT",
+        "use": [
+          "auth/list/read where public semantics fit",
+          "native ID where fs.IDer is qualified"
+        ],
+        "not_authority": "public ChangeNotify emits path+entry-type only and hides durable cursor/provider change identity",
+        "fork_for_first_drive_adapter": false
+      },
+      "first_adapter": {
+        "provider": "Google Drive",
+        "client": "google.golang.org/api/drive/v3",
+        "module": "google.golang.org/api",
+        "version_reviewed": "v0.299.0",
+        "license": "BSD-3-Clause",
+        "architectural_dependency": false
+      }
+    },
+    "contract": {
+      "bootstrap": "complete provider-object state + committed cursor with no uncovered interval",
+      "bootstrap_strategies": [
+        "provider-native initial delta",
+        "cursor fence -> full enumerate -> catch-up replay -> atomic publish"
+      ],
+      "change_record": [
+        "native_object_id",
+        "current metadata/state when available",
+        "removal/tombstone state"
+      ],
+      "cursor_rules": [
+        "opaque to Core",
+        "bound to history stream/provider identity/scope",
+        "intermediate page token is not durable continuity cursor",
+        "advance only after full cycle consumed and state committed",
+        "reuse old committed cursor after interruption"
+      ],
+      "gap_states": [
+        "INVALID_CURSOR",
+        "HISTORY_GAP",
+        "STREAM_OR_SCOPE_MISMATCH",
+        "INSUFFICIENT_HISTORY_GUARANTEE"
+      ],
+      "removal_semantics": "REMOVED_FROM_SCOPE/HISTORY unless provider proves physical deletion",
+      "continuity_rule": "continuous history may upgrade stable-for-resource-lifetime native ID evidence according to P0-21; feed itself is not Artifact identity"
+    },
+    "drive_findings": [
+      "files have unique opaque IDs stable throughout file lifetime",
+      "changes.getStartPageToken provides start token",
+      "changes.list exposes fileId, removed, current file state, nextPageToken and terminal newStartPageToken",
+      "Drive documents page/start tokens as non-expiring",
+      "change entries are chronological current-state records, not deltas between revisions",
+      "user and each shared drive have distinct change logs",
+      "removal may represent deletion, loss of access or corpus move"
+    ],
+    "cross_provider_validation": [
+      "Microsoft Graph driveItem delta: nextLink -> terminal deltaLink, IDs, deleted facet",
+      "Dropbox list-folder cursor/continue/deleted entry semantics"
+    ],
+    "dependency_added": false
   }
 }

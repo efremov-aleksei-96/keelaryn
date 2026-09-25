@@ -383,9 +383,9 @@ A completely offline local-filesystem corpus MUST work without any cloud account
 
 ### 9.2 rclone reuse
 
-rclone is the preferred broad provider substrate candidate because it already supports a large set of storage systems and is MIT-licensed.
+rclone is the preferred **broad provider I/O substrate** because it already supports a large set of storage systems and is MIT-licensed.
 
-Keelaryn SHOULD reuse rclone code/backends where practical rather than reimplement provider authentication and byte transport.
+Keelaryn SHOULD reuse rclone code/backends where practical rather than reimplement provider authentication, listing and byte transport.
 
 Rules:
 
@@ -394,7 +394,9 @@ Rules:
 - provider IDs/metadata may be evidence;
 - rclone path/name normalization or conflict heuristics MUST NOT become Artifact identity logic;
 - Keelaryn does not expose powerful rclone remote-control surfaces directly to AI clients;
-- native provider adapters may supersede rclone for providers where richer identity/change semantics materially improve correctness.
+- native/provider-specific adapters may supersede rclone where richer identity/history semantics materially improve correctness.
+
+The public rclone `ChangeNotifier` contract is **not** a Keelaryn remote-history authority: it emits changed path + entry type and does not expose a durable committed cursor, provider object ID, tombstone/removal identity or cursor-gap semantics. Some rclone backends internally use richer provider cursors, but Keelaryn MUST NOT depend on unexported backend internals for durable identity.
 
 Because rclone is written in Go and supports out-of-tree composition, a Keelaryn Go build may reuse its packages/backends while still producing a single base executable. Any unstable/internal rclone API remains isolated behind our adapter.
 
@@ -402,13 +404,61 @@ Because rclone is written in Go and supports out-of-tree composition, a Keelaryn
 
 Google Drive is initially important for the maintainer's real corpus but is architecturally only one adapter.
 
+The first remote-history adapter SHOULD use the official open-source Google Drive Go client rather than fork rclone merely to expose rclone's private Drive change cursor implementation.
+
+Google Drive specifics MUST stay inside the Drive adapter:
+
+- Drive file ID identity domain;
+- My Drive/user change log versus per-shared-drive change log;
+- page/start tokens;
+- `removed` semantics;
+- parent graph / root membership;
+- Google Workspace export semantics;
+- shortcut normalization.
+
 Keelaryn MUST remain usable without Google.
+
+### 9.4 Remote history contract
+
+Remote provider history is a separate capability from generic list/read I/O.
+
+A provider capable of continuity-safe incremental history MUST expose semantics equivalent to:
+
+```text
+Bootstrap(scope)
+    -> complete provider-object state
+    -> committed HistoryCursor
+
+ReadChanges(scope, committed HistoryCursor)
+    -> zero or more current-state changes
+    -> terminal next HistoryCursor
+```
+
+Required guarantees:
+
+1. **Stable native object identity.** Every changed object/tombstone carries the provider-native identity needed to address the same provider object across locators.
+2. **No uncovered bootstrap gap.** `Bootstrap` MUST return a complete state plus a cursor whose history coverage joins that state without an unobserved interval. An adapter may implement this using a provider-native initial delta, or with:
+   ```text
+   acquire cursor fence
+   → full enumerate
+   → replay changes since fence to terminal cursor
+   → atomically publish snapshot + terminal cursor
+   ```
+3. **Terminal cursor discipline.** Intermediate pagination/continuation tokens MUST NOT replace the durable committed cursor. The cursor advances only after the entire change cycle has been consumed and its resulting provider state is durably committed.
+4. **Replay safety.** If processing stops before cursor commit, Keelaryn reuses the previous committed cursor. Change application therefore MUST be idempotent by provider object identity/current state.
+5. **Gap state is first-class.** Invalid/rejected cursor, scope/history-stream change, insufficient history guarantees or equivalent conditions produce an explicit history-gap state. They MUST NOT silently continue with `CONTINUOUS` coverage.
+6. **Removal is not assumed deletion.** A provider tombstone may mean deletion, move outside the selected corpus, loss of access or another provider-specific removal. Core semantics use removal-from-history/scope unless the provider gives stronger evidence.
+7. **Current-state feeds are not operation logs.** If a provider coalesces multiple changes into the latest state, Keelaryn MUST NOT invent intermediate rename/edit operations.
+8. **History stream identity is durable.** A cursor is bound to the provider account/space/change-log identity and relevant scope configuration. Cursors from another identity domain or stream are invalid.
+9. **Provider-neutral Core.** Provider cursor/token formats remain opaque to Core.
+
+Continuous remote history may strengthen a stable-for-resource-lifetime native ID from SUPPORTING evidence to conclusive continuity according to the qualified identity contract. The change feed itself is not global Artifact identity.
 
 ---
 
 ## 10. Discovery and change detection
 
-P0:
+The minimum local P0 path remains:
 
 ```text
 read-only full scan
@@ -416,14 +466,21 @@ read-only full scan
 → identity/revision reconciliation
 ```
 
-P1 may add:
+A local filesystem watcher is not required for P0 correctness.
+
+For a remote provider whose native identity is only guaranteed for the lifetime of a provider resource, **continuous durable provider history is a correctness input**, not merely a performance optimization. The first remote P0 adapter therefore includes complete bootstrap + durable cursor + incremental changes.
+
+Providers without a trustworthy durable history feed can still be supported read-only, but continuity across unobserved gaps remains SUPPORTING/AMBIGUOUS unless another conclusive evidence source exists.
+
+Later optimizations may add:
 
 - local filesystem watchers;
-- provider-native change feeds/cursors;
 - scheduled incremental scans;
-- scan checkpointing.
+- push wakeups/notifications;
+- additional provider-native change adapters;
+- scan/checkpoint compaction.
 
-Change feeds are optimization/evidence channels, not global identity authority.
+Notifications may wake polling but MUST NOT substitute for consuming the authoritative durable change feed when continuity depends on it.
 
 Read-only discovery always precedes physical mutation support.
 
