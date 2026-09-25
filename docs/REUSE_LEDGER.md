@@ -435,3 +435,25 @@ Signal policy:
 - content equality cannot resolve identity by itself, because all generated content signals remain SUPPORTING.
 
 The function returns enriched inputs and a re-run `ResolveCandidateSet` result but performs no persistence mutation.
+
+
+## P0-15 — in-process native continuity candidate discovery
+
+**Decision:** reuse the already-qualified `os.SameFile` Snapshot evidence only while previous and current Snapshots coexist in one process. Persist no native identifiers.
+
+Binding checks:
+- previous/current Snapshot provider and root must be identical;
+- supplied previous latest-COMPLETE inventory must match the previous Snapshot exactly by locator count, provider/root/path, kind, size, and modified time;
+- supplied base current candidate sets must exactly match current Snapshot occurrence grouping.
+
+Candidate behavior:
+- regular previous/current ObjectGroups are compared with `CompareObjectGroups`;
+- only `NATIVE_IDENTITY_MATCH` adds evidence;
+- matching previous group Locators are mapped through prior **assigned** inventory to Artifact IDs;
+- each mapped Artifact gets `PROVIDER_CONTINUITY_MATCH SUPPORTING`;
+- mismatch adds no elimination evidence;
+- a rename can therefore discover a prior Artifact despite zero locator overlap, but remains `AMBIGUOUS`;
+- a delete/recreate can never become `RESOLVED_SAME` from this native evidence;
+- if one previous physical group was mapped to several Artifacts, all remain candidates.
+
+This feature is opportunistic acceleration/evidence, not durable identity authority. It disappears safely across process restart.

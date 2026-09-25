@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 44,
+  "revision": 45,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -74,11 +74,12 @@
     "P0_13_LOCALFS_CANDIDATE_GENERATION_IMPLEMENTED",
     "P0_13_LOCALFS_CANDIDATE_GENERATION_QUALIFIED",
     "P0_14_SELECTIVE_CONTENT_ENRICHMENT_IMPLEMENTED",
-    "P0_14_SELECTIVE_CONTENT_ENRICHMENT_QUALIFIED"
+    "P0_14_SELECTIVE_CONTENT_ENRICHMENT_QUALIFIED",
+    "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY",
-    "description": "Implement explicit localfs native candidate enrichment/discovery that accepts the previous Snapshot, current Snapshot, previous latest-COMPLETE Inventory, and base current OccurrenceCandidateSets. For regular groups only, compare previous/current groups with os.SameFile while both snapshots coexist; map native matches through prior assigned inventory to Artifact candidates and append PROVIDER_CONTINUITY_MATCH SUPPORTING evidence. Do not emit mismatch elimination evidence. Prove rename discovers the prior Artifact but remains AMBIGUOUS, delete+recreate cannot resolve identity, hard-link mappings preserve multiple candidates, scope mismatch fails closed, and no persistence mutation occurs.",
+    "id": "P0_15_QUALIFY_IN_PROCESS_NATIVE_CANDIDATES",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass rename-native candidate discovery/AMBIGUOUS, delete+recreate never-resolved, hard-link multi-Artifact preservation, snapshot scope rejection, prior-inventory binding rejection, all P0-13/P0-14 tests, go mod tidy -diff and go vet. If green, qualify P0-15 and reassess whether localfs P0 now has enough identity semantics to begin minimal task-specific extraction/context, leaving unresolved continuity as a first-class state rather than blocking usefulness.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -111,7 +112,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "1e8bae52792f3c96bb41fa50101c318d4c852524",
+  "repository_basis_commit": "45150da382a68078b5c99d6bd4cdddd50232775a",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1202,7 +1203,7 @@
     }
   },
   "p0_15": {
-    "status": "PLANNED",
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Use simultaneous previous/current localfs Snapshots as an optional in-process candidate discovery channel for rename/move continuity, without persisting native IDs.",
     "invariants": [
       "previous and current Snapshots must have identical provider/root scope",
@@ -1214,6 +1215,26 @@
       "multiple prior Artifact mappings for one previous physical group remain multiple candidates",
       "no native identity data is serialized or persisted",
       "API requires both Snapshots to coexist in one process"
-    ]
+    ],
+    "implementation": {
+      "dependencies_added": 0,
+      "api": "EnrichNativeCandidates(previousSnapshot, currentSnapshot, previousInventory, baseSets)",
+      "persistence_mutation": false,
+      "native_id_persisted": false,
+      "binding_validation": [
+        "same provider/root scope",
+        "previous inventory exact locator/metadata match to previous Snapshot",
+        "base current sets exact occurrence match to current Snapshot"
+      ],
+      "signal": "PROVIDER_CONTINUITY_MATCH SUPPORTING",
+      "mismatch_signal": "NONE",
+      "guarantees": [
+        "rename can discover prior Artifact without locator overlap",
+        "native match alone remains AMBIGUOUS",
+        "delete+recreate never RESOLVED_SAME from native evidence",
+        "multiple prior Artifact mappings remain multiple candidates",
+        "all native identity evidence remains process-local"
+      ]
+    }
   }
 }
