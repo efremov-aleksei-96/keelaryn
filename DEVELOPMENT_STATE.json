@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 46,
+  "revision": 47,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -76,11 +76,12 @@
     "P0_14_SELECTIVE_CONTENT_ENRICHMENT_IMPLEMENTED",
     "P0_14_SELECTIVE_CONTENT_ENRICHMENT_QUALIFIED",
     "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_IMPLEMENTED",
-    "P0_15_TEST_ERRORS_IMPORT_FIXED"
+    "P0_15_TEST_ERRORS_IMPORT_FIXED",
+    "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_15_REQUALIFY_IN_PROCESS_NATIVE_CANDIDATES",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI on the corrected import head to pass rename-native candidate discovery/AMBIGUOUS, delete+recreate never-resolved, hard-link multi-Artifact preservation, snapshot scope rejection, prior-inventory binding rejection, all P0-13/P0-14 tests, go mod tidy -diff and go vet. If green, qualify P0-15 and reassess readiness for minimal extraction/context.",
+    "id": "P0_16_EXTRACTION_CONTEXT_REUSE_RESEARCH",
+    "description": "Review existing extraction components before writing code. Compare Microsoft MarkItDown, Docling, Apache Tika and Go-native/simple approaches against P0 constraints: single-binary direction, Windows/Linux, no authoritative content mirror, lazy/on-demand extraction, exact Artifact/Revision provenance, and graceful OPAQUE/UNSUPPORTED handling. Select only what is needed for the first minimal useful extraction/context slice; do not add a heavyweight runtime merely for broad format coverage.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -113,7 +114,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "4af06031cfb80e02ec88316fddf9138aa725063c",
+  "repository_basis_commit": "9eeaf6b548818f1c9d7fde373ce11f430ba6d1b0",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1204,7 +1205,7 @@
     }
   },
   "p0_15": {
-    "status": "COMPILE_FIX_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Use simultaneous previous/current localfs Snapshots as an optional in-process candidate discovery channel for rename/move continuity, without persisting native IDs.",
     "invariants": [
       "previous and current Snapshots must have identical provider/root scope",
@@ -1242,6 +1243,50 @@
       "run_id": 36096506291,
       "known_defect": "native_test.go referenced errors.Is without importing errors",
       "disposition": "Superseded by immediate corrective commit; no product/runtime semantics changed."
+    },
+    "qualification": {
+      "exact_head": "9eeaf6b548818f1c9d7fde373ce11f430ba6d1b0",
+      "ci_run_id": 36096552348,
+      "conclusion": "SUCCESS",
+      "obsolete_run_id": 36096506291,
+      "obsolete_run_conclusion": "CANCELLED_BY_CONCURRENCY",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "gates": [
+        "rename discovers prior Artifact candidate from in-process native identity",
+        "native match remains SUPPORTING/AMBIGUOUS",
+        "delete+recreate never RESOLVED_SAME from native evidence",
+        "hard-link prior multi-Artifact mappings remain multiple candidates",
+        "scope mismatch fails closed",
+        "previous inventory/Snapshot binding mismatch fails closed",
+        "go mod tidy -diff",
+        "go vet"
+      ]
     }
+  },
+  "p0_identity_readiness": {
+    "conclusion": "READY_TO_BEGIN_MINIMAL_EXTRACTION_CONTEXT",
+    "rationale": [
+      "P0 has durable Artifact/Revision/Observation/Locator/Scan semantics.",
+      "First-observation adoption is safe and durable.",
+      "Current inventory is derived only from COMPLETE scans.",
+      "Later continuity uncertainty remains first-class rather than guessed.",
+      "Cheap locator candidates, selective content evidence, and optional in-process native evidence exist without forcing identity.",
+      "Further recovery/watcher/provider-continuity sophistication is not required for a useful minimal happy path."
+    ],
+    "explicitly_not_blocking": [
+      "automatic resolution of every rename/move across process restarts",
+      "fsnotify paired-rename fork",
+      "multi-provider continuity",
+      "metadata-loss reconstruction",
+      "physical corpus mutations",
+      "advanced deduplication"
+    ]
+  },
+  "p0_16": {
+    "status": "REUSE_RESEARCH",
+    "objective": "Choose the smallest useful extraction/context layer compatible with a portable Go binary and derived/non-authoritative semantics."
   }
 }
