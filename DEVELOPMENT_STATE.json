@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 36,
+  "revision": 37,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -65,11 +65,13 @@
     "P0_12_FIRST_OBSERVATION_ADOPTION_IMPLEMENTED",
     "P0_10_RFC3339NANO_TEXT_ORDER_DEFECT_REPRODUCED",
     "P0_10_LATEST_COMPLETE_TIME_ORDER_FIX_IMPLEMENTED",
-    "P0_12_TEST_COMPILE_IMPORT_FIXED"
+    "P0_12_TEST_COMPILE_IMPORT_FIXED",
+    "P0_10_SCAN_SESSION_INVENTORY_REQUALIFIED",
+    "P0_12_FIRST_OBSERVATION_ADOPTION_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_10_P0_12_REQUALIFY_TIME_ORDER_AND_ADOPTION",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass the new +1ns latest-COMPLETE regression, all P0-10 scan authority tests, all P0-12 bootstrap adoption/content/hard-link/no-auto-reuse tests, go mod tidy -diff and go vet. Only after that restore P0-10 QUALIFIED and qualify P0-12.",
+    "id": "P0_13_CONTINUITY_CANDIDATE_RECONCILIATION",
+    "description": "Design and implement a read-only/provider-neutral reconciliation result that compares a fresh localfs Snapshot against the latest COMPLETE assigned inventory. Reuse current ContinuityEvidence/DecisionResolver. Candidate discovery may use locator overlap and bounded local SameFile comparisons where prior live Snapshot evidence exists, but supporting evidence must resolve only to AMBIGUOUS, never CONFIRMED_SAME. Persist no identity changes in this slice. Research existing reconciliation/matching libraries before writing generic matching machinery.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -102,7 +104,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "84495cef4e8f6328dfbe36b4023c3dab03ffff57",
+  "repository_basis_commit": "85fd097ca72d2cd51a9024053ecfb892ce1fc0d5",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -804,7 +806,7 @@
     }
   },
   "p0_10": {
-    "status": "REOPENED_FIX_IMPLEMENTED_AWAITING_REQUALIFICATION",
+    "status": "QUALIFIED",
     "objective": "Add scan/session completeness so inventory and current locator derive only from a fully committed observation set.",
     "invariants": [
       "OPEN scan never changes authoritative inventory/current locator",
@@ -876,6 +878,16 @@
       "defect": "RFC3339Nano timestamps were sorted lexicographically as TEXT, which is not chronological when fractional precision differs.",
       "reproduction": "older whole-second timestamp sorted after newer +1ns timestamp under DESC text order",
       "fix": "parse all COMPLETE finished_at values as time.Time and select maximum instant; scan_id only breaks equal-time ties"
+    },
+    "requalification": {
+      "exact_head": "85fd097ca72d2cd51a9024053ecfb892ce1fc0d5",
+      "ci_run_id": 36093690886,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "added_regression": "latest COMPLETE scan is chosen by parsed RFC3339Nano instant; +1ns must supersede whole-second predecessor"
     }
   },
   "p0_11": {
@@ -938,7 +950,7 @@
     }
   },
   "p0_12": {
-    "status": "FIX_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Create durable Artifact and Revision identity on first observation only, while refusing to infer continuity on later scans without conclusive evidence.",
     "invariants": [
       "first-seen provider-object occurrence with no continuity candidate may create a new Artifact",
@@ -981,6 +993,42 @@
         "adoption_test.go missing time import",
         "P0-10 latest COMPLETE selection used invalid RFC3339Nano TEXT ordering"
       ]
+    },
+    "qualification": {
+      "exact_head": "85fd097ca72d2cd51a9024053ecfb892ce1fc0d5",
+      "ci_run_id": 36093690886,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "gates": [
+        "explicit no-history bootstrap",
+        "regular Artifact + Revision 1",
+        "hard-link shared Artifact/Revision",
+        "identical copies distinct Artifacts despite identical digest",
+        "symlink Artifact without content Revision",
+        "changed hard-link group fails closed",
+        "atomic no-history/start boundary",
+        "atomic per-occurrence adoption",
+        "later ordinary scan does not auto-reuse Artifact",
+        "P0-10 +1ns chronological authority regression",
+        "go mod tidy -diff",
+        "go vet"
+      ]
     }
+  },
+  "p0_13": {
+    "status": "PLANNED",
+    "objective": "Generate durable-safe continuity candidates between the latest COMPLETE assigned inventory and a fresh localfs Snapshot, classify available evidence, and keep supporting-only matches AMBIGUOUS.",
+    "invariants": [
+      "path equality is candidate discovery only, never continuity proof",
+      "content hash equality is supporting evidence only and cannot prove same Artifact",
+      "local native identity match remains supporting evidence only",
+      "native identity mismatch can reject one candidate but does not by itself identify another Artifact",
+      "multiple plausible prior Artifacts remain AMBIGUOUS",
+      "no plausible candidate remains UNRESOLVED/new-object-candidate; identity mutation is a separate decision",
+      "P0-13 must not modify Artifact/Revision assignments"
+    ]
   }
 }
