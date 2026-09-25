@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 59,
+  "revision": 60,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -89,11 +89,12 @@
     "P0_20_ACCEPT_RESOLVED_CONTINUITY_TRANSACTION_IMPLEMENTED",
     "P0_20_TEST_FILEPATH_IMPORT_FIXED",
     "P0_20_ACCEPT_RESOLVED_CONTINUITY_TRANSACTION_QUALIFIED",
-    "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_IMPLEMENTED"
+    "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_IMPLEMENTED",
+    "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_21_QUALIFY_PROVIDER_ID_CONTINUITY_CONTRACT",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass generic-rclone supporting-only, Drive equal-ID unknown-gap supporting, Drive equal-ID continuous-history CONFIRMED_SAME, Drive unequal-ID CONFIRMED_DISTINCT/copy semantics, cross-domain/empty/invalid fail-closed tests, all prior continuity acceptance tests, go mod tidy -diff and go vet. If green, qualify P0-21 and choose the smallest remote-provider spike that can supply real object IDs plus a durable/complete history cursor without importing rclone's path-only ChangeNotify as identity authority.",
+    "id": "P0_22_REMOTE_HISTORY_REUSE_RESEARCH",
+    "description": "Research reusable OSS/provider APIs for a remote adapter that exposes: full read-only discovery, native object IDs, durable cursor acquisition, incremental changes with deletions/moves, explicit cursor advancement only after complete consumption, and gap/invalid-cursor detection. Prefer rclone for listing/auth/object access where its public APIs preserve required semantics, but do not treat path-only ChangeNotify as identity authority. Evaluate Drive as the first adapter without making Google a Keelaryn architectural dependency. Produce a provider-neutral contract and implementation decision before adding dependencies.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -126,7 +127,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "530d5d5b18c3539e6d91432d9ddeeb16c3152146",
+  "repository_basis_commit": "0ebf1193e31b75e2565ca3b8fe3350a8c96c529f",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1600,7 +1601,7 @@
     }
   },
   "p0_21": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Define and qualify the first provider-native conclusive continuity contract using reusable rclone object-ID capability, without treating every rclone ID as equally trustworthy.",
     "research_findings": [
       "rclone v1.75.1 is MIT and exposes optional fs.IDer",
@@ -1644,6 +1645,29 @@
         "Drive unequal IDs in same domain become CONCLUSIVE_DISTINCT",
         "shortcut composite ID semantics deferred to provider adapter"
       ]
+    },
+    "qualification": {
+      "exact_head": "0ebf1193e31b75e2565ca3b8fe3350a8c96c529f",
+      "ci_run_id": 36098773498,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "gates": [
+        "generic rclone IDs remain SUPPORTING only",
+        "Drive equal ID + UNKNOWN gap remains SUPPORTING",
+        "Drive equal ID + CONTINUOUS history => CONFIRMED_SAME",
+        "Drive unequal IDs in same identity domain => CONFIRMED_DISTINCT",
+        "cross-domain/empty/invalid identity inputs fail closed",
+        "all prior continuity acceptance tests",
+        "go mod tidy -diff",
+        "go vet"
+      ]
     }
+  },
+  "p0_22": {
+    "status": "REUSE_RESEARCH",
+    "objective": "Define the smallest provider-neutral remote-history adapter contract and select a first reusable backend that provides full discovery, stable native object IDs, and a durable complete change cursor."
   }
 }
