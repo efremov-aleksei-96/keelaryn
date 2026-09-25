@@ -939,3 +939,19 @@ The mandatory risk-trigger audit of the first green P0-28A implementation found 
 
 v7 seals authority sets after their producer transaction, rejects later set/candidate mutation, makes mutation receipts update/delete-proof, and revalidates binding conflict at the SAME mutation boundary. The live-provider limitation remains unchanged: a naked provider binding is historical provenance only until history-generation and object-lifetime authority exists.
 
+## P0-28A qualification and boundary retrospective
+
+Final exact head: `ceb1911057f2d96a07c0e2b90d134383314ff0c3`; CI `36138112864` passed validate, Ubuntu 24.04 and Windows 2025.
+
+The mandatory boundary retrospective is PASS after:
+- SQLite-enforced authority sealing;
+- immutable candidate rows after seal;
+- immutable identity-mutation receipts;
+- SAME conflict check against existing provider-object binding;
+- exact replay/mismatch semantics;
+- corrected regression tests.
+
+P0-28A is qualified only for the hardened identity acceptance boundary. Live provider lifetime continuity remains intentionally blocked until history generations and object-lifetime segments are qualified.
+
+The audit clock is reset by this retrospective.
+

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 76,
+  "revision": 77,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -108,11 +108,13 @@
     "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT_DECIDED",
     "REGULAR_ENGINEERING_AUDIT_POLICY_ESTABLISHED",
     "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_IMPLEMENTED",
-    "P0_28A_BOUNDARY_AUDIT_HARDENING_IMPLEMENTED"
+    "P0_28A_BOUNDARY_AUDIT_HARDENING_IMPLEMENTED",
+    "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_QUALIFIED",
+    "P0_28A_BOUNDARY_RETROSPECTIVE_PASS"
   ],
   "next_objective": {
-    "id": "P0_28A_REQUALIFY_BOUNDARY_HARDENING",
-    "description": "Require exact-head validate + Ubuntu 24.04 + Windows 2025 CI after SQLite v7 authority sealing and SAME provider-binding conflict protection. If green, record the P0-28A boundary retrospective as PASS and proceed to P0-28B history generation/publication contract; no live OAuth/provider mutation.",
+    "id": "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT",
+    "description": "Using nearest-analog reuse research, define the provider-neutral durable history-generation/publication contract: local HistoryGenerationID separate from opaque provider cursor; bootstrap creates a generation; complete publications atomically update membership and committed cursor; GAP/INVALID_CURSOR/INSUFFICIENT_HISTORY close the generation; rebootstrap creates a new generation; RemoteHistory remains identity/membership evidence rather than full metadata Observation. No live OAuth/provider mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -145,7 +147,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "6453d215fe4c741d6c37341256c62d8669fa995c",
+  "repository_basis_commit": "ceb1911057f2d96a07c0e2b90d134383314ff0c3",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2256,12 +2258,12 @@
     "mode": "EVENT_TRIGGERED_PLUS_MAXIMUM_SLICE_INTERVAL",
     "maximum_qualified_substantive_slices_between_retrospectives": 4,
     "last_retrospective": {
-      "head": "467b4e810041532ed39e47dd8b5c16a98c3df5dc",
-      "document": "docs/P0_FOUNDATION_RETRO_AUDIT_20260925.md",
-      "ci_run_id": 36110946306,
+      "head": "ceb1911057f2d96a07c0e2b90d134383314ff0c3",
+      "document": "docs/P0_28A_BOUNDARY_RETRO_20260925.md",
+      "ci_run_id": 36138112864,
       "conclusion": "SUCCESS"
     },
-    "substantive_slices_since_last_retrospective": 1,
+    "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
       "before new live external/provider trust boundary",
       "before new durable user/corpus mutation path",
@@ -2273,7 +2275,7 @@
     "blocker_rule": "BLOCKER findings pause dependent work until durably resolved or explicitly re-scoped"
   },
   "p0_28a": {
-    "status": "IMPLEMENTED_AWAITING_REQUALIFICATION_AFTER_BOUNDARY_HARDENING",
+    "status": "QUALIFIED",
     "objective": "Harden SAME/NEW identity acceptance so caller-authored authority cannot authorize durable identity mutation and retries are semantically idempotent.",
     "evidence_document": "docs/P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT.md",
     "audited_head": "467b4e810041532ed39e47dd8b5c16a98c3df5dc",
@@ -2395,7 +2397,40 @@
       "retained_limits": [
         "naked provider binding still does not authorize live SAME across lifetime gaps",
         "live provider producers remain blocked until P0-28B/C history generation and lifetime segments"
-      ]
+      ],
+      "status": "PASS",
+      "final_head": "ceb1911057f2d96a07c0e2b90d134383314ff0c3",
+      "final_ci_run_id": 36138112864,
+      "final_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+      "document": "docs/P0_28A_BOUNDARY_RETRO_20260925.md"
+    },
+    "qualification": {
+      "exact_head": "ceb1911057f2d96a07c0e2b90d134383314ff0c3",
+      "ci_run_id": 36138112864,
+      "conclusion": "SUCCESS",
+      "jobs": {
+        "validate": "PASS",
+        "go (ubuntu-24.04)": "PASS",
+        "go (windows-2025)": "PASS"
+      },
+      "schema_version": 7,
+      "gates": [
+        "all prior tests",
+        "hardened SAME/NEW derivation from durable authority",
+        "same-key same-semantics replay zero-mutation",
+        "same-key changed-semantics mismatch",
+        "authority-set SQLite sealing",
+        "authority-candidate immutability after seal",
+        "identity mutation receipt immutability",
+        "SAME provider-binding conflict fail-closed",
+        "v5-to-v6 migration",
+        "v6-to-v7 migration",
+        "go mod tidy -diff",
+        "go vet"
+      ],
+      "live_oauth_used": false,
+      "live_provider_used": false,
+      "corpus_mutations": 0
     }
   }
 }
