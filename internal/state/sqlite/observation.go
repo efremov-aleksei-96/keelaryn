@@ -35,6 +35,10 @@ func (s *Store) RecordObservation(ctx context.Context, input corpus.ObservationR
 	}
 	defer end(&err)
 
+	return recordObservationConn(conn, "", input)
+}
+
+func recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessionID, input corpus.ObservationRecordInput) (corpus.ObservationRecord, error) {
 	if input.AssignmentState == corpus.AssignmentAssigned {
 		exists, err := artifactExists(conn, input.ArtifactID)
 		if err != nil {
@@ -81,7 +85,7 @@ func (s *Store) RecordObservation(ctx context.Context, input corpus.ObservationR
 		revisionID = string(input.RevisionID)
 	}
 	if err := sqlitex.Execute(conn,
-		"INSERT INTO observations (observation_id, occurrence_id, artifact_id, revision_id, assignment_state, observed_at, kind, size, mode, modified_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+		"INSERT INTO observations (observation_id, occurrence_id, artifact_id, revision_id, assignment_state, observed_at, kind, size, mode, modified_at, scan_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
 		&sqlitex.ExecOptions{Args: []any{
 			string(observationID),
 			string(occurrenceID),
@@ -93,6 +97,7 @@ func (s *Store) RecordObservation(ctx context.Context, input corpus.ObservationR
 			input.Size,
 			int64(input.Mode),
 			input.ModifiedAt.UTC().Format(time.RFC3339Nano),
+			nullableScanID(scanID),
 		}}); err != nil {
 		return corpus.ObservationRecord{}, fmt.Errorf("insert Observation: %w", err)
 	}
@@ -272,4 +277,12 @@ func revisionBelongsToArtifact(conn *sqlite.Conn, revisionID corpus.RevisionID, 
 		return false, fmt.Errorf("query Revision ownership: %w", err)
 	}
 	return matches, nil
+}
+
+
+func nullableScanID(scanID corpus.ScanSessionID) any {
+	if scanID == "" {
+		return nil
+	}
+	return string(scanID)
 }

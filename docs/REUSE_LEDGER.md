@@ -252,3 +252,25 @@ Keelaryn applies the same separation to an existing external corpus:
 - unresolved observations persist with NULL Artifact/Revision rather than being guessed.
 
 Schema v2 intentionally does **not** implement a `current_locator` table/view. Without a complete scan/session boundary, "latest historical locator" is not equivalent to "current locator".
+
+
+## P0-10 — scan/session completeness and derived inventory
+
+**Decision:** reuse SQLite transactions, foreign keys, partial unique indexes, and the existing `sqlitemigration` stack; add no dependency.
+
+A scan is a completeness boundary for one exact `(provider_id, root)` pair:
+- `OPEN`: observations may be appended but the scan is not authoritative;
+- `COMPLETE`: the full observation set becomes eligible to define current inventory;
+- `ABORTED`: retained as provenance but never authoritative.
+
+Rules:
+- at most one OPEN scan exists per provider/root;
+- an observation can be attached only while its scan is OPEN;
+- observation provider/root must match the scan scope;
+- only the latest COMPLETE scan is queried for inventory/current locators;
+- newer OPEN/ABORTED work cannot hide or replace the last complete authority;
+- an empty COMPLETE scan means the root was observed empty;
+- a newer COMPLETE unresolved observation at an old path removes the old Artifact's current-locator claim;
+- `Inventory` and `CurrentArtifactLocators` are derived queries, not stored authority.
+
+Existing schema-v2 observations migrate with `scan_id=NULL`; they remain historical evidence and cannot accidentally become current inventory.

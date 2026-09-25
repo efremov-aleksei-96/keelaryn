@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 29,
+  "revision": 30,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -56,11 +56,12 @@
     "P0_08_SQLITEX_TRAILING_BYTES_DEFECT_FIXED",
     "P0_08_SQLITE_DURABLE_STATE_QUALIFIED",
     "P0_09_DURABLE_OBSERVATION_LOCATOR_IMPLEMENTED",
-    "P0_09_DURABLE_OBSERVATION_LOCATOR_QUALIFIED"
+    "P0_09_DURABLE_OBSERVATION_LOCATOR_QUALIFIED",
+    "P0_10_SCAN_SESSION_INVENTORY_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_10_SCAN_SESSION_INVENTORY",
-    "description": "Add durable scan sessions with OPEN/COMPLETE/ABORTED states. Bind new observations atomically to an OPEN scan, enforce provider/root consistency, and derive inventory plus Artifact current locators only from the latest COMPLETE scan for that provider/root. A newer OPEN or ABORTED scan must not affect results; a newer COMPLETE unresolved observation must not preserve a stale Artifact locator. Do not add provider polling, watcher, extraction, or search.",
+    "id": "P0_10_QUALIFY_SCAN_SESSION_INVENTORY",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass schema v3 migration, OPEN/ABORTED non-authority, latest-COMPLETE replacement, empty-scan, stale-locator clearing, scan-scope, reopen durability, root-isolation, go mod tidy -diff and go vet. If green, qualify P0-10 and wire the localfs read-only Snapshot into an atomic scan ingestion happy path.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -93,7 +94,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "fe88b38b8b9e12abb440322495a211c64207959b",
+  "repository_basis_commit": "fc18bf197a33aa5ea8db0c2ce28926211a377f32",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -795,7 +796,7 @@
     }
   },
   "p0_10": {
-    "status": "PLANNED",
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Add scan/session completeness so inventory and current locator derive only from a fully committed observation set.",
     "invariants": [
       "OPEN scan never changes authoritative inventory/current locator",
@@ -805,6 +806,33 @@
       "one OPEN scan per provider/root",
       "ambiguous/unresolved latest COMPLETE observation removes any claim of current Artifact locator",
       "current locator remains a derived query, not stored authority"
-    ]
+    ],
+    "implementation": {
+      "schema_version": 3,
+      "dependencies_added": 0,
+      "table_added": "scan_sessions",
+      "observation_change": "nullable scan_id foreign key; pre-v3 observations remain historical and non-authoritative",
+      "states": [
+        "OPEN",
+        "COMPLETE",
+        "ABORTED"
+      ],
+      "authority": "latest COMPLETE scan per provider/root",
+      "derived_queries": [
+        "Inventory",
+        "CurrentArtifactLocators"
+      ],
+      "invariants": [
+        "OPEN scan never changes authoritative inventory/current locator",
+        "ABORTED scan never changes authoritative inventory/current locator",
+        "only latest COMPLETE scan for one provider/root is eligible",
+        "observations cannot be added after scan leaves OPEN",
+        "one OPEN scan per provider/root",
+        "scan provider/root scope is enforced transactionally",
+        "empty COMPLETE scan means empty inventory",
+        "newer COMPLETE unresolved observation removes stale Artifact locator",
+        "current locator is derived, never stored authority"
+      ]
+    }
   }
 }

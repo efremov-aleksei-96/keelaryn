@@ -10,6 +10,7 @@ type ProviderObjectID string
 type ProviderObjectOccurrenceID string
 type ObservationID string
 type LocatorID string
+type ScanSessionID string
 type RevisionID string
 
 // Artifact is Keelaryn's stable logical identity for a tracked thing.
@@ -126,4 +127,39 @@ type ObservationRecord struct {
 	Size                     int64                      `json:"size"`
 	Mode                     uint32                     `json:"mode"`
 	ModifiedAt               time.Time                  `json:"modified_at"`
+}
+
+
+// ScanStatus marks whether one provider/root enumeration is eligible to define
+// current inventory. Only COMPLETE scans are authoritative.
+type ScanStatus string
+
+const (
+	ScanOpen     ScanStatus = "OPEN"
+	ScanComplete ScanStatus = "COMPLETE"
+	ScanAborted  ScanStatus = "ABORTED"
+)
+
+// ScanSession is a completeness boundary for exactly one provider/root.
+type ScanSession struct {
+	ID          ScanSessionID `json:"id"`
+	ProviderID  ProviderID    `json:"provider_id"`
+	Root        string        `json:"root"`
+	Status      ScanStatus    `json:"status"`
+	StartedAt   time.Time     `json:"started_at"`
+	FinishedAt  time.Time     `json:"finished_at,omitempty"`
+}
+
+// InventoryEntry is a derived row from the latest COMPLETE scan. It is not
+// stored authority: the Observation plus ScanSession remain authoritative.
+type InventoryEntry struct {
+	ScanID          ScanSessionID  `json:"scan_id"`
+	ObservationID   ObservationID  `json:"observation_id"`
+	ArtifactID      ArtifactID     `json:"artifact_id,omitempty"`
+	RevisionID      RevisionID     `json:"revision_id,omitempty"`
+	AssignmentState AssignmentState `json:"assignment_state"`
+	Locator         Locator        `json:"locator"`
+	Kind            EntryKind      `json:"kind"`
+	Size            int64          `json:"size"`
+	ModifiedAt      time.Time      `json:"modified_at"`
 }

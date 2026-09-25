@@ -93,6 +93,34 @@ CREATE INDEX observations_artifact
 CREATE INDEX locators_observation
 	ON locators (observation_id);
 `,
+		`
+CREATE TABLE scan_sessions (
+	scan_id TEXT PRIMARY KEY NOT NULL,
+	provider_id TEXT NOT NULL,
+	root TEXT NOT NULL,
+	status TEXT NOT NULL CHECK (status IN ('OPEN', 'COMPLETE', 'ABORTED')),
+	started_at TEXT NOT NULL,
+	finished_at TEXT,
+	CHECK (
+		(status = 'OPEN' AND finished_at IS NULL)
+		OR
+		(status IN ('COMPLETE', 'ABORTED') AND finished_at IS NOT NULL)
+	)
+) STRICT;
+
+CREATE UNIQUE INDEX scan_sessions_one_open
+	ON scan_sessions (provider_id, root)
+	WHERE status = 'OPEN';
+
+CREATE INDEX scan_sessions_authority
+	ON scan_sessions (provider_id, root, status, finished_at);
+
+ALTER TABLE observations
+	ADD COLUMN scan_id TEXT REFERENCES scan_sessions(scan_id) ON DELETE RESTRICT;
+
+CREATE INDEX observations_scan
+	ON observations (scan_id);
+`,
 	},
 }
 
