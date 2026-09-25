@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 45,
+  "revision": 46,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -75,11 +75,12 @@
     "P0_13_LOCALFS_CANDIDATE_GENERATION_QUALIFIED",
     "P0_14_SELECTIVE_CONTENT_ENRICHMENT_IMPLEMENTED",
     "P0_14_SELECTIVE_CONTENT_ENRICHMENT_QUALIFIED",
-    "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_IMPLEMENTED"
+    "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_IMPLEMENTED",
+    "P0_15_TEST_ERRORS_IMPORT_FIXED"
   ],
   "next_objective": {
-    "id": "P0_15_QUALIFY_IN_PROCESS_NATIVE_CANDIDATES",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass rename-native candidate discovery/AMBIGUOUS, delete+recreate never-resolved, hard-link multi-Artifact preservation, snapshot scope rejection, prior-inventory binding rejection, all P0-13/P0-14 tests, go mod tidy -diff and go vet. If green, qualify P0-15 and reassess whether localfs P0 now has enough identity semantics to begin minimal task-specific extraction/context, leaving unresolved continuity as a first-class state rather than blocking usefulness.",
+    "id": "P0_15_REQUALIFY_IN_PROCESS_NATIVE_CANDIDATES",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI on the corrected import head to pass rename-native candidate discovery/AMBIGUOUS, delete+recreate never-resolved, hard-link multi-Artifact preservation, snapshot scope rejection, prior-inventory binding rejection, all P0-13/P0-14 tests, go mod tidy -diff and go vet. If green, qualify P0-15 and reassess readiness for minimal extraction/context.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -112,7 +113,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "45150da382a68078b5c99d6bd4cdddd50232775a",
+  "repository_basis_commit": "4af06031cfb80e02ec88316fddf9138aa725063c",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1203,7 +1204,7 @@
     }
   },
   "p0_15": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "COMPILE_FIX_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Use simultaneous previous/current localfs Snapshots as an optional in-process candidate discovery channel for rename/move continuity, without persisting native IDs.",
     "invariants": [
       "previous and current Snapshots must have identical provider/root scope",
@@ -1235,6 +1236,12 @@
         "multiple prior Artifact mappings remain multiple candidates",
         "all native identity evidence remains process-local"
       ]
+    },
+    "first_head_note": {
+      "exact_head": "4af06031cfb80e02ec88316fddf9138aa725063c",
+      "run_id": 36096506291,
+      "known_defect": "native_test.go referenced errors.Is without importing errors",
+      "disposition": "Superseded by immediate corrective commit; no product/runtime semantics changed."
     }
   }
 }

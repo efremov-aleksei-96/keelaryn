@@ -2,6 +2,7 @@ package localfs_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
