@@ -15,7 +15,8 @@ import (
 
 var (
 	ErrInvalidContinuityAcceptance = errors.New("invalid continuity acceptance")
-	ErrAcceptedContinuityNotFound  = errors.New("accepted continuity decision not found")
+	ErrAcceptedContinuityNotFound   = errors.New("accepted continuity decision not found")
+	ErrProviderObjectBindingConflict = errors.New("provider object binding conflicts with resolved Artifact")
 )
 
 // AcceptSameObservationInScan loads durable authority and derives SAME inside
@@ -80,6 +81,21 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 		}
 		if !exists {
 			return fmt.Errorf("%w: %s", corpus.ErrArtifactNotFound, resolution.SelectedArtifactID)
+		}
+		if bound, binding, txErr := providerArtifactBindingConn(
+			conn, authority.IdentityDomain, authority.ProviderID, authority.CurrentObjectID,
+		); txErr != nil {
+			return txErr
+		} else if bound && binding.ArtifactID != resolution.SelectedArtifactID {
+			return fmt.Errorf(
+				"%w: provider=%s domain=%s object=%s bound=%s resolved=%s",
+				ErrProviderObjectBindingConflict,
+				authority.ProviderID,
+				authority.IdentityDomain,
+				authority.CurrentObjectID,
+				binding.ArtifactID,
+				resolution.SelectedArtifactID,
+			)
 		}
 
 		input := request.Observation

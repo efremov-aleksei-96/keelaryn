@@ -13,10 +13,10 @@ import (
 
 func identityAuthoritySetConn(conn *sqlite.Conn, id corpus.IdentityAuthoritySetID) (corpus.IdentityAuthoritySet, error) {
 	var set corpus.IdentityAuthoritySet
-	var sourceRefsJSON, createdText string
+	var sourceRefsJSON, createdText, sealedText string
 	var found bool
 	err := sqlitex.Execute(conn,
-		"SELECT policy_id, provider_id, identity_domain, scope_id, current_object_id, universe_coverage, COALESCE(generation_id, ''), COALESCE(lifetime_segment_id, ''), source_refs_json, created_at FROM identity_authority_sets WHERE authority_set_id = ?1",
+		"SELECT policy_id, provider_id, identity_domain, scope_id, current_object_id, universe_coverage, COALESCE(generation_id, ''), COALESCE(lifetime_segment_id, ''), source_refs_json, created_at, COALESCE(sealed_at, '') FROM identity_authority_sets WHERE authority_set_id = ?1",
 		&sqlitex.ExecOptions{
 			Args: []any{string(id)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
@@ -32,6 +32,7 @@ func identityAuthoritySetConn(conn *sqlite.Conn, id corpus.IdentityAuthoritySetI
 				set.LifetimeSegmentID = stmt.ColumnText(7)
 				sourceRefsJSON = stmt.ColumnText(8)
 				createdText = stmt.ColumnText(9)
+				sealedText = stmt.ColumnText(10)
 				return nil
 			},
 		})
@@ -40,6 +41,9 @@ func identityAuthoritySetConn(conn *sqlite.Conn, id corpus.IdentityAuthoritySetI
 	}
 	if !found {
 		return corpus.IdentityAuthoritySet{}, fmt.Errorf("%w: %s", ErrIdentityAuthoritySetNotFound, id)
+	}
+	if sealedText == "" {
+		return corpus.IdentityAuthoritySet{}, fmt.Errorf("%w: authority set %s is not sealed", ErrInvalidIdentityAuthoritySet, id)
 	}
 	if err := json.Unmarshal([]byte(sourceRefsJSON), &set.SourceRefs); err != nil {
 		return corpus.IdentityAuthoritySet{}, fmt.Errorf("decode identity authority source refs: %w", err)
@@ -126,6 +130,16 @@ func insertIdentityAuthoritySetConn(conn *sqlite.Conn, set corpus.IdentityAuthor
 			}}); err != nil {
 			return fmt.Errorf("insert identity authority candidate: %w", err)
 		}
+	}
+	if err := sqlitex.Execute(conn,
+		"UPDATE identity_authority_sets SET sealed_at = ?1 WHERE authority_set_id = ?2 AND sealed_at IS NULL",
+		&sqlitex.ExecOptions{Args: []any{
+			set.CreatedAt.UTC().Format(time.RFC3339Nano), string(set.ID),
+		}}); err != nil {
+		return fmt.Errorf("seal identity authority set: %w", err)
+	}
+	if conn.Changes() != 1 {
+		return fmt.Errorf("%w: authority set %s was not sealed exactly once", ErrInvalidIdentityAuthoritySet, set.ID)
 	}
 	return nil
 }

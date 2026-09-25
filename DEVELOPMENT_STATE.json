@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 75,
+  "revision": 76,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -107,11 +107,12 @@
     "P0_FOUNDATION_RETROSPECTIVE_AUDIT_COMPLETE",
     "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT_DECIDED",
     "REGULAR_ENGINEERING_AUDIT_POLICY_ESTABLISHED",
-    "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_IMPLEMENTED"
+    "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_IMPLEMENTED",
+    "P0_28A_BOUNDARY_AUDIT_HARDENING_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_28A_QUALIFY_IDENTITY_ACCEPTANCE_HARDENING",
-    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI for SQLite v6, immutable authority-set consumption, in-transaction SAME/NEW derivation, unified request fingerprint/replay/mismatch semantics, removal of old exported raw acceptance APIs, migrations and all prior tests. If green, perform the mandatory risk-trigger retrospective before beginning P0-28B history generation/publication.",
+    "id": "P0_28A_REQUALIFY_BOUNDARY_HARDENING",
+    "description": "Require exact-head validate + Ubuntu 24.04 + Windows 2025 CI after SQLite v7 authority sealing and SAME provider-binding conflict protection. If green, record the P0-28A boundary retrospective as PASS and proceed to P0-28B history generation/publication contract; no live OAuth/provider mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -144,7 +145,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "b0df605b142bbf6076b62b9e1f299e1061aa235d",
+  "repository_basis_commit": "6453d215fe4c741d6c37341256c62d8669fa995c",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2272,7 +2273,7 @@
     "blocker_rule": "BLOCKER findings pause dependent work until durably resolved or explicitly re-scoped"
   },
   "p0_28a": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "IMPLEMENTED_AWAITING_REQUALIFICATION_AFTER_BOUNDARY_HARDENING",
     "objective": "Harden SAME/NEW identity acceptance so caller-authored authority cannot authorize durable identity mutation and retries are semantically idempotent.",
     "evidence_document": "docs/P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT.md",
     "audited_head": "467b4e810041532ed39e47dd8b5c16a98c3df5dc",
@@ -2301,7 +2302,7 @@
       "Syncthing index generation + sequence",
       "rclone bisync last-known-good/recovery lockout"
     ],
-    "schema_version": 6,
+    "schema_version": 7,
     "implementation": {
       "exported_acceptance": [
         "AcceptSameObservationInScan",
@@ -2368,7 +2369,33 @@
       "identical-byte copy remains distinct",
       "bound provider object cannot be readmitted",
       "NEW replay survives reopen",
-      "v5-to-v6 migration"
-    ]
+      "v5-to-v6 migration",
+      "authority-set sealed at SQLite level",
+      "sealed authority candidates cannot change",
+      "identity mutation receipts cannot update/delete",
+      "SAME conflicting provider binding fails closed",
+      "v6-to-v7 migration"
+    ],
+    "boundary_audit": {
+      "audited_head": "6453d215fe4c741d6c37341256c62d8669fa995c",
+      "audited_ci_run_id": 36136608031,
+      "audited_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+      "findings": [
+        {
+          "severity": "BLOCKER_BEFORE_QUALIFICATION",
+          "issue": "authority-set/request receipts were logically immutable but not SQLite-enforced",
+          "correction": "v7 seal + no-update/no-delete triggers; no candidate insert after seal"
+        },
+        {
+          "severity": "BLOCKER_BEFORE_QUALIFICATION",
+          "issue": "SAME did not reject an existing provider-object binding to a different Artifact",
+          "correction": "mutation-boundary binding conflict check"
+        }
+      ],
+      "retained_limits": [
+        "naked provider binding still does not authorize live SAME across lifetime gaps",
+        "live provider producers remain blocked until P0-28B/C history generation and lifetime segments"
+      ]
+    }
   }
 }

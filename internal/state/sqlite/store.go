@@ -231,6 +231,75 @@ CREATE INDEX identity_mutation_artifact
 CREATE INDEX identity_mutation_authority
 	ON identity_mutation_requests (authority_set_id);
 `,
+		`
+ALTER TABLE identity_authority_sets
+	ADD COLUMN sealed_at TEXT;
+
+UPDATE identity_authority_sets
+	SET sealed_at = created_at
+	WHERE sealed_at IS NULL;
+
+CREATE TRIGGER identity_authority_sets_no_delete
+BEFORE DELETE ON identity_authority_sets
+BEGIN
+	SELECT RAISE(ABORT, 'identity authority sets are immutable');
+END;
+
+CREATE TRIGGER identity_authority_sets_update_guard
+BEFORE UPDATE ON identity_authority_sets
+WHEN NOT (
+	OLD.sealed_at IS NULL
+	AND NEW.sealed_at IS NOT NULL
+	AND NEW.authority_set_id = OLD.authority_set_id
+	AND NEW.policy_id = OLD.policy_id
+	AND NEW.provider_id = OLD.provider_id
+	AND NEW.identity_domain = OLD.identity_domain
+	AND NEW.scope_id = OLD.scope_id
+	AND NEW.current_object_id = OLD.current_object_id
+	AND NEW.universe_coverage = OLD.universe_coverage
+	AND NEW.generation_id IS OLD.generation_id
+	AND NEW.lifetime_segment_id IS OLD.lifetime_segment_id
+	AND NEW.source_refs_json = OLD.source_refs_json
+	AND NEW.created_at = OLD.created_at
+)
+BEGIN
+	SELECT RAISE(ABORT, 'identity authority sets are immutable after creation');
+END;
+
+CREATE TRIGGER identity_authority_candidates_no_update
+BEFORE UPDATE ON identity_authority_candidates
+BEGIN
+	SELECT RAISE(ABORT, 'identity authority candidates are immutable');
+END;
+
+CREATE TRIGGER identity_authority_candidates_no_delete
+BEFORE DELETE ON identity_authority_candidates
+BEGIN
+	SELECT RAISE(ABORT, 'identity authority candidates are immutable');
+END;
+
+CREATE TRIGGER identity_authority_candidates_no_insert_after_seal
+BEFORE INSERT ON identity_authority_candidates
+WHEN COALESCE((
+	SELECT sealed_at FROM identity_authority_sets
+	WHERE authority_set_id = NEW.authority_set_id
+), '') <> ''
+BEGIN
+	SELECT RAISE(ABORT, 'identity authority set is sealed');
+END;
+
+CREATE TRIGGER identity_mutation_requests_no_update
+BEFORE UPDATE ON identity_mutation_requests
+BEGIN
+	SELECT RAISE(ABORT, 'identity mutation receipts are immutable');
+END;
+
+CREATE TRIGGER identity_mutation_requests_no_delete
+BEFORE DELETE ON identity_mutation_requests
+BEGIN
+	SELECT RAISE(ABORT, 'identity mutation receipts are immutable');
+END;
+`,
 	},
 }
 

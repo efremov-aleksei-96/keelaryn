@@ -931,3 +931,11 @@ Implemented with zero new dependencies.
 - Replay loads happen only after releasing the transaction connection, avoiding self-deadlock with the current single-connection SQLite pool.
 - Schema reserves generation/lifetime-segment fields, but current provider binding is still fail-closed for live providers until P0-28B/C.
 
+## P0-28A boundary retrospective hardening
+
+The mandatory risk-trigger audit of the first green P0-28A implementation found two pre-qualification gaps:
+- authority sets / mutation receipts were logically append-only but not SQLite-enforced;
+- SAME did not reject an existing provider-object binding to a different Artifact.
+
+v7 seals authority sets after their producer transaction, rejects later set/candidate mutation, makes mutation receipts update/delete-proof, and revalidates binding conflict at the SAME mutation boundary. The live-provider limitation remains unchanged: a naked provider binding is historical provenance only until history-generation and object-lifetime authority exists.
+
