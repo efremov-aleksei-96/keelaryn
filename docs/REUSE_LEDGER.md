@@ -543,3 +543,22 @@ Safety/provenance:
 - extraction performs no durable write and does not modify Revision history.
 
 The localfs content reader is refactored so both SHA-256-only sampling and byte-retaining extraction share the same path traversal, regular-file, handle identity, stability and post-read locator validation.
+
+
+## P0-18 — explicit-selection ContextBundle
+
+**Decision:** implement ContextBundle as a derived/rebuildable value layer with no new dependency and no durable persistence.
+
+Selection contract:
+- the caller explicitly supplies each assigned `InventoryEntry`;
+- each selection carries a non-empty caller reason and its own `maxBytes`;
+- selection order is preserved exactly;
+- P0-18 performs no search, ranking, embeddings, chunking, or automatic corpus selection.
+
+Construction:
+- each selection runs through the already-qualified revision-bound extractor;
+- every item preserves reason, extraction status, ArtifactID, RevisionID, Locator, ExtractorID, media type, and observed content evidence;
+- text is included only for `EXTRACTED`;
+- `UNSUPPORTED`, `OPAQUE`, `STALE_REVISION`, and `LIMIT_EXCEEDED` remain explicit item outcomes with no invented text.
+
+The bundle is ephemeral AI/task context. It performs no Artifact, Revision, Observation, Locator, or scan mutation and is not stored in the durable identity database.

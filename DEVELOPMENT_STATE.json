@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 51,
+  "revision": 52,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -81,11 +81,12 @@
     "P0_16_EXTRACTION_CONTEXT_REUSE_RESEARCH_COMPLETE",
     "P0_17_REVISION_BOUND_TEXT_EXTRACTION_IMPLEMENTED",
     "P0_17_TEST_REVISION_READER_STUB_FIXED",
-    "P0_17_REVISION_BOUND_TEXT_EXTRACTION_QUALIFIED"
+    "P0_17_REVISION_BOUND_TEXT_EXTRACTION_QUALIFIED",
+    "P0_18_EXPLICIT_SELECTION_CONTEXT_BUNDLE_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_18_EXPLICIT_SELECTION_CONTEXT_BUNDLE",
-    "description": "Implement provider-neutral ContextBundle model plus localfs builder over explicit selected InventoryEntry requests. Each request carries a caller reason and maxBytes. Run existing revision-bound extractor per entry; preserve result status/provenance; include text only for EXTRACTED; preserve input order; reject empty reason/invalid selection fail-closed. Do not add search, ranking, chunking, embeddings, persistence, or automatic document selection.",
+    "id": "P0_18_QUALIFY_EXPLICIT_SELECTION_CONTEXT_BUNDLE",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass explicit order/provenance, mixed unsupported/stale/limit outcomes, empty-reason/negative-limit validation, empty bundle, no-text-on-non-EXTRACTED outcomes, all P0-17 extraction regressions, go mod tidy -diff and go vet. If green, qualify P0-18 and assess whether this closes the minimal P0 happy path before adding any automatic context selection or additional provider.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -118,7 +119,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "41fe3face711f6f077d53bb36d984a1921fbdbbd",
+  "repository_basis_commit": "728bd325132ea86d53e3618624d4b3a1f5e63098",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1408,7 +1409,7 @@
     }
   },
   "p0_18": {
-    "status": "PLANNED",
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Build a minimal ephemeral ContextBundle from explicitly selected assigned inventory entries and their revision-bound extraction results.",
     "invariants": [
       "selection is explicit; P0-18 performs no corpus search/ranking",
@@ -1419,6 +1420,42 @@
       "per-item reason is caller-supplied task provenance",
       "ContextBundle is derived/rebuildable and is not stored in durable identity state",
       "bundle construction performs no Artifact/Revision/Observation mutation"
-    ]
+    ],
+    "implementation": {
+      "dependencies_added": 0,
+      "packages": [
+        "internal/contextbundle",
+        "internal/contextbundle/localfs"
+      ],
+      "persistence": "NONE",
+      "selection": "EXPLICIT_ONLY",
+      "ordering": "INPUT_ORDER",
+      "item_provenance": [
+        "Reason",
+        "Status",
+        "ArtifactID",
+        "RevisionID",
+        "Locator",
+        "ExtractorID",
+        "MediaType",
+        "ContentEvidence"
+      ],
+      "text_rule": "Text only when extraction Status=EXTRACTED",
+      "non_text_statuses": [
+        "UNSUPPORTED",
+        "OPAQUE",
+        "STALE_REVISION",
+        "LIMIT_EXCEEDED"
+      ],
+      "explicitly_absent": [
+        "search",
+        "ranking",
+        "chunking",
+        "embeddings",
+        "automatic selection",
+        "durable context cache"
+      ],
+      "mutations": 0
+    }
   }
 }
