@@ -562,3 +562,14 @@ Construction:
 - `UNSUPPORTED`, `OPAQUE`, `STALE_REVISION`, and `LIMIT_EXCEEDED` remain explicit item outcomes with no invented text.
 
 The bundle is ephemeral AI/task context. It performs no Artifact, Revision, Observation, Locator, or scan mutation and is not stored in the durable identity database.
+
+
+### P0-18 immediate compile correction
+
+The implementation commit's new `builder_test.go` referenced `corpus.InventoryEntry` without importing the `internal/corpus` package.
+
+This is a test-only compile defect detected immediately after publication. Product/context semantics are unchanged.
+
+Correction:
+- add the missing test import;
+- require the corrected exact head to pass both Ubuntu and Windows before P0-18 qualification.

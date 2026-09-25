@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
+	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/extract"
 	contextlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/contextbundle/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/ingest"
