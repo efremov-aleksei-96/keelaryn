@@ -138,6 +138,43 @@ CREATE TABLE accepted_continuity_decisions (
 CREATE INDEX accepted_continuity_artifact
 	ON accepted_continuity_decisions (artifact_id);
 `,
+		`
+CREATE TABLE provider_artifact_bindings (
+	identity_domain TEXT NOT NULL,
+	provider_id TEXT NOT NULL,
+	native_object_id TEXT NOT NULL,
+	artifact_id TEXT NOT NULL
+		REFERENCES artifacts(artifact_id) ON DELETE RESTRICT,
+	policy_id TEXT NOT NULL,
+	accepted_at TEXT NOT NULL,
+	PRIMARY KEY (identity_domain, provider_id, native_object_id)
+) STRICT;
+
+CREATE INDEX provider_artifact_bindings_artifact
+	ON provider_artifact_bindings (artifact_id);
+
+CREATE TABLE accepted_artifact_admissions (
+	request_id TEXT PRIMARY KEY NOT NULL,
+	observation_id TEXT NOT NULL UNIQUE
+		REFERENCES observations(observation_id) ON DELETE RESTRICT,
+	artifact_id TEXT NOT NULL
+		REFERENCES artifacts(artifact_id) ON DELETE RESTRICT,
+	identity_domain TEXT NOT NULL,
+	provider_id TEXT NOT NULL,
+	native_object_id TEXT NOT NULL,
+	decision_state TEXT NOT NULL
+		CHECK (decision_state = 'RESOLVED_NEW'),
+	policy_id TEXT NOT NULL,
+	resolution_json TEXT NOT NULL,
+	decided_at TEXT NOT NULL,
+	FOREIGN KEY (identity_domain, provider_id, native_object_id)
+		REFERENCES provider_artifact_bindings(identity_domain, provider_id, native_object_id)
+		ON DELETE RESTRICT
+) STRICT;
+
+CREATE INDEX accepted_artifact_admissions_artifact
+	ON accepted_artifact_admissions (artifact_id);
+`,
 	},
 }
 

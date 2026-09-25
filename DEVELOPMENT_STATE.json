@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 70,
+  "revision": 71,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -101,11 +101,12 @@
     "P0_24B_DEPENDENCY_LOCK_TRAILING_BLANK_DEFECT_FIXED",
     "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_QUALIFIED",
     "P0_25_CLOSURE_REAUDIT_COMPLETE",
-    "P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT_DECIDED"
+    "P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT_DECIDED",
+    "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_27_IMPLEMENT_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION",
-    "description": "Implement the provider-neutral occurrence identity/admission model and SQLite atomic RESOLVED_NEW transaction using deterministic fake candidate-universe completeness proofs. Preserve existing CandidateSetResolution and RESOLVED_SAME behavior. Add durable admission provenance and replay/dedup boundary. Do not wire live OAuth/Drive yet and do not mutate corpus.",
+    "id": "P0_27_QUALIFY_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION",
+    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI for the provider-neutral RESOLVED_NEW model, SQLite v5 migration, atomic admission/provenance/binding transaction, replay guards and all prior tests. If green, qualify P0-27 before wiring Google Drive RemoteHistory into durable provider observations/bindings.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -138,7 +139,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "952e6d0508e469c094b078ae04fba844bfdeb008",
+  "repository_basis_commit": "c91cc2424c0db7f95e331e94c10d5647cbe2ae37",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2097,6 +2098,77 @@
       "microsoft_graph": "initial delta enumeration + nextLink + deltaLink + deleted facet validates complete-state/cursor abstraction",
       "dropbox": "list_folder cursor/continue + deletion entries + unique file IDs validates cursor-backed state abstraction",
       "new_core_dependency": false
+    },
+    "qualification": {
+      "exact_head": "c91cc2424c0db7f95e331e94c10d5647cbe2ae37",
+      "ci_run_id": 36108606487,
+      "conclusion": "SUCCESS",
+      "jobs": {
+        "validate": "PASS",
+        "go (ubuntu-24.04)": "PASS",
+        "go (windows-2025)": "PASS"
+      }
     }
+  },
+  "p0_27": {
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "objective": "Implement provider-neutral RESOLVED_NEW admission and atomic durable acceptance without live provider access.",
+    "dependencies_added": 0,
+    "schema_version": 5,
+    "corpus_mutations": 0,
+    "live_oauth_used": false,
+    "implementation": {
+      "core_file": "internal/corpus/admission.go",
+      "sqlite_file": "internal/state/sqlite/admission.go",
+      "candidate_universe_coverage": [
+        "UNKNOWN",
+        "COMPLETE"
+      ],
+      "occurrence_identity_states": [
+        "UNRESOLVED",
+        "AMBIGUOUS",
+        "RESOLVED_SAME",
+        "RESOLVED_NEW"
+      ],
+      "durable_tables": [
+        "provider_artifact_bindings",
+        "accepted_artifact_admissions"
+      ],
+      "replay_key": "caller-supplied AdmissionRequestID",
+      "atomic_outputs": [
+        "new Artifact",
+        "optional Revision 1",
+        "assigned Observation",
+        "provider Artifact binding",
+        "accepted admission provenance"
+      ],
+      "safeguards": [
+        "existing CandidateSetResolution is unchanged",
+        "UNKNOWN completeness cannot resolve NEW",
+        "plausible SAME candidate prevents NEW",
+        "input requires observed native provider identity",
+        "proof provider/object/policy/scope must match scan and observation",
+        "same request ID cannot mint twice",
+        "same provider identity cannot be admitted twice",
+        "identical bytes do not collapse distinct provider identities",
+        "all validation failures roll back"
+      ],
+      "known_boundary": "provider bindings are created by P0-27 admission; later real-provider bootstrap/SAME wiring must seed/use the same binding authority before live NEW admission is enabled"
+    },
+    "tests": [
+      "complete empty universe resolves NEW",
+      "all conclusively distinct candidates resolve NEW",
+      "unknown universe remains unresolved",
+      "plausible candidate remains ambiguous",
+      "RESOLVED_SAME preserved",
+      "forged NEW rejected",
+      "atomic Artifact/Revision/Observation/provenance/binding",
+      "request replay zero-mutation",
+      "provider identity double-admission zero-mutation",
+      "scope and completeness failures zero-mutation",
+      "identical-byte copy distinct Artifact",
+      "reopen durability",
+      "v4-to-v5 migration"
+    ]
   }
 }

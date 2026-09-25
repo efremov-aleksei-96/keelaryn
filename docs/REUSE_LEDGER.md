@@ -836,3 +836,37 @@ Decision:
 
 Detailed contract: `docs/P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT.md`.
 
+## P0-27 — provider-neutral post-bootstrap Artifact admission implementation
+
+Implemented with **zero new dependencies**.
+
+Core:
+- candidate-universe coverage: `UNKNOWN` / `COMPLETE`;
+- explicit `OccurrenceIdentityResolution`: `UNRESOLVED`, `AMBIGUOUS`, `RESOLVED_SAME`, `RESOLVED_NEW`;
+- existing `CandidateSetResolution` remains unchanged;
+- `RESOLVED_NEW` requires a valid COMPLETE universe proof and zero plausible SAME candidates.
+
+SQLite v5:
+- `provider_artifact_bindings` stores accepted provider-native identity -> Artifact authority scoped by identity domain;
+- `accepted_artifact_admissions` stores non-rebuildable NEW-admission provenance;
+- caller-supplied `AdmissionRequestID` is a durable replay/reconciliation key;
+- duplicate request IDs cannot mint another Artifact;
+- the same provider identity cannot be admitted twice under a different request;
+- Artifact + optional Revision 1 + assigned Observation + binding + accepted admission commit atomically.
+
+Tests cover:
+- COMPLETE empty universe -> NEW;
+- all candidates conclusively distinct -> NEW;
+- UNKNOWN completeness -> not NEW;
+- plausible SAME -> ambiguity;
+- existing RESOLVED_SAME remains SAME;
+- forged NEW rejected;
+- request replay zero-mutation;
+- provider identity double-admission zero-mutation;
+- scope mismatch/unknown completeness zero-mutation;
+- identical-byte copy with distinct conclusive provider identity -> distinct Artifact;
+- admission/binding survive reopen;
+- qualified v4 -> v5 migration.
+
+The implementation still uses deterministic fake completeness proofs only. Live Google Drive/OAuth and corpus mutation remain deferred.
+
