@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 41,
+  "revision": 42,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -71,11 +71,12 @@
     "P0_13_REUSE_REVIEW_COMPLETE",
     "P0_13_CANDIDATE_SET_MODEL_IMPLEMENTED",
     "P0_13_CANDIDATE_SET_MODEL_QUALIFIED",
-    "P0_13_LOCALFS_CANDIDATE_GENERATION_IMPLEMENTED"
+    "P0_13_LOCALFS_CANDIDATE_GENERATION_IMPLEMENTED",
+    "P0_13_LOCALFS_CANDIDATE_GENERATION_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_13_QUALIFY_LOCALFS_CANDIDATE_GENERATION",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass same-path ambiguity, no-overlap unresolved, hard-link multi-Artifact candidate union, unresolved-prior exclusion, deterministic generation, all earlier identity/scan/adoption tests, go mod tidy -diff and go vet. If green, qualify P0-13 and add explicit optional content-evidence enrichment for selected candidate sets without hashing the whole corpus.",
+    "id": "P0_14_SELECTIVE_CONTENT_ENRICHMENT",
+    "description": "Implement explicit selective content enrichment for one regular-file OccurrenceCandidateSet. Use Snapshot.SampleObjectGroupContent to read current bytes once; for each existing candidate read only its latest Revision evidence; add CONTENT_EQUAL SUPPORTING evidence when algorithm/digest/size match; add no negative signal on mismatch/no Revision; resolve the enriched set through ResolveCandidateSet. Reject non-regular/mismatched locator sets and perform no persistence mutation. Prove no full-corpus hashing by API shape and tests.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -108,7 +109,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "b9aacea3530327f1450ddb685215bb7b464e89c1",
+  "repository_basis_commit": "6ee5077e6217dfbc4c6e2fd696db1c05d90b75dc",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1023,7 +1024,7 @@
     }
   },
   "p0_13": {
-    "status": "LOCALFS_CANDIDATE_GENERATION_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "LOCALFS_CANDIDATE_GENERATION_QUALIFIED",
     "objective": "Generate durable-safe continuity candidates between the latest COMPLETE assigned inventory and a fresh localfs Snapshot, classify available evidence, and keep supporting-only matches AMBIGUOUS.",
     "invariants": [
       "path equality is candidate discovery only, never continuity proof",
@@ -1125,6 +1126,39 @@
         "candidate generation is deterministic",
         "OccurrenceCandidateSet.Inputs are retained for explicit later evidence enrichment"
       ]
+    },
+    "localfs_generation_qualification": {
+      "exact_head": "6ee5077e6217dfbc4c6e2fd696db1c05d90b75dc",
+      "ci_run_id": 36095872718,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "gates": [
+        "same-path overlap remains AMBIGUOUS",
+        "no locator overlap remains UNRESOLVED",
+        "hard-link occurrence unions multiple prior Artifact candidates",
+        "unresolved prior inventory cannot become Artifact candidate",
+        "candidate generation deterministic",
+        "go mod tidy -diff",
+        "go vet"
+      ]
     }
+  },
+  "p0_14": {
+    "status": "PLANNED",
+    "objective": "Add explicit per-occurrence content-evidence enrichment without eager corpus hashing or identity mutation.",
+    "invariants": [
+      "caller explicitly chooses one regular-file OccurrenceCandidateSet to enrich",
+      "current bytes are sampled once through Snapshot.SampleObjectGroupContent",
+      "only already-discovered Artifact candidates are queried",
+      "candidate current Revision evidence is compared by algorithm+digest+size",
+      "equal content adds CONTENT_EQUAL SUPPORTING evidence",
+      "different content adds no DISTINCT evidence because Artifact content may legitimately change",
+      "candidate with no Revision adds no content signal",
+      "content evidence alone can never resolve Artifact identity",
+      "enrichment never persists assignment or modifies Artifact/Revision state"
+    ]
   }
 }
