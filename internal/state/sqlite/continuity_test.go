@@ -3,6 +3,7 @@ package sqlitestate_test
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 

@@ -623,3 +623,12 @@ Atomic acceptance:
 9. one SQLite transaction commits all of the above.
 
 AMBIGUOUS/UNRESOLVED, missing Artifact, scan-scope error, algorithm mismatch, invalid evidence or forged resolution fail without durable identity mutation.
+
+
+### P0-20 immediate test compile correction
+
+The implementation commit's `continuity_test.go` uses `filepath.Join` in the reopen-provenance regression but omitted the standard-library `path/filepath` import.
+
+This is test-only. Continuity transaction/schema/product semantics are unchanged.
+
+The implementation head run is superseded; qualification requires the corrected exact head.
