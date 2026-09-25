@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 71,
+  "revision": 72,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -102,11 +102,12 @@
     "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_QUALIFIED",
     "P0_25_CLOSURE_REAUDIT_COMPLETE",
     "P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT_DECIDED",
-    "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_IMPLEMENTED"
+    "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_IMPLEMENTED",
+    "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_27_QUALIFY_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION",
-    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI for the provider-neutral RESOLVED_NEW model, SQLite v5 migration, atomic admission/provenance/binding transaction, replay guards and all prior tests. If green, qualify P0-27 before wiring Google Drive RemoteHistory into durable provider observations/bindings.",
+    "id": "P0_28_REMOTE_HISTORY_DURABLE_PUBLICATION_CONTRACT",
+    "description": "Research and define the minimum provider-neutral durable publication contract that turns a qualified RemoteHistory bootstrap/change cycle into authoritative persisted stream/cursor state plus durable provider-object observations/bindings. Cursor advancement must be atomic with publication, gaps must fail closed, and bootstrap must seed provider identity authority without treating transport pagination as durable state. Reuse-before-build first; no live OAuth or corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -139,7 +140,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "c91cc2424c0db7f95e331e94c10d5647cbe2ae37",
+  "repository_basis_commit": "e068fcc94666592488d66fd445c2e22323209ac8",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2111,7 +2112,7 @@
     }
   },
   "p0_27": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Implement provider-neutral RESOLVED_NEW admission and atomic durable acceptance without live provider access.",
     "dependencies_added": 0,
     "schema_version": 5,
@@ -2169,6 +2170,32 @@
       "identical-byte copy distinct Artifact",
       "reopen durability",
       "v4-to-v5 migration"
-    ]
+    ],
+    "qualification": {
+      "exact_head": "e068fcc94666592488d66fd445c2e22323209ac8",
+      "ci_run_id": 36109444150,
+      "conclusion": "SUCCESS",
+      "jobs": {
+        "validate": "PASS",
+        "go (ubuntu-24.04)": "PASS",
+        "go (windows-2025)": "PASS"
+      },
+      "gates": [
+        "go mod tidy -diff",
+        "all prior tests",
+        "provider-neutral RESOLVED_NEW decision tests",
+        "SQLite v4-to-v5 migration",
+        "atomic Artifact/Revision/Observation/binding/admission transaction",
+        "request replay zero-mutation",
+        "provider identity double-admission zero-mutation",
+        "identical-byte copy distinct Artifact",
+        "reopen durability",
+        "go vet"
+      ],
+      "live_oauth_used": false,
+      "live_drive_used": false,
+      "corpus_mutations": 0
+    },
+    "next_layer": "Define and qualify durable RemoteHistory publication: persisted stream/cursor authority, atomic bootstrap/cycle publication, and provider-object binding integration before any live Google Drive OAuth run."
   }
 }
