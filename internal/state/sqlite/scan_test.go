@@ -322,3 +322,35 @@ func unresolvedScanObservation(path string, at time.Time) corpus.ObservationReco
 		ModifiedAt:      at.Add(-time.Minute),
 	}
 }
+
+
+func TestLatestCompleteScanUsesParsedTimeNotTextOrdering(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	base := time.Date(2026, 9, 25, 13, 0, 0, 0, time.UTC)
+
+	first := mustStartScan(t, store, "localfs", "/corpus", base.Add(-time.Nanosecond))
+	if _, err := store.RecordObservationInScan(ctx, first.ID, unresolvedScanObservation("old.txt", base)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CompleteScan(ctx, first.ID, base); err != nil {
+		t.Fatal(err)
+	}
+
+	secondAt := base.Add(time.Nanosecond)
+	second := mustStartScan(t, store, "localfs", "/corpus", secondAt)
+	if _, err := store.RecordObservationInScan(ctx, second.ID, unresolvedScanObservation("new.txt", secondAt)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CompleteScan(ctx, second.ID, secondAt); err != nil {
+		t.Fatal(err)
+	}
+
+	inventory, err := store.Inventory(ctx, "localfs", "/corpus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory) != 1 || inventory[0].Locator.Path != "new.txt" {
+		t.Fatalf("RFC3339Nano text ordering selected stale scan: %#v", inventory)
+	}
+}

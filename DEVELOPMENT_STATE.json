@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 35,
+  "revision": 36,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -62,11 +62,14 @@
     "P0_10_SCAN_SESSION_INVENTORY_QUALIFIED",
     "P0_11_LOCALFS_COMPLETE_SCAN_INGEST_IMPLEMENTED",
     "P0_11_LOCALFS_COMPLETE_SCAN_INGEST_QUALIFIED",
-    "P0_12_FIRST_OBSERVATION_ADOPTION_IMPLEMENTED"
+    "P0_12_FIRST_OBSERVATION_ADOPTION_IMPLEMENTED",
+    "P0_10_RFC3339NANO_TEXT_ORDER_DEFECT_REPRODUCED",
+    "P0_10_LATEST_COMPLETE_TIME_ORDER_FIX_IMPLEMENTED",
+    "P0_12_TEST_COMPILE_IMPORT_FIXED"
   ],
   "next_objective": {
-    "id": "P0_12_QUALIFY_FIRST_OBSERVATION_ADOPTION",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass first-file Artifact+Revision adoption, hard-link shared identity, identical-copy distinct Artifacts with identical digest, symlink Artifact/no Revision, changed-group fail-closed, atomic history guard, per-occurrence adoption validation, later ordinary scan no-auto-reuse, go mod tidy -diff and go vet. If green, qualify P0-12 and design the first provider-neutral continuity reconciliation between a previous COMPLETE scan and a new snapshot without treating supporting evidence as conclusive.",
+    "id": "P0_10_P0_12_REQUALIFY_TIME_ORDER_AND_ADOPTION",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass the new +1ns latest-COMPLETE regression, all P0-10 scan authority tests, all P0-12 bootstrap adoption/content/hard-link/no-auto-reuse tests, go mod tidy -diff and go vet. Only after that restore P0-10 QUALIFIED and qualify P0-12.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -99,7 +102,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "6988241e6115792763b9b650675cee4090dcfd07",
+  "repository_basis_commit": "84495cef4e8f6328dfbe36b4023c3dab03ffff57",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -801,7 +804,7 @@
     }
   },
   "p0_10": {
-    "status": "QUALIFIED",
+    "status": "REOPENED_FIX_IMPLEMENTED_AWAITING_REQUALIFICATION",
     "objective": "Add scan/session completeness so inventory and current locator derive only from a fully committed observation set.",
     "invariants": [
       "OPEN scan never changes authoritative inventory/current locator",
@@ -867,6 +870,12 @@
         "go mod tidy -diff",
         "go vet"
       ]
+    },
+    "post_qualification_defect": {
+      "discovered_by": "P0_12 exact-head CI run 36093497471",
+      "defect": "RFC3339Nano timestamps were sorted lexicographically as TEXT, which is not chronological when fractional precision differs.",
+      "reproduction": "older whole-second timestamp sorted after newer +1ns timestamp under DESC text order",
+      "fix": "parse all COMPLETE finished_at values as time.Time and select maximum instant; scan_id only breaks equal-time ties"
     }
   },
   "p0_11": {
@@ -929,7 +938,7 @@
     }
   },
   "p0_12": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "FIX_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Create durable Artifact and Revision identity on first observation only, while refusing to infer continuity on later scans without conclusive evidence.",
     "invariants": [
       "first-seen provider-object occurrence with no continuity candidate may create a new Artifact",
@@ -962,6 +971,15 @@
         "Artifact + optional Revision + assigned Observation are atomic per occurrence",
         "sampling completes before bootstrap scan opens",
         "scan publication remains final COMPLETE transition"
+      ]
+    },
+    "first_ci": {
+      "exact_head": "84495cef4e8f6328dfbe36b4023c3dab03ffff57",
+      "run_id": 36093497471,
+      "conclusion": "FAILURE",
+      "defects": [
+        "adoption_test.go missing time import",
+        "P0-10 latest COMPLETE selection used invalid RFC3339Nano TEXT ordering"
       ]
     }
   }

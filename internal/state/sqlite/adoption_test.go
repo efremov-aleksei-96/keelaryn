@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"

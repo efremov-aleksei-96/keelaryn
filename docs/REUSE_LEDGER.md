@@ -330,3 +330,23 @@ Provider guarantee:
 - a changed/split group fails closed before the bootstrap scan is opened.
 
 Ordinary `LocalFS` remains ambiguity-first and unresolved. After bootstrap, a repeat scan does **not** reuse Artifact identity from path, hash, or supporting native identity.
+
+
+### P0-10 post-qualification ordering defect found by P0-12
+
+P0-12 intentionally used scans separated by one nanosecond and exposed a flaw in the P0-10 latest-COMPLETE query.
+
+The database stores timestamps as RFC3339Nano text. RFC3339Nano uses a variable-width fractional component, so lexicographic TEXT order is not chronological across values such as:
+- `...00Z`
+- `...00.000000001Z`
+
+The previous SQL `ORDER BY finished_at DESC` could therefore select the older scan.
+
+Correction:
+- keep the existing schema and durable timestamp representation;
+- enumerate COMPLETE scans for the exact provider/root;
+- parse `finished_at` with Go `time.Parse(time.RFC3339Nano)`;
+- choose the true maximum instant, with `scan_id` only as a deterministic tie-breaker;
+- add a 1-nanosecond regression test.
+
+This reopens P0-10 qualification until the corrected exact head passes both platforms.

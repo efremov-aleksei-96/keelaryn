@@ -268,20 +268,30 @@ func (s *Store) CurrentArtifactLocators(ctx context.Context, providerID corpus.P
 }
 
 func latestCompleteScanID(conn *sqlite.Conn, providerID corpus.ProviderID, root string) (corpus.ScanSessionID, bool, error) {
-	var scanID corpus.ScanSessionID
+	var bestID corpus.ScanSessionID
+	var bestFinished time.Time
 	var found bool
+
 	err := sqlitex.Execute(conn,
-		"SELECT scan_id FROM scan_sessions WHERE provider_id = ?1 AND root = ?2 AND status = 'COMPLETE' ORDER BY finished_at DESC, scan_id DESC LIMIT 1",
+		"SELECT scan_id, finished_at FROM scan_sessions WHERE provider_id = ?1 AND root = ?2 AND status = 'COMPLETE'",
 		&sqlitex.ExecOptions{
 			Args: []any{string(providerID), root},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
-				found = true
-				scanID = corpus.ScanSessionID(stmt.ColumnText(0))
+				id := corpus.ScanSessionID(stmt.ColumnText(0))
+				finished, err := time.Parse(time.RFC3339Nano, stmt.ColumnText(1))
+				if err != nil {
+					return fmt.Errorf("parse COMPLETE scan finish %s: %w", id, err)
+				}
+				if !found || finished.After(bestFinished) || (finished.Equal(bestFinished) && id > bestID) {
+					found = true
+					bestID = id
+					bestFinished = finished
+				}
 				return nil
 			},
 		})
 	if err != nil {
 		return "", false, fmt.Errorf("query latest complete scan: %w", err)
 	}
-	return scanID, found, nil
+	return bestID, found, nil
 }
