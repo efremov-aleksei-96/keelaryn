@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 37,
+  "revision": 38,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -67,11 +67,12 @@
     "P0_10_LATEST_COMPLETE_TIME_ORDER_FIX_IMPLEMENTED",
     "P0_12_TEST_COMPILE_IMPORT_FIXED",
     "P0_10_SCAN_SESSION_INVENTORY_REQUALIFIED",
-    "P0_12_FIRST_OBSERVATION_ADOPTION_QUALIFIED"
+    "P0_12_FIRST_OBSERVATION_ADOPTION_QUALIFIED",
+    "P0_13_REUSE_REVIEW_COMPLETE"
   ],
   "next_objective": {
-    "id": "P0_13_CONTINUITY_CANDIDATE_RECONCILIATION",
-    "description": "Design and implement a read-only/provider-neutral reconciliation result that compares a fresh localfs Snapshot against the latest COMPLETE assigned inventory. Reuse current ContinuityEvidence/DecisionResolver. Candidate discovery may use locator overlap and bounded local SameFile comparisons where prior live Snapshot evidence exists, but supporting evidence must resolve only to AMBIGUOUS, never CONFIRMED_SAME. Persist no identity changes in this slice. Research existing reconciliation/matching libraries before writing generic matching machinery.",
+    "id": "P0_13_IMPLEMENT_CANDIDATE_SET_MODEL",
+    "description": "Implement a provider-neutral read-only candidate-set model. For each current occurrence, retain zero-to-many prior Artifact candidates. Normalize locator overlap, content-equality and provider continuity signals as SUPPORTING DecisionEvidence unless a future provider explicitly declares them CONCLUSIVE. Resolve each candidate independently with ResolveContinuity, then derive overall state without selecting a winner: no candidates=UNRESOLVED; one or more supporting-only candidates=AMBIGUOUS; only one uniquely CONFIRMED_SAME candidate with no competing plausible candidate may resolve. Add no persistence mutation and no new dependency.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -104,7 +105,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "85fd097ca72d2cd51a9024053ecfb892ce1fc0d5",
+  "repository_basis_commit": "2c3ea268228026f43eac0d76fe96567e3ff524b2",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1019,7 +1020,7 @@
     }
   },
   "p0_13": {
-    "status": "PLANNED",
+    "status": "REUSE_REVIEW_COMPLETE_IMPLEMENTATION_PENDING",
     "objective": "Generate durable-safe continuity candidates between the latest COMPLETE assigned inventory and a fresh localfs Snapshot, classify available evidence, and keep supporting-only matches AMBIGUOUS.",
     "invariants": [
       "path equality is candidate discovery only, never continuity proof",
@@ -1029,6 +1030,29 @@
       "multiple plausible prior Artifacts remain AMBIGUOUS",
       "no plausible candidate remains UNRESOLVED/new-object-candidate; identity mutation is a separate decision",
       "P0-13 must not modify Artifact/Revision assignments"
-    ]
+    ],
+    "reuse_review": {
+      "dependencies_added": 0,
+      "decision": "DIRECT_CANDIDATE_SET_ACCUMULATOR",
+      "reviewed": [
+        {
+          "project": "rclone/rclone --track-renames",
+          "disposition": "REUSE_PATTERN_ONLY",
+          "useful": "candidate bucketing by size plus optional hash/leaf/modtime filtering",
+          "rejected": "pop-one candidate selection and rename mutation semantics"
+        },
+        {
+          "project": "dedupeio/dedupe",
+          "disposition": "REJECT",
+          "reason": "Python ML/fuzzy entity resolution optimizes record linkage instead of preserving first-class identity ambiguity"
+        },
+        {
+          "project": "oddg/hungarian-algorithm",
+          "disposition": "REJECT",
+          "reason": "global one-to-one optimum assignment forces a winner where Keelaryn must retain multiple plausible candidates"
+        }
+      ],
+      "invariant": "candidate generation and identity decision remain separate; no matching algorithm may silently collapse ambiguity"
+    }
   }
 }

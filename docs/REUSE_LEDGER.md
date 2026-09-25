@@ -350,3 +350,27 @@ Correction:
 - add a 1-nanosecond regression test.
 
 This reopens P0-10 qualification until the corrected exact head passes both platforms.
+
+
+## P0-13 — continuity candidate reconciliation reuse review
+
+**Decision:** implement the candidate-set accumulator directly; add no matching/deduplication dependency.
+
+Reviewed:
+
+- **rclone/rclone** `--track-renames`: useful precedent for cheap candidate bucketing. Its implementation builds a rename key from size plus configurable hash/leaf components and keeps multiple destination objects under one key. However `popRenameMap` then selects and removes one candidate so the sync operation can perform a rename. Keelaryn must not reuse that assignment behavior: several plausible Artifacts must remain several candidates until stronger evidence resolves them.
+- **dedupeio/dedupe**: mature Python fuzzy matching/entity-resolution library using machine learning and human training data. This solves probabilistic record linkage, not durable corpus identity. It would add a Python/ML surface and, more importantly, optimize toward deciding linkage where Keelaryn must preserve uncertainty.
+- **oddg/hungarian-algorithm**: MIT Go implementation of the Hungarian assignment algorithm. One-to-one minimum-cost assignment is structurally the wrong abstraction because it selects an optimum matching even when identity evidence is insufficient.
+
+Reuse boundary:
+
+1. Reuse the **idea** of staged candidate generation/bucketing from rclone.
+2. Do not reuse rclone's candidate-selection/mutation behavior.
+3. Do not introduce fuzzy scores, probabilistic thresholds, or a global assignment solver.
+4. Keep every plausible Artifact candidate explicitly.
+5. Run each candidate's evidence through the already-qualified `ResolveContinuity`.
+6. Candidate-set state is:
+   - no plausible candidate -> `UNRESOLVED`;
+   - any plausible candidate without one uniquely conclusive same decision -> `AMBIGUOUS`;
+   - future providers may produce `CONFIRMED_SAME` only when exactly one candidate has non-conflicting CONCLUSIVE same evidence and no competing plausible candidate remains.
+7. P0-13 is read-only reconciliation. It persists no Artifact/Revision assignment.
