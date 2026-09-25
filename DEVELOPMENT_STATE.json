@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 62,
+  "revision": 63,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -92,11 +92,12 @@
     "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_IMPLEMENTED",
     "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_QUALIFIED",
     "P0_22_REMOTE_HISTORY_REUSE_RESEARCH_COMPLETE",
-    "P0_23_REMOTE_HISTORY_CONTRACT_MODEL_IMPLEMENTED"
+    "P0_23_REMOTE_HISTORY_CONTRACT_MODEL_IMPLEMENTED",
+    "P0_23_REMOTE_HISTORY_CONTRACT_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_23_QUALIFY_REMOTE_HISTORY_CONTRACT",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass terminal-only cursor commit, interruption replay, gap/invalid/scope/insufficient no-advance, stream mismatch fail-closed, removal semantics, bootstrap validation, and P0-21 stable-lifetime ID upgrade only under CONTINUOUS coverage, plus all prior tests, go mod tidy -diff and go vet. If green, qualify P0-23 and implement the first Google Drive read-only history adapter against the official Go client with no corpus mutations.",
+    "id": "P0_24_IMPLEMENT_GOOGLE_DRIVE_HISTORY_ADAPTER",
+    "description": "Implement the first read-only Google Drive RemoteHistory adapter behind the provider-neutral contract using the reviewed official google.golang.org/api/drive/v3 client. Keep Google-specific stream/scope, page-token, removed/current-state, shared-drive, parent/root and shortcut semantics inside the adapter; no corpus mutation. Add deterministic fake-client contract tests before any live OAuth integration, then require exact-head Ubuntu 24.04 and Windows 2025 CI including all prior tests, go mod tidy -diff and go vet.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -129,7 +130,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "c29931b9da9a5a797d33f01b5d9e452ffbdd06aa",
+  "repository_basis_commit": "e3dc003a3a8cf6af0134bcdb016b674d30d75e07",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1735,7 +1736,7 @@
     "dependency_added": false
   },
   "p0_23": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Implement provider-neutral RemoteHistory domain types and fake-adapter contract tests before adding a provider dependency.",
     "dependencies_added": 0,
     "package": "internal/remotehistory",
@@ -1778,6 +1779,28 @@
       "REMOVED does not imply physical deletion",
       "bootstrap COMPLETE requires non-empty cursor and CONTINUOUS coverage",
       "stable-for-resource-lifetime native ID becomes conclusive same only after CONTINUOUS coverage"
-    ]
+    ],
+    "qualification": {
+      "exact_head": "e3dc003a3a8cf6af0134bcdb016b674d30d75e07",
+      "ci_run_id": 36100390757,
+      "conclusion": "SUCCESS",
+      "jobs": {
+        "validate": "PASS",
+        "go (ubuntu-24.04)": "PASS",
+        "go (windows-2025)": "PASS"
+      },
+      "gates": [
+        "terminal-only durable cursor commit",
+        "interruption replay retains previous committed cursor",
+        "gap/invalid/scope/insufficient states do not advance cursor or coverage",
+        "stream mismatch fails closed",
+        "REMOVED remains removal-from-history/scope rather than invented physical deletion",
+        "COMPLETE bootstrap requires non-empty cursor + CONTINUOUS coverage",
+        "P0-21 stable-lifetime identity upgrades only under CONTINUOUS coverage",
+        "all prior tests",
+        "go mod tidy -diff",
+        "go vet"
+      ]
+    }
   }
 }
