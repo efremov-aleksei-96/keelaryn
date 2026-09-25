@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 30,
+  "revision": 31,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -57,11 +57,12 @@
     "P0_08_SQLITE_DURABLE_STATE_QUALIFIED",
     "P0_09_DURABLE_OBSERVATION_LOCATOR_IMPLEMENTED",
     "P0_09_DURABLE_OBSERVATION_LOCATOR_QUALIFIED",
-    "P0_10_SCAN_SESSION_INVENTORY_IMPLEMENTED"
+    "P0_10_SCAN_SESSION_INVENTORY_IMPLEMENTED",
+    "P0_10_SCHEMA_EXPECTATION_REGRESSION_FIXED"
   ],
   "next_objective": {
-    "id": "P0_10_QUALIFY_SCAN_SESSION_INVENTORY",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass schema v3 migration, OPEN/ABORTED non-authority, latest-COMPLETE replacement, empty-scan, stale-locator clearing, scan-scope, reopen durability, root-isolation, go mod tidy -diff and go vet. If green, qualify P0-10 and wire the localfs read-only Snapshot into an atomic scan ingestion happy path.",
+    "id": "P0_10_REQUALIFY_SCAN_SESSION_INVENTORY",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass the corrected exact v3 schema assertion plus all scan/session authority tests, go mod tidy -diff and go vet. If green, qualify P0-10 and wire localfs Snapshot into the durable complete-scan ingestion happy path.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -94,7 +95,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "fc18bf197a33aa5ea8db0c2ce28926211a377f32",
+  "repository_basis_commit": "a0ffc281596451fb2140eea0242212c09f1681d2",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -796,7 +797,7 @@
     }
   },
   "p0_10": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "TEST_BASELINE_FIXED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Add scan/session completeness so inventory and current locator derive only from a fully committed observation set.",
     "invariants": [
       "OPEN scan never changes authoritative inventory/current locator",
@@ -833,6 +834,13 @@
         "newer COMPLETE unresolved observation removes stale Artifact locator",
         "current locator is derived, never stored authority"
       ]
+    },
+    "first_ci": {
+      "exact_head": "a0ffc281596451fb2140eea0242212c09f1681d2",
+      "run_id": 36092529766,
+      "conclusion": "FAILURE",
+      "proven_defect": "Legacy schema regression assertion omitted the intentional v3 scan_sessions table.",
+      "architecture_failure": false
     }
   }
 }

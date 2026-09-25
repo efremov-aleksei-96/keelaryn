@@ -274,3 +274,15 @@ Rules:
 - `Inventory` and `CurrentArtifactLocators` are derived queries, not stored authority.
 
 Existing schema-v2 observations migrate with `scan_id=NULL`; they remain historical evidence and cannot accidentally become current inventory.
+
+
+### P0-10 first-CI correction
+
+Exact-head run `36092529766` reached the complete SQLite test suite. The only Ubuntu failure was the old schema inventory assertion: it still expected the qualified v2 five-table set and therefore rejected the intentionally added v3 `scan_sessions` table.
+
+No schema/runtime logic failed.
+
+Correction:
+- update the schema regression expectation to the exact v3 six-table set;
+- retain all scan/session implementation unchanged;
+- requalify on both Ubuntu and Windows 2025.
