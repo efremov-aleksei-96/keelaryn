@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 42,
+  "revision": 43,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -72,11 +72,12 @@
     "P0_13_CANDIDATE_SET_MODEL_IMPLEMENTED",
     "P0_13_CANDIDATE_SET_MODEL_QUALIFIED",
     "P0_13_LOCALFS_CANDIDATE_GENERATION_IMPLEMENTED",
-    "P0_13_LOCALFS_CANDIDATE_GENERATION_QUALIFIED"
+    "P0_13_LOCALFS_CANDIDATE_GENERATION_QUALIFIED",
+    "P0_14_SELECTIVE_CONTENT_ENRICHMENT_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_14_SELECTIVE_CONTENT_ENRICHMENT",
-    "description": "Implement explicit selective content enrichment for one regular-file OccurrenceCandidateSet. Use Snapshot.SampleObjectGroupContent to read current bytes once; for each existing candidate read only its latest Revision evidence; add CONTENT_EQUAL SUPPORTING evidence when algorithm/digest/size match; add no negative signal on mismatch/no Revision; resolve the enriched set through ResolveCandidateSet. Reject non-regular/mismatched locator sets and perform no persistence mutation. Prove no full-corpus hashing by API shape and tests.",
+    "id": "P0_14_QUALIFY_SELECTIVE_CONTENT_ENRICHMENT",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass content-equal supporting/AMBIGUOUS, content-mismatch no-negative-signal, no-Revision no-signal, zero-candidate no-read, locator-group validation, non-regular rejection, all P0-13 candidate tests, go mod tidy -diff and go vet. If green, qualify P0-14 and add explicit local native-identity enrichment only where both snapshots coexist in the same process, still SUPPORTING and non-persistent.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -109,7 +110,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "6ee5077e6217dfbc4c6e2fd696db1c05d90b75dc",
+  "repository_basis_commit": "0dfaf6c5ac62004bacac663f282b93798527ffd9",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1147,7 +1148,7 @@
     }
   },
   "p0_14": {
-    "status": "PLANNED",
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Add explicit per-occurrence content-evidence enrichment without eager corpus hashing or identity mutation.",
     "invariants": [
       "caller explicitly chooses one regular-file OccurrenceCandidateSet to enrich",
@@ -1159,6 +1160,25 @@
       "candidate with no Revision adds no content signal",
       "content evidence alone can never resolve Artifact identity",
       "enrichment never persists assignment or modifies Artifact/Revision state"
-    ]
+    ],
+    "implementation": {
+      "dependencies_added": 0,
+      "package": "internal/reconcile/localfs",
+      "api": "EnrichContent(ctx, RevisionReader, Snapshot, OccurrenceCandidateSet)",
+      "hashing": "explicit one-occurrence only",
+      "zero_candidate_behavior": "no filesystem read",
+      "current_sampling": "Snapshot.SampleObjectGroupContent exactly once",
+      "candidate_reads": "RevisionHistory only for already-discovered Artifact candidates",
+      "positive_signal": "CONTENT_EQUAL SUPPORTING on equal algorithm+digest+size",
+      "negative_signal": "NONE on content mismatch/no Revision",
+      "persistence_mutation": false,
+      "invariants": [
+        "content equality alone remains AMBIGUOUS",
+        "content mismatch never means CONFIRMED_DISTINCT",
+        "empty candidate set remains UNRESOLVED without hashing",
+        "non-regular or locator-set mismatch fails closed",
+        "enrichment returns copied inputs and does not mutate the base set"
+      ]
+    }
   }
 }

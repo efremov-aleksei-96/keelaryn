@@ -414,3 +414,24 @@ Consequences:
 - generation is deterministic by current first Locator, ArtifactID, and evidence source.
 
 No content hash or native identity comparison runs automatically. Optional enrichment remains explicit: callers retain `OccurrenceCandidateSet.Inputs`, append deliberately sampled DecisionEvidence, and invoke `ResolveCandidateSet` again.
+
+
+## P0-14 — selective content candidate enrichment
+
+**Decision:** reuse the already-qualified snapshot group sampler and durable Revision history; add no dependency and no eager hashing.
+
+API boundary:
+- input is exactly one already-generated `OccurrenceCandidateSet`;
+- zero candidates returns immediately and does not touch the filesystem;
+- only regular-file sets can be content-enriched;
+- the set Locators must exactly identify one current `localfs.ObjectGroup`;
+- current bytes are sampled once through `Snapshot.SampleObjectGroupContent`;
+- only the candidate Artifact IDs already present in the set are queried for Revision history.
+
+Signal policy:
+- latest candidate Revision with equal algorithm + digest + size adds one SUPPORTING `CONTENT_EQUAL` signal;
+- different content adds **no distinct signal** because content modification is allowed within the same Artifact;
+- candidate with no Revision adds no signal;
+- content equality cannot resolve identity by itself, because all generated content signals remain SUPPORTING.
+
+The function returns enriched inputs and a re-run `ResolveCandidateSet` result but performs no persistence mutation.
