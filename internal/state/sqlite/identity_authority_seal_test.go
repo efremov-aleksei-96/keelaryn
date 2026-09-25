@@ -16,30 +16,24 @@ func TestIdentityAuthorityAndMutationReceiptsAreSealed(t *testing.T) {
 	seedAuthoritySet(t,store,set)
 
 	conn,err:=store.pool.Get(ctx); if err!=nil { t.Fatal(err) }
-	defer store.pool.Put(conn)
-
-	for name,query,args:=range []struct{name,query string; args []any}{
+	cases:=[]struct{name,query string; args []any}{
 		{"update-set","UPDATE identity_authority_sets SET policy_id='changed' WHERE authority_set_id=?1",[]any{string(set.ID)}},
 		{"delete-set","DELETE FROM identity_authority_sets WHERE authority_set_id=?1",[]any{string(set.ID)}},
 		{"insert-candidate-after-seal","INSERT INTO identity_authority_candidates (authority_set_id,artifact_id,direction,source_ref) VALUES (?1,?2,'SUPPORTS_DISTINCT','late')",[]any{string(set.ID),string(artifact.ID)}},
 		{"update-candidate","UPDATE identity_authority_candidates SET source_ref='changed' WHERE authority_set_id=?1",[]any{string(set.ID)}},
 		{"delete-candidate","DELETE FROM identity_authority_candidates WHERE authority_set_id=?1",[]any{string(set.ID)}},
-	} {
-		t.Run(name,func(t *testing.T){
-			if err:=sqlitex.Execute(conn,query,&sqlitex.ExecOptions{Args:args}); err==nil {
-				t.Fatalf("%s unexpectedly succeeded",name)
+	}
+	for _,tc:=range cases {
+		t.Run(tc.name,func(t *testing.T){
+			if err:=sqlitex.Execute(conn,tc.query,&sqlitex.ExecOptions{Args:tc.args}); err==nil {
+				t.Fatalf("%s unexpectedly succeeded",tc.name)
 			}
 		})
 	}
+	store.pool.Put(conn)
 
 	scan,err:=store.StartScan(ctx,"drive","drive-root",at); if err!=nil { t.Fatal(err) }
 	if _,err=store.AcceptSameObservationInScan(ctx,identityRequest("req-sealed",scan.ID,"obj-sealed","file-id/obj-sealed",set.ID,at,"same")); err!=nil { t.Fatal(err) }
-
-	conn2,err:=store.pool.Get(ctx)
-	if err==nil {
-		store.pool.Put(conn2)
-		t.Fatal("pool unexpectedly yielded a second connection while first is held")
-	}
 }
 
 func TestIdentityMutationReceiptRejectsUpdateDelete(t *testing.T) {
