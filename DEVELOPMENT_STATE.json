@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 33,
+  "revision": 34,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -60,11 +60,12 @@
     "P0_10_SCAN_SESSION_INVENTORY_IMPLEMENTED",
     "P0_10_SCHEMA_EXPECTATION_REGRESSION_FIXED",
     "P0_10_SCAN_SESSION_INVENTORY_QUALIFIED",
-    "P0_11_LOCALFS_COMPLETE_SCAN_INGEST_IMPLEMENTED"
+    "P0_11_LOCALFS_COMPLETE_SCAN_INGEST_IMPLEMENTED",
+    "P0_11_LOCALFS_COMPLETE_SCAN_INGEST_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_11_QUALIFY_LOCALFS_COMPLETE_SCAN_INGEST",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass end-to-end localfs→scan→inventory tests: deterministic inventory, hard-link grouping, identical-copy separation, symlink non-following, empty-root replacement, discovery-failure non-mutation, injected persistence failure→ABORTED with prior authority retained, reopen durability, go mod tidy -diff and go vet. If green, qualify P0-11 and add first-observation Artifact adoption plus content Revision creation without weakening continuity rules.",
+    "id": "P0_12_FIRST_OBSERVATION_ADOPTION",
+    "description": "Extend localfs ingestion for an explicitly empty prior authority: adopt one new Artifact per first-seen occurrence; for regular files, read fresh handle-bound SHA-256 evidence and create Revision 1; persist assigned observations only when the fresh sample still matches the snapshot occurrence within the same bounded ingestion. On any mismatch/uncertainty, preserve the occurrence as unresolved or abort rather than guess. On later scans with prior COMPLETE authority, do not auto-reuse Artifacts yet; keep observations unresolved until continuity is conclusively resolved.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -97,7 +98,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "70317618363dc52098ee17b65a7c1535b35dd38e",
+  "repository_basis_commit": "d0057a004c01a36740b57f3cf75dee9e45e116b8",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -868,7 +869,7 @@
     }
   },
   "p0_11": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Wire a real localfs read-only Snapshot into durable complete-scan ingestion without adding identity guesses.",
     "invariants": [
       "filesystem discovery completes before a new scan can become authoritative",
@@ -903,6 +904,40 @@
         "empty root can publish empty inventory",
         "reopen preserves published inventory"
       ]
+    },
+    "qualification": {
+      "exact_head": "d0057a004c01a36740b57f3cf75dee9e45e116b8",
+      "ci_run_id": 36092968138,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "gates": [
+        "localfs Snapshot→durable COMPLETE scan→inventory",
+        "hard-link one occurrence/multiple locators",
+        "identical independent files stay distinct",
+        "symlink non-following",
+        "empty-root replacement",
+        "discovery failure creates no authority",
+        "injected persistence failure aborts scan and preserves prior authority",
+        "reopen durability",
+        "go mod tidy -diff",
+        "go vet"
+      ]
     }
+  },
+  "p0_12": {
+    "status": "PLANNED",
+    "objective": "Create durable Artifact and Revision identity on first observation only, while refusing to infer continuity on later scans without conclusive evidence.",
+    "invariants": [
+      "first-seen provider-object occurrence with no continuity candidate may create a new Artifact",
+      "regular first-seen file gets content Revision from fresh handle-bound evidence",
+      "content hash is Revision evidence only",
+      "repeat scan must not auto-reuse prior Artifact from path, hash, or supporting native identity",
+      "hard links in one snapshot share the one newly adopted Artifact/Revision",
+      "symlink/other may receive Artifact identity but no content Revision in this slice",
+      "if content sampling changes/replaces object after discovery, scan must not publish a false assignment"
+    ]
   }
 }
