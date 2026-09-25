@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 31,
+  "revision": 32,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -58,11 +58,12 @@
     "P0_09_DURABLE_OBSERVATION_LOCATOR_IMPLEMENTED",
     "P0_09_DURABLE_OBSERVATION_LOCATOR_QUALIFIED",
     "P0_10_SCAN_SESSION_INVENTORY_IMPLEMENTED",
-    "P0_10_SCHEMA_EXPECTATION_REGRESSION_FIXED"
+    "P0_10_SCHEMA_EXPECTATION_REGRESSION_FIXED",
+    "P0_10_SCAN_SESSION_INVENTORY_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_10_REQUALIFY_SCAN_SESSION_INVENTORY",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass the corrected exact v3 schema assertion plus all scan/session authority tests, go mod tidy -diff and go vet. If green, qualify P0-10 and wire localfs Snapshot into the durable complete-scan ingestion happy path.",
+    "id": "P0_11_LOCALFS_COMPLETE_SCAN_INGEST",
+    "description": "Implement a small localfs ingestion service that snapshots the filesystem read-only, converts regular-file ObjectGroups plus non-regular observations into deterministic unresolved ObservationRecordInput values, opens one scan for the snapshot scope, records them, then completes the scan. On any persistence error, abort the OPEN scan best-effort and leave prior COMPLETE inventory authoritative. Prove hard-link grouping, identical-copy separation, symlink non-following, empty-root replacement, and reopen durability on Ubuntu and Windows.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -95,7 +96,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "a0ffc281596451fb2140eea0242212c09f1681d2",
+  "repository_basis_commit": "36a82ffb9c5bc1fad44bc1acf193bdc0ea5dbc3b",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -797,7 +798,7 @@
     }
   },
   "p0_10": {
-    "status": "TEST_BASELINE_FIXED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "QUALIFIED",
     "objective": "Add scan/session completeness so inventory and current locator derive only from a fully committed observation set.",
     "invariants": [
       "OPEN scan never changes authoritative inventory/current locator",
@@ -841,6 +842,42 @@
       "conclusion": "FAILURE",
       "proven_defect": "Legacy schema regression assertion omitted the intentional v3 scan_sessions table.",
       "architecture_failure": false
+    },
+    "qualification": {
+      "exact_head": "36a82ffb9c5bc1fad44bc1acf193bdc0ea5dbc3b",
+      "ci_run_id": 36092660059,
+      "conclusion": "SUCCESS",
+      "platforms": {
+        "ubuntu-24.04": "PASS",
+        "windows-2025": "PASS"
+      },
+      "gates": [
+        "exact v3 schema set",
+        "OPEN scan non-authority",
+        "ABORTED scan non-authority",
+        "latest COMPLETE replacement",
+        "empty COMPLETE scan empties inventory",
+        "new unresolved COMPLETE clears stale Artifact locator",
+        "provider/root scope enforcement",
+        "reopen durability",
+        "independent roots",
+        "go mod tidy -diff",
+        "go vet"
+      ]
     }
+  },
+  "p0_11": {
+    "status": "PLANNED",
+    "objective": "Wire a real localfs read-only Snapshot into durable complete-scan ingestion without adding identity guesses.",
+    "invariants": [
+      "filesystem discovery completes before a new scan can become authoritative",
+      "regular-file hard links become one occurrence with multiple locators",
+      "independent byte-identical files remain separate occurrences",
+      "symlinks remain separate unresolved observations and are not followed",
+      "all first-pass observations remain UNRESOLVED; no Artifact or Revision is invented",
+      "scan authority is published only by final CompleteScan",
+      "an ingestion error must not replace the last COMPLETE inventory",
+      "empty local root can publish an empty COMPLETE inventory"
+    ]
   }
 }
