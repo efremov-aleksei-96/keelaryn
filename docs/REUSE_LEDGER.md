@@ -286,3 +286,24 @@ Correction:
 - update the schema regression expectation to the exact v3 six-table set;
 - retain all scan/session implementation unchanged;
 - requalify on both Ubuntu and Windows 2025.
+
+
+## P0-11 — localfs complete-scan ingestion
+
+**Decision:** compose the already-qualified localfs Snapshot and scan-state APIs through a tiny `ScanStore` interface; add no dependency.
+
+Pipeline:
+`localfs Snapshot (read-only) → deterministic occurrence grouping → unresolved durable observations → COMPLETE scan → derived inventory`.
+
+Safety:
+- filesystem discovery finishes before any new scan is opened;
+- regular-file `ObjectGroups` preserve hard-link multiplicity as one occurrence with multiple Locators;
+- independent files with identical bytes remain separate occurrences;
+- symlinks/non-regular entries remain single unresolved occurrences and are never followed;
+- ingestion never allocates Artifact or Revision identity;
+- scan publication happens only after every observation write succeeds;
+- any persistence error after scan start triggers best-effort `ABORTED`; previous COMPLETE inventory stays authoritative;
+- discovery failure happens before `StartScan`, so it cannot create partial authority;
+- empty snapshots are valid and can publish empty inventory.
+
+The orchestration depends only on `ScanStore`, not SQLite, preserving the ability to change the control-state adapter later without changing provider semantics.

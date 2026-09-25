@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 32,
+  "revision": 33,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -59,11 +59,12 @@
     "P0_09_DURABLE_OBSERVATION_LOCATOR_QUALIFIED",
     "P0_10_SCAN_SESSION_INVENTORY_IMPLEMENTED",
     "P0_10_SCHEMA_EXPECTATION_REGRESSION_FIXED",
-    "P0_10_SCAN_SESSION_INVENTORY_QUALIFIED"
+    "P0_10_SCAN_SESSION_INVENTORY_QUALIFIED",
+    "P0_11_LOCALFS_COMPLETE_SCAN_INGEST_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_11_LOCALFS_COMPLETE_SCAN_INGEST",
-    "description": "Implement a small localfs ingestion service that snapshots the filesystem read-only, converts regular-file ObjectGroups plus non-regular observations into deterministic unresolved ObservationRecordInput values, opens one scan for the snapshot scope, records them, then completes the scan. On any persistence error, abort the OPEN scan best-effort and leave prior COMPLETE inventory authoritative. Prove hard-link grouping, identical-copy separation, symlink non-following, empty-root replacement, and reopen durability on Ubuntu and Windows.",
+    "id": "P0_11_QUALIFY_LOCALFS_COMPLETE_SCAN_INGEST",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass end-to-end localfs→scan→inventory tests: deterministic inventory, hard-link grouping, identical-copy separation, symlink non-following, empty-root replacement, discovery-failure non-mutation, injected persistence failure→ABORTED with prior authority retained, reopen durability, go mod tidy -diff and go vet. If green, qualify P0-11 and add first-observation Artifact adoption plus content Revision creation without weakening continuity rules.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -96,7 +97,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "36a82ffb9c5bc1fad44bc1acf193bdc0ea5dbc3b",
+  "repository_basis_commit": "70317618363dc52098ee17b65a7c1535b35dd38e",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -867,7 +868,7 @@
     }
   },
   "p0_11": {
-    "status": "PLANNED",
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Wire a real localfs read-only Snapshot into durable complete-scan ingestion without adding identity guesses.",
     "invariants": [
       "filesystem discovery completes before a new scan can become authoritative",
@@ -878,6 +879,30 @@
       "scan authority is published only by final CompleteScan",
       "an ingestion error must not replace the last COMPLETE inventory",
       "empty local root can publish an empty COMPLETE inventory"
-    ]
+    ],
+    "implementation": {
+      "dependencies_added": 0,
+      "orchestration_package": "internal/ingest",
+      "storage_contract": "ScanStore interface",
+      "pipeline": [
+        "read-only localfs Snapshot",
+        "deterministic provider-object grouping",
+        "unresolved ObservationRecordInput conversion",
+        "OPEN durable scan",
+        "persist all observations",
+        "COMPLETE scan publication"
+      ],
+      "guarantees": [
+        "discovery failure creates no scan",
+        "hard links are one occurrence with multiple locators",
+        "identical independent files remain separate occurrences",
+        "symlinks are not followed",
+        "ingest invents no Artifact/Revision",
+        "persistence failure aborts scan best-effort",
+        "failed/aborted ingest does not replace previous COMPLETE authority",
+        "empty root can publish empty inventory",
+        "reopen preserves published inventory"
+      ]
+    }
   }
 }

@@ -41,6 +41,8 @@ func (p *Provider) Discover(ctx context.Context, root string) ([]corpus.Observat
 // identity evidence. The evidence is deliberately not serialized or promoted
 // to a durable ProviderObjectID in this spike.
 type Snapshot struct {
+	providerID   corpus.ProviderID
+	root         string
 	observations []corpus.Observation
 	identityInfo map[string]os.FileInfo
 }
@@ -49,6 +51,14 @@ func (s *Snapshot) Observations() []corpus.Observation {
 	out := make([]corpus.Observation, len(s.observations))
 	copy(out, s.observations)
 	return out
+}
+
+func (s *Snapshot) ProviderID() corpus.ProviderID {
+	return s.providerID
+}
+
+func (s *Snapshot) Root() string {
+	return s.root
 }
 
 
@@ -204,6 +214,8 @@ func (p *Provider) Snapshot(ctx context.Context, root string) (*Snapshot, error)
 	}
 
 	snapshot := &Snapshot{
+		providerID:   p.id,
+		root:         absRoot,
 		observations: make([]corpus.Observation, 0),
 		identityInfo: make(map[string]os.FileInfo),
 	}
