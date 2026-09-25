@@ -156,6 +156,12 @@ func TestMissingReferencedRevisionFailsClosed(t *testing.T) {
 	}
 }
 
+type emptyRevisionReader struct{}
+
+func (emptyRevisionReader) RevisionHistory(context.Context, corpus.ArtifactID) ([]corpus.RevisionRecord, error) {
+	return nil, nil
+}
+
 func bootstrapOne(t *testing.T, root, path string) (*sqlitestate.Store, *providerlocalfs.Provider, corpus.InventoryEntry) {
 	t.Helper()
 	ctx := context.Background()

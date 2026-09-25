@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 49,
+  "revision": 50,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -79,11 +79,12 @@
     "P0_15_TEST_ERRORS_IMPORT_FIXED",
     "P0_15_IN_PROCESS_NATIVE_CANDIDATE_DISCOVERY_QUALIFIED",
     "P0_16_EXTRACTION_CONTEXT_REUSE_RESEARCH_COMPLETE",
-    "P0_17_REVISION_BOUND_TEXT_EXTRACTION_IMPLEMENTED"
+    "P0_17_REVISION_BOUND_TEXT_EXTRACTION_IMPLEMENTED",
+    "P0_17_TEST_REVISION_READER_STUB_FIXED"
   ],
   "next_objective": {
-    "id": "P0_17_QUALIFY_REVISION_BOUND_TEXT_EXTRACTION",
-    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass exact-provenance text/Markdown extraction, unsupported no-read, opaque non-UTF8, stale-revision, limit-exceeded, unassigned rejection, missing-revision fail-closed, bounded content-reader regressions, all prior tests, go mod tidy -diff and go vet. If green, qualify P0-17 and implement a minimal task-specific ContextBundle builder over explicitly selected current assigned inventory entries, using extraction results and strict provenance/character budget without persistence.",
+    "id": "P0_17_REQUALIFY_REVISION_BOUND_TEXT_EXTRACTION",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI on the corrected test-stub head to pass exact-provenance text/Markdown extraction, unsupported no-read, opaque non-UTF8, stale-revision, limit-exceeded, unassigned rejection, missing-revision fail-closed, bounded content-reader regressions, all prior tests, go mod tidy -diff and go vet. If green, qualify P0-17 and implement minimal explicit-selection ContextBundle.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -116,7 +117,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "94a842e8ed34ecb5ec8f969a3249520e0d9a69c4",
+  "repository_basis_commit": "3f42384b25cfd9156b52a395bb6406d434e4edfe",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1340,7 +1341,7 @@
     ]
   },
   "p0_17": {
-    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "COMPILE_FIX_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Implement the first on-demand, derived, revision-bound text extraction result.",
     "implementation": {
       "dependencies_added": 0,
@@ -1374,6 +1375,13 @@
         "unsupported extension does not read file",
         "derived extraction does not mutate durable state"
       ]
+    },
+    "first_ci": {
+      "exact_head": "3f42384b25cfd9156b52a395bb6406d434e4edfe",
+      "run_id": 36097049295,
+      "conclusion": "FAILURE",
+      "proven_defect": "extract/localfs test referenced an emptyRevisionReader test stub defined in another package directory",
+      "architecture_failure": false
     }
   }
 }
