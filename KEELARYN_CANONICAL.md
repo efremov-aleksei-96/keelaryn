@@ -593,7 +593,7 @@ Semantic inference remains separate from physical identity.
 
 The same Core/data model supports multiple deployment choices.
 
-### 15.1 Portable/Desktop — default ordinary-user path
+### 15.1 Portable/Desktop/Mobile — default ordinary-user path
 
 ```text
 download/install
@@ -603,6 +603,14 @@ download/install
 ```
 
 No VPS, Docker or external database required.
+
+Android and Windows are first-class product execution targets. Linux is a first-class server/CI target and may also run the same Core directly.
+
+The Core MUST remain operating-system-neutral. Platform-specific filesystem, permission, lifecycle, notification and integration behavior belongs behind adapters rather than leaking into Artifact/ProviderObject/Revision/Observation semantics.
+
+On Android, direct local corpus operation is a product requirement, not merely a thin client to a mandatory VPS. Android storage capabilities such as SAF/DocumentProvider should be represented through provider/locator adapters; document/content URIs MUST NOT become Artifact identity.
+
+VPS/hosted execution may provide always-on assistance, but baseline local corpus operation MUST remain architecturally possible without it.
 
 ### 15.2 Local server / NAS
 

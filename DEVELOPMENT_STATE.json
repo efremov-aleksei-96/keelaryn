@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 64,
+  "revision": 65,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -94,11 +94,13 @@
     "P0_22_REMOTE_HISTORY_REUSE_RESEARCH_COMPLETE",
     "P0_23_REMOTE_HISTORY_CONTRACT_MODEL_IMPLEMENTED",
     "P0_23_REMOTE_HISTORY_CONTRACT_QUALIFIED",
-    "P0_24A_DRIVE_HISTORY_SEMANTICS_IMPLEMENTED"
+    "P0_24A_DRIVE_HISTORY_SEMANTICS_IMPLEMENTED",
+    "P0_24A_DRIVE_HISTORY_SEMANTICS_QUALIFIED",
+    "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_24A_QUALIFY_DRIVE_HISTORY_SEMANTICS",
-    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI for the dependency-free Google Drive RemoteHistory semantic adapter and fake-client suite. If green, qualify P0-24A and add the thin official google.golang.org/api/drive/v3 client binding as P0-24B, then regenerate the dependency lock deterministically before any live OAuth integration.",
+    "id": "P0_24B_QUALIFY_OFFICIAL_DRIVE_CLIENT_BINDING",
+    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI for the official google.golang.org/api/drive/v3 binding, generated dependency lock, deterministic HTTP binding tests, all prior tests, go mod tidy -diff and go vet. Do not start live OAuth or mutate Google Drive in this qualification.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -131,7 +133,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "5c6ae64a15f320c220d80090d0abdd4d7dcd239e",
+  "repository_basis_commit": "2b1ce1a46a8c553aa630e505fabc3b85091ced11",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1805,10 +1807,10 @@
     }
   },
   "p0_24": {
-    "status": "SEMANTIC_ADAPTER_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "OFFICIAL_CLIENT_BINDING_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Implement Google Drive-specific RemoteHistory semantics behind a narrow client interface before binding the official SDK or live OAuth.",
     "package": "internal/remotehistory/gdrive",
-    "dependencies_added": 0,
+    "dependencies_added": 1,
     "live_oauth_used": false,
     "corpus_mutations": 0,
     "streams": {
@@ -1828,8 +1830,104 @@
     ],
     "validation": {
       "local_compile_harness": "PASS_GO1_23_SYNTAX_AND_TESTS_WITH_EXACT_CONTRACT_STUBS",
-      "official_ci": "PENDING"
+      "official_ci": "P0_24A_PASS_RUN_36102156496"
     },
-    "next_layer": "P0-24B official google.golang.org/api/drive/v3 binding; no live OAuth yet"
+    "next_layer": "P0-24B exact-head Ubuntu+Windows qualification; live OAuth remains deferred.",
+    "semantic_adapter_qualification": {
+      "exact_head": "2b1ce1a46a8c553aa630e505fabc3b85091ced11",
+      "ci_run_id": 36102156496,
+      "conclusion": "SUCCESS",
+      "jobs": {
+        "validate": "PASS",
+        "go (ubuntu-24.04)": "PASS",
+        "go (windows-2025)": "PASS"
+      },
+      "gates": [
+        "all Drive semantic fake-client tests",
+        "fence -> enumerate -> catch-up bootstrap",
+        "terminal-only durable cursor",
+        "scope mismatch fail-closed",
+        "REMOVED/trashed not physical deletion",
+        "shortcut resource keeps its own Drive fileId",
+        "all prior tests",
+        "go mod tidy -diff",
+        "go vet"
+      ]
+    },
+    "official_client_binding": {
+      "module": "google.golang.org/api",
+      "package": "google.golang.org/api/drive/v3",
+      "version": "v0.299.0",
+      "license": "BSD-3-Clause",
+      "file": "internal/remotehistory/gdrive/google_client.go",
+      "service_construction": "OUTSIDE_REMOTEHISTORY_ADAPTER",
+      "oauth": "NOT_USED",
+      "live_drive": "NOT_USED",
+      "corpus_mutations": 0,
+      "my_drive_parameters": [
+        "corpora=user for files.list",
+        "includeItemsFromAllDrives=false",
+        "restrictToMyDrive=true for changes.list",
+        "includeRemoved=true",
+        "spaces=drive"
+      ],
+      "shared_drive_parameters": [
+        "driveId=<exact stream drive>",
+        "corpora=drive for files.list",
+        "includeItemsFromAllDrives=true",
+        "supportsAllDrives=true",
+        "includeRemoved=true",
+        "spaces=drive"
+      ],
+      "requested_file_fields": [
+        "id",
+        "parents",
+        "driveId",
+        "trashed",
+        "shortcutDetails(targetId)"
+      ],
+      "deterministic_http_tests": [
+        "shared-drive query binding",
+        "My Drive query binding",
+        "start-page-token binding",
+        "pagination token binding",
+        "shortcut target metadata mapping without identity substitution",
+        "nil service rejection"
+      ],
+      "disposable_verification": {
+        "gateway_job_id": "job_01M3BKZN2X9ZQMGT1HCWHRNXV4",
+        "base_head": "2b1ce1a46a8c553aa630e505fabc3b85091ced11",
+        "go_version": "go1.27.1 linux/amd64",
+        "go_archive_sha256": "63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445",
+        "go_archive_checksum": "PASS",
+        "go_mod_tidy": "PASS",
+        "go_test_all": "PASS",
+        "go_vet_all": "PASS",
+        "workspace": "TEMPORARY_CLEANED_BY_TRAP"
+      },
+      "dependency_lock": "GENERATED_BY_GO1_27_1_TIDY_NOT_HAND_AUTHORED"
+    }
+  },
+  "platform_targets": {
+    "policy": "CORE_PLATFORM_NEUTRAL",
+    "first_class_product_targets": [
+      "android",
+      "windows"
+    ],
+    "server_ci_targets": [
+      "linux"
+    ],
+    "rules": [
+      "Core identity/revision/transaction/semantic logic must not depend on one operating system.",
+      "Windows-specific, Android-specific and Linux-specific filesystem/runtime behavior belongs behind adapters.",
+      "Android is a direct execution target, not merely a thin client to a mandatory VPS.",
+      "Android local corpus access should use an Android storage/provider adapter such as SAF/DocumentProvider rather than leaking URI semantics into Core.",
+      "Hosted/VPS operation may assist but must not be mandatory for baseline local corpus operation."
+    ],
+    "current_ci": [
+      "ubuntu-24.04",
+      "windows-2025"
+    ],
+    "android_ci_status": "PLANNED_NOT_YET_QUALIFIED"
   }
 }
