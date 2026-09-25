@@ -729,3 +729,28 @@ The contract is intentionally not Drive-shaped:
 - Dropbox exposes list-folder cursors/continue semantics and deletion entries; rclone internally consumes these but public ChangeNotify hides the cursor/details.
 
 Therefore Google is the first adapter, not the Core architecture.
+
+
+## P0-23 — provider-neutral RemoteHistory contract model
+
+Implemented with **zero new dependencies** in `internal/remotehistory`.
+
+Domain model:
+- `HistoryStreamID`: durable identity of one provider history stream;
+- `HistoryCursor`: opaque durable committed cursor;
+- `ContinuationToken`: transient pagination token, never durable continuity authority;
+- `RemoteObjectState`: current provider-object state keyed by native object ID;
+- `RemoteChange`: `UPSERT` or `REMOVED`;
+- explicit page failures: `GAP`, `INVALID_CURSOR`, `SCOPE_MISMATCH`, `INSUFFICIENT_HISTORY`;
+- cycle states include `INTERRUPTED`.
+
+Core invariant:
+- every page in one cycle is read from the **same previous committed cursor**;
+- only a terminal page may supply `NextCursor`;
+- only a valid terminal cycle produces `ProviderHistoryContinuous`;
+- intermediate continuation tokens can never become committed coverage;
+- transport interruption or provider gap leaves `NextCursor = PreviousCursor` and coverage `UNKNOWN`.
+
+Removal remains `REMOVED` from the history/scope. The Core does not infer physical deletion.
+
+The fake-adapter contract suite explicitly couples the resulting coverage to the already-qualified P0-21 `GoogleDriveFileIDContract`: equal stable-lifetime IDs become conclusive only after a terminal CONTINUOUS cycle.

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 61,
+  "revision": 62,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -91,11 +91,12 @@
     "P0_20_ACCEPT_RESOLVED_CONTINUITY_TRANSACTION_QUALIFIED",
     "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_IMPLEMENTED",
     "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_QUALIFIED",
-    "P0_22_REMOTE_HISTORY_REUSE_RESEARCH_COMPLETE"
+    "P0_22_REMOTE_HISTORY_REUSE_RESEARCH_COMPLETE",
+    "P0_23_REMOTE_HISTORY_CONTRACT_MODEL_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_23_REMOTE_HISTORY_CONTRACT_MODEL",
-    "description": "Implement provider-neutral RemoteHistory domain types and a fake-adapter contract test harness with zero external dependencies. Model HistoryStreamID, opaque HistoryCursor, RemoteObjectState, RemoteChange UPSERT/REMOVED, bootstrap result, terminal cursor advancement, explicit GAP/INVALID/SCOPE_MISMATCH states, and replay from the previous committed cursor. Prove that intermediate continuation never becomes committed coverage and that stable-lifetime native ID can become conclusive only when the resulting coverage is CONTINUOUS. Do not add the Google API dependency until this contract is qualified.",
+    "id": "P0_23_QUALIFY_REMOTE_HISTORY_CONTRACT",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass terminal-only cursor commit, interruption replay, gap/invalid/scope/insufficient no-advance, stream mismatch fail-closed, removal semantics, bootstrap validation, and P0-21 stable-lifetime ID upgrade only under CONTINUOUS coverage, plus all prior tests, go mod tidy -diff and go vet. If green, qualify P0-23 and implement the first Google Drive read-only history adapter against the official Go client with no corpus mutations.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -128,7 +129,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "ad22cd7a3e35f5848525ee809b0d7ec82645feb9",
+  "repository_basis_commit": "c29931b9da9a5a797d33f01b5d9e452ffbdd06aa",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1732,5 +1733,51 @@
       "Dropbox list-folder cursor/continue/deleted entry semantics"
     ],
     "dependency_added": false
+  },
+  "p0_23": {
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "objective": "Implement provider-neutral RemoteHistory domain types and fake-adapter contract tests before adding a provider dependency.",
+    "dependencies_added": 0,
+    "package": "internal/remotehistory",
+    "model": {
+      "durable": [
+        "HistoryStreamID",
+        "HistoryCursor"
+      ],
+      "transient": [
+        "ContinuationToken"
+      ],
+      "changes": [
+        "UPSERT",
+        "REMOVED"
+      ],
+      "page_states": [
+        "MORE",
+        "TERMINAL",
+        "GAP",
+        "INVALID_CURSOR",
+        "SCOPE_MISMATCH",
+        "INSUFFICIENT_HISTORY"
+      ],
+      "cycle_states": [
+        "COMPLETE",
+        "GAP",
+        "INVALID_CURSOR",
+        "SCOPE_MISMATCH",
+        "INSUFFICIENT_HISTORY",
+        "INTERRUPTED"
+      ]
+    },
+    "invariants": [
+      "all pages in a change cycle are read against the same previous committed cursor",
+      "MORE may carry continuation but never durable NextCursor",
+      "TERMINAL carries NextCursor and yields CONTINUOUS coverage",
+      "gap/invalid/scope/insufficient pages carry no changes or cursor advancement",
+      "interruption retains previous committed cursor and UNKNOWN coverage",
+      "stream mismatch fails closed",
+      "REMOVED does not imply physical deletion",
+      "bootstrap COMPLETE requires non-empty cursor and CONTINUOUS coverage",
+      "stable-for-resource-lifetime native ID becomes conclusive same only after CONTINUOUS coverage"
+    ]
   }
 }
