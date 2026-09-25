@@ -6,7 +6,10 @@ import (
 	"sort"
 )
 
-var ErrInvalidArtifactCandidate = errors.New("invalid Artifact candidate")
+var (
+	ErrInvalidArtifactCandidate = errors.New("invalid Artifact candidate")
+	ErrInvalidCandidateSetResolution = errors.New("invalid candidate-set resolution")
+)
 
 // ReconciliationSignalKind is a normalized, provider-neutral hint used during
 // candidate reconciliation. These signals are deliberately SUPPORTING only.
@@ -127,4 +130,53 @@ func ResolveCandidateSet(inputs []ArtifactCandidateInput) (CandidateSetResolutio
 		out.State = CandidateSetAmbiguous
 	}
 	return out, nil
+}
+
+
+// ValidateCandidateSetResolution proves that a serialized/provided resolution
+// is exactly reproducible from the evidence it carries. This prevents callers
+// from fabricating RESOLVED_SAME by changing only the selected Artifact/state.
+func ValidateCandidateSetResolution(resolution CandidateSetResolution) error {
+	inputs := make([]ArtifactCandidateInput, len(resolution.Candidates))
+	for i, candidate := range resolution.Candidates {
+		if candidate.ArtifactID == "" {
+			return fmt.Errorf("%w: candidate %d has empty ArtifactID", ErrInvalidCandidateSetResolution, i)
+		}
+		inputs[i] = ArtifactCandidateInput{
+			ArtifactID: candidate.ArtifactID,
+			Evidence:   append([]DecisionEvidence(nil), candidate.Decision.Evidence...),
+		}
+	}
+
+	recomputed, err := ResolveCandidateSet(inputs)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidCandidateSetResolution, err)
+	}
+	if resolution.State != recomputed.State ||
+		resolution.SelectedArtifactID != recomputed.SelectedArtifactID ||
+		len(resolution.Candidates) != len(recomputed.Candidates) {
+		return ErrInvalidCandidateSetResolution
+	}
+	for i := range resolution.Candidates {
+		got := resolution.Candidates[i]
+		want := recomputed.Candidates[i]
+		if got.ArtifactID != want.ArtifactID ||
+			got.Decision.State != want.Decision.State ||
+			!sameDecisionEvidence(got.Decision.Evidence, want.Decision.Evidence) {
+			return fmt.Errorf("%w: candidate %d does not reproduce", ErrInvalidCandidateSetResolution, i)
+		}
+	}
+	return nil
+}
+
+func sameDecisionEvidence(a, b []DecisionEvidence) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

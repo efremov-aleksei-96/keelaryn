@@ -591,3 +591,35 @@ Other confirmed canonical gaps remain:
 - one remote/rclone-backed provider spike;
 - web status spike;
 - a conclusive continuity evidence source sufficient to prove unchanged/move/modify end-to-end.
+
+
+## P0-20 — atomic acceptance of resolved continuity
+
+**Decision:** reuse the existing SQLite IMMEDIATE transaction, candidate-set resolver and Revision rules. Add no dependency.
+
+Durable schema v4 adds one non-rebuildable provenance table:
+`accepted_continuity_decisions`.
+
+Each accepted row binds:
+- decision ID;
+- resulting Observation;
+- selected Artifact;
+- exact `RESOLVED_SAME` state;
+- policy ID;
+- full serialized candidate-set resolution including every candidate's evidence;
+- decision timestamp.
+
+Before mutation, `ValidateCandidateSetResolution` recomputes the candidate set from the evidence embedded in the supplied resolution and requires an exact match. A caller therefore cannot fabricate continuity by changing only `State` or `SelectedArtifactID`.
+
+Atomic acceptance:
+1. input Observation must still be UNRESOLVED;
+2. resolution must self-validate and be uniquely `RESOLVED_SAME`;
+3. scan must be OPEN and provider/root scope must match;
+4. selected Artifact must already exist;
+5. regular content evidence must be valid and size-consistent;
+6. unchanged evidence reuses current Revision; changed evidence creates next Revision of the same Artifact;
+7. assigned Observation is written;
+8. accepted continuity provenance is written;
+9. one SQLite transaction commits all of the above.
+
+AMBIGUOUS/UNRESOLVED, missing Artifact, scan-scope error, algorithm mismatch, invalid evidence or forged resolution fail without durable identity mutation.

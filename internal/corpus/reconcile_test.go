@@ -268,3 +268,58 @@ func TestReconciliationSignalsAreAlwaysSupporting(t *testing.T) {
 		}
 	}
 }
+
+
+func TestValidateCandidateSetResolutionAcceptsResolverOutput(t *testing.T) {
+	got, err := corpus.ResolveCandidateSet([]corpus.ArtifactCandidateInput{{
+		ArtifactID: "art_a",
+		Evidence: []corpus.DecisionEvidence{{
+			Source: "trusted:test",
+			Direction: corpus.DirectionSupportsSame,
+			Strength: corpus.EvidenceConclusive,
+		}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := corpus.ValidateCandidateSetResolution(got); err != nil {
+		t.Fatalf("valid resolver output rejected: %v", err)
+	}
+}
+
+func TestValidateCandidateSetResolutionRejectsForgedSelectedArtifact(t *testing.T) {
+	got, err := corpus.ResolveCandidateSet([]corpus.ArtifactCandidateInput{{
+		ArtifactID: "art_a",
+		Evidence: []corpus.DecisionEvidence{{
+			Source: "trusted:test",
+			Direction: corpus.DirectionSupportsSame,
+			Strength: corpus.EvidenceConclusive,
+		}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got.SelectedArtifactID = "art_forged"
+	if !errors.Is(corpus.ValidateCandidateSetResolution(got), corpus.ErrInvalidCandidateSetResolution) {
+		t.Fatalf("forged selected Artifact accepted: %#v", got)
+	}
+}
+
+func TestValidateCandidateSetResolutionRejectsForgedDecisionState(t *testing.T) {
+	got, err := corpus.ResolveCandidateSet([]corpus.ArtifactCandidateInput{{
+		ArtifactID: "art_a",
+		Evidence: []corpus.DecisionEvidence{{
+			Source: "supporting",
+			Direction: corpus.DirectionSupportsSame,
+			Strength: corpus.EvidenceSupporting,
+		}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got.State = corpus.CandidateSetResolvedSame
+	got.SelectedArtifactID = "art_a"
+	if !errors.Is(corpus.ValidateCandidateSetResolution(got), corpus.ErrInvalidCandidateSetResolution) {
+		t.Fatalf("forged RESOLVED_SAME accepted: %#v", got)
+	}
+}

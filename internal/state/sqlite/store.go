@@ -121,6 +121,23 @@ ALTER TABLE observations
 CREATE INDEX observations_scan
 	ON observations (scan_id);
 `,
+		`
+CREATE TABLE accepted_continuity_decisions (
+	decision_id TEXT PRIMARY KEY NOT NULL,
+	observation_id TEXT NOT NULL UNIQUE
+		REFERENCES observations(observation_id) ON DELETE RESTRICT,
+	artifact_id TEXT NOT NULL
+		REFERENCES artifacts(artifact_id) ON DELETE RESTRICT,
+	decision_state TEXT NOT NULL
+		CHECK (decision_state = 'RESOLVED_SAME'),
+	policy_id TEXT NOT NULL,
+	resolution_json TEXT NOT NULL,
+	decided_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX accepted_continuity_artifact
+	ON accepted_continuity_decisions (artifact_id);
+`,
 	},
 }
 
@@ -216,10 +233,6 @@ func artifactExists(conn *sqlite.Conn, artifactID corpus.ArtifactID) (bool, erro
 }
 
 func (s *Store) ObserveRevision(ctx context.Context, artifactID corpus.ArtifactID, evidence corpus.ContentEvidence) (out corpus.RevisionObservation, err error) {
-	if err := corpus.ValidateContentEvidence(evidence); err != nil {
-		return corpus.RevisionObservation{}, err
-	}
-
 	conn, err := s.pool.Get(ctx)
 	if err != nil {
 		return corpus.RevisionObservation{}, fmt.Errorf("get state connection: %w", err)
@@ -231,6 +244,14 @@ func (s *Store) ObserveRevision(ctx context.Context, artifactID corpus.ArtifactI
 		return corpus.RevisionObservation{}, fmt.Errorf("begin Revision transaction: %w", err)
 	}
 	defer end(&err)
+
+	return observeRevisionConn(conn, artifactID, evidence)
+}
+
+func observeRevisionConn(conn *sqlite.Conn, artifactID corpus.ArtifactID, evidence corpus.ContentEvidence) (corpus.RevisionObservation, error) {
+	if err := corpus.ValidateContentEvidence(evidence); err != nil {
+		return corpus.RevisionObservation{}, err
+	}
 
 	exists, err := artifactExists(conn, artifactID)
 	if err != nil {
