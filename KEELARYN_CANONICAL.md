@@ -707,6 +707,21 @@ Prefer permissive dependencies for the distributable Core (MIT / Apache-2.0 / BS
 
 No dependency becomes part of Keelaryn merely because it is popular. The abstraction boundary must allow replacement.
 
+### 17.1 Regular retrospective audit doctrine
+
+Reuse-before-build is complemented by **audit-before-compounding**.
+
+Development MUST perform a read-only retrospective architecture/reuse/correctness audit:
+- before crossing a new live provider, security, identity-authority or durable-mutation boundary;
+- before exposing a new state-mutating CLI/MCP/HTTP/API surface;
+- after a material identity/transaction/recovery/schema architecture change;
+- before candidate freeze/release qualification;
+- and no later than after four qualified substantive development slices since the previous retrospective.
+
+A BLOCKER finding pauses dependent work. Previous green CI remains scoped evidence for what it actually tested; later audits may narrow the interpretation of an earlier qualification.
+
+The durable audit procedure is defined in `docs/ENGINEERING_AUDIT_POLICY.md`.
+
 ---
 
 ## 18. Selected existing work

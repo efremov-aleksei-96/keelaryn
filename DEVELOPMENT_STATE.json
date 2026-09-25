@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 73,
+  "revision": 74,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -104,11 +104,13 @@
     "P0_26_POST_BOOTSTRAP_NEW_ARTIFACT_CONTRACT_DECIDED",
     "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_IMPLEMENTED",
     "P0_27_POST_BOOTSTRAP_NEW_ARTIFACT_ADMISSION_QUALIFIED",
-    "P0_FOUNDATION_RETROSPECTIVE_AUDIT_COMPLETE"
+    "P0_FOUNDATION_RETROSPECTIVE_AUDIT_COMPLETE",
+    "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT_DECIDED",
+    "REGULAR_ENGINEERING_AUDIT_POLICY_ESTABLISHED"
   ],
   "next_objective": {
-    "id": "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT",
-    "description": "Before any RemoteHistory/live-provider wiring, define and then implement the hardened identity mutation boundary: trusted durable evidence references instead of caller-authored authority, stable replay IDs for SAME and NEW, idempotency parameter fingerprint/mismatch semantics, and precise RESOLVED_NEW semantics. Preserve current mechanics but do not expose them as runtime trust boundaries. Then proceed to history generation/publication and provider-object lifetime segments.",
+    "id": "P0_28A_IMPLEMENT_IDENTITY_ACCEPTANCE_HARDENING",
+    "description": "Implement the P0-28A contract: durable/versioned identity-mutation request fingerprints, SAME and NEW request reconciliation/mismatch semantics, durable authority-reference records, and in-transaction derivation from trusted authority rather than caller-authored CONCLUSIVE/COMPLETE fields. Keep current provider-lifetime binding fail-closed until P0-28B/C. No live OAuth or corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -141,7 +143,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "21217a626b328d7de6487555e8ac7d6892a72707",
+  "repository_basis_commit": "467b4e810041532ed39e47dd8b5c16a98c3df5dc",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2227,7 +2229,7 @@
     }
   },
   "p0_28": {
-    "status": "PAUSED_FOR_FOUNDATION_HARDENING",
+    "status": "FOUNDATION_HARDENING_CONTRACT_DECIDED",
     "original_objective": "Define durable RemoteHistory publication before live provider wiring.",
     "retrospective_audit": "docs/P0_FOUNDATION_RETRO_AUDIT_20260925.md",
     "conclusion": "Do not wire RemoteHistory to identity acceptance yet. Previous mechanics remain qualified, but trust/replay/provider-lifetime boundaries require hardening first.",
@@ -2245,5 +2247,58 @@
     ],
     "corpus_mutations": 0,
     "live_oauth_used": false
+  },
+  "audit_policy": {
+    "status": "ACTIVE",
+    "policy_document": "docs/ENGINEERING_AUDIT_POLICY.md",
+    "mode": "EVENT_TRIGGERED_PLUS_MAXIMUM_SLICE_INTERVAL",
+    "maximum_qualified_substantive_slices_between_retrospectives": 4,
+    "last_retrospective": {
+      "head": "467b4e810041532ed39e47dd8b5c16a98c3df5dc",
+      "document": "docs/P0_FOUNDATION_RETRO_AUDIT_20260925.md",
+      "ci_run_id": 36110946306,
+      "conclusion": "SUCCESS"
+    },
+    "substantive_slices_since_last_retrospective": 0,
+    "mandatory_triggers": [
+      "before new live external/provider trust boundary",
+      "before new durable user/corpus mutation path",
+      "before exposing identity/state mutation through CLI/MCP/HTTP/API",
+      "after material identity/transaction/recovery/schema/security architecture change",
+      "before candidate freeze/release qualification",
+      "after major architecture reset/migration"
+    ],
+    "blocker_rule": "BLOCKER findings pause dependent work until durably resolved or explicitly re-scoped"
+  },
+  "p0_28a": {
+    "status": "CONTRACT_DECIDED_AWAITING_IMPLEMENTATION",
+    "objective": "Harden SAME/NEW identity acceptance so caller-authored authority cannot authorize durable identity mutation and retries are semantically idempotent.",
+    "evidence_document": "docs/P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT.md",
+    "audited_head": "467b4e810041532ed39e47dd8b5c16a98c3df5dc",
+    "audited_ci_run_id": 36110946306,
+    "dependencies_added": 0,
+    "corpus_mutations": 0,
+    "live_oauth_used": false,
+    "contract": {
+      "unified_request_identity": "IdentityMutationRequestID",
+      "request_fingerprint": "versioned canonical semantic SHA-256 fingerprint; not Artifact identity",
+      "replay_same_request_same_fingerprint": "RECONCILE_OR_RETURN_ORIGINAL_DURABLE_RESULT_WITH_ZERO_MUTATION",
+      "replay_same_request_different_fingerprint": "EXPLICIT_PARAMETER_MISMATCH",
+      "authority_input": "OPAQUE_DURABLE_AUTHORITY_IDS_ONLY_FOR_MUTATION_AUTHORITY",
+      "caller_forbidden_authority": [
+        "raw CONCLUSIVE strength",
+        "raw COMPLETE coverage",
+        "preselected RESOLVED_SAME/RESOLVED_NEW"
+      ],
+      "acceptance_rule": "LOAD_AND_REVALIDATE_DURABLE_AUTHORITY_INSIDE_SQLITE_TRANSACTION_THEN_DERIVE_DECISION",
+      "resolved_new_semantics": "FIRST_ACCEPTED_ARTIFACT_IDENTITY_FOR_CURRENT_PROVIDER_OBJECT_LIFETIME_SEGMENT_UNDER_POLICY",
+      "live_provider_binding": "DEFER_UNTIL_HISTORY_GENERATION_AND_OBJECT_LIFETIME_SEGMENTS"
+    },
+    "reuse_sources": [
+      "AWS EC2 client-token idempotency",
+      "Stripe idempotent request parameter matching/result replay",
+      "Syncthing index generation + sequence",
+      "rclone bisync last-known-good/recovery lockout"
+    ]
   }
 }

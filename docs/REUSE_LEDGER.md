@@ -895,3 +895,22 @@ Corrections required before product/live-provider wiring:
 
 Detailed audit: `docs/P0_FOUNDATION_RETRO_AUDIT_20260925.md`.
 
+## P0-28A — identity acceptance hardening reuse decisions
+
+Closest implementation patterns reviewed again before coding:
+
+- **AWS EC2 idempotency:** caller client token; same token + same parameters does not repeat the side effect; same token + changed parameters produces an explicit idempotent-parameter-mismatch error.
+- **Stripe idempotency:** preserve the first execution result by key, replay it for the same request, and reject the same key when incoming parameters differ.
+- **Syncthing delta indexes:** keep index generation identity separate from the advancing sequence; reset means a new index ID. This is reserved for P0-28B/C history generations.
+- **rclone bisync:** preserve last-known-good state and block dependent operations when a critical interrupted state cannot be trusted.
+
+Keelaryn-specific remainder:
+- durable authority-reference records tied to Corpus-first identity semantics;
+- SAME/NEW decisions derived inside the SQLite mutation boundary;
+- permanent identity provenance rather than short-lived API retry caching;
+- provider lifetime/history-generation scoping.
+
+Detailed contract: `docs/P0_28A_IDENTITY_ACCEPTANCE_HARDENING_CONTRACT.md`.
+
+Regular audit cadence is now mandatory in `docs/ENGINEERING_AUDIT_POLICY.md` and canonical section 17.1.
+
