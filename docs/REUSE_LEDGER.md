@@ -632,3 +632,34 @@ The implementation commit's `continuity_test.go` uses `filepath.Join` in the reo
 This is test-only. Continuity transaction/schema/product semantics are unchanged.
 
 The implementation head run is superseded; qualification requires the corrected exact head.
+
+
+## P0-21 — provider-native identity continuity contract
+
+**Reuse research update (2026-09-25):**
+- current stable rclone release reviewed: `v1.75.1`, MIT, Go 1.26;
+- rclone exposes optional `fs.IDer { ID() string }`;
+- the rclone Google Drive backend implements `fs.IDer` and stores the Drive object ID;
+- rclone Drive `ChangeNotify` internally consumes Drive change page tokens and `change.fileId`, but its public callback exposes changed **paths**, not identity/change provenance;
+- rclone Drive represents shortcuts with a composite `actualID + TAB + shortcutID`, so future adapter code must explicitly choose shortcut-object versus target-object semantics before applying a Drive fileId contract.
+
+**Google Drive documented semantics:**
+- Drive describes `fileId` as a unique opaque ID for each file and stable throughout the life of that file, including name changes;
+- copy creates a distinct file resource and can be assigned a separately generated unique ID;
+- official documentation reviewed does **not** explicitly promise that a permanently deleted file ID is never reused.
+
+Therefore generic `rclone/fs.IDer` is never conclusive by itself.
+
+Provider-neutral semantics implemented:
+- `SUPPORTING`: ID equality/difference is only a hint;
+- `STABLE_FOR_RESOURCE_LIFETIME`: unequal IDs in one exact provider identity domain are CONCLUSIVE_DISTINCT; equal IDs are CONCLUSIVE_SAME only when a separate provider-history channel proves a continuous no-disappearance interval;
+- `GLOBALLY_NON_REUSING`: reserved for an explicit stronger provider guarantee and may confirm equality across an unknown gap.
+
+The Google Drive P0 contract uses `STABLE_FOR_RESOURCE_LIFETIME`, not `GLOBALLY_NON_REUSING`.
+
+This deliberately separates:
+1. **object-ID capability** (rclone can expose it),
+2. **meaning of that ID** (provider contract),
+3. **coverage of the interval between observations** (change/feed/session evidence).
+
+No rclone dependency or OAuth is added by P0-21; this layer only qualifies the semantics before remote-provider integration.

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 58,
+  "revision": 59,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -88,11 +88,12 @@
     "P0_19_FORMAL_P0_CLOSURE_AUDIT_COMPLETE",
     "P0_20_ACCEPT_RESOLVED_CONTINUITY_TRANSACTION_IMPLEMENTED",
     "P0_20_TEST_FILEPATH_IMPORT_FIXED",
-    "P0_20_ACCEPT_RESOLVED_CONTINUITY_TRANSACTION_QUALIFIED"
+    "P0_20_ACCEPT_RESOLVED_CONTINUITY_TRANSACTION_QUALIFIED",
+    "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_21_PROVIDER_ID_CONTINUITY_CONTRACT",
-    "description": "Implement provider-neutral ProviderIdentityContract and evidence resolver. It must distinguish UNAVAILABLE/SUPPORTING/LIFETIME_STABLE identity semantics. Equal IDs under LIFETIME_STABLE emit CONCLUSIVE SUPPORTS_SAME; unequal IDs under the same provider identity domain emit CONCLUSIVE SUPPORTS_DISTINCT only when the contract explicitly guarantees object IDs are unique/non-reused for object lifetime and both observations are comparable. Generic rclone IDer defaults to SUPPORTING until an exact backend contract opts into stronger semantics. Add a Google Drive contract fixture representing documented Drive fileId semantics, but do not add rclone dependency or OAuth yet. Qualify copy vs rename/move semantics before remote adapter integration.",
+    "id": "P0_21_QUALIFY_PROVIDER_ID_CONTINUITY_CONTRACT",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass generic-rclone supporting-only, Drive equal-ID unknown-gap supporting, Drive equal-ID continuous-history CONFIRMED_SAME, Drive unequal-ID CONFIRMED_DISTINCT/copy semantics, cross-domain/empty/invalid fail-closed tests, all prior continuity acceptance tests, go mod tidy -diff and go vet. If green, qualify P0-21 and choose the smallest remote-provider spike that can supply real object IDs plus a durable/complete history cursor without importing rclone's path-only ChangeNotify as identity authority.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -125,7 +126,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "f66227c321e99af41eed0a965aa74f37d13e81c2",
+  "repository_basis_commit": "530d5d5b18c3539e6d91432d9ddeeb16c3152146",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1599,20 +1600,50 @@
     }
   },
   "p0_21": {
-    "status": "PLANNED",
+    "status": "IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Define and qualify the first provider-native conclusive continuity contract using reusable rclone object-ID capability, without treating every rclone ID as equally trustworthy.",
     "research_findings": [
-      "rclone exposes optional fs.IDer with ID() string",
-      "rclone Google Drive backend implements fs.IDer using Drive object IDs",
-      "Google Drive documents file IDs as unique opaque IDs stable throughout the life of the file",
-      "Google Drive copy creates a distinct file ID, preserving copy-vs-move distinction",
-      "rclone generic fs.IDer semantics do not themselves guarantee lifetime uniqueness for every backend"
+      "rclone v1.75.1 is MIT and exposes optional fs.IDer",
+      "rclone Drive backend implements fs.IDer over Drive object IDs",
+      "rclone Drive ChangeNotify internally reads page tokens/fileId but publicly emits paths only",
+      "rclone Drive shortcut IDs are composite actualID<TAB>shortcutID and require explicit normalization",
+      "Drive fileId is documented unique per file and stable throughout file lifetime",
+      "Drive copy creates a distinct file resource/ID",
+      "reviewed Drive docs do not explicitly guarantee permanent-deletion ID non-reuse"
     ],
-    "architecture_rule": "ProviderAdapter declares identity-evidence semantics/capability. Generic provider ID is evidence; only a backend contract with documented non-reuse/lifetime stability may emit CONCLUSIVE same for equal IDs.",
+    "architecture_rule": "Separate ID availability, provider ID semantics, and observation-gap coverage. Generic rclone ID is SUPPORTING only. Drive fileId contract is STABLE_FOR_RESOURCE_LIFETIME: equal ID is conclusive only with CONTINUOUS provider-history coverage; unequal IDs in the same identity domain are conclusive distinct. Reserve GLOBALLY_NON_REUSING for an explicit stronger guarantee.",
     "sources": [
       "rclone fs.IDer interface and backend/drive implementation",
       "Google Drive API files/folders overview: stable file ID for life of file",
       "Google Drive API create/copy semantics"
-    ]
+    ],
+    "implementation": {
+      "dependencies_added": 0,
+      "package": "internal/corpus",
+      "semantics": [
+        "SUPPORTING",
+        "STABLE_FOR_RESOURCE_LIFETIME",
+        "GLOBALLY_NON_REUSING"
+      ],
+      "history_coverage": [
+        "UNKNOWN",
+        "CONTINUOUS"
+      ],
+      "contracts": [
+        "RcloneGenericIdentityContract",
+        "GoogleDriveFileIDContract"
+      ],
+      "drive_contract": "STABLE_FOR_RESOURCE_LIFETIME",
+      "safeguards": [
+        "cross identity-domain comparison rejected",
+        "empty native IDs rejected",
+        "unknown semantics/coverage rejected",
+        "generic rclone ID never conclusive",
+        "Drive equal ID + UNKNOWN gap remains SUPPORTING",
+        "Drive equal ID + CONTINUOUS history becomes CONCLUSIVE_SAME",
+        "Drive unequal IDs in same domain become CONCLUSIVE_DISTINCT",
+        "shortcut composite ID semantics deferred to provider adapter"
+      ]
+    }
   }
 }
