@@ -374,3 +374,21 @@ Reuse boundary:
    - any plausible candidate without one uniquely conclusive same decision -> `AMBIGUOUS`;
    - future providers may produce `CONFIRMED_SAME` only when exactly one candidate has non-conflicting CONCLUSIVE same evidence and no competing plausible candidate remains.
 7. P0-13 is read-only reconciliation. It persists no Artifact/Revision assignment.
+
+
+### P0-13 candidate-set model
+
+The provider-neutral core now represents reconciliation as a **set of Artifact candidates**, never a best-match score.
+
+Per-candidate evidence is merged by ArtifactID and resolved through the existing `ResolveContinuity` policy.
+
+Set-level rules:
+- zero candidates -> `UNRESOLVED`;
+- supporting-only candidate(s), including path/hash/native identity hints -> `AMBIGUOUS`;
+- supporting native mismatch cannot eliminate identity by itself;
+- pairwise `CONFIRMED_DISTINCT` removes that Artifact from the plausible set, but does not identify the current occurrence;
+- exactly one remaining candidate may become `RESOLVED_SAME` only when its pairwise decision is `CONFIRMED_SAME`;
+- any competing plausible candidate keeps the set `AMBIGUOUS`;
+- two conclusive-same candidates are still `AMBIGUOUS`.
+
+The model sorts candidates deterministically by ArtifactID and performs no persistence mutation.

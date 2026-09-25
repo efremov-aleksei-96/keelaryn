@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 38,
+  "revision": 39,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -68,11 +68,12 @@
     "P0_12_TEST_COMPILE_IMPORT_FIXED",
     "P0_10_SCAN_SESSION_INVENTORY_REQUALIFIED",
     "P0_12_FIRST_OBSERVATION_ADOPTION_QUALIFIED",
-    "P0_13_REUSE_REVIEW_COMPLETE"
+    "P0_13_REUSE_REVIEW_COMPLETE",
+    "P0_13_CANDIDATE_SET_MODEL_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_13_IMPLEMENT_CANDIDATE_SET_MODEL",
-    "description": "Implement a provider-neutral read-only candidate-set model. For each current occurrence, retain zero-to-many prior Artifact candidates. Normalize locator overlap, content-equality and provider continuity signals as SUPPORTING DecisionEvidence unless a future provider explicitly declares them CONCLUSIVE. Resolve each candidate independently with ResolveContinuity, then derive overall state without selecting a winner: no candidates=UNRESOLVED; one or more supporting-only candidates=AMBIGUOUS; only one uniquely CONFIRMED_SAME candidate with no competing plausible candidate may resolve. Add no persistence mutation and no new dependency.",
+    "id": "P0_13_QUALIFY_CANDIDATE_SET_MODEL",
+    "description": "Require exact-head Ubuntu and Windows 2025 CI to pass candidate-set regressions: locator/hash/native supporting evidence remains AMBIGUOUS, duplicate candidate evidence merges deterministically, supporting mismatch cannot eliminate identity, unique conclusive same can resolve only without plausible competition, all-distinct remains UNRESOLVED, no dependency drift and go vet. If green, implement localfs candidate generation against latest COMPLETE assigned inventory without persisting identity changes.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -105,7 +106,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "2c3ea268228026f43eac0d76fe96567e3ff524b2",
+  "repository_basis_commit": "d5702a840868f42621f09728b7e168d8c0ad2eae",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1020,7 +1021,7 @@
     }
   },
   "p0_13": {
-    "status": "REUSE_REVIEW_COMPLETE_IMPLEMENTATION_PENDING",
+    "status": "CANDIDATE_SET_MODEL_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
     "objective": "Generate durable-safe continuity candidates between the latest COMPLETE assigned inventory and a fresh localfs Snapshot, classify available evidence, and keep supporting-only matches AMBIGUOUS.",
     "invariants": [
       "path equality is candidate discovery only, never continuity proof",
@@ -1053,6 +1054,33 @@
         }
       ],
       "invariant": "candidate generation and identity decision remain separate; no matching algorithm may silently collapse ambiguity"
+    },
+    "implementation": {
+      "dependencies_added": 0,
+      "package": "internal/corpus",
+      "signal_kinds": [
+        "LOCATOR_OVERLAP",
+        "CONTENT_EQUAL",
+        "PROVIDER_CONTINUITY_MATCH",
+        "PROVIDER_CONTINUITY_MISMATCH"
+      ],
+      "signal_strength": "SUPPORTING",
+      "set_states": [
+        "UNRESOLVED",
+        "AMBIGUOUS",
+        "RESOLVED_SAME"
+      ],
+      "rules": [
+        "duplicate Artifact candidates merge evidence",
+        "candidate order deterministic by ArtifactID",
+        "supporting-only evidence never selects Artifact",
+        "supporting mismatch never eliminates Artifact",
+        "pairwise CONFIRMED_DISTINCT may remove candidate from plausible set",
+        "all known candidates distinct leaves current identity UNRESOLVED",
+        "exactly one uniquely plausible CONFIRMED_SAME candidate resolves",
+        "any competing plausible candidate preserves AMBIGUOUS",
+        "candidate resolution performs no durable mutation"
+      ]
     }
   }
 }
