@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 65,
+  "revision": 66,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -96,11 +96,12 @@
     "P0_23_REMOTE_HISTORY_CONTRACT_QUALIFIED",
     "P0_24A_DRIVE_HISTORY_SEMANTICS_IMPLEMENTED",
     "P0_24A_DRIVE_HISTORY_SEMANTICS_QUALIFIED",
-    "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_IMPLEMENTED"
+    "P0_24B_OFFICIAL_DRIVE_CLIENT_BINDING_IMPLEMENTED",
+    "P0_24B_DEPENDENCY_LOCK_CURSOR_MARKER_DEFECT_FIXED"
   ],
   "next_objective": {
-    "id": "P0_24B_QUALIFY_OFFICIAL_DRIVE_CLIENT_BINDING",
-    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI for the official google.golang.org/api/drive/v3 binding, generated dependency lock, deterministic HTTP binding tests, all prior tests, go mod tidy -diff and go vet. Do not start live OAuth or mutate Google Drive in this qualification.",
+    "id": "P0_24B_REQUALIFY_OFFICIAL_DRIVE_CLIENT_BINDING",
+    "description": "Require exact-head Ubuntu 24.04 and Windows 2025 CI after removing the accidental durable-output marker from go.sum. Qualify the official Drive binding only if validate, both platforms, go mod tidy -diff, all tests and go vet pass. Do not start live OAuth or mutate Google Drive.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -133,7 +134,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "2b1ce1a46a8c553aa630e505fabc3b85091ced11",
+  "repository_basis_commit": "7747a6a7c266fff0fdfbce4c059389eda030718f",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -1807,7 +1808,7 @@
     }
   },
   "p0_24": {
-    "status": "OFFICIAL_CLIENT_BINDING_IMPLEMENTED_AWAITING_CROSS_PLATFORM_CI",
+    "status": "OFFICIAL_CLIENT_BINDING_IMPLEMENTED_AWAITING_REQUALIFICATION",
     "objective": "Implement Google Drive-specific RemoteHistory semantics behind a narrow client interface before binding the official SDK or live OAuth.",
     "package": "internal/remotehistory/gdrive",
     "dependencies_added": 1,
@@ -1905,7 +1906,16 @@
         "go_vet_all": "PASS",
         "workspace": "TEMPORARY_CLEANED_BY_TRAP"
       },
-      "dependency_lock": "GENERATED_BY_GO1_27_1_TIDY_NOT_HAND_AUTHORED"
+      "dependency_lock": "GENERATED_BY_GO1_27_1_TIDY_NOT_HAND_AUTHORED",
+      "dependency_lock_defect": {
+        "affected_head": "7747a6a7c266fff0fdfbce4c059389eda030718f",
+        "ci_run_id": 36103645777,
+        "ubuntu": "FAIL_GO_MOD_TIDY_DIFF",
+        "windows": "PASS",
+        "classification": "DURABLE_JOB_OUTPUT_CURSOR_MARKER_ACCIDENTALLY_APPENDED_TO_GO_SUM",
+        "product_code_failure": false,
+        "fix": "REMOVE_EXACT_TRAILING_MARKER_ONLY"
+      }
     }
   },
   "platform_targets": {
