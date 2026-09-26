@@ -145,7 +145,14 @@ func MaterializeRemoteMetadata(
 		return corpus.ScanSession{}, false, err
 	}
 	if replayed && scan.Status == corpus.ScanComplete {
-		return scan, true, nil
+		verified, completionReplayed, verifyErr := store.CompleteRemoteHistoryScan(ctx, scan.ID, observedAt)
+		if verifyErr != nil {
+			return scan, true, fmt.Errorf("verify COMPLETE remote materialization replay: %w", verifyErr)
+		}
+		if !completionReplayed || verified.ID != scan.ID || verified.Status != corpus.ScanComplete {
+			return scan, true, fmt.Errorf("%w: COMPLETE replay verification mismatch", ErrInvalidRemoteMetadataSnapshot)
+		}
+		return verified, true, nil
 	}
 	if replayed {
 		if scan.Status != corpus.ScanOpen {

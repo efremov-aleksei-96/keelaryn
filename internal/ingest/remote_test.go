@@ -248,6 +248,45 @@ func TestRemoteMetadataMatchingOpenScanIsNotAutoAborted(t *testing.T) {
 	}
 }
 
+func TestRemoteMetadataCompleteReplayUsesDurableCompletionVerifier(t *testing.T) {
+	ctx := context.Background()
+	fixture := newGoogleRemoteFixture(t, "account-A", false)
+	snapshot := fixture.snapshot(
+		remoteMetadataEntry("managed", corpus.EntryOther, 0, 0, fixture.base),
+		remoteMetadataEntry("child", corpus.EntryRegularFile, 7, 0, fixture.base.Add(time.Second)),
+	)
+	first, _, err := ingest.MaterializeRemoteMetadata(ctx, fixture.store, fixture.projection, snapshot, fixture.base.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wrapped := &countCompleteReplayStore{Store: fixture.store}
+	replayedScan, replayed, err := ingest.MaterializeRemoteMetadata(ctx, wrapped, fixture.projection, snapshot, fixture.base.Add(2*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !replayed || replayedScan.ID != first.ID {
+		t.Fatalf("COMPLETE replay mismatch: scan=%#v replayed=%v", replayedScan, replayed)
+	}
+	if wrapped.completeCalls != 1 {
+		t.Fatalf("COMPLETE replay verifier calls=%d want 1", wrapped.completeCalls)
+	}
+}
+
+type countCompleteReplayStore struct {
+	*sqlitestate.Store
+	completeCalls int
+}
+
+func (s *countCompleteReplayStore) CompleteRemoteHistoryScan(
+	ctx context.Context,
+	scanID corpus.ScanSessionID,
+	finishedAt time.Time,
+) (corpus.ScanSession, bool, error) {
+	s.completeCalls++
+	return s.Store.CompleteRemoteHistoryScan(ctx, scanID, finishedAt)
+}
+
 func TestRemoteMetadataCompleteReplaySurvivesHistoryAdvance(t *testing.T) {
 	ctx := context.Background()
 	fixture := newGoogleRemoteFixture(t, "account-A", false)
