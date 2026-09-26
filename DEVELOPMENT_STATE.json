@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 97,
+  "revision": 98,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -116,11 +116,12 @@
     "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_IMPLEMENTED",
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED",
     "P0_28C3_BOUNDARY_RETROSPECTIVE_PASS",
-    "P0_28C_PROVIDER_OBJECT_LIFETIME_PIPELINE_QUALIFIED"
+    "P0_28C_PROVIDER_OBJECT_LIFETIME_PIPELINE_QUALIFIED",
+    "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT",
-    "description": "Design the next provider-specific slice: wire the already-qualified deterministic Google Drive RemoteHistory adapter into the qualified durable HistoryGeneration/lifetime/authority pipeline. Start with a contract and deterministic fake/provider test harness only; no live OAuth, no real Drive corpus reads/writes, and no corpus mutation until the wiring boundary is independently qualified.",
+    "id": "P0_29A_GDRIVE_HISTORY_UNIVERSE_IDENTITY_HARDENING",
+    "description": "Implement the contract's first narrow slice only: canonical My Drive root-ID resolution, deterministic real-ID parent semantics in tests, explicit My Drive/shared-drive history-universe identity, and fail-closed non-mutating Google API error taxonomy. No durable orchestration yet, no live OAuth/provider access, no real Drive reads/writes.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -153,7 +154,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "1567f0967b7082db66e5605fa69e5c0a4bc8f027",
+  "repository_basis_commit": "6f4a34c69d15d6a0f80eaa3e3aaa0aa09a124563",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2975,5 +2976,30 @@
     ],
     "mutation_rule": "PARALLEL_RESEARCH_MAY_PREPARE_NEXT_SLICE_BUT_DEPENDENT_WRITES_REQUIRE_AUTHORITATIVE_RECONCILE",
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
+  },
+  "p0_29": {
+    "status": "CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
+    "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
+    "live_oauth_used": false,
+    "live_provider_used": false,
+    "corpus_mutations": 0,
+    "core_decisions": {
+      "provider_history_universe_separate_from_managed_membership": true,
+      "my_drive_history_universe": "AUTHENTICATED_USER_MY_DRIVE_CHANGE_LOG",
+      "shared_drive_history_universe": "ONE_SHARED_DRIVE_CHANGE_LOG",
+      "my_drive_root_identity": "CANONICAL_ACTUAL_ROOT_FILE_ID_NOT_ALIAS",
+      "arbitrary_managed_subfolder": "DERIVED_MEMBERSHIP_NOT_NATIVE_CHANGE_STREAM",
+      "topology": "PROVIDER_SPECIFIC_REBUILDABLE_PARENT_GRAPH_REQUIRED",
+      "page_tokens": "DOCUMENTED_NON_EXPIRING",
+      "ordinary_api_failure": "NO_CURSOR_ADVANCE_NO_GENERATION_CLOSE",
+      "removal": "REMOVED_FROM_HISTORY_SCOPE_NOT_PHYSICAL_DELETION",
+      "live_provider_authorized": false
+    },
+    "implementation_order": [
+      "P0_29A_GDRIVE_HISTORY_UNIVERSE_IDENTITY_HARDENING",
+      "P0_29B_DURABLE_REMOTE_HISTORY_ORCHESTRATION",
+      "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_PROJECTION",
+      "P0_29D_BOUNDARY_RETROSPECTIVE"
+    ]
   }
 }

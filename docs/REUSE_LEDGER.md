@@ -1017,3 +1017,27 @@ Correction:
 
 No dependency is added.
 
+## P0-29 — Google Drive durable wiring research
+
+Official Google Drive v3 semantics were rechecked before connecting the existing adapter to durable RemoteHistory state.
+
+Findings:
+
+- Google maintains change logs per user/My Drive universe and per shared drive, not per arbitrary descendant folder.
+- `restrictToMyDrive=true` restricts changes to the My Drive hierarchy, but does not create a change feed for an arbitrary managed subfolder.
+- the alias `root` may be used wherever a file ID is accepted, while file `parents[]` contains parent IDs; therefore durable topology must use the canonical actual My Drive root file ID rather than storing the alias as if it were a parent ID.
+- Drive `startPageToken`, `nextPageToken` and terminal `newStartPageToken` are documented as non-expiring.
+- a Drive change is current item state, not an operation delta; removals can mean deletion, loss of access or corpus movement.
+- Microsoft Graph delta independently reinforces provider-universe delta scope + terminal committed token rather than arbitrary-folder cursor invention.
+
+Decision:
+
+- separate `ProviderHistoryUniverse` from `ManagedCorpusMembership`;
+- bind HistoryGeneration/lifetime continuity to the natural Google change-log universe;
+- derive arbitrary managed-root membership from a separate rebuildable Google parent-topology projection;
+- resolve My Drive root alias to canonical actual root ID before durable history scope creation;
+- do not reinterpret ordinary Google HTTP/auth/rate/service failures as history GAP/INVALID_CURSOR;
+- keep live OAuth and real Drive access forbidden until deterministic wiring + topology + retrospective qualification pass.
+
+Detailed contract: `docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md`.
+

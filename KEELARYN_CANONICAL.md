@@ -450,6 +450,12 @@ Google Drive specifics MUST stay inside the Drive adapter:
 - Google Workspace export semantics;
 - shortcut normalization. The first Drive adapter treats the shortcut file resource as its own ProviderObject: the shortcut file ID remains identity evidence, while the target ID is relation/metadata and MUST NOT replace shortcut identity.
 
+For Google Drive, **provider history-universe scope and managed corpus membership are distinct**. A durable history cursor/generation follows Google's native change-log boundary: whole My Drive for one user identity domain or one whole shared-drive change log. An arbitrary managed folder such as `My Drive/0` is a separate derived membership view and MUST NOT be pretended to be a native Google change-log scope.
+
+The literal Drive alias `root` is API syntax, not durable parent-graph identity. My Drive history uses the canonical actual root file ID resolved through the API; shared-drive history uses the shared drive ID. Parent/topology state needed for arbitrary managed-root membership is provider-specific rebuildable state, not Artifact identity.
+
+Detailed wiring contract: `docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md`.
+
 Keelaryn MUST remain usable without Google.
 
 ### 9.4 Remote history contract
