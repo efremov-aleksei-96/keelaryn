@@ -1516,6 +1516,52 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER remote_scan_session_update_guard
+BEFORE UPDATE ON scan_sessions
+WHEN EXISTS (
+	SELECT 1
+	FROM remote_scan_sources r
+	WHERE r.scan_id=OLD.scan_id
+)
+AND NOT (
+	NEW.scan_id=OLD.scan_id
+	AND NEW.provider_id=OLD.provider_id
+	AND NEW.root=OLD.root
+	AND NEW.started_at=OLD.started_at
+	AND OLD.status='OPEN'
+	AND OLD.finished_at IS NULL
+	AND NEW.status IN ('COMPLETE','ABORTED')
+	AND NEW.finished_at IS NOT NULL
+)
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound remote scan session is immutable outside terminal transition');
+END;
+
+CREATE TRIGGER remote_scan_session_complete_source_guard
+BEFORE UPDATE ON scan_sessions
+WHEN EXISTS (
+	SELECT 1
+	FROM remote_scan_sources r
+	WHERE r.scan_id=OLD.scan_id
+)
+AND OLD.status='OPEN'
+AND NEW.status='COMPLETE'
+AND NOT EXISTS (
+	SELECT 1
+	FROM remote_scan_sources r
+	JOIN remote_history_generations g
+	  ON g.generation_id=r.generation_id
+	WHERE r.scan_id=OLD.scan_id
+	  AND g.provider_id=OLD.provider_id
+	  AND g.status='ACTIVE'
+	  AND g.current_sequence=r.publication_sequence
+)
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound remote scan publication is no longer current');
+END;
+`,
+
 	},
 }
 

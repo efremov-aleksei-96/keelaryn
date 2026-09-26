@@ -296,6 +296,107 @@ func TestRemoteScanSourceInputValidationFailsClosed(t *testing.T) {
 	}
 }
 
+
+func TestRemoteHistoryScanSQLiteGuardsBoundSessionAuthority(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	base := time.Date(2026, 9, 27, 8, 0, 0, 0, time.UTC)
+	generation, err := store.StartRemoteHistoryGeneration(
+		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := remoteScanSourceInput(generation.ID, 1, "managed-guard", remoteScanFingerprintA)
+	scanRoot := "drive:user-1:managed:managed-guard"
+	scan, replayed, err := store.StartRemoteHistoryScan(ctx, scanRoot, source, base.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed {
+		t.Fatal("new source-bound scan unexpectedly replayed")
+	}
+
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tamper := []string{
+		"UPDATE scan_sessions SET provider_id='tampered-provider' WHERE scan_id=?1",
+		"UPDATE scan_sessions SET root='tampered-root' WHERE scan_id=?1",
+		"UPDATE scan_sessions SET started_at='2026-01-01T00:00:00Z' WHERE scan_id=?1",
+	}
+	for _, query := range tamper {
+		if err := sqlitex.Execute(conn, query, &sqlitex.ExecOptions{Args: []any{string(scan.ID)}}); err == nil {
+			store.pool.Put(conn)
+			t.Fatalf("source-bound scan provenance tamper unexpectedly succeeded: %s", query)
+		}
+	}
+	store.pool.Put(conn)
+
+	got, err := store.ScanSession(ctx, scan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ProviderID != scope.ProviderID || got.Root != scanRoot || !got.StartedAt.Equal(scan.StartedAt) || got.Status != corpus.ScanOpen {
+		t.Fatalf("scan mutated after rejected provenance tamper: %#v", got)
+	}
+
+	cycle := remotehistory.ChangeCycle{
+		StreamID:       scope.StreamID,
+		Status:         remotehistory.CycleComplete,
+		PreviousCursor: "cursor-1",
+		NextCursor:     "cursor-2",
+		Coverage:       corpus.ProviderHistoryContinuous,
+	}
+	if _, err := store.PublishRemoteHistoryCycle(
+		ctx, generation.ID, scope, fp, 1, "cursor-1", cycle, base.Add(2*time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err = store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlitex.Execute(conn,
+		"UPDATE scan_sessions SET status='COMPLETE', finished_at=?1 WHERE scan_id=?2",
+		&sqlitex.ExecOptions{Args: []any{
+			base.Add(3 * time.Second).UTC().Format(time.RFC3339Nano),
+			string(scan.ID),
+		}}); err == nil {
+		store.pool.Put(conn)
+		t.Fatal("direct stale remote scan completion unexpectedly succeeded")
+	}
+	store.pool.Put(conn)
+
+	got, err = store.ScanSession(ctx, scan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != corpus.ScanOpen {
+		t.Fatalf("stale direct completion mutated scan: %#v", got)
+	}
+
+	if err := store.AbortScan(ctx, scan.ID, base.Add(4*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	conn, err = store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlitex.Execute(conn,
+		"UPDATE scan_sessions SET status='OPEN', finished_at=NULL WHERE scan_id=?1",
+		&sqlitex.ExecOptions{Args: []any{string(scan.ID)}}); err == nil {
+		store.pool.Put(conn)
+		t.Fatal("terminal source-bound scan rewrite unexpectedly succeeded")
+	}
+	store.pool.Put(conn)
+}
+
+
 func remoteScanSourceInput(
 	generationID remotehistory.HistoryGenerationID,
 	sequence remotehistory.HistoryPublicationSequence,
