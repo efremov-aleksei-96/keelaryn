@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitemigration"
@@ -103,13 +102,13 @@ func openV25RemoteHistoryTimePool(t *testing.T, path string) *sqlitemigration.Po
 		AppID:      applicationID,
 		Migrations: append([]string(nil), schema.Migrations[:25]...),
 	}
+	seedStore := &Store{path: path}
 	pool := sqlitemigration.NewPool(path, partial, sqlitemigration.Options{
-		Flags:    sqlite.OpenReadWrite | sqlite.OpenCreate,
-		PoolSize: 1,
-		PrepareConn: func(conn *sqlite.Conn) error {
-			return sqlitex.ExecuteTransient(conn, "PRAGMA foreign_keys = ON", nil)
-		},
+		Flags:       sqlite.OpenReadWrite | sqlite.OpenCreate,
+		PoolSize:    1,
+		PrepareConn: seedStore.prepareConn,
 	})
+	seedStore.pool = pool
 	conn, err := pool.Get(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -118,4 +117,3 @@ func openV25RemoteHistoryTimePool(t *testing.T, path string) *sqlitemigration.Po
 	return pool
 }
 
-var _ = corpus.ProviderID("")
