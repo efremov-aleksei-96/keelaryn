@@ -20,15 +20,23 @@ var (
 )
 
 func (s *Store) StartScan(ctx context.Context, providerID corpus.ProviderID, root string, startedAt time.Time) (corpus.ScanSession, error) {
-	if providerID == "" || root == "" || startedAt.IsZero() {
-		return corpus.ScanSession{}, ErrInvalidScan
-	}
 	conn, err := s.pool.Get(ctx)
 	if err != nil {
 		return corpus.ScanSession{}, fmt.Errorf("get state connection: %w", err)
 	}
 	defer s.pool.Put(conn)
+	return startScanConn(conn, providerID, root, startedAt)
+}
 
+func startScanConn(
+	conn *sqlite.Conn,
+	providerID corpus.ProviderID,
+	root string,
+	startedAt time.Time,
+) (corpus.ScanSession, error) {
+	if providerID == "" || root == "" || startedAt.IsZero() {
+		return corpus.ScanSession{}, ErrInvalidScan
+	}
 	scan := corpus.ScanSession{
 		ID:         corpus.ScanSessionID("scan_" + uuid.NewString()),
 		ProviderID: providerID,
@@ -88,14 +96,20 @@ func (s *Store) RecordObservationInScan(ctx context.Context, scanID corpus.ScanS
 }
 
 func (s *Store) CompleteScan(ctx context.Context, scanID corpus.ScanSessionID, finishedAt time.Time) error {
-	return s.finishScan(ctx, scanID, corpus.ScanComplete, finishedAt)
+	return s.finishScan(ctx, scanID, corpus.ScanComplete, finishedAt, false)
 }
 
 func (s *Store) AbortScan(ctx context.Context, scanID corpus.ScanSessionID, finishedAt time.Time) error {
-	return s.finishScan(ctx, scanID, corpus.ScanAborted, finishedAt)
+	return s.finishScan(ctx, scanID, corpus.ScanAborted, finishedAt, true)
 }
 
-func (s *Store) finishScan(ctx context.Context, scanID corpus.ScanSessionID, status corpus.ScanStatus, finishedAt time.Time) error {
+func (s *Store) finishScan(
+	ctx context.Context,
+	scanID corpus.ScanSessionID,
+	status corpus.ScanStatus,
+	finishedAt time.Time,
+	allowRemoteCompletion bool,
+) (err error) {
 	if scanID == "" || finishedAt.IsZero() || (status != corpus.ScanComplete && status != corpus.ScanAborted) {
 		return ErrInvalidScan
 	}
@@ -110,13 +124,34 @@ func (s *Store) finishScan(ctx context.Context, scanID corpus.ScanSessionID, sta
 		return fmt.Errorf("begin scan finish transaction: %w", err)
 	}
 	defer end(&err)
+	return finishScanConn(conn, scanID, status, finishedAt, allowRemoteCompletion)
+}
 
+func finishScanConn(
+	conn *sqlite.Conn,
+	scanID corpus.ScanSessionID,
+	status corpus.ScanStatus,
+	finishedAt time.Time,
+	allowRemoteCompletion bool,
+) error {
+	if scanID == "" || finishedAt.IsZero() || (status != corpus.ScanComplete && status != corpus.ScanAborted) {
+		return ErrInvalidScan
+	}
 	scan, err := scanSessionConn(conn, scanID)
 	if err != nil {
 		return err
 	}
 	if scan.Status != corpus.ScanOpen {
 		return fmt.Errorf("%w: %s", ErrScanNotOpen, scanID)
+	}
+	if status == corpus.ScanComplete && !allowRemoteCompletion {
+		remote, err := remoteScanSourceExistsConn(conn, scanID)
+		if err != nil {
+			return err
+		}
+		if remote {
+			return ErrRemoteHistoryScanRequiresGuardedCompletion
+		}
 	}
 	if finishedAt.UTC().Before(scan.StartedAt) {
 		return fmt.Errorf("%w: finish before start", ErrInvalidScan)

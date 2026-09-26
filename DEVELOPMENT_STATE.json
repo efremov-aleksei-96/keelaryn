@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 128,
+  "revision": 129,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -128,11 +128,11 @@
     "P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_30A_SOURCE_BOUND_REMOTE_SCANSESSION",
-    "description": "Implement only the first P0-30 stage: one minimal immutable remote scan-source provenance sidecar for existing ScanSession, StartRemoteHistoryScan, source lookup/reconcile, and CompleteRemoteHistoryScan exact generation/publication guard. Keep existing local scan behavior unchanged. No Observation materializer or identity integration yet. Run exact-head CI then mandatory per-stage correctness/reuse retrospective before P0-30B.",
+    "id": "P0_30A_SOURCE_BOUND_REMOTE_SCANSESSION_QUALIFICATION_AND_STAGE_AUDIT",
+    "description": "Qualify exact-head P0-30A schema v17 on validate, Ubuntu 24.04 and Windows 2025. Require immutable exact remote scan source provenance, replay/reconcile semantics, history-advance completion guard, generic CompleteScan bypass guard, reopen durability, v16-to-v17 migration and all prior local scan tests. Then perform the mandatory per-stage correctness/reuse retrospective before any P0-30B work.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "QUALIFY_P0_30A_THEN_MANDATORY_STAGE_RETROSPECTIVE_BEFORE_P0_30B"
+    "audit_gate": "MANDATORY_STAGE_RETROSPECTIVE_AFTER_CI_BEFORE_P0_30B"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -163,7 +163,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "f44bd679035beabfd15565777890fe34b0a12ca6",
+  "repository_basis_commit": "95c9a81e22fe946e33423cef95b7a5dbb3304842",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3709,7 +3709,7 @@
     ]
   },
   "p0_30": {
-    "status": "CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
+    "status": "A_IMPLEMENTED_AWAITING_QUALIFICATION",
     "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -3734,6 +3734,46 @@
       "Microsoft Graph driveItem delta",
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
-    ]
+    ],
+    "schema_version": 17,
+    "a": {
+      "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+      "implementation": {
+        "schema_version": 17,
+        "sidecar_table": "remote_scan_sources",
+        "scan_status_authority": "EXISTING_SCANSESSION_OPEN_COMPLETE_ABORTED_UNCHANGED",
+        "start_api": "StartRemoteHistoryScan",
+        "source_read_api": "RemoteHistoryScanSource",
+        "reconcile_api": "ReconcileRemoteHistoryScan",
+        "complete_api": "CompleteRemoteHistoryScan",
+        "start_atomicity": "OPEN_SCAN_PLUS_IMMUTABLE_SOURCE_SIDECAR_ONE_SQLITE_TRANSACTION",
+        "source_binding": "EXACT_HISTORY_GENERATION_PLUS_PUBLICATION_SEQUENCE_PLUS_SOURCE_SCOPE_POLICY_AND_SNAPSHOT_FINGERPRINT",
+        "complete_guard": "GENERATION_ACTIVE_AND_CURRENT_SEQUENCE_EQUALS_BOUND_PUBLICATION",
+        "generic_complete_guard": "SOURCE_BOUND_SCAN_REQUIRES_COMPLETE_REMOTE_HISTORY_SCAN",
+        "abort_behavior": "GENERIC_ABORT_REMAINS_ALLOWED",
+        "timeout_replay": "MATCHING_OPEN_OR_COMPLETE_SOURCE_RETURNS_EXISTING_SCAN",
+        "completed_replay_after_history_advance": "ALLOWED_FOR_DURABLE_RESULT_RECONCILIATION",
+        "local_scan_behavior": "UNCHANGED",
+        "observation_materializer": false,
+        "identity_integration": false,
+        "live_provider_used": false,
+        "corpus_mutations": 0
+      },
+      "tests": [
+        "OPEN remote scan start and exact source lookup",
+        "matching OPEN source replays existing scan",
+        "generic CompleteScan cannot bypass source guard",
+        "guarded remote completion is replay-safe",
+        "matching COMPLETE source replays even after history advances",
+        "history advance blocks OPEN scan completion without mutation",
+        "ABORT permits new attempt at current publication",
+        "closed generation blocks completion",
+        "source sidecar update/delete rejected by SQLite",
+        "source provenance survives reopen",
+        "invalid fingerprint fails closed",
+        "v16-to-v17 migration",
+        "all existing local ScanSession tests remain required"
+      ]
+    }
   }
 }

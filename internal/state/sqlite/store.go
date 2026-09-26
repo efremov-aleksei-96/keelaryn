@@ -1458,6 +1458,64 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE remote_scan_sources (
+	scan_id TEXT PRIMARY KEY NOT NULL
+		REFERENCES scan_sessions(scan_id) ON DELETE RESTRICT,
+	generation_id TEXT NOT NULL,
+	publication_sequence INTEGER NOT NULL CHECK (publication_sequence >= 1),
+	source_scope_id TEXT NOT NULL CHECK (source_scope_id <> ''),
+	materialization_policy_id TEXT NOT NULL CHECK (materialization_policy_id <> ''),
+	snapshot_fingerprint_version TEXT NOT NULL CHECK (snapshot_fingerprint_version <> ''),
+	snapshot_fingerprint_sha256 TEXT NOT NULL
+		CHECK (
+			length(snapshot_fingerprint_sha256) = 64
+			AND snapshot_fingerprint_sha256 NOT GLOB '*[^0-9a-f]*'
+		),
+	FOREIGN KEY (generation_id, publication_sequence)
+		REFERENCES remote_history_publications(generation_id, sequence) ON DELETE RESTRICT
+) STRICT;
+
+CREATE INDEX remote_scan_sources_replay
+	ON remote_scan_sources (
+		generation_id,
+		publication_sequence,
+		source_scope_id,
+		materialization_policy_id,
+		snapshot_fingerprint_version,
+		snapshot_fingerprint_sha256
+	);
+
+CREATE TRIGGER remote_scan_sources_insert_guard
+BEFORE INSERT ON remote_scan_sources
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM scan_sessions s
+	JOIN remote_history_generations g
+	  ON g.generation_id=NEW.generation_id
+	WHERE s.scan_id=NEW.scan_id
+	  AND s.status='OPEN'
+	  AND s.provider_id=g.provider_id
+	  AND g.status='ACTIVE'
+	  AND g.current_sequence=NEW.publication_sequence
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remote scan source does not match OPEN scan/current history publication');
+END;
+
+CREATE TRIGGER remote_scan_sources_no_update
+BEFORE UPDATE ON remote_scan_sources
+BEGIN
+	SELECT RAISE(ABORT, 'remote scan source provenance is immutable');
+END;
+
+CREATE TRIGGER remote_scan_sources_no_delete
+BEFORE DELETE ON remote_scan_sources
+BEGIN
+	SELECT RAISE(ABORT, 'remote scan source provenance is immutable');
+END;
+`,
+
 	},
 }
 
