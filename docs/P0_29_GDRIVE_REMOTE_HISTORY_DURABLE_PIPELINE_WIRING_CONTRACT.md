@@ -413,3 +413,29 @@ Qualified behavior:
 
 No live OAuth/provider access or corpus mutation occurred.
 
+## 17. P0-29B qualification
+
+Provider-neutral durable orchestration is **QUALIFIED**.
+
+Exact product head:
+
+```text
+082c25b068ab74eadd1a7ee3d12c50621ccbd3dd
+```
+
+GitHub Actions run:
+
+```text
+36246176675
+```
+
+Results:
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+The coordinator checks exact durable prestate before any provider read. Complete cycles publish once; explicit trust-break cycles close once; ordinary transport/provider errors and interrupted cycles perform no durable mutation. Google scope-policy fingerprinting is deterministic and bound to the canonical history universe.
+
+No live OAuth/provider access or corpus mutation occurred.
+
