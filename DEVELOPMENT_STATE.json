@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 95,
+  "revision": 96,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -118,7 +118,7 @@
   ],
   "next_objective": {
     "id": "P0_28C3_V14_REQUALIFICATION",
-    "description": "Requalify exact-head C3 schema v14 after correcting the version-specific v11-to-v12 migration test to run against schema v12 rather than latest. Do not change product semantics. Require validate, Ubuntu 24.04, Windows 2025 and all C3 gates.",
+    "description": "Requalify exact-head C3 schema v14 after fixing the migration-test pool lifecycle self-deadlock. Require validate, Ubuntu 24.04 and Windows 2025 plus all C3 gates. Product semantics unchanged.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "a3eb3b69bc49f550d5ea7131859dfb451df51f1f",
+  "repository_basis_commit": "4654988bf4f9d82dcd830c046d2f09bf73bd9c0a",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2894,6 +2894,16 @@
           "classification": "VERSION_SPECIFIC_MIGRATION_TEST_USED_LATEST_SCHEMA",
           "location": "internal/state/sqlite/lifetime_acceptance_migration_test.go",
           "fix": "PIN_TEST_TARGET_TO_SCHEMA_V12_INSTEAD_OF_OPENING_LATEST_V14",
+          "product_semantics_changed": false,
+          "corpus_mutation": false
+        },
+        {
+          "head": "4654988bf4f9d82dcd830c046d2f09bf73bd9c0a",
+          "ci_run_id": 36242733013,
+          "platform": "ubuntu-24.04",
+          "classification": "TEST_SELF_DEADLOCK_POOL_CLOSE_WITH_CHECKED_OUT_CONNECTION",
+          "location": "internal/state/sqlite/lifetime_acceptance_migration_test.go",
+          "fix": "RETURN_CONNECTION_BEFORE_POOL_CLOSE_IN_DEFERRED_CLEANUP",
           "product_semantics_changed": false,
           "corpus_mutation": false
         }

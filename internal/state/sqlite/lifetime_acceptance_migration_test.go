@@ -42,8 +42,12 @@ func TestQualifiedV11DatabaseMigratesToLifetimeAcceptanceV12(t *testing.T) {
 	})
 	conn, err = pool.Get(ctx)
 	if err != nil { t.Fatal(err) }
-	defer pool.Put(conn)
-	defer pool.Close()
+	defer func() {
+		pool.Put(conn)
+		if err := pool.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	for table, column := range map[string]string{
 		"accepted_continuity_decisions": "lifetime_segment_id",
