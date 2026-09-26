@@ -1692,6 +1692,46 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER scan_sessions_insert_requires_open
+BEFORE INSERT ON scan_sessions
+WHEN NOT (
+	NEW.status='OPEN'
+	AND NEW.finished_at IS NULL
+	AND NEW.provider_id<>''
+	AND NEW.root<>''
+	AND julianday(NEW.started_at) IS NOT NULL
+)
+BEGIN
+	SELECT RAISE(ABORT, 'scan sessions must be created OPEN with valid immutable scope/start');
+END;
+
+CREATE TRIGGER scan_sessions_lifecycle_update_guard
+BEFORE UPDATE ON scan_sessions
+WHEN NOT (
+	NEW.scan_id=OLD.scan_id
+	AND NEW.provider_id=OLD.provider_id
+	AND NEW.root=OLD.root
+	AND NEW.started_at=OLD.started_at
+	AND OLD.status='OPEN'
+	AND OLD.finished_at IS NULL
+	AND NEW.status IN ('COMPLETE','ABORTED')
+	AND NEW.finished_at IS NOT NULL
+	AND julianday(OLD.started_at) IS NOT NULL
+	AND julianday(NEW.finished_at) IS NOT NULL
+	AND julianday(NEW.finished_at) >= julianday(OLD.started_at)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'invalid scan session lifecycle mutation');
+END;
+
+CREATE TRIGGER scan_sessions_no_delete
+BEFORE DELETE ON scan_sessions
+BEGIN
+	SELECT RAISE(ABORT, 'scan sessions are durable authority and cannot be deleted');
+END;
+`,
+
 	},
 }
 
