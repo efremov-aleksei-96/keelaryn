@@ -125,6 +125,60 @@ WHERE c.generation_id=?1
 		)
 	}
 
+	var extraneousEvidence int64
+	if err := sqlitex.Execute(conn, `
+SELECT COUNT(*)
+FROM gdrive_topology_evidence e
+WHERE e.generation_id=?1
+  AND e.sequence<=?2
+  AND NOT (
+    (
+      e.evidence_kind='BOOTSTRAP'
+      AND e.sequence=1
+      AND e.ordinal=-1
+      AND EXISTS (
+        SELECT 1
+        FROM remote_history_bootstrap_membership b
+        WHERE b.generation_id=e.generation_id
+          AND b.object_id=e.object_id
+      )
+    )
+    OR
+    (
+      e.evidence_kind IN ('UPSERT','REMOVED')
+      AND e.sequence>=2
+      AND EXISTS (
+        SELECT 1
+        FROM remote_history_publication_changes c
+        WHERE c.generation_id=e.generation_id
+          AND c.sequence=e.sequence
+          AND c.ordinal=e.ordinal
+          AND c.object_id=e.object_id
+          AND (
+            (c.kind='UPSERT' AND e.evidence_kind='UPSERT')
+            OR
+            (c.kind='REMOVED' AND e.evidence_kind='REMOVED')
+          )
+      )
+    )
+  )`,
+		&sqlitex.ExecOptions{
+			Args: []any{string(generationID), int64(expectedSequence)},
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				extraneousEvidence = stmt.ColumnInt64(0)
+				return nil
+			},
+		}); err != nil {
+		return fmt.Errorf("verify Google topology evidence source authority: %w", err)
+	}
+	if extraneousEvidence != 0 {
+		return fmt.Errorf(
+			"%w: topology evidence without RemoteHistory source=%d",
+			ErrGoogleDriveTopologyVerification,
+			extraneousEvidence,
+		)
+	}
+
 	var latestEvidenceMismatch int64
 	if err := sqlitex.Execute(conn, `
 WITH latest AS (

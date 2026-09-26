@@ -151,3 +151,58 @@ func TestVerifyGoogleDriveTopologyProjectionDetectsMaterializedDrift(t *testing.
 		t.Fatalf("drift verification error=%v want ErrGoogleDriveTopologyVerification", err)
 	}
 }
+
+
+func TestVerifyGoogleDriveTopologyProjectionRejectsEvidenceWithoutHistorySource(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := googleTopologyTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("google-drive-history-universe:v1:test")
+
+	generation, err := store.StartGoogleDriveRemoteHistoryGeneration(
+		ctx,
+		scope,
+		fp,
+		googleMembershipBootstrapBundle(scope, []gdrive.TopologyState{
+			topologyPresent("managed", corpus.ProviderObjectID(scope.Root)),
+		}),
+		time.Now().UTC(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlitex.ExecuteScript(conn,
+		"DROP TRIGGER gdrive_topology_evidence_insert_guard; "+
+			"DROP TRIGGER gdrive_topology_nodes_insert_requires_unwatermarked; "+
+			"DROP TRIGGER gdrive_topology_nodes_insert_guard;",
+		nil,
+	); err != nil {
+		store.pool.Put(conn)
+		t.Fatal(err)
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO gdrive_topology_evidence (generation_id,sequence,ordinal,evidence_kind,object_id,presence,parent_state,parent_id,drive_id) VALUES (?1,1,-1,'BOOTSTRAP','forged','PRESENT','KNOWN',?2,'')",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID), scope.Root}},
+	); err != nil {
+		store.pool.Put(conn)
+		t.Fatal(err)
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO gdrive_topology_nodes (generation_id,object_id,presence,parent_state,parent_id,drive_id,last_sequence,last_ordinal) VALUES (?1,'forged','PRESENT','KNOWN',?2,'',1,-1)",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID), scope.Root}},
+	); err != nil {
+		store.pool.Put(conn)
+		t.Fatal(err)
+	}
+	store.pool.Put(conn)
+
+	err = store.VerifyGoogleDriveTopologyProjection(ctx, generation.ID, 1)
+	if !errors.Is(err, ErrGoogleDriveTopologyVerification) {
+		t.Fatalf("forged evidence verification error=%v want ErrGoogleDriveTopologyVerification", err)
+	}
+}

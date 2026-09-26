@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 123,
+  "revision": 124,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -124,7 +124,7 @@
   ],
   "next_objective": {
     "id": "P0_29C3_FINAL_EXACT_HEAD_QUALIFICATION_AND_STAGE_RETROSPECTIVE",
-    "description": "Qualify exact-head C3 after audit-driven topology verifier and managed-root move proof. Require validate, Ubuntu 24.04 and Windows 2025; verifier detects materialized drift; same-lifetime managed-root move preserves binding/lifetime; all lifetime reincarnation and prior topology tests remain green. Then perform the mandatory per-stage architecture/correctness/reuse retrospective before marking C3/P0-29C qualified.",
+    "description": "Run exact-head CI after final topology verifier source-authority hardening. Require validate, Ubuntu 24.04 and Windows 2025; managed-root same-lifetime move proof; materialized-drift detection; forged topology evidence without RemoteHistory source rejection; all lifetime-incarnation and prior topology tests. Then complete the mandatory per-stage retrospective and only then qualify P0-29C3/P0-29C.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "audit_gate": "NO_NEXT_SUBSTANTIVE_STAGE_BEFORE_C3_STAGE_RETROSPECTIVE_PASS"
@@ -158,7 +158,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "e90a5188622ba10150afaeb899ef26d039262057",
+  "repository_basis_commit": "5b7b0b766a2e649aa49291b8ca6abb964998939f",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3414,7 +3414,7 @@
         }
       },
       "c3": {
-        "status": "STAGE_AUDIT_PROOF_GAPS_ADDRESSED_AWAITING_QUALIFICATION",
+        "status": "STAGE_AUDIT_VERIFIER_HARDENED_AWAITING_FINAL_QUALIFICATION",
         "implementation": {
           "store_file": "internal/state/sqlite/gdrive_membership.go",
           "bind_api": "BindGoogleDriveManagedRoot",
@@ -3526,7 +3526,7 @@
           }
         ],
         "stage_audit": {
-          "status": "PROOF_GAPS_ADDRESSED_AWAITING_QUALIFICATION",
+          "status": "VERIFIER_HARDENED_AWAITING_FINAL_QUALIFICATION",
           "simplifications": [
             {
               "item": "GoogleDriveManagedRootBinding exported read API",
@@ -3550,6 +3550,13 @@
               "issue": "contract required deterministic topology projection drift verification but no verifier existed",
               "correction": "added read-only VerifyGoogleDriveTopologyProjection rederiving exact watermark coverage and comparing latest immutable evidence to current nodes",
               "schema_change_required": false
+            },
+            {
+              "id": "C3-A3",
+              "severity": "HIGH",
+              "issue": "initial topology verifier proved history-to-evidence coverage but did not independently reject extra topology evidence lacking a RemoteHistory source event",
+              "correction": "added reverse source-authority check topology evidence subset of exact bootstrap/publication events",
+              "schema_change_required": false
             }
           ],
           "resolutions": [
@@ -3561,6 +3568,11 @@
               "finding": "C3-A2",
               "implementation": "internal/state/sqlite/gdrive_topology_verify.go::VerifyGoogleDriveTopologyProjection",
               "regression": "internal/state/sqlite/gdrive_topology_verify_test.go::TestVerifyGoogleDriveTopologyProjectionDetectsMaterializedDrift"
+            },
+            {
+              "finding": "C3-A3",
+              "implementation": "VerifyGoogleDriveTopologyProjection reverse evidence-source validation",
+              "regression": "TestVerifyGoogleDriveTopologyProjectionRejectsEvidenceWithoutHistorySource"
             }
           ],
           "prior_art_recheck": "EXISTING_REUSE_LEDGER_GOOGLE_GRAPH_DROPBOX_SYNCTHING_NFS_KUBERNETES_PATTERNS_REVALIDATED_NO_NEW_DEPENDENCY_OR_LAYER_NEEDED",
