@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 94,
+  "revision": 95,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -118,7 +118,7 @@
   ],
   "next_objective": {
     "id": "P0_28C3_V14_REQUALIFICATION",
-    "description": "Requalify schema v14 exact head on validate, Ubuntu 24.04 and Windows 2025. Require RemoteHistory NEW without naked binding, local/legacy admission still binding-guarded, lifetime provenance replay/read, accepted-decision immutability, v12-to-v13 and v13-to-v14 migrations, all prior tests and go vet.",
+    "description": "Requalify exact-head C3 schema v14 after correcting the version-specific v11-to-v12 migration test to run against schema v12 rather than latest. Do not change product semantics. Require validate, Ubuntu 24.04, Windows 2025 and all C3 gates.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "224fa16f0d52a843d8d9de767c64ceedf0234ac7",
+  "repository_basis_commit": "a3eb3b69bc49f550d5ea7131859dfb451df51f1f",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2830,7 +2830,7 @@
       }
     },
     "c3": {
-      "status": "V14_FIX_IMPLEMENTED_AWAITING_REQUALIFICATION",
+      "status": "V14_IMPLEMENTED_AWAITING_REQUALIFICATION",
       "document": "docs/P0_28C3_BOUNDARY_RETRO_20260926.md",
       "audited_head": "78c561d8c8ceba0a8cec71a3c8128ba5e99cb835",
       "qualified_c2b_product_head": "427d1d27c94e7644cf4c91f9b2b864617658e044",
@@ -2885,6 +2885,16 @@
           "location": "accepted_artifact_admissions -> provider_artifact_bindings",
           "fix": "SCHEMA_V14_POLICY_AWARE_ADMISSION_TABLE_REBUILD",
           "product_identity_mutation": false,
+          "corpus_mutation": false
+        },
+        {
+          "head": "a3eb3b69bc49f550d5ea7131859dfb451df51f1f",
+          "ci_run_id": 36242627841,
+          "platform": "ubuntu-24.04",
+          "classification": "VERSION_SPECIFIC_MIGRATION_TEST_USED_LATEST_SCHEMA",
+          "location": "internal/state/sqlite/lifetime_acceptance_migration_test.go",
+          "fix": "PIN_TEST_TARGET_TO_SCHEMA_V12_INSTEAD_OF_OPENING_LATEST_V14",
+          "product_semantics_changed": false,
           "corpus_mutation": false
         }
       ]

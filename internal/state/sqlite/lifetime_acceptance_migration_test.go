@@ -29,12 +29,21 @@ func TestQualifiedV11DatabaseMigratesToLifetimeAcceptanceV12(t *testing.T) {
 	pool.Put(conn)
 	if err := pool.Close(); err != nil { t.Fatal(err) }
 
-	store, err := Open(ctx, path)
+	v12 := sqlitemigration.Schema{
+		AppID: applicationID,
+		Migrations: append([]string(nil), schema.Migrations[:12]...),
+	}
+	pool = sqlitemigration.NewPool(path, v12, sqlitemigration.Options{
+		Flags: sqlite.OpenReadWrite | sqlite.OpenCreate,
+		PoolSize: 1,
+		PrepareConn: func(conn *sqlite.Conn) error {
+			return sqlitex.ExecuteTransient(conn, "PRAGMA foreign_keys = ON", nil)
+		},
+	})
+	conn, err = pool.Get(ctx)
 	if err != nil { t.Fatal(err) }
-	defer store.Close()
-	conn, err = store.pool.Get(ctx)
-	if err != nil { t.Fatal(err) }
-	defer store.pool.Put(conn)
+	defer pool.Put(conn)
+	defer pool.Close()
 
 	for table, column := range map[string]string{
 		"accepted_continuity_decisions": "lifetime_segment_id",
