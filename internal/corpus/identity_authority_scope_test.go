@@ -82,4 +82,19 @@ func TestResolveIdentityAuthoritySetUsesSharedCandidateAndUniverseSemantics(t *t
 	if same.State != corpus.OccurrenceIdentityResolvedSame || same.SelectedArtifactID != "art-1" {
 		t.Fatalf("SAME resolution=%#v", same)
 	}
+
+	ambiguousSet := base
+	ambiguousSet.ID = "authority-ambiguous"
+	ambiguousSet.UniverseCoverage = corpus.CandidateUniverseUnknown
+	ambiguousSet.Candidates = []corpus.IdentityAuthorityCandidate{
+		{ArtifactID: "art-1", Direction: corpus.DirectionSupportsSame, SourceRef: "same-1"},
+		{ArtifactID: "art-2", Direction: corpus.DirectionSupportsSame, SourceRef: "same-2"},
+	}
+	ambiguous, err := corpus.ResolveIdentityAuthoritySet(ambiguousSet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ambiguous.State != corpus.OccurrenceIdentityAmbiguous || ambiguous.SelectedArtifactID != "" {
+		t.Fatalf("AMBIGUOUS resolution=%#v", ambiguous)
+	}
 }

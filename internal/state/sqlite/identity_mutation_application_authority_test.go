@@ -8,6 +8,7 @@ import (
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
 	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory/gdrive"
+	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
@@ -287,5 +288,63 @@ func TestSourceBoundIdentityMutationReceiptRejectsDirectSQLWithoutIdentityCapabi
 		}})
 	if err == nil {
 		t.Fatal("direct source-bound identity mutation receipt unexpectedly succeeded")
+	}
+}
+
+func TestIdentityMutationAuthorizationReleaseClearsConnectionCapability(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.pool.Put(conn)
+
+	release, err := store.authorizeIdentityMutationConn(
+		conn,
+		"scan-capability-test",
+		"segment-capability-test",
+		"authority-capability-test",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIdentityMutationCapabilitySQL(t, conn, 1)
+	release()
+	assertIdentityMutationCapabilitySQL(t, conn, 0)
+
+	releaseAgain, err := store.authorizeIdentityMutationConn(conn, "scan-capability-test-2", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var scanOnly int64
+	if err := sqlitex.Execute(conn,
+		"SELECT keelaryn_source_identity_mutation_authorized('scan-capability-test-2')",
+		&sqlitex.ExecOptions{ResultFunc: func(stmt *sqlite.Stmt) error {
+			scanOnly = stmt.ColumnInt64(0)
+			return nil
+		}}); err != nil {
+		t.Fatal(err)
+	}
+	if scanOnly != 1 {
+		t.Fatalf("reused scan capability=%d want 1", scanOnly)
+	}
+	releaseAgain()
+}
+
+func assertIdentityMutationCapabilitySQL(t *testing.T, conn *sqlite.Conn, want int64) {
+	t.Helper()
+	var scanAuthorized, bindingAuthorized int64
+	if err := sqlitex.Execute(conn,
+		"SELECT keelaryn_source_identity_mutation_authorized('scan-capability-test'), keelaryn_remote_history_binding_authorized('segment-capability-test','authority-capability-test')",
+		&sqlitex.ExecOptions{ResultFunc: func(stmt *sqlite.Stmt) error {
+			scanAuthorized = stmt.ColumnInt64(0)
+			bindingAuthorized = stmt.ColumnInt64(1)
+			return nil
+		}}); err != nil {
+		t.Fatal(err)
+	}
+	if scanAuthorized != want || bindingAuthorized != want {
+		t.Fatalf("capability scan=%d binding=%d want=%d", scanAuthorized, bindingAuthorized, want)
 	}
 }
