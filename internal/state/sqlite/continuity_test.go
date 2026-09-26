@@ -23,6 +23,64 @@ func TestHardenedSameDerivesAuthorityAndReusesUnchangedRevision(t *testing.T) {
 	if got.Decision.RequestID != "req-same" || got.Decision.AuthoritySetID != "auth-same" { t.Fatalf("decision=%#v",got.Decision) }
 }
 
+func TestHardenedSameNonRegularWithoutContentEvidenceAssignsArtifactWithoutRevision(t *testing.T) {
+	ctx := context.Background()
+	store := openInternalStore(t)
+	artifact, err := store.AdoptArtifact(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 9, 27, 23, 0, 0, 0, time.UTC)
+	scan, err := store.StartScan(ctx, "drive", "drive-root", at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedAuthoritySet(t, store, sameAuthority("auth-nonregular", artifact.ID, "obj-dir", at))
+	request := corpus.IdentityMutationRequest{
+		ID: "req-same-nonregular",
+		ScanID: scan.ID,
+		Observation: corpus.ObservationRecordInput{
+			ProviderObject: corpus.ProviderObject{
+				ProviderID: "drive", ID: "obj-dir", IdentityState: corpus.ObjectIdentityObserved,
+			},
+			Locators: []corpus.Locator{{ProviderID: "drive", Root: "drive-root", Path: "file-id/obj-dir"}},
+			AssignmentState: corpus.AssignmentUnresolved,
+			ObservedAt: at,
+			Kind: corpus.EntryOther,
+			Size: 0,
+			Mode: 0,
+			ModifiedAt: at.Add(-time.Minute),
+		},
+		AuthoritySetID: "auth-nonregular",
+		DecidedAt: at,
+	}
+	beforeRevisions := internalTableCount(t, store.Path(), "revisions")
+	first, err := store.AcceptSameObservationInScan(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Replayed || first.Observation.ArtifactID != artifact.ID ||
+		first.Observation.RevisionID != "" || first.Revision != nil {
+		t.Fatalf("non-regular SAME acceptance=%#v", first)
+	}
+	if internalTableCount(t, store.Path(), "revisions") != beforeRevisions {
+		t.Fatal("non-regular SAME created a Revision without content evidence")
+	}
+	beforeObservations := internalTableCount(t, store.Path(), "observations")
+	second, err := store.AcceptSameObservationInScan(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !second.Replayed || second.Observation.ID != first.Observation.ID ||
+		second.Observation.RevisionID != "" || second.Revision != nil {
+		t.Fatalf("non-regular SAME replay first=%#v second=%#v", first, second)
+	}
+	if internalTableCount(t, store.Path(), "observations") != beforeObservations ||
+		internalTableCount(t, store.Path(), "revisions") != beforeRevisions {
+		t.Fatal("non-regular SAME replay mutated durable state")
+	}
+}
+
 func TestHardenedSameChangedContentCreatesNextRevision(t *testing.T) {
 	ctx := context.Background(); store := openInternalStore(t)
 	artifact, err := store.AdoptArtifact(ctx); if err != nil { t.Fatal(err) }

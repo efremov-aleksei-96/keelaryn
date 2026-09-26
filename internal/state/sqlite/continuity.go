@@ -118,12 +118,20 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 		}
 
 		input := request.Observation
-		revision, txErr := observeRevisionConn(conn, resolution.SelectedArtifactID, *request.ContentEvidence)
-		if txErr != nil {
-			return txErr
+		var revisionObservation *corpus.RevisionObservation
+		var revisionID corpus.RevisionID
+		var revisionCreated bool
+		if request.ContentEvidence != nil {
+			revision, txErr := observeRevisionConn(conn, resolution.SelectedArtifactID, *request.ContentEvidence)
+			if txErr != nil {
+				return txErr
+			}
+			revisionObservation = &revision
+			revisionID = revision.Current.Revision.ID
+			revisionCreated = revision.Created
+			input.RevisionID = revisionID
 		}
 		input.ArtifactID = resolution.SelectedArtifactID
-		input.RevisionID = revision.Current.Revision.ID
 		input.AssignmentState = corpus.AssignmentAssigned
 		observation, txErr := recordObservationConn(conn, request.ScanID, input)
 		if txErr != nil {
@@ -157,13 +165,13 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 		if txErr := insertIdentityMutationRequestConn(conn, identityMutationRequestRecord{
 			RequestID: request.ID, Kind: corpus.IdentityMutationSame, Fingerprint: fingerprint,
 			AuthoritySetID: request.AuthoritySetID, ObservationID: observation.ID,
-			ArtifactID: decision.ArtifactID, RevisionID: revision.Current.Revision.ID,
-			RevisionCreated: revision.Created, DecisionKind: "CONTINUITY",
+			ArtifactID: decision.ArtifactID, RevisionID: revisionID,
+			RevisionCreated: revisionCreated, DecisionKind: "CONTINUITY",
 			DecisionID: string(decision.ID), AcceptedAt: decision.DecidedAt,
 		}); txErr != nil {
 			return txErr
 		}
-		out = corpus.ContinuityAcceptance{Observation: observation, Revision: &revision, Decision: decision}
+		out = corpus.ContinuityAcceptance{Observation: observation, Revision: revisionObservation, Decision: decision}
 		return nil
 	}()
 	s.pool.Put(conn)
