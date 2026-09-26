@@ -1587,6 +1587,44 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER provider_object_occurrences_no_update
+BEFORE UPDATE ON provider_object_occurrences
+BEGIN
+	SELECT RAISE(ABORT, 'provider object occurrences are immutable');
+END;
+
+CREATE TRIGGER provider_object_occurrences_no_delete
+BEFORE DELETE ON provider_object_occurrences
+BEGIN
+	SELECT RAISE(ABORT, 'provider object occurrences are immutable');
+END;
+
+CREATE TRIGGER observations_no_update
+BEFORE UPDATE ON observations
+BEGIN
+	SELECT RAISE(ABORT, 'observations are immutable');
+END;
+
+CREATE TRIGGER observations_no_delete
+BEFORE DELETE ON observations
+BEGIN
+	SELECT RAISE(ABORT, 'observations are immutable');
+END;
+
+CREATE TRIGGER locators_no_update
+BEFORE UPDATE ON locators
+BEGIN
+	SELECT RAISE(ABORT, 'locators are immutable');
+END;
+
+CREATE TRIGGER locators_no_delete
+BEFORE DELETE ON locators
+BEGIN
+	SELECT RAISE(ABORT, 'locators are immutable');
+END;
+`,
+
 	},
 }
 
