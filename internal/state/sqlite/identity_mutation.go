@@ -102,6 +102,14 @@ func validateAuthorityScope(
 		return nil
 	}
 
+	if !input.ObservedAt.Equal(scan.StartedAt) {
+		return fmt.Errorf(
+			"%w: remote observation time %s does not match scan boundary %s",
+			ErrScanScopeMismatch,
+			input.ObservedAt.UTC().Format(time.RFC3339Nano),
+			scan.StartedAt.UTC().Format(time.RFC3339Nano),
+		)
+	}
 	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion ||
 		source.MaterializationPolicyID != remotehistory.LightweightAllMaterializationPolicyID ||
 		set.PolicyID != remoteHistoryLifetimeAuthorityPolicyV1 ||
