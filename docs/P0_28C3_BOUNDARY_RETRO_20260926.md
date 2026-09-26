@@ -111,3 +111,34 @@ Exact-head CI must pass:
 - direct SQL RemoteHistory naked binding rejected;
 - stale authority remains zero-mutation fail-closed;
 - go vet.
+
+## Finding C3-B4 — legacy admission FK contradicted segment-only RemoteHistory NEW
+
+Severity: **BLOCKER BEFORE LIVE PROVIDER**
+
+The first v13 CI run (`36242439295`) exposed an older schema constraint that the Go-level audit had not yet removed:
+
+```text
+accepted_artifact_admissions
+  FOREIGN KEY (identity_domain, provider_id, native_object_id)
+  -> provider_artifact_bindings
+```
+
+That FK originated in the pre-lifetime v5 admission model. Once C3 correctly stopped RemoteHistory from creating naked bindings, the final accepted admission could not commit and SQLite returned `FOREIGN KEY constraint failed`.
+
+This is a useful failure: it proves the database still enforced the old identity model even after application code stopped trusting it.
+
+### Correction — schema v14
+
+v13 remains intact.
+
+v14 rebuilds only `accepted_artifact_admissions`:
+
+- removes the unconditional naked-binding foreign key;
+- retains Observation, Artifact and LifetimeSegment foreign keys;
+- local/legacy policies are guarded by an explicit matching naked binding;
+- `remote-history:lifetime-segment:v1` is guarded by an explicit matching lifetime-segment binding;
+- UPDATE/DELETE immutability is recreated on the rebuilt table.
+
+This makes the SQLite authority model policy-aware without weakening local/legacy admission correctness.
+

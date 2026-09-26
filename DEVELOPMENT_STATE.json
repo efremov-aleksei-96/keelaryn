@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 93,
+  "revision": 94,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -117,8 +117,8 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28C3_HARDENING_QUALIFICATION",
-    "description": "Qualify exact-head C3 schema v13 hardening on validate, Ubuntu 24.04 and Windows 2025. Require segment-only RemoteHistory binding, lifetime provenance read/replay validation, accepted-decision immutability, direct-SQL naked RemoteHistory binding rejection, v12-to-v13 migration and all prior tests. No live provider wiring until PASS.",
+    "id": "P0_28C3_V14_REQUALIFICATION",
+    "description": "Requalify schema v14 exact head on validate, Ubuntu 24.04 and Windows 2025. Require RemoteHistory NEW without naked binding, local/legacy admission still binding-guarded, lifetime provenance replay/read, accepted-decision immutability, v12-to-v13 and v13-to-v14 migrations, all prior tests and go vet.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "78c561d8c8ceba0a8cec71a3c8128ba5e99cb835",
+  "repository_basis_commit": "224fa16f0d52a843d8d9de767c64ceedf0234ac7",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2589,7 +2589,7 @@
     }
   },
   "p0_28c": {
-    "status": "C3_HARDENING_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "C3_V14_FIX_IMPLEMENTED_AWAITING_REQUALIFICATION",
     "evidence_document": "docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md",
     "dependencies_added": 0,
     "live_oauth_used": false,
@@ -2830,7 +2830,7 @@
       }
     },
     "c3": {
-      "status": "HARDENING_IMPLEMENTED_AWAITING_QUALIFICATION",
+      "status": "V14_FIX_IMPLEMENTED_AWAITING_REQUALIFICATION",
       "document": "docs/P0_28C3_BOUNDARY_RETRO_20260926.md",
       "audited_head": "78c561d8c8ceba0a8cec71a3c8128ba5e99cb835",
       "qualified_c2b_product_head": "427d1d27c94e7644cf4c91f9b2b864617658e044",
@@ -2853,9 +2853,21 @@
           "severity": "BLOCKER_BEFORE_LIVE_PROVIDER",
           "issue": "accepted continuity/admission rows lacked SQLite UPDATE/DELETE immutability",
           "correction": "v13 immutable accepted-decision triggers"
+        },
+        {
+          "id": "C3-B4",
+          "severity": "BLOCKER_BEFORE_LIVE_PROVIDER",
+          "issue": "accepted_artifact_admissions retained the v5 foreign key to naked provider_artifact_bindings, so RemoteHistory segment-only NEW could not commit",
+          "evidence": {
+            "failed_head": "224fa16f0d52a843d8d9de767c64ceedf0234ac7",
+            "ci_run_id": 36242439295,
+            "platform": "ubuntu-24.04",
+            "failure": "FOREIGN KEY constraint failed on accepted Artifact admission"
+          },
+          "correction": "v14 rebuilds accepted_artifact_admissions without naked-binding FK and replaces it with policy-aware insert guard: local/legacy requires naked binding; RemoteHistory requires lifetime binding"
         }
       ],
-      "schema_version": 13,
+      "schema_version": 14,
       "prior_art": [
         "Kubernetes reusable Name vs historical UID",
         "Linux NFS inode plus generation filehandles",
@@ -2863,7 +2875,19 @@
         "Microsoft Graph terminal deltaLink and repeated-item folding"
       ],
       "live_provider_used": false,
-      "corpus_mutations": 0
+      "corpus_mutations": 0,
+      "prequalification_failures": [
+        {
+          "head": "224fa16f0d52a843d8d9de767c64ceedf0234ac7",
+          "ci_run_id": 36242439295,
+          "platform": "ubuntu-24.04",
+          "classification": "LEGACY_V5_FOREIGN_KEY_CONFLICTS_WITH_SEGMENT_ONLY_REMOTE_NEW",
+          "location": "accepted_artifact_admissions -> provider_artifact_bindings",
+          "fix": "SCHEMA_V14_POLICY_AWARE_ADMISSION_TABLE_REBUILD",
+          "product_identity_mutation": false,
+          "corpus_mutation": false
+        }
+      ]
     }
   },
   "development_execution_policy": {

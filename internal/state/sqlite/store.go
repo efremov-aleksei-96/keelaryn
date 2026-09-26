@@ -993,6 +993,93 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE accepted_artifact_admissions_v14 (
+	request_id TEXT PRIMARY KEY NOT NULL,
+	observation_id TEXT NOT NULL UNIQUE
+		REFERENCES observations(observation_id) ON DELETE RESTRICT,
+	artifact_id TEXT NOT NULL
+		REFERENCES artifacts(artifact_id) ON DELETE RESTRICT,
+	identity_domain TEXT NOT NULL,
+	provider_id TEXT NOT NULL,
+	native_object_id TEXT NOT NULL,
+	decision_state TEXT NOT NULL
+		CHECK (decision_state = 'RESOLVED_NEW'),
+	policy_id TEXT NOT NULL,
+	resolution_json TEXT NOT NULL,
+	decided_at TEXT NOT NULL,
+	lifetime_segment_id TEXT
+		REFERENCES provider_object_lifetime_segments(lifetime_segment_id) ON DELETE RESTRICT
+) STRICT;
+
+INSERT INTO accepted_artifact_admissions_v14 (
+	request_id, observation_id, artifact_id,
+	identity_domain, provider_id, native_object_id,
+	decision_state, policy_id, resolution_json, decided_at,
+	lifetime_segment_id
+)
+SELECT
+	request_id, observation_id, artifact_id,
+	identity_domain, provider_id, native_object_id,
+	decision_state, policy_id, resolution_json, decided_at,
+	lifetime_segment_id
+FROM accepted_artifact_admissions;
+
+DROP TABLE accepted_artifact_admissions;
+ALTER TABLE accepted_artifact_admissions_v14 RENAME TO accepted_artifact_admissions;
+
+CREATE INDEX accepted_artifact_admissions_artifact
+	ON accepted_artifact_admissions (artifact_id);
+
+CREATE INDEX accepted_admission_lifetime_segment
+	ON accepted_artifact_admissions (lifetime_segment_id);
+
+CREATE TRIGGER accepted_admission_binding_guard
+BEFORE INSERT ON accepted_artifact_admissions
+WHEN (
+	NEW.policy_id = 'remote-history:lifetime-segment:v1'
+	AND (
+		NEW.lifetime_segment_id IS NULL
+		OR NOT EXISTS (
+			SELECT 1
+			FROM provider_lifetime_artifact_bindings b
+			WHERE b.lifetime_segment_id = NEW.lifetime_segment_id
+			  AND b.artifact_id = NEW.artifact_id
+			  AND b.policy_id = NEW.policy_id
+		)
+	)
+) OR (
+	NEW.policy_id <> 'remote-history:lifetime-segment:v1'
+	AND (
+		NEW.lifetime_segment_id IS NOT NULL
+		OR NOT EXISTS (
+			SELECT 1
+			FROM provider_artifact_bindings b
+			WHERE b.identity_domain = NEW.identity_domain
+			  AND b.provider_id = NEW.provider_id
+			  AND b.native_object_id = NEW.native_object_id
+			  AND b.artifact_id = NEW.artifact_id
+			  AND b.policy_id = NEW.policy_id
+		)
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'accepted admission binding provenance mismatch');
+END;
+
+CREATE TRIGGER accepted_artifact_admissions_no_update
+BEFORE UPDATE ON accepted_artifact_admissions
+BEGIN
+	SELECT RAISE(ABORT, 'accepted Artifact admissions are immutable');
+END;
+
+CREATE TRIGGER accepted_artifact_admissions_no_delete
+BEFORE DELETE ON accepted_artifact_admissions
+BEGIN
+	SELECT RAISE(ABORT, 'accepted Artifact admissions are immutable');
+END;
+`,
+
 	},
 }
 
