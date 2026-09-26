@@ -425,3 +425,29 @@ Qualified schema: v10.
 
 This qualifies deterministic provider-object lifetime-segment derivation and reconstruction verification only. Segment-scoped Artifact binding and RemoteHistory-backed mutation authority remain P0-28C2.
 
+## 16. P0-28C2A qualification
+
+P0-28C2A segment-scoped binding and constrained RemoteHistory authority production are **QUALIFIED**.
+
+Exact product head:
+
+```text
+f4f334a2c593b63aedc81a0780f6a9feb94139c5
+```
+
+GitHub Actions run:
+
+```text
+36239583729
+```
+
+Results:
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+Qualified schema: v11.
+
+This qualifies segment binding storage and production of sealed history-backed authority only. SAME/NEW mutation transactions still do not consume this authority until P0-28C2B.
+

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 87,
+  "revision": 88,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -117,8 +117,8 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28C2A_LIFETIME_BINDING_AUTHORITY_PRODUCER_QUALIFICATION",
-    "description": "Qualify exact-head schema v11 segment-scoped binding and constrained RemoteHistory authority producer on validate, Ubuntu 24.04 and Windows 2025. Do not alter SAME/NEW acceptance yet. After PASS, proceed to C2B mutation-boundary revalidation and atomic lifetime binding integration.",
+    "id": "P0_28C2B_MUTATION_BOUNDARY_LIFETIME_INTEGRATION",
+    "description": "Integrate qualified RemoteHistory lifetime authority into SAME/NEW acceptance: revalidate generation+segment+immutable-history projection+current membership+binding state inside the final SQLite mutation transaction; NEW atomically creates segment binding and records lifetime_segment_id provenance; SAME relies on segment binding rather than naked legacy binding. Preserve legacy/local acceptance semantics. No live OAuth/provider access and no corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "b517d2198985ece58578fc47d0b918a34bf0e318",
+  "repository_basis_commit": "f4f334a2c593b63aedc81a0780f6a9feb94139c5",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2589,7 +2589,7 @@
     }
   },
   "p0_28c": {
-    "status": "C2A_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "C2A_QUALIFIED_C2B_NEXT",
     "evidence_document": "docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md",
     "dependencies_added": 0,
     "live_oauth_used": false,
@@ -2693,7 +2693,7 @@
       }
     },
     "c2a": {
-      "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+      "status": "QUALIFIED",
       "scope": "SEGMENT_BINDING_AND_REMOTE_HISTORY_AUTHORITY_PRODUCER_ONLY",
       "implementation": {
         "binding_table": "provider_lifetime_artifact_bindings",
@@ -2727,7 +2727,39 @@
         "bogus RemoteHistory policy authority rejected by SQLite",
         "GenerationID/LifetimeSegmentID pairing",
         "v10-to-v11 migration"
-      ]
+      ],
+      "qualification": {
+        "exact_head": "f4f334a2c593b63aedc81a0780f6a9feb94139c5",
+        "ci_run_id": 36239583729,
+        "conclusion": "SUCCESS",
+        "jobs": {
+          "validate": "PASS",
+          "go (ubuntu-24.04)": "PASS",
+          "go (windows-2025)": "PASS"
+        },
+        "schema_version": 11,
+        "gates": [
+          "segment-scoped immutable Artifact binding",
+          "one segment cannot bind two Artifacts",
+          "RemoteHistory authority references active generation+segment+membership",
+          "authority producer rederives segment from immutable history",
+          "deterministic authority replay on unchanged durable state",
+          "bound current segment produces SAME candidate",
+          "unbound current segment with no predecessor produces COMPLETE zero-candidate authority",
+          "prior segment binding blocks automatic NEW",
+          "legacy naked binding blocks automatic NEW",
+          "projection drift blocks authority production",
+          "GenerationID/LifetimeSegmentID pairing",
+          "bogus RemoteHistory authority rejected by SQLite",
+          "v10-to-v11 migration",
+          "all prior tests",
+          "go mod tidy -diff",
+          "go vet"
+        ],
+        "live_oauth_used": false,
+        "live_provider_used": false,
+        "corpus_mutations": 0
+      }
     }
   }
 }
