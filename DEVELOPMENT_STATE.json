@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 109,
+  "revision": 110,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C2B_ATOMIC_HISTORY_TOPOLOGY_STORE_SIDECAR",
-    "description": "Implement Store-side atomic bootstrap/incremental projection using schema v16. Preserve existing generic RemoteHistory public behavior; refactor internal transaction helpers and add Google-specific bundle entrypoints so RemoteHistory publication, immutable topology evidence, current projection and validated watermark commit in one SQLite transaction. No membership traversal yet, no schema migration, no live provider access.",
+    "id": "P0_29C2B_REFACTOR_QUALIFICATION",
+    "description": "Qualify the behavior-preserving RemoteHistory transaction-helper refactor on validate, Ubuntu 24.04 and Windows 2025. Require all existing P0-28/P0-29 tests and go vet. Do not add Google topology sidecar writes until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "e9c268bca420121c2a1d2392a2d1b015e84d9257",
+  "repository_basis_commit": "b7ca17735aa550d833324bb400a749db4a8f41d9",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2979,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C2A_QUALIFIED_C2B_NEXT",
+    "status": "C2B_REFACTOR_IMPLEMENTED_AWAITING_QUALIFICATION",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3111,7 +3111,7 @@
       }
     },
     "c": {
-      "status": "C2A_QUALIFIED_C2B_NEXT",
+      "status": "C2B_REFACTOR_IMPLEMENTED_AWAITING_QUALIFICATION",
       "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
       "core_decisions": {
         "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
@@ -3207,7 +3207,7 @@
         }
       },
       "c2": {
-        "status": "A_QUALIFIED_B_NEXT",
+        "status": "B_REFACTOR_IMPLEMENTED_AWAITING_QUALIFICATION",
         "a": {
           "status": "QUALIFIED",
           "scope": "GDRIVE_HISTORY_TOPOLOGY_BUNDLE",
@@ -3264,6 +3264,22 @@
               "go vet"
             ],
             "live_oauth_used": false,
+            "live_provider_used": false,
+            "corpus_mutations": 0
+          }
+        },
+        "b": {
+          "status": "REFACTOR_IMPLEMENTED_AWAITING_QUALIFICATION",
+          "scope": "GENERIC_REMOTE_HISTORY_TRANSACTION_EXTENSION_POINT",
+          "implementation": {
+            "generic_public_apis": "UNCHANGED",
+            "start_helper": "startRemoteHistoryGenerationWithSidecar",
+            "publish_helper": "publishRemoteHistoryCycleWithSidecar",
+            "bootstrap_sidecar_default": "NIL",
+            "cycle_sidecar_default": "NIL",
+            "transaction_boundary": "SIDECAR_RUNS_INSIDE_EXISTING_IMMEDIATE_SQLITE_TRANSACTION",
+            "behavior_change": false,
+            "schema_changed": false,
             "live_provider_used": false,
             "corpus_mutations": 0
           }
