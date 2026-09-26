@@ -60,6 +60,12 @@ func TestRemoteHistoryAuthorityProducerNewThenSameAfterLifetimeBinding(t *testin
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}
+	releaseBindingAuthorization, authErr := store.authorizeIdentityMutationConn(conn, "", segment.ID, first.ID)
+	if authErr != nil {
+		end(&authErr)
+		store.pool.Put(conn)
+		t.Fatal(authErr)
+	}
 	binding, created, bindErr := insertProviderLifetimeArtifactBindingConn(conn, ProviderLifetimeArtifactBinding{
 		LifetimeSegmentID: segment.ID,
 		ArtifactID:        artifact.ID,
@@ -67,6 +73,7 @@ func TestRemoteHistoryAuthorityProducerNewThenSameAfterLifetimeBinding(t *testin
 		AuthoritySetID:    first.ID,
 		AcceptedAt:        base.Add(3 * time.Minute),
 	})
+	releaseBindingAuthorization()
 	end(&bindErr)
 	store.pool.Put(conn)
 	if bindErr != nil {
@@ -271,6 +278,12 @@ func TestLifetimeBindingIsImmutableAndSingleArtifact(t *testing.T) {
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}
+	releaseConflictAuthorization, authErr := store.authorizeIdentityMutationConn(conn, "", segment.ID, authority.ID)
+	if authErr != nil {
+		end(&authErr)
+		store.pool.Put(conn)
+		t.Fatal(authErr)
+	}
 	_, _, conflict := insertProviderLifetimeArtifactBindingConn(conn, ProviderLifetimeArtifactBinding{
 		LifetimeSegmentID: segment.ID,
 		ArtifactID: secondArtifact.ID,
@@ -278,6 +291,7 @@ func TestLifetimeBindingIsImmutableAndSingleArtifact(t *testing.T) {
 		AuthoritySetID: authority.ID,
 		AcceptedAt: base.Add(3*time.Minute),
 	})
+	releaseConflictAuthorization()
 	end(&conflict)
 	store.pool.Put(conn)
 	if !errors.Is(conflict, ErrProviderLifetimeArtifactBindingConflict) {
@@ -348,7 +362,16 @@ func seedLifetimeBinding(t *testing.T, store *Store, binding ProviderLifetimeArt
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}
+	releaseAuthorization, authErr := store.authorizeIdentityMutationConn(
+		conn, "", binding.LifetimeSegmentID, binding.AuthoritySetID,
+	)
+	if authErr != nil {
+		end(&authErr)
+		store.pool.Put(conn)
+		t.Fatal(authErr)
+	}
 	_, _, bindErr := insertProviderLifetimeArtifactBindingConn(conn, binding)
+	releaseAuthorization()
 	end(&bindErr)
 	store.pool.Put(conn)
 	if bindErr != nil {

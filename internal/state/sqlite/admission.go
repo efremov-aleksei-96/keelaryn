@@ -101,6 +101,20 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 			}
 		}
 
+		var bindingSegmentID remotehistory.ProviderObjectLifetimeSegmentID
+		var bindingAuthorityID corpus.IdentityAuthoritySetID
+		if remoteAuthority {
+			bindingSegmentID = remoteSegment.ID
+			bindingAuthorityID = authority.ID
+		}
+		releaseAuthorization, txErr := s.authorizeIdentityMutationConn(
+			conn, request.ScanID, bindingSegmentID, bindingAuthorityID,
+		)
+		if txErr != nil {
+			return txErr
+		}
+		defer releaseAuthorization()
+
 		artifactID := corpus.ArtifactID("art_" + uuid.NewString())
 		if txErr := sqlitex.Execute(conn,
 			"INSERT INTO artifacts (artifact_id) VALUES (?1)",

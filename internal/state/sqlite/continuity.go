@@ -117,6 +117,12 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 			)
 		}
 
+		releaseAuthorization, txErr := s.authorizeIdentityMutationConn(conn, request.ScanID, "", "")
+		if txErr != nil {
+			return txErr
+		}
+		defer releaseAuthorization()
+
 		input := request.Observation
 		var revisionObservation *corpus.RevisionObservation
 		var revisionID corpus.RevisionID

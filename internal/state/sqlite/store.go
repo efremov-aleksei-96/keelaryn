@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
 	"github.com/google/uuid"
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitemigration"
@@ -2034,6 +2035,79 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER source_bound_assigned_observation_application_guard
+BEFORE INSERT ON observations
+WHEN NEW.scan_id IS NOT NULL
+AND NEW.assignment_state='ASSIGNED'
+AND EXISTS (
+	SELECT 1 FROM remote_scan_sources r
+	WHERE r.scan_id=NEW.scan_id
+)
+AND keelaryn_source_identity_mutation_authorized(NEW.scan_id)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound assigned Observation requires validated identity mutation authorization');
+END;
+
+CREATE TRIGGER source_bound_continuity_application_guard
+BEFORE INSERT ON accepted_continuity_decisions
+WHEN EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+)
+AND keelaryn_source_identity_mutation_authorized(COALESCE((
+	SELECT o.scan_id FROM observations o
+	WHERE o.observation_id=NEW.observation_id
+), ''))<>1
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound continuity decision requires validated identity mutation authorization');
+END;
+
+CREATE TRIGGER source_bound_admission_application_guard
+BEFORE INSERT ON accepted_artifact_admissions
+WHEN EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+)
+AND keelaryn_source_identity_mutation_authorized(COALESCE((
+	SELECT o.scan_id FROM observations o
+	WHERE o.observation_id=NEW.observation_id
+), ''))<>1
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound admission requires validated identity mutation authorization');
+END;
+
+CREATE TRIGGER source_bound_identity_mutation_receipt_application_guard
+BEFORE INSERT ON identity_mutation_requests
+WHEN EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+)
+AND keelaryn_source_identity_mutation_authorized(COALESCE((
+	SELECT o.scan_id FROM observations o
+	WHERE o.observation_id=NEW.observation_id
+), ''))<>1
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound identity mutation receipt requires validated identity mutation authorization');
+END;
+
+CREATE TRIGGER provider_lifetime_binding_application_guard
+BEFORE INSERT ON provider_lifetime_artifact_bindings
+WHEN keelaryn_remote_history_binding_authorized(
+	NEW.lifetime_segment_id,
+	NEW.source_authority_set_id
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory lifetime binding requires validated identity mutation authorization');
+END;
+`,
+
 	},
 }
 
@@ -2045,17 +2119,26 @@ END;
 const (
 	remoteCompletionAuthorizationFunction = "keelaryn_remote_completion_authorized"
 	canonicalUTCRFC3339NanoFunction       = "keelaryn_is_canonical_utc_rfc3339nano"
-	utcRFC3339NanoAfterFunction           = "keelaryn_utc_rfc3339nano_after"
+	utcRFC3339NanoAfterFunction                  = "keelaryn_utc_rfc3339nano_after"
+	sourceIdentityMutationAuthorizationFunction  = "keelaryn_source_identity_mutation_authorized"
+	remoteHistoryBindingAuthorizationFunction    = "keelaryn_remote_history_binding_authorized"
 )
 
 type remoteCompletionAuthorization struct {
 	scanID corpus.ScanSessionID
 }
 
+type identityMutationAuthorization struct {
+	scanID            corpus.ScanSessionID
+	lifetimeSegmentID remotehistory.ProviderObjectLifetimeSegmentID
+	authoritySetID    corpus.IdentityAuthoritySetID
+}
+
 type Store struct {
-	pool                           *sqlitemigration.Pool
-	path                           string
-	remoteCompletionAuthorizations sync.Map
+	pool                            *sqlitemigration.Pool
+	path                            string
+	remoteCompletionAuthorizations  sync.Map
+	identityMutationAuthorizations  sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -2113,7 +2196,73 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		return fmt.Errorf("register timestamp ordering function: %w", err)
 	}
 	s.remoteCompletionAuthorizations.Store(conn, auth)
+
+	identityAuth := &identityMutationAuthorization{}
+	if err := conn.CreateFunction(sourceIdentityMutationAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs:         1,
+		Deterministic: false,
+		AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if identityAuth.scanID != "" && string(identityAuth.scanID) == args[0].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register source identity mutation authorization function: %w", err)
+	}
+	if err := conn.CreateFunction(remoteHistoryBindingAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs:         2,
+		Deterministic: false,
+		AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if identityAuth.lifetimeSegmentID != "" &&
+				identityAuth.authoritySetID != "" &&
+				string(identityAuth.lifetimeSegmentID) == args[0].Text() &&
+				string(identityAuth.authoritySetID) == args[1].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register RemoteHistory binding authorization function: %w", err)
+	}
+	s.identityMutationAuthorizations.Store(conn, identityAuth)
 	return nil
+}
+
+func (s *Store) authorizeIdentityMutationConn(
+	conn *sqlite.Conn,
+	scanID corpus.ScanSessionID,
+	lifetimeSegmentID remotehistory.ProviderObjectLifetimeSegmentID,
+	authoritySetID corpus.IdentityAuthoritySetID,
+) (func(), error) {
+	value, ok := s.identityMutationAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("identity mutation authorization state missing for connection")
+	}
+	auth, ok := value.(*identityMutationAuthorization)
+	if !ok || auth == nil {
+		return nil, fmt.Errorf("identity mutation authorization state invalid")
+	}
+	if auth.scanID != "" || auth.lifetimeSegmentID != "" || auth.authoritySetID != "" {
+		return nil, fmt.Errorf("identity mutation authorization already active")
+	}
+	if lifetimeSegmentID == "" && authoritySetID != "" ||
+		lifetimeSegmentID != "" && authoritySetID == "" {
+		return nil, fmt.Errorf("identity mutation binding authorization must include both segment and authority")
+	}
+	if scanID == "" && lifetimeSegmentID == "" {
+		return nil, fmt.Errorf("identity mutation authorization has no protected target")
+	}
+	auth.scanID = scanID
+	auth.lifetimeSegmentID = lifetimeSegmentID
+	auth.authoritySetID = authoritySetID
+	return func() {
+		auth.scanID = ""
+		auth.lifetimeSegmentID = ""
+		auth.authoritySetID = ""
+	}, nil
 }
 
 func (s *Store) authorizeRemoteCompletionConn(
