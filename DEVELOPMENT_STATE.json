@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 85,
+  "revision": 86,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -117,8 +117,8 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28C1_LIFETIME_SEGMENT_DERIVATION_QUALIFICATION",
-    "description": "Qualify exact-head schema v10 lifetime-segment derivation on validate, Ubuntu 24.04 and Windows 2025. If failure occurs, fix without widening scope into bindings/authority. After PASS, record C1 qualification and proceed to P0-28C2 segment-scoped binding + RemoteHistory authority integration.",
+    "id": "P0_28C2_LIFETIME_BINDING_AND_AUTHORITY_INTEGRATION",
+    "description": "Implement segment-scoped Artifact binding and a RemoteHistory-backed internal IdentityAuthoritySet producer. Preserve naked provider bindings as legacy non-conclusive provenance; block unsafe auto-NEW when prior segment/legacy binding exists; revalidate generation+segment+membership+binding inside final SAME/NEW mutation transaction. Split implementation if needed to keep migration and acceptance changes coherent. No live OAuth/provider access and no corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "9a999ea7d5d33532372efe476b665710afa451de",
+  "repository_basis_commit": "e08085239c04906c13c749b14c60d4e8968b5fda",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2589,7 +2589,7 @@
     }
   },
   "p0_28c": {
-    "status": "C1_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "C1_QUALIFIED_C2_NEXT",
     "evidence_document": "docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md",
     "dependencies_added": 0,
     "live_oauth_used": false,
@@ -2626,7 +2626,7 @@
     ],
     "schema_version": 10,
     "c1": {
-      "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+      "status": "QUALIFIED",
       "implementation": {
         "domain_file": "internal/remotehistory/lifetime.go",
         "sqlite_file": "internal/state/sqlite/lifetime_segments.go",
@@ -2661,7 +2661,36 @@
         "direct SQL identity/delete/reopen guards",
         "projection drift detected against immutable history",
         "v9-to-v10 migration"
-      ]
+      ],
+      "qualification": {
+        "exact_head": "e08085239c04906c13c749b14c60d4e8968b5fda",
+        "ci_run_id": 36238911921,
+        "conclusion": "SUCCESS",
+        "jobs": {
+          "validate": "PASS",
+          "go (ubuntu-24.04)": "PASS",
+          "go (windows-2025)": "PASS"
+        },
+        "schema_version": 10,
+        "gates": [
+          "deterministic lifetime segment ID",
+          "bootstrap segment projection",
+          "ordered UPSERT/REMOVED transitions",
+          "same-publication removal/reappearance split",
+          "generation-close segment closure",
+          "same native ID across generations gets distinct segment",
+          "projection rebuild verification",
+          "direct SQL identity/delete/reopen protection",
+          "v9-to-v10 migration",
+          "reopen durability",
+          "all prior tests",
+          "go mod tidy -diff",
+          "go vet"
+        ],
+        "live_oauth_used": false,
+        "live_provider_used": false,
+        "corpus_mutations": 0
+      }
     }
   }
 }

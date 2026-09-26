@@ -398,3 +398,30 @@ P0-28C still does not:
 - make AI inference identity authority.
 
 Only after P0-28C is qualified may the deterministic Google Drive RemoteHistory adapter be wired into this durable identity pipeline.
+
+## 15. P0-28C1 qualification
+
+P0-28C1 segment derivation is **QUALIFIED**.
+
+Exact product head:
+
+```text
+e08085239c04906c13c749b14c60d4e8968b5fda
+```
+
+GitHub Actions run:
+
+```text
+36238911921
+```
+
+Results:
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+Qualified schema: v10.
+
+This qualifies deterministic provider-object lifetime-segment derivation and reconstruction verification only. Segment-scoped Artifact binding and RemoteHistory-backed mutation authority remain P0-28C2.
+
