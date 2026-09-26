@@ -145,35 +145,13 @@ func insertIdentityAuthoritySetConn(conn *sqlite.Conn, set corpus.IdentityAuthor
 }
 
 func candidateResolutionFromAuthority(set corpus.IdentityAuthoritySet) (corpus.CandidateSetResolution, error) {
-	inputs := make([]corpus.ArtifactCandidateInput, 0, len(set.Candidates))
-	for _, candidate := range set.Candidates {
-		inputs = append(inputs, corpus.ArtifactCandidateInput{
-			ArtifactID: candidate.ArtifactID,
-			Evidence: []corpus.DecisionEvidence{{
-				Source:    "authority-set:" + string(set.ID) + ":" + candidate.SourceRef,
-				Direction: candidate.Direction,
-				Strength:  corpus.EvidenceConclusive,
-			}},
-		})
+	resolution, err := corpus.ResolveIdentityAuthoritySet(set)
+	if err != nil {
+		return corpus.CandidateSetResolution{}, err
 	}
-	return corpus.ResolveCandidateSet(inputs)
+	return resolution.Candidates, nil
 }
 
 func occurrenceResolutionFromAuthority(set corpus.IdentityAuthoritySet) (corpus.OccurrenceIdentityResolution, error) {
-	candidates, err := candidateResolutionFromAuthority(set)
-	if err != nil {
-		return corpus.OccurrenceIdentityResolution{}, err
-	}
-	refs := append([]string(nil), set.SourceRefs...)
-	refs = append(refs, "authority-set:"+string(set.ID))
-	proof := corpus.CandidateUniverseProof{
-		PolicyID:        set.PolicyID,
-		ProviderID:      set.ProviderID,
-		IdentityDomain:  set.IdentityDomain,
-		ScopeID:         set.ScopeID,
-		CurrentObjectID: set.CurrentObjectID,
-		Coverage:        set.UniverseCoverage,
-		EvidenceRefs:    refs,
-	}
-	return corpus.ResolveOccurrenceIdentity(candidates, &proof)
+	return corpus.ResolveIdentityAuthoritySet(set)
 }

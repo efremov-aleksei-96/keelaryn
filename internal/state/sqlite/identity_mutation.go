@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
+	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory/gdrive"
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
@@ -75,17 +77,97 @@ func validateIdentityMutationRequest(request corpus.IdentityMutationRequest, req
 	return nil
 }
 
-func validateAuthorityScope(set corpus.IdentityAuthoritySet, scan corpus.ScanSession, input corpus.ObservationRecordInput) error {
-	if set.ProviderID != scan.ProviderID ||
-		set.ScopeID != scan.Root ||
+func validateAuthorityScope(
+	conn *sqlite.Conn,
+	set corpus.IdentityAuthoritySet,
+	scan corpus.ScanSession,
+	input corpus.ObservationRecordInput,
+) error {
+	source, sourceBound, err := remoteScanSourceConn(conn, scan.ID)
+	if err != nil {
+		return err
+	}
+	if !sourceBound {
+		if set.ProviderID != scan.ProviderID ||
+			set.ScopeID != scan.Root ||
+			input.ProviderObject.ProviderID != scan.ProviderID ||
+			input.ProviderObject.ID != set.CurrentObjectID {
+			return fmt.Errorf("%w: authority/input/scan mismatch", ErrScanScopeMismatch)
+		}
+		for _, locator := range input.Locators {
+			if locator.ProviderID != scan.ProviderID || locator.Root != scan.Root {
+				return fmt.Errorf("%w: locator=%#v", ErrScanScopeMismatch, locator)
+			}
+		}
+		return nil
+	}
+
+	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion ||
+		source.MaterializationPolicyID != remotehistory.LightweightAllMaterializationPolicyID ||
+		set.PolicyID != remoteHistoryLifetimeAuthorityPolicyV1 ||
+		set.GenerationID != string(source.GenerationID) {
+		return fmt.Errorf("%w: remote source/authority policy mismatch", ErrScanScopeMismatch)
+	}
+	generation, err := remoteHistoryGenerationConn(conn, source.GenerationID)
+	if err != nil {
+		return err
+	}
+	if generation.Status != remotehistory.HistoryGenerationActive ||
+		generation.CurrentSequence != source.PublicationSequence {
+		return fmt.Errorf(
+			"%w: generation=%s current=%d source=%d",
+			ErrRemoteHistoryScanSourceAdvanced,
+			generation.ID,
+			generation.CurrentSequence,
+			source.PublicationSequence,
+		)
+	}
+	if generation.Scope.ProviderID != scan.ProviderID ||
+		set.ProviderID != scan.ProviderID ||
+		set.IdentityDomain != generation.Scope.IdentityDomain ||
+		set.ScopeID != generation.Scope.Root ||
 		input.ProviderObject.ProviderID != scan.ProviderID ||
 		input.ProviderObject.ID != set.CurrentObjectID {
-		return fmt.Errorf("%w: authority/input/scan mismatch", ErrScanScopeMismatch)
+		return fmt.Errorf("%w: remote authority/input/scan mismatch", ErrScanScopeMismatch)
 	}
 	for _, locator := range input.Locators {
 		if locator.ProviderID != scan.ProviderID || locator.Root != scan.Root {
 			return fmt.Errorf("%w: locator=%#v", ErrScanScopeMismatch, locator)
 		}
+	}
+
+	switch scan.ProviderID {
+	case gdrive.ProviderID:
+		managedRootObjectID := corpus.ProviderObjectID(source.SourceScopeID)
+		if managedRootObjectID == "" {
+			return fmt.Errorf("%w: empty Google managed-root source scope", ErrScanScopeMismatch)
+		}
+		expectedRoot, err := gdrive.ManagedRootScanRoot(generation.Scope.IdentityDomain, managedRootObjectID)
+		if err != nil || scan.Root != expectedRoot {
+			return fmt.Errorf("%w: noncanonical Google managed-root scan", ErrScanScopeMismatch)
+		}
+		membership, err := googleDriveManagedRootMembershipConn(
+			conn,
+			source.GenerationID,
+			source.PublicationSequence,
+			managedRootObjectID,
+			input.ProviderObject.ID,
+		)
+		if err != nil {
+			return err
+		}
+		if membership.State != gdrive.MembershipIn {
+			return fmt.Errorf(
+				"%w: object=%s managed-root=%s membership=%s reason=%s",
+				ErrScanScopeMismatch,
+				input.ProviderObject.ID,
+				managedRootObjectID,
+				membership.State,
+				membership.Reason,
+			)
+		}
+	default:
+		return fmt.Errorf("%w: remote provider %s is not qualified for identity mutation", ErrScanScopeMismatch, scan.ProviderID)
 	}
 	return nil
 }

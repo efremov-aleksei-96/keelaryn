@@ -106,6 +106,42 @@ func ValidateIdentityAuthoritySet(set IdentityAuthoritySet) error {
 	return nil
 }
 
+// ResolveIdentityAuthoritySet is the single pure resolver for an immutable
+// authority set. Materializers and mutation transactions must share this path
+// rather than reimplement candidate/universe semantics.
+func ResolveIdentityAuthoritySet(set IdentityAuthoritySet) (OccurrenceIdentityResolution, error) {
+	if err := ValidateIdentityAuthoritySet(set); err != nil {
+		return OccurrenceIdentityResolution{}, err
+	}
+	inputs := make([]ArtifactCandidateInput, 0, len(set.Candidates))
+	for _, candidate := range set.Candidates {
+		inputs = append(inputs, ArtifactCandidateInput{
+			ArtifactID: candidate.ArtifactID,
+			Evidence: []DecisionEvidence{{
+				Source:    "authority-set:" + string(set.ID) + ":" + candidate.SourceRef,
+				Direction: candidate.Direction,
+				Strength:  EvidenceConclusive,
+			}},
+		})
+	}
+	candidates, err := ResolveCandidateSet(inputs)
+	if err != nil {
+		return OccurrenceIdentityResolution{}, err
+	}
+	refs := append([]string(nil), set.SourceRefs...)
+	refs = append(refs, "authority-set:"+string(set.ID))
+	proof := CandidateUniverseProof{
+		PolicyID:        set.PolicyID,
+		ProviderID:      set.ProviderID,
+		IdentityDomain:  set.IdentityDomain,
+		ScopeID:         set.ScopeID,
+		CurrentObjectID: set.CurrentObjectID,
+		Coverage:        set.UniverseCoverage,
+		EvidenceRefs:    refs,
+	}
+	return ResolveOccurrenceIdentity(candidates, &proof)
+}
+
 // IdentityMutationRequest is intent, not authority.
 type IdentityMutationRequest struct {
 	ID              IdentityMutationRequestID

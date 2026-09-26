@@ -39,3 +39,47 @@ func TestIdentityAuthorityHistoryReferencesMustBePaired(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestResolveIdentityAuthoritySetUsesSharedCandidateAndUniverseSemantics(t *testing.T) {
+	at := time.Date(2026, 9, 27, 22, 30, 0, 0, time.UTC)
+	base := corpus.IdentityAuthoritySet{
+		ID: "authority-resolve", PolicyID: "test:v1", ProviderID: "drive",
+		IdentityDomain: "drive:user", ScopeID: "root", CurrentObjectID: "object-1",
+		SourceRefs: []string{"source"}, CreatedAt: at,
+	}
+
+	newSet := base
+	newSet.UniverseCoverage = corpus.CandidateUniverseComplete
+	newResolution, err := corpus.ResolveIdentityAuthoritySet(newSet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if newResolution.State != corpus.OccurrenceIdentityResolvedNew {
+		t.Fatalf("NEW resolution=%#v", newResolution)
+	}
+
+	unresolvedSet := base
+	unresolvedSet.ID = "authority-unresolved"
+	unresolvedSet.UniverseCoverage = corpus.CandidateUniverseUnknown
+	unresolved, err := corpus.ResolveIdentityAuthoritySet(unresolvedSet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unresolved.State != corpus.OccurrenceIdentityUnresolved {
+		t.Fatalf("unresolved resolution=%#v", unresolved)
+	}
+
+	sameSet := base
+	sameSet.ID = "authority-same"
+	sameSet.UniverseCoverage = corpus.CandidateUniverseUnknown
+	sameSet.Candidates = []corpus.IdentityAuthorityCandidate{{
+		ArtifactID: "art-1", Direction: corpus.DirectionSupportsSame, SourceRef: "same",
+	}}
+	same, err := corpus.ResolveIdentityAuthoritySet(sameSet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if same.State != corpus.OccurrenceIdentityResolvedSame || same.SelectedArtifactID != "art-1" {
+		t.Fatalf("SAME resolution=%#v", same)
+	}
+}
