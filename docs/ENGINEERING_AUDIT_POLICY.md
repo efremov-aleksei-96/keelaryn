@@ -110,18 +110,16 @@ This distinction is preferred to pretending an earlier green slice proved behavi
 
 ## 7. Current audit clock
 
-P0-30B deterministic LIGHTWEIGHT_ALL remote materialization has been **re-qualified after the earlier v23 PASS was reopened by later audits**.
+P0-30C1 remote identity-acceptance boundary is **qualified** at `029b49d4c1985cabab722214ac9218d3b5eaf2d9`.
 
-Final product semantics head: `0cf94684182c75ddec688ee8b98710aef0b49c80`.
-Final qualification/test head: `b2cc7c043062d47ba781978835a9130e60cc4201`.
-Exact-head CI run `36274111034`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
-Current SQLite schema authority: **v26**.
+Exact-head CI run `36276633396`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS. Current SQLite schema authority: **v27**.
 
-Status: **PASS**. The reopened audit added and resolved B-B11 through B-B17: unsupported-provider default-success, raw-SQL completion bypass, snapshot-version/policy mismatch, SQLite/Go timestamp mismatch, unbound Observation time, non-newest remote COMPLETE, and non-causal RemoteHistory publication/scan time. Test-only B-T1/B-T2 were also closed. No open BLOCKER/HIGH/MEDIUM/LOW product finding remains at this boundary.
+The C1 retrospective found and resolved four BLOCKER-class defects (non-regular SAME nil-evidence revision handling, noncanonical provider locator acceptance, unbound source Observation time, and raw-SQL identity-application bypass), one LOW duplication finding, and two test gaps. No open BLOCKER/HIGH/MEDIUM/LOW product finding remains in the C1 boundary.
 
-Qualification scope is deliberately narrow: the P0-30B **library boundary** is qualified. There is still no live CLI/MCP/provider wiring, live OAuth/provider read, content download, or corpus mutation.
+This does **not** qualify P0-30C as a whole. The next substantive slice is **P0-30C2 materializer→identity/revision integration**. After C2, a full retrospective starts from scratch before any further C slice or P0-30 qualification.
 
-The rolling substantive-slice counter is reset to zero. The next substantive stage is **P0-30C**, and its retrospective remains mandatory before overall P0-30 qualification. Event triggers may require an earlier audit.
+The explicit recovery rule is now durable: **any failed closure attempt or newly discovered defect invalidates the prior closure audit; after the fix, run the full audit again from the beginning.**
+
 
 ## 8. Parallel audit/research during execution
 

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 132,
+  "revision": 133,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -138,14 +138,17 @@
     "P0_30B_REQUALIFICATION_REOPENED_AND_RESOLVED",
     "P0_30B_SOURCE_BOUND_COMPLETION_CAPABILITY_QUALIFIED",
     "P0_30B_CAUSAL_TIME_AUTHORITY_SCHEMA_V26_QUALIFIED",
-    "P0_30B_FINAL_REAUDIT_PASS"
+    "P0_30B_FINAL_REAUDIT_PASS",
+    "P0_30C1_REMOTE_IDENTITY_ACCEPTANCE_BOUNDARY_IMPLEMENTED",
+    "P0_30C1_SQLITE_APPLICATION_AUTHORITY_HARDENED",
+    "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "P0_30C_EXISTING_IDENTITY_REVISION_INTEGRATION",
-    "description": "Implement only P0-30C at the existing library boundary: integrate the exact source-bound OPEN remote scan with the existing RemoteHistory identity authority and existing SAME/NEW acceptance path before each object's single Observation is written. Reuse CreateRemoteHistoryIdentityAuthority, AcceptNewObservationInScan, AcceptSameObservationInScan, existing Revision/ContentEvidence rules, and identity-mutation replay. NEW may create Artifact without Revision; regular SAME without exact ContentEvidence remains unresolved; exact content evidence follows existing revision rules. Derive deterministic identity mutation request IDs and revalidate the bound generation/publication inside final SAME/NEW mutation transactions. Preserve P0-30B causal/source/provider/current-inventory guards. No live Google OAuth/provider reads, content download solely to force SAME, second identity resolver/inventory, CLI/MCP/HTTP exposure, or corpus mutation. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI and the mandatory stage retrospective before overall P0-30 qualification.",
+    "id": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
+    "description": "Integrate the already-qualified deterministic LIGHTWEIGHT_ALL materializer with existing RemoteHistory lifetime authority and existing SAME/NEW acceptance before each object's single Observation is written. Reuse RemoteHistoryLifetimeSegments, CreateRemoteHistoryIdentityAuthority, corpus.ResolveIdentityAuthoritySet, AcceptNewObservationInScan, AcceptSameObservationInScan, RecordObservationInScan and existing Revision/ContentEvidence rules. Derive deterministic mutation request IDs from exact scan/source/object/operation semantics. RESOLVED_NEW uses existing NEW; RESOLVED_SAME uses existing SAME only when the entry kind/evidence rules permit it (regular SAME without exact ContentEvidence remains unresolved; non-regular SAME may assign without Revision); AMBIGUOUS/UNRESOLVED remain one unresolved Observation. Optional ContentEvidence is enrichment and remains excluded from metadata snapshot fingerprint. Preserve exact-source replay, one Observation per object, previous COMPLETE inventory authority, fail-closed history advance, schema v27 application authority, and all B completion guards. No live provider/OAuth access, no content download solely to force SAME, no second identity resolver/inventory, no CLI/MCP/HTTP exposure and no corpus mutation. After implementation run exact-head validate/Ubuntu/Windows and a full retrospective from scratch before any P0-30 qualification.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "MANDATORY_STAGE_RETROSPECTIVE_AFTER_P0_30C_BEFORE_P0_30_QUALIFICATION"
+    "audit_gate": "MANDATORY_FULL_REAUDIT_AFTER_P0_30C2_BEFORE_ANY_FURTHER_C_SLICE_OR_P0_30_QUALIFICATION"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3722,7 +3725,7 @@
     ]
   },
   "p0_30": {
-    "status": "B_QUALIFIED_C_IMPLEMENTATION_NEXT",
+    "status": "C1_QUALIFIED_C2_MATERIALIZER_INTEGRATION_NEXT",
     "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -3743,7 +3746,10 @@
       "remote_completion_authority": "SOURCE_BOUND_COMPLETE_REQUIRES_VALIDATED_CONNECTION_LOCAL_CAPABILITY",
       "time_authority": "CANONICAL_UTC_RFC3339NANO_SCAN_OBSERVATION_PLUS_NONDECREASING_REMOTE_HISTORY_PUBLICATION",
       "remote_scan_causality": "SCAN_START_AT_OR_AFTER_BOUND_PUBLICATION_COMMIT",
-      "current_remote_inventory": "NEW_REMOTE_COMPLETE_MUST_HAVE_FINISH_STRICTLY_AFTER_EXISTING_LATEST_COMPLETE"
+      "current_remote_inventory": "NEW_REMOTE_COMPLETE_MUST_HAVE_FINISH_STRICTLY_AFTER_EXISTING_LATEST_COMPLETE",
+      "identity_acceptance_application_authority": "SOURCE_BOUND_IDENTITY_ACCEPTANCE_REQUIRES_VALIDATED_CONNECTION_LOCAL_CAPABILITY_SCHEMA_V27",
+      "remote_identity_scope": "EXACT_SOURCE_PUBLICATION_PLUS_HISTORY_UNIVERSE_AUTHORITY_PLUS_MANAGED_ROOT_OBJECT_SCOPE",
+      "identity_resolver": "ONE_SHARED_CORPUS_RESOLVE_IDENTITY_AUTHORITY_SET_PATH"
     },
     "implementation_order": [
       "P0_30A_SOURCE_BOUND_REMOTE_SCANSESSION",
@@ -3755,7 +3761,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 26,
+    "schema_version": 27,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4182,6 +4188,114 @@
         "live_provider_used": false,
         "corpus_mutations": 0
       }
+    },
+    "c": {
+      "status": "C1_QUALIFIED_C2_IMPLEMENTATION_NEXT",
+      "c1": {
+        "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
+        "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
+        "qualification_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
+        "schema_version": 27,
+        "implementation": {
+          "shared_resolver": "corpus.ResolveIdentityAuthoritySet",
+          "local_generic_scope": "UNCHANGED_AUTHORITY_SCOPE_EQUALS_SCAN_ROOT",
+          "remote_source_scope": "EXACT_SOURCE_GENERATION_PUBLICATION_PLUS_HISTORY_UNIVERSE_AUTHORITY_PLUS_PROVIDER_MANAGED_ROOT",
+          "google_scope_validation": "SHARED_GOOGLE_MANAGED_ROOT_OBJECT_SCOPE_PRIMITIVES_REUSED_BY_B_COMPLETION_AND_C_ACCEPTANCE",
+          "observation_time": "SOURCE_BOUND_IDENTITY_OBSERVED_AT_EQUALS_SCAN_STARTED_AT",
+          "locator": "GOOGLE_SOURCE_BOUND_IDENTITY_REQUIRES_SINGLE_CANONICAL_FILE_ID_LOCATOR",
+          "new_acceptance": "EXISTING_ACCEPT_NEW_OBSERVATION_IN_SCAN",
+          "same_acceptance": "EXISTING_ACCEPT_SAME_OBSERVATION_IN_SCAN",
+          "nonregular_same_without_content": "ASSIGN_ARTIFACT_WITHOUT_REVISION",
+          "regular_same_without_content": "REMAINS_UNRESOLVED_BY_REQUEST_VALIDATION",
+          "history_advance": "FAIL_CLOSED_INSIDE_FINAL_SAME_NEW_TRANSACTION",
+          "replay": "EXACT_IDENTITY_MUTATION_RECEIPT_REPLAYS_BEFORE_CURRENT_SOURCE_REVALIDATION",
+          "application_authority": "CONNECTION_LOCAL_SOURCE_SCAN_AND_REMOTE_LIFETIME_BINDING_CAPABILITY",
+          "durable_tables_added": 0,
+          "dependencies_added": 0,
+          "live_provider_used": false,
+          "corpus_mutations": 0
+        },
+        "findings": [
+          {
+            "id": "C1-B1",
+            "severity": "BLOCKER",
+            "issue": "AcceptSameObservationInScan allowed non-regular entries without ContentEvidence but unconditionally dereferenced ContentEvidence while creating a Revision",
+            "correction": "non-regular SAME now assigns the existing Artifact with no Revision; exact replay remains mutation-free"
+          },
+          {
+            "id": "C1-B2",
+            "severity": "BLOCKER",
+            "issue": "source-bound SAME/NEW scope validation accepted a locator with the correct provider/root but a noncanonical provider-specific path",
+            "correction": "Google identity mutation boundary now requires exactly one shared gdrive.FileIDLocatorPath(objectID) locator"
+          },
+          {
+            "id": "C1-B3",
+            "severity": "BLOCKER",
+            "issue": "source-bound SAME/NEW accepted Observation.ObservedAt values outside the source ScanSession materialization boundary",
+            "correction": "remote source-bound identity mutation now requires Observation.ObservedAt exactly equal ScanSession.started_at"
+          },
+          {
+            "id": "C1-L1",
+            "severity": "LOW",
+            "issue": "C1 initially duplicated Google managed-root/root/locator/membership scope semantics already present in the B completion validator",
+            "correction": "B completion and C identity acceptance now share googleDriveManagedRootObjectIDForRemoteScan and validateGoogleDriveRemoteObjectScopeConn"
+          },
+          {
+            "id": "C1-B4",
+            "severity": "BLOCKER",
+            "issue": "direct SQL could bypass Go-level exact-source identity validation and persist source-bound assigned Observations, accepted decisions/receipts, or RemoteHistory lifetime Artifact bindings",
+            "correction": "schema v27 requires narrow connection-local identity-mutation application capabilities for the source-bound scan and RemoteHistory lifetime segment/authority pair"
+          },
+          {
+            "id": "C1-T1",
+            "severity": "TEST_GAP",
+            "issue": "source-bound SAME success/replay/history-advance and unsupported remote provider branches lacked direct regressions",
+            "correction": "targeted regressions prove SAME success, historical replay after advance, fresh SAME fail-closed, and unsupported-provider fail-closed"
+          },
+          {
+            "id": "C1-T2",
+            "severity": "TEST_GAP",
+            "issue": "schema-level application-authority guards, ambiguous shared resolver semantics, and capability release were not all directly covered",
+            "correction": "adversarial direct-SQL tests cover assigned Observation, continuity/admission decisions, identity receipt, lifetime binding, ambiguous resolver and post-transaction capability release"
+          }
+        ],
+        "qualification": {
+          "exact_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
+          "ci_run_id": 36276633396,
+          "conclusion": "SUCCESS",
+          "jobs": {
+            "validate": "PASS",
+            "go (ubuntu-24.04)": "PASS",
+            "go (windows-2025)": "PASS"
+          },
+          "blocker_count_open": 0,
+          "high_findings_open": 0,
+          "medium_findings_open": 0,
+          "low_findings_open": 0,
+          "schema_version": 27,
+          "dependencies_added": 0,
+          "live_provider_used": false,
+          "corpus_mutations": 0,
+          "runtime_reachability": "LIBRARY_BOUNDARY_ONLY_NO_LIVE_CLI_MCP_PROVIDER_WIRING",
+          "portability": "PURE_GO_PLUS_SQLITE_WINDOWS2025_AND_UBUNTU2404_EXACT_HEAD_PASS_ANDROID_REMAINS_PLANNED_NOT_CLAIMED"
+        },
+        "nonblocking_followups": [
+          "IdentityAuthoritySet.CreatedAt is not yet globally constrained to be at-or-after its underlying RemoteHistory publication; C1 identity outcome does not depend on CreatedAt and the planned C2 caller will use the causal scan boundary, but systemic authority timestamp provenance should be audited before relying on CreatedAt as causal authority",
+          "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening around intentionally indirect application-defined trigger functions"
+        ],
+        "conclusion": "PASS"
+      },
+      "c2": {
+        "status": "NEXT",
+        "objective": "INTEGRATE_DETERMINISTIC_REMOTE_MATERIALIZER_WITH_EXISTING_IDENTITY_REVISION_ACCEPTANCE"
+      }
     }
+  },
+  "audit": {
+    "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
+    "last_retrospective_result": "PASS",
+    "substantive_slice_counter": 0,
+    "current_stage": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
+    "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH"
   }
 }
