@@ -146,6 +146,15 @@ func validateAuthorityScope(
 		if err != nil || scan.Root != expectedRoot {
 			return fmt.Errorf("%w: noncanonical Google managed-root scan", ErrScanScopeMismatch)
 		}
+		if len(input.Locators) != 1 ||
+			input.Locators[0].Path != gdrive.FileIDLocatorPath(input.ProviderObject.ID) {
+			return fmt.Errorf(
+				"%w: noncanonical Google locator object=%s locators=%#v",
+				ErrScanScopeMismatch,
+				input.ProviderObject.ID,
+				input.Locators,
+			)
+		}
 		membership, err := googleDriveManagedRootMembershipConn(
 			conn,
 			source.GenerationID,

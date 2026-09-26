@@ -67,6 +67,66 @@ func TestRemoteSourceBoundNewAcceptanceUsesHistoryUniverseAuthorityAndManagedSca
 	}
 }
 
+func TestRemoteSourceBoundIdentityMutationRejectsNoncanonicalGoogleLocator(t *testing.T) {
+	ctx := context.Background()
+	fixture := newGoogleRemoteCompletionFixture(t)
+	entries := []remotehistory.RemoteMetadataFingerprintEntry{
+		fixture.entry("managed", corpus.EntryOther, 0, fixture.base),
+		fixture.entry("child", corpus.EntryRegularFile, 7, fixture.base.Add(time.Second)),
+	}
+	scan, err := fixture.startScan(entries, fixture.scanRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	segments, err := fixture.store.RemoteHistoryLifetimeSegments(ctx, fixture.generation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	segment := findLatestLifetimeSegment(segments, "child")
+	authority, err := fixture.store.CreateRemoteHistoryIdentityAuthority(
+		ctx, fixture.generation.ID, segment.ID, scan.StartedAt,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := entries[1]
+	modifiedAt, err := time.Parse(time.RFC3339Nano, entry.ModifiedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeArtifacts := internalTableCount(t, fixture.store.Path(), "artifacts")
+	beforeRequests := internalTableCount(t, fixture.store.Path(), "identity_mutation_requests")
+	_, err = fixture.store.AcceptNewObservationInScan(ctx, corpus.IdentityMutationRequest{
+		ID: "req-remote-source-bad-locator",
+		ScanID: scan.ID,
+		Observation: corpus.ObservationRecordInput{
+			ProviderObject: corpus.ProviderObject{
+				ProviderID: gdrive.ProviderID, ID: entry.ProviderObjectID, IdentityState: corpus.ObjectIdentityObserved,
+			},
+			Locators: []corpus.Locator{{
+				ProviderID: gdrive.ProviderID,
+				Root: fixture.scanRoot,
+				Path: "file-id/not-child",
+			}},
+			AssignmentState: corpus.AssignmentUnresolved,
+			ObservedAt: scan.StartedAt,
+			Kind: entry.Kind, Size: entry.Size, Mode: entry.Mode, ModifiedAt: modifiedAt,
+		},
+		AuthoritySetID: authority.ID,
+		DecidedAt: scan.StartedAt,
+	})
+	if !errors.Is(err, ErrScanScopeMismatch) {
+		t.Fatalf("error=%v want ErrScanScopeMismatch", err)
+	}
+	if internalTableCount(t, fixture.store.Path(), "artifacts") != beforeArtifacts ||
+		internalTableCount(t, fixture.store.Path(), "identity_mutation_requests") != beforeRequests {
+		t.Fatal("noncanonical locator mutated identity state")
+	}
+	if err := fixture.store.AbortScan(ctx, scan.ID, scan.StartedAt.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRemoteSourceBoundIdentityMutationRejectsFreshAuthorityAfterHistoryAdvance(t *testing.T) {
 	ctx := context.Background()
 	fixture := newGoogleRemoteCompletionFixture(t)
