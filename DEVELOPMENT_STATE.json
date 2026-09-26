@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 135,
+  "revision": 136,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4315,6 +4315,24 @@
       "mitigation": "USE_GITHUB_API_AND_DIRECT_FILE_READS_FOR_FULL_AUDIT_NO_SHELL_COMPOSITION"
     },
     "clean_pass_in_progress": false,
-    "clean_pass_last_completed": false
+    "clean_pass_last_completed": false,
+    "last_invalidated_audit": {
+      "head": "f077ed324f23e20e110bee07428c54b97a8976b3",
+      "dimension": "PROVENANCE_TIME_CAUSALITY",
+      "finding_id": "AUDIT_C1_B1_IDENTITY_CAUSAL_TIME_AUTHORITY",
+      "severity": "BLOCKER",
+      "issue": "RemoteHistory IdentityAuthoritySet.created_at can predate its exact source publication, and source-bound SAME/NEW DecidedAt can predate the ScanSession/source/authority while being persisted as accepted decision, receipt, and lifetime-binding time.",
+      "required_correction": "Enforce API and SQLite causal-time authority for remote identity authority, source-bound assigned Observation, accepted SAME/NEW decisions, identity mutation receipts, and RemoteHistory lifetime bindings; migration must fail closed on invalid existing state.",
+      "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
+      "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
+    },
+    "open_findings": [
+      {
+        "id": "AUDIT_C1_B1_IDENTITY_CAUSAL_TIME_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "f077ed324f23e20e110bee07428c54b97a8976b3"
+      }
+    ]
   }
 }
