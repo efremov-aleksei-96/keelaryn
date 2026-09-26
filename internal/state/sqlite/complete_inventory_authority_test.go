@@ -1,0 +1,183 @@
+package sqlitestate
+
+import (
+	"context"
+	"errors"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
+	"zombiezen.com/go/sqlite/sqlitex"
+)
+
+func TestRemoteManagedRootRejectsGenericComplete(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	base := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	generation, err := store.StartRemoteHistoryGeneration(
+		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := "drive:user-1:managed:authority"
+	source := remoteScanSourceInput(generation.ID, 1, "managed-authority", remoteScanFingerprintA)
+	remoteScan, _, err := store.StartRemoteHistoryScan(ctx, root, source, base.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.CompleteRemoteHistoryScan(ctx, remoteScan.ID, base.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	generic, err := store.StartScan(ctx, scope.ProviderID, root, base.Add(3*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CompleteScan(ctx, generic.ID, base.Add(4*time.Second)); !errors.Is(err, ErrRemoteHistoryRootRequiresSourceBoundScan) {
+		t.Fatalf("generic remote-root completion error=%v want ErrRemoteHistoryRootRequiresSourceBoundScan", err)
+	}
+	got, err := store.ScanSession(ctx, generic.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != corpus.ScanOpen {
+		t.Fatalf("rejected generic completion mutated scan: %#v", got)
+	}
+
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = sqlitex.Execute(conn,
+		"UPDATE scan_sessions SET status='COMPLETE', finished_at=?1 WHERE scan_id=?2",
+		&sqlitex.ExecOptions{Args: []any{
+			base.Add(4 * time.Second).Format(time.RFC3339Nano),
+			string(generic.ID),
+		}})
+	store.pool.Put(conn)
+	if err == nil {
+		t.Fatal("direct SQL generic completion on remote-managed root unexpectedly succeeded")
+	}
+	if err := store.AbortScan(ctx, generic.ID, base.Add(5*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCompletedRemoteSourceCannotBeDuplicatedByDirectSQL(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	base := time.Date(2026, 9, 27, 13, 0, 0, 0, time.UTC)
+	generation, err := store.StartRemoteHistoryGeneration(
+		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := "drive:user-1:managed:replay"
+	source := remoteScanSourceInput(generation.ID, 1, "managed-replay", remoteScanFingerprintA)
+	first, _, err := store.StartRemoteHistoryScan(ctx, root, source, base.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.CompleteRemoteHistoryScan(ctx, first.ID, base.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	bypass, err := store.StartScan(ctx, scope.ProviderID, root, base.Add(3*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = sqlitex.Execute(conn,
+		"INSERT INTO remote_scan_sources (scan_id, generation_id, publication_sequence, source_scope_id, materialization_policy_id, snapshot_fingerprint_version, snapshot_fingerprint_sha256) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(bypass.ID),
+			string(source.GenerationID),
+			int64(source.PublicationSequence),
+			source.SourceScopeID,
+			source.MaterializationPolicyID,
+			source.SnapshotFingerprintVersion,
+			source.SnapshotFingerprintSHA256,
+		}})
+	store.pool.Put(conn)
+	if err == nil {
+		t.Fatal("direct SQL duplicate of COMPLETE remote source unexpectedly succeeded")
+	}
+	if _, err := store.RemoteHistoryScanSource(ctx, bypass.ID); !errors.Is(err, ErrRemoteHistoryScanSourceNotFound) {
+		t.Fatalf("rejected duplicate left source sidecar: %v", err)
+	}
+	if err := store.AbortScan(ctx, bypass.ID, base.Add(4*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTerminalScanRejectsObservationAndLocatorAppend(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	base := time.Date(2026, 9, 27, 14, 0, 0, 0, time.UTC)
+	scan, err := store.StartScan(ctx, "provider", "root", base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorded, err := store.RecordObservationInScan(ctx, scan.ID, corpus.ObservationRecordInput{
+		ProviderObject: corpus.ProviderObject{ProviderID: "provider", ID: "object-1", IdentityState: corpus.ObjectIdentityObserved},
+		Locators: []corpus.Locator{{ProviderID: "provider", Root: "root", Path: "path-1"}},
+		AssignmentState: corpus.AssignmentUnresolved,
+		ObservedAt: base,
+		Kind: corpus.EntryRegularFile,
+		Size: 1,
+		Mode: 0o600,
+		ModifiedAt: base,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CompleteScan(ctx, scan.ID, base.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errObservation := sqlitex.Execute(conn,
+		"INSERT INTO observations (observation_id, occurrence_id, artifact_id, revision_id, assignment_state, observed_at, kind, size, mode, modified_at, scan_id) VALUES ('obs_after_complete', ?1, NULL, NULL, 'UNRESOLVED', ?2, 'REGULAR_FILE', 1, 384, ?2, ?3)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(recorded.ProviderObjectOccurrenceID),
+			base.Add(2 * time.Second).Format(time.RFC3339Nano),
+			string(scan.ID),
+		}})
+	errLocator := sqlitex.Execute(conn,
+		"INSERT INTO locators (locator_id, observation_id, provider_id, root, path) VALUES ('loc_after_complete', ?1, 'provider', 'root', 'path-2')",
+		&sqlitex.ExecOptions{Args: []any{string(recorded.ID)}})
+	store.pool.Put(conn)
+	if errObservation == nil {
+		t.Fatal("observation append after COMPLETE unexpectedly succeeded")
+	}
+	if errLocator == nil {
+		t.Fatal("locator append after COMPLETE unexpectedly succeeded")
+	}
+
+	inventory, err := store.Inventory(ctx, "provider", "root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory) != 1 || inventory[0].ObservationID != recorded.ID || inventory[0].Locator.Path != "path-1" {
+		t.Fatalf("terminal scan inventory mutated after rejected append: %#v", inventory)
+	}
+}

@@ -1625,6 +1625,73 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER observations_scan_insert_requires_open
+BEFORE INSERT ON observations
+WHEN NEW.scan_id IS NOT NULL
+AND NOT EXISTS (
+	SELECT 1 FROM scan_sessions s
+	WHERE s.scan_id=NEW.scan_id
+	  AND s.status='OPEN'
+)
+BEGIN
+	SELECT RAISE(ABORT, 'scan-bound observations require an OPEN scan');
+END;
+
+CREATE TRIGGER locators_scan_insert_requires_open
+BEFORE INSERT ON locators
+WHEN EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN scan_sessions s ON s.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+	  AND s.status<>'OPEN'
+)
+BEGIN
+	SELECT RAISE(ABORT, 'scan-bound locators require an OPEN scan');
+END;
+
+CREATE TRIGGER remote_managed_root_generic_complete_guard
+BEFORE UPDATE ON scan_sessions
+WHEN OLD.status='OPEN'
+AND NEW.status='COMPLETE'
+AND NOT EXISTS (
+	SELECT 1 FROM remote_scan_sources current_source
+	WHERE current_source.scan_id=OLD.scan_id
+)
+AND EXISTS (
+	SELECT 1
+	FROM remote_scan_sources prior_source
+	JOIN scan_sessions prior_scan ON prior_scan.scan_id=prior_source.scan_id
+	WHERE prior_scan.provider_id=OLD.provider_id
+	  AND prior_scan.root=OLD.root
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remote-managed root requires source-bound completion');
+END;
+
+CREATE TRIGGER remote_scan_source_complete_replay_guard
+BEFORE INSERT ON remote_scan_sources
+WHEN EXISTS (
+	SELECT 1
+	FROM remote_scan_sources existing_source
+	JOIN scan_sessions existing_scan ON existing_scan.scan_id=existing_source.scan_id
+	JOIN scan_sessions incoming_scan ON incoming_scan.scan_id=NEW.scan_id
+	WHERE existing_scan.provider_id=incoming_scan.provider_id
+	  AND existing_scan.root=incoming_scan.root
+	  AND existing_scan.status='COMPLETE'
+	  AND existing_source.generation_id=NEW.generation_id
+	  AND existing_source.publication_sequence=NEW.publication_sequence
+	  AND existing_source.source_scope_id=NEW.source_scope_id
+	  AND existing_source.materialization_policy_id=NEW.materialization_policy_id
+	  AND existing_source.snapshot_fingerprint_version=NEW.snapshot_fingerprint_version
+	  AND existing_source.snapshot_fingerprint_sha256=NEW.snapshot_fingerprint_sha256
+)
+BEGIN
+	SELECT RAISE(ABORT, 'completed remote scan source must be replayed, not duplicated');
+END;
+`,
+
 	},
 }
 

@@ -18,6 +18,7 @@ var (
 	ErrRemoteHistoryScanSourceAdvanced            = errors.New("remote history scan source publication is no longer current")
 	ErrRemoteHistoryScanSourceClosed              = errors.New("remote history scan source generation is closed")
 	ErrRemoteHistoryScanRequiresGuardedCompletion = errors.New("source-bound remote scan requires guarded completion")
+	ErrRemoteHistoryRootRequiresSourceBoundScan    = errors.New("remote-managed root requires a source-bound scan")
 )
 
 func (s *Store) StartRemoteHistoryScan(
@@ -381,6 +382,26 @@ func matchingRemoteHistoryScanConn(
 		}
 	}
 	return best, bestFound, nil
+}
+
+func remoteScanAuthorityExistsForRootConn(
+	conn *sqlite.Conn,
+	providerID corpus.ProviderID,
+	root string,
+) (bool, error) {
+	var found bool
+	if err := sqlitex.Execute(conn,
+		"SELECT 1 FROM remote_scan_sources r JOIN scan_sessions s ON s.scan_id=r.scan_id WHERE s.provider_id=?1 AND s.root=?2 LIMIT 1",
+		&sqlitex.ExecOptions{
+			Args: []any{string(providerID), root},
+			ResultFunc: func(*sqlite.Stmt) error {
+				found = true
+				return nil
+			},
+		}); err != nil {
+		return false, fmt.Errorf("query remote scan authority for root: %w", err)
+	}
+	return found, nil
 }
 
 func openScanForProviderRootConn(

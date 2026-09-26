@@ -152,6 +152,13 @@ func finishScanConn(
 		if remote {
 			return ErrRemoteHistoryScanRequiresGuardedCompletion
 		}
+		remoteRoot, err := remoteScanAuthorityExistsForRootConn(conn, scan.ProviderID, scan.Root)
+		if err != nil {
+			return err
+		}
+		if remoteRoot {
+			return ErrRemoteHistoryRootRequiresSourceBoundScan
+		}
 	}
 	if finishedAt.UTC().Before(scan.StartedAt) {
 		return fmt.Errorf("%w: finish before start", ErrInvalidScan)
