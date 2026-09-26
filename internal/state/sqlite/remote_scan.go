@@ -23,6 +23,7 @@ var (
 	ErrRemoteHistoryScanSnapshotMismatch           = errors.New("remote scan persisted content does not match source snapshot fingerprint")
 	ErrRemoteHistoryScanProviderScopeMismatch       = errors.New("remote scan provider scope does not match exact materialization source")
 	ErrRemoteHistoryScanCompletionNotNewest         = errors.New("remote scan completion would not become current inventory")
+	ErrRemoteHistoryScanStartedBeforeSource         = errors.New("remote scan started before its source publication")
 )
 
 func (s *Store) StartRemoteHistoryScan(
@@ -80,6 +81,18 @@ func (s *Store) StartRemoteHistoryScan(
 	}
 	if generation.CurrentSequence != source.PublicationSequence {
 		return corpus.ScanSession{}, false, ErrRemoteHistoryScanSourceAdvanced
+	}
+	sourceCommittedAt, err := remoteHistoryPublicationCommittedAtConn(conn, source.GenerationID, source.PublicationSequence)
+	if err != nil {
+		return corpus.ScanSession{}, false, err
+	}
+	if startedAt.UTC().Before(sourceCommittedAt) {
+		return corpus.ScanSession{}, false, fmt.Errorf(
+			"%w: scan_started=%s source_committed=%s",
+			ErrRemoteHistoryScanStartedBeforeSource,
+			startedAt.UTC().Format(time.RFC3339Nano),
+			sourceCommittedAt.UTC().Format(time.RFC3339Nano),
+		)
 	}
 	if open, found, err := openScanForProviderRootConn(conn, generation.Scope.ProviderID, scanRoot); err != nil {
 		return corpus.ScanSession{}, false, err
@@ -196,6 +209,18 @@ func (s *Store) CompleteRemoteHistoryScan(
 	}
 	if !found {
 		return corpus.ScanSession{}, false, fmt.Errorf("%w: %s", ErrRemoteHistoryScanSourceNotFound, scanID)
+	}
+	sourceCommittedAt, err := remoteHistoryPublicationCommittedAtConn(conn, source.GenerationID, source.PublicationSequence)
+	if err != nil {
+		return corpus.ScanSession{}, false, err
+	}
+	if scan.StartedAt.Before(sourceCommittedAt) {
+		return corpus.ScanSession{}, false, fmt.Errorf(
+			"%w: scan_started=%s source_committed=%s",
+			ErrRemoteHistoryScanStartedBeforeSource,
+			scan.StartedAt.UTC().Format(time.RFC3339Nano),
+			sourceCommittedAt.UTC().Format(time.RFC3339Nano),
+		)
 	}
 	if scan.Status == corpus.ScanComplete {
 		if err := verifyRemoteMetadataSnapshotFingerprintConn(conn, scan, source); err != nil {

@@ -25,6 +25,7 @@ var (
 	ErrHistoryGenerationClosed        = errors.New("remote history generation is closed")
 	ErrHistoryPublicationConflict     = errors.New("remote history publication prestate conflict")
 	ErrHistoryScopeMismatch           = errors.New("remote history scope/policy mismatch")
+	ErrHistoryPublicationTimeRegressed = errors.New("remote history publication time regressed")
 )
 
 func (s *Store) StartRemoteHistoryGeneration(
@@ -223,6 +224,36 @@ func (s *Store) RemoteHistoryPublications(ctx context.Context, generationID remo
 		return nil, fmt.Errorf("query remote history publications: %w", err)
 	}
 	return out, nil
+}
+
+func remoteHistoryPublicationCommittedAtConn(
+	conn *sqlite.Conn,
+	generationID remotehistory.HistoryGenerationID,
+	sequence remotehistory.HistoryPublicationSequence,
+) (time.Time, error) {
+	if generationID == "" || sequence == 0 {
+		return time.Time{}, remotehistory.ErrInvalidHistoryPublication
+	}
+	var raw string
+	if err := sqlitex.Execute(conn,
+		"SELECT committed_at FROM remote_history_publications WHERE generation_id=?1 AND sequence=?2",
+		&sqlitex.ExecOptions{
+			Args: []any{string(generationID), int64(sequence)},
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				raw = stmt.ColumnText(0)
+				return nil
+			},
+		}); err != nil {
+		return time.Time{}, fmt.Errorf("query remote history publication time: %w", err)
+	}
+	if raw == "" {
+		return time.Time{}, fmt.Errorf("%w: generation=%s sequence=%d", ErrHistoryPublicationConflict, generationID, sequence)
+	}
+	at, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse remote history publication time: %w", err)
+	}
+	return at, nil
 }
 
 func insertRemoteHistoryGeneration(conn *sqlite.Conn, generation remotehistory.HistoryGeneration) error {

@@ -181,6 +181,20 @@ func (s *Store) publishRemoteHistoryCycleWithSidecar(
 	if generation.CurrentSequence != expectedSequence || generation.CommittedCursor != expectedCursor {
 		return remotehistory.HistoryGeneration{}, ErrHistoryPublicationConflict
 	}
+	previousCommittedAt, err := remoteHistoryPublicationCommittedAtConn(conn, generationID, expectedSequence)
+	if err != nil {
+		return remotehistory.HistoryGeneration{}, err
+	}
+	if committedAt.UTC().Before(previousCommittedAt) {
+		return remotehistory.HistoryGeneration{}, fmt.Errorf(
+			"%w: generation=%s previous_sequence=%d previous=%s candidate=%s",
+			ErrHistoryPublicationTimeRegressed,
+			generationID,
+			expectedSequence,
+			previousCommittedAt.UTC().Format(time.RFC3339Nano),
+			committedAt.UTC().Format(time.RFC3339Nano),
+		)
+	}
 	if sidecar == nil {
 		managed, guardErr := topologyWatermarkExistsConn(conn, generationID)
 		if guardErr != nil {

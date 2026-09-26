@@ -1930,6 +1930,110 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v26_remote_history_time_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v26_remote_history_time_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM remote_history_publications p
+		WHERE keelaryn_is_canonical_utc_rfc3339nano(p.committed_at)<>1
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM remote_history_publications p
+		JOIN remote_history_generations g ON g.generation_id=p.generation_id
+		WHERE p.kind='BOOTSTRAP'
+		  AND (
+			keelaryn_is_canonical_utc_rfc3339nano(g.created_at)<>1
+			OR p.committed_at<>g.created_at
+		  )
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM remote_history_publications p
+		LEFT JOIN remote_history_publications previous
+		  ON previous.generation_id=p.generation_id
+		 AND previous.sequence=p.sequence-1
+		WHERE p.kind='INCREMENTAL'
+		  AND (
+			previous.sequence IS NULL
+			OR NOT (
+				p.committed_at=previous.committed_at
+				OR keelaryn_utc_rfc3339nano_after(p.committed_at, previous.committed_at)=1
+			)
+		  )
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM remote_scan_sources r
+		JOIN scan_sessions s ON s.scan_id=r.scan_id
+		JOIN remote_history_publications p
+		  ON p.generation_id=r.generation_id
+		 AND p.sequence=r.publication_sequence
+		WHERE NOT (
+			s.started_at=p.committed_at
+			OR keelaryn_utc_rfc3339nano_after(s.started_at, p.committed_at)=1
+		)
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v26_remote_history_time_validation;
+
+CREATE TRIGGER remote_history_publication_time_insert_guard
+BEFORE INSERT ON remote_history_publications
+WHEN keelaryn_is_canonical_utc_rfc3339nano(NEW.committed_at)<>1
+	OR (
+		NEW.kind='BOOTSTRAP'
+		AND NOT EXISTS (
+			SELECT 1
+			FROM remote_history_generations g
+			WHERE g.generation_id=NEW.generation_id
+			  AND keelaryn_is_canonical_utc_rfc3339nano(g.created_at)=1
+			  AND NEW.committed_at=g.created_at
+		)
+	)
+	OR (
+		NEW.kind='INCREMENTAL'
+		AND NOT EXISTS (
+			SELECT 1
+			FROM remote_history_publications previous
+			WHERE previous.generation_id=NEW.generation_id
+			  AND previous.sequence=NEW.sequence-1
+			  AND (
+				NEW.committed_at=previous.committed_at
+				OR keelaryn_utc_rfc3339nano_after(NEW.committed_at, previous.committed_at)=1
+			  )
+		)
+	)
+BEGIN
+	SELECT RAISE(ABORT, 'remote history publication time is noncanonical or regresses');
+END;
+
+CREATE TRIGGER remote_scan_source_causal_time_insert_guard
+BEFORE INSERT ON remote_scan_sources
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM scan_sessions s
+	JOIN remote_history_publications p
+	  ON p.generation_id=NEW.generation_id
+	 AND p.sequence=NEW.publication_sequence
+	WHERE s.scan_id=NEW.scan_id
+	  AND (
+		s.started_at=p.committed_at
+		OR keelaryn_utc_rfc3339nano_after(s.started_at, p.committed_at)=1
+	  )
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remote scan cannot start before its source publication');
+END;
+`,
+
 	},
 }
 
@@ -1941,6 +2045,7 @@ END;
 const (
 	remoteCompletionAuthorizationFunction = "keelaryn_remote_completion_authorized"
 	canonicalUTCRFC3339NanoFunction       = "keelaryn_is_canonical_utc_rfc3339nano"
+	utcRFC3339NanoAfterFunction           = "keelaryn_utc_rfc3339nano_after"
 )
 
 type remoteCompletionAuthorization struct {
@@ -1985,6 +2090,27 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		},
 	}); err != nil {
 		return fmt.Errorf("register canonical timestamp function: %w", err)
+	}
+	if err := conn.CreateFunction(utcRFC3339NanoAfterFunction, &sqlite.FunctionImpl{
+		NArgs:         2,
+		Deterministic: true,
+		AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			leftRaw, rightRaw := args[0].Text(), args[1].Text()
+			left, leftErr := time.Parse(time.RFC3339Nano, leftRaw)
+			right, rightErr := time.Parse(time.RFC3339Nano, rightRaw)
+			if leftErr != nil || rightErr != nil ||
+				leftRaw != left.UTC().Format(time.RFC3339Nano) ||
+				rightRaw != right.UTC().Format(time.RFC3339Nano) {
+				return sqlite.IntegerValue(0), nil
+			}
+			if left.After(right) {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register timestamp ordering function: %w", err)
 	}
 	s.remoteCompletionAuthorizations.Store(conn, auth)
 	return nil

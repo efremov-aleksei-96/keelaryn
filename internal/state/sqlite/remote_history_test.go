@@ -71,6 +71,75 @@ func TestRemoteHistoryBootstrapAndIncrementalPublicationAreAtomic(t *testing.T) 
 	}
 }
 
+func TestRemoteHistoryRejectsPublicationTimeRegression(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	base := time.Date(2026, 9, 27, 20, 0, 0, 0, time.UTC)
+	generation, err := store.StartRemoteHistoryGeneration(
+		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cycle := remotehistory.ChangeCycle{
+		StreamID:       scope.StreamID,
+		Status:         remotehistory.CycleComplete,
+		PreviousCursor: "cursor-1",
+		NextCursor:     "cursor-2",
+		Coverage:       corpus.ProviderHistoryContinuous,
+	}
+	if _, err := store.PublishRemoteHistoryCycle(
+		ctx, generation.ID, scope, fp, 1, "cursor-1", cycle, base.Add(-time.Nanosecond),
+	); !errors.Is(err, ErrHistoryPublicationTimeRegressed) {
+		t.Fatalf("publication error=%v want ErrHistoryPublicationTimeRegressed", err)
+	}
+	current, err := store.RemoteHistoryGeneration(ctx, generation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.CurrentSequence != 1 || current.CommittedCursor != "cursor-1" {
+		t.Fatalf("regressed publication mutated generation: %#v", current)
+	}
+	publications, err := store.RemoteHistoryPublications(ctx, generation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(publications) != 1 {
+		t.Fatalf("regressed publication appended evidence: %#v", publications)
+	}
+}
+
+func TestRemoteHistorySQLiteRejectsBackdatedPublicationWithValidPrestate(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	base := time.Date(2026, 9, 27, 20, 30, 0, 0, time.UTC)
+	generation, err := store.StartRemoteHistoryGeneration(
+		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = sqlitex.Execute(conn,
+		"INSERT INTO remote_history_publications (generation_id,sequence,kind,previous_cursor,committed_cursor,committed_at,fingerprint_version,fingerprint_sha256) VALUES (?1,2,'INCREMENTAL','cursor-1','cursor-2',?2,'remote-history-publication:v1',?3)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(generation.ID),
+			base.Add(-time.Nanosecond).UTC().Format(time.RFC3339Nano),
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		}})
+	store.pool.Put(conn)
+	if err == nil {
+		t.Fatal("direct SQL backdated publication unexpectedly succeeded")
+	}
+}
+
 func TestRemoteHistoryStaleReplayFailsWithoutMutation(t *testing.T) {
 	ctx := context.Background()
 	store := openStoreInternal(t)

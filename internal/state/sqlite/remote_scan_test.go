@@ -17,6 +17,67 @@ const (
 	remoteScanFingerprintB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 )
 
+func TestRemoteHistoryScanRejectsStartBeforeSourcePublication(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	base := time.Date(2026, 9, 27, 21, 0, 0, 0, time.UTC)
+	generation, err := store.StartRemoteHistoryGeneration(
+		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := remoteScanSourceInput(generation.ID, 1, "scope", remoteScanFingerprintA)
+	if _, _, err := store.StartRemoteHistoryScan(
+		ctx, "managed-root", source, base.Add(-time.Nanosecond),
+	); !errors.Is(err, ErrRemoteHistoryScanStartedBeforeSource) {
+		t.Fatalf("start error=%v want ErrRemoteHistoryScanStartedBeforeSource", err)
+	}
+}
+
+func TestRemoteScanSourceSQLiteRejectsScanBeforeSourcePublication(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	base := time.Date(2026, 9, 27, 21, 30, 0, 0, time.UTC)
+	generation, err := store.StartRemoteHistoryGeneration(
+		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scan, err := store.StartScan(ctx, scope.ProviderID, "managed-root", base.Add(-time.Nanosecond))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := remoteScanSourceInput(generation.ID, 1, "scope", remoteScanFingerprintA)
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = sqlitex.Execute(conn,
+		"INSERT INTO remote_scan_sources (scan_id,generation_id,publication_sequence,source_scope_id,materialization_policy_id,snapshot_fingerprint_version,snapshot_fingerprint_sha256) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(scan.ID),
+			string(source.GenerationID),
+			int64(source.PublicationSequence),
+			source.SourceScopeID,
+			source.MaterializationPolicyID,
+			source.SnapshotFingerprintVersion,
+			source.SnapshotFingerprintSHA256,
+		}})
+	store.pool.Put(conn)
+	if err == nil {
+		t.Fatal("direct SQL pre-publication remote scan source unexpectedly succeeded")
+	}
+	if err := store.AbortScan(ctx, scan.ID, base); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRemoteHistoryScanStartReplayGuardedCompleteAndReconcile(t *testing.T) {
 	ctx := context.Background()
 	store := openStoreInternal(t)
