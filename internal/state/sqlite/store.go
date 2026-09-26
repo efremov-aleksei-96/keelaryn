@@ -1080,6 +1080,362 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE gdrive_topology_evidence (
+	generation_id TEXT NOT NULL
+		REFERENCES remote_history_generations(generation_id) ON DELETE RESTRICT,
+	sequence INTEGER NOT NULL CHECK (sequence >= 1),
+	ordinal INTEGER NOT NULL CHECK (ordinal >= -1),
+	evidence_kind TEXT NOT NULL CHECK (evidence_kind IN ('BOOTSTRAP','UPSERT','REMOVED')),
+	object_id TEXT NOT NULL,
+	presence TEXT NOT NULL CHECK (presence IN ('PRESENT','UNAVAILABLE')),
+	parent_state TEXT NOT NULL CHECK (parent_state IN ('KNOWN','UNKNOWN','UNAVAILABLE')),
+	parent_id TEXT,
+	drive_id TEXT NOT NULL,
+	PRIMARY KEY (generation_id, sequence, ordinal, object_id),
+	FOREIGN KEY (generation_id, sequence)
+		REFERENCES remote_history_publications(generation_id, sequence) ON DELETE RESTRICT,
+	CHECK (
+		(evidence_kind='BOOTSTRAP' AND sequence=1 AND ordinal=-1)
+		OR
+		(evidence_kind IN ('UPSERT','REMOVED') AND sequence>=2 AND ordinal>=0)
+	),
+	CHECK (
+		(presence='PRESENT' AND parent_state='KNOWN' AND parent_id IS NOT NULL AND parent_id<>'' AND parent_id<>object_id)
+		OR
+		(presence='PRESENT' AND parent_state='UNKNOWN' AND parent_id IS NULL)
+		OR
+		(presence='UNAVAILABLE' AND parent_state='UNAVAILABLE' AND parent_id IS NULL)
+	)
+) STRICT;
+
+CREATE TRIGGER gdrive_topology_evidence_insert_guard
+BEFORE INSERT ON gdrive_topology_evidence
+WHEN NOT EXISTS (
+	SELECT 1 FROM remote_history_generations g
+	WHERE g.generation_id=NEW.generation_id
+	  AND g.provider_id='google-drive'
+) OR NOT (
+	(
+		NEW.evidence_kind='BOOTSTRAP'
+		AND NEW.presence='PRESENT'
+		AND EXISTS (
+			SELECT 1 FROM remote_history_bootstrap_membership b
+			WHERE b.generation_id=NEW.generation_id
+			  AND b.object_id=NEW.object_id
+		)
+	)
+	OR
+	(
+		NEW.evidence_kind='UPSERT'
+		AND NEW.presence='PRESENT'
+		AND EXISTS (
+			SELECT 1 FROM remote_history_publication_changes c
+			WHERE c.generation_id=NEW.generation_id
+			  AND c.sequence=NEW.sequence
+			  AND c.ordinal=NEW.ordinal
+			  AND c.object_id=NEW.object_id
+			  AND c.kind='UPSERT'
+		)
+	)
+	OR
+	(
+		NEW.evidence_kind='REMOVED'
+		AND NEW.presence='UNAVAILABLE'
+		AND EXISTS (
+			SELECT 1 FROM remote_history_publication_changes c
+			WHERE c.generation_id=NEW.generation_id
+			  AND c.sequence=NEW.sequence
+			  AND c.ordinal=NEW.ordinal
+			  AND c.object_id=NEW.object_id
+			  AND c.kind='REMOVED'
+		)
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology evidence lacks matching RemoteHistory evidence');
+END;
+
+CREATE TRIGGER gdrive_topology_evidence_no_update
+BEFORE UPDATE ON gdrive_topology_evidence
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology evidence is immutable');
+END;
+
+CREATE TRIGGER gdrive_topology_evidence_no_delete
+BEFORE DELETE ON gdrive_topology_evidence
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology evidence is immutable');
+END;
+
+CREATE TABLE gdrive_topology_nodes (
+	generation_id TEXT NOT NULL
+		REFERENCES remote_history_generations(generation_id) ON DELETE RESTRICT,
+	object_id TEXT NOT NULL,
+	presence TEXT NOT NULL CHECK (presence IN ('PRESENT','UNAVAILABLE')),
+	parent_state TEXT NOT NULL CHECK (parent_state IN ('KNOWN','UNKNOWN','UNAVAILABLE')),
+	parent_id TEXT,
+	drive_id TEXT NOT NULL,
+	last_sequence INTEGER NOT NULL CHECK (last_sequence >= 1),
+	last_ordinal INTEGER NOT NULL CHECK (last_ordinal >= -1),
+	PRIMARY KEY (generation_id, object_id),
+	FOREIGN KEY (generation_id, last_sequence)
+		REFERENCES remote_history_publications(generation_id, sequence) ON DELETE RESTRICT,
+	CHECK (
+		(last_sequence=1 AND last_ordinal=-1)
+		OR
+		(last_sequence>=2 AND last_ordinal>=0)
+	),
+	CHECK (
+		(presence='PRESENT' AND parent_state='KNOWN' AND parent_id IS NOT NULL AND parent_id<>'' AND parent_id<>object_id)
+		OR
+		(presence='PRESENT' AND parent_state='UNKNOWN' AND parent_id IS NULL)
+		OR
+		(presence='UNAVAILABLE' AND parent_state='UNAVAILABLE' AND parent_id IS NULL)
+	)
+) STRICT;
+
+CREATE TRIGGER gdrive_topology_nodes_insert_guard
+BEFORE INSERT ON gdrive_topology_nodes
+WHEN NOT EXISTS (
+	SELECT 1 FROM gdrive_topology_evidence e
+	WHERE e.generation_id=NEW.generation_id
+	  AND e.object_id=NEW.object_id
+	  AND e.sequence=NEW.last_sequence
+	  AND e.ordinal=NEW.last_ordinal
+	  AND e.presence=NEW.presence
+	  AND e.parent_state=NEW.parent_state
+	  AND e.parent_id IS NEW.parent_id
+	  AND e.drive_id=NEW.drive_id
+)
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology node lacks matching evidence');
+END;
+
+CREATE TRIGGER gdrive_topology_nodes_update_guard
+BEFORE UPDATE ON gdrive_topology_nodes
+WHEN NEW.generation_id<>OLD.generation_id
+	OR NEW.object_id<>OLD.object_id
+	OR NOT EXISTS (
+		SELECT 1 FROM gdrive_topology_evidence e
+		WHERE e.generation_id=NEW.generation_id
+		  AND e.object_id=NEW.object_id
+		  AND e.sequence=NEW.last_sequence
+		  AND e.ordinal=NEW.last_ordinal
+		  AND e.presence=NEW.presence
+		  AND e.parent_state=NEW.parent_state
+		  AND e.parent_id IS NEW.parent_id
+		  AND e.drive_id=NEW.drive_id
+	)
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology node mutation lacks matching evidence');
+END;
+
+CREATE TABLE gdrive_topology_watermarks (
+	generation_id TEXT PRIMARY KEY NOT NULL
+		REFERENCES remote_history_generations(generation_id) ON DELETE RESTRICT,
+	publication_sequence INTEGER NOT NULL CHECK (publication_sequence >= 1),
+	FOREIGN KEY (generation_id, publication_sequence)
+		REFERENCES remote_history_publications(generation_id, sequence) ON DELETE RESTRICT
+) STRICT;
+
+CREATE TRIGGER gdrive_topology_watermark_insert_guard
+BEFORE INSERT ON gdrive_topology_watermarks
+WHEN NOT EXISTS (
+	SELECT 1 FROM remote_history_generations g
+	WHERE g.generation_id=NEW.generation_id
+	  AND g.provider_id='google-drive'
+	  AND g.current_sequence>=NEW.publication_sequence
+) OR EXISTS (
+	SELECT 1 FROM remote_history_bootstrap_membership b
+	WHERE b.generation_id=NEW.generation_id
+	  AND NOT EXISTS (
+		SELECT 1 FROM gdrive_topology_evidence e
+		WHERE e.generation_id=b.generation_id
+		  AND e.sequence=1
+		  AND e.ordinal=-1
+		  AND e.object_id=b.object_id
+		  AND e.evidence_kind='BOOTSTRAP'
+	)
+) OR EXISTS (
+	SELECT 1 FROM remote_history_publication_changes c
+	WHERE c.generation_id=NEW.generation_id
+	  AND c.sequence<=NEW.publication_sequence
+	  AND NOT EXISTS (
+		SELECT 1 FROM gdrive_topology_evidence e
+		WHERE e.generation_id=c.generation_id
+		  AND e.sequence=c.sequence
+		  AND e.ordinal=c.ordinal
+		  AND e.object_id=c.object_id
+		  AND (
+			(e.evidence_kind='UPSERT' AND c.kind='UPSERT')
+			OR
+			(e.evidence_kind='REMOVED' AND c.kind='REMOVED')
+		  )
+	)
+) OR EXISTS (
+	SELECT 1 FROM gdrive_topology_evidence e
+	WHERE e.generation_id=NEW.generation_id
+	  AND e.sequence<=NEW.publication_sequence
+	  AND NOT EXISTS (
+		SELECT 1 FROM gdrive_topology_evidence newer
+		WHERE newer.generation_id=e.generation_id
+		  AND newer.object_id=e.object_id
+		  AND newer.sequence<=NEW.publication_sequence
+		  AND (
+			newer.sequence>e.sequence
+			OR (newer.sequence=e.sequence AND newer.ordinal>e.ordinal)
+		  )
+	  )
+	  AND NOT EXISTS (
+		SELECT 1 FROM gdrive_topology_nodes n
+		WHERE n.generation_id=e.generation_id
+		  AND n.object_id=e.object_id
+		  AND n.last_sequence=e.sequence
+		  AND n.last_ordinal=e.ordinal
+		  AND n.presence=e.presence
+		  AND n.parent_state=e.parent_state
+		  AND n.parent_id IS e.parent_id
+		  AND n.drive_id=e.drive_id
+	  )
+) OR EXISTS (
+	SELECT 1 FROM gdrive_topology_nodes n
+	WHERE n.generation_id=NEW.generation_id
+	  AND n.last_sequence>NEW.publication_sequence
+)
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology watermark does not match complete current projection');
+END;
+
+CREATE TRIGGER gdrive_topology_watermark_update_guard
+BEFORE UPDATE ON gdrive_topology_watermarks
+WHEN NEW.generation_id<>OLD.generation_id
+	OR NEW.publication_sequence<=OLD.publication_sequence
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology watermark must advance monotonically');
+END;
+
+CREATE TRIGGER gdrive_topology_watermark_update_coverage_guard
+BEFORE UPDATE ON gdrive_topology_watermarks
+WHEN EXISTS (
+	SELECT 1 FROM remote_history_bootstrap_membership b
+	WHERE b.generation_id=NEW.generation_id
+	  AND NOT EXISTS (
+		SELECT 1 FROM gdrive_topology_evidence e
+		WHERE e.generation_id=b.generation_id
+		  AND e.sequence=1 AND e.ordinal=-1
+		  AND e.object_id=b.object_id
+		  AND e.evidence_kind='BOOTSTRAP'
+	)
+) OR EXISTS (
+	SELECT 1 FROM remote_history_publication_changes c
+	WHERE c.generation_id=NEW.generation_id
+	  AND c.sequence<=NEW.publication_sequence
+	  AND NOT EXISTS (
+		SELECT 1 FROM gdrive_topology_evidence e
+		WHERE e.generation_id=c.generation_id
+		  AND e.sequence=c.sequence
+		  AND e.ordinal=c.ordinal
+		  AND e.object_id=c.object_id
+		  AND (
+			(e.evidence_kind='UPSERT' AND c.kind='UPSERT')
+			OR
+			(e.evidence_kind='REMOVED' AND c.kind='REMOVED')
+		  )
+	)
+) OR EXISTS (
+	SELECT 1 FROM gdrive_topology_evidence e
+	WHERE e.generation_id=NEW.generation_id
+	  AND e.sequence<=NEW.publication_sequence
+	  AND NOT EXISTS (
+		SELECT 1 FROM gdrive_topology_evidence newer
+		WHERE newer.generation_id=e.generation_id
+		  AND newer.object_id=e.object_id
+		  AND newer.sequence<=NEW.publication_sequence
+		  AND (
+			newer.sequence>e.sequence
+			OR (newer.sequence=e.sequence AND newer.ordinal>e.ordinal)
+		  )
+	  )
+	  AND NOT EXISTS (
+		SELECT 1 FROM gdrive_topology_nodes n
+		WHERE n.generation_id=e.generation_id
+		  AND n.object_id=e.object_id
+		  AND n.last_sequence=e.sequence
+		  AND n.last_ordinal=e.ordinal
+		  AND n.presence=e.presence
+		  AND n.parent_state=e.parent_state
+		  AND n.parent_id IS e.parent_id
+		  AND n.drive_id=e.drive_id
+	  )
+) OR EXISTS (
+	SELECT 1 FROM gdrive_topology_nodes n
+	WHERE n.generation_id=NEW.generation_id
+	  AND n.last_sequence>NEW.publication_sequence
+)
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology watermark update does not match complete projection');
+END;
+
+CREATE TRIGGER gdrive_topology_nodes_delete_guard
+BEFORE DELETE ON gdrive_topology_nodes
+WHEN EXISTS (
+	SELECT 1 FROM gdrive_topology_watermarks w
+	WHERE w.generation_id=OLD.generation_id
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remove Google Drive topology watermark before rebuilding projection');
+END;
+
+CREATE TABLE gdrive_managed_root_bindings (
+	generation_id TEXT NOT NULL
+		REFERENCES remote_history_generations(generation_id) ON DELETE RESTRICT,
+	managed_root_object_id TEXT NOT NULL,
+	bound_sequence INTEGER NOT NULL CHECK (bound_sequence >= 1),
+	created_at TEXT NOT NULL,
+	PRIMARY KEY (generation_id, managed_root_object_id),
+	FOREIGN KEY (generation_id, bound_sequence)
+		REFERENCES remote_history_publications(generation_id, sequence) ON DELETE RESTRICT
+) STRICT;
+
+CREATE TRIGGER gdrive_managed_root_binding_insert_guard
+BEFORE INSERT ON gdrive_managed_root_bindings
+WHEN NOT EXISTS (
+	SELECT 1 FROM remote_history_generations g
+	WHERE g.generation_id=NEW.generation_id
+	  AND g.provider_id='google-drive'
+	  AND g.current_sequence=NEW.bound_sequence
+	  AND (
+		NEW.managed_root_object_id=g.root
+		OR EXISTS (
+			SELECT 1 FROM gdrive_topology_nodes n
+			JOIN gdrive_topology_watermarks w
+			  ON w.generation_id=n.generation_id
+			WHERE n.generation_id=g.generation_id
+			  AND n.object_id=NEW.managed_root_object_id
+			  AND n.presence='PRESENT'
+			  AND w.publication_sequence=NEW.bound_sequence
+			  AND n.last_sequence<=w.publication_sequence
+		)
+	  )
+)
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive managed root binding is not current in history universe');
+END;
+
+CREATE TRIGGER gdrive_managed_root_bindings_no_update
+BEFORE UPDATE ON gdrive_managed_root_bindings
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive managed root bindings are immutable');
+END;
+
+CREATE TRIGGER gdrive_managed_root_bindings_no_delete
+BEFORE DELETE ON gdrive_managed_root_bindings
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive managed root bindings are immutable');
+END;
+`,
+
 	},
 }
 

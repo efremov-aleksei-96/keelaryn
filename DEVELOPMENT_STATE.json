@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 103,
+  "revision": 104,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C1_TOPOLOGY_DOMAIN_SCHEMA",
-    "description": "Implement only the P0-29C1 domain/schema slice: Google Drive topology node + managed-root binding + IN/OUT/UNKNOWN domain types, a new rebuildable SQLite topology schema with exact history publication watermark and defensive invariants, migration and direct-SQL tamper tests. Do not wire adapter publications or membership traversal yet.",
+    "id": "P0_29C1_TOPOLOGY_DOMAIN_SCHEMA_QUALIFICATION",
+    "description": "Qualify exact-head schema v15 topology domain/schema on validate, Ubuntu 24.04 and Windows 2025. Require immutable evidence linked to RemoteHistory, completeness-guarded watermark, safe projection rebuild boundary, managed-root binding invariants, v14-to-v15 migration, all prior tests and go vet. Do not start C2 adapter/history wiring until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "90e5669ebc03635dc0817f8e6761f69356452546",
+  "repository_basis_commit": "40b9e8a316b07ceb735510a9c5ea6e2b72167069",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2979,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C_CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
+    "status": "C1_IMPLEMENTED_AWAITING_QUALIFICATION",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3111,7 +3111,7 @@
       }
     },
     "c": {
-      "status": "CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
+      "status": "C1_IMPLEMENTED_AWAITING_QUALIFICATION",
       "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
       "core_decisions": {
         "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
@@ -3132,7 +3132,37 @@
       ],
       "live_oauth_used": false,
       "live_provider_used": false,
-      "corpus_mutations": 0
+      "corpus_mutations": 0,
+      "schema_version": 15,
+      "c1": {
+        "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+        "implementation": {
+          "domain_file": "internal/remotehistory/gdrive/topology.go",
+          "topology_evidence": "IMMUTABLE_PROVIDER_SPECIFIC_EVIDENCE_BOUND_TO_REMOTE_HISTORY_PUBLICATION",
+          "topology_nodes": "REBUILDABLE_CURRENT_PARENT_GRAPH",
+          "watermark": "EXACT_GENERATION_PUBLICATION_SEQUENCE_WITH_COMPLETENESS_GUARD",
+          "managed_root_binding": "IMMUTABLE_GENERATION_SCOPED_SELECTION",
+          "membership_enum": "IN_OUT_UNKNOWN",
+          "safe_rebuild": "REMOVE_WATERMARK_BEFORE_DELETING_PROJECTION",
+          "direct_sql_future_watermark": "REJECTED",
+          "self_parent": "REJECTED",
+          "missing_parent": "REPRESENTABLE_AS_UNKNOWN",
+          "adapter_wiring": false,
+          "membership_traversal": false,
+          "live_provider_used": false,
+          "corpus_mutations": 0
+        },
+        "tests": [
+          "topology domain validation",
+          "v14-to-v15 migration",
+          "incomplete bootstrap evidence blocks watermark",
+          "forged topology evidence rejected",
+          "watermark update blocked until matching evidence/current node",
+          "managed-root binding immutable",
+          "current projection delete blocked while watermark exists",
+          "watermark removal permits safe projection rebuild"
+        ]
+      }
     }
   }
 }
