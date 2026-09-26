@@ -15,8 +15,9 @@ type AcceptedContinuityRecord struct {
 	ObservationID  ObservationID             `json:"observation_id"`
 	ArtifactID    ArtifactID             `json:"artifact_id"`
 	State         CandidateSetState      `json:"state"`
-	PolicyID      string                 `json:"policy_id"`
-	Resolution    CandidateSetResolution `json:"resolution"`
+	PolicyID          string                 `json:"policy_id"`
+	LifetimeSegmentID string                 `json:"lifetime_segment_id,omitempty"`
+	Resolution        CandidateSetResolution `json:"resolution"`
 	DecidedAt     time.Time              `json:"decided_at"`
 }
 

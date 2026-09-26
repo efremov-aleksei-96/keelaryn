@@ -960,6 +960,39 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER accepted_continuity_decisions_no_update
+BEFORE UPDATE ON accepted_continuity_decisions
+BEGIN
+	SELECT RAISE(ABORT, 'accepted continuity decisions are immutable');
+END;
+
+CREATE TRIGGER accepted_continuity_decisions_no_delete
+BEFORE DELETE ON accepted_continuity_decisions
+BEGIN
+	SELECT RAISE(ABORT, 'accepted continuity decisions are immutable');
+END;
+
+CREATE TRIGGER accepted_artifact_admissions_no_update
+BEFORE UPDATE ON accepted_artifact_admissions
+BEGIN
+	SELECT RAISE(ABORT, 'accepted Artifact admissions are immutable');
+END;
+
+CREATE TRIGGER accepted_artifact_admissions_no_delete
+BEFORE DELETE ON accepted_artifact_admissions
+BEGIN
+	SELECT RAISE(ABORT, 'accepted Artifact admissions are immutable');
+END;
+
+CREATE TRIGGER provider_artifact_bindings_remote_history_forbidden
+BEFORE INSERT ON provider_artifact_bindings
+WHEN NEW.policy_id = 'remote-history:lifetime-segment:v1'
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory lifetime authority cannot create naked provider bindings');
+END;
+`,
+
 	},
 }
 

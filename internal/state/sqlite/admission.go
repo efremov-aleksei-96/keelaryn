@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
 	"github.com/google/uuid"
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
@@ -127,13 +128,15 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 			ProviderObjectID: authority.CurrentObjectID, ArtifactID: artifactID,
 			PolicyID: authority.PolicyID, AcceptedAt: request.DecidedAt.UTC(),
 		}
-		if txErr := sqlitex.Execute(conn,
-			"INSERT INTO provider_artifact_bindings (identity_domain, provider_id, native_object_id, artifact_id, policy_id, accepted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-			&sqlitex.ExecOptions{Args: []any{
-				binding.IdentityDomain, string(binding.ProviderID), string(binding.ProviderObjectID),
-				string(binding.ArtifactID), binding.PolicyID, binding.AcceptedAt.Format(time.RFC3339Nano),
-			}}); txErr != nil {
-			return fmt.Errorf("insert provider Artifact binding: %w", txErr)
+		if !remoteAuthority {
+			if txErr := sqlitex.Execute(conn,
+				"INSERT INTO provider_artifact_bindings (identity_domain, provider_id, native_object_id, artifact_id, policy_id, accepted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+				&sqlitex.ExecOptions{Args: []any{
+					binding.IdentityDomain, string(binding.ProviderID), string(binding.ProviderObjectID),
+					string(binding.ArtifactID), binding.PolicyID, binding.AcceptedAt.Format(time.RFC3339Nano),
+				}}); txErr != nil {
+				return fmt.Errorf("insert provider Artifact binding: %w", txErr)
+			}
 		}
 		if remoteAuthority {
 			if _, _, txErr := insertProviderLifetimeArtifactBindingConn(conn, ProviderLifetimeArtifactBinding{
@@ -155,6 +158,7 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 			ObservationID: observation.ID, ArtifactID: artifactID, State: resolution.State,
 			PolicyID: authority.PolicyID, IdentityDomain: authority.IdentityDomain,
 			ProviderID: authority.ProviderID, ProviderObjectID: authority.CurrentObjectID,
+			LifetimeSegmentID: stringOrEmpty(lifetimeSegmentID),
 			Resolution: resolution, DecidedAt: request.DecidedAt.UTC(),
 		}
 		if txErr := sqlitex.Execute(conn,
@@ -202,9 +206,28 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 	if err != nil {
 		return corpus.ArtifactAdmissionAcceptance{}, err
 	}
-	binding, err := s.ProviderArtifactBinding(ctx, decision.IdentityDomain, decision.ProviderID, decision.ProviderObjectID)
-	if err != nil {
-		return corpus.ArtifactAdmissionAcceptance{}, err
+	var binding corpus.ProviderArtifactBinding
+	if decision.LifetimeSegmentID != "" {
+		lifetimeBinding, err := s.ProviderLifetimeArtifactBinding(ctx, remotehistory.ProviderObjectLifetimeSegmentID(decision.LifetimeSegmentID))
+		if err != nil {
+			return corpus.ArtifactAdmissionAcceptance{}, err
+		}
+		if lifetimeBinding.ArtifactID != decision.ArtifactID || lifetimeBinding.PolicyID != decision.PolicyID {
+			return corpus.ArtifactAdmissionAcceptance{}, fmt.Errorf("%w: replay lifetime binding mismatch", ErrInvalidArtifactAdmission)
+		}
+		binding = corpus.ProviderArtifactBinding{
+			IdentityDomain: decision.IdentityDomain,
+			ProviderID: decision.ProviderID,
+			ProviderObjectID: decision.ProviderObjectID,
+			ArtifactID: lifetimeBinding.ArtifactID,
+			PolicyID: lifetimeBinding.PolicyID,
+			AcceptedAt: lifetimeBinding.AcceptedAt,
+		}
+	} else {
+		binding, err = s.ProviderArtifactBinding(ctx, decision.IdentityDomain, decision.ProviderID, decision.ProviderObjectID)
+		if err != nil {
+			return corpus.ArtifactAdmissionAcceptance{}, err
+		}
 	}
 	var revisionObservation *corpus.RevisionObservation
 	if replay.RevisionID != "" {
@@ -230,7 +253,7 @@ func (s *Store) AcceptedAdmission(ctx context.Context, requestID corpus.Identity
 	var resolutionJSON, decidedText string
 	var found bool
 	err = sqlitex.Execute(conn,
-		"SELECT observation_id, artifact_id, identity_domain, provider_id, native_object_id, decision_state, policy_id, resolution_json, decided_at FROM accepted_artifact_admissions WHERE request_id = ?1",
+		"SELECT observation_id, artifact_id, identity_domain, provider_id, native_object_id, decision_state, policy_id, resolution_json, decided_at, COALESCE(lifetime_segment_id,'') FROM accepted_artifact_admissions WHERE request_id = ?1",
 		&sqlitex.ExecOptions{
 			Args: []any{string(requestID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
@@ -245,6 +268,7 @@ func (s *Store) AcceptedAdmission(ctx context.Context, requestID corpus.Identity
 				record.PolicyID = stmt.ColumnText(6)
 				resolutionJSON = stmt.ColumnText(7)
 				decidedText = stmt.ColumnText(8)
+				record.LifetimeSegmentID = stmt.ColumnText(9)
 				return nil
 			},
 		})
@@ -273,11 +297,13 @@ func (s *Store) AcceptedAdmission(ctx context.Context, requestID corpus.Identity
 	if err != nil {
 		return corpus.AcceptedAdmissionRecord{}, fmt.Errorf("parse admission timestamp: %w", err)
 	}
+	var provenanceFound bool
 	err = sqlitex.Execute(conn,
-		"SELECT authority_set_id FROM identity_mutation_requests WHERE request_id = ?1 AND operation_kind = 'NEW' LIMIT 1",
+		"SELECT authority_set_id FROM identity_mutation_requests WHERE request_id = ?1 AND operation_kind = 'NEW' AND decision_kind = 'ADMISSION' AND decision_id = ?1 AND observation_id = ?2 AND artifact_id = ?3 LIMIT 1",
 		&sqlitex.ExecOptions{
-			Args: []any{string(requestID)},
+			Args: []any{string(requestID), string(record.ObservationID), string(record.ArtifactID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
+				provenanceFound = true
 				record.AuthoritySetID = corpus.IdentityAuthoritySetID(stmt.ColumnText(0))
 				return nil
 			},
@@ -285,7 +311,37 @@ func (s *Store) AcceptedAdmission(ctx context.Context, requestID corpus.Identity
 	if err != nil {
 		return corpus.AcceptedAdmissionRecord{}, fmt.Errorf("query admission mutation provenance: %w", err)
 	}
+	if !provenanceFound {
+		return corpus.AcceptedAdmissionRecord{}, fmt.Errorf("%w: missing identity mutation provenance", ErrInvalidArtifactAdmission)
+	}
+	if record.PolicyID == remoteHistoryLifetimeAuthorityPolicyV1 {
+		if record.LifetimeSegmentID == "" {
+			return corpus.AcceptedAdmissionRecord{}, fmt.Errorf("%w: missing lifetime segment provenance", ErrInvalidArtifactAdmission)
+		}
+		found, lifetimeBinding, err := providerLifetimeArtifactBindingConn(conn, remotehistory.ProviderObjectLifetimeSegmentID(record.LifetimeSegmentID))
+		if err != nil {
+			return corpus.AcceptedAdmissionRecord{}, err
+		}
+		if !found ||
+			lifetimeBinding.ArtifactID != record.ArtifactID ||
+			lifetimeBinding.PolicyID != record.PolicyID ||
+			lifetimeBinding.AuthoritySetID != record.AuthoritySetID {
+			return corpus.AcceptedAdmissionRecord{}, fmt.Errorf("%w: lifetime binding provenance mismatch", ErrInvalidArtifactAdmission)
+		}
+	} else if record.LifetimeSegmentID != "" {
+		return corpus.AcceptedAdmissionRecord{}, fmt.Errorf("%w: non-RemoteHistory admission has lifetime segment provenance", ErrInvalidArtifactAdmission)
+	}
 	return record, nil
+}
+
+func stringOrEmpty(value any) string {
+	if value == nil {
+		return ""
+	}
+	if text, ok := value.(string); ok {
+		return text
+	}
+	return fmt.Sprint(value)
 }
 
 func (s *Store) ProviderArtifactBinding(ctx context.Context, identityDomain string, providerID corpus.ProviderID, objectID corpus.ProviderObjectID) (corpus.ProviderArtifactBinding, error) {

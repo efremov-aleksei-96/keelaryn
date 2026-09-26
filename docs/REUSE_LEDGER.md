@@ -994,3 +994,26 @@ No new runtime dependency is required.
 
 Detailed contract: `docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md`.
 
+## P0-28C3 — lifetime authority boundary prior-art revalidation
+
+The boundary retrospective rechecked the lifetime design against independent mature systems while C2B qualification was waiting:
+
+- **Kubernetes Name vs UID**: a name may be reused after deletion, while every historical object occurrence receives a distinct UID. This reinforces that a reusable/native reference must not remain the authoritative binding key across incarnations.
+- **Linux NFS export filehandles**: the default filehandle representation includes inode number plus inode generation. This reinforces raw native-ID + incarnation/generation rather than raw native ID alone.
+- **Syncthing BEP delta index**: `index_id + max_sequence` identifies an index state; resetting/removing an index requires a new index ID. This continues to validate Keelaryn HistoryGeneration + publication sequence separation.
+- **Microsoft Graph driveItem delta**: clients consume all pages to terminal `@odata.deltaLink`; an item may occur more than once in a delta feed and the last occurrence is authoritative for that round. This validates ordered publication folding and terminal cursor commit rather than treating every event as an independent durable state.
+
+C3 finding:
+- the C2B implementation still dual-wrote a legacy naked provider-object binding for RemoteHistory NEW;
+- that table is keyed only by identity-domain/provider/object-ID and therefore cannot represent two historical lifetime segments of the same reused native ID bound to different Artifacts;
+- retaining that dual-write would contradict the P0-28C incarnation model even though SAME already ignored naked binding as authority.
+
+Correction:
+- RemoteHistory policy no longer writes new naked provider bindings;
+- SQLite forbids direct creation of RemoteHistory-policy naked bindings;
+- segment binding is the durable authority for RemoteHistory;
+- accepted SAME/NEW records expose and validate lifetime-segment provenance;
+- accepted identity decisions become SQLite-immutable.
+
+No dependency is added.
+

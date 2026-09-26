@@ -149,8 +149,9 @@ func ValidateOccurrenceIdentityResolution(resolution OccurrenceIdentityResolutio
 	return nil
 }
 
-// ProviderArtifactBinding is accepted durable identity authority for one
-// provider-native object in one exact provider identity domain.
+// ProviderArtifactBinding is the legacy/native-object binding shape used by
+// pre-lifetime policies. RemoteHistory lifetime authority is segment-scoped;
+// callers must not treat this naked object-ID mapping as cross-segment proof.
 type ProviderArtifactBinding struct {
 	IdentityDomain   string           `json:"identity_domain"`
 	ProviderID       ProviderID       `json:"provider_id"`
@@ -170,6 +171,7 @@ type AcceptedAdmissionRecord struct {
 	IdentityDomain    string                       `json:"identity_domain"`
 	ProviderID        ProviderID                   `json:"provider_id"`
 	ProviderObjectID  ProviderObjectID             `json:"provider_object_id"`
+	LifetimeSegmentID string                       `json:"lifetime_segment_id,omitempty"`
 	Resolution        OccurrenceIdentityResolution `json:"resolution"`
 	DecidedAt         time.Time                    `json:"decided_at"`
 }

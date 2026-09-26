@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
 	"github.com/google/uuid"
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
@@ -138,9 +139,10 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 			AuthoritySetID: request.AuthoritySetID,
 			ObservationID:  observation.ID,
 			ArtifactID:     resolution.SelectedArtifactID,
-			State:          resolution.State,
-			PolicyID:       authority.PolicyID,
-			Resolution:     resolution,
+			State:             resolution.State,
+			PolicyID:          authority.PolicyID,
+			LifetimeSegmentID: stringOrEmpty(lifetimeSegmentID),
+			Resolution:        resolution,
 			DecidedAt:      request.DecidedAt.UTC(),
 		}
 		if txErr := sqlitex.Execute(conn,
@@ -203,7 +205,7 @@ func (s *Store) AcceptedContinuity(ctx context.Context, observationID corpus.Obs
 	var resolutionJSON, decidedText string
 	var found bool
 	err = sqlitex.Execute(conn,
-		"SELECT decision_id, artifact_id, decision_state, policy_id, resolution_json, decided_at FROM accepted_continuity_decisions WHERE observation_id = ?1",
+		"SELECT decision_id, artifact_id, decision_state, policy_id, resolution_json, decided_at, COALESCE(lifetime_segment_id,'') FROM accepted_continuity_decisions WHERE observation_id = ?1",
 		&sqlitex.ExecOptions{
 			Args: []any{string(observationID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
@@ -215,6 +217,7 @@ func (s *Store) AcceptedContinuity(ctx context.Context, observationID corpus.Obs
 				record.PolicyID = stmt.ColumnText(3)
 				resolutionJSON = stmt.ColumnText(4)
 				decidedText = stmt.ColumnText(5)
+				record.LifetimeSegmentID = stmt.ColumnText(6)
 				return nil
 			},
 		})
@@ -234,11 +237,13 @@ func (s *Store) AcceptedContinuity(ctx context.Context, observationID corpus.Obs
 	if err != nil {
 		return corpus.AcceptedContinuityRecord{}, fmt.Errorf("parse accepted continuity timestamp: %w", err)
 	}
+	var provenanceFound bool
 	err = sqlitex.Execute(conn,
-		"SELECT request_id, authority_set_id FROM identity_mutation_requests WHERE observation_id = ?1 AND operation_kind = 'SAME' LIMIT 1",
+		"SELECT request_id, authority_set_id FROM identity_mutation_requests WHERE observation_id = ?1 AND operation_kind = 'SAME' AND decision_kind = 'CONTINUITY' AND decision_id = ?2 AND artifact_id = ?3 LIMIT 1",
 		&sqlitex.ExecOptions{
-			Args: []any{string(observationID)},
+			Args: []any{string(observationID), string(record.ID), string(record.ArtifactID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
+				provenanceFound = true
 				record.RequestID = corpus.IdentityMutationRequestID(stmt.ColumnText(0))
 				record.AuthoritySetID = corpus.IdentityAuthoritySetID(stmt.ColumnText(1))
 				return nil
@@ -246,6 +251,38 @@ func (s *Store) AcceptedContinuity(ctx context.Context, observationID corpus.Obs
 		})
 	if err != nil {
 		return corpus.AcceptedContinuityRecord{}, fmt.Errorf("query continuity mutation provenance: %w", err)
+	}
+	if !provenanceFound {
+		return corpus.AcceptedContinuityRecord{}, fmt.Errorf("%w: missing identity mutation provenance", ErrInvalidContinuityAcceptance)
+	}
+	if record.PolicyID == remoteHistoryLifetimeAuthorityPolicyV1 {
+		if record.LifetimeSegmentID == "" {
+			return corpus.AcceptedContinuityRecord{}, fmt.Errorf("%w: missing lifetime segment provenance", ErrInvalidContinuityAcceptance)
+		}
+		found, lifetimeBinding, err := providerLifetimeArtifactBindingConn(conn, remotehistory.ProviderObjectLifetimeSegmentID(record.LifetimeSegmentID))
+		if err != nil {
+			return corpus.AcceptedContinuityRecord{}, err
+		}
+		if !found || lifetimeBinding.ArtifactID != record.ArtifactID || lifetimeBinding.PolicyID != record.PolicyID {
+			return corpus.AcceptedContinuityRecord{}, fmt.Errorf("%w: lifetime binding provenance mismatch", ErrInvalidContinuityAcceptance)
+		}
+		authority, err := identityAuthoritySetConn(conn, record.AuthoritySetID)
+		if err != nil {
+			return corpus.AcceptedContinuityRecord{}, err
+		}
+		if authority.PolicyID != record.PolicyID ||
+			authority.LifetimeSegmentID != record.LifetimeSegmentID {
+			return corpus.AcceptedContinuityRecord{}, fmt.Errorf("%w: authority lifetime provenance mismatch", ErrInvalidContinuityAcceptance)
+		}
+		resolution, err := candidateResolutionFromAuthority(authority)
+		if err != nil {
+			return corpus.AcceptedContinuityRecord{}, err
+		}
+		if resolution.State != corpus.CandidateSetResolvedSame || resolution.SelectedArtifactID != record.ArtifactID {
+			return corpus.AcceptedContinuityRecord{}, fmt.Errorf("%w: authority no longer matches committed SAME provenance", ErrInvalidContinuityAcceptance)
+		}
+	} else if record.LifetimeSegmentID != "" {
+		return corpus.AcceptedContinuityRecord{}, fmt.Errorf("%w: non-RemoteHistory continuity has lifetime segment provenance", ErrInvalidContinuityAcceptance)
 	}
 	return record, nil
 }

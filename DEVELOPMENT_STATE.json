@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 92,
+  "revision": 93,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -117,8 +117,8 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28C3_LIFETIME_AUTHORITY_BOUNDARY_RETROSPECTIVE",
-    "description": "Continue mandatory P0-28C retrospective. First resolve the discovered legacy naked-binding compatibility conflict: remote lifetime semantics must permit the same native ProviderObjectID to bind different Artifacts in different segments without replay returning the wrong naked binding. Continue parallel prior-art research and adversarial audit while CI waits.",
+    "id": "P0_28C3_HARDENING_QUALIFICATION",
+    "description": "Qualify exact-head C3 schema v13 hardening on validate, Ubuntu 24.04 and Windows 2025. Require segment-only RemoteHistory binding, lifetime provenance read/replay validation, accepted-decision immutability, direct-SQL naked RemoteHistory binding rejection, v12-to-v13 migration and all prior tests. No live provider wiring until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "d7412574dc5e4ecf7576e6b03c0140fd70fe0f38",
+  "repository_basis_commit": "78c561d8c8ceba0a8cec71a3c8128ba5e99cb835",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2589,7 +2589,7 @@
     }
   },
   "p0_28c": {
-    "status": "C2B_QUALIFIED_C3_NEXT",
+    "status": "C3_HARDENING_IMPLEMENTED_AWAITING_QUALIFICATION",
     "evidence_document": "docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md",
     "dependencies_added": 0,
     "live_oauth_used": false,
@@ -2828,6 +2828,42 @@
         "live_provider_used": false,
         "corpus_mutations": 0
       }
+    },
+    "c3": {
+      "status": "HARDENING_IMPLEMENTED_AWAITING_QUALIFICATION",
+      "document": "docs/P0_28C3_BOUNDARY_RETRO_20260926.md",
+      "audited_head": "78c561d8c8ceba0a8cec71a3c8128ba5e99cb835",
+      "qualified_c2b_product_head": "427d1d27c94e7644cf4c91f9b2b864617658e044",
+      "qualified_c2b_ci_run_id": 36241394864,
+      "findings": [
+        {
+          "id": "C3-B1",
+          "severity": "BLOCKER_BEFORE_LIVE_PROVIDER",
+          "issue": "RemoteHistory NEW dual-wrote naked provider binding keyed without lifetime segment",
+          "correction": "RemoteHistory NEW persists segment binding only; v13 forbids new RemoteHistory-policy naked bindings"
+        },
+        {
+          "id": "C3-B2",
+          "severity": "BLOCKER_BEFORE_LIVE_PROVIDER",
+          "issue": "accepted lifetime_segment_id was stored but not surfaced/validated on read and replay",
+          "correction": "durable decision records expose LifetimeSegmentID and readers reconcile immutable mutation/binding/authority provenance"
+        },
+        {
+          "id": "C3-B3",
+          "severity": "BLOCKER_BEFORE_LIVE_PROVIDER",
+          "issue": "accepted continuity/admission rows lacked SQLite UPDATE/DELETE immutability",
+          "correction": "v13 immutable accepted-decision triggers"
+        }
+      ],
+      "schema_version": 13,
+      "prior_art": [
+        "Kubernetes reusable Name vs historical UID",
+        "Linux NFS inode plus generation filehandles",
+        "Syncthing index_id plus sequence reset semantics",
+        "Microsoft Graph terminal deltaLink and repeated-item folding"
+      ],
+      "live_provider_used": false,
+      "corpus_mutations": 0
     }
   },
   "development_execution_policy": {
