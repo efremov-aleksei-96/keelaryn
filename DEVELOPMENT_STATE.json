@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 122,
+  "revision": 123,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -123,11 +123,11 @@
     "P0_29C3_LIFETIME_HARDENING_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_29C3_LIFETIME_HARDENING_REQUALIFICATION_AND_REAUDIT",
-    "description": "Run exact-head CI after audit-driven removal of the unused ambiguous managed-root read API, then complete the per-stage architecture/correctness/reuse retrospective. If no new blocker is found, qualify P0-29C3 and only then open the next substantive stage.",
+    "id": "P0_29C3_FINAL_EXACT_HEAD_QUALIFICATION_AND_STAGE_RETROSPECTIVE",
+    "description": "Qualify exact-head C3 after audit-driven topology verifier and managed-root move proof. Require validate, Ubuntu 24.04 and Windows 2025; verifier detects materialized drift; same-lifetime managed-root move preserves binding/lifetime; all lifetime reincarnation and prior topology tests remain green. Then perform the mandatory per-stage architecture/correctness/reuse retrospective before marking C3/P0-29C qualified.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "CURRENT_C3_STAGE_MUST_COMPLETE_EXACT_HEAD_CI_AND_STAGE_RETROSPECTIVE_BEFORE_ANY_NEXT_SUBSTANTIVE_STAGE"
+    "audit_gate": "NO_NEXT_SUBSTANTIVE_STAGE_BEFORE_C3_STAGE_RETROSPECTIVE_PASS"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -158,7 +158,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "c663fc69958c9738c4712832a9d6c08912f942a5",
+  "repository_basis_commit": "e90a5188622ba10150afaeb899ef26d039262057",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3414,7 +3414,7 @@
         }
       },
       "c3": {
-        "status": "LIFETIME_HARDENING_IMPLEMENTED_AWAITING_REQUALIFICATION",
+        "status": "STAGE_AUDIT_PROOF_GAPS_ADDRESSED_AWAITING_QUALIFICATION",
         "implementation": {
           "store_file": "internal/state/sqlite/gdrive_membership.go",
           "bind_api": "BindGoogleDriveManagedRoot",
@@ -3526,7 +3526,7 @@
           }
         ],
         "stage_audit": {
-          "status": "IN_PROGRESS",
+          "status": "PROOF_GAPS_ADDRESSED_AWAITING_QUALIFICATION",
           "simplifications": [
             {
               "item": "GoogleDriveManagedRootBinding exported read API",
@@ -3535,7 +3535,40 @@
             }
           ],
           "new_durable_state_added": false,
-          "schema_changed": false
+          "schema_changed": false,
+          "findings": [
+            {
+              "id": "C3-A1",
+              "severity": "HIGH",
+              "issue": "qualification matrix lacked explicit managed-root move/rename same-lifetime regression",
+              "correction": "added same-history-universe managed-root move regression proving binding/lifetime preservation and descendant IN semantics",
+              "schema_change_required": false
+            },
+            {
+              "id": "C3-A2",
+              "severity": "HIGH",
+              "issue": "contract required deterministic topology projection drift verification but no verifier existed",
+              "correction": "added read-only VerifyGoogleDriveTopologyProjection rederiving exact watermark coverage and comparing latest immutable evidence to current nodes",
+              "schema_change_required": false
+            }
+          ],
+          "resolutions": [
+            {
+              "finding": "C3-A1",
+              "implementation": "internal/state/sqlite/gdrive_topology_verify_test.go::TestManagedRootMovePreservesBindingAndMembershipWithinSameLifetime"
+            },
+            {
+              "finding": "C3-A2",
+              "implementation": "internal/state/sqlite/gdrive_topology_verify.go::VerifyGoogleDriveTopologyProjection",
+              "regression": "internal/state/sqlite/gdrive_topology_verify_test.go::TestVerifyGoogleDriveTopologyProjectionDetectsMaterializedDrift"
+            }
+          ],
+          "prior_art_recheck": "EXISTING_REUSE_LEDGER_GOOGLE_GRAPH_DROPBOX_SYNCTHING_NFS_KUBERNETES_PATTERNS_REVALIDATED_NO_NEW_DEPENDENCY_OR_LAYER_NEEDED",
+          "unnecessary_solutions_rejected": [
+            "projection cache/performance index before measured need",
+            "new durable verification watermark/state",
+            "new topology schema migration"
+          ]
         }
       }
     }
