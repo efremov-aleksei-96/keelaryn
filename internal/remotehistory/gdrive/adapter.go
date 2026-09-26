@@ -65,6 +65,7 @@ type ChangePage struct {
 }
 
 type Client interface {
+	ResolveMyDriveRoot(context.Context, Config) (string, error)
 	StartPageToken(context.Context, Config) (string, error)
 	ListFiles(context.Context, Config, string) (FilePage, error)
 	ListChanges(context.Context, Config, string) (ChangePage, error)
@@ -72,6 +73,7 @@ type Client interface {
 
 var (
 	ErrInvalidConfig             = errors.New("invalid Google Drive history config")
+	ErrNonCanonicalHistoryRoot   = errors.New("non-canonical Google Drive history root")
 	ErrInvalidClientResponse     = errors.New("invalid Google Drive history client response")
 	ErrClientHistoryGap          = errors.New("Google Drive history gap")
 	ErrClientInvalidCursor       = errors.New("Google Drive invalid history cursor")
@@ -85,16 +87,18 @@ type Adapter struct {
 }
 
 func New(client Client, config Config) (*Adapter, error) {
-	if client == nil || validateConfig(config) != nil {
+	if client == nil {
 		return nil, ErrInvalidConfig
+	}
+	if err := validateConfig(config); err != nil {
+		return nil, err
 	}
 	return &Adapter{client: client, config: config}, nil
 }
 
-func validateConfig(config Config) error {
+func validateConfigBase(config Config) error {
 	if strings.TrimSpace(config.IdentityDomain) == "" ||
-		strings.TrimSpace(string(config.StreamID)) == "" ||
-		strings.TrimSpace(config.Root) == "" {
+		strings.TrimSpace(string(config.StreamID)) == "" {
 		return ErrInvalidConfig
 	}
 	switch config.Kind {
@@ -103,13 +107,81 @@ func validateConfig(config Config) error {
 			return ErrInvalidConfig
 		}
 	case StreamSharedDrive:
-		if strings.TrimSpace(config.DriveID) == "" || config.Root != config.DriveID {
+		if strings.TrimSpace(config.DriveID) == "" {
 			return ErrInvalidConfig
 		}
 	default:
 		return ErrInvalidConfig
 	}
 	return nil
+}
+
+func validateConfig(config Config) error {
+	if err := validateConfigBase(config); err != nil {
+		return err
+	}
+	root := strings.TrimSpace(config.Root)
+	if root == "" {
+		return ErrInvalidConfig
+	}
+	switch config.Kind {
+	case StreamMyDrive:
+		if root == "root" {
+			return ErrNonCanonicalHistoryRoot
+		}
+	case StreamSharedDrive:
+		if root != strings.TrimSpace(config.DriveID) {
+			return ErrInvalidConfig
+		}
+	default:
+		return ErrInvalidConfig
+	}
+	return nil
+}
+
+// CanonicalizeConfig resolves provider API aliases into durable history-universe
+// identity before Adapter construction. The Google Drive "root" alias is API
+// syntax, while parent metadata contains the actual root file ID.
+func CanonicalizeConfig(ctx context.Context, client Client, config Config) (Config, error) {
+	if client == nil {
+		return Config{}, ErrInvalidConfig
+	}
+	if err := validateConfigBase(config); err != nil {
+		return Config{}, err
+	}
+
+	switch config.Kind {
+	case StreamMyDrive:
+		canonicalRoot, err := client.ResolveMyDriveRoot(ctx, config)
+		if err != nil {
+			return Config{}, err
+		}
+		canonicalRoot = strings.TrimSpace(canonicalRoot)
+		if canonicalRoot == "" || canonicalRoot == "root" {
+			return Config{}, fmt.Errorf("%w: My Drive root resolver returned %q", ErrInvalidClientResponse, canonicalRoot)
+		}
+		supplied := strings.TrimSpace(config.Root)
+		if supplied != "" && supplied != "root" && supplied != canonicalRoot {
+			return Config{}, fmt.Errorf("%w: supplied My Drive root %q != canonical %q", ErrInvalidConfig, supplied, canonicalRoot)
+		}
+		config.Root = canonicalRoot
+
+	case StreamSharedDrive:
+		driveID := strings.TrimSpace(config.DriveID)
+		supplied := strings.TrimSpace(config.Root)
+		if supplied != "" && supplied != driveID {
+			return Config{}, fmt.Errorf("%w: shared-drive root %q != drive ID %q", ErrInvalidConfig, supplied, driveID)
+		}
+		config.Root = driveID
+
+	default:
+		return Config{}, ErrInvalidConfig
+	}
+
+	if err := validateConfig(config); err != nil {
+		return Config{}, err
+	}
+	return config, nil
 }
 
 func (a *Adapter) Bootstrap(ctx context.Context, scope remotehistory.Scope) (remotehistory.BootstrapResult, error) {

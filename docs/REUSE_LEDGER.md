@@ -1041,3 +1041,17 @@ Decision:
 
 Detailed contract: `docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md`.
 
+## P0-29A — provider change-stream granularity cross-check
+
+Additional official analogue research was performed while the P0-29 contract CI ran:
+
+- **Microsoft Graph driveItem delta** tracks a driveItem hierarchy and its children, with terminal `@odata.deltaLink`; providers may therefore support subtree-scoped delta natively.
+- **Dropbox list_folder recursive + cursor** can keep one recursive folder tree synchronized from a folder-scoped cursor.
+- **Google Drive changes.list** instead exposes user/My Drive or shared-drive change logs, not an arbitrary descendant-folder cursor.
+
+Decision reinforced:
+
+- Core must model provider history according to the provider's actual stream granularity;
+- managed corpus membership is a separate concept when the provider cannot supply a cursor at that exact root;
+- do not force Google Drive to imitate Dropbox/Graph subtree semantics by inference.
+

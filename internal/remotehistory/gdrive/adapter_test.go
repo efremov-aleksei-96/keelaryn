@@ -17,10 +17,10 @@ func TestBootstrapUsesFenceEnumerationCatchUpWithoutGap(t *testing.T) {
 		filePages: []gdrive.FilePage{
 			{
 				Files: []gdrive.FileRecord{
-					{ID: "a", Parents: []string{"root"}},
-					{ID: "b", Parents: []string{"root"}},
+					{ID: "a", Parents: []string{"my-drive-root-id"}},
+					{ID: "b", Parents: []string{"my-drive-root-id"}},
 					{ID: "outside", Parents: []string{"other-root"}},
-					{ID: "shared", Parents: []string{"root"}, DriveID: "shared-drive"},
+					{ID: "shared", Parents: []string{"my-drive-root-id"}, DriveID: "shared-drive"},
 				},
 				NextPageToken: "files-2",
 			},
@@ -217,6 +217,60 @@ func TestInvalidPaginationFailsClosed(t *testing.T) {
 	}
 }
 
+func TestCanonicalizeMyDriveConfigResolvesRootAliasToActualID(t *testing.T) {
+	client := &fakeClient{resolvedRoot: "my-drive-root-id"}
+	config, err := gdrive.CanonicalizeConfig(context.Background(), client, unresolvedMyDriveConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Root != "my-drive-root-id" {
+		t.Fatalf("canonical root=%q", config.Root)
+	}
+	if client.rootResolveCalls != 1 {
+		t.Fatalf("root resolve calls=%d", client.rootResolveCalls)
+	}
+	if _, err := gdrive.New(client, config); err != nil {
+		t.Fatalf("canonical config rejected: %v", err)
+	}
+}
+
+func TestAdapterRejectsLiteralRootAliasAsDurableScope(t *testing.T) {
+	_, err := gdrive.New(&fakeClient{}, unresolvedMyDriveConfig())
+	if !errors.Is(err, gdrive.ErrNonCanonicalHistoryRoot) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestCanonicalizeSharedDriveUsesDriveIDWithoutMyDriveResolution(t *testing.T) {
+	config := gdrive.Config{
+		IdentityDomain: "google-drive:shared:drive-1",
+		StreamID:       "google-drive:shared:drive-1:changes",
+		Kind:           gdrive.StreamSharedDrive,
+		DriveID:        "drive-1",
+	}
+	client := &fakeClient{}
+	got, err := gdrive.CanonicalizeConfig(context.Background(), client, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Root != "drive-1" {
+		t.Fatalf("root=%q", got.Root)
+	}
+	if client.rootResolveCalls != 0 {
+		t.Fatalf("unexpected My Drive root resolution calls=%d", client.rootResolveCalls)
+	}
+}
+
+func TestCanonicalizeMyDriveRejectsConflictingPredeclaredRoot(t *testing.T) {
+	config := myDriveConfig()
+	config.Root = "wrong-root"
+	client := &fakeClient{resolvedRoot: "my-drive-root-id"}
+	_, err := gdrive.CanonicalizeConfig(context.Background(), client, config)
+	if !errors.Is(err, gdrive.ErrInvalidConfig) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 func TestConfigRejectsAmbiguousStreamDefinitions(t *testing.T) {
 	bad := []gdrive.Config{
 		{},
@@ -234,9 +288,15 @@ func myDriveConfig() gdrive.Config {
 	return gdrive.Config{
 		IdentityDomain: "google-drive:user:user-1",
 		StreamID:       "google-drive:user:user-1:my-drive:changes",
-		Root:           "root",
+		Root:           "my-drive-root-id",
 		Kind:           gdrive.StreamMyDrive,
 	}
+}
+
+func unresolvedMyDriveConfig() gdrive.Config {
+	config := myDriveConfig()
+	config.Root = "root"
+	return config
 }
 
 func mustAdapter(t *testing.T, client gdrive.Client, config gdrive.Config) *gdrive.Adapter {
@@ -262,14 +322,27 @@ type changeResult struct {
 }
 
 type fakeClient struct {
-	startToken   string
-	startErr     error
-	filePages    []gdrive.FilePage
-	fileIndex    int
-	fileTokens   []string
-	changePages  map[string]changeResult
-	changeTokens []string
-	calls        int
+	resolvedRoot     string
+	rootResolveErr   error
+	rootResolveCalls int
+	startToken       string
+	startErr         error
+	filePages        []gdrive.FilePage
+	fileIndex        int
+	fileTokens       []string
+	changePages      map[string]changeResult
+	changeTokens     []string
+	calls            int
+}
+
+func (f *fakeClient) ResolveMyDriveRoot(context.Context, gdrive.Config) (string, error) {
+	f.calls++
+	f.rootResolveCalls++
+	root := f.resolvedRoot
+	if root == "" {
+		root = "my-drive-root-id"
+	}
+	return root, f.rootResolveErr
 }
 
 func (f *fakeClient) StartPageToken(context.Context, gdrive.Config) (string, error) {

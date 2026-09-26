@@ -3,6 +3,7 @@ package gdrive_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -123,6 +124,90 @@ func TestGoogleClientMyDriveBinding(t *testing.T) {
 	assertQuery(t, queries[1], "includeItemsFromAllDrives", "false")
 	assertQuery(t, queries[1], "includeRemoved", "true")
 	assertQuery(t, queries[1], "spaces", "drive")
+}
+
+func TestGoogleClientResolvesCanonicalMyDriveRootID(t *testing.T) {
+	var request capturedRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		request = capturedRequest{path: r.URL.Path, query: r.URL.Query()}
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/files/root" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"id":"actual-my-drive-root-id"}`))
+	}))
+	defer server.Close()
+
+	client, err := gdrive.NewGoogleClient(mustTestService(t, server))
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := gdrive.Config{
+		IdentityDomain: "google-drive:user:user-1",
+		StreamID:       "google-drive:user:user-1:my-drive:changes",
+		Root:           "root",
+		Kind:           gdrive.StreamMyDrive,
+	}
+	rootID, err := client.ResolveMyDriveRoot(context.Background(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rootID != "actual-my-drive-root-id" {
+		t.Fatalf("root=%q", rootID)
+	}
+	if request.path != "/files/root" {
+		t.Fatalf("path=%q", request.path)
+	}
+	if fields := request.query.Get("fields"); fields != "id" {
+		t.Fatalf("fields=%q query=%v", fields, request.query)
+	}
+}
+
+func TestGoogleClientHTTPFailuresRemainOrdinaryErrors(t *testing.T) {
+	for _, status := range []int{
+		http.StatusUnauthorized,
+		http.StatusForbidden,
+		http.StatusNotFound,
+		http.StatusTooManyRequests,
+		http.StatusInternalServerError,
+	} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, http.StatusText(status), status)
+			}))
+			defer server.Close()
+
+			client, err := gdrive.NewGoogleClient(mustTestService(t, server))
+			if err != nil {
+				t.Fatal(err)
+			}
+			config := gdrive.Config{
+				IdentityDomain: "google-drive:user:user-1",
+				StreamID:       "google-drive:user:user-1:my-drive:changes",
+				Root:           "actual-root-id",
+				Kind:           gdrive.StreamMyDrive,
+			}
+			adapter, err := gdrive.New(client, config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page, err := adapter.ReadChanges(context.Background(), config.Scope(), "cursor-1", "")
+			if err == nil {
+				t.Fatalf("status=%d unexpectedly returned page=%#v", status, page)
+			}
+			for _, sentinel := range []error{
+				gdrive.ErrClientHistoryGap,
+				gdrive.ErrClientInvalidCursor,
+				gdrive.ErrClientScopeMismatch,
+				gdrive.ErrClientInsufficientHistory,
+			} {
+				if errors.Is(err, sentinel) {
+					t.Fatalf("status=%d incorrectly mapped to history semantic %v: %v", status, sentinel, err)
+				}
+			}
+		})
+	}
 }
 
 func TestNewGoogleClientRejectsNilService(t *testing.T) {

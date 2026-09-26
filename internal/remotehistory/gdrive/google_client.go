@@ -3,6 +3,7 @@ package gdrive
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	drive "google.golang.org/api/drive/v3"
@@ -22,6 +23,27 @@ func NewGoogleClient(service *drive.Service) (*GoogleClient, error) {
 		return nil, ErrNilDriveService
 	}
 	return &GoogleClient{service: service}, nil
+}
+
+func (c *GoogleClient) ResolveMyDriveRoot(ctx context.Context, config Config) (string, error) {
+	if config.Kind != StreamMyDrive {
+		return "", ErrInvalidConfig
+	}
+	result, err := c.service.Files.Get("root").
+		Context(ctx).
+		Fields("id").
+		Do()
+	if err != nil {
+		return "", err
+	}
+	if result == nil {
+		return "", fmt.Errorf("%w: nil My Drive root response", ErrInvalidClientResponse)
+	}
+	rootID := strings.TrimSpace(result.Id)
+	if rootID == "" || rootID == "root" {
+		return "", fmt.Errorf("%w: invalid canonical My Drive root ID %q", ErrInvalidClientResponse, rootID)
+	}
+	return rootID, nil
 }
 
 func (c *GoogleClient) StartPageToken(ctx context.Context, config Config) (string, error) {
