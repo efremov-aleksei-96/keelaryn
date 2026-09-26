@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/google/uuid"
@@ -1873,6 +1874,62 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v25_time_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v25_time_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM scan_sessions
+		WHERE keelaryn_is_canonical_utc_rfc3339nano(started_at)<>1
+		   OR (finished_at IS NOT NULL AND keelaryn_is_canonical_utc_rfc3339nano(finished_at)<>1)
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM observations
+		WHERE keelaryn_is_canonical_utc_rfc3339nano(observed_at)<>1
+		   OR keelaryn_is_canonical_utc_rfc3339nano(modified_at)<>1
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v25_time_validation;
+
+CREATE TRIGGER scan_sessions_insert_canonical_time_guard
+BEFORE INSERT ON scan_sessions
+WHEN keelaryn_is_canonical_utc_rfc3339nano(NEW.started_at)<>1
+	OR (
+		NEW.finished_at IS NOT NULL
+		AND keelaryn_is_canonical_utc_rfc3339nano(NEW.finished_at)<>1
+	)
+BEGIN
+	SELECT RAISE(ABORT, 'scan session timestamps must be canonical UTC RFC3339Nano');
+END;
+
+CREATE TRIGGER scan_sessions_update_canonical_time_guard
+BEFORE UPDATE ON scan_sessions
+WHEN keelaryn_is_canonical_utc_rfc3339nano(NEW.started_at)<>1
+	OR (
+		NEW.finished_at IS NOT NULL
+		AND keelaryn_is_canonical_utc_rfc3339nano(NEW.finished_at)<>1
+	)
+BEGIN
+	SELECT RAISE(ABORT, 'scan session timestamps must be canonical UTC RFC3339Nano');
+END;
+
+CREATE TRIGGER observations_insert_canonical_time_guard
+BEFORE INSERT ON observations
+WHEN keelaryn_is_canonical_utc_rfc3339nano(NEW.observed_at)<>1
+	OR keelaryn_is_canonical_utc_rfc3339nano(NEW.modified_at)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'observation timestamps must be canonical UTC RFC3339Nano');
+END;
+`,
+
 	},
 }
 
@@ -1881,7 +1938,10 @@ END;
 // The path is runtime-local control state. This package does not know or store
 // corpus file bytes, Locators, extracted text, previews, embeddings, or search
 // indexes.
-const remoteCompletionAuthorizationFunction = "keelaryn_remote_completion_authorized"
+const (
+	remoteCompletionAuthorizationFunction = "keelaryn_remote_completion_authorized"
+	canonicalUTCRFC3339NanoFunction       = "keelaryn_is_canonical_utc_rfc3339nano"
+)
 
 type remoteCompletionAuthorization struct {
 	scanID corpus.ScanSessionID
@@ -1910,6 +1970,21 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		},
 	}); err != nil {
 		return fmt.Errorf("register remote completion authorization function: %w", err)
+	}
+	if err := conn.CreateFunction(canonicalUTCRFC3339NanoFunction, &sqlite.FunctionImpl{
+		NArgs:         1,
+		Deterministic: true,
+		AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			raw := args[0].Text()
+			parsed, err := time.Parse(time.RFC3339Nano, raw)
+			if err != nil || raw != parsed.UTC().Format(time.RFC3339Nano) {
+				return sqlite.IntegerValue(0), nil
+			}
+			return sqlite.IntegerValue(1), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register canonical timestamp function: %w", err)
 	}
 	s.remoteCompletionAuthorizations.Store(conn, auth)
 	return nil
