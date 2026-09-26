@@ -101,32 +101,6 @@ func (s *Store) BindGoogleDriveManagedRoot(
 	return binding, nil
 }
 
-func (s *Store) GoogleDriveManagedRootBinding(
-	ctx context.Context,
-	generationID remotehistory.HistoryGenerationID,
-	managedRootObjectID corpus.ProviderObjectID,
-) (gdrive.ManagedRootBinding, error) {
-	conn, err := s.pool.Get(ctx)
-	if err != nil {
-		return gdrive.ManagedRootBinding{}, fmt.Errorf("get state connection: %w", err)
-	}
-	defer s.pool.Put(conn)
-
-	binding, found, err := googleManagedRootBindingConn(conn, generationID, managedRootObjectID)
-	if err != nil {
-		return gdrive.ManagedRootBinding{}, err
-	}
-	if !found {
-		return gdrive.ManagedRootBinding{}, fmt.Errorf(
-			"%w: generation=%s root=%s",
-			ErrGoogleManagedRootBindingNotFound,
-			generationID,
-			managedRootObjectID,
-		)
-	}
-	return binding, nil
-}
-
 func (s *Store) GoogleDriveManagedRootMembership(
 	ctx context.Context,
 	generationID remotehistory.HistoryGenerationID,

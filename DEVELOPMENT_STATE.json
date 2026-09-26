@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 121,
+  "revision": 122,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -124,7 +124,7 @@
   ],
   "next_objective": {
     "id": "P0_29C3_LIFETIME_HARDENING_REQUALIFICATION_AND_REAUDIT",
-    "description": "Requalify exact-head membership lifetime hardening after restoring MISSING_PARENT precedence when the parent topology row is absent/unavailable. Require all reincarnation regressions, all prior IN/OUT/UNKNOWN semantics, Ubuntu 24.04 and Windows 2025, then perform the required boundary re-audit before C3 qualification.",
+    "description": "Run exact-head CI after audit-driven removal of the unused ambiguous managed-root read API, then complete the per-stage architecture/correctness/reuse retrospective. If no new blocker is found, qualify P0-29C3 and only then open the next substantive stage.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "audit_gate": "CURRENT_C3_STAGE_MUST_COMPLETE_EXACT_HEAD_CI_AND_STAGE_RETROSPECTIVE_BEFORE_ANY_NEXT_SUBSTANTIVE_STAGE"
@@ -158,7 +158,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "9013781b7a07d86e6a324cd32faf7130656e0160",
+  "repository_basis_commit": "c663fc69958c9738c4712832a9d6c08912f942a5",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3418,7 +3418,6 @@
         "implementation": {
           "store_file": "internal/state/sqlite/gdrive_membership.go",
           "bind_api": "BindGoogleDriveManagedRoot",
-          "read_binding_api": "GoogleDriveManagedRootBinding",
           "membership_api": "GoogleDriveManagedRootMembership",
           "binding_replay": "IDEMPOTENT_BY_GENERATION_AND_MANAGED_ROOT_ID",
           "membership_states": "IN_OUT_UNKNOWN",
@@ -3525,7 +3524,19 @@
             "schema_changed": false,
             "corpus_mutation": false
           }
-        ]
+        ],
+        "stage_audit": {
+          "status": "IN_PROGRESS",
+          "simplifications": [
+            {
+              "item": "GoogleDriveManagedRootBinding exported read API",
+              "decision": "REMOVED",
+              "reason": "unused and semantically ambiguous because it returned historical accepted binding without current-lifetime revalidation"
+            }
+          ],
+          "new_durable_state_added": false,
+          "schema_changed": false
+        }
       }
     }
   }
