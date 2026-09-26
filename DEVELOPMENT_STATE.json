@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 134,
+  "revision": 135,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4307,10 +4307,14 @@
     "blocked_next_stage": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
     "unlock_condition": "FULL_CLEAN_AUDIT_PASS_RECORDED_DURABLY_AFTER_LATEST_FIX",
     "last_audit_harness_failure": {
-      "head": "be0e0be0ed850358a222603aeacbcfef0cc7ab0a",
-      "kind": "READ_ONLY_AUDIT_COMMAND_SYNTAX_FAILURE",
+      "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
+      "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
       "product_state_mutated": false,
-      "effect": "NO_PRODUCT_FINDING_RECORDED_AUDIT_MUST_RESTART"
-    }
+      "product_finding_established": false,
+      "effect": "INTERRUPTED_AUDIT_NOT_CLEAN_RESTART_FULL_AUDIT_FROM_FIRST_DIMENSION",
+      "mitigation": "USE_GITHUB_API_AND_DIRECT_FILE_READS_FOR_FULL_AUDIT_NO_SHELL_COMPOSITION"
+    },
+    "clean_pass_in_progress": false,
+    "clean_pass_last_completed": false
   }
 }
