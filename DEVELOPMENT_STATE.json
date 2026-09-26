@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 100,
+  "revision": 101,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -120,8 +120,8 @@
     "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29B_DURABLE_REMOTE_HISTORY_ORCHESTRATION",
-    "description": "Implement provider-neutral expected-prestate RemoteHistory coordinator plus deterministic Google history-universe scope-policy fingerprint. Bootstrap must reconcile ACTIVE generation before provider read; advance must require exact generation/sequence/cursor before provider call, publish only COMPLETE cycles, close only explicit trust-break cycles, and perform no mutation on interruption/ordinary provider error. Deterministic fake/store integration only; no live OAuth/provider access.",
+    "id": "P0_29B_DURABLE_REMOTE_HISTORY_ORCHESTRATION_QUALIFICATION",
+    "description": "Qualify exact-head P0-29B on validate, Ubuntu 24.04 and Windows 2025. Require expected-prestate short-circuit before provider call, complete publish, explicit trust-break close, interruption zero-mutation, deterministic Google scope-policy fingerprint, all prior tests and go vet. Do not start P0-29C topology projection until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -154,7 +154,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "23d8f1b476729e17ca92f1884cd340acd93e644d",
+  "repository_basis_commit": "e08e5d7bc75381276e1c96386b5067daff2de339",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2978,7 +2978,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "A_QUALIFIED_B_NEXT",
+    "status": "B_IMPLEMENTED_AWAITING_QUALIFICATION",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3050,6 +3050,38 @@
         "live_provider_used": false,
         "corpus_mutations": 0
       }
+    },
+    "b": {
+      "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+      "scope": "PROVIDER_NEUTRAL_DURABLE_REMOTE_HISTORY_ORCHESTRATION",
+      "implementation": {
+        "coordinator": "internal/remotehistory/coordinator.go",
+        "store_interface": "DurableHistoryStore",
+        "bootstrap_prestate": "ACTIVE_GENERATION_CHECK_BEFORE_PROVIDER_READ",
+        "advance_prestate": "EXACT_GENERATION_SEQUENCE_CURSOR_CHECK_BEFORE_PROVIDER_READ",
+        "stale_expected": "PRESTATE_CHANGED_NO_PROVIDER_CALL",
+        "complete_cycle": "ONE_ATOMIC_PUBLISH",
+        "trust_break_cycle": "ONE_ATOMIC_CLOSE",
+        "interruption_or_ordinary_error": "NO_DURABLE_MUTATION",
+        "google_scope_policy_fingerprint": "DETERMINISTIC_VERSIONED_SHA256_OF_CANONICAL_HISTORY_UNIVERSE_POLICY",
+        "schema_changed": false,
+        "dependencies_added": 0,
+        "live_oauth_used": false,
+        "live_provider_used": false,
+        "corpus_mutations": 0
+      },
+      "tests": [
+        "bootstrap reconciles ACTIVE generation before provider read",
+        "complete cycle publishes exactly once",
+        "stale expected prestate skips provider",
+        "transport interruption mutates nothing",
+        "explicit GAP closes without cursor advance",
+        "policy mismatch stops before provider read",
+        "incomplete bootstrap creates no generation",
+        "Google scope-policy fingerprint deterministic and scope-bound",
+        "root alias rejected by fingerprint",
+        "My Drive and shared-drive policy fingerprints differ"
+      ]
     }
   }
 }
