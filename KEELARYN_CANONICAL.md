@@ -273,6 +273,40 @@ These SHOULD be reproducible from the physical corpus plus surviving accepted du
 
 Reconstruction MUST preserve ambiguity and MUST NOT claim to recover original identity decisions when evidence does not prove them.
 
+### 6.4 Project-owned continuity state
+
+D0 is the Keelaryn-development instance of a broader **Project Continuity Contract**.
+
+Any long-lived project that Keelaryn actively manages and claims to be autonomously resumable MUST have a durable project-owned state artifact physically inside that project's own boundary. The default profile is:
+
+```text
+<ProjectRoot>/
+└── .keelaryn/
+    └── PROJECT_STATE.json
+```
+
+A provider/profile may expose a different visible name when dot-directories are undesirable, but the state remains physically project-local and discoverable. A central Keelaryn database may index this state; it does not replace the project-owned checkpoint.
+
+The project state is intentionally compact. It SHOULD record:
+
+- stable Project identity and schema/version;
+- scope/root and relevant external authorities;
+- current objective and status;
+- completed durable checkpoints;
+- blockers and deferred work;
+- exact next resumable action;
+- transaction/mutation constraints;
+- references to evidence rather than copies of all evidence;
+- a deterministic resume procedure.
+
+It MUST NOT contain credentials or become the only copy of external reality. Git repositories, provider state, external services and other authorities still require fresh reconciliation when the next action depends on them.
+
+Chat/AI context is never the sole durable project state.
+
+Creating or updating a project-local state artifact is an explicit managed write. Therefore this rule does not weaken read-only corpus onboarding: Keelaryn may observe an unmanaged project without writing this artifact until the project is explicitly adopted as a managed/resumable project.
+
+The normative profile and interaction with observation caching are recorded in `docs/PROJECT_CONTINUITY_AND_OBSERVATION_POLICY.md`.
+
 ---
 
 ## 7. Runtime architecture: modular monolith
@@ -465,6 +499,27 @@ read-only full scan
 → observations
 → identity/revision reconciliation
 ```
+
+### 10.1 Corpus-wide observation and cache policy
+
+Keelaryn SHOULD maintain lightweight observations for **all in-scope corpus objects by default**, so ordinary queries do not require rediscovering basic file/provider facts repeatedly.
+
+Default profile: `LIGHTWEIGHT_ALL`.
+
+For every in-scope object, complete discovery/history publication should retain available low-cost evidence such as ProviderObject identity evidence, locator(s), size/type, provider metadata, meaningful timestamps, scan/history membership and observation provenance.
+
+Expensive content work is a separate configurable layer and MUST NOT be confused with baseline observation:
+
+- `LIGHTWEIGHT_ALL` — metadata/identity/locator observations for all in-scope objects; default;
+- `FINGERPRINT_ON_CHANGE` — additionally compute content fingerprints when an object appears changed and provider evidence is insufficient;
+- `EXTRACT_SUPPORTED_ON_CHANGE` — additionally cache supported extraction for exact observed Revisions;
+- `DEEP_BACKGROUND` — optional bounded background enrichment, potentially including broader fingerprints, extraction, previews and later indexes.
+
+Policies may be configured per corpus/root/provider/file type and constrained by storage, CPU, battery, thermal state and network cost. This is especially important on Android and large media corpora.
+
+Derived enrichments/extractions are rebuildable caches and MUST be bound to exact Revision/content evidence and extractor/policy identity. A query SHOULD reuse an exact fresh cached result before rereading corpus bytes. Missing or stale cached data may trigger a bounded source read; stale derived data MUST NOT be silently presented as current.
+
+This policy does **not** create a second authoritative copy of corpus bytes and does not make deep observation mandatory for P0. P0 may continue with lightweight observations plus selective content enrichment while preserving the future option for persistent background deep observation.
 
 A local filesystem watcher is not required for P0 correctness.
 

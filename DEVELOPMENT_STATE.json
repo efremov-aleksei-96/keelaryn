@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 77,
+  "revision": 78,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -110,7 +110,8 @@
     "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_IMPLEMENTED",
     "P0_28A_BOUNDARY_AUDIT_HARDENING_IMPLEMENTED",
     "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_QUALIFIED",
-    "P0_28A_BOUNDARY_RETROSPECTIVE_PASS"
+    "P0_28A_BOUNDARY_RETROSPECTIVE_PASS",
+    "PROJECT_CONTINUITY_AND_OBSERVATION_POLICY_ARCHITECTURE_ADOPTED"
   ],
   "next_objective": {
     "id": "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT",
@@ -147,7 +148,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "ceb1911057f2d96a07c0e2b90d134383314ff0c3",
+  "repository_basis_commit": "b71534d3773c3aae38ddb2e3243491797fa535b1",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2431,6 +2432,28 @@
       "live_oauth_used": false,
       "live_provider_used": false,
       "corpus_mutations": 0
+    }
+  },
+  "architecture_extensions": {
+    "project_continuity_contract": {
+      "status": "ADOPTED_ARCHITECTURE_NOT_P0_BLOCKER",
+      "document": "docs/PROJECT_CONTINUITY_AND_OBSERVATION_POLICY.md",
+      "rule": "Every long-lived managed project that claims autonomous resumability owns a compact durable checkpoint physically inside the project boundary; chat is never the sole durable state.",
+      "default_profile_path": ".keelaryn/PROJECT_STATE.json",
+      "read_only_onboarding_write_forbidden": true
+    },
+    "observation_policy": {
+      "status": "ADOPTED_ARCHITECTURE_INCREMENTAL_IMPLEMENTATION",
+      "document": "docs/PROJECT_CONTINUITY_AND_OBSERVATION_POLICY.md",
+      "default_profile": "LIGHTWEIGHT_ALL",
+      "optional_profiles": [
+        "FINGERPRINT_ON_CHANGE",
+        "EXTRACT_SUPPORTED_ON_CHANGE",
+        "DEEP_BACKGROUND"
+      ],
+      "query_rule": "REUSE_EXACT_FRESH_DERIVED_CACHE_BEFORE_REREADING_SOURCE_BYTES",
+      "corpus_byte_mirror_required": false,
+      "p0_blocker": false
     }
   }
 }

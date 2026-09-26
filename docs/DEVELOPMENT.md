@@ -26,3 +26,12 @@ Before custom implementation, evaluate existing standards/projects for fit, inva
 Preferred order: reuse → wrap → subprocess/service integration → permissive fork/upstream → reuse design/tests → custom Keelaryn-specific gap.
 
 C0 is closed. Active development is now the minimal P0 technology spike. Deferred inert legacy cleanup must not silently become active architecture or block P0.
+
+## Project continuity contract
+D0 was the development-specific bootstrap for Keelaryn. The reusable rule is broader: every long-lived managed project that claims autonomous resumability keeps a compact durable state artifact physically inside the project boundary, normally `.keelaryn/PROJECT_STATE.json`. External authorities are referenced and freshly reconciled when needed; chat is never the only project checkpoint.
+
+Keelaryn product development itself follows this rule through repository-local `DEVELOPMENT_STATE.json`. See `docs/PROJECT_CONTINUITY_AND_OBSERVATION_POLICY.md`.
+
+## Observation policy
+Baseline corpus discovery is `LIGHTWEIGHT_ALL`: keep low-cost observations for every in-scope object. Expensive hashing/extraction is separately configurable and may run on change or in bounded background mode. Exact fresh derived results should be reused before rereading unchanged source bytes.
+
