@@ -111,17 +111,25 @@ func TestObservationSQLiteStructuralAuthority(t *testing.T) {
 			query: "INSERT INTO observations (observation_id,occurrence_id,artifact_id,revision_id,assignment_state,observed_at,kind,size,mode,modified_at,scan_id) VALUES ('obs_reuse',?1,NULL,NULL,'UNRESOLVED',?2,'REGULAR_FILE',1,384,?2,NULL)",
 			args:  []any{string(first.ProviderObjectOccurrenceID), base.Format(time.RFC3339Nano)},
 		},
-		{
-			name:  "mode outside uint32",
-			query: "INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_mode','provider',NULL,'UNRESOLVED'); INSERT INTO observations (observation_id,occurrence_id,artifact_id,revision_id,assignment_state,observed_at,kind,size,mode,modified_at,scan_id) VALUES ('obs_mode','pobjocc_mode',NULL,NULL,'UNRESOLVED',?1,'REGULAR_FILE',1,4294967296,?1,NULL)",
-			args:  []any{base.Format(time.RFC3339Nano)},
-		},
 	} {
 		err := sqlitex.Execute(conn, tc.query, &sqlitex.ExecOptions{Args: tc.args})
 		if err == nil {
 			store.pool.Put(conn)
 			t.Fatalf("%s unexpectedly succeeded", tc.name)
 		}
+	}
+
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_mode','provider',NULL,'UNRESOLVED')",
+		nil); err != nil {
+		store.pool.Put(conn)
+		t.Fatal(err)
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO observations (observation_id,occurrence_id,artifact_id,revision_id,assignment_state,observed_at,kind,size,mode,modified_at,scan_id) VALUES ('obs_mode','pobjocc_mode',NULL,NULL,'UNRESOLVED',?1,'REGULAR_FILE',1,4294967296,?1,NULL)",
+		&sqlitex.ExecOptions{Args: []any{base.Format(time.RFC3339Nano)}}); err == nil {
+		store.pool.Put(conn)
+		t.Fatal("mode outside uint32 unexpectedly succeeded")
 	}
 
 	if err := sqlitex.Execute(conn,
