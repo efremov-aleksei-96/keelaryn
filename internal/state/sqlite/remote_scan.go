@@ -14,7 +14,7 @@ import (
 
 var (
 	ErrRemoteHistoryScanSourceNotFound            = errors.New("remote history scan source not found")
-	ErrRemoteHistoryScanSourceConflict            = errors.New("remote history scan source conflicts with existing OPEN scan")
+	ErrRemoteHistoryScanSourceConflict            = errors.New("remote history scan source conflicts with existing scan authority")
 	ErrRemoteHistoryScanSourceAdvanced            = errors.New("remote history scan source publication is no longer current")
 	ErrRemoteHistoryScanSourceClosed              = errors.New("remote history scan source generation is closed")
 	ErrRemoteHistoryScanRequiresGuardedCompletion = errors.New("source-bound remote scan requires guarded completion")
@@ -44,6 +44,21 @@ func (s *Store) StartRemoteHistoryScan(
 		return corpus.ScanSession{}, false, fmt.Errorf("begin remote scan start transaction: %w", err)
 	}
 	defer end(&err)
+
+	if conflictScanID, found, err := conflictingRemoteHistoryScanFingerprintConn(conn, scanRoot, source); err != nil {
+		return corpus.ScanSession{}, false, err
+	} else if found {
+		return corpus.ScanSession{}, false, fmt.Errorf(
+			"%w: scan=%s root=%s generation=%s publication=%d source_scope=%s policy=%s",
+			ErrRemoteHistoryScanSourceConflict,
+			conflictScanID,
+			scanRoot,
+			source.GenerationID,
+			source.PublicationSequence,
+			source.SourceScopeID,
+			source.MaterializationPolicyID,
+		)
+	}
 
 	if existing, found, err := matchingRemoteHistoryScanConn(conn, scanRoot, source); err != nil {
 		return corpus.ScanSession{}, false, err
@@ -275,6 +290,34 @@ func remoteScanSourceExistsConn(conn *sqlite.Conn, scanID corpus.ScanSessionID) 
 		return false, fmt.Errorf("query remote scan source existence: %w", err)
 	}
 	return found, nil
+}
+
+func conflictingRemoteHistoryScanFingerprintConn(
+	conn *sqlite.Conn,
+	scanRoot string,
+	source remotehistory.RemoteScanSourceInput,
+) (corpus.ScanSessionID, bool, error) {
+	var scanID corpus.ScanSessionID
+	if err := sqlitex.Execute(conn,
+		"SELECT s.scan_id FROM remote_scan_sources r JOIN scan_sessions s ON s.scan_id=r.scan_id WHERE s.root=?1 AND r.generation_id=?2 AND r.publication_sequence=?3 AND r.source_scope_id=?4 AND r.materialization_policy_id=?5 AND (r.snapshot_fingerprint_version<>?6 OR r.snapshot_fingerprint_sha256<>?7) ORDER BY s.started_at,s.scan_id LIMIT 1",
+		&sqlitex.ExecOptions{
+			Args: []any{
+				scanRoot,
+				string(source.GenerationID),
+				int64(source.PublicationSequence),
+				source.SourceScopeID,
+				source.MaterializationPolicyID,
+				source.SnapshotFingerprintVersion,
+				source.SnapshotFingerprintSHA256,
+			},
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				scanID = corpus.ScanSessionID(stmt.ColumnText(0))
+				return nil
+			},
+		}); err != nil {
+		return "", false, fmt.Errorf("query remote scan fingerprint conflict: %w", err)
+	}
+	return scanID, scanID != "", nil
 }
 
 func matchingRemoteHistoryScanConn(

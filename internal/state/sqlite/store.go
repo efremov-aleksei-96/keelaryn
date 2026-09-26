@@ -1562,6 +1562,31 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER remote_scan_source_fingerprint_consistency_guard
+BEFORE INSERT ON remote_scan_sources
+WHEN EXISTS (
+	SELECT 1
+	FROM remote_scan_sources existing_source
+	JOIN scan_sessions existing_scan
+	  ON existing_scan.scan_id=existing_source.scan_id
+	JOIN scan_sessions incoming_scan
+	  ON incoming_scan.scan_id=NEW.scan_id
+	WHERE existing_scan.root=incoming_scan.root
+	  AND existing_source.generation_id=NEW.generation_id
+	  AND existing_source.publication_sequence=NEW.publication_sequence
+	  AND existing_source.source_scope_id=NEW.source_scope_id
+	  AND existing_source.materialization_policy_id=NEW.materialization_policy_id
+	  AND (
+		existing_source.snapshot_fingerprint_version<>NEW.snapshot_fingerprint_version
+		OR existing_source.snapshot_fingerprint_sha256<>NEW.snapshot_fingerprint_sha256
+	  )
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remote scan source fingerprint conflicts with existing source boundary');
+END;
+`,
+
 	},
 }
 
