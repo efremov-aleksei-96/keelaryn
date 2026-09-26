@@ -31,6 +31,7 @@ var (
 	ErrRemoteMaterializationOpen     = errors.New("matching remote metadata materialization is already open")
 	ErrRemoteSnapshotConflict        = errors.New("remote metadata snapshot fingerprint changed during materialization")
 	ErrInvalidRemoteScopeProjection  = errors.New("invalid remote managed-scope projection")
+	ErrRemoteLocatorCollision       = errors.New("remote metadata snapshot maps different provider objects to the same locator")
 )
 
 // RemoteMetadataEntry contains provider metadata facts only. Pointer fields
@@ -277,6 +278,7 @@ func prepareRemoteMetadataSnapshot(
 
 	entries := make([]canonicalRemoteMetadataEntry, 0, len(snapshot.Entries))
 	seenObjects := make(map[corpus.ProviderObjectID]struct{}, len(snapshot.Entries))
+	locatorOwners := make(map[corpus.Locator]corpus.ProviderObjectID, len(snapshot.Entries))
 	for _, entry := range snapshot.Entries {
 		if entry.ProviderObjectID == "" {
 			return preparedRemoteMetadataSnapshot{}, ErrInvalidRemoteMetadataSnapshot
@@ -296,6 +298,18 @@ func prepareRemoteMetadataSnapshot(
 		locators, err = canonicalScanLocators(generation.Scope.ProviderID, snapshot.ScanRoot, locators)
 		if err != nil {
 			return preparedRemoteMetadataSnapshot{}, fmt.Errorf("object %s: %w", entry.ProviderObjectID, err)
+		}
+		for _, locator := range locators {
+			if owner, exists := locatorOwners[locator]; exists && owner != entry.ProviderObjectID {
+				return preparedRemoteMetadataSnapshot{}, fmt.Errorf(
+					"%w: locator=%#v objects=%s,%s",
+					ErrRemoteLocatorCollision,
+					locator,
+					owner,
+					entry.ProviderObjectID,
+				)
+			}
+			locatorOwners[locator] = entry.ProviderObjectID
 		}
 		entries = append(entries, canonicalRemoteMetadataEntry{
 			ProviderObjectID: entry.ProviderObjectID,
