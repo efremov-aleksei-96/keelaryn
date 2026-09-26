@@ -246,6 +246,90 @@ func TestRemoteHistoryEvidenceRowsAreSQLiteImmutable(t *testing.T) {
 	}
 }
 
+func TestRemoteHistorySQLiteRejectsForgedGenerationAdvance(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	generation, err := store.StartRemoteHistoryGeneration(ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.pool.Put(conn)
+
+	err = sqlitex.Execute(conn,
+		"UPDATE remote_history_generations SET current_sequence=2, committed_cursor='forged' WHERE generation_id=?1",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}})
+	if err == nil {
+		t.Fatal("forged generation advance unexpectedly succeeded")
+	}
+	current, err := remoteHistoryGenerationConn(conn, generation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.CurrentSequence != 1 || current.CommittedCursor != "cursor-1" {
+		t.Fatalf("forged advance changed authority: %#v", current)
+	}
+}
+
+func TestRemoteHistorySQLiteRejectsPublicationWithWrongPrestate(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	generation, err := store.StartRemoteHistoryGeneration(ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.pool.Put(conn)
+
+	err = sqlitex.Execute(conn,
+		"INSERT INTO remote_history_publications (generation_id, sequence, kind, previous_cursor, committed_cursor, committed_at, fingerprint_version, fingerprint_sha256) VALUES (?1, 2, 'INCREMENTAL', 'wrong-cursor', 'cursor-2', ?2, 'remote-history-publication:v1', ?3)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(generation.ID),
+			time.Now().UTC().Format(time.RFC3339Nano),
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		}})
+	if err == nil {
+		t.Fatal("publication with wrong generation prestate unexpectedly succeeded")
+	}
+}
+
+func TestRemoteHistorySQLiteRejectsMembershipTamperWithoutEvidence(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	generation, err := store.StartRemoteHistoryGeneration(ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.pool.Put(conn)
+
+	if err := sqlitex.Execute(conn,
+		"UPDATE remote_history_membership SET locators_json='[]' WHERE generation_id=?1 AND object_id='id-1'",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
+		t.Fatal("membership tamper unexpectedly succeeded")
+	}
+	if err := sqlitex.Execute(conn,
+		"DELETE FROM remote_history_membership WHERE generation_id=?1 AND object_id='id-1'",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
+		t.Fatal("membership deletion without REMOVED evidence unexpectedly succeeded")
+	}
+}
+
 func TestRemoteHistoryDoesNotCreateObservationsOrIdentityAuthority(t *testing.T) {
 	ctx := context.Background()
 	store := openStoreInternal(t)

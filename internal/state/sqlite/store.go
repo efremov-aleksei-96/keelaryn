@@ -468,6 +468,233 @@ BEGIN
 END;
 `,
 
+		`
+DROP TRIGGER remote_history_generations_update_guard;
+
+CREATE TRIGGER remote_history_publications_insert_guard
+BEFORE INSERT ON remote_history_publications
+WHEN NOT (
+	NEW.fingerprint_version = 'remote-history-publication:v1'
+	AND length(NEW.fingerprint_sha256) = 64
+	AND NEW.fingerprint_sha256 NOT GLOB '*[^0-9a-f]*'
+	AND (
+		(
+			NEW.kind = 'BOOTSTRAP'
+			AND NEW.sequence = 1
+			AND NEW.previous_cursor = ''
+			AND NEW.committed_cursor <> ''
+			AND EXISTS (
+				SELECT 1
+				FROM remote_history_generations g
+				WHERE g.generation_id = NEW.generation_id
+				  AND g.status = 'ACTIVE'
+				  AND g.current_sequence = 1
+				  AND g.committed_cursor = NEW.committed_cursor
+			)
+			AND NOT EXISTS (
+				SELECT 1
+				FROM remote_history_publications p
+				WHERE p.generation_id = NEW.generation_id
+			)
+		)
+		OR
+		(
+			NEW.kind = 'INCREMENTAL'
+			AND NEW.sequence >= 2
+			AND NEW.previous_cursor <> ''
+			AND NEW.committed_cursor <> ''
+			AND EXISTS (
+				SELECT 1
+				FROM remote_history_generations g
+				WHERE g.generation_id = NEW.generation_id
+				  AND g.status = 'ACTIVE'
+				  AND g.current_sequence = NEW.sequence - 1
+				  AND g.committed_cursor = NEW.previous_cursor
+			)
+		)
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remote history publication does not match generation prestate');
+END;
+
+CREATE TRIGGER remote_history_publication_changes_insert_guard
+BEFORE INSERT ON remote_history_publication_changes
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM remote_history_publications p
+	WHERE p.generation_id = NEW.generation_id
+	  AND p.sequence = NEW.sequence
+	  AND p.kind = 'INCREMENTAL'
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remote history changes require incremental publication');
+END;
+
+CREATE TRIGGER remote_history_membership_insert_guard
+BEFORE INSERT ON remote_history_membership
+WHEN NOT (
+	(
+		NEW.last_sequence = 1
+		AND EXISTS (
+			SELECT 1
+			FROM remote_history_generations g
+			JOIN remote_history_bootstrap_membership b
+			  ON b.generation_id = g.generation_id
+			 AND b.object_id = NEW.object_id
+			WHERE g.generation_id = NEW.generation_id
+			  AND g.status = 'ACTIVE'
+			  AND g.current_sequence = 1
+			  AND b.locators_json = NEW.locators_json
+		)
+	)
+	OR
+	(
+		EXISTS (
+			SELECT 1
+			FROM remote_history_generations g
+			WHERE g.generation_id = NEW.generation_id
+			  AND g.status = 'ACTIVE'
+			  AND NEW.last_sequence = g.current_sequence + 1
+		)
+		AND EXISTS (
+			SELECT 1
+			FROM remote_history_publication_changes c
+			WHERE c.generation_id = NEW.generation_id
+			  AND c.sequence = NEW.last_sequence
+			  AND c.object_id = NEW.object_id
+			  AND c.kind = 'UPSERT'
+			  AND json_extract(c.state_json, '$.locators') = json(NEW.locators_json)
+		)
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remote history membership insert lacks matching immutable evidence');
+END;
+
+CREATE TRIGGER remote_history_membership_update_guard
+BEFORE UPDATE ON remote_history_membership
+WHEN NOT (
+	NEW.generation_id = OLD.generation_id
+	AND NEW.object_id = OLD.object_id
+	AND EXISTS (
+		SELECT 1
+		FROM remote_history_generations g
+		WHERE g.generation_id = NEW.generation_id
+		  AND g.status = 'ACTIVE'
+		  AND NEW.last_sequence = g.current_sequence + 1
+	)
+	AND EXISTS (
+		SELECT 1
+		FROM remote_history_publication_changes c
+		WHERE c.generation_id = NEW.generation_id
+		  AND c.sequence = NEW.last_sequence
+		  AND c.object_id = NEW.object_id
+		  AND c.kind = 'UPSERT'
+		  AND json_extract(c.state_json, '$.locators') = json(NEW.locators_json)
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remote history membership update lacks matching immutable evidence');
+END;
+
+CREATE TRIGGER remote_history_membership_delete_guard
+BEFORE DELETE ON remote_history_membership
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM remote_history_generations g
+	JOIN remote_history_publication_changes c
+	  ON c.generation_id = g.generation_id
+	 AND c.sequence = g.current_sequence + 1
+	 AND c.object_id = OLD.object_id
+	 AND c.kind = 'REMOVED'
+	WHERE g.generation_id = OLD.generation_id
+	  AND g.status = 'ACTIVE'
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remote history membership delete lacks matching immutable evidence');
+END;
+
+CREATE TRIGGER remote_history_generations_update_guard
+BEFORE UPDATE ON remote_history_generations
+WHEN NOT (
+	NEW.generation_id = OLD.generation_id
+	AND NEW.provider_id = OLD.provider_id
+	AND NEW.identity_domain = OLD.identity_domain
+	AND NEW.stream_id = OLD.stream_id
+	AND NEW.root = OLD.root
+	AND NEW.scope_policy_fingerprint = OLD.scope_policy_fingerprint
+	AND NEW.created_at = OLD.created_at
+	AND (
+		(
+			OLD.status = 'ACTIVE'
+			AND NEW.status = 'ACTIVE'
+			AND NEW.closed_at IS NULL
+			AND NEW.closure_reason IS NULL
+			AND NEW.current_sequence = OLD.current_sequence + 1
+			AND NEW.committed_cursor <> ''
+			AND EXISTS (
+				SELECT 1
+				FROM remote_history_publications p
+				WHERE p.generation_id = NEW.generation_id
+				  AND p.sequence = NEW.current_sequence
+				  AND p.kind = 'INCREMENTAL'
+				  AND p.previous_cursor = OLD.committed_cursor
+				  AND p.committed_cursor = NEW.committed_cursor
+			)
+			AND NOT EXISTS (
+				SELECT 1
+				FROM remote_history_publication_changes c
+				WHERE c.generation_id = NEW.generation_id
+				  AND c.sequence = NEW.current_sequence
+				  AND c.ordinal = (
+					SELECT MAX(c2.ordinal)
+					FROM remote_history_publication_changes c2
+					WHERE c2.generation_id = c.generation_id
+					  AND c2.sequence = c.sequence
+					  AND c2.object_id = c.object_id
+				  )
+				  AND (
+					(
+						c.kind = 'REMOVED'
+						AND EXISTS (
+							SELECT 1
+							FROM remote_history_membership m
+							WHERE m.generation_id = c.generation_id
+							  AND m.object_id = c.object_id
+						)
+					)
+					OR
+					(
+						c.kind = 'UPSERT'
+						AND NOT EXISTS (
+							SELECT 1
+							FROM remote_history_membership m
+							WHERE m.generation_id = c.generation_id
+							  AND m.object_id = c.object_id
+							  AND m.last_sequence = c.sequence
+							  AND json(m.locators_json) = json_extract(c.state_json, '$.locators')
+						)
+					)
+				  )
+			)
+		)
+		OR
+		(
+			OLD.status = 'ACTIVE'
+			AND NEW.status = 'CLOSED'
+			AND NEW.closed_at IS NOT NULL
+			AND NEW.closure_reason IN ('GAP', 'INVALID_CURSOR', 'SCOPE_MISMATCH', 'INSUFFICIENT_HISTORY')
+			AND NEW.current_sequence = OLD.current_sequence
+			AND NEW.committed_cursor = OLD.committed_cursor
+		)
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'invalid remote history generation mutation');
+END;
+`,
+
 	},
 }
 

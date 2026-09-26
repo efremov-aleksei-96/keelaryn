@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 81,
+  "revision": 82,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -116,8 +116,8 @@
     "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_REQUALIFICATION",
-    "description": "Qualify the minimal compile fix on exact-head CI across validate, Ubuntu 24.04 and Windows 2025. Do not change P0-28B semantics. After PASS, perform the mandatory P0-28B boundary retrospective before P0-28C.",
+    "id": "P0_28B_SCHEMA_V9_HARDENING_QUALIFICATION",
+    "description": "Qualify exact-head schema v9 RemoteHistory hardening on validate, Ubuntu 24.04 and Windows 2025. Require all prior P0-28B tests plus direct-SQL forged generation/publication/membership rejection and v8-to-v9 migration. Do not start P0-28C until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -150,7 +150,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "26ff74e1d7048c420f2db2470e833e626a8a936e",
+  "repository_basis_commit": "11624c92bc6e9ce8410c33515961797d860ca99a",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2261,10 +2261,10 @@
     "mode": "EVENT_TRIGGERED_PLUS_MAXIMUM_SLICE_INTERVAL",
     "maximum_qualified_substantive_slices_between_retrospectives": 4,
     "last_retrospective": {
-      "head": "ceb1911057f2d96a07c0e2b90d134383314ff0c3",
-      "document": "docs/P0_28A_BOUNDARY_RETRO_20260925.md",
-      "ci_run_id": 36138112864,
-      "conclusion": "SUCCESS"
+      "head": "11624c92bc6e9ce8410c33515961797d860ca99a",
+      "document": "docs/P0_28B_BOUNDARY_RETRO_20260926.md",
+      "ci_run_id": 36237408742,
+      "conclusion": "PRE_HARDENING_CI_SUCCESS_BOUNDARY_BLOCKER_FOUND"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -2459,7 +2459,7 @@
     }
   },
   "p0_28b": {
-    "status": "IMPLEMENTED_AWAITING_REQUALIFICATION",
+    "status": "BOUNDARY_HARDENED_AWAITING_QUALIFICATION",
     "objective": "Define provider-neutral durable HistoryGeneration/publication authority before object-lifetime integration.",
     "evidence_document": "docs/P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT.md",
     "dependencies_added": 0,
@@ -2489,7 +2489,7 @@
       "observation_boundary": "REMOTE_HISTORY_MEMBERSHIP_EVIDENCE_NOT_FULL_OBSERVATION",
       "cross_generation_same": "NOT_CONCLUSIVE"
     },
-    "schema_version": 8,
+    "schema_version": 9,
     "implementation": {
       "domain_file": "internal/remotehistory/durable.go",
       "sqlite_file": "internal/state/sqlite/remote_history.go",
@@ -2527,6 +2527,21 @@
         "corpus_mutation": false,
         "fix": "REMOVE_REDUNDANT_VAR_ERR_DECLARATION_ONLY"
       }
-    ]
+    ],
+    "boundary_audit": {
+      "document": "docs/P0_28B_BOUNDARY_RETRO_20260926.md",
+      "audited_head": "11624c92bc6e9ce8410c33515961797d860ca99a",
+      "audited_ci_run_id": 36237408742,
+      "audited_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+      "findings": [
+        {
+          "severity": "BLOCKER_BEFORE_QUALIFICATION",
+          "issue": "v8 generation cursor/sequence and current membership were API-atomic but not fully SQLite-bound to immutable publication/change evidence",
+          "correction": "v9 publication-prestate, membership-evidence and generation-publication triggers"
+        }
+      ],
+      "migration_rule": "DO_NOT_REWRITE_ISSUED_V8_ADD_V9",
+      "status": "HARDENING_COMMITTED_QUALIFICATION_PENDING"
+    }
   }
 }
