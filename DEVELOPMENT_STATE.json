@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 114,
+  "revision": 115,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C2C_GOOGLE_AWARE_COORDINATOR_QUALIFICATION",
-    "description": "Qualify exact-head Google-aware coordinator and generic-advance guard on validate, Ubuntu 24.04 and Windows 2025. Require shared prestate reconcile behavior, zero provider call on stale prestate, topology-aware bootstrap/advance, generic publish fail-closed for topology-managed generations, explicit trust-break close without cursor advance, all prior tests and go vet. Do not begin membership traversal until PASS.",
+    "id": "P0_29C2C_GOOGLE_AWARE_COORDINATOR_REQUALIFICATION",
+    "description": "Requalify exact-head C2C after the test-only schema harness fix. Require Google-aware coordinator behavior, generic publish guard, stale-prestate zero provider calls, explicit trust-break close without cursor advance, schema invariant test using internal no-op sidecar only, all prior tests and go vet. No product semantic change.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "bb739e63fb4d17a6603ce268bd7423e178de4410",
+  "repository_basis_commit": "ce4f16a2e77da9556ab803f427603b114790bf86",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3327,7 +3327,7 @@
           ]
         },
         "c": {
-          "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+          "status": "IMPLEMENTED_AWAITING_REQUALIFICATION",
           "implementation": {
             "shared_prestate_helper": "remotehistory.ReconcileExpectedHistoryPrestate",
             "google_coordinator": "gdrive.TopologyCoordinator",
@@ -3352,6 +3352,18 @@
             "generic guard preserves sequence/cursor",
             "explicit Google history gap closes generation without cursor advance",
             "all prior generic coordinator behavior remains covered"
+          ],
+          "prequalification_failures": [
+            {
+              "head": "ce4f16a2e77da9556ab803f427603b114790bf86",
+              "ci_run_id": 36251181573,
+              "platform": "ubuntu-24.04",
+              "classification": "SCHEMA_TEST_USED_NOW_FORBIDDEN_GENERIC_PUBLISH_ON_TOPOLOGY_MANAGED_GENERATION",
+              "location": "internal/state/sqlite/gdrive_topology_schema_test.go",
+              "fix": "TEST_ONLY_USE_INTERNAL_NON_NIL_NOOP_SIDECAR_TO_SYNTHESIZE_HISTORY_AHEAD_OF_TOPOLOGY",
+              "product_semantics_changed": false,
+              "corpus_mutation": false
+            }
           ]
         }
       }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
+	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
@@ -93,9 +94,17 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 		}},
 	}
 	store.pool.Put(conn)
-	if _, err := store.PublishRemoteHistoryCycle(
+	if _, err := store.publishRemoteHistoryCycleWithSidecar(
 		ctx, generation.ID, scope, "google-drive-history-universe:v1:test",
 		1, "cursor-1", cycle, time.Now().UTC(),
+		func(
+			*sqlite.Conn,
+			remotehistory.HistoryGeneration,
+			remotehistory.HistoryPublicationSequence,
+			[]remotehistory.RemoteChange,
+		) error {
+			return nil
+		},
 	); err != nil {
 		t.Fatal(err)
 	}
