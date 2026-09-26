@@ -378,6 +378,65 @@ func verifyRemoteMetadataSnapshotFingerprintConn(
 	return nil
 }
 
+func googleDriveManagedRootObjectIDForRemoteScan(
+	scan corpus.ScanSession,
+	source remotehistory.RemoteScanSource,
+	generation remotehistory.HistoryGeneration,
+) (corpus.ProviderObjectID, error) {
+	managedRootObjectID := corpus.ProviderObjectID(source.SourceScopeID)
+	if managedRootObjectID == "" {
+		return "", fmt.Errorf("empty Google managed-root source scope")
+	}
+	expectedRoot, err := gdrive.ManagedRootScanRoot(generation.Scope.IdentityDomain, managedRootObjectID)
+	if err != nil {
+		return "", err
+	}
+	if scan.Root != expectedRoot {
+		return "", fmt.Errorf("scan root=%q expected=%q", scan.Root, expectedRoot)
+	}
+	return managedRootObjectID, nil
+}
+
+func validateGoogleDriveRemoteObjectScopeConn(
+	conn *sqlite.Conn,
+	scan corpus.ScanSession,
+	source remotehistory.RemoteScanSource,
+	generation remotehistory.HistoryGeneration,
+	managedRootObjectID corpus.ProviderObjectID,
+	objectID corpus.ProviderObjectID,
+	locators []corpus.Locator,
+) error {
+	if objectID == "" {
+		return fmt.Errorf("empty Google provider object ID")
+	}
+	if len(locators) != 1 ||
+		locators[0].ProviderID != gdrive.ProviderID ||
+		locators[0].Root != scan.Root ||
+		locators[0].Path != gdrive.FileIDLocatorPath(objectID) {
+		return fmt.Errorf("noncanonical Google locator object=%s locators=%#v", objectID, locators)
+	}
+	membership, err := googleDriveManagedRootMembershipConn(
+		conn,
+		generation.ID,
+		source.PublicationSequence,
+		managedRootObjectID,
+		objectID,
+	)
+	if err != nil {
+		return err
+	}
+	if membership.State != gdrive.MembershipIn {
+		return fmt.Errorf(
+			"object=%s managed-root=%s membership=%s reason=%s",
+			objectID,
+			managedRootObjectID,
+			membership.State,
+			membership.Reason,
+		)
+	}
+	return nil
+}
+
 func validateRemoteMetadataProviderScopeConn(
 	conn *sqlite.Conn,
 	scan corpus.ScanSession,
@@ -404,15 +463,9 @@ func validateRemoteMetadataProviderScopeConn(
 
 	switch generation.Scope.ProviderID {
 	case gdrive.ProviderID:
-		managedRootObjectID := corpus.ProviderObjectID(source.SourceScopeID)
-		expectedRoot, err := gdrive.ManagedRootScanRoot(generation.Scope.IdentityDomain, managedRootObjectID)
-		if err != nil || scan.Root != expectedRoot {
-			return fmt.Errorf(
-				"%w: scan root=%q source_scope=%q",
-				ErrRemoteHistoryScanProviderScopeMismatch,
-				scan.Root,
-				source.SourceScopeID,
-			)
+		managedRootObjectID, err := googleDriveManagedRootObjectIDForRemoteScan(scan, source, generation)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrRemoteHistoryScanProviderScopeMismatch, err)
 		}
 
 		rootMembership, err := googleDriveManagedRootMembershipConn(
@@ -498,7 +551,9 @@ func validateRemoteMetadataProviderScopeConn(
 				)
 			}
 		}
-		if err := validateGoogleDriveRemoteScanLocatorsConn(conn, scan, observed); err != nil {
+		if err := validateGoogleDriveRemoteScanLocatorsConn(
+			conn, scan, source, generation, managedRootObjectID, observed,
+		); err != nil {
 			return err
 		}
 	default:
@@ -516,45 +571,37 @@ func validateRemoteMetadataProviderScopeConn(
 func validateGoogleDriveRemoteScanLocatorsConn(
 	conn *sqlite.Conn,
 	scan corpus.ScanSession,
+	source remotehistory.RemoteScanSource,
+	generation remotehistory.HistoryGeneration,
+	managedRootObjectID corpus.ProviderObjectID,
 	observed map[corpus.ProviderObjectID]struct{},
 ) error {
-	seen := make(map[corpus.ProviderObjectID]int, len(observed))
+	locatorsByObject := make(map[corpus.ProviderObjectID][]corpus.Locator, len(observed))
 	if err := sqlitex.Execute(conn,
 		"SELECT p.native_object_id,l.provider_id,l.root,l.path FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id=o.occurrence_id JOIN locators l ON l.observation_id=o.observation_id WHERE o.scan_id=?1 ORDER BY p.native_object_id,l.path",
 		&sqlitex.ExecOptions{
 			Args: []any{string(scan.ID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
 				objectID := corpus.ProviderObjectID(stmt.ColumnText(0))
-				providerID := corpus.ProviderID(stmt.ColumnText(1))
-				root := stmt.ColumnText(2)
-				path := stmt.ColumnText(3)
-				if _, ok := observed[objectID]; !ok ||
-					providerID != gdrive.ProviderID ||
-					root != scan.Root ||
-					path != gdrive.FileIDLocatorPath(objectID) {
-					return fmt.Errorf(
-						"%w: noncanonical Google Drive locator object=%s provider=%s root=%q path=%q",
-						ErrRemoteHistoryScanProviderScopeMismatch,
-						objectID,
-						providerID,
-						root,
-						path,
-					)
-				}
-				seen[objectID]++
-				if seen[objectID] != 1 {
-					return fmt.Errorf("%w: object %s has multiple Google Drive locators", ErrRemoteHistoryScanProviderScopeMismatch, objectID)
-				}
+				locatorsByObject[objectID] = append(locatorsByObject[objectID], corpus.Locator{
+					ProviderID: corpus.ProviderID(stmt.ColumnText(1)),
+					Root:       stmt.ColumnText(2),
+					Path:       stmt.ColumnText(3),
+				})
 				return nil
 			},
 		}); err != nil {
-		if errors.Is(err, ErrRemoteHistoryScanProviderScopeMismatch) {
-			return err
-		}
 		return fmt.Errorf("%w: read Google Drive scan locators: %v", ErrRemoteHistoryScanProviderScopeMismatch, err)
 	}
-	if len(seen) != len(observed) {
-		return fmt.Errorf("%w: locator coverage=%d objects=%d", ErrRemoteHistoryScanProviderScopeMismatch, len(seen), len(observed))
+	if len(locatorsByObject) != len(observed) {
+		return fmt.Errorf("%w: locator coverage=%d objects=%d", ErrRemoteHistoryScanProviderScopeMismatch, len(locatorsByObject), len(observed))
+	}
+	for objectID := range observed {
+		if err := validateGoogleDriveRemoteObjectScopeConn(
+			conn, scan, source, generation, managedRootObjectID, objectID, locatorsByObject[objectID],
+		); err != nil {
+			return fmt.Errorf("%w: %v", ErrRemoteHistoryScanProviderScopeMismatch, err)
+		}
 	}
 	return nil
 }

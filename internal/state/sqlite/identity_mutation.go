@@ -146,42 +146,20 @@ func validateAuthorityScope(
 
 	switch scan.ProviderID {
 	case gdrive.ProviderID:
-		managedRootObjectID := corpus.ProviderObjectID(source.SourceScopeID)
-		if managedRootObjectID == "" {
-			return fmt.Errorf("%w: empty Google managed-root source scope", ErrScanScopeMismatch)
+		managedRootObjectID, err := googleDriveManagedRootObjectIDForRemoteScan(scan, source, generation)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrScanScopeMismatch, err)
 		}
-		expectedRoot, err := gdrive.ManagedRootScanRoot(generation.Scope.IdentityDomain, managedRootObjectID)
-		if err != nil || scan.Root != expectedRoot {
-			return fmt.Errorf("%w: noncanonical Google managed-root scan", ErrScanScopeMismatch)
-		}
-		if len(input.Locators) != 1 ||
-			input.Locators[0].Path != gdrive.FileIDLocatorPath(input.ProviderObject.ID) {
-			return fmt.Errorf(
-				"%w: noncanonical Google locator object=%s locators=%#v",
-				ErrScanScopeMismatch,
-				input.ProviderObject.ID,
-				input.Locators,
-			)
-		}
-		membership, err := googleDriveManagedRootMembershipConn(
+		if err := validateGoogleDriveRemoteObjectScopeConn(
 			conn,
-			source.GenerationID,
-			source.PublicationSequence,
+			scan,
+			source,
+			generation,
 			managedRootObjectID,
 			input.ProviderObject.ID,
-		)
-		if err != nil {
-			return err
-		}
-		if membership.State != gdrive.MembershipIn {
-			return fmt.Errorf(
-				"%w: object=%s managed-root=%s membership=%s reason=%s",
-				ErrScanScopeMismatch,
-				input.ProviderObject.ID,
-				managedRootObjectID,
-				membership.State,
-				membership.Reason,
-			)
+			input.Locators,
+		); err != nil {
+			return fmt.Errorf("%w: %v", ErrScanScopeMismatch, err)
 		}
 	default:
 		return fmt.Errorf("%w: remote provider %s is not qualified for identity mutation", ErrScanScopeMismatch, scan.ProviderID)
