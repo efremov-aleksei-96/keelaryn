@@ -483,7 +483,6 @@ func remoteHistoryGenerationConn(conn *sqlite.Conn, generationID remotehistory.H
 	if !found {
 		return remotehistory.HistoryGeneration{}, fmt.Errorf("%w: %s", ErrHistoryGenerationNotFound, generationID)
 	}
-	var err error
 	generation.CreatedAt, err = time.Parse(time.RFC3339Nano, createdText)
 	if err != nil {
 		return remotehistory.HistoryGeneration{}, fmt.Errorf("parse remote history generation creation: %w", err)

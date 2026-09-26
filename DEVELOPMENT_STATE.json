@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 80,
+  "revision": 81,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -116,8 +116,8 @@
     "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_QUALIFICATION",
-    "description": "Require exact-head CI to qualify SQLite v8 HistoryGeneration/publication implementation on Ubuntu and Windows. If it fails, classify/fix without weakening generation/cursor/membership invariants. After PASS, run the required boundary retrospective before P0-28C lifetime-segment integration.",
+    "id": "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_REQUALIFICATION",
+    "description": "Qualify the minimal compile fix on exact-head CI across validate, Ubuntu 24.04 and Windows 2025. Do not change P0-28B semantics. After PASS, perform the mandatory P0-28B boundary retrospective before P0-28C.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -150,7 +150,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "e331073ab37fc178ab611c85ecaaf69cdd886127",
+  "repository_basis_commit": "26ff74e1d7048c420f2db2470e833e626a8a936e",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2459,7 +2459,7 @@
     }
   },
   "p0_28b": {
-    "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "IMPLEMENTED_AWAITING_REQUALIFICATION",
     "objective": "Define provider-neutral durable HistoryGeneration/publication authority before object-lifetime integration.",
     "evidence_document": "docs/P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT.md",
     "dependencies_added": 0,
@@ -2515,6 +2515,18 @@
       "identity_authority_created": false,
       "live_provider_used": false,
       "corpus_mutations": 0
-    }
+    },
+    "prequalification_failures": [
+      {
+        "head": "26ff74e1d7048c420f2db2470e833e626a8a936e",
+        "ci_run_id": 36237291269,
+        "platform": "ubuntu-24.04",
+        "classification": "GO_COMPILE_ERR_REDECLARED_LOCAL_ERR",
+        "location": "internal/state/sqlite/remote_history.go remoteHistoryGenerationConn",
+        "product_state_mutation": false,
+        "corpus_mutation": false,
+        "fix": "REMOVE_REDUNDANT_VAR_ERR_DECLARATION_ONLY"
+      }
+    ]
   }
 }
