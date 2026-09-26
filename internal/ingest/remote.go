@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -18,8 +17,8 @@ import (
 )
 
 const (
-	RemoteMetadataSnapshotFingerprintVersion = "keelaryn.remote-metadata-snapshot:v1"
-	LightweightAllMaterializationPolicyID    = "LIGHTWEIGHT_ALL:v1"
+	RemoteMetadataSnapshotFingerprintVersion = remotehistory.RemoteMetadataSnapshotFingerprintVersion
+	LightweightAllMaterializationPolicyID    = remotehistory.LightweightAllMaterializationPolicyID
 	googleManagedRootScanRootVersion         = "google-drive:managed-root:v1"
 )
 
@@ -102,14 +101,7 @@ type RemoteMaterializationStore interface {
 	AbortScan(context.Context, corpus.ScanSessionID, time.Time) error
 }
 
-type canonicalRemoteMetadataEntry struct {
-	ProviderObjectID corpus.ProviderObjectID `json:"provider_object_id"`
-	Locators         []corpus.Locator        `json:"locators"`
-	Kind             corpus.EntryKind        `json:"kind"`
-	Size             int64                   `json:"size"`
-	Mode             uint32                  `json:"mode"`
-	ModifiedAt       string                  `json:"modified_at"`
-}
+type canonicalRemoteMetadataEntry = remotehistory.RemoteMetadataFingerprintEntry
 
 type preparedRemoteMetadataSnapshot struct {
 	generation  remotehistory.HistoryGeneration
@@ -443,17 +435,7 @@ func remoteMetadataFingerprint(
 	snapshot RemoteMetadataSnapshot,
 	entries []canonicalRemoteMetadataEntry,
 ) (string, error) {
-	value := struct {
-		Version                 string                                   `json:"version"`
-		GenerationID            remotehistory.HistoryGenerationID        `json:"generation_id"`
-		PublicationSequence     remotehistory.HistoryPublicationSequence `json:"publication_sequence"`
-		ProviderID              corpus.ProviderID                        `json:"provider_id"`
-		ScanRoot                string                                   `json:"scan_root"`
-		SourceScopeID           string                                   `json:"source_scope_id"`
-		MaterializationPolicyID string                                   `json:"materialization_policy_id"`
-		Entries                 []canonicalRemoteMetadataEntry           `json:"entries"`
-	}{
-		Version:                 RemoteMetadataSnapshotFingerprintVersion,
+	return remotehistory.FingerprintRemoteMetadataSnapshot(remotehistory.RemoteMetadataFingerprintInput{
 		GenerationID:            snapshot.GenerationID,
 		PublicationSequence:     snapshot.PublicationSequence,
 		ProviderID:              generation.Scope.ProviderID,
@@ -461,13 +443,7 @@ func remoteMetadataFingerprint(
 		SourceScopeID:           snapshot.SourceScopeID,
 		MaterializationPolicyID: snapshot.MaterializationPolicyID,
 		Entries:                 entries,
-	}
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return "", fmt.Errorf("encode remote metadata snapshot fingerprint: %w", err)
-	}
-	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:]), nil
+	})
 }
 
 func isCanonicalNonEmpty(value string) bool {

@@ -19,6 +19,7 @@ var (
 	ErrRemoteHistoryScanSourceClosed              = errors.New("remote history scan source generation is closed")
 	ErrRemoteHistoryScanRequiresGuardedCompletion = errors.New("source-bound remote scan requires guarded completion")
 	ErrRemoteHistoryRootRequiresSourceBoundScan    = errors.New("remote-managed root requires a source-bound scan")
+	ErrRemoteHistoryScanSnapshotMismatch           = errors.New("remote scan persisted content does not match source snapshot fingerprint")
 )
 
 func (s *Store) StartRemoteHistoryScan(
@@ -194,6 +195,9 @@ func (s *Store) CompleteRemoteHistoryScan(
 		return corpus.ScanSession{}, false, fmt.Errorf("%w: %s", ErrRemoteHistoryScanSourceNotFound, scanID)
 	}
 	if scan.Status == corpus.ScanComplete {
+		if err := verifyRemoteMetadataSnapshotFingerprintConn(conn, scan, source); err != nil {
+			return corpus.ScanSession{}, false, err
+		}
 		return scan, true, nil
 	}
 	if scan.Status != corpus.ScanOpen {
@@ -210,12 +214,107 @@ func (s *Store) CompleteRemoteHistoryScan(
 	if generation.CurrentSequence != source.PublicationSequence {
 		return corpus.ScanSession{}, false, ErrRemoteHistoryScanSourceAdvanced
 	}
+	if err := verifyRemoteMetadataSnapshotFingerprintConn(conn, scan, source); err != nil {
+		return corpus.ScanSession{}, false, err
+	}
 	if err := finishScanConn(conn, scanID, corpus.ScanComplete, finishedAt.UTC(), true); err != nil {
 		return corpus.ScanSession{}, false, err
 	}
 	scan.Status = corpus.ScanComplete
 	scan.FinishedAt = finishedAt.UTC()
 	return scan, false, nil
+}
+
+func verifyRemoteMetadataSnapshotFingerprintConn(
+	conn *sqlite.Conn,
+	scan corpus.ScanSession,
+	source remotehistory.RemoteScanSource,
+) error {
+	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion {
+		return nil
+	}
+	entries := make([]remotehistory.RemoteMetadataFingerprintEntry, 0)
+	seenObjects := make(map[corpus.ProviderObjectID]struct{})
+	if err := sqlitex.Execute(conn,
+		"SELECT o.observation_id,p.provider_id,COALESCE(p.native_object_id,''),p.identity_state,o.kind,o.size,o.mode,o.modified_at FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id=o.occurrence_id WHERE o.scan_id=?1 ORDER BY o.observation_id",
+		&sqlitex.ExecOptions{
+			Args: []any{string(scan.ID)},
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				observationID := corpus.ObservationID(stmt.ColumnText(0))
+				providerID := corpus.ProviderID(stmt.ColumnText(1))
+				objectID := corpus.ProviderObjectID(stmt.ColumnText(2))
+				identityState := corpus.ObjectIdentityState(stmt.ColumnText(3))
+				kind := corpus.EntryKind(stmt.ColumnText(4))
+				size := stmt.ColumnInt64(5)
+				modeValue := stmt.ColumnInt64(6)
+				modifiedText := stmt.ColumnText(7)
+				if providerID != scan.ProviderID || objectID == "" || identityState != corpus.ObjectIdentityObserved ||
+					size < 0 || modeValue < 0 || modeValue > int64(^uint32(0)) {
+					return ErrRemoteHistoryScanSnapshotMismatch
+				}
+				if _, duplicate := seenObjects[objectID]; duplicate {
+					return fmt.Errorf("%w: duplicate provider object %s", ErrRemoteHistoryScanSnapshotMismatch, objectID)
+				}
+				seenObjects[objectID] = struct{}{}
+				modifiedAt, err := time.Parse(time.RFC3339Nano, modifiedText)
+				if err != nil {
+					return fmt.Errorf("%w: invalid modified_at for %s", ErrRemoteHistoryScanSnapshotMismatch, objectID)
+				}
+				var locators []corpus.Locator
+				if err := sqlitex.Execute(conn,
+					"SELECT provider_id,root,path FROM locators WHERE observation_id=?1 ORDER BY provider_id,root,path",
+					&sqlitex.ExecOptions{
+						Args: []any{string(observationID)},
+						ResultFunc: func(locatorStmt *sqlite.Stmt) error {
+							locators = append(locators, corpus.Locator{
+								ProviderID: corpus.ProviderID(locatorStmt.ColumnText(0)),
+								Root:       locatorStmt.ColumnText(1),
+								Path:       locatorStmt.ColumnText(2),
+							})
+							return nil
+						},
+					}); err != nil {
+					return err
+				}
+				entries = append(entries, remotehistory.RemoteMetadataFingerprintEntry{
+					ProviderObjectID: objectID,
+					Locators:         locators,
+					Kind:             kind,
+					Size:             size,
+					Mode:             uint32(modeValue),
+					ModifiedAt:       modifiedAt.UTC().Format(time.RFC3339Nano),
+				})
+				return nil
+			},
+		}); err != nil {
+		if errors.Is(err, ErrRemoteHistoryScanSnapshotMismatch) {
+			return err
+		}
+		return fmt.Errorf("read remote scan materialized content: %w", err)
+	}
+
+	actual, err := remotehistory.FingerprintRemoteMetadataSnapshot(remotehistory.RemoteMetadataFingerprintInput{
+		GenerationID:            source.GenerationID,
+		PublicationSequence:     source.PublicationSequence,
+		ProviderID:              scan.ProviderID,
+		ScanRoot:                scan.Root,
+		SourceScopeID:           source.SourceScopeID,
+		MaterializationPolicyID: source.MaterializationPolicyID,
+		Entries:                 entries,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrRemoteHistoryScanSnapshotMismatch, err)
+	}
+	if actual != source.SnapshotFingerprintSHA256 {
+		return fmt.Errorf(
+			"%w: scan=%s expected=%s actual=%s",
+			ErrRemoteHistoryScanSnapshotMismatch,
+			scan.ID,
+			source.SnapshotFingerprintSHA256,
+			actual,
+		)
+	}
+	return nil
 }
 
 func insertRemoteScanSourceConn(conn *sqlite.Conn, source remotehistory.RemoteScanSource) error {
