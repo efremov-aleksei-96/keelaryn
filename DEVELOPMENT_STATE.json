@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 118,
+  "revision": 119,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -119,11 +119,12 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_PIPELINE_QUALIFIED",
     "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT_DECIDED",
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED",
-    "P0_29D_BOUNDARY_RETROSPECTIVE_BLOCKERS_FOUND"
+    "P0_29D_BOUNDARY_RETROSPECTIVE_BLOCKERS_FOUND",
+    "P0_29C3_LIFETIME_HARDENING_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_29C3_LIFETIME_AWARE_MEMBERSHIP_HARDENING",
-    "description": "Resolve P0-29D blockers without schema change: revalidate non-provider-root managed-root binding against the current active lifetime segment using existing bound_sequence; before following each topology parent edge, prove the edge evidence position is not older than the current parent incarnation start and that the traversed node belongs to its current incarnation; return UNKNOWN on mismatch. Add same-generation managed-root-ID and parent-ID reincarnation adversarial tests. Keep schema v16. No live provider access.",
+    "id": "P0_29C3_LIFETIME_HARDENING_QUALIFICATION_AND_REAUDIT",
+    "description": "Qualify exact-head lifetime-aware managed-root membership on validate, Ubuntu 24.04 and Windows 2025. Require same-generation root-ID reincarnation fail-closed, parent-ID reincarnation stale-edge UNKNOWN until fresh child evidence, unchanged child lifetime, all prior C3 cases and go vet. After PASS, perform the required P0-29D boundary re-audit before declaring C3 qualified.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -156,7 +157,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "b04d321989a379ea54594d1a2323d99ac4b19f23",
+  "repository_basis_commit": "cc447a3489dbb542e5b55803780062e14a5f0b92",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2987,7 +2988,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "D_RETROSPECTIVE_BLOCKERS_FOUND",
+    "status": "C3_LIFETIME_HARDENING_IMPLEMENTED_AWAITING_QUALIFICATION",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3119,7 +3120,7 @@
       }
     },
     "c": {
-      "status": "C3_AUDIT_BLOCKED",
+      "status": "C3_LIFETIME_HARDENING_IMPLEMENTED_AWAITING_QUALIFICATION",
       "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
       "core_decisions": {
         "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
@@ -3403,7 +3404,7 @@
         }
       },
       "c3": {
-        "status": "AUDIT_BLOCKED",
+        "status": "LIFETIME_HARDENING_IMPLEMENTED_AWAITING_QUALIFICATION",
         "implementation": {
           "store_file": "internal/state/sqlite/gdrive_membership.go",
           "bind_api": "BindGoogleDriveManagedRoot",
@@ -3481,7 +3482,27 @@
             "new generic provider identity layer",
             "second audit policy"
           ]
-        }
+        },
+        "lifetime_hardening": {
+          "schema_version": 16,
+          "schema_changed": false,
+          "unknown_reason": "LIFETIME_MISMATCH",
+          "managed_root_revalidation": "CURRENT_ACTIVE_SEGMENT_START_SEQUENCE_MUST_NOT_POSTDATE_BINDING_BOUND_SEQUENCE",
+          "topology_node_revalidation": "NODE_EVIDENCE_POSITION_MUST_COVER_CURRENT_OBJECT_LIFETIME_START",
+          "parent_edge_revalidation": "CHILD_EDGE_EVIDENCE_POSITION_MUST_COVER_CURRENT_PARENT_LIFETIME_START",
+          "ordering_reuse": "existing ordinalValue helper",
+          "same_generation_rebind": "FAIL_CLOSED_ERR_GOOGLE_MANAGED_ROOT_BINDING_STALE",
+          "new_tables": 0,
+          "live_provider_used": false,
+          "corpus_mutations": 0
+        },
+        "added_regressions": [
+          "managed root REMOVED then same native ID UPSERT invalidates old binding",
+          "explicit rebind attempt after same-ID managed-root reincarnation fails closed",
+          "parent REMOVED then same native ID UPSERT makes unchanged child edge UNKNOWN",
+          "fresh child UPSERT after parent reincarnation re-establishes edge evidence",
+          "child lifetime remains unchanged when child was never REMOVED"
+        ]
       }
     }
   }

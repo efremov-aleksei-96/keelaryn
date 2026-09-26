@@ -35,6 +35,7 @@ const (
 	UnknownCycle             MembershipUnknownReason = "CYCLE"
 	UnknownScopeMismatch     MembershipUnknownReason = "SCOPE_MISMATCH"
 	UnknownObjectUnavailable MembershipUnknownReason = "OBJECT_UNAVAILABLE"
+	UnknownLifetimeMismatch MembershipUnknownReason = "LIFETIME_MISMATCH"
 )
 
 var ErrInvalidTopologyState = errors.New("invalid Google Drive topology state")

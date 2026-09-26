@@ -13,7 +13,10 @@ import (
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
-var ErrGoogleManagedRootBindingNotFound = errors.New("Google Drive managed-root binding not found")
+var (
+	ErrGoogleManagedRootBindingNotFound = errors.New("Google Drive managed-root binding not found")
+	ErrGoogleManagedRootBindingStale    = errors.New("Google Drive managed-root binding no longer matches current provider-object lifetime")
+)
 
 func (s *Store) BindGoogleDriveManagedRoot(
 	ctx context.Context,
@@ -48,7 +51,32 @@ func (s *Store) BindGoogleDriveManagedRoot(
 	if existing, found, err := googleManagedRootBindingConn(conn, generationID, managedRootObjectID); err != nil {
 		return gdrive.ManagedRootBinding{}, err
 	} else if found {
+		if managedRootObjectID != corpus.ProviderObjectID(generation.Scope.Root) {
+			segment, active, err := activeLifetimeSegmentConn(conn, generationID, managedRootObjectID)
+			if err != nil {
+				return gdrive.ManagedRootBinding{}, err
+			}
+			if !active || segment.StartPublicationSequence > existing.BoundSequence {
+				return gdrive.ManagedRootBinding{}, fmt.Errorf(
+					"%w: generation=%s root=%s",
+					ErrGoogleManagedRootBindingStale,
+					generationID,
+					managedRootObjectID,
+				)
+			}
+		}
 		return existing, nil
+	}
+
+	if managedRootObjectID != corpus.ProviderObjectID(generation.Scope.Root) {
+		if _, active, err := activeLifetimeSegmentConn(conn, generationID, managedRootObjectID); err != nil {
+			return gdrive.ManagedRootBinding{}, err
+		} else if !active {
+			return gdrive.ManagedRootBinding{}, fmt.Errorf(
+				"%w: managed root has no active provider-object lifetime segment",
+				gdrive.ErrInvalidTopologyState,
+			)
+		}
 	}
 
 	binding := gdrive.ManagedRootBinding{
@@ -148,6 +176,17 @@ func (s *Store) GoogleDriveManagedRootMembership(
 		result.Reason = gdrive.UnknownTopologyStale
 		return result, nil
 	}
+	if managedRootObjectID != corpus.ProviderObjectID(generation.Scope.Root) {
+		segment, active, err := activeLifetimeSegmentConn(conn, generationID, managedRootObjectID)
+		if err != nil {
+			return result, err
+		}
+		if !active || segment.StartPublicationSequence > binding.BoundSequence {
+			result.Reason = gdrive.UnknownLifetimeMismatch
+			result.TerminalObjectID = managedRootObjectID
+			return result, nil
+		}
+	}
 
 	watermark, found, err := googleTopologyWatermarkConn(conn, generationID)
 	if err != nil {
@@ -167,6 +206,15 @@ func (s *Store) GoogleDriveManagedRootMembership(
 		}
 		if !found || rootNode.Presence != gdrive.TopologyPresent {
 			result.Reason = gdrive.UnknownObjectUnavailable
+			result.TerminalObjectID = managedRootObjectID
+			return result, nil
+		}
+		rootSegment, active, err := activeLifetimeSegmentConn(conn, generationID, managedRootObjectID)
+		if err != nil {
+			return result, err
+		}
+		if !active || !topologyNodeEvidenceCoversCurrentLifetime(rootNode, rootSegment) {
+			result.Reason = gdrive.UnknownLifetimeMismatch
 			result.TerminalObjectID = managedRootObjectID
 			return result, nil
 		}
@@ -238,9 +286,30 @@ func (s *Store) GoogleDriveManagedRootMembership(
 			result.TerminalObjectID = current
 			return result, nil
 		}
+		currentSegment, active, err := activeLifetimeSegmentConn(conn, generationID, current)
+		if err != nil {
+			return result, err
+		}
+		if !active || !topologyNodeEvidenceCoversCurrentLifetime(node, currentSegment) {
+			result.Reason = gdrive.UnknownLifetimeMismatch
+			result.TerminalObjectID = current
+			return result, nil
+		}
 		switch node.ParentKnowledge {
 		case gdrive.ParentKnown:
-			current = node.ParentObjectID
+			parentID := node.ParentObjectID
+			if parentID != corpus.ProviderObjectID(generation.Scope.Root) {
+				parentSegment, active, err := activeLifetimeSegmentConn(conn, generationID, parentID)
+				if err != nil {
+					return result, err
+				}
+				if !active || !topologyEdgeEvidenceCoversParentLifetime(node, parentSegment) {
+					result.Reason = gdrive.UnknownLifetimeMismatch
+					result.TerminalObjectID = parentID
+					return result, nil
+				}
+			}
+			current = parentID
 		case gdrive.ParentUnknown:
 			result.Reason = gdrive.UnknownMissingParent
 			result.TerminalObjectID = current
@@ -255,6 +324,39 @@ func (s *Store) GoogleDriveManagedRootMembership(
 	result.Reason = gdrive.UnknownCycle
 	result.TerminalObjectID = current
 	return result, nil
+}
+
+func topologyNodeEvidenceCoversCurrentLifetime(
+	node gdrive.TopologyNode,
+	segment remotehistory.ProviderObjectLifetimeSegment,
+) bool {
+	return historyEvidencePositionAtOrAfterSegmentStart(
+		node.LastPublicationSequence,
+		node.LastChangeOrdinal,
+		segment,
+	)
+}
+
+func topologyEdgeEvidenceCoversParentLifetime(
+	childNode gdrive.TopologyNode,
+	parentSegment remotehistory.ProviderObjectLifetimeSegment,
+) bool {
+	return historyEvidencePositionAtOrAfterSegmentStart(
+		childNode.LastPublicationSequence,
+		childNode.LastChangeOrdinal,
+		parentSegment,
+	)
+}
+
+func historyEvidencePositionAtOrAfterSegmentStart(
+	sequence remotehistory.HistoryPublicationSequence,
+	ordinal *int64,
+	segment remotehistory.ProviderObjectLifetimeSegment,
+) bool {
+	if sequence != segment.StartPublicationSequence {
+		return sequence > segment.StartPublicationSequence
+	}
+	return ordinalValue(ordinal) >= ordinalValue(segment.StartChangeOrdinal)
 }
 
 func googleManagedRootBindingConn(
