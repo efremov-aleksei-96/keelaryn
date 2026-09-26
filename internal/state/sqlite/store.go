@@ -300,6 +300,174 @@ BEGIN
 	SELECT RAISE(ABORT, 'identity mutation receipts are immutable');
 END;
 `,
+		`
+CREATE TABLE remote_history_generations (
+	generation_id TEXT PRIMARY KEY NOT NULL,
+	provider_id TEXT NOT NULL,
+	identity_domain TEXT NOT NULL,
+	stream_id TEXT NOT NULL,
+	root TEXT NOT NULL,
+	scope_policy_fingerprint TEXT NOT NULL,
+	status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'CLOSED')),
+	created_at TEXT NOT NULL,
+	closed_at TEXT,
+	closure_reason TEXT,
+	current_sequence INTEGER NOT NULL CHECK (current_sequence >= 1),
+	committed_cursor TEXT NOT NULL,
+	CHECK (
+		(status = 'ACTIVE' AND closed_at IS NULL AND closure_reason IS NULL)
+		OR
+		(status = 'CLOSED' AND closed_at IS NOT NULL AND closure_reason IN ('GAP', 'INVALID_CURSOR', 'SCOPE_MISMATCH', 'INSUFFICIENT_HISTORY'))
+	)
+) STRICT;
+
+CREATE UNIQUE INDEX remote_history_one_active_scope
+	ON remote_history_generations (provider_id, identity_domain, stream_id, root)
+	WHERE status = 'ACTIVE';
+
+CREATE TABLE remote_history_publications (
+	generation_id TEXT NOT NULL
+		REFERENCES remote_history_generations(generation_id) ON DELETE RESTRICT,
+	sequence INTEGER NOT NULL CHECK (sequence >= 1),
+	kind TEXT NOT NULL CHECK (kind IN ('BOOTSTRAP', 'INCREMENTAL')),
+	previous_cursor TEXT NOT NULL,
+	committed_cursor TEXT NOT NULL,
+	committed_at TEXT NOT NULL,
+	fingerprint_version TEXT NOT NULL,
+	fingerprint_sha256 TEXT NOT NULL,
+	PRIMARY KEY (generation_id, sequence),
+	CHECK (
+		(kind = 'BOOTSTRAP' AND sequence = 1 AND previous_cursor = '')
+		OR
+		(kind = 'INCREMENTAL' AND sequence >= 2 AND previous_cursor <> '')
+	)
+) STRICT;
+
+CREATE TABLE remote_history_bootstrap_membership (
+	generation_id TEXT NOT NULL
+		REFERENCES remote_history_generations(generation_id) ON DELETE RESTRICT,
+	object_id TEXT NOT NULL,
+	locators_json TEXT NOT NULL,
+	PRIMARY KEY (generation_id, object_id)
+) STRICT;
+
+CREATE TRIGGER remote_history_bootstrap_requires_publication
+BEFORE INSERT ON remote_history_bootstrap_membership
+WHEN NOT EXISTS (
+	SELECT 1 FROM remote_history_publications
+	WHERE generation_id = NEW.generation_id
+	  AND sequence = 1
+	  AND kind = 'BOOTSTRAP'
+)
+BEGIN
+	SELECT RAISE(ABORT, 'bootstrap membership requires bootstrap publication');
+END;
+
+CREATE TABLE remote_history_publication_changes (
+	generation_id TEXT NOT NULL,
+	sequence INTEGER NOT NULL,
+	ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+	kind TEXT NOT NULL CHECK (kind IN ('UPSERT', 'REMOVED')),
+	object_id TEXT NOT NULL,
+	state_json TEXT,
+	PRIMARY KEY (generation_id, sequence, ordinal),
+	FOREIGN KEY (generation_id, sequence)
+		REFERENCES remote_history_publications(generation_id, sequence) ON DELETE RESTRICT,
+	CHECK (
+		(kind = 'UPSERT' AND state_json IS NOT NULL)
+		OR
+		(kind = 'REMOVED' AND state_json IS NULL)
+	)
+) STRICT;
+
+CREATE TABLE remote_history_membership (
+	generation_id TEXT NOT NULL
+		REFERENCES remote_history_generations(generation_id) ON DELETE RESTRICT,
+	object_id TEXT NOT NULL,
+	locators_json TEXT NOT NULL,
+	last_sequence INTEGER NOT NULL CHECK (last_sequence >= 1),
+	PRIMARY KEY (generation_id, object_id),
+	FOREIGN KEY (generation_id, last_sequence)
+		REFERENCES remote_history_publications(generation_id, sequence) ON DELETE RESTRICT
+) STRICT;
+
+CREATE TRIGGER remote_history_generations_no_delete
+BEFORE DELETE ON remote_history_generations
+BEGIN
+	SELECT RAISE(ABORT, 'remote history generations cannot be deleted');
+END;
+
+CREATE TRIGGER remote_history_generations_update_guard
+BEFORE UPDATE ON remote_history_generations
+WHEN NOT (
+	NEW.generation_id = OLD.generation_id
+	AND NEW.provider_id = OLD.provider_id
+	AND NEW.identity_domain = OLD.identity_domain
+	AND NEW.stream_id = OLD.stream_id
+	AND NEW.root = OLD.root
+	AND NEW.scope_policy_fingerprint = OLD.scope_policy_fingerprint
+	AND NEW.created_at = OLD.created_at
+	AND (
+		(
+			OLD.status = 'ACTIVE'
+			AND NEW.status = 'ACTIVE'
+			AND NEW.closed_at IS NULL
+			AND NEW.closure_reason IS NULL
+			AND NEW.current_sequence = OLD.current_sequence + 1
+			AND NEW.committed_cursor <> ''
+		)
+		OR
+		(
+			OLD.status = 'ACTIVE'
+			AND NEW.status = 'CLOSED'
+			AND NEW.closed_at IS NOT NULL
+			AND NEW.closure_reason IN ('GAP', 'INVALID_CURSOR', 'SCOPE_MISMATCH', 'INSUFFICIENT_HISTORY')
+			AND NEW.current_sequence = OLD.current_sequence
+			AND NEW.committed_cursor = OLD.committed_cursor
+		)
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'invalid remote history generation mutation');
+END;
+
+CREATE TRIGGER remote_history_publications_no_update
+BEFORE UPDATE ON remote_history_publications
+BEGIN
+	SELECT RAISE(ABORT, 'remote history publications are immutable');
+END;
+
+CREATE TRIGGER remote_history_publications_no_delete
+BEFORE DELETE ON remote_history_publications
+BEGIN
+	SELECT RAISE(ABORT, 'remote history publications are immutable');
+END;
+
+CREATE TRIGGER remote_history_bootstrap_membership_no_update
+BEFORE UPDATE ON remote_history_bootstrap_membership
+BEGIN
+	SELECT RAISE(ABORT, 'remote history bootstrap evidence is immutable');
+END;
+
+CREATE TRIGGER remote_history_bootstrap_membership_no_delete
+BEFORE DELETE ON remote_history_bootstrap_membership
+BEGIN
+	SELECT RAISE(ABORT, 'remote history bootstrap evidence is immutable');
+END;
+
+CREATE TRIGGER remote_history_publication_changes_no_update
+BEFORE UPDATE ON remote_history_publication_changes
+BEGIN
+	SELECT RAISE(ABORT, 'remote history publication changes are immutable');
+END;
+
+CREATE TRIGGER remote_history_publication_changes_no_delete
+BEFORE DELETE ON remote_history_publication_changes
+BEGIN
+	SELECT RAISE(ABORT, 'remote history publication changes are immutable');
+END;
+`,
+
 	},
 }
 

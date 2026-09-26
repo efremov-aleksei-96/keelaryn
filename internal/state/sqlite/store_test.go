@@ -239,7 +239,7 @@ func TestStoreSchemaContainsOnlyIdentityTables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := strings.Join(names, ","), "accepted_artifact_admissions,accepted_continuity_decisions,artifacts,identity_authority_candidates,identity_authority_sets,identity_mutation_requests,locators,observations,provider_artifact_bindings,provider_object_occurrences,revisions,scan_sessions"; got != want {
+	if got, want := strings.Join(names, ","), "accepted_artifact_admissions,accepted_continuity_decisions,artifacts,identity_authority_candidates,identity_authority_sets,identity_mutation_requests,locators,observations,provider_artifact_bindings,provider_object_occurrences,remote_history_bootstrap_membership,remote_history_generations,remote_history_membership,remote_history_publication_changes,remote_history_publications,revisions,scan_sessions"; got != want {
 		t.Fatalf("tables=%q, want %q", got, want)
 	}
 }
