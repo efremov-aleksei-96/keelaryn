@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 120,
+  "revision": 121,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -126,7 +126,8 @@
     "id": "P0_29C3_LIFETIME_HARDENING_REQUALIFICATION_AND_REAUDIT",
     "description": "Requalify exact-head membership lifetime hardening after restoring MISSING_PARENT precedence when the parent topology row is absent/unavailable. Require all reincarnation regressions, all prior IN/OUT/UNKNOWN semantics, Ubuntu 24.04 and Windows 2025, then perform the required boundary re-audit before C3 qualification.",
     "drive_mutation_approved": false,
-    "deletion_approved": false
+    "deletion_approved": false,
+    "audit_gate": "CURRENT_C3_STAGE_MUST_COMPLETE_EXACT_HEAD_CI_AND_STAGE_RETROSPECTIVE_BEFORE_ANY_NEXT_SUBSTANTIVE_STAGE"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -157,7 +158,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "c9baf65e711321ab0405835626d26679424165f2",
+  "repository_basis_commit": "9013781b7a07d86e6a324cd32faf7130656e0160",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2265,8 +2266,8 @@
   "audit_policy": {
     "status": "ACTIVE",
     "policy_document": "docs/ENGINEERING_AUDIT_POLICY.md",
-    "mode": "EVENT_TRIGGERED_PLUS_MAXIMUM_SLICE_INTERVAL",
-    "maximum_qualified_substantive_slices_between_retrospectives": 4,
+    "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
+    "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
       "head": "b04d321989a379ea54594d1a2323d99ac4b19f23",
       "document": "docs/P0_29D_BOUNDARY_RETROSPECTIVE_20260926.md",
@@ -2275,6 +2276,7 @@
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
+      "after every substantive development stage before the next substantive stage begins",
       "before new live external/provider trust boundary",
       "before new durable user/corpus mutation path",
       "before exposing identity/state mutation through CLI/MCP/HTTP/API",
@@ -2289,7 +2291,15 @@
       "maximum_allowed": 4,
       "accounting_defect": "counter remained zero",
       "status": "CORRECTED_BY_P0_29D_RETROSPECTIVE"
-    }
+    },
+    "stage_completion_rule": "EVERY_SUBSTANTIVE_STAGE_REQUIRES_READ_ONLY_ARCHITECTURE_CORRECTNESS_REUSE_AUDIT_BEFORE_NEXT_SUBSTANTIVE_STAGE",
+    "non_stage_changes": [
+      "tiny mechanical fixes",
+      "narrow test-only corrections",
+      "documentation-only commits",
+      "qualification metadata within the same semantic stage"
+    ],
+    "reuse_rule": "EACH_STAGE_AUDIT_RECHECKS_NEAREST_ANALOGS_DEPENDENCIES_PROTOCOLS_TEST_PATTERNS_AND_DELETE_REPLACE_SIMPLIFY_OPPORTUNITIES"
   },
   "p0_28a": {
     "status": "QUALIFIED",

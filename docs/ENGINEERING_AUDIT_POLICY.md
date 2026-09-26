@@ -8,7 +8,7 @@ This policy complements `KEELARYN_CANONICAL.md`; it does not redefine product ar
 
 ## 1. Audit cadence
 
-Keelaryn uses **event-triggered audits plus a maximum slice interval**.
+Keelaryn uses **per-substantive-stage audits plus event-triggered audits**.
 
 A retrospective architecture/reuse/correctness audit is mandatory:
 
@@ -18,11 +18,13 @@ A retrospective architecture/reuse/correctness audit is mandatory:
 4. after a material change to Artifact identity, provider identity, transactions, rollback/recovery, schema authority or security/credential semantics;
 5. before candidate freeze / Source-Full Gate / release qualification;
 6. after a major architectural reset or migration;
-7. **no later than after four qualified substantive development slices since the previous retrospective**, even if no trigger above fired.
+7. **after every substantive development stage, before the next substantive stage begins**, even if no other trigger above fired.
 
 A blocker finding pauses dependent implementation until the finding is resolved or explicitly re-scoped in durable state.
 
-Tiny mechanical fixes and documentation-only commits do not consume the four-slice budget unless they materially change semantics.
+A substantive stage is a coherent unit that changes or qualifies product behavior, durable authority, provider/runtime integration, schema/transaction semantics, recovery behavior, or another meaningful architectural boundary. Tiny mechanical fixes, narrow test-only corrections, documentation-only commits, and qualification metadata inside the same stage do not create a separate audit ceremony unless they materially change semantics.
+
+The audit is part of stage completion: implementation + exact-head CI alone do **not** close a substantive stage. The stage closes only after its read-only architecture/correctness/reuse audit is complete and any BLOCKER finding is durably handled.
 
 ## 2. Required audit dimensions
 
@@ -112,7 +114,7 @@ P0-29D retrospective at head `b04d321989a379ea54594d1a2323d99ac4b19f23` reset th
 
 Status: **BLOCKERS FOUND**. The reset records that the retrospective occurred; it does not authorize dependent work. P0-29C3 remains paused until its lifetime/incarnation blockers are resolved and re-audited.
 
-The next full retrospective is mandatory no later than four subsequently qualified substantive slices, and sooner if a trigger fires.
+The next retrospective is mandatory at the end of the **current substantive stage**, before any subsequent substantive stage begins. Event triggers may require an earlier audit within the stage.
 
 ## 8. Parallel audit/research during execution
 
@@ -134,3 +136,29 @@ Requirements:
 4. never let a long-running CI job create a long silent period for the maintainer—report status periodically;
 5. interruption recovery still begins from authoritative state, not from unfinished parallel scratch work.
 
+
+## 9. Stage-completion audit gate
+
+Every substantive stage follows this default lifecycle:
+
+```text
+reconcile authoritative prestate
+→ audit/reuse research before design where material
+→ implement one coherent stage
+→ exact-head CI / platform qualification
+→ read-only stage retrospective
+→ check blockers, regressions, duplicate mechanisms, unnecessary abstractions and reusable external solutions
+→ durably record findings / simplify or fix if needed
+→ only then mark the stage QUALIFIED and open the next substantive stage
+```
+
+The retrospective explicitly asks:
+
+- did this stage introduce a new correctness or data-safety defect?;
+- did it duplicate an existing Keelaryn mechanism?;
+- did it add an abstraction/table/API that existing state already made unnecessary?;
+- is there a mature external library/protocol/product pattern that should replace, simplify or test the custom implementation?;
+- did the implementation weaken Android/Windows/Linux/provider-neutral portability?;
+- did any durable state claim become stale or broader than the evidence actually qualifies?;
+
+A green CI run is input to this audit, not a substitute for it.
