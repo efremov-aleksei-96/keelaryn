@@ -35,3 +35,27 @@ Keelaryn product development itself follows this rule through repository-local `
 ## Observation policy
 Baseline corpus discovery is `LIGHTWEIGHT_ALL`: keep low-cost observations for every in-scope object. Expensive hashing/extraction is separately configurable and may run on change or in bounded background mode. Exact fresh derived results should be reused before rereading unchanged source bytes.
 
+## Execution cadence and anti-stall discipline
+
+Long engineering runs must be decomposed into short transactional slices.
+
+Default operating rule:
+
+- avoid silent stretches that make a healthy run indistinguishable from a stalled one;
+- send a concise progress heartbeat at least every few minutes during tool-heavy work, even when the only active dependency is CI;
+- do not hold several speculative mutations open while waiting for one external result;
+- keep each durable write coherent and independently reconcilable;
+- if a tool/transport response is lost, reconcile authoritative state before retrying;
+- waiting for CI/provider/runtime evidence must not block safe read-only work.
+
+When transaction independence allows it, use waiting time for **parallel read-only work**, especially:
+
+- architecture/correctness/security audit;
+- call-site and migration audit;
+- nearest-analogue / prior-art research;
+- dependency/license/platform review;
+- adversarial test design;
+- documentation/state consistency review.
+
+Parallel work must never weaken mutation ordering: discoveries may prepare the next slice, but a dependent write waits for the current authoritative mutation/qualification boundary.
+

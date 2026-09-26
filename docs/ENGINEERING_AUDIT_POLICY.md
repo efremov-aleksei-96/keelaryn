@@ -111,3 +111,24 @@ This distinction is preferred to pretending an earlier green slice proved behavi
 The foundation retrospective at head `467b4e810041532ed39e47dd8b5c16a98c3df5dc` resets the rolling substantive-slice counter to zero.
 
 The next full retrospective is mandatory no later than four subsequently qualified substantive slices, and sooner if a trigger fires.
+
+## 8. Parallel audit/research during execution
+
+Audit and reuse research are continuous supporting activities, not only retrospective ceremonies.
+
+Whenever the active transaction is waiting on CI, provider/runtime evidence, or another external read-only dependency, the engineer should use available time for independent read-only work where useful:
+
+- inspect adjacent trust boundaries and call sites;
+- search nearest comparable products, protocols, standards and mature implementations;
+- check whether a custom mechanism can be replaced or simplified;
+- design adversarial cases from external failure models;
+- inspect portability implications for Windows, Linux/Android and provider-neutral behavior.
+
+Requirements:
+
+1. parallel work must be read-only unless it becomes the next explicitly reconciled mutation slice;
+2. findings that affect correctness are recorded durably before dependent implementation advances;
+3. external analog research is added to the reuse/audit evidence when it materially changes or validates a design;
+4. never let a long-running CI job create a long silent period for the maintainer—report status periodically;
+5. interruption recovery still begins from authoritative state, not from unfinished parallel scratch work.
+

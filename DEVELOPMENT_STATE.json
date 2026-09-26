@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 91,
+  "revision": 92,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -118,7 +118,7 @@
   ],
   "next_objective": {
     "id": "P0_28C3_LIFETIME_AUTHORITY_BOUNDARY_RETROSPECTIVE",
-    "description": "Run the mandatory P0-28C boundary retrospective across schema v10-v12: direct-SQL trust boundary, reconstruction determinism, stale/replay/interruption semantics, REMOVED/reappearance and cross-generation adversarial cases, legacy naked-binding interaction, and accepted-decision provenance. Fix any blocker before live provider wiring.",
+    "description": "Continue mandatory P0-28C retrospective. First resolve the discovered legacy naked-binding compatibility conflict: remote lifetime semantics must permit the same native ProviderObjectID to bind different Artifacts in different segments without replay returning the wrong naked binding. Continue parallel prior-art research and adversarial audit while CI waits.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "427d1d27c94e7644cf4c91f9b2b864617658e044",
+  "repository_basis_commit": "d7412574dc5e4ecf7576e6b03c0140fd70fe0f38",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2829,5 +2829,20 @@
         "corpus_mutations": 0
       }
     }
+  },
+  "development_execution_policy": {
+    "status": "ADOPTED",
+    "short_transactional_slices": true,
+    "maintainer_progress_heartbeat": "EVERY_FEW_MINUTES_DURING_LONG_TOOL_RUNS",
+    "parallel_read_only_work_when_waiting": [
+      "ARCHITECTURE_CORRECTNESS_SECURITY_AUDIT",
+      "CALL_SITE_AND_MIGRATION_AUDIT",
+      "NEAREST_ANALOGUE_AND_PRIOR_ART_RESEARCH",
+      "DEPENDENCY_LICENSE_PLATFORM_REVIEW",
+      "ADVERSARIAL_TEST_DESIGN",
+      "DOCUMENTATION_STATE_CONSISTENCY"
+    ],
+    "mutation_rule": "PARALLEL_RESEARCH_MAY_PREPARE_NEXT_SLICE_BUT_DEPENDENT_WRITES_REQUIRE_AUTHORITATIVE_RECONCILE",
+    "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   }
 }
