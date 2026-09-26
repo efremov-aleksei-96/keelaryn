@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/google/uuid"
@@ -1857,6 +1858,21 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER remote_scan_session_complete_application_guard
+BEFORE UPDATE ON scan_sessions
+WHEN OLD.status='OPEN'
+AND NEW.status='COMPLETE'
+AND EXISTS (
+	SELECT 1 FROM remote_scan_sources r
+	WHERE r.scan_id=OLD.scan_id
+)
+AND keelaryn_remote_completion_authorized(OLD.scan_id)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound remote scan completion requires validated application authorization');
+END;
+`,
+
 	},
 }
 
@@ -1865,9 +1881,59 @@ END;
 // The path is runtime-local control state. This package does not know or store
 // corpus file bytes, Locators, extracted text, previews, embeddings, or search
 // indexes.
+const remoteCompletionAuthorizationFunction = "keelaryn_remote_completion_authorized"
+
+type remoteCompletionAuthorization struct {
+	scanID corpus.ScanSessionID
+}
+
 type Store struct {
-	pool *sqlitemigration.Pool
-	path string
+	pool                           *sqlitemigration.Pool
+	path                           string
+	remoteCompletionAuthorizations sync.Map
+}
+
+func (s *Store) prepareConn(conn *sqlite.Conn) error {
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA foreign_keys = ON", nil); err != nil {
+		return err
+	}
+	auth := &remoteCompletionAuthorization{}
+	if err := conn.CreateFunction(remoteCompletionAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs:         1,
+		Deterministic: false,
+		AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if auth.scanID != "" && string(auth.scanID) == args[0].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register remote completion authorization function: %w", err)
+	}
+	s.remoteCompletionAuthorizations.Store(conn, auth)
+	return nil
+}
+
+func (s *Store) authorizeRemoteCompletionConn(
+	conn *sqlite.Conn,
+	scanID corpus.ScanSessionID,
+) (func(), error) {
+	value, ok := s.remoteCompletionAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("remote completion authorization state missing for connection")
+	}
+	auth, ok := value.(*remoteCompletionAuthorization)
+	if !ok || auth == nil {
+		return nil, fmt.Errorf("remote completion authorization state invalid")
+	}
+	if auth.scanID != "" {
+		return nil, fmt.Errorf("remote completion authorization already active for %s", auth.scanID)
+	}
+	auth.scanID = scanID
+	return func() {
+		auth.scanID = ""
+	}, nil
 }
 
 func Open(ctx context.Context, path string) (*Store, error) {
@@ -1876,13 +1942,13 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, fmt.Errorf("resolve state database path: %w", err)
 	}
 
+	store := &Store{path: absPath}
 	pool := sqlitemigration.NewPool(absPath, schema, sqlitemigration.Options{
-		Flags:    sqlite.OpenReadWrite | sqlite.OpenCreate,
-		PoolSize: 1,
-		PrepareConn: func(conn *sqlite.Conn) error {
-			return sqlitex.ExecuteTransient(conn, "PRAGMA foreign_keys = ON", nil)
-		},
+		Flags:       sqlite.OpenReadWrite | sqlite.OpenCreate,
+		PoolSize:    1,
+		PrepareConn: store.prepareConn,
 	})
+	store.pool = pool
 
 	conn, err := pool.Get(ctx)
 	if err != nil {
@@ -1891,7 +1957,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	}
 	pool.Put(conn)
 
-	return &Store{pool: pool, path: absPath}, nil
+	return store, nil
 }
 
 func (s *Store) Close() error {

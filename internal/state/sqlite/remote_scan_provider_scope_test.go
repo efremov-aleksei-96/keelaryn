@@ -12,6 +12,57 @@ import (
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
+func TestRemoteMetadataDirectSQLCannotBypassValidatedCompletion(t *testing.T) {
+	fixture := newGoogleRemoteCompletionFixture(t)
+	entries := []remotehistory.RemoteMetadataFingerprintEntry{
+		fixture.entry("managed", corpus.EntryOther, 0, fixture.base),
+		fixture.entry("child", corpus.EntryRegularFile, 7, fixture.base.Add(time.Second)),
+	}
+	scan, err := fixture.startScan(entries, fixture.scanRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if err := fixture.record(scan.ID, entry); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	conn, err := fixture.store.pool.Get(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = sqlitex.Execute(conn,
+		"UPDATE scan_sessions SET status='COMPLETE', finished_at=?1 WHERE scan_id=?2",
+		&sqlitex.ExecOptions{Args: []any{
+			fixture.base.Add(2 * time.Minute).UTC().Format(time.RFC3339Nano),
+			string(scan.ID),
+		}})
+	fixture.store.pool.Put(conn)
+	if err == nil {
+		t.Fatal("direct SQL source-bound COMPLETE unexpectedly bypassed validated completion")
+	}
+	stored, err := fixture.store.ScanSession(context.Background(), scan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != corpus.ScanOpen {
+		t.Fatalf("rejected direct completion mutated scan: %#v", stored)
+	}
+
+	completed, replayed, err := fixture.store.CompleteRemoteHistoryScan(
+		context.Background(),
+		scan.ID,
+		fixture.base.Add(2*time.Minute),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed || completed.Status != corpus.ScanComplete {
+		t.Fatalf("validated completion replayed=%v scan=%#v", replayed, completed)
+	}
+}
+
 func TestRemoteMetadataCompletionRejectsProviderWithoutQualifiedScopeValidator(t *testing.T) {
 	ctx := context.Background()
 	store := openStoreInternal(t)

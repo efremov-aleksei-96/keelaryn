@@ -222,6 +222,11 @@ func (s *Store) CompleteRemoteHistoryScan(
 	if err := validateRemoteMetadataProviderScopeConn(conn, scan, source, generation); err != nil {
 		return corpus.ScanSession{}, false, err
 	}
+	releaseAuthorization, err := s.authorizeRemoteCompletionConn(conn, scanID)
+	if err != nil {
+		return corpus.ScanSession{}, false, err
+	}
+	defer releaseAuthorization()
 	if err := finishScanConn(conn, scanID, corpus.ScanComplete, finishedAt.UTC(), true); err != nil {
 		return corpus.ScanSession{}, false, err
 	}
