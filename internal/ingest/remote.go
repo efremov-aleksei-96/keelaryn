@@ -548,7 +548,7 @@ func (p *GoogleDriveManagedRootProjection) ProjectLocators(
 	return []corpus.Locator{{
 		ProviderID: gdrive.ProviderID,
 		Root:       scope.ScanRoot,
-		Path:       "file-id/" + string(objectID),
+		Path:       gdrive.FileIDLocatorPath(objectID),
 	}}, nil
 }
 

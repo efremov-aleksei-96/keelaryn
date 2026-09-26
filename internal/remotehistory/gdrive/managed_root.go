@@ -4,12 +4,17 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"net/url"
 	"strings"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 )
 
 const managedRootScanRootVersion = "google-drive:managed-root:v1"
+
+func FileIDLocatorPath(objectID corpus.ProviderObjectID) string {
+	return "file-id/" + url.PathEscape(string(objectID))
+}
 
 // ManagedRootScanRoot returns the canonical ScanSession.Root key for one
 // managed Google Drive corpus root. The provider identity domain disambiguates

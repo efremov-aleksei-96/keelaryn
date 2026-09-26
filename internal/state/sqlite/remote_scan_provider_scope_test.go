@@ -85,6 +85,42 @@ func TestGoogleRemoteMetadataCompletionRejectsMissingTopologyWatermark(t *testin
 	}
 }
 
+func TestGoogleRemoteMetadataCompletionRejectsNoncanonicalLocatorProjection(t *testing.T) {
+	fixture := newGoogleRemoteCompletionFixture(t)
+	entries := []remotehistory.RemoteMetadataFingerprintEntry{
+		fixture.entry("managed", corpus.EntryOther, 0, fixture.base),
+		fixture.entry("child", corpus.EntryRegularFile, 7, fixture.base.Add(time.Second)),
+	}
+	entries[1].Locators[0].Path = "file-id/not-child"
+	scan, err := fixture.startScan(entries, fixture.scanRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if err := fixture.record(scan.ID, entry); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := fixture.store.CompleteRemoteHistoryScan(
+		context.Background(),
+		scan.ID,
+		fixture.base.Add(2*time.Minute),
+	); !errors.Is(err, ErrRemoteHistoryScanProviderScopeMismatch) {
+		t.Fatalf("completion error=%v want ErrRemoteHistoryScanProviderScopeMismatch", err)
+	}
+	if err := fixture.store.AbortScan(context.Background(), scan.ID, fixture.base.Add(3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoogleFileIDLocatorPathEscapesNativeObjectID(t *testing.T) {
+	got := gdrive.FileIDLocatorPath("a/b %")
+	want := "file-id/a%2Fb%20%25"
+	if got != want {
+		t.Fatalf("locator path=%q want %q", got, want)
+	}
+}
+
 func TestGoogleRemoteMetadataCompletionRejectsNoncanonicalManagedRootKey(t *testing.T) {
 	fixture := newGoogleRemoteCompletionFixture(t)
 	badRoot := "google-drive:managed-root:v1:not-canonical"
@@ -188,7 +224,7 @@ func (f googleRemoteCompletionFixture) entry(
 		Locators: []corpus.Locator{{
 			ProviderID: gdrive.ProviderID,
 			Root:       f.scanRoot,
-			Path:       "file-id/" + string(objectID),
+			Path:       gdrive.FileIDLocatorPath(objectID),
 		}},
 		Kind:       kind,
 		Size:       size,

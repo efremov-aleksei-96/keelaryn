@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"sort"
 	"strings"
 
@@ -288,7 +287,7 @@ func (a *Adapter) objectState(id string) remotehistory.RemoteObjectState {
 		Locators: []corpus.Locator{{
 			ProviderID: ProviderID,
 			Root:       a.config.Root,
-			Path:       "file-id/" + url.PathEscape(id),
+			Path:       FileIDLocatorPath(objectID),
 		}},
 	}
 }

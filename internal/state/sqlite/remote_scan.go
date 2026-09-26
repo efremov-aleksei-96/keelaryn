@@ -434,6 +434,55 @@ func validateRemoteMetadataProviderScopeConn(
 				)
 			}
 		}
+		if err := validateGoogleDriveRemoteScanLocatorsConn(conn, scan, observed); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateGoogleDriveRemoteScanLocatorsConn(
+	conn *sqlite.Conn,
+	scan corpus.ScanSession,
+	observed map[corpus.ProviderObjectID]struct{},
+) error {
+	seen := make(map[corpus.ProviderObjectID]int, len(observed))
+	if err := sqlitex.Execute(conn,
+		"SELECT p.native_object_id,l.provider_id,l.root,l.path FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id=o.occurrence_id JOIN locators l ON l.observation_id=o.observation_id WHERE o.scan_id=?1 ORDER BY p.native_object_id,l.path",
+		&sqlitex.ExecOptions{
+			Args: []any{string(scan.ID)},
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				objectID := corpus.ProviderObjectID(stmt.ColumnText(0))
+				providerID := corpus.ProviderID(stmt.ColumnText(1))
+				root := stmt.ColumnText(2)
+				path := stmt.ColumnText(3)
+				if _, ok := observed[objectID]; !ok ||
+					providerID != gdrive.ProviderID ||
+					root != scan.Root ||
+					path != gdrive.FileIDLocatorPath(objectID) {
+					return fmt.Errorf(
+						"%w: noncanonical Google Drive locator object=%s provider=%s root=%q path=%q",
+						ErrRemoteHistoryScanProviderScopeMismatch,
+						objectID,
+						providerID,
+						root,
+						path,
+					)
+				}
+				seen[objectID]++
+				if seen[objectID] != 1 {
+					return fmt.Errorf("%w: object %s has multiple Google Drive locators", ErrRemoteHistoryScanProviderScopeMismatch, objectID)
+				}
+				return nil
+			},
+		}); err != nil {
+		if errors.Is(err, ErrRemoteHistoryScanProviderScopeMismatch) {
+			return err
+		}
+		return fmt.Errorf("%w: read Google Drive scan locators: %v", ErrRemoteHistoryScanProviderScopeMismatch, err)
+	}
+	if len(seen) != len(observed) {
+		return fmt.Errorf("%w: locator coverage=%d objects=%d", ErrRemoteHistoryScanProviderScopeMismatch, len(seen), len(observed))
 	}
 	return nil
 }
