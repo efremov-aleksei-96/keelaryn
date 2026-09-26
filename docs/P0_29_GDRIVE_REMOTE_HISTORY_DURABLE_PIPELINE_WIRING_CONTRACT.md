@@ -391,3 +391,25 @@ P0-29 contract does not authorize:
 - background deep extraction.
 
 Those remain separate qualification/authorization boundaries.
+
+## 17. P0-29A qualification
+
+Google history-universe identity hardening is **QUALIFIED**.
+
+Exact head: `23d8f1b476729e17ca92f1884cd340acd93e644d`  
+CI run: `36245721536`
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+Qualified behavior:
+
+- My Drive `root` alias is resolved through `files.get("root")` to the canonical actual root file ID before durable adapter construction;
+- literal alias `root` is rejected as durable history scope;
+- shared-drive history uses the drive ID as universe root;
+- bootstrap fixtures use actual parent ID semantics;
+- ordinary HTTP/API failures (401/403/404/429/5xx) remain non-mutating operation errors and are not silently classified as history GAP/INVALID_CURSOR.
+
+No live OAuth/provider access or corpus mutation occurred.
+
