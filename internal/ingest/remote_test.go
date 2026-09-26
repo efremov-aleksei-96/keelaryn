@@ -144,10 +144,36 @@ func TestRemoteMetadataAbortedAttemptDoesNotReplacePreviousCompleteInventory(t *
 		t.Fatal(err)
 	}
 
+	// Advance to a new exact provider-history boundary before changing metadata.
+	// A different fingerprint for the same publication is a conflict by contract;
+	// an interrupted newer publication is the valid authority-preservation case.
+	cycle := gdrive.ChangeCycleBundle{
+		History: remotehistory.ChangeCycle{
+			StreamID:       fixture.scope.StreamID,
+			Status:         remotehistory.CycleComplete,
+			PreviousCursor: "cursor-1",
+			NextCursor:     "cursor-2",
+			Coverage:       corpus.ProviderHistoryContinuous,
+		},
+	}
+	if _, err := fixture.store.PublishGoogleDriveRemoteHistoryCycle(
+		ctx,
+		fixture.generation.ID,
+		fixture.scope,
+		fixture.scopeFingerprint,
+		1,
+		"cursor-1",
+		cycle,
+		fixture.base.Add(90*time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+
 	changed := fixture.snapshot(
 		remoteMetadataEntry("managed", corpus.EntryOther, 0, 0, fixture.base),
 		remoteMetadataEntry("child", corpus.EntryRegularFile, 99, 0, fixture.base.Add(time.Second)),
 	)
+	changed.PublicationSequence = 2
 	failing := &failRemoteMaterializationStore{Store: fixture.store, failAfter: 1}
 	failedScan, _, err := ingest.MaterializeRemoteMetadata(ctx, failing, fixture.projection, changed, fixture.base.Add(2*time.Minute))
 	if !errors.Is(err, errInjectedRemotePersistence) {
