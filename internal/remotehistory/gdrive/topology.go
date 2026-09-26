@@ -39,6 +39,46 @@ const (
 
 var ErrInvalidTopologyState = errors.New("invalid Google Drive topology state")
 
+type TopologyState struct {
+	ObjectID        corpus.ProviderObjectID
+	Presence        TopologyPresence
+	ParentKnowledge ParentKnowledge
+	ParentObjectID  corpus.ProviderObjectID
+	DriveID         string
+}
+
+type BootstrapBundle struct {
+	History  remotehistory.BootstrapResult
+	Topology []TopologyState
+}
+
+type ChangePageBundle struct {
+	History  remotehistory.ChangePage
+	Topology []TopologyState
+}
+
+type ChangeCycleBundle struct {
+	History  remotehistory.ChangeCycle
+	Topology []TopologyState
+}
+
+func ValidateTopologyState(state TopologyState) error {
+	if state.ObjectID == "" {
+		return ErrInvalidTopologyState
+	}
+	switch state.Presence {
+	case TopologyPresent:
+		return validatePresentTopology(state.ObjectID, state.Presence, state.ParentKnowledge, state.ParentObjectID)
+	case TopologyUnavailable:
+		if state.ParentKnowledge != ParentUnavailable || state.ParentObjectID != "" {
+			return ErrInvalidTopologyState
+		}
+		return nil
+	default:
+		return ErrInvalidTopologyState
+	}
+}
+
 type TopologyEvidence struct {
 	GenerationID        remotehistory.HistoryGenerationID
 	PublicationSequence remotehistory.HistoryPublicationSequence

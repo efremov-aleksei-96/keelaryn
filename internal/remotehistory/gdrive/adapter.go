@@ -185,85 +185,18 @@ func CanonicalizeConfig(ctx context.Context, client Client, config Config) (Conf
 }
 
 func (a *Adapter) Bootstrap(ctx context.Context, scope remotehistory.Scope) (remotehistory.BootstrapResult, error) {
-	if !a.matches(scope) {
-		return bootstrapFailure(scope.StreamID, remotehistory.BootstrapScopeMismatch), nil
-	}
-
-	fence, err := a.client.StartPageToken(ctx, a.config)
-	if err != nil {
-		return a.bootstrapClientFailure(scope.StreamID, err)
-	}
-	if strings.TrimSpace(fence) == "" {
-		return remotehistory.BootstrapResult{}, fmt.Errorf("%w: empty start page token", ErrInvalidClientResponse)
-	}
-
-	files, err := a.enumerateFiles(ctx)
-	if err != nil {
-		return a.bootstrapClientFailure(scope.StreamID, err)
-	}
-	objects := a.initialObjects(files)
-
-	cursor, err := a.catchUp(ctx, fence, objects)
-	if err != nil {
-		return a.bootstrapClientFailure(scope.StreamID, err)
-	}
-
-	result := remotehistory.BootstrapResult{
-		StreamID: scope.StreamID,
-		Status:   remotehistory.BootstrapComplete,
-		Objects:  sortedObjects(objects),
-		Cursor:   remotehistory.HistoryCursor(cursor),
-		Coverage: corpus.ProviderHistoryContinuous,
-	}
-	if err := remotehistory.ValidateBootstrap(scope, result); err != nil {
-		return remotehistory.BootstrapResult{}, err
-	}
-	return result, nil
+	bundle, err := a.BootstrapWithTopology(ctx, scope)
+	return bundle.History, err
 }
 
-func (a *Adapter) ReadChanges(ctx context.Context, scope remotehistory.Scope, committed remotehistory.HistoryCursor, continuation remotehistory.ContinuationToken) (remotehistory.ChangePage, error) {
-	if !a.matches(scope) {
-		return remotehistory.ChangePage{StreamID: scope.StreamID, Status: remotehistory.PageScopeMismatch}, nil
-	}
-	if committed == "" {
-		return remotehistory.ChangePage{}, remotehistory.ErrInvalidScope
-	}
-
-	token := string(committed)
-	if continuation != "" {
-		token = string(continuation)
-	}
-	page, err := a.client.ListChanges(ctx, a.config, token)
-	if err != nil {
-		if status, ok := pageStatusForClientError(err); ok {
-			return remotehistory.ChangePage{StreamID: scope.StreamID, Status: status}, nil
-		}
-		return remotehistory.ChangePage{}, err
-	}
-	changes, err := a.convertChanges(page.Changes)
-	if err != nil {
-		return remotehistory.ChangePage{}, err
-	}
-
-	hasNext := strings.TrimSpace(page.NextPageToken) != ""
-	hasTerminal := strings.TrimSpace(page.NewStartPageToken) != ""
-	if hasNext == hasTerminal {
-		return remotehistory.ChangePage{}, fmt.Errorf("%w: expected exactly one next or terminal token", ErrInvalidClientResponse)
-	}
-	if hasNext {
-		return remotehistory.ChangePage{
-			StreamID:     scope.StreamID,
-			Status:       remotehistory.PageMore,
-			Changes:      changes,
-			Continuation: remotehistory.ContinuationToken(page.NextPageToken),
-		}, nil
-	}
-	return remotehistory.ChangePage{
-		StreamID:   scope.StreamID,
-		Status:     remotehistory.PageTerminal,
-		Changes:    changes,
-		NextCursor: remotehistory.HistoryCursor(page.NewStartPageToken),
-	}, nil
+func (a *Adapter) ReadChanges(
+	ctx context.Context,
+	scope remotehistory.Scope,
+	committed remotehistory.HistoryCursor,
+	continuation remotehistory.ContinuationToken,
+) (remotehistory.ChangePage, error) {
+	bundle, err := a.ReadChangesWithTopology(ctx, scope, committed, continuation)
+	return bundle.History, err
 }
 
 func (a *Adapter) matches(scope remotehistory.Scope) bool {
@@ -335,73 +268,9 @@ func (a *Adapter) initialObjects(files []FileRecord) map[corpus.ProviderObjectID
 	return objects
 }
 
-func (a *Adapter) catchUp(ctx context.Context, fence string, objects map[corpus.ProviderObjectID]remotehistory.RemoteObjectState) (string, error) {
-	seen := map[string]struct{}{fence: {}}
-	token := fence
-	for {
-		page, err := a.client.ListChanges(ctx, a.config, token)
-		if err != nil {
-			return "", err
-		}
-		changes, err := a.convertChanges(page.Changes)
-		if err != nil {
-			return "", err
-		}
-		for _, change := range changes {
-			switch change.Kind {
-			case remotehistory.ChangeUpsert:
-				objects[change.ObjectID] = *change.State
-			case remotehistory.ChangeRemoved:
-				delete(objects, change.ObjectID)
-			}
-		}
 
-		next := strings.TrimSpace(page.NextPageToken)
-		terminal := strings.TrimSpace(page.NewStartPageToken)
-		if next != "" && terminal != "" || next == "" && terminal == "" {
-			return "", fmt.Errorf("%w: expected exactly one next or terminal token", ErrInvalidClientResponse)
-		}
-		if terminal != "" {
-			return terminal, nil
-		}
-		if _, duplicate := seen[next]; duplicate {
-			return "", fmt.Errorf("%w: repeated change page token", ErrInvalidClientResponse)
-		}
-		seen[next] = struct{}{}
-		token = next
-	}
-}
 
-func (a *Adapter) convertChanges(records []ChangeRecord) ([]remotehistory.RemoteChange, error) {
-	changes := make([]remotehistory.RemoteChange, 0, len(records))
-	for _, record := range records {
-		if record.ChangeType != "" && record.ChangeType != "file" {
-			continue
-		}
-		id := strings.TrimSpace(record.FileID)
-		if id == "" && record.File != nil {
-			id = strings.TrimSpace(record.File.ID)
-		}
-		if id == "" {
-			return nil, fmt.Errorf("%w: file change without file ID", ErrInvalidClientResponse)
-		}
-		objectID := corpus.ProviderObjectID(id)
-		if record.Removed {
-			changes = append(changes, remotehistory.RemoteChange{Kind: remotehistory.ChangeRemoved, ObjectID: objectID})
-			continue
-		}
-		if record.File == nil || record.File.ID != id {
-			return nil, fmt.Errorf("%w: current file state missing or ID mismatch", ErrInvalidClientResponse)
-		}
-		if record.File.Trashed || !a.fileBelongsToStream(*record.File) {
-			changes = append(changes, remotehistory.RemoteChange{Kind: remotehistory.ChangeRemoved, ObjectID: objectID})
-			continue
-		}
-		state := a.objectState(id)
-		changes = append(changes, remotehistory.RemoteChange{Kind: remotehistory.ChangeUpsert, ObjectID: objectID, State: &state})
-	}
-	return changes, nil
-}
+
 
 func (a *Adapter) fileBelongsToStream(file FileRecord) bool {
 	if a.config.Kind == StreamSharedDrive {

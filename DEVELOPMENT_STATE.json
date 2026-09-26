@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 106,
+  "revision": 107,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C2_HISTORY_TOPOLOGY_ATOMIC_PROJECTION",
-    "description": "Implement Google-specific topology bundles and atomic Store sidecar integration: bootstrap/current parent evidence and ordered incremental topology evidence must commit in the same SQLite transaction as the corresponding RemoteHistory publication and watermark. Preserve generic P0-28 APIs unchanged. No membership traversal yet, no live OAuth/provider access, no corpus mutation.",
+    "id": "P0_29C2A_ADAPTER_BUNDLE_QUALIFICATION",
+    "description": "Qualify exact-head Google Drive topology-aware adapter bundle on validate, Ubuntu 24.04 and Windows 2025. Require generic adapter regression suite plus topology alignment/order/fail-closed tests. Do not start atomic Store sidecar integration until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "eefb0b847a61588d152626b34d04b915f4a0f761",
+  "repository_basis_commit": "adece6c84bf6a832fcf8659a95c527039f057471",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2979,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C1_QUALIFIED_C2_NEXT",
+    "status": "C2A_ADAPTER_BUNDLE_IMPLEMENTED_AWAITING_QUALIFICATION",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3111,7 +3111,7 @@
       }
     },
     "c": {
-      "status": "C1_QUALIFIED_C2_NEXT",
+      "status": "C2A_ADAPTER_BUNDLE_IMPLEMENTED_AWAITING_QUALIFICATION",
       "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
       "core_decisions": {
         "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
@@ -3204,6 +3204,33 @@
           "live_oauth_used": false,
           "live_provider_used": false,
           "corpus_mutations": 0
+        }
+      },
+      "c2": {
+        "status": "A_IMPLEMENTED_AWAITING_QUALIFICATION",
+        "a": {
+          "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+          "scope": "GDRIVE_HISTORY_TOPOLOGY_BUNDLE",
+          "implementation": {
+            "bootstrap_bundle": "RemoteHistory bootstrap + final topology snapshot at terminal fence",
+            "change_page_bundle": "RemoteHistory changes + 1:1 aligned topology states",
+            "cycle_bundle": "multi-page ordered history + topology",
+            "repeated_object_changes": "PRESERVE_EXACT_ORDER",
+            "multiple_parent_response": "FAIL_CLOSED",
+            "generic_bootstrap_readchanges": "WRAP_TOPOLOGY_AWARE_PATH",
+            "duplicate_private_algorithms_removed": true,
+            "sqlite_mutation": false,
+            "schema_changed": false,
+            "live_provider_used": false,
+            "corpus_mutations": 0
+          },
+          "tests": [
+            "bootstrap bundle publishes final caught-up parent state",
+            "removed/upsert history-topology alignment",
+            "multi-page repeated object topology order",
+            "multiple parents fail closed",
+            "all prior generic adapter tests run through topology-aware path"
+          ]
         }
       }
     }
