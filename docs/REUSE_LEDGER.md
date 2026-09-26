@@ -1101,3 +1101,22 @@ Keelaryn reuse decision:
 
 Detailed audit: `docs/P0_CLOSURE_AUDIT_20260926.md`.
 
+## P0-30 — remote Observation materialization reuse research
+
+Before implementation, P0-30 rechecked both internal reuse and nearest external state-materialization patterns.
+
+Internal reuse decision:
+- existing ScanSession/Observation/Inventory remains the only general inventory authority;
+- existing RemoteHistory generation/publication/lifetime/topology remains provider-state evidence;
+- existing CreateRemoteHistoryIdentityAuthority and SAME/NEW acceptance remain the only remote identity path;
+- one immutable scan-source provenance sidecar is required because scan_sessions currently cannot bind a remote scan to exact HistoryGeneration/publication;
+- RemoteHistory history-universe scope and managed ScanSession root must remain distinct and be linked by that provenance rather than conflated.
+
+External analogues revalidated:
+- Microsoft Graph driveItem delta: complete initial enumeration establishes local state; terminal deltaLink checkpoints later updates; reset requires resync;
+- Dropbox list_folder/cursor: ordered entries maintain a local cache and the cursor continues change retrieval;
+- Syncthing BEP: full Index supersedes prior folder state and Index Update amends that state.
+
+Decision: reuse the snapshot + exact checkpoint + materialized local view + incremental source pattern, while retaining Keelaryn-specific Artifact/Revision/lifetime semantics.
+
+No new dependency selected. No second inventory or identity layer is justified.

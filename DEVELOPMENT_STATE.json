@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 127,
+  "revision": 128,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -124,14 +124,15 @@
     "P0_29C3_MANAGED_ROOT_MEMBERSHIP_QUALIFIED",
     "P0_29D_BOUNDARY_RETROSPECTIVE_PASS",
     "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_QUALIFIED",
-    "P0_CLOSURE_REAUDIT_AFTER_P0_29_COMPLETE"
+    "P0_CLOSURE_REAUDIT_AFTER_P0_29_COMPLETE",
+    "P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT_AND_REUSE_RESEARCH",
-    "description": "Define the smallest deterministic provider-state-to-Observation/inventory orchestration contract. Reuse existing ScanSession/Observation/inventory, qualified RemoteHistory generation/publication/lifetime/topology state, CreateRemoteHistoryIdentityAuthority, and SAME/NEW acceptance. Specify exact snapshot boundary, metadata provenance, IN/OUT/UNKNOWN handling, interruption/replay behavior, and the regular-file SAME ContentEvidence requirement. Do not create a second inventory/identity layer; no live OAuth/provider access or corpus mutation. Perform nearest-analogue research before implementation.",
+    "id": "P0_30A_SOURCE_BOUND_REMOTE_SCANSESSION",
+    "description": "Implement only the first P0-30 stage: one minimal immutable remote scan-source provenance sidecar for existing ScanSession, StartRemoteHistoryScan, source lookup/reconcile, and CompleteRemoteHistoryScan exact generation/publication guard. Keep existing local scan behavior unchanged. No Observation materializer or identity integration yet. Run exact-head CI then mandatory per-stage correctness/reuse retrospective before P0-30B.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "CONTRACT_AND_REUSE_RESEARCH_FIRST_THEN_IMPLEMENT_ONE_STAGE_THEN_MANDATORY_STAGE_RETROSPECTIVE"
+    "audit_gate": "QUALIFY_P0_30A_THEN_MANDATORY_STAGE_RETROSPECTIVE_BEFORE_P0_30B"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -162,7 +163,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "057535e98b686fb6edfba8cb98c4c911562abea2",
+  "repository_basis_commit": "f44bd679035beabfd15565777890fe34b0a12ca6",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3705,6 +3706,34 @@
       "Android adapter",
       "physical mutation",
       "new identity schema"
+    ]
+  },
+  "p0_30": {
+    "status": "CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
+    "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
+    "live_provider_used": false,
+    "corpus_mutations": 0,
+    "core_decisions": {
+      "general_inventory": "REUSE_EXISTING_SCANSESSION_OBSERVATION_INVENTORY",
+      "source_provenance": "ONE_IMMUTABLE_REMOTE_SCAN_SOURCE_SIDECAR_PER_SCAN_ATTEMPT",
+      "history_universe_vs_scan_root": "DISTINCT_BUT_DURABLY_BOUND",
+      "complete_inventory": "EVERY_PROVEN_IN_OBJECT_OBSERVED_IDENTITY_ASSIGNMENT_MAY_REMAIN_UNRESOLVED",
+      "unknown_membership": "BLOCK_COMPLETE",
+      "missing_required_metadata": "BLOCK_COMPLETE_NO_FABRICATION",
+      "identity": "REUSE_REMOTE_HISTORY_AUTHORITY_AND_EXISTING_SAME_NEW_ACCEPTANCE",
+      "revision": "UNCHANGED_REGULAR_SAME_REQUIRES_EXACT_CONTENT_EVIDENCE",
+      "replay": "RECONCILE_COMPLETE_OPEN_ABORTED_SOURCE_BOUND_SCANS_NO_BLIND_RETRY",
+      "dependencies_added": 0
+    },
+    "implementation_order": [
+      "P0_30A_SOURCE_BOUND_REMOTE_SCANSESSION",
+      "P0_30B_DETERMINISTIC_LIGHTWEIGHT_ALL_MATERIALIZER",
+      "P0_30C_EXISTING_IDENTITY_REVISION_INTEGRATION"
+    ],
+    "prior_art": [
+      "Microsoft Graph driveItem delta",
+      "Dropbox list_folder + cursor",
+      "Syncthing BEP Index + Index Update"
     ]
   }
 }
