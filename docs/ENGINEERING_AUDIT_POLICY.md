@@ -116,17 +116,15 @@ This distinction is preferred to pretending an earlier green slice proved behavi
 
 ## 7. Current audit clock
 
-P0-30C1 remains qualified at product/qualification boundary 029b49d4c1985cabab722214ac9218d3b5eaf2d9, with durable checkpoint be0e0be0ed850358a222603aeacbcfef0cc7ab0a and checkpoint CI fully green.
+P0-30C1's earlier v27 qualification remains historical evidence, but the current product boundary has been hardened to **schema v28** at product head `535c101103dd9a64d5d66b0ae1decf46720b8646`.
 
-However, P0-30C2 is currently LOCKED.
+Exact-head CI run `36278358385`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
 
-The active objective is FULL_AUDIT_UNTIL_CLEAN_BEFORE_P0_30C2.
+The v28 fix resolves `AUDIT_C1_B1_IDENTITY_CAUSAL_TIME_AUTHORITY`: RemoteHistory authority creation time is bound to its sealed exact publication, source-bound SAME/NEW decision time is causal to scan and authority, and SQLite migration/write guards protect the same durable provenance. Historical stale-authority revalidation remains semantic after history advance.
 
-A complete audit must run from the first required dimension to the last. If any new product finding appears at any severity, the dependent stage remains locked; fix one coherent finding slice, run exact-head CI, and restart the complete audit from the beginning. Repeat until one entire pass produces zero new product findings.
+The first post-fix full audit reached its final stale-state dimension and found `AUDIT_D0_L1_STALE_V28_QUALIFICATION_STATE`: durable state still advertised schema v27 and the old OPEN blocker. This metadata synchronization resolves that LOW finding, but **invalidates closure and requires another complete audit from the first dimension**.
 
-The most recent read-only audit command failed because of shell/heredoc syntax. It made no product mutation and established no product finding; therefore it does not count as a clean pass and the full audit restarts.
-
-Only a durably recorded zero-new-findings complete pass may unlock P0-30C2 materializer→identity/revision integration.
+P0-30C2 remains **LOCKED**. Only a fresh complete audit on the latest authoritative HEAD with zero new product findings may record CLEAN and unlock C2.
 
 
 ## 8. Parallel audit/research during execution
