@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 89,
+  "revision": 90,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -117,8 +117,8 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28C2B_MUTATION_BOUNDARY_LIFETIME_QUALIFICATION",
-    "description": "Qualify exact-head schema v12 C2B on validate, Ubuntu 24.04 and Windows 2025. Require remote NEW atomic segment binding, remote SAME segment binding authority, stale history authority rejection with zero mutation, v11-to-v12 migration, all prior tests and go vet. Do not begin C2C/C3 or live provider wiring until PASS.",
+    "id": "P0_28C2B_MUTATION_BOUNDARY_LIFETIME_REQUALIFICATION",
+    "description": "Requalify the minimal compile-only set.ID fix on exact-head validate, Ubuntu 24.04 and Windows 2025. Do not change C2B semantics or begin later work until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "332c5e8e888f10f22d5c5f35d255a6d82e042834",
+  "repository_basis_commit": "c343f30714c8bac2570600b1425f1dab5bef8587",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2762,7 +2762,7 @@
       }
     },
     "c2b": {
-      "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+      "status": "IMPLEMENTED_AWAITING_REQUALIFICATION",
       "scope": "FINAL_SAME_NEW_MUTATION_BOUNDARY_LIFETIME_INTEGRATION",
       "implementation": {
         "remote_history_authority_builder": "SHARED_BETWEEN_PRODUCER_AND_FINAL_REVALIDATION",
@@ -2788,6 +2788,18 @@
         "RemoteHistory SAME follows segment binding not conflicting naked binding",
         "history advance makes sealed authority stale and mutation-free rejection",
         "v11-to-v12 migration"
+      ],
+      "prequalification_failures": [
+        {
+          "head": "c343f30714c8bac2570600b1425f1dab5bef8587",
+          "ci_run_id": 36241289453,
+          "platform": "ubuntu-24.04",
+          "classification": "GO_COMPILE_UNDEFINED_AUTHORITY_ID_AFTER_SHARED_BUILDER_REFACTOR",
+          "location": "internal/state/sqlite/remote_history_authority.go",
+          "fix": "USE_SET_ID_RETURNED_BY_SHARED_AUTHORITY_BUILDER",
+          "product_state_mutation": false,
+          "corpus_mutation": false
+        }
       ]
     }
   }

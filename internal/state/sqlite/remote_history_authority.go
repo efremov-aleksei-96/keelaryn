@@ -69,7 +69,7 @@ func (s *Store) CreateRemoteHistoryIdentityAuthority(
 	if err := sqlitex.Execute(conn,
 		"SELECT 1 FROM identity_authority_sets WHERE authority_set_id=?1 LIMIT 1",
 		&sqlitex.ExecOptions{
-			Args: []any{string(authorityID)},
+			Args: []any{string(set.ID)},
 			ResultFunc: func(*sqlite.Stmt) error {
 				exists = true
 				return nil
@@ -78,12 +78,12 @@ func (s *Store) CreateRemoteHistoryIdentityAuthority(
 		return corpus.IdentityAuthoritySet{}, fmt.Errorf("query remote history authority replay: %w", err)
 	}
 	if exists {
-		existing, err := identityAuthoritySetConn(conn, authorityID)
+		existing, err := identityAuthoritySetConn(conn, set.ID)
 		if err != nil {
 			return corpus.IdentityAuthoritySet{}, err
 		}
 		if !sameIdentityAuthoritySemantics(existing, set) {
-			return corpus.IdentityAuthoritySet{}, fmt.Errorf("%w: %s", ErrRemoteHistoryIdentityAuthorityCollision, authorityID)
+			return corpus.IdentityAuthoritySet{}, fmt.Errorf("%w: %s", ErrRemoteHistoryIdentityAuthorityCollision, set.ID)
 		}
 		return existing, nil
 	}
