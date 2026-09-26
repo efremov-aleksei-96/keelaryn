@@ -68,6 +68,14 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 		if txErr := validateAuthorityScope(authority, scan, request.Observation); txErr != nil {
 			return txErr
 		}
+		remoteSegment, remoteBinding, remoteAuthority, txErr := revalidateRemoteHistoryIdentityAuthorityConn(conn, authority)
+		if txErr != nil {
+			return txErr
+		}
+		var lifetimeSegmentID any
+		if remoteAuthority {
+			lifetimeSegmentID = string(remoteSegment.ID)
+		}
 		resolution, txErr := candidateResolutionFromAuthority(authority)
 		if txErr != nil {
 			return txErr
@@ -82,7 +90,17 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 		if !exists {
 			return fmt.Errorf("%w: %s", corpus.ErrArtifactNotFound, resolution.SelectedArtifactID)
 		}
-		if bound, binding, txErr := providerArtifactBindingConn(
+		if remoteAuthority {
+			if remoteBinding == nil || remoteBinding.ArtifactID != resolution.SelectedArtifactID {
+				return fmt.Errorf(
+					"%w: segment=%s bound=%v resolved=%s",
+					ErrProviderLifetimeArtifactBindingConflict,
+					remoteSegment.ID,
+					remoteBinding,
+					resolution.SelectedArtifactID,
+				)
+			}
+		} else if bound, binding, txErr := providerArtifactBindingConn(
 			conn, authority.IdentityDomain, authority.ProviderID, authority.CurrentObjectID,
 		); txErr != nil {
 			return txErr
@@ -126,11 +144,11 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 			DecidedAt:      request.DecidedAt.UTC(),
 		}
 		if txErr := sqlitex.Execute(conn,
-			"INSERT INTO accepted_continuity_decisions (decision_id, observation_id, artifact_id, decision_state, policy_id, resolution_json, decided_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+			"INSERT INTO accepted_continuity_decisions (decision_id, observation_id, artifact_id, decision_state, policy_id, resolution_json, decided_at, lifetime_segment_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
 			&sqlitex.ExecOptions{Args: []any{
 				string(decision.ID), string(decision.ObservationID), string(decision.ArtifactID),
 				string(decision.State), decision.PolicyID, string(resolutionJSON),
-				decision.DecidedAt.Format(time.RFC3339Nano),
+				decision.DecidedAt.Format(time.RFC3339Nano), lifetimeSegmentID,
 			}}); txErr != nil {
 			return fmt.Errorf("insert accepted continuity decision: %w", txErr)
 		}

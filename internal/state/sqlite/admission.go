@@ -69,6 +69,17 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 		if txErr := validateAuthorityScope(authority, scan, request.Observation); txErr != nil {
 			return txErr
 		}
+		remoteSegment, remoteBinding, remoteAuthority, txErr := revalidateRemoteHistoryIdentityAuthorityConn(conn, authority)
+		if txErr != nil {
+			return txErr
+		}
+		var lifetimeSegmentID any
+		if remoteAuthority {
+			lifetimeSegmentID = string(remoteSegment.ID)
+			if remoteBinding != nil {
+				return fmt.Errorf("%w: current segment %s is already bound to %s", ErrProviderLifetimeArtifactBindingConflict, remoteSegment.ID, remoteBinding.ArtifactID)
+			}
+		}
 		resolution, txErr := occurrenceResolutionFromAuthority(authority)
 		if txErr != nil {
 			return txErr
@@ -79,12 +90,14 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 			resolution.Universe.Coverage != corpus.CandidateUniverseComplete {
 			return fmt.Errorf("%w: derived state=%s", ErrInvalidArtifactAdmission, resolution.State)
 		}
-		bound, _, txErr := providerArtifactBindingConn(conn, authority.IdentityDomain, authority.ProviderID, authority.CurrentObjectID)
-		if txErr != nil {
-			return txErr
-		}
-		if bound {
-			return fmt.Errorf("%w: %s/%s/%s", ErrProviderObjectAlreadyBound, authority.IdentityDomain, authority.ProviderID, authority.CurrentObjectID)
+		if !remoteAuthority {
+			bound, _, txErr := providerArtifactBindingConn(conn, authority.IdentityDomain, authority.ProviderID, authority.CurrentObjectID)
+			if txErr != nil {
+				return txErr
+			}
+			if bound {
+				return fmt.Errorf("%w: %s/%s/%s", ErrProviderObjectAlreadyBound, authority.IdentityDomain, authority.ProviderID, authority.CurrentObjectID)
+			}
 		}
 
 		artifactID := corpus.ArtifactID("art_" + uuid.NewString())
@@ -122,6 +135,17 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 			}}); txErr != nil {
 			return fmt.Errorf("insert provider Artifact binding: %w", txErr)
 		}
+		if remoteAuthority {
+			if _, _, txErr := insertProviderLifetimeArtifactBindingConn(conn, ProviderLifetimeArtifactBinding{
+				LifetimeSegmentID: remoteSegment.ID,
+				ArtifactID:        artifactID,
+				PolicyID:          remoteHistoryLifetimeAuthorityPolicyV1,
+				AuthoritySetID:    authority.ID,
+				AcceptedAt:        request.DecidedAt.UTC(),
+			}); txErr != nil {
+				return txErr
+			}
+		}
 		resolutionJSON, txErr := json.Marshal(resolution)
 		if txErr != nil {
 			return fmt.Errorf("marshal admission resolution: %w", txErr)
@@ -134,12 +158,12 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 			Resolution: resolution, DecidedAt: request.DecidedAt.UTC(),
 		}
 		if txErr := sqlitex.Execute(conn,
-			"INSERT INTO accepted_artifact_admissions (request_id, observation_id, artifact_id, identity_domain, provider_id, native_object_id, decision_state, policy_id, resolution_json, decided_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+			"INSERT INTO accepted_artifact_admissions (request_id, observation_id, artifact_id, identity_domain, provider_id, native_object_id, decision_state, policy_id, resolution_json, decided_at, lifetime_segment_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
 			&sqlitex.ExecOptions{Args: []any{
 				string(decision.RequestID), string(decision.ObservationID), string(decision.ArtifactID),
 				decision.IdentityDomain, string(decision.ProviderID), string(decision.ProviderObjectID),
 				string(decision.State), decision.PolicyID, string(resolutionJSON),
-				decision.DecidedAt.Format(time.RFC3339Nano),
+				decision.DecidedAt.Format(time.RFC3339Nano), lifetimeSegmentID,
 			}}); txErr != nil {
 			return fmt.Errorf("insert accepted Artifact admission: %w", txErr)
 		}

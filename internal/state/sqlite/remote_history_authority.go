@@ -60,6 +60,45 @@ func (s *Store) CreateRemoteHistoryIdentityAuthority(
 	}
 	defer end(&err)
 
+	set, err := buildRemoteHistoryIdentityAuthorityConn(conn, generationID, segmentID, createdAt)
+	if err != nil {
+		return corpus.IdentityAuthoritySet{}, err
+	}
+
+	var exists bool
+	if err := sqlitex.Execute(conn,
+		"SELECT 1 FROM identity_authority_sets WHERE authority_set_id=?1 LIMIT 1",
+		&sqlitex.ExecOptions{
+			Args: []any{string(authorityID)},
+			ResultFunc: func(*sqlite.Stmt) error {
+				exists = true
+				return nil
+			},
+		}); err != nil {
+		return corpus.IdentityAuthoritySet{}, fmt.Errorf("query remote history authority replay: %w", err)
+	}
+	if exists {
+		existing, err := identityAuthoritySetConn(conn, authorityID)
+		if err != nil {
+			return corpus.IdentityAuthoritySet{}, err
+		}
+		if !sameIdentityAuthoritySemantics(existing, set) {
+			return corpus.IdentityAuthoritySet{}, fmt.Errorf("%w: %s", ErrRemoteHistoryIdentityAuthorityCollision, authorityID)
+		}
+		return existing, nil
+	}
+	if err := insertIdentityAuthoritySetConn(conn, set); err != nil {
+		return corpus.IdentityAuthoritySet{}, err
+	}
+	return set, nil
+}
+
+func buildRemoteHistoryIdentityAuthorityConn(
+	conn *sqlite.Conn,
+	generationID remotehistory.HistoryGenerationID,
+	segmentID remotehistory.ProviderObjectLifetimeSegmentID,
+	createdAt time.Time,
+) (corpus.IdentityAuthoritySet, error) {
 	generation, err := remoteHistoryGenerationConn(conn, generationID)
 	if err != nil {
 		return corpus.IdentityAuthoritySet{}, err
@@ -142,33 +181,43 @@ func (s *Store) CreateRemoteHistoryIdentityAuthority(
 		return corpus.IdentityAuthoritySet{}, err
 	}
 	set.ID = authorityID
-
-	var exists bool
-	if err := sqlitex.Execute(conn,
-		"SELECT 1 FROM identity_authority_sets WHERE authority_set_id=?1 LIMIT 1",
-		&sqlitex.ExecOptions{
-			Args: []any{string(authorityID)},
-			ResultFunc: func(*sqlite.Stmt) error {
-				exists = true
-				return nil
-			},
-		}); err != nil {
-		return corpus.IdentityAuthoritySet{}, fmt.Errorf("query remote history authority replay: %w", err)
-	}
-	if exists {
-		existing, err := identityAuthoritySetConn(conn, authorityID)
-		if err != nil {
-			return corpus.IdentityAuthoritySet{}, err
-		}
-		if !sameIdentityAuthoritySemantics(existing, set) {
-			return corpus.IdentityAuthoritySet{}, fmt.Errorf("%w: %s", ErrRemoteHistoryIdentityAuthorityCollision, authorityID)
-		}
-		return existing, nil
-	}
-	if err := insertIdentityAuthoritySetConn(conn, set); err != nil {
-		return corpus.IdentityAuthoritySet{}, err
-	}
 	return set, nil
+}
+
+func revalidateRemoteHistoryIdentityAuthorityConn(
+	conn *sqlite.Conn,
+	authority corpus.IdentityAuthoritySet,
+) (remotehistory.ProviderObjectLifetimeSegment, *ProviderLifetimeArtifactBinding, bool, error) {
+	if authority.PolicyID != remoteHistoryLifetimeAuthorityPolicyV1 {
+		return remotehistory.ProviderObjectLifetimeSegment{}, nil, false, nil
+	}
+	if authority.GenerationID == "" || authority.LifetimeSegmentID == "" {
+		return remotehistory.ProviderObjectLifetimeSegment{}, nil, true, ErrRemoteHistoryIdentityAuthorityUnavailable
+	}
+	generationID := remotehistory.HistoryGenerationID(authority.GenerationID)
+	segmentID := remotehistory.ProviderObjectLifetimeSegmentID(authority.LifetimeSegmentID)
+	expected, err := buildRemoteHistoryIdentityAuthorityConn(conn, generationID, segmentID, authority.CreatedAt)
+	if err != nil {
+		return remotehistory.ProviderObjectLifetimeSegment{}, nil, true, err
+	}
+	if !sameIdentityAuthoritySemantics(authority, expected) {
+		return remotehistory.ProviderObjectLifetimeSegment{}, nil, true, fmt.Errorf(
+			"%w: sealed=%s current=%s",
+			ErrRemoteHistoryIdentityAuthorityCollision, authority.ID, expected.ID,
+		)
+	}
+	segment, err := lifetimeSegmentByIDConn(conn, segmentID)
+	if err != nil {
+		return remotehistory.ProviderObjectLifetimeSegment{}, nil, true, err
+	}
+	bound, binding, err := providerLifetimeArtifactBindingConn(conn, segmentID)
+	if err != nil {
+		return remotehistory.ProviderObjectLifetimeSegment{}, nil, true, err
+	}
+	if !bound {
+		return segment, nil, true, nil
+	}
+	return segment, &binding, true, nil
 }
 
 func lifetimeSegmentByIDConn(

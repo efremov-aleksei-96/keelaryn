@@ -900,6 +900,66 @@ BEGIN
 END;
 `,
 
+		`
+ALTER TABLE accepted_continuity_decisions
+	ADD COLUMN lifetime_segment_id TEXT
+		REFERENCES provider_object_lifetime_segments(lifetime_segment_id) ON DELETE RESTRICT;
+
+ALTER TABLE accepted_artifact_admissions
+	ADD COLUMN lifetime_segment_id TEXT
+		REFERENCES provider_object_lifetime_segments(lifetime_segment_id) ON DELETE RESTRICT;
+
+CREATE INDEX accepted_continuity_lifetime_segment
+	ON accepted_continuity_decisions (lifetime_segment_id);
+
+CREATE INDEX accepted_admission_lifetime_segment
+	ON accepted_artifact_admissions (lifetime_segment_id);
+
+CREATE TRIGGER accepted_continuity_lifetime_guard
+BEFORE INSERT ON accepted_continuity_decisions
+WHEN (
+	NEW.policy_id = 'remote-history:lifetime-segment:v1'
+	AND (
+		NEW.lifetime_segment_id IS NULL
+		OR NOT EXISTS (
+			SELECT 1
+			FROM provider_lifetime_artifact_bindings b
+			WHERE b.lifetime_segment_id = NEW.lifetime_segment_id
+			  AND b.artifact_id = NEW.artifact_id
+			  AND b.policy_id = NEW.policy_id
+		)
+	)
+) OR (
+	NEW.policy_id <> 'remote-history:lifetime-segment:v1'
+	AND NEW.lifetime_segment_id IS NOT NULL
+)
+BEGIN
+	SELECT RAISE(ABORT, 'accepted continuity lifetime provenance mismatch');
+END;
+
+CREATE TRIGGER accepted_admission_lifetime_guard
+BEFORE INSERT ON accepted_artifact_admissions
+WHEN (
+	NEW.policy_id = 'remote-history:lifetime-segment:v1'
+	AND (
+		NEW.lifetime_segment_id IS NULL
+		OR NOT EXISTS (
+			SELECT 1
+			FROM provider_lifetime_artifact_bindings b
+			WHERE b.lifetime_segment_id = NEW.lifetime_segment_id
+			  AND b.artifact_id = NEW.artifact_id
+			  AND b.policy_id = NEW.policy_id
+		)
+	)
+) OR (
+	NEW.policy_id <> 'remote-history:lifetime-segment:v1'
+	AND NEW.lifetime_segment_id IS NOT NULL
+)
+BEGIN
+	SELECT RAISE(ABORT, 'accepted admission lifetime provenance mismatch');
+END;
+`,
+
 	},
 }
 

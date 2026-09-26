@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 88,
+  "revision": 89,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -117,8 +117,8 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28C2B_MUTATION_BOUNDARY_LIFETIME_INTEGRATION",
-    "description": "Integrate qualified RemoteHistory lifetime authority into SAME/NEW acceptance: revalidate generation+segment+immutable-history projection+current membership+binding state inside the final SQLite mutation transaction; NEW atomically creates segment binding and records lifetime_segment_id provenance; SAME relies on segment binding rather than naked legacy binding. Preserve legacy/local acceptance semantics. No live OAuth/provider access and no corpus mutation.",
+    "id": "P0_28C2B_MUTATION_BOUNDARY_LIFETIME_QUALIFICATION",
+    "description": "Qualify exact-head schema v12 C2B on validate, Ubuntu 24.04 and Windows 2025. Require remote NEW atomic segment binding, remote SAME segment binding authority, stale history authority rejection with zero mutation, v11-to-v12 migration, all prior tests and go vet. Do not begin C2C/C3 or live provider wiring until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "f4f334a2c593b63aedc81a0780f6a9feb94139c5",
+  "repository_basis_commit": "332c5e8e888f10f22d5c5f35d255a6d82e042834",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2589,7 +2589,7 @@
     }
   },
   "p0_28c": {
-    "status": "C2A_QUALIFIED_C2B_NEXT",
+    "status": "C2B_IMPLEMENTED_AWAITING_QUALIFICATION",
     "evidence_document": "docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md",
     "dependencies_added": 0,
     "live_oauth_used": false,
@@ -2624,7 +2624,7 @@
       "P0_28C2_LIFETIME_BINDING_AND_AUTHORITY_INTEGRATION",
       "P0_28C3_BOUNDARY_RETROSPECTIVE"
     ],
-    "schema_version": 11,
+    "schema_version": 12,
     "c1": {
       "status": "QUALIFIED",
       "implementation": {
@@ -2760,6 +2760,35 @@
         "live_provider_used": false,
         "corpus_mutations": 0
       }
+    },
+    "c2b": {
+      "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+      "scope": "FINAL_SAME_NEW_MUTATION_BOUNDARY_LIFETIME_INTEGRATION",
+      "implementation": {
+        "remote_history_authority_builder": "SHARED_BETWEEN_PRODUCER_AND_FINAL_REVALIDATION",
+        "final_revalidation": [
+          "ACTIVE_GENERATION",
+          "ACTIVE_SEGMENT",
+          "SEGMENT_REDERIVED_FROM_IMMUTABLE_HISTORY",
+          "CURRENT_MEMBERSHIP",
+          "CURRENT_BINDING_AND_PREDECESSOR_STATE",
+          "SEALED_AUTHORITY_SEMANTICS_EXACT_MATCH"
+        ],
+        "remote_new": "ATOMIC_ARTIFACT_REVISION_OBSERVATION_NAKED_COMPAT_BINDING_PLUS_SEGMENT_BINDING_PLUS_ADMISSION",
+        "remote_same": "REQUIRES_CURRENT_SEGMENT_BINDING_TO_SELECTED_ARTIFACT_AND_IGNORES_NAKED_BINDING_AS_AUTHORITY",
+        "decision_provenance": "accepted SAME/NEW rows persist lifetime_segment_id",
+        "stale_authority": "FAIL_CLOSED_BEFORE_IDENTITY_MUTATION",
+        "local_legacy_policy_behavior": "UNCHANGED",
+        "schema_version": 12,
+        "live_provider_used": false,
+        "corpus_mutations": 0
+      },
+      "tests": [
+        "RemoteHistory NEW creates segment binding atomically",
+        "RemoteHistory SAME follows segment binding not conflicting naked binding",
+        "history advance makes sealed authority stale and mutation-free rejection",
+        "v11-to-v12 migration"
+      ]
     }
   }
 }
