@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 126,
+  "revision": 127,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -123,14 +123,15 @@
     "P0_29C3_LIFETIME_HARDENING_IMPLEMENTED",
     "P0_29C3_MANAGED_ROOT_MEMBERSHIP_QUALIFIED",
     "P0_29D_BOUNDARY_RETROSPECTIVE_PASS",
-    "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_QUALIFIED"
+    "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_QUALIFIED",
+    "P0_CLOSURE_REAUDIT_AFTER_P0_29_COMPLETE"
   ],
   "next_objective": {
-    "id": "P0_CLOSURE_REAUDIT_AFTER_P0_29",
-    "description": "Perform a read-only P0 closure re-audit against KEELARYN_CANONICAL.md using the qualified P0-29 exact-head evidence. Re-evaluate every required P0 capability/proof case and current active-tree implementation, check reuse/nearest analogs, and identify the earliest remaining correctness/product gap before choosing the next substantive stage. Do not assume live Google, FTS, MCP, remote ingest, Android or another feature is next until the audit establishes ordering.",
+    "id": "P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT_AND_REUSE_RESEARCH",
+    "description": "Define the smallest deterministic provider-state-to-Observation/inventory orchestration contract. Reuse existing ScanSession/Observation/inventory, qualified RemoteHistory generation/publication/lifetime/topology state, CreateRemoteHistoryIdentityAuthority, and SAME/NEW acceptance. Specify exact snapshot boundary, metadata provenance, IN/OUT/UNKNOWN handling, interruption/replay behavior, and the regular-file SAME ContentEvidence requirement. Do not create a second inventory/identity layer; no live OAuth/provider access or corpus mutation. Perform nearest-analogue research before implementation.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "READ_ONLY_AUDIT_FIRST_NO_FEATURE_IMPLEMENTATION_UNTIL_NEXT_GAP_IS_DURABLY_SELECTED"
+    "audit_gate": "CONTRACT_AND_REUSE_RESEARCH_FIRST_THEN_IMPLEMENT_ONE_STAGE_THEN_MANDATORY_STAGE_RETROSPECTIVE"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -161,7 +162,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "be53c465823855704d5ac14b12f1bfc3de0160b7",
+  "repository_basis_commit": "057535e98b686fb6edfba8cb98c4c911562abea2",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3680,5 +3681,30 @@
       "live_provider_used": false,
       "corpus_mutations": 0
     }
+  },
+  "p0_closure_audit": {
+    "date": "2026-09-26",
+    "status": "P0_NOT_CLOSED",
+    "document": "docs/P0_CLOSURE_AUDIT_20260926.md",
+    "audited_head": "057535e98b686fb6edfba8cb98c4c911562abea2",
+    "ci_run_id": 36258258088,
+    "conclusion": "PASS_AUDIT_NEXT_GAP_SELECTED",
+    "earliest_remaining_gap": "REMOTE_PROVIDER_STATE_TO_EXISTING_OBSERVATION_INVENTORY_MATERIALIZATION_AND_IDENTITY_ORCHESTRATION",
+    "do_not_duplicate": [
+      "RemoteHistory generation/publication",
+      "provider lifetime segmentation",
+      "remote identity authority",
+      "SAME acceptance",
+      "NEW acceptance",
+      "Google topology/membership"
+    ],
+    "explicit_not_next": [
+      "live Google OAuth qualification",
+      "FTS",
+      "MCP/HTTP/UI",
+      "Android adapter",
+      "physical mutation",
+      "new identity schema"
+    ]
   }
 }

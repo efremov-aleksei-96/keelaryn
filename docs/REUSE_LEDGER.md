@@ -1081,3 +1081,23 @@ The initially considered schema-v17 correction was rejected as unnecessary. Exis
 Decision: compare accepted binding/edge evidence positions against current lifetime-segment starts and return UNKNOWN on mismatch. Keep schema v16; do not add a second lifetime-binding or parent-edge incarnation table.
 
 Detailed audit: docs/P0_29D_BOUNDARY_RETROSPECTIVE_20260926.md.
+
+## P0 closure re-audit after P0-29 — remote materialized-state analogs
+
+The P0-29 closure re-audit rechecked the remaining remote end-to-end gap against mature delta/state patterns.
+
+- **Microsoft Graph driveItem delta**: initial enumeration establishes local state; later delta requests mutate that local representation; reset/resync rebuilds local state from a new enumeration.
+- **Dropbox list_folder + cursor**: ordered list/cursor flow is explicitly suitable for maintaining a local cache/state.
+- **Syncthing BEP Index / Index Update**: full Index establishes a peer view; Index Update amends it; index identity + sequence define the state boundary.
+
+Keelaryn reuse decision:
+
+- materialize exact provider state into the already-qualified ScanSession/Observation/inventory model;
+- bind materialization to exact HistoryGeneration/publication (and provider-specific topology watermark where needed);
+- reuse existing RemoteHistory lifetime authority and SAME/NEW acceptance;
+- do not create a second remote inventory or identity engine;
+- keep RemoteHistory metadata deliberately narrow rather than turning it into a duplicate Observation model;
+- acquire additional provider metadata/content evidence only when required by existing Observation/Revision semantics.
+
+Detailed audit: `docs/P0_CLOSURE_AUDIT_20260926.md`.
+
