@@ -451,3 +451,21 @@ Qualified schema: v11.
 
 This qualifies segment binding storage and production of sealed history-backed authority only. SAME/NEW mutation transactions still do not consume this authority until P0-28C2B.
 
+## 16. P0-28C2B qualification
+
+Final mutation-boundary lifetime integration is qualified on product head:
+
+```text
+427d1d27c94e7644cf4c91f9b2b864617658e044
+```
+
+GitHub Actions run `36241394864`:
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+Schema v12 records `lifetime_segment_id` on accepted SAME/NEW provenance. RemoteHistory authority is rebuilt and revalidated inside the final SQLite mutation transaction. NEW atomically establishes the current segment→Artifact binding; SAME requires that segment binding and does not use a naked legacy provider binding as conclusive authority. A history advance makes a previously sealed authority stale and mutation-ineligible.
+
+No live OAuth/provider access or corpus mutation occurred.
+

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 90,
+  "revision": 91,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -117,8 +117,8 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28C2B_MUTATION_BOUNDARY_LIFETIME_REQUALIFICATION",
-    "description": "Requalify the minimal compile-only set.ID fix on exact-head validate, Ubuntu 24.04 and Windows 2025. Do not change C2B semantics or begin later work until PASS.",
+    "id": "P0_28C3_LIFETIME_AUTHORITY_BOUNDARY_RETROSPECTIVE",
+    "description": "Run the mandatory P0-28C boundary retrospective across schema v10-v12: direct-SQL trust boundary, reconstruction determinism, stale/replay/interruption semantics, REMOVED/reappearance and cross-generation adversarial cases, legacy naked-binding interaction, and accepted-decision provenance. Fix any blocker before live provider wiring.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "c343f30714c8bac2570600b1425f1dab5bef8587",
+  "repository_basis_commit": "427d1d27c94e7644cf4c91f9b2b864617658e044",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2267,7 +2267,7 @@
       "ci_run_id": 36237799373,
       "conclusion": "SUCCESS"
     },
-    "substantive_slices_since_last_retrospective": 0,
+    "substantive_slices_since_last_retrospective": 2,
     "mandatory_triggers": [
       "before new live external/provider trust boundary",
       "before new durable user/corpus mutation path",
@@ -2589,7 +2589,7 @@
     }
   },
   "p0_28c": {
-    "status": "C2B_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "C2B_QUALIFIED_C3_NEXT",
     "evidence_document": "docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md",
     "dependencies_added": 0,
     "live_oauth_used": false,
@@ -2762,7 +2762,7 @@
       }
     },
     "c2b": {
-      "status": "IMPLEMENTED_AWAITING_REQUALIFICATION",
+      "status": "QUALIFIED",
       "scope": "FINAL_SAME_NEW_MUTATION_BOUNDARY_LIFETIME_INTEGRATION",
       "implementation": {
         "remote_history_authority_builder": "SHARED_BETWEEN_PRODUCER_AND_FINAL_REVALIDATION",
@@ -2800,7 +2800,34 @@
           "product_state_mutation": false,
           "corpus_mutation": false
         }
-      ]
+      ],
+      "qualification": {
+        "exact_head": "427d1d27c94e7644cf4c91f9b2b864617658e044",
+        "ci_run_id": 36241394864,
+        "conclusion": "SUCCESS",
+        "jobs": {
+          "validate": "PASS",
+          "go (ubuntu-24.04)": "PASS",
+          "go (windows-2025)": "PASS"
+        },
+        "schema_version": 12,
+        "gates": [
+          "shared RemoteHistory authority builder used by producer and mutation revalidation",
+          "RemoteHistory NEW atomically creates provider lifetime Artifact binding",
+          "RemoteHistory SAME relies on current lifetime-segment binding",
+          "conflicting naked legacy binding does not override current lifetime binding",
+          "stale sealed RemoteHistory authority rejected after history publication advances",
+          "stale authority rejection performs zero identity mutation",
+          "accepted SAME/NEW durable rows bind lifetime_segment_id provenance",
+          "v11-to-v12 migration",
+          "all prior tests",
+          "go mod tidy -diff",
+          "go vet"
+        ],
+        "live_oauth_used": false,
+        "live_provider_used": false,
+        "corpus_mutations": 0
+      }
     }
   }
 }
