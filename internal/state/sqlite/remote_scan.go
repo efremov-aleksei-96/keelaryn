@@ -246,7 +246,7 @@ func verifyRemoteMetadataSnapshotFingerprintConn(
 	entries := make([]remotehistory.RemoteMetadataFingerprintEntry, 0)
 	seenObjects := make(map[corpus.ProviderObjectID]struct{})
 	if err := sqlitex.Execute(conn,
-		"SELECT o.observation_id,p.provider_id,COALESCE(p.native_object_id,''),p.identity_state,o.kind,o.size,o.mode,o.modified_at FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id=o.occurrence_id WHERE o.scan_id=?1 ORDER BY o.observation_id",
+		"SELECT o.observation_id,p.provider_id,COALESCE(p.native_object_id,''),p.identity_state,o.kind,o.size,o.mode,o.observed_at,o.modified_at FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id=o.occurrence_id WHERE o.scan_id=?1 ORDER BY o.observation_id",
 		&sqlitex.ExecOptions{
 			Args: []any{string(scan.ID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
@@ -257,10 +257,15 @@ func verifyRemoteMetadataSnapshotFingerprintConn(
 				kind := corpus.EntryKind(stmt.ColumnText(4))
 				size := stmt.ColumnInt64(5)
 				modeValue := stmt.ColumnInt64(6)
-				modifiedText := stmt.ColumnText(7)
+				observedText := stmt.ColumnText(7)
+				modifiedText := stmt.ColumnText(8)
 				if providerID != scan.ProviderID || objectID == "" || identityState != corpus.ObjectIdentityObserved ||
 					size < 0 || modeValue < 0 || modeValue > int64(^uint32(0)) {
 					return ErrRemoteHistoryScanSnapshotMismatch
+				}
+				observedAt, err := time.Parse(time.RFC3339Nano, observedText)
+				if err != nil || !observedAt.Equal(scan.StartedAt) {
+					return fmt.Errorf("%w: observation time for %s does not match scan boundary", ErrRemoteHistoryScanSnapshotMismatch, objectID)
 				}
 				if _, duplicate := seenObjects[objectID]; duplicate {
 					return fmt.Errorf("%w: duplicate provider object %s", ErrRemoteHistoryScanSnapshotMismatch, objectID)

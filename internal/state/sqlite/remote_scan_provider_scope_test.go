@@ -63,6 +63,42 @@ func TestRemoteMetadataDirectSQLCannotBypassValidatedCompletion(t *testing.T) {
 	}
 }
 
+func TestRemoteMetadataCompletionRejectsObservationTimeOutsideScanBoundary(t *testing.T) {
+	fixture := newGoogleRemoteCompletionFixture(t)
+	entries := []remotehistory.RemoteMetadataFingerprintEntry{
+		fixture.entry("managed", corpus.EntryOther, 0, fixture.base),
+		fixture.entry("child", corpus.EntryRegularFile, 7, fixture.base.Add(time.Second)),
+	}
+	scan, err := fixture.startScan(entries, fixture.scanRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.record(scan.ID, entries[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.recordAt(scan.ID, entries[1], fixture.base.Add(time.Minute+time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := fixture.store.CompleteRemoteHistoryScan(
+		context.Background(),
+		scan.ID,
+		fixture.base.Add(2*time.Minute),
+	); !errors.Is(err, ErrRemoteHistoryScanSnapshotMismatch) {
+		t.Fatalf("completion error=%v want ErrRemoteHistoryScanSnapshotMismatch", err)
+	}
+	stored, err := fixture.store.ScanSession(context.Background(), scan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != corpus.ScanOpen {
+		t.Fatalf("failed observation-time completion mutated scan: %#v", stored)
+	}
+	if err := fixture.store.AbortScan(context.Background(), scan.ID, fixture.base.Add(3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRemoteMetadataCompletionRejectsProviderWithoutQualifiedScopeValidator(t *testing.T) {
 	ctx := context.Background()
 	store := openStoreInternal(t)
@@ -388,6 +424,14 @@ func (f googleRemoteCompletionFixture) record(
 	scanID corpus.ScanSessionID,
 	entry remotehistory.RemoteMetadataFingerprintEntry,
 ) error {
+	return f.recordAt(scanID, entry, f.base.Add(time.Minute))
+}
+
+func (f googleRemoteCompletionFixture) recordAt(
+	scanID corpus.ScanSessionID,
+	entry remotehistory.RemoteMetadataFingerprintEntry,
+	observedAt time.Time,
+) error {
 	modifiedAt, err := time.Parse(time.RFC3339Nano, entry.ModifiedAt)
 	if err != nil {
 		return err
@@ -400,7 +444,7 @@ func (f googleRemoteCompletionFixture) record(
 		},
 		Locators:        append([]corpus.Locator(nil), entry.Locators...),
 		AssignmentState: corpus.AssignmentUnresolved,
-		ObservedAt:      f.base.Add(time.Minute),
+		ObservedAt:      observedAt,
 		Kind:            entry.Kind,
 		Size:            entry.Size,
 		Mode:            entry.Mode,
