@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 107,
+  "revision": 108,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C2A_ADAPTER_BUNDLE_QUALIFICATION",
-    "description": "Qualify exact-head Google Drive topology-aware adapter bundle on validate, Ubuntu 24.04 and Windows 2025. Require generic adapter regression suite plus topology alignment/order/fail-closed tests. Do not start atomic Store sidecar integration until PASS.",
+    "id": "P0_29C2A_ADAPTER_BUNDLE_REQUALIFICATION",
+    "description": "Requalify the exact-head PageMore continuation fix on validate, Ubuntu 24.04 and Windows 2025. Require repeated-object multi-page topology/history order plus all prior adapter tests. Do not begin atomic Store sidecar integration until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "adece6c84bf6a832fcf8659a95c527039f057471",
+  "repository_basis_commit": "fc775d21777111346e45992a0f1089f054ec1cfa",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3209,7 +3209,7 @@
       "c2": {
         "status": "A_IMPLEMENTED_AWAITING_QUALIFICATION",
         "a": {
-          "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+          "status": "IMPLEMENTED_AWAITING_REQUALIFICATION",
           "scope": "GDRIVE_HISTORY_TOPOLOGY_BUNDLE",
           "implementation": {
             "bootstrap_bundle": "RemoteHistory bootstrap + final topology snapshot at terminal fence",
@@ -3230,6 +3230,18 @@
             "multi-page repeated object topology order",
             "multiple parents fail closed",
             "all prior generic adapter tests run through topology-aware path"
+          ],
+          "prequalification_failures": [
+            {
+              "head": "fc775d21777111346e45992a0f1089f054ec1cfa",
+              "ci_run_id": 36247970838,
+              "platform": "ubuntu-24.04",
+              "classification": "MULTIPAGE_TOPOLOGY_CYCLE_RETURNED_AFTER_PAGE_MORE",
+              "location": "internal/remotehistory/gdrive/topology_adapter.go",
+              "fix": "PAGE_MORE_CONTINUES_TO_NEXT_PROVIDER_PAGE",
+              "product_scope_changed": false,
+              "corpus_mutation": false
+            }
           ]
         }
       }

@@ -157,6 +157,7 @@ func ConsumeChangesWithTopology(
 		switch page.History.Status {
 		case remotehistory.PageMore:
 			continuation = page.History.Continuation
+			continue
 		case remotehistory.PageTerminal:
 			cycle.Status = remotehistory.CycleComplete
 			cycle.NextCursor = page.History.NextCursor
