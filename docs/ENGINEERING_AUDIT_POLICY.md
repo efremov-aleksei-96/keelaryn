@@ -84,14 +84,20 @@ Workflow:
 
 ```text
 reconcile authoritative HEAD / CI / runtime
-→ read-only implementation + call-site audit
+→ run the complete read-only audit from the first required dimension
 → nearest-analog / reuse audit
-→ classify findings
-→ durably record audit
-→ fix one coherent blocker slice at a time
-→ exact-head CI
-→ re-audit the boundary before enabling dependent live behavior
+→ if ANY new product finding appears at ANY severity:
+     stop dependent implementation
+     → fix one coherent finding slice
+     → exact-head CI
+     → discard the previous closure attempt
+     → restart the COMPLETE audit from the first dimension
+→ repeat until one complete pass finds ZERO new product findings
+→ durably record CLEAN
+→ only then unlock the next substantive stage
 ```
+
+A partial re-check is never sufficient after a finding is fixed. A later clean check of only the affected subsystem does not restore qualification. The full audit must restart from the beginning and reach the end without discovering another new product finding.
 
 ## 6. Qualification meaning
 
@@ -110,15 +116,17 @@ This distinction is preferred to pretending an earlier green slice proved behavi
 
 ## 7. Current audit clock
 
-P0-30C1 remote identity-acceptance boundary is **qualified** at `029b49d4c1985cabab722214ac9218d3b5eaf2d9`.
+P0-30C1 remains qualified at product/qualification boundary 029b49d4c1985cabab722214ac9218d3b5eaf2d9, with durable checkpoint be0e0be0ed850358a222603aeacbcfef0cc7ab0a and checkpoint CI fully green.
 
-Exact-head CI run `36276633396`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS. Current SQLite schema authority: **v27**.
+However, P0-30C2 is currently LOCKED.
 
-The C1 retrospective found and resolved four BLOCKER-class defects (non-regular SAME nil-evidence revision handling, noncanonical provider locator acceptance, unbound source Observation time, and raw-SQL identity-application bypass), one LOW duplication finding, and two test gaps. No open BLOCKER/HIGH/MEDIUM/LOW product finding remains in the C1 boundary.
+The active objective is FULL_AUDIT_UNTIL_CLEAN_BEFORE_P0_30C2.
 
-This does **not** qualify P0-30C as a whole. The next substantive slice is **P0-30C2 materializer→identity/revision integration**. After C2, a full retrospective starts from scratch before any further C slice or P0-30 qualification.
+A complete audit must run from the first required dimension to the last. If any new product finding appears at any severity, the dependent stage remains locked; fix one coherent finding slice, run exact-head CI, and restart the complete audit from the beginning. Repeat until one entire pass produces zero new product findings.
 
-The explicit recovery rule is now durable: **any failed closure attempt or newly discovered defect invalidates the prior closure audit; after the fix, run the full audit again from the beginning.**
+The most recent read-only audit command failed because of shell/heredoc syntax. It made no product mutation and established no product finding; therefore it does not count as a clean pass and the full audit restarts.
+
+Only a durably recorded zero-new-findings complete pass may unlock P0-30C2 materializer→identity/revision integration.
 
 
 ## 8. Parallel audit/research during execution
@@ -141,6 +149,32 @@ Requirements:
 4. never let a long-running CI job create a long silent period for the maintainer—report status periodically;
 5. interruption recovery still begins from authoritative state, not from unfinished parallel scratch work.
 
+
+## 8A. Zero-findings closure loop
+
+This project uses a stricter closure rule than ordinary retrospective sampling.
+
+A stage or boundary is not closable merely because the latest defect was fixed, its targeted regression is green, exact-head CI is green, or the previously failing subsystem now passes.
+
+Closure requires a fresh complete audit pass after the latest fix.
+
+```text
+FULL AUDIT FROM SCRATCH
+↓
+new finding?
+├─ YES → stop → fix one coherent slice → exact-head CI → restart FULL AUDIT FROM SCRATCH
+└─ NO  → record CLEAN → unlock dependent stage
+```
+
+Rules:
+
+1. Any newly discovered BLOCKER, HIGH, MEDIUM, or LOW product finding invalidates the current closure attempt.
+2. Any failed closure attempt that reveals a real product defect also invalidates the current closure attempt.
+3. Test-only, metadata-only, and audit-tool corrections do not by themselves qualify product behavior; if they occur before closure, the audit restarts on the new authoritative HEAD.
+4. Audit-tool/harness failure without a product mutation or product finding is recorded as an interrupted audit, not as a clean pass; restart the full audit.
+5. No dependent substantive stage may begin while the zero-findings loop is active.
+6. A clean pass means the engineer reached the end of all required audit dimensions on the latest authoritative HEAD without finding any new product defect.
+7. The CLEAN result must be recorded durably before the next stage is unlocked.
 
 ## 9. Stage-completion audit gate
 

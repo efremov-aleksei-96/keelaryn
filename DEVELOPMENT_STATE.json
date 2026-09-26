@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 133,
+  "revision": 134,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,11 +144,12 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-    "description": "Integrate the already-qualified deterministic LIGHTWEIGHT_ALL materializer with existing RemoteHistory lifetime authority and existing SAME/NEW acceptance before each object's single Observation is written. Reuse RemoteHistoryLifetimeSegments, CreateRemoteHistoryIdentityAuthority, corpus.ResolveIdentityAuthoritySet, AcceptNewObservationInScan, AcceptSameObservationInScan, RecordObservationInScan and existing Revision/ContentEvidence rules. Derive deterministic mutation request IDs from exact scan/source/object/operation semantics. RESOLVED_NEW uses existing NEW; RESOLVED_SAME uses existing SAME only when the entry kind/evidence rules permit it (regular SAME without exact ContentEvidence remains unresolved; non-regular SAME may assign without Revision); AMBIGUOUS/UNRESOLVED remain one unresolved Observation. Optional ContentEvidence is enrichment and remains excluded from metadata snapshot fingerprint. Preserve exact-source replay, one Observation per object, previous COMPLETE inventory authority, fail-closed history advance, schema v27 application authority, and all B completion guards. No live provider/OAuth access, no content download solely to force SAME, no second identity resolver/inventory, no CLI/MCP/HTTP exposure and no corpus mutation. After implementation run exact-head validate/Ubuntu/Windows and a full retrospective from scratch before any P0-30 qualification.",
+    "id": "FULL_AUDIT_UNTIL_CLEAN_BEFORE_P0_30C2",
+    "description": "Do not implement P0-30C2 yet. Run a complete read-only audit of the current authoritative boundary across canonical invariants, durable authority/schema, transaction atomicity, replay/interruption, local/generic regressions, source/provider races, provenance/time causality, migration/recovery, direct-SQL adversarial paths, runtime reachability, security, portability, stale durable claims, duplicate mechanisms, unnecessary abstractions, and external reuse opportunities. If ANY new product finding is discovered at any severity (BLOCKER/HIGH/MEDIUM/LOW), stop dependent implementation, fix exactly one coherent finding slice, run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the entire audit from the first dimension. Repeat until one complete audit pass finds zero new product findings. Only then durably record CLEAN and unlock P0-30C2.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "MANDATORY_FULL_REAUDIT_AFTER_P0_30C2_BEFORE_ANY_FURTHER_C_SLICE_OR_P0_30_QUALIFICATION"
+    "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
+    "audit_gate": "ZERO_NEW_FINDINGS_FULL_AUDIT_PASS_REQUIRED"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4295,7 +4296,21 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-    "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH"
+    "current_stage": "FULL_AUDIT_UNTIL_CLEAN_BEFORE_P0_30C2",
+    "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
+    "audit_loop_mode": "FULL_AUDIT_FROM_SCRATCH_UNTIL_ZERO_NEW_FINDINGS",
+    "clean_pass_required": true,
+    "clean_pass_definition": "ONE_COMPLETE_AUDIT_PASS_FINDS_NO_NEW_BLOCKER_HIGH_MEDIUM_LOW_PRODUCT_FINDINGS",
+    "on_any_new_finding": "STOP_DEPENDENT_WORK_FIX_ONE_COHERENT_FINDING_SLICE_RUN_EXACT_HEAD_CI_THEN_RESTART_FULL_AUDIT_FROM_FIRST_DIMENSION",
+    "on_failed_closure": "INVALIDATE_CURRENT_CLOSURE_ATTEMPT_AND_RESTART_FULL_AUDIT_AFTER_FIX",
+    "next_stage_locked": true,
+    "blocked_next_stage": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
+    "unlock_condition": "FULL_CLEAN_AUDIT_PASS_RECORDED_DURABLY_AFTER_LATEST_FIX",
+    "last_audit_harness_failure": {
+      "head": "be0e0be0ed850358a222603aeacbcfef0cc7ab0a",
+      "kind": "READ_ONLY_AUDIT_COMMAND_SYNTAX_FAILURE",
+      "product_state_mutated": false,
+      "effect": "NO_PRODUCT_FINDING_RECORDED_AUDIT_MUST_RESTART"
+    }
   }
 }
