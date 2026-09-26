@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 129,
+  "revision": 130,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -125,14 +125,18 @@
     "P0_29D_BOUNDARY_RETROSPECTIVE_PASS",
     "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_QUALIFIED",
     "P0_CLOSURE_REAUDIT_AFTER_P0_29_COMPLETE",
-    "P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT_DECIDED"
+    "P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT_DECIDED",
+    "P0_30A_SOURCE_BOUND_REMOTE_SCANSESSION_IMPLEMENTED",
+    "P0_30A_SQLITE_AUTHORITY_HARDENING_IMPLEMENTED",
+    "P0_30A_SOURCE_BOUND_REMOTE_SCANSESSION_QUALIFIED",
+    "P0_30A_BOUNDARY_RETROSPECTIVE_PASS"
   ],
   "next_objective": {
-    "id": "P0_30A_SOURCE_BOUND_REMOTE_SCANSESSION_QUALIFICATION_AND_STAGE_AUDIT",
-    "description": "Qualify exact-head P0-30A schema v17 on validate, Ubuntu 24.04 and Windows 2025. Require immutable exact remote scan source provenance, replay/reconcile semantics, history-advance completion guard, generic CompleteScan bypass guard, reopen durability, v16-to-v17 migration and all prior local scan tests. Then perform the mandatory per-stage correctness/reuse retrospective before any P0-30B work.",
+    "id": "P0_30B_DETERMINISTIC_LIGHTWEIGHT_ALL_MATERIALIZER",
+    "description": "Implement only P0-30B: provider-neutral deterministic LIGHTWEIGHT_ALL metadata snapshot/fingerprint materialization into the existing source-bound ScanSession/Observation/Inventory path. Validate exact IN set, provider-specific scan-scoped locator projection, required metadata completeness, UNKNOWN fail-closed behavior, replay/reconciliation, and preservation of previous COMPLETE inventory while a new attempt is OPEN/ABORTED. No identity assignment, live Google OAuth/provider access, content downloading, second inventory, or corpus mutation. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI and the mandatory stage retrospective before P0-30C.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "MANDATORY_STAGE_RETROSPECTIVE_AFTER_CI_BEFORE_P0_30B"
+    "audit_gate": "MANDATORY_STAGE_RETROSPECTIVE_AFTER_P0_30B_BEFORE_P0_30C"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -163,7 +167,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "95c9a81e22fe946e33423cef95b7a5dbb3304842",
+  "repository_basis_commit": "bec746f4f2d8975c3ac44405b9aaa14551beb0ea",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2274,9 +2278,9 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "be53c465823855704d5ac14b12f1bfc3de0160b7",
-      "document": "docs/P0_29D_BOUNDARY_RETROSPECTIVE_20260926.md",
-      "ci_run_id": 36257933663,
+      "head": "bec746f4f2d8975c3ac44405b9aaa14551beb0ea",
+      "document": "docs/P0_30A_BOUNDARY_RETROSPECTIVE_20260926.md",
+      "ci_run_id": 36262810988,
       "conclusion": "PASS"
     },
     "substantive_slices_since_last_retrospective": 0,
@@ -3709,7 +3713,7 @@
     ]
   },
   "p0_30": {
-    "status": "A_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "A_QUALIFIED_B_IMPLEMENTATION_NEXT",
     "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -3735,11 +3739,11 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 17,
+    "schema_version": 18,
     "a": {
-      "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+      "status": "QUALIFIED",
       "implementation": {
-        "schema_version": 17,
+        "schema_version": 18,
         "sidecar_table": "remote_scan_sources",
         "scan_status_authority": "EXISTING_SCANSESSION_OPEN_COMPLETE_ABORTED_UNCHANGED",
         "start_api": "StartRemoteHistoryScan",
@@ -3757,7 +3761,11 @@
         "observation_materializer": false,
         "identity_integration": false,
         "live_provider_used": false,
-        "corpus_mutations": 0
+        "corpus_mutations": 0,
+        "introduced_schema_version": 17,
+        "authority_hardening_schema_version": 18,
+        "scan_session_sqlite_authority_guard": "SOURCE_BOUND_SCAN_PROVIDER_ROOT_STARTED_AT_IMMUTABLE_ONLY_OPEN_TO_COMPLETE_OR_ABORTED_TERMINAL_TRANSITION_ALLOWED",
+        "sqlite_complete_guard": "DIRECT_OR_API_COMPLETE_REQUIRES_ACTIVE_GENERATION_AND_CURRENT_SEQUENCE_EQUALS_BOUND_PUBLICATION"
       },
       "tests": [
         "OPEN remote scan start and exact source lookup",
@@ -3772,8 +3780,94 @@
         "source provenance survives reopen",
         "invalid fingerprint fails closed",
         "v16-to-v17 migration",
-        "all existing local ScanSession tests remain required"
-      ]
+        "all existing local ScanSession tests remain required",
+        "source-bound scan provider/root/started_at direct-SQL tamper rejected",
+        "stale source-bound OPEN-to-COMPLETE direct-SQL bypass rejected",
+        "terminal source-bound scan rewrite rejected",
+        "v17-to-v18 hardening migration",
+        "all prior P0-30A and local ScanSession tests remain required"
+      ],
+      "stage_audit": {
+        "document": "docs/P0_30A_BOUNDARY_RETROSPECTIVE_20260926.md",
+        "initial_implementation_head": "8502548da50f500fb5a85c47378e15f5402b8ab0",
+        "initial_ci_run_id": 36261026382,
+        "initial_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+        "findings": [
+          {
+            "id": "A-B1",
+            "severity": "BLOCKER",
+            "issue": "remote_scan_sources was immutable but source-bound scan_sessions provider_id/root/started_at remained SQLite-mutable, allowing durable provenance context to be rewritten",
+            "correction": "schema v18 remote_scan_session_update_guard seals provider/root/start context and permits only the normal OPEN-to-COMPLETE-or-ABORTED terminal transition"
+          },
+          {
+            "id": "A-B2",
+            "severity": "BLOCKER",
+            "issue": "direct SQL could bypass CompleteRemoteHistoryScan and mark a stale source-bound OPEN scan COMPLETE after RemoteHistory advanced",
+            "correction": "schema v18 remote_scan_session_complete_source_guard requires ACTIVE generation and exact current publication for every source-bound OPEN-to-COMPLETE UPDATE"
+          },
+          {
+            "id": "A-L1",
+            "severity": "LOW",
+            "issue": "ENGINEERING_AUDIT_POLICY current-audit-clock text still described the earlier unresolved P0-29D state",
+            "correction": "synchronize audit clock to completed P0-30A retrospective"
+          }
+        ],
+        "resolution_head": "bec746f4f2d8975c3ac44405b9aaa14551beb0ea",
+        "resolution_ci_run_id": 36262810988,
+        "resolution_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+        "blocker_count_open": 0,
+        "high_findings_open": 0,
+        "dependencies_added": 0,
+        "schema_version": 18,
+        "live_provider_used": false,
+        "corpus_mutations": 0,
+        "prior_art_recheck": [
+          "Microsoft Graph driveItem delta terminal deltaLink/full local state pattern",
+          "Google Drive changes pageToken/newStartPageToken checkpoint pattern",
+          "Dropbox list_folder cursor continuation pattern",
+          "Syncthing full Index plus incremental Index Update pattern",
+          "SQLite row trigger OLD/NEW plus RAISE(ABORT) invariant enforcement",
+          "zombiezen sqlitemigration append-only transactional migration pattern"
+        ],
+        "unnecessary_solutions_rejected": [
+          "second remote inventory",
+          "second scan-session table",
+          "new provider-specific Artifact model",
+          "new provenance service or dependency",
+          "rewriting already-issued schema v17 migration",
+          "provider-specific materializer in P0-30A"
+        ],
+        "portability": "PURE_GO_PLUS_SQLITE_NO_NEW_OS_SPECIFIC_CODE_WINDOWS2025_AND_UBUNTU2404_QUALIFIED_ANDROID_REMAINS_PLANNED_NOT_CLAIMED",
+        "conclusion": "PASS"
+      },
+      "qualification": {
+        "exact_head": "bec746f4f2d8975c3ac44405b9aaa14551beb0ea",
+        "ci_run_id": 36262810988,
+        "conclusion": "SUCCESS",
+        "jobs": {
+          "validate": "PASS",
+          "go (ubuntu-24.04)": "PASS",
+          "go (windows-2025)": "PASS"
+        },
+        "gates": [
+          "immutable exact remote scan source sidecar",
+          "source-bound scan provider/root/start context SQLite-sealed",
+          "matching OPEN and COMPLETE source replay",
+          "generic CompleteScan bypass rejected",
+          "direct SQLite stale completion bypass rejected",
+          "history advance blocks OPEN scan completion",
+          "ABORT permits a new current attempt",
+          "closed generation blocks completion",
+          "source provenance survives reopen",
+          "v16-to-v17 source-sidecar migration",
+          "v17-to-v18 SQLite-authority hardening migration",
+          "all prior local ScanSession tests"
+        ],
+        "schema_version": 18,
+        "dependencies_added": 0,
+        "live_provider_used": false,
+        "corpus_mutations": 0
+      }
     }
   }
 }

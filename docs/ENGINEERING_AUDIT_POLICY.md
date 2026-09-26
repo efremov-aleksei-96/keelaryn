@@ -110,11 +110,13 @@ This distinction is preferred to pretending an earlier green slice proved behavi
 
 ## 7. Current audit clock
 
-P0-29D retrospective at head `b04d321989a379ea54594d1a2323d99ac4b19f23` reset the rolling substantive-slice counter to zero after detecting that the previous counter had not been incremented across at least six qualified substantive slices.
+P0-30A source-bound remote ScanSession retrospective is complete at hardened product head `bec746f4f2d8975c3ac44405b9aaa14551beb0ea`.
 
-Status: **BLOCKERS FOUND**. The reset records that the retrospective occurred; it does not authorize dependent work. P0-29C3 remains paused until its lifetime/incarnation blockers are resolved and re-audited.
+CI run `36262810988`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
 
-The next retrospective is mandatory at the end of the **current substantive stage**, before any subsequent substantive stage begins. Event triggers may require an earlier audit within the stage.
+Status: **PASS**. The retrospective found two SQLite durable-authority blockers in the initial P0-30A implementation and resolved both with append-only schema v18 hardening. No open BLOCKER/HIGH finding remains at the P0-30A boundary.
+
+The rolling substantive-slice counter is reset to zero. The next retrospective is mandatory after **P0-30B** and before P0-30C or any other subsequent substantive stage. Event triggers may require an earlier audit within the stage.
 
 ## 8. Parallel audit/research during execution
 
