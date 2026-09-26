@@ -828,6 +828,78 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE provider_lifetime_artifact_bindings (
+	lifetime_segment_id TEXT PRIMARY KEY NOT NULL
+		REFERENCES provider_object_lifetime_segments(lifetime_segment_id) ON DELETE RESTRICT,
+	artifact_id TEXT NOT NULL
+		REFERENCES artifacts(artifact_id) ON DELETE RESTRICT,
+	policy_id TEXT NOT NULL,
+	source_authority_set_id TEXT NOT NULL
+		REFERENCES identity_authority_sets(authority_set_id) ON DELETE RESTRICT,
+	accepted_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX provider_lifetime_artifact_bindings_artifact
+	ON provider_lifetime_artifact_bindings (artifact_id);
+
+CREATE TRIGGER remote_history_authority_insert_guard
+BEFORE INSERT ON identity_authority_sets
+WHEN NEW.policy_id = 'remote-history:lifetime-segment:v1'
+	AND NOT EXISTS (
+		SELECT 1
+		FROM provider_object_lifetime_segments s
+		JOIN remote_history_generations g
+		  ON g.generation_id = s.generation_id
+		JOIN remote_history_membership m
+		  ON m.generation_id = s.generation_id
+		 AND m.object_id = s.object_id
+		WHERE s.lifetime_segment_id = NEW.lifetime_segment_id
+		  AND s.generation_id = NEW.generation_id
+		  AND s.object_id = NEW.current_object_id
+		  AND s.status = 'ACTIVE'
+		  AND g.status = 'ACTIVE'
+		  AND g.provider_id = NEW.provider_id
+		  AND g.identity_domain = NEW.identity_domain
+		  AND g.root = NEW.scope_id
+	)
+BEGIN
+	SELECT RAISE(ABORT, 'remote history authority does not match active generation/segment/membership');
+END;
+
+CREATE TRIGGER provider_lifetime_artifact_bindings_insert_guard
+BEFORE INSERT ON provider_lifetime_artifact_bindings
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM provider_object_lifetime_segments s
+	JOIN identity_authority_sets a
+	  ON a.authority_set_id = NEW.source_authority_set_id
+	WHERE s.lifetime_segment_id = NEW.lifetime_segment_id
+	  AND s.status = 'ACTIVE'
+	  AND a.policy_id = NEW.policy_id
+	  AND a.policy_id = 'remote-history:lifetime-segment:v1'
+	  AND a.generation_id = s.generation_id
+	  AND a.lifetime_segment_id = s.lifetime_segment_id
+	  AND a.current_object_id = s.object_id
+	  AND a.sealed_at IS NOT NULL
+)
+BEGIN
+	SELECT RAISE(ABORT, 'lifetime Artifact binding lacks matching sealed authority');
+END;
+
+CREATE TRIGGER provider_lifetime_artifact_bindings_no_update
+BEFORE UPDATE ON provider_lifetime_artifact_bindings
+BEGIN
+	SELECT RAISE(ABORT, 'provider lifetime Artifact bindings are immutable');
+END;
+
+CREATE TRIGGER provider_lifetime_artifact_bindings_no_delete
+BEFORE DELETE ON provider_lifetime_artifact_bindings
+BEGIN
+	SELECT RAISE(ABORT, 'provider lifetime Artifact bindings are immutable');
+END;
+`,
+
 	},
 }
 

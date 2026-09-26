@@ -69,6 +69,9 @@ func ValidateIdentityAuthoritySet(set IdentityAuthoritySet) error {
 	default:
 		return fmt.Errorf("%w: coverage=%q", ErrInvalidIdentityAuthoritySet, set.UniverseCoverage)
 	}
+	if (set.GenerationID == "") != (set.LifetimeSegmentID == "") {
+		return fmt.Errorf("%w: generation/lifetime segment references must be paired", ErrInvalidIdentityAuthoritySet)
+	}
 	if len(set.SourceRefs) == 0 {
 		return fmt.Errorf("%w: no source references", ErrInvalidIdentityAuthoritySet)
 	}
