@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 113,
+  "revision": 114,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C2C_GOOGLE_AWARE_COORDINATOR_AND_GENERIC_ADVANCE_GUARD",
-    "description": "Wire topology-aware Google adapter bundles through a Google-specific coordinator/store interface and fail closed if generic PublishRemoteHistoryCycle attempts to advance a generation that already owns a Google topology watermark. Preserve generic provider-neutral coordinator behavior for non-topology generations. No membership traversal, no schema migration, no live provider access.",
+    "id": "P0_29C2C_GOOGLE_AWARE_COORDINATOR_QUALIFICATION",
+    "description": "Qualify exact-head Google-aware coordinator and generic-advance guard on validate, Ubuntu 24.04 and Windows 2025. Require shared prestate reconcile behavior, zero provider call on stale prestate, topology-aware bootstrap/advance, generic publish fail-closed for topology-managed generations, explicit trust-break close without cursor advance, all prior tests and go vet. Do not begin membership traversal until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "bbc67bdafe7b224cee0c850c1e97c2175c3c45f3",
+  "repository_basis_commit": "bb739e63fb4d17a6603ce268bd7423e178de4410",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2979,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C2B_SIDECAR_QUALIFIED_C2C_NEXT",
+    "status": "C2C_IMPLEMENTED_AWAITING_QUALIFICATION",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3207,7 +3207,7 @@
         }
       },
       "c2": {
-        "status": "B_SIDECAR_QUALIFIED_C_NEXT",
+        "status": "C_IMPLEMENTED_AWAITING_QUALIFICATION",
         "a": {
           "status": "QUALIFIED",
           "scope": "GDRIVE_HISTORY_TOPOLOGY_BUNDLE",
@@ -3324,6 +3324,34 @@
             "topology sidecar SQL failure rolls back RemoteHistory generation/publication",
             "misaligned bundle rejected before durable mutation",
             "topology watermark survives reopen"
+          ]
+        },
+        "c": {
+          "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+          "implementation": {
+            "shared_prestate_helper": "remotehistory.ReconcileExpectedHistoryPrestate",
+            "google_coordinator": "gdrive.TopologyCoordinator",
+            "bootstrap_read_path": "BootstrapWithTopology",
+            "advance_read_path": "ConsumeChangesWithTopology",
+            "bootstrap_write_path": "StartGoogleDriveRemoteHistoryGeneration",
+            "advance_write_path": "PublishGoogleDriveRemoteHistoryCycle",
+            "explicit_trust_break_close": "COMMON_CLOSE_PATH_NO_SEQUENCE_ADVANCE",
+            "generic_publish_guard": "TOPOLOGY_WATERMARK_REQUIRES_NON_NIL_SIDECAR",
+            "generic_non_topology_behavior": "UNCHANGED",
+            "schema_version": 16,
+            "schema_changed": false,
+            "membership_traversal": false,
+            "live_provider_used": false,
+            "corpus_mutations": 0
+          },
+          "tests": [
+            "Google coordinator bootstrap commits topology-managed generation",
+            "stale expected prestate performs zero provider calls",
+            "Google coordinator advance commits topology-aware publication",
+            "generic publish blocked after topology management begins",
+            "generic guard preserves sequence/cursor",
+            "explicit Google history gap closes generation without cursor advance",
+            "all prior generic coordinator behavior remains covered"
           ]
         }
       }

@@ -71,6 +71,41 @@ func NewCoordinator(store DurableHistoryStore, adapter Adapter, scope Scope, fin
 	}, nil
 }
 
+type HistoryStateReader interface {
+	RemoteHistoryGeneration(context.Context, HistoryGenerationID) (HistoryGeneration, error)
+}
+
+func ReconcileExpectedHistoryPrestate(
+	ctx context.Context,
+	store HistoryStateReader,
+	scope Scope,
+	fingerprint ScopePolicyFingerprint,
+	expected ExpectedHistoryPrestate,
+) (HistoryGeneration, bool, error) {
+	if store == nil ||
+		expected.GenerationID == "" ||
+		expected.Sequence == 0 ||
+		expected.Cursor == "" {
+		return HistoryGeneration{}, false, ErrInvalidExpectedHistoryState
+	}
+	generation, err := store.RemoteHistoryGeneration(ctx, expected.GenerationID)
+	if err != nil {
+		return HistoryGeneration{}, false, err
+	}
+	if generation.Scope != scope {
+		return HistoryGeneration{}, false, ErrCoordinatorScopeMismatch
+	}
+	if generation.ScopePolicyFingerprint != fingerprint {
+		return HistoryGeneration{}, false, ErrCoordinatorPolicyMismatch
+	}
+	if generation.Status != HistoryGenerationActive ||
+		generation.CurrentSequence != expected.Sequence ||
+		generation.CommittedCursor != expected.Cursor {
+		return generation, false, nil
+	}
+	return generation, true, nil
+}
+
 // Bootstrap publishes at most one durable write. If an ACTIVE generation
 // already exists, it returns that prestate without calling the provider.
 func (c *Coordinator) Bootstrap(ctx context.Context, committedAt time.Time) (CoordinatorResult, error) {
@@ -129,19 +164,13 @@ func (c *Coordinator) Advance(ctx context.Context, expected ExpectedHistoryPrest
 		return CoordinatorResult{}, ErrInvalidExpectedHistoryState
 	}
 
-	generation, err := c.store.RemoteHistoryGeneration(ctx, expected.GenerationID)
+	generation, ready, err := ReconcileExpectedHistoryPrestate(
+		ctx, c.store, c.scope, c.fingerprint, expected,
+	)
 	if err != nil {
 		return CoordinatorResult{}, err
 	}
-	if generation.Scope != c.scope {
-		return CoordinatorResult{}, ErrCoordinatorScopeMismatch
-	}
-	if generation.ScopePolicyFingerprint != c.fingerprint {
-		return CoordinatorResult{}, ErrCoordinatorPolicyMismatch
-	}
-	if generation.Status != HistoryGenerationActive ||
-		generation.CurrentSequence != expected.Sequence ||
-		generation.CommittedCursor != expected.Cursor {
+	if !ready {
 		return CoordinatorResult{
 			Status:     CoordinatorPrestateChanged,
 			Generation: generation,

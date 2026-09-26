@@ -13,6 +13,8 @@ import (
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
+var ErrTopologyManagedGenerationRequiresSidecar = fmt.Errorf("topology-managed RemoteHistory generation requires topology-aware publication path")
+
 type remoteHistoryBootstrapSidecar func(
 	conn *sqlite.Conn,
 	generation remotehistory.HistoryGeneration,
@@ -179,6 +181,15 @@ func (s *Store) publishRemoteHistoryCycleWithSidecar(
 	if generation.CurrentSequence != expectedSequence || generation.CommittedCursor != expectedCursor {
 		return remotehistory.HistoryGeneration{}, ErrHistoryPublicationConflict
 	}
+	if sidecar == nil {
+		managed, guardErr := topologyWatermarkExistsConn(conn, generationID)
+		if guardErr != nil {
+			return remotehistory.HistoryGeneration{}, guardErr
+		}
+		if managed {
+			return remotehistory.HistoryGeneration{}, ErrTopologyManagedGenerationRequiresSidecar
+		}
+	}
 
 	nextSequence := expectedSequence + 1
 	publication := remotehistory.HistoryPublication{
@@ -270,3 +281,20 @@ func (s *Store) publishRemoteHistoryCycleWithSidecar(
 	}
 	return generation, nil
 }
+
+func topologyWatermarkExistsConn(conn *sqlite.Conn, generationID remotehistory.HistoryGenerationID) (bool, error) {
+	var found bool
+	if err := sqlitex.Execute(conn,
+		"SELECT 1 FROM gdrive_topology_watermarks WHERE generation_id=?1 LIMIT 1",
+		&sqlitex.ExecOptions{
+			Args: []any{string(generationID)},
+			ResultFunc: func(*sqlite.Stmt) error {
+				found = true
+				return nil
+			},
+		}); err != nil {
+		return false, fmt.Errorf("query topology-managed generation guard: %w", err)
+	}
+	return found, nil
+}
+
