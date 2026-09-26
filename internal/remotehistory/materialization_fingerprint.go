@@ -43,7 +43,7 @@ func FingerprintRemoteMetadataSnapshot(input RemoteMetadataFingerprintInput) (st
 	if input.GenerationID == "" || input.PublicationSequence == 0 || input.ProviderID == "" ||
 		strings.TrimSpace(input.ScanRoot) == "" ||
 		strings.TrimSpace(input.SourceScopeID) == "" ||
-		strings.TrimSpace(input.MaterializationPolicyID) == "" {
+		input.MaterializationPolicyID != LightweightAllMaterializationPolicyID {
 		return "", ErrInvalidRemoteMetadataFingerprint
 	}
 

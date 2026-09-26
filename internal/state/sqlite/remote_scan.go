@@ -333,9 +333,17 @@ func validateRemoteMetadataProviderScopeConn(
 	source remotehistory.RemoteScanSource,
 	generation remotehistory.HistoryGeneration,
 ) error {
-	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion ||
-		source.MaterializationPolicyID != remotehistory.LightweightAllMaterializationPolicyID {
+	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion {
 		return nil
+	}
+	if source.MaterializationPolicyID != remotehistory.LightweightAllMaterializationPolicyID {
+		return fmt.Errorf(
+			"%w: fingerprint=%s requires policy=%s, got=%s",
+			ErrRemoteHistoryScanProviderScopeMismatch,
+			source.SnapshotFingerprintVersion,
+			remotehistory.LightweightAllMaterializationPolicyID,
+			source.MaterializationPolicyID,
+		)
 	}
 	if generation.ID != source.GenerationID ||
 		generation.CurrentSequence != source.PublicationSequence ||
