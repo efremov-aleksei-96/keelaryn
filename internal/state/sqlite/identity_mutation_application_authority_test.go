@@ -86,7 +86,7 @@ func TestRemoteHistoryLifetimeBindingRejectsDirectSQLWithoutIdentityCapability(t
 	}
 }
 
-func TestSourceBoundIdentityMutationAPICapabilityStillAllowsNewAndSame(t *testing.T) {
+func TestSourceBoundIdentityMutationAPICapabilityStillAllowsNew(t *testing.T) {
 	ctx := context.Background()
 	fixture := newGoogleRemoteCompletionFixture(t)
 	entries := []remotehistory.RemoteMetadataFingerprintEntry{
@@ -132,5 +132,160 @@ func TestSourceBoundIdentityMutationAPICapabilityStillAllowsNewAndSame(t *testin
 	}
 	if err := fixture.store.AbortScan(ctx, scan.ID, scan.StartedAt.Add(time.Second)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSourceBoundAcceptedContinuityRejectsDirectSQLWithoutIdentityCapability(t *testing.T) {
+	ctx := context.Background()
+	fixture := newGoogleRemoteCompletionFixture(t)
+	entries := []remotehistory.RemoteMetadataFingerprintEntry{
+		fixture.entry("managed", corpus.EntryOther, 0, fixture.base),
+		fixture.entry("child", corpus.EntryRegularFile, 7, fixture.base.Add(time.Second)),
+	}
+	scan, err := fixture.startScan(entries, fixture.scanRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modifiedAt, _ := time.Parse(time.RFC3339Nano, entries[1].ModifiedAt)
+	observation, err := fixture.store.RecordObservationInScan(ctx, scan.ID, corpus.ObservationRecordInput{
+		ProviderObject: corpus.ProviderObject{
+			ProviderID: gdrive.ProviderID, ID: "child", IdentityState: corpus.ObjectIdentityObserved,
+		},
+		Locators: append([]corpus.Locator(nil), entries[1].Locators...),
+		AssignmentState: corpus.AssignmentUnresolved,
+		ObservedAt: scan.StartedAt,
+		Kind: entries[1].Kind, Size: entries[1].Size, Mode: entries[1].Mode, ModifiedAt: modifiedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact, err := fixture.store.AdoptArtifact(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := fixture.store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.store.pool.Put(conn)
+	err = sqlitex.Execute(conn,
+		"INSERT INTO accepted_continuity_decisions (decision_id,observation_id,artifact_id,decision_state,policy_id,resolution_json,decided_at,lifetime_segment_id) VALUES ('cont_direct_guard',?1,?2,'RESOLVED_SAME','test-policy','{}',?3,NULL)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(observation.ID),
+			string(artifact.ID),
+			scan.StartedAt.UTC().Format(time.RFC3339Nano),
+		}})
+	if err == nil {
+		t.Fatal("direct source-bound continuity decision unexpectedly succeeded")
+	}
+}
+
+func TestSourceBoundAcceptedAdmissionRejectsDirectSQLWithoutIdentityCapability(t *testing.T) {
+	ctx := context.Background()
+	fixture := newGoogleRemoteCompletionFixture(t)
+	entries := []remotehistory.RemoteMetadataFingerprintEntry{
+		fixture.entry("managed", corpus.EntryOther, 0, fixture.base),
+		fixture.entry("child", corpus.EntryRegularFile, 7, fixture.base.Add(time.Second)),
+	}
+	scan, err := fixture.startScan(entries, fixture.scanRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modifiedAt, _ := time.Parse(time.RFC3339Nano, entries[1].ModifiedAt)
+	observation, err := fixture.store.RecordObservationInScan(ctx, scan.ID, corpus.ObservationRecordInput{
+		ProviderObject: corpus.ProviderObject{
+			ProviderID: gdrive.ProviderID, ID: "child", IdentityState: corpus.ObjectIdentityObserved,
+		},
+		Locators: append([]corpus.Locator(nil), entries[1].Locators...),
+		AssignmentState: corpus.AssignmentUnresolved,
+		ObservedAt: scan.StartedAt,
+		Kind: entries[1].Kind, Size: entries[1].Size, Mode: entries[1].Mode, ModifiedAt: modifiedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact, err := fixture.store.AdoptArtifact(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := fixture.store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.store.pool.Put(conn)
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO provider_artifact_bindings (identity_domain,provider_id,native_object_id,artifact_id,policy_id,accepted_at) VALUES ('test-domain','google-drive','child',?1,'test-policy',?2)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(artifact.ID),
+			scan.StartedAt.UTC().Format(time.RFC3339Nano),
+		}}); err != nil {
+		t.Fatal(err)
+	}
+	err = sqlitex.Execute(conn,
+		"INSERT INTO accepted_artifact_admissions (request_id,observation_id,artifact_id,identity_domain,provider_id,native_object_id,decision_state,policy_id,resolution_json,decided_at,lifetime_segment_id) VALUES ('req_direct_admission_guard',?1,?2,'test-domain','google-drive','child','RESOLVED_NEW','test-policy','{}',?3,NULL)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(observation.ID),
+			string(artifact.ID),
+			scan.StartedAt.UTC().Format(time.RFC3339Nano),
+		}})
+	if err == nil {
+		t.Fatal("direct source-bound admission unexpectedly succeeded")
+	}
+}
+
+func TestSourceBoundIdentityMutationReceiptRejectsDirectSQLWithoutIdentityCapability(t *testing.T) {
+	ctx := context.Background()
+	fixture := newGoogleRemoteCompletionFixture(t)
+	entries := []remotehistory.RemoteMetadataFingerprintEntry{
+		fixture.entry("managed", corpus.EntryOther, 0, fixture.base),
+		fixture.entry("child", corpus.EntryRegularFile, 7, fixture.base.Add(time.Second)),
+	}
+	scan, err := fixture.startScan(entries, fixture.scanRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modifiedAt, _ := time.Parse(time.RFC3339Nano, entries[1].ModifiedAt)
+	observation, err := fixture.store.RecordObservationInScan(ctx, scan.ID, corpus.ObservationRecordInput{
+		ProviderObject: corpus.ProviderObject{
+			ProviderID: gdrive.ProviderID, ID: "child", IdentityState: corpus.ObjectIdentityObserved,
+		},
+		Locators: append([]corpus.Locator(nil), entries[1].Locators...),
+		AssignmentState: corpus.AssignmentUnresolved,
+		ObservedAt: scan.StartedAt,
+		Kind: entries[1].Kind, Size: entries[1].Size, Mode: entries[1].Mode, ModifiedAt: modifiedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	segments, err := fixture.store.RemoteHistoryLifetimeSegments(ctx, fixture.generation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	segment := findLatestLifetimeSegment(segments, "child")
+	authority, err := fixture.store.CreateRemoteHistoryIdentityAuthority(
+		ctx, fixture.generation.ID, segment.ID, scan.StartedAt,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact, err := fixture.store.AdoptArtifact(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := fixture.store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.store.pool.Put(conn)
+	err = sqlitex.Execute(conn,
+		"INSERT INTO identity_mutation_requests (request_id,operation_kind,fingerprint_version,fingerprint_sha256,authority_set_id,observation_id,artifact_id,revision_id,revision_created,decision_kind,decision_id,accepted_at) VALUES ('req_direct_receipt_guard','NEW','identity-mutation-fingerprint:v1','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',?1,?2,?3,NULL,0,'ADMISSION','req_direct_receipt_guard',?4)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(authority.ID),
+			string(observation.ID),
+			string(artifact.ID),
+			scan.StartedAt.UTC().Format(time.RFC3339Nano),
+		}})
+	if err == nil {
+		t.Fatal("direct source-bound identity mutation receipt unexpectedly succeeded")
 	}
 }
