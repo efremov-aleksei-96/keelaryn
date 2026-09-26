@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 119,
+  "revision": 120,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -123,8 +123,8 @@
     "P0_29C3_LIFETIME_HARDENING_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_29C3_LIFETIME_HARDENING_QUALIFICATION_AND_REAUDIT",
-    "description": "Qualify exact-head lifetime-aware managed-root membership on validate, Ubuntu 24.04 and Windows 2025. Require same-generation root-ID reincarnation fail-closed, parent-ID reincarnation stale-edge UNKNOWN until fresh child evidence, unchanged child lifetime, all prior C3 cases and go vet. After PASS, perform the required P0-29D boundary re-audit before declaring C3 qualified.",
+    "id": "P0_29C3_LIFETIME_HARDENING_REQUALIFICATION_AND_REAUDIT",
+    "description": "Requalify exact-head membership lifetime hardening after restoring MISSING_PARENT precedence when the parent topology row is absent/unavailable. Require all reincarnation regressions, all prior IN/OUT/UNKNOWN semantics, Ubuntu 24.04 and Windows 2025, then perform the required boundary re-audit before C3 qualification.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -157,7 +157,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "cc447a3489dbb542e5b55803780062e14a5f0b92",
+  "repository_basis_commit": "c9baf65e711321ab0405835626d26679424165f2",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3404,7 +3404,7 @@
         }
       },
       "c3": {
-        "status": "LIFETIME_HARDENING_IMPLEMENTED_AWAITING_QUALIFICATION",
+        "status": "LIFETIME_HARDENING_IMPLEMENTED_AWAITING_REQUALIFICATION",
         "implementation": {
           "store_file": "internal/state/sqlite/gdrive_membership.go",
           "bind_api": "BindGoogleDriveManagedRoot",
@@ -3502,6 +3502,19 @@
           "parent REMOVED then same native ID UPSERT makes unchanged child edge UNKNOWN",
           "fresh child UPSERT after parent reincarnation re-establishes edge evidence",
           "child lifetime remains unchanged when child was never REMOVED"
+        ],
+        "prequalification_failures": [
+          {
+            "head": "c9baf65e711321ab0405835626d26679424165f2",
+            "ci_run_id": 36255237843,
+            "platform": "ubuntu-24.04",
+            "classification": "MISSING_PARENT_REASON_REGRESSION_FROM_EARLY_LIFETIME_CHECK",
+            "location": "internal/state/sqlite/gdrive_membership.go",
+            "fix": "CHECK_PARENT_TOPOLOGY_EXISTENCE_BEFORE_PARENT_LIFETIME_REVALIDATION",
+            "product_architecture_changed": false,
+            "schema_changed": false,
+            "corpus_mutation": false
+          }
         ]
       }
     }

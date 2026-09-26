@@ -299,6 +299,15 @@ func (s *Store) GoogleDriveManagedRootMembership(
 		case gdrive.ParentKnown:
 			parentID := node.ParentObjectID
 			if parentID != corpus.ProviderObjectID(generation.Scope.Root) {
+				parentNode, found, err := googleTopologyNodeConn(conn, generationID, parentID)
+				if err != nil {
+					return result, err
+				}
+				if !found || parentNode.Presence != gdrive.TopologyPresent {
+					result.Reason = gdrive.UnknownMissingParent
+					result.TerminalObjectID = parentID
+					return result, nil
+				}
 				parentSegment, active, err := activeLifetimeSegmentConn(conn, generationID, parentID)
 				if err != nil {
 					return result, err
