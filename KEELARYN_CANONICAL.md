@@ -856,11 +856,13 @@ No dependency becomes part of Keelaryn merely because it is popular. The abstrac
 Reuse-before-build is complemented by **audit-before-compounding**.
 
 Development MUST perform a read-only retrospective architecture/reuse/correctness audit:
+- **after every substantive development stage, before the next substantive stage begins**;
 - before crossing a new live provider, security, identity-authority or durable-mutation boundary;
 - before exposing a new state-mutating CLI/MCP/HTTP/API surface;
 - after a material identity/transaction/recovery/schema architecture change;
-- before candidate freeze/release qualification;
-- and no later than after four qualified substantive development slices since the previous retrospective.
+- before candidate freeze/release qualification.
+
+A substantive stage is not complete merely because exact-head CI is green. Stage completion requires its read-only correctness/reuse audit, including checks for regressions, duplicated Keelaryn mechanisms, unnecessary abstractions, stale authority claims and reusable external solutions. Tiny mechanical/test-only/documentation corrections inside the same semantic stage do not create a separate stage unless they materially change semantics.
 
 A BLOCKER finding pauses dependent work. Previous green CI remains scoped evidence for what it actually tested; later audits may narrow the interpretation of an earlier qualification.
 

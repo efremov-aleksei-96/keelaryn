@@ -181,3 +181,69 @@ func TestTopologyCoordinatorClosesOnExplicitHistoryGap(t *testing.T) {
 		t.Fatalf("closed=%#v", closed)
 	}
 }
+
+
+func TestTopologyCoordinatorTransportErrorMutatesNeitherHistoryNorTopology(t *testing.T) {
+	ctx := context.Background()
+	config := myDriveConfig()
+	scope := config.Scope()
+	transportErr := errors.New("synthetic transport interruption")
+	client := &fakeClient{
+		startToken: "fence",
+		filePages: []gdrive.FilePage{{Files: []gdrive.FileRecord{
+			{ID: "a", Parents: []string{config.Root}},
+		}}},
+		changePages: map[string]changeResult{
+			"fence":    {page: gdrive.ChangePage{NewStartPageToken: "cursor-1"}},
+			"cursor-1": {err: transportErr},
+		},
+	}
+	adapter := mustAdapter(t, client, config)
+	fingerprint, err := gdrive.ScopePolicyFingerprint(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := sqlitestate.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	coordinator, err := gdrive.NewTopologyCoordinator(store, adapter, scope, fingerprint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 9, 27, 4, 0, 0, 0, time.UTC)
+	boot, err := coordinator.Bootstrap(ctx, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.VerifyGoogleDriveTopologyProjection(ctx, boot.Generation.ID, 1); err != nil {
+		t.Fatalf("bootstrap topology verify: %v", err)
+	}
+
+	result, err := coordinator.Advance(ctx, remotehistory.ExpectedHistoryPrestate{
+		GenerationID: boot.Generation.ID,
+		Sequence:     1,
+		Cursor:       "cursor-1",
+	}, base.Add(time.Minute))
+	if !errors.Is(err, transportErr) {
+		t.Fatalf("error=%v result=%#v", err, result)
+	}
+	if result.Status != remotehistory.CoordinatorNoMutation {
+		t.Fatalf("result=%#v", result)
+	}
+
+	current, err := store.RemoteHistoryGeneration(ctx, boot.Generation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != remotehistory.HistoryGenerationActive ||
+		current.CurrentSequence != 1 ||
+		current.CommittedCursor != "cursor-1" {
+		t.Fatalf("transport error mutated history generation: %#v", current)
+	}
+	if err := store.VerifyGoogleDriveTopologyProjection(ctx, boot.Generation.ID, 1); err != nil {
+		t.Fatalf("transport error changed topology projection: %v", err)
+	}
+}

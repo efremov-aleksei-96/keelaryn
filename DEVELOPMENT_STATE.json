@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 124,
+  "revision": 125,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -123,11 +123,11 @@
     "P0_29C3_LIFETIME_HARDENING_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_29C3_FINAL_EXACT_HEAD_QUALIFICATION_AND_STAGE_RETROSPECTIVE",
-    "description": "Run exact-head CI after final topology verifier source-authority hardening. Require validate, Ubuntu 24.04 and Windows 2025; managed-root same-lifetime move proof; materialized-drift detection; forged topology evidence without RemoteHistory source rejection; all lifetime-incarnation and prior topology tests. Then complete the mandatory per-stage retrospective and only then qualify P0-29C3/P0-29C.",
+    "id": "P0_29C3_FINAL_EXACT_HEAD_CI_THEN_STAGE_QUALIFICATION",
+    "description": "Run exact-head CI after canonical audit-policy synchronization and Google-specific transport-interruption proof. If validate, Ubuntu 24.04 and Windows 2025 all PASS and no new stage-audit finding appears, record P0-29C3/P0-29C qualification plus P0-29D boundary retrospective PASS. Do not open the next substantive stage before that durable checkpoint.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "NO_NEXT_SUBSTANTIVE_STAGE_BEFORE_C3_STAGE_RETROSPECTIVE_PASS"
+    "audit_gate": "FINAL_C3_STAGE_AUDIT_COMPLETE_NO_NEXT_STAGE_UNTIL_EXACT_HEAD_CI_PASS_AND_DURABLE_QUALIFICATION"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -158,7 +158,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "5b7b0b766a2e649aa49291b8ca6abb964998939f",
+  "repository_basis_commit": "fbcbbf244d595b9d7ceb29b9b5f3c375108c5440",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3414,7 +3414,7 @@
         }
       },
       "c3": {
-        "status": "STAGE_AUDIT_VERIFIER_HARDENED_AWAITING_FINAL_QUALIFICATION",
+        "status": "STAGE_AUDIT_COMPLETE_PENDING_FINAL_CI",
         "implementation": {
           "store_file": "internal/state/sqlite/gdrive_membership.go",
           "bind_api": "BindGoogleDriveManagedRoot",
@@ -3526,7 +3526,7 @@
           }
         ],
         "stage_audit": {
-          "status": "VERIFIER_HARDENED_AWAITING_FINAL_QUALIFICATION",
+          "status": "COMPLETE_PENDING_FINAL_CI",
           "simplifications": [
             {
               "item": "GoogleDriveManagedRootBinding exported read API",
@@ -3557,6 +3557,20 @@
               "issue": "initial topology verifier proved history-to-evidence coverage but did not independently reject extra topology evidence lacking a RemoteHistory source event",
               "correction": "added reverse source-authority check topology evidence subset of exact bootstrap/publication events",
               "schema_change_required": false
+            },
+            {
+              "id": "C3-A4",
+              "severity": "HIGH",
+              "issue": "canonical architecture still described the superseded four-slice audit cadence",
+              "correction": "synchronized KEELARYN_CANONICAL.md to mandatory per-substantive-stage audit gate",
+              "schema_change_required": false
+            },
+            {
+              "id": "C3-A5",
+              "severity": "HIGH",
+              "issue": "Google topology coordinator lacked a direct regression proving ordinary transport interruption mutates neither history nor topology",
+              "correction": "added Google-specific transport interruption test using exact generation/cursor and topology verifier",
+              "schema_change_required": false
             }
           ],
           "resolutions": [
@@ -3573,6 +3587,14 @@
               "finding": "C3-A3",
               "implementation": "VerifyGoogleDriveTopologyProjection reverse evidence-source validation",
               "regression": "TestVerifyGoogleDriveTopologyProjectionRejectsEvidenceWithoutHistorySource"
+            },
+            {
+              "finding": "C3-A4",
+              "implementation": "KEELARYN_CANONICAL.md section 17.1 synchronized with docs/ENGINEERING_AUDIT_POLICY.md"
+            },
+            {
+              "finding": "C3-A5",
+              "implementation": "TestTopologyCoordinatorTransportErrorMutatesNeitherHistoryNorTopology"
             }
           ],
           "prior_art_recheck": "EXISTING_REUSE_LEDGER_GOOGLE_GRAPH_DROPBOX_SYNCTHING_NFS_KUBERNETES_PATTERNS_REVALIDATED_NO_NEW_DEPENDENCY_OR_LAYER_NEEDED",
@@ -3580,7 +3602,13 @@
             "projection cache/performance index before measured need",
             "new durable verification watermark/state",
             "new topology schema migration"
-          ]
+          ],
+          "blocker_count_open": 0,
+          "high_findings_open": 0,
+          "schema_version": 16,
+          "dependencies_added": 0,
+          "live_provider_used": false,
+          "corpus_mutations": 0
         }
       }
     }
