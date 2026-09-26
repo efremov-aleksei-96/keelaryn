@@ -488,6 +488,40 @@ Required guarantees:
 
 Continuous remote history may strengthen a stable-for-resource-lifetime native ID from SUPPORTING evidence to conclusive continuity according to the qualified identity contract. The change feed itself is not global Artifact identity.
 
+### 9.5 Durable history generations and publications
+
+Provider cursors are transport/state tokens, not Keelaryn history identity.
+
+Durable RemoteHistory uses a local `HistoryGenerationID` for one uninterrupted trust epoch and a monotonic `HistoryPublicationSequence` for committed states inside that generation.
+
+A successful bootstrap atomically creates:
+
+```text
+HistoryGeneration
++ publication sequence 1
++ complete provider-object membership
++ immutable bootstrap evidence
++ committed provider cursor
+```
+
+A successful incremental cycle atomically:
+
+```text
+requires exact generation + previous sequence + previous cursor
+→ applies complete UPSERT/REMOVED membership changes
+→ retains immutable change evidence
+→ appends next publication
+→ advances sequence and terminal committed cursor together
+```
+
+Interruption/transport failure advances nothing. Provider-confirmed `GAP`, `INVALID_CURSOR` or `INSUFFICIENT_HISTORY` closes the generation without advancing membership/cursor; a later rebootstrap creates a new generation. A closed generation never reopens.
+
+Equal provider-object IDs across generation boundaries do not prove uninterrupted continuity.
+
+RemoteHistory publication is identity/membership evidence only. It MUST NOT fabricate a full Observation, Artifact or Revision from metadata the provider history feed did not supply.
+
+Detailed P0 contract: `docs/P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT.md`.
+
 ---
 
 ## 10. Discovery and change detection

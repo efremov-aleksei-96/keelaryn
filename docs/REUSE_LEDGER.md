@@ -955,3 +955,21 @@ P0-28A is qualified only for the hardened identity acceptance boundary. Live pro
 
 The audit clock is reset by this retrospective.
 
+## P0-28B — durable history generation/publication reuse review
+
+Revalidated immediately before the P0-28B contract:
+
+- **Syncthing BEP v1**: folder index has a random Index ID and monotonically increasing sequence; resetting the index requires a new Index ID. Reuse this exact conceptual split as local `HistoryGenerationID` + `HistoryPublicationSequence`, while retaining provider cursor as a separate opaque token.
+- **Google Drive Changes**: `getStartPageToken`, paginated `changes.list`, and terminal `newStartPageToken` reinforce terminal-only committed cursor advancement.
+- **Microsoft Graph delta**: initial enumeration uses `@odata.nextLink` until terminal `@odata.deltaLink`; tokens are opaque and represent tracked state. This independently validates provider-neutral page-vs-committed-cursor semantics.
+- **rclone bisync**: last-known-good snapshots, interruption recovery and lockout when history cannot be trusted reinforce fail-closed generation closure/rebootstrap rather than silent continuation.
+
+Decision:
+- add no new dependency;
+- implement the remaining Keelaryn-specific durable SQLite authority;
+- keep `HistoryGenerationID`, local publication sequence and provider cursor as three separate concepts;
+- retain immutable publication changes so P0-28C can derive object-lifetime segments;
+- RemoteHistory remains membership/identity evidence, not a fabricated full Observation.
+
+Detailed contract: `docs/P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT.md`.
+

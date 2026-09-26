@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 78,
+  "revision": 79,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -111,11 +111,12 @@
     "P0_28A_BOUNDARY_AUDIT_HARDENING_IMPLEMENTED",
     "P0_28A_IDENTITY_ACCEPTANCE_HARDENING_QUALIFIED",
     "P0_28A_BOUNDARY_RETROSPECTIVE_PASS",
-    "PROJECT_CONTINUITY_AND_OBSERVATION_POLICY_ARCHITECTURE_ADOPTED"
+    "PROJECT_CONTINUITY_AND_OBSERVATION_POLICY_ARCHITECTURE_ADOPTED",
+    "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT",
-    "description": "Using nearest-analog reuse research, define the provider-neutral durable history-generation/publication contract: local HistoryGenerationID separate from opaque provider cursor; bootstrap creates a generation; complete publications atomically update membership and committed cursor; GAP/INVALID_CURSOR/INSUFFICIENT_HISTORY close the generation; rebootstrap creates a new generation; RemoteHistory remains identity/membership evidence rather than full metadata Observation. No live OAuth/provider mutation.",
+    "id": "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_IMPLEMENTATION",
+    "description": "Implement the decided P0-28B contract in SQLite: durable HistoryGeneration, immutable HistoryPublication/bootstrap/change evidence, atomic current membership + committed cursor publication, fail-closed generation closure, stale sequence/cursor replay rejection, and migrations/tests. No live OAuth/provider access and no corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -148,7 +149,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "b71534d3773c3aae38ddb2e3243491797fa535b1",
+  "repository_basis_commit": "7e86506e17fc3237b8d6190bddea50c095d9adce",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2454,6 +2455,38 @@
       "query_rule": "REUSE_EXACT_FRESH_DERIVED_CACHE_BEFORE_REREADING_SOURCE_BYTES",
       "corpus_byte_mirror_required": false,
       "p0_blocker": false
+    }
+  },
+  "p0_28b": {
+    "status": "CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
+    "objective": "Define provider-neutral durable HistoryGeneration/publication authority before object-lifetime integration.",
+    "evidence_document": "docs/P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT.md",
+    "dependencies_added": 0,
+    "live_oauth_used": false,
+    "corpus_mutations": 0,
+    "reuse_sources": [
+      "Syncthing BEP index ID + sequence",
+      "Google Drive terminal change cursor",
+      "Microsoft Graph nextLink/deltaLink",
+      "rclone bisync last-known-good and recovery lockout"
+    ],
+    "contract": {
+      "generation_identity": "LOCAL_OPAQUE_HISTORY_GENERATION_ID_SEPARATE_FROM_PROVIDER_CURSOR",
+      "publication_position": "MONOTONIC_SEQUENCE_WITHIN_GENERATION",
+      "bootstrap": "ATOMIC_GENERATION_PLUS_SEQUENCE_1_PLUS_COMPLETE_MEMBERSHIP_PLUS_CURSOR",
+      "incremental": "COMPARE_AND_SWAP_PREVIOUS_SEQUENCE_AND_CURSOR_THEN_ATOMIC_MEMBERSHIP_CHANGE_PLUS_PUBLICATION_PLUS_CURSOR_ADVANCE",
+      "interruption": "NO_PUBLICATION_NO_CURSOR_ADVANCE_GENERATION_REMAINS_ACTIVE",
+      "trust_break": [
+        "GAP",
+        "INVALID_CURSOR",
+        "INSUFFICIENT_HISTORY",
+        "PROVIDER_REPORTED_SCOPE_MISMATCH"
+      ],
+      "trust_break_effect": "CLOSE_GENERATION_PRESERVE_LAST_COMMITTED_AUTHORITY_REQUIRE_REBOOTSTRAP",
+      "rebootstrap": "ALWAYS_NEW_GENERATION_ID",
+      "evidence": "IMMUTABLE_BOOTSTRAP_AND_INCREMENTAL_PROVIDER_OBJECT_CHANGE_RECORDS",
+      "observation_boundary": "REMOTE_HISTORY_MEMBERSHIP_EVIDENCE_NOT_FULL_OBSERVATION",
+      "cross_generation_same": "NOT_CONCLUSIVE"
     }
   }
 }
