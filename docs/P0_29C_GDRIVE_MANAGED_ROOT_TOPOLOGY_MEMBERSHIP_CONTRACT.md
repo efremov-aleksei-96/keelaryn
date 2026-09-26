@@ -519,3 +519,25 @@ A remaining wiring boundary is explicit: the generic provider-neutral coordinato
 
 No live OAuth/provider access or corpus mutation occurred.
 
+## 26. P0-29C2C qualification
+
+The final Google topology orchestration boundary is **QUALIFIED**.
+
+Exact product head:
+
+```text
+7611b85da8af78cfdb77d166f65ec622204ccfc5
+```
+
+GitHub Actions run `36251318219`:
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+Google now uses a topology-aware coordinator from provider read through atomic Store publication. The generic coordinator remains valid for history-only providers, while a generation that already owns a Google topology watermark cannot be advanced through the generic history-only publication path.
+
+The shared exact-prestate reconciler guarantees stale caller prestate returns before any provider read. Explicit provider trust-break closes the generation without advancing sequence/cursor.
+
+No live OAuth/provider access or corpus mutation occurred.
+

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 115,
+  "revision": 116,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C2C_GOOGLE_AWARE_COORDINATOR_REQUALIFICATION",
-    "description": "Requalify exact-head C2C after the test-only schema harness fix. Require Google-aware coordinator behavior, generic publish guard, stale-prestate zero provider calls, explicit trust-break close without cursor advance, schema invariant test using internal no-op sidecar only, all prior tests and go vet. No product semantic change.",
+    "id": "P0_29C3_MANAGED_ROOT_MEMBERSHIP_QUERY",
+    "description": "Implement Store-level Google managed-root binding and membership query on schema v16. Use exact topology watermark and generation prestate, require a durable managed-root binding, classify IN/OUT/UNKNOWN with bounded cycle-safe ancestor traversal, fail closed on stale/missing/unavailable topology, and test ancestor move out/back without changing provider lifetime. No new schema unless a blocker is proven; no live provider access.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "ce4f16a2e77da9556ab803f427603b114790bf86",
+  "repository_basis_commit": "7611b85da8af78cfdb77d166f65ec622204ccfc5",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2979,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C2C_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "C2_QUALIFIED_C3_NEXT",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3111,7 +3111,7 @@
       }
     },
     "c": {
-      "status": "C2B_SIDECAR_QUALIFIED_C2C_NEXT",
+      "status": "C2_QUALIFIED_C3_NEXT",
       "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
       "core_decisions": {
         "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
@@ -3207,7 +3207,7 @@
         }
       },
       "c2": {
-        "status": "C_IMPLEMENTED_AWAITING_QUALIFICATION",
+        "status": "QUALIFIED",
         "a": {
           "status": "QUALIFIED",
           "scope": "GDRIVE_HISTORY_TOPOLOGY_BUNDLE",
@@ -3327,7 +3327,7 @@
           ]
         },
         "c": {
-          "status": "IMPLEMENTED_AWAITING_REQUALIFICATION",
+          "status": "QUALIFIED",
           "implementation": {
             "shared_prestate_helper": "remotehistory.ReconcileExpectedHistoryPrestate",
             "google_coordinator": "gdrive.TopologyCoordinator",
@@ -3364,7 +3364,34 @@
               "product_semantics_changed": false,
               "corpus_mutation": false
             }
-          ]
+          ],
+          "qualification": {
+            "exact_head": "7611b85da8af78cfdb77d166f65ec622204ccfc5",
+            "ci_run_id": 36251318219,
+            "conclusion": "SUCCESS",
+            "jobs": {
+              "validate": "PASS",
+              "go (ubuntu-24.04)": "PASS",
+              "go (windows-2025)": "PASS"
+            },
+            "gates": [
+              "shared provider-neutral prestate reconciliation helper",
+              "Google topology-aware bootstrap coordinator",
+              "Google topology-aware incremental coordinator",
+              "stale expected prestate performs zero provider calls",
+              "topology-managed generation rejects generic PublishRemoteHistoryCycle",
+              "generic guard preserves sequence/cursor",
+              "explicit provider trust-break closes generation without cursor advance",
+              "schema harness retains ability to synthesize history-ahead-of-topology only through internal non-nil sidecar",
+              "all prior tests",
+              "go mod tidy -diff",
+              "go vet"
+            ],
+            "schema_version": 16,
+            "live_oauth_used": false,
+            "live_provider_used": false,
+            "corpus_mutations": 0
+          }
         }
       }
     }
