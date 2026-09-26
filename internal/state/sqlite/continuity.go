@@ -66,7 +66,7 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 		if txErr != nil {
 			return txErr
 		}
-		if txErr := validateAuthorityScope(conn, authority, scan, request.Observation); txErr != nil {
+		if txErr := validateAuthorityScope(conn, authority, scan, request.Observation, request.DecidedAt); txErr != nil {
 			return txErr
 		}
 		remoteSegment, remoteBinding, remoteAuthority, txErr := revalidateRemoteHistoryIdentityAuthorityConn(conn, authority)

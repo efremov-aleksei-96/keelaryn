@@ -2,8 +2,10 @@ package sqlitestate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -2108,6 +2110,236 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v28_identity_causal_time_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v28_identity_causal_time_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM identity_authority_sets a
+		WHERE a.policy_id='remote-history:lifetime-segment:v1'
+		  AND (
+			keelaryn_is_canonical_utc_rfc3339nano(a.created_at)<>1
+			OR NOT EXISTS (
+				SELECT 1
+				FROM remote_history_publications p
+				WHERE p.generation_id=a.generation_id
+				  AND keelaryn_remote_authority_publication_ref(
+					a.source_refs_json,
+					a.generation_id,
+					CAST(p.sequence AS TEXT)
+				  )=1
+				  AND (
+					a.created_at=p.committed_at
+					OR keelaryn_utc_rfc3339nano_after(a.created_at,p.committed_at)=1
+				  )
+			)
+		  )
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM observations o
+		JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+		JOIN scan_sessions s ON s.scan_id=o.scan_id
+		WHERE o.assignment_state='ASSIGNED'
+		  AND o.observed_at<>s.started_at
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM accepted_continuity_decisions d
+		JOIN observations o ON o.observation_id=d.observation_id
+		JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+		JOIN scan_sessions s ON s.scan_id=o.scan_id
+		WHERE keelaryn_is_canonical_utc_rfc3339nano(d.decided_at)<>1
+		   OR NOT (
+			d.decided_at=s.started_at
+			OR keelaryn_utc_rfc3339nano_after(d.decided_at,s.started_at)=1
+		   )
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM accepted_artifact_admissions d
+		JOIN observations o ON o.observation_id=d.observation_id
+		JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+		JOIN scan_sessions s ON s.scan_id=o.scan_id
+		WHERE keelaryn_is_canonical_utc_rfc3339nano(d.decided_at)<>1
+		   OR NOT (
+			d.decided_at=s.started_at
+			OR keelaryn_utc_rfc3339nano_after(d.decided_at,s.started_at)=1
+		   )
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM identity_mutation_requests m
+		JOIN observations o ON o.observation_id=m.observation_id
+		JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+		JOIN scan_sessions s ON s.scan_id=o.scan_id
+		JOIN identity_authority_sets a ON a.authority_set_id=m.authority_set_id
+		WHERE keelaryn_is_canonical_utc_rfc3339nano(m.accepted_at)<>1
+		   OR NOT (
+			m.accepted_at=s.started_at
+			OR keelaryn_utc_rfc3339nano_after(m.accepted_at,s.started_at)=1
+		   )
+		   OR NOT (
+			m.accepted_at=a.created_at
+			OR keelaryn_utc_rfc3339nano_after(m.accepted_at,a.created_at)=1
+		   )
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM provider_lifetime_artifact_bindings b
+		JOIN identity_authority_sets a ON a.authority_set_id=b.source_authority_set_id
+		WHERE keelaryn_is_canonical_utc_rfc3339nano(b.accepted_at)<>1
+		   OR NOT (
+			b.accepted_at=a.created_at
+			OR keelaryn_utc_rfc3339nano_after(b.accepted_at,a.created_at)=1
+		   )
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v28_identity_causal_time_validation;
+
+CREATE TRIGGER remote_history_authority_causal_time_insert_guard
+BEFORE INSERT ON identity_authority_sets
+WHEN NEW.policy_id='remote-history:lifetime-segment:v1'
+AND (
+	keelaryn_is_canonical_utc_rfc3339nano(NEW.created_at)<>1
+	OR NOT EXISTS (
+		SELECT 1
+		FROM remote_history_generations g
+		JOIN remote_history_publications p
+		  ON p.generation_id=g.generation_id
+		 AND p.sequence=g.current_sequence
+		WHERE g.generation_id=NEW.generation_id
+		  AND g.status='ACTIVE'
+		  AND keelaryn_remote_authority_publication_ref(
+			NEW.source_refs_json,
+			NEW.generation_id,
+			CAST(p.sequence AS TEXT)
+		  )=1
+		  AND (
+			NEW.created_at=p.committed_at
+			OR keelaryn_utc_rfc3339nano_after(NEW.created_at,p.committed_at)=1
+		  )
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory identity authority time is noncausal');
+END;
+
+CREATE TRIGGER source_bound_assigned_observation_time_guard
+BEFORE INSERT ON observations
+WHEN NEW.scan_id IS NOT NULL
+AND NEW.assignment_state='ASSIGNED'
+AND EXISTS (
+	SELECT 1 FROM remote_scan_sources r
+	WHERE r.scan_id=NEW.scan_id
+)
+AND NOT EXISTS (
+	SELECT 1 FROM scan_sessions s
+	WHERE s.scan_id=NEW.scan_id
+	  AND NEW.observed_at=s.started_at
+)
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound assigned Observation time must equal scan boundary');
+END;
+
+CREATE TRIGGER source_bound_continuity_causal_time_guard
+BEFORE INSERT ON accepted_continuity_decisions
+WHEN EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+)
+AND NOT EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN scan_sessions s ON s.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+	  AND keelaryn_is_canonical_utc_rfc3339nano(NEW.decided_at)=1
+	  AND (
+		NEW.decided_at=s.started_at
+		OR keelaryn_utc_rfc3339nano_after(NEW.decided_at,s.started_at)=1
+	  )
+)
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound continuity decision time is noncausal');
+END;
+
+CREATE TRIGGER source_bound_admission_causal_time_guard
+BEFORE INSERT ON accepted_artifact_admissions
+WHEN EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+)
+AND NOT EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN scan_sessions s ON s.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+	  AND keelaryn_is_canonical_utc_rfc3339nano(NEW.decided_at)=1
+	  AND (
+		NEW.decided_at=s.started_at
+		OR keelaryn_utc_rfc3339nano_after(NEW.decided_at,s.started_at)=1
+	  )
+)
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound admission decision time is noncausal');
+END;
+
+CREATE TRIGGER source_bound_identity_mutation_receipt_causal_time_guard
+BEFORE INSERT ON identity_mutation_requests
+WHEN EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN remote_scan_sources r ON r.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+)
+AND NOT EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN scan_sessions s ON s.scan_id=o.scan_id
+	JOIN identity_authority_sets a ON a.authority_set_id=NEW.authority_set_id
+	WHERE o.observation_id=NEW.observation_id
+	  AND keelaryn_is_canonical_utc_rfc3339nano(NEW.accepted_at)=1
+	  AND (
+		NEW.accepted_at=s.started_at
+		OR keelaryn_utc_rfc3339nano_after(NEW.accepted_at,s.started_at)=1
+	  )
+	  AND (
+		NEW.accepted_at=a.created_at
+		OR keelaryn_utc_rfc3339nano_after(NEW.accepted_at,a.created_at)=1
+	  )
+)
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound identity mutation receipt time is noncausal');
+END;
+
+CREATE TRIGGER provider_lifetime_binding_causal_time_guard
+BEFORE INSERT ON provider_lifetime_artifact_bindings
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM identity_authority_sets a
+	WHERE a.authority_set_id=NEW.source_authority_set_id
+	  AND keelaryn_is_canonical_utc_rfc3339nano(NEW.accepted_at)=1
+	  AND (
+		NEW.accepted_at=a.created_at
+		OR keelaryn_utc_rfc3339nano_after(NEW.accepted_at,a.created_at)=1
+	  )
+)
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory lifetime binding time is noncausal');
+END;
+`,
+
 	},
 }
 
@@ -2122,6 +2354,7 @@ const (
 	utcRFC3339NanoAfterFunction                  = "keelaryn_utc_rfc3339nano_after"
 	sourceIdentityMutationAuthorizationFunction  = "keelaryn_source_identity_mutation_authorized"
 	remoteHistoryBindingAuthorizationFunction    = "keelaryn_remote_history_binding_authorized"
+	remoteAuthorityPublicationRefFunction        = "keelaryn_remote_authority_publication_ref"
 )
 
 type remoteCompletionAuthorization struct {
@@ -2194,6 +2427,34 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		},
 	}); err != nil {
 		return fmt.Errorf("register timestamp ordering function: %w", err)
+	}
+	if err := conn.CreateFunction(remoteAuthorityPublicationRefFunction, &sqlite.FunctionImpl{
+		NArgs:         3,
+		Deterministic: true,
+		AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			var refs []string
+			if err := json.Unmarshal([]byte(args[0].Text()), &refs); err != nil {
+				return sqlite.IntegerValue(0), nil
+			}
+			want := "history-publication:" + args[1].Text() + ":" + args[2].Text()
+			publicationRefs := 0
+			matched := false
+			for _, ref := range refs {
+				if strings.HasPrefix(ref, "history-publication:") {
+					publicationRefs++
+					if ref == want {
+						matched = true
+					}
+				}
+			}
+			if publicationRefs == 1 && matched {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register RemoteHistory authority publication-ref function: %w", err)
 	}
 	s.remoteCompletionAuthorizations.Store(conn, auth)
 

@@ -22,6 +22,7 @@ import (
 var (
 	ErrRemoteHistoryIdentityAuthorityUnavailable = errors.New("remote history identity authority unavailable")
 	ErrRemoteHistoryIdentityAuthorityCollision   = errors.New("remote history identity authority semantic collision")
+	ErrRemoteHistoryIdentityAuthorityCausalTime  = errors.New("remote history identity authority time predates source publication")
 )
 
 type remoteHistoryAuthorityFingerprintPayload struct {
@@ -105,6 +106,22 @@ func buildRemoteHistoryIdentityAuthorityConn(
 	}
 	if generation.Status != remotehistory.HistoryGenerationActive {
 		return corpus.IdentityAuthoritySet{}, fmt.Errorf("%w: generation %s is %s", ErrRemoteHistoryIdentityAuthorityUnavailable, generationID, generation.Status)
+	}
+	publicationCommittedAt, err := remoteHistoryPublicationCommittedAtConn(
+		conn, generation.ID, generation.CurrentSequence,
+	)
+	if err != nil {
+		return corpus.IdentityAuthoritySet{}, err
+	}
+	if createdAt.UTC().Before(publicationCommittedAt) {
+		return corpus.IdentityAuthoritySet{}, fmt.Errorf(
+			"%w: generation=%s sequence=%d publication=%s authority=%s",
+			ErrRemoteHistoryIdentityAuthorityCausalTime,
+			generation.ID,
+			generation.CurrentSequence,
+			publicationCommittedAt.UTC().Format(time.RFC3339Nano),
+			createdAt.UTC().Format(time.RFC3339Nano),
+		)
 	}
 	segment, err := lifetimeSegmentByIDConn(conn, segmentID)
 	if err != nil {

@@ -20,6 +20,7 @@ var (
 	ErrIdentityMutationRequestNotFound   = errors.New("identity mutation request not found")
 	ErrIdentityAuthoritySetNotFound      = errors.New("identity authority set not found")
 	ErrInvalidIdentityAuthoritySet       = errors.New("invalid identity authority set")
+	ErrIdentityMutationCausalTime        = errors.New("identity mutation decision time is noncausal")
 )
 
 type identityMutationRequestRecord struct {
@@ -82,6 +83,7 @@ func validateAuthorityScope(
 	set corpus.IdentityAuthoritySet,
 	scan corpus.ScanSession,
 	input corpus.ObservationRecordInput,
+	decidedAt time.Time,
 ) error {
 	source, sourceBound, err := remoteScanSourceConn(conn, scan.ID)
 	if err != nil {
@@ -108,6 +110,15 @@ func validateAuthorityScope(
 			ErrScanScopeMismatch,
 			input.ObservedAt.UTC().Format(time.RFC3339Nano),
 			scan.StartedAt.UTC().Format(time.RFC3339Nano),
+		)
+	}
+	if decidedAt.UTC().Before(scan.StartedAt) || decidedAt.UTC().Before(set.CreatedAt) {
+		return fmt.Errorf(
+			"%w: decision=%s scan=%s authority=%s",
+			ErrIdentityMutationCausalTime,
+			decidedAt.UTC().Format(time.RFC3339Nano),
+			scan.StartedAt.UTC().Format(time.RFC3339Nano),
+			set.CreatedAt.UTC().Format(time.RFC3339Nano),
 		)
 	}
 	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion ||
