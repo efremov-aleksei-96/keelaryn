@@ -109,6 +109,15 @@ func TestRemoteHistoryRejectsPublicationTimeRegression(t *testing.T) {
 	if len(publications) != 1 {
 		t.Fatalf("regressed publication appended evidence: %#v", publications)
 	}
+	generation, err = store.PublishRemoteHistoryCycle(
+		ctx, generation.ID, scope, fp, 1, "cursor-1", cycle, base,
+	)
+	if err != nil {
+		t.Fatalf("equal publication time should be allowed: %v", err)
+	}
+	if generation.CurrentSequence != 2 || generation.CommittedCursor != "cursor-2" {
+		t.Fatalf("equal-time publication did not advance: %#v", generation)
+	}
 }
 
 func TestRemoteHistorySQLiteRejectsBackdatedPublicationWithValidPrestate(t *testing.T) {

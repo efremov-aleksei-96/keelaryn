@@ -35,6 +35,16 @@ func TestRemoteHistoryScanRejectsStartBeforeSourcePublication(t *testing.T) {
 	); !errors.Is(err, ErrRemoteHistoryScanStartedBeforeSource) {
 		t.Fatalf("start error=%v want ErrRemoteHistoryScanStartedBeforeSource", err)
 	}
+	scan, replayed, err := store.StartRemoteHistoryScan(ctx, "managed-root", source, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed || !scan.StartedAt.Equal(base) {
+		t.Fatalf("equal-time source start replayed=%v scan=%#v", replayed, scan)
+	}
+	if err := store.AbortScan(ctx, scan.ID, base); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRemoteScanSourceSQLiteRejectsScanBeforeSourcePublication(t *testing.T) {
@@ -349,6 +359,18 @@ func TestRemoteScanSourceInputValidationFailsClosed(t *testing.T) {
 		{},
 		{GenerationID: "hgen_x", PublicationSequence: 1, SourceScopeID: "scope", MaterializationPolicyID: "p", SnapshotFingerprintVersion: "v1", SnapshotFingerprintSHA256: "ABC"},
 		{GenerationID: "hgen_x", PublicationSequence: 1, SourceScopeID: "scope", MaterializationPolicyID: "p", SnapshotFingerprintVersion: "v1", SnapshotFingerprintSHA256: "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},
+		{
+			GenerationID: "hgen_x", PublicationSequence: 1, SourceScopeID: "scope",
+			MaterializationPolicyID: "other-policy:v1",
+			SnapshotFingerprintVersion: remotehistory.RemoteMetadataSnapshotFingerprintVersion,
+			SnapshotFingerprintSHA256: remoteScanFingerprintA,
+		},
+		{
+			GenerationID: "hgen_x", PublicationSequence: 1, SourceScopeID: "scope",
+			MaterializationPolicyID: remotehistory.LightweightAllMaterializationPolicyID,
+			SnapshotFingerprintVersion: "other-snapshot:v1",
+			SnapshotFingerprintSHA256: remoteScanFingerprintA,
+		},
 	}
 	for i, input := range cases {
 		if err := remotehistory.ValidateRemoteScanSourceInput(input); err == nil {
