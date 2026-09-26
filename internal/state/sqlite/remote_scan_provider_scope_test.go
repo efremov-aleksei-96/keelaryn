@@ -12,6 +12,72 @@ import (
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
+func TestRemoteMetadataCompletionRejectsProviderWithoutQualifiedScopeValidator(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	base := time.Date(2026, 9, 27, 19, 0, 0, 0, time.UTC)
+	generation, err := store.StartRemoteHistoryGeneration(
+		ctx,
+		scope,
+		remotehistory.ScopePolicyFingerprint("scope-policy:v1:unsupported-provider"),
+		remoteHistoryBootstrap(scope, "cursor-1"),
+		base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fingerprint, err := remotehistory.FingerprintRemoteMetadataSnapshot(remotehistory.RemoteMetadataFingerprintInput{
+		GenerationID:            generation.ID,
+		PublicationSequence:     1,
+		ProviderID:              scope.ProviderID,
+		ScanRoot:                scope.Root,
+		SourceScopeID:           "unsupported-scope",
+		MaterializationPolicyID: remotehistory.LightweightAllMaterializationPolicyID,
+		Entries:                 nil,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scan, replayed, err := store.StartRemoteHistoryScan(
+		ctx,
+		scope.Root,
+		remotehistory.RemoteScanSourceInput{
+			GenerationID:               generation.ID,
+			PublicationSequence:        1,
+			SourceScopeID:              "unsupported-scope",
+			MaterializationPolicyID:    remotehistory.LightweightAllMaterializationPolicyID,
+			SnapshotFingerprintVersion: remotehistory.RemoteMetadataSnapshotFingerprintVersion,
+			SnapshotFingerprintSHA256:  fingerprint,
+		},
+		base.Add(time.Minute),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed {
+		t.Fatal("new unsupported-provider scan unexpectedly replayed")
+	}
+
+	if _, _, err := store.CompleteRemoteHistoryScan(
+		ctx,
+		scan.ID,
+		base.Add(2*time.Minute),
+	); !errors.Is(err, ErrRemoteHistoryScanProviderScopeMismatch) {
+		t.Fatalf("completion error=%v want ErrRemoteHistoryScanProviderScopeMismatch", err)
+	}
+	stored, err := store.ScanSession(ctx, scan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != corpus.ScanOpen {
+		t.Fatalf("failed unsupported-provider completion mutated scan: %#v", stored)
+	}
+	if err := store.AbortScan(ctx, scan.ID, base.Add(3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGoogleRemoteMetadataCompletionRevalidatesExactInSet(t *testing.T) {
 	fixture := newGoogleRemoteCompletionFixture(t)
 

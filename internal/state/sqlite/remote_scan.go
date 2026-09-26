@@ -437,6 +437,14 @@ func validateRemoteMetadataProviderScopeConn(
 		if err := validateGoogleDriveRemoteScanLocatorsConn(conn, scan, observed); err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf(
+			"%w: provider=%s has no qualified completion validator for fingerprint=%s policy=%s",
+			ErrRemoteHistoryScanProviderScopeMismatch,
+			generation.Scope.ProviderID,
+			source.SnapshotFingerprintVersion,
+			source.MaterializationPolicyID,
+		)
 	}
 	return nil
 }
