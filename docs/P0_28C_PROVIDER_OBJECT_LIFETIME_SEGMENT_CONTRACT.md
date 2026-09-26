@@ -469,3 +469,18 @@ Schema v12 records `lifetime_segment_id` on accepted SAME/NEW provenance. Remote
 
 No live OAuth/provider access or corpus mutation occurred.
 
+## 17. P0-28C3 final qualification
+
+The provider-object lifetime pipeline is **QUALIFIED** through schema v14.
+
+Exact head: `1567f0967b7082db66e5605fa69e5c0a4bc8f027`  
+CI run: `36244269461`
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+C3 removed the last RemoteHistory dependence on naked provider-object binding, made accepted identity provenance lifetime-segment-visible and SQLite-immutable, and replaced the old unconditional admission foreign key with policy-aware binding enforcement.
+
+P0-28C is now complete for deterministic/provider-neutral mechanics. Live Google Drive wiring remains a separate next slice and still requires its own contract, deterministic tests, boundary qualification and later explicit live-provider authorization.
+

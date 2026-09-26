@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 96,
+  "revision": 97,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -114,11 +114,13 @@
     "PROJECT_CONTINUITY_AND_OBSERVATION_POLICY_ARCHITECTURE_ADOPTED",
     "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT_DECIDED",
     "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_IMPLEMENTED",
-    "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
+    "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED",
+    "P0_28C3_BOUNDARY_RETROSPECTIVE_PASS",
+    "P0_28C_PROVIDER_OBJECT_LIFETIME_PIPELINE_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_28C3_V14_REQUALIFICATION",
-    "description": "Requalify exact-head C3 schema v14 after fixing the migration-test pool lifecycle self-deadlock. Require validate, Ubuntu 24.04 and Windows 2025 plus all C3 gates. Product semantics unchanged.",
+    "id": "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT",
+    "description": "Design the next provider-specific slice: wire the already-qualified deterministic Google Drive RemoteHistory adapter into the qualified durable HistoryGeneration/lifetime/authority pipeline. Start with a contract and deterministic fake/provider test harness only; no live OAuth, no real Drive corpus reads/writes, and no corpus mutation until the wiring boundary is independently qualified.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +153,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "4654988bf4f9d82dcd830c046d2f09bf73bd9c0a",
+  "repository_basis_commit": "1567f0967b7082db66e5605fa69e5c0a4bc8f027",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2262,12 +2264,12 @@
     "mode": "EVENT_TRIGGERED_PLUS_MAXIMUM_SLICE_INTERVAL",
     "maximum_qualified_substantive_slices_between_retrospectives": 4,
     "last_retrospective": {
-      "head": "41e66aafc247c8f1d68a1b91b8e8f41cb1bb6f52",
-      "document": "docs/P0_28B_BOUNDARY_RETRO_20260926.md",
-      "ci_run_id": 36237799373,
+      "head": "1567f0967b7082db66e5605fa69e5c0a4bc8f027",
+      "document": "docs/P0_28C3_BOUNDARY_RETRO_20260926.md",
+      "ci_run_id": 36244269461,
       "conclusion": "SUCCESS"
     },
-    "substantive_slices_since_last_retrospective": 2,
+    "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
       "before new live external/provider trust boundary",
       "before new durable user/corpus mutation path",
@@ -2589,7 +2591,7 @@
     }
   },
   "p0_28c": {
-    "status": "C3_V14_FIX_IMPLEMENTED_AWAITING_REQUALIFICATION",
+    "status": "QUALIFIED",
     "evidence_document": "docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md",
     "dependencies_added": 0,
     "live_oauth_used": false,
@@ -2624,7 +2626,7 @@
       "P0_28C2_LIFETIME_BINDING_AND_AUTHORITY_INTEGRATION",
       "P0_28C3_BOUNDARY_RETROSPECTIVE"
     ],
-    "schema_version": 12,
+    "schema_version": 14,
     "c1": {
       "status": "QUALIFIED",
       "implementation": {
@@ -2827,10 +2829,15 @@
         "live_oauth_used": false,
         "live_provider_used": false,
         "corpus_mutations": 0
+      },
+      "current_semantics_superseded_by_c3": {
+        "field": "implementation.remote_new",
+        "old": "ATOMIC_ARTIFACT_REVISION_OBSERVATION_NAKED_COMPAT_BINDING_PLUS_SEGMENT_BINDING_PLUS_ADMISSION",
+        "current": "ATOMIC_ARTIFACT_REVISION_OBSERVATION_PLUS_SEGMENT_BINDING_PLUS_IMMUTABLE_ADMISSION_NO_REMOTE_NAKED_BINDING"
       }
     },
     "c3": {
-      "status": "V14_IMPLEMENTED_AWAITING_REQUALIFICATION",
+      "status": "QUALIFIED",
       "document": "docs/P0_28C3_BOUNDARY_RETRO_20260926.md",
       "audited_head": "78c561d8c8ceba0a8cec71a3c8128ba5e99cb835",
       "qualified_c2b_product_head": "427d1d27c94e7644cf4c91f9b2b864617658e044",
@@ -2907,7 +2914,51 @@
           "product_semantics_changed": false,
           "corpus_mutation": false
         }
-      ]
+      ],
+      "qualification": {
+        "exact_head": "1567f0967b7082db66e5605fa69e5c0a4bc8f027",
+        "ci_run_id": 36244269461,
+        "conclusion": "SUCCESS",
+        "jobs": {
+          "validate": "PASS",
+          "go (ubuntu-24.04)": "PASS",
+          "go (windows-2025)": "PASS"
+        },
+        "schema_version": 14,
+        "gates": [
+          "segment-only RemoteHistory NEW binding",
+          "RemoteHistory NEW replay succeeds without naked binding",
+          "RemoteHistory SAME uses current lifetime binding despite conflicting legacy naked binding",
+          "accepted SAME/NEW read APIs expose and validate LifetimeSegmentID",
+          "accepted continuity/admission rows are SQLite update/delete immutable",
+          "direct SQL cannot create RemoteHistory naked provider binding",
+          "policy-aware accepted_artifact_admissions v14 schema removes unconditional naked-binding FK",
+          "local/legacy admission still requires matching naked binding",
+          "RemoteHistory admission requires matching lifetime binding",
+          "v11-to-v12 migration test pinned to v12",
+          "migration pool cleanup cannot self-deadlock",
+          "all migration tests audited for the same pool-close anti-pattern",
+          "all prior tests",
+          "go mod tidy -diff",
+          "go vet"
+        ],
+        "prior_art_revalidated": [
+          "Kubernetes reusable Name vs historical UID",
+          "Microsoft Graph terminal deltaLink and last-occurrence folding",
+          "Syncthing generation/index identity plus sequence",
+          "Linux NFS native identifier plus generation"
+        ],
+        "live_oauth_used": false,
+        "live_provider_used": false,
+        "corpus_mutations": 0
+      }
+    },
+    "effective_current_semantics": {
+      "remote_history_new_binding": "LIFETIME_SEGMENT_BINDING_ONLY",
+      "naked_provider_binding": "LEGACY_LOCAL_OR_PRE_LIFETIME_ONLY_NOT_REMOTE_HISTORY_AUTHORITY",
+      "accepted_same_new_provenance": "IMMUTABLE_AND_LIFETIME_SEGMENT_SCOPED",
+      "remote_history_authority": "REVALIDATED_INSIDE_FINAL_MUTATION_TRANSACTION",
+      "cross_segment_native_id_reuse": "NO_AUTOMATIC_CONTINUITY"
     }
   },
   "development_execution_policy": {

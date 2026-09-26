@@ -142,3 +142,43 @@ v14 rebuilds only `accepted_artifact_admissions`:
 
 This makes the SQLite authority model policy-aware without weakening local/legacy admission correctness.
 
+## Final C3 qualification
+
+P0-28C3 is **PASS** after schema v14 and migration-test lifecycle correction.
+
+Qualified exact product head:
+
+```text
+1567f0967b7082db66e5605fa69e5c0a4bc8f027
+```
+
+GitHub Actions run:
+
+```text
+36244269461
+```
+
+Results:
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+Additional read-only checks during qualification:
+
+- all SQLite migration tests were checked for the same checked-out-connection / Pool.Close self-deadlock pattern; no second instance was found;
+- Kubernetes Name/UID and Microsoft Graph delta semantics were revalidated against current official documentation and remain consistent with the Keelaryn generation/lifetime model;
+- no new runtime dependency, live provider call, OAuth flow, Drive read/write, or corpus mutation was introduced.
+
+Effective RemoteHistory identity semantics after C3:
+
+```text
+HistoryGeneration
++ ProviderObjectLifetimeSegment
++ immutable publication evidence
++ segment-scoped Artifact binding
++ final-transaction authority revalidation
+```
+
+The legacy naked provider-object binding remains only legacy/local provenance and is not RemoteHistory authority.
+
