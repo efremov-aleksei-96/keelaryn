@@ -499,3 +499,23 @@ The adapter preserves exact provider order across multi-page cycles, including r
 
 No live OAuth/provider access or corpus mutation occurred.
 
+## 25. P0-29C2B qualification
+
+Atomic Store-side topology projection is **QUALIFIED** on exact product head:
+
+```text
+bbc67bdafe7b224cee0c850c1e97c2175c3c45f3
+```
+
+GitHub Actions run `36250152140`:
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+Google bootstrap and incremental publication now commit provider-neutral RemoteHistory state, immutable Google topology evidence, current topology projection and exact topology watermark inside the same SQLite transaction. Injected topology failure proves full transaction rollback.
+
+A remaining wiring boundary is explicit: the generic provider-neutral coordinator consumes only generic history pages. P0-29C2C must route Google through topology-aware bundles and prevent a generic history-only publish from advancing an already topology-managed generation.
+
+No live OAuth/provider access or corpus mutation occurred.
+

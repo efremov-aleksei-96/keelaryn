@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 112,
+  "revision": 113,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C2B_GOOGLE_ATOMIC_TOPOLOGY_SIDECAR_QUALIFICATION",
-    "description": "Qualify exact-head Google Store topology sidecar on validate, Ubuntu 24.04 and Windows 2025. Require atomic bootstrap/incremental history+topology, repeated-object ordinal folding, forced sidecar failure rollback, Store-boundary bundle rejection, reopen durability, all prior tests and go vet. Do not begin membership traversal until PASS.",
+    "id": "P0_29C2C_GOOGLE_AWARE_COORDINATOR_AND_GENERIC_ADVANCE_GUARD",
+    "description": "Wire topology-aware Google adapter bundles through a Google-specific coordinator/store interface and fail closed if generic PublishRemoteHistoryCycle attempts to advance a generation that already owns a Google topology watermark. Preserve generic provider-neutral coordinator behavior for non-topology generations. No membership traversal, no schema migration, no live provider access.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "6b569dbf29a9dbe8fd394614a4e2f4b1def94f82",
+  "repository_basis_commit": "bbc67bdafe7b224cee0c850c1e97c2175c3c45f3",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2979,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C2B_SIDECAR_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "C2B_SIDECAR_QUALIFIED_C2C_NEXT",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3111,7 +3111,7 @@
       }
     },
     "c": {
-      "status": "C2B_REFACTOR_IMPLEMENTED_AWAITING_QUALIFICATION",
+      "status": "C2B_SIDECAR_QUALIFIED_C2C_NEXT",
       "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
       "core_decisions": {
         "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
@@ -3207,7 +3207,7 @@
         }
       },
       "c2": {
-        "status": "B_SIDECAR_IMPLEMENTED_AWAITING_QUALIFICATION",
+        "status": "B_SIDECAR_QUALIFIED_C_NEXT",
         "a": {
           "status": "QUALIFIED",
           "scope": "GDRIVE_HISTORY_TOPOLOGY_BUNDLE",
@@ -3269,7 +3269,7 @@
           }
         },
         "b": {
-          "status": "SIDECAR_IMPLEMENTED_AWAITING_QUALIFICATION",
+          "status": "SIDECAR_QUALIFIED",
           "scope": "GENERIC_REMOTE_HISTORY_TRANSACTION_EXTENSION_POINT",
           "implementation": {
             "generic_public_apis": "UNCHANGED",
@@ -3294,8 +3294,8 @@
             "membership_traversal": false
           },
           "qualification": {
-            "exact_head": "09e590e0b09f2f826a9163a79ef96a23f92a268e",
-            "ci_run_id": 36249500920,
+            "exact_head": "bbc67bdafe7b224cee0c850c1e97c2175c3c45f3",
+            "ci_run_id": 36250152140,
             "conclusion": "SUCCESS",
             "jobs": {
               "validate": "PASS",
@@ -3303,14 +3303,18 @@
               "go (windows-2025)": "PASS"
             },
             "gates": [
-              "generic StartRemoteHistoryGeneration behavior preserved",
-              "generic PublishRemoteHistoryCycle behavior preserved",
-              "optional sidecar runs inside existing SQLite immediate transaction",
-              "nil sidecar is exact generic path",
+              "Google bootstrap commits RemoteHistory + topology evidence + current nodes + watermark atomically",
+              "Google incremental commits publication + ordered topology evidence/projection + exact watermark atomically",
+              "repeated provider-object changes preserve exact publication ordinal and final current state",
+              "forced topology-sidecar SQL failure rolls back RemoteHistory generation/publication",
+              "misaligned topology bundle rejected before durable mutation",
+              "topology watermark survives reopen",
+              "schema remains v16",
               "all prior tests",
               "go mod tidy -diff",
               "go vet"
             ],
+            "live_oauth_used": false,
             "live_provider_used": false,
             "corpus_mutations": 0
           },
