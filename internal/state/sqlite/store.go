@@ -695,6 +695,139 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE provider_object_lifetime_segments (
+	lifetime_segment_id TEXT PRIMARY KEY NOT NULL
+		CHECK (
+			length(lifetime_segment_id) = 69
+			AND substr(lifetime_segment_id, 1, 5) = 'hseg_'
+			AND substr(lifetime_segment_id, 6) NOT GLOB '*[^0-9a-f]*'
+		),
+	generation_id TEXT NOT NULL
+		REFERENCES remote_history_generations(generation_id) ON DELETE RESTRICT,
+	object_id TEXT NOT NULL,
+	start_kind TEXT NOT NULL CHECK (start_kind IN ('BOOTSTRAP', 'UPSERT')),
+	start_sequence INTEGER NOT NULL CHECK (start_sequence >= 1),
+	start_ordinal INTEGER,
+	last_present_sequence INTEGER NOT NULL CHECK (last_present_sequence >= 1),
+	last_present_ordinal INTEGER,
+	status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'CLOSED')),
+	end_sequence INTEGER,
+	end_ordinal INTEGER,
+	closure_reason TEXT,
+	CHECK (
+		(start_kind = 'BOOTSTRAP' AND start_sequence = 1 AND start_ordinal IS NULL)
+		OR
+		(start_kind = 'UPSERT' AND start_sequence >= 2 AND start_ordinal >= 0)
+	),
+	CHECK (
+		(last_present_sequence = 1 AND last_present_ordinal IS NULL)
+		OR
+		(last_present_sequence >= 2 AND last_present_ordinal >= 0)
+	),
+	CHECK (last_present_sequence >= start_sequence),
+	CHECK (
+		(status = 'ACTIVE' AND end_sequence IS NULL AND end_ordinal IS NULL AND closure_reason IS NULL)
+		OR
+		(
+			status = 'CLOSED'
+			AND end_sequence IS NOT NULL
+			AND end_sequence >= start_sequence
+			AND (
+				(closure_reason = 'REMOVED_FROM_SCOPE' AND end_ordinal >= 0)
+				OR
+				(closure_reason = 'HISTORY_GENERATION_CLOSED' AND end_ordinal IS NULL)
+			)
+		)
+	)
+) STRICT;
+
+CREATE UNIQUE INDEX provider_lifetime_segment_start_identity
+	ON provider_object_lifetime_segments (
+		generation_id,
+		object_id,
+		start_kind,
+		start_sequence,
+		COALESCE(start_ordinal, -1)
+	);
+
+CREATE UNIQUE INDEX provider_lifetime_segment_one_active
+	ON provider_object_lifetime_segments (generation_id, object_id)
+	WHERE status = 'ACTIVE';
+
+CREATE INDEX provider_lifetime_segment_generation
+	ON provider_object_lifetime_segments (generation_id, object_id, start_sequence, start_ordinal);
+
+CREATE TRIGGER provider_lifetime_segments_no_delete
+BEFORE DELETE ON provider_object_lifetime_segments
+BEGIN
+	SELECT RAISE(ABORT, 'provider lifetime segments cannot be deleted');
+END;
+
+CREATE TRIGGER provider_lifetime_segments_update_guard
+BEFORE UPDATE ON provider_object_lifetime_segments
+WHEN NOT (
+	NEW.lifetime_segment_id = OLD.lifetime_segment_id
+	AND NEW.generation_id = OLD.generation_id
+	AND NEW.object_id = OLD.object_id
+	AND NEW.start_kind = OLD.start_kind
+	AND NEW.start_sequence = OLD.start_sequence
+	AND NEW.start_ordinal IS OLD.start_ordinal
+	AND OLD.status = 'ACTIVE'
+	AND (
+		(
+			NEW.status = 'ACTIVE'
+			AND NEW.end_sequence IS NULL
+			AND NEW.end_ordinal IS NULL
+			AND NEW.closure_reason IS NULL
+			AND (
+				NEW.last_present_sequence > OLD.last_present_sequence
+				OR
+				(
+					NEW.last_present_sequence = OLD.last_present_sequence
+					AND NEW.last_present_ordinal IS NOT NULL
+					AND (
+						OLD.last_present_ordinal IS NULL
+						OR NEW.last_present_ordinal > OLD.last_present_ordinal
+					)
+				)
+			)
+		)
+		OR
+		(
+			NEW.status = 'CLOSED'
+			AND NEW.last_present_sequence = OLD.last_present_sequence
+			AND NEW.last_present_ordinal IS OLD.last_present_ordinal
+			AND NEW.end_sequence IS NOT NULL
+			AND (
+				(
+					NEW.closure_reason = 'REMOVED_FROM_SCOPE'
+					AND NEW.end_ordinal IS NOT NULL
+					AND (
+						NEW.end_sequence > OLD.last_present_sequence
+						OR
+						(
+							NEW.end_sequence = OLD.last_present_sequence
+							AND OLD.last_present_ordinal IS NOT NULL
+							AND NEW.end_ordinal > OLD.last_present_ordinal
+						)
+					)
+				)
+				OR
+				(
+					NEW.closure_reason = 'HISTORY_GENERATION_CLOSED'
+					AND NEW.end_ordinal IS NULL
+					AND NEW.end_sequence >= OLD.last_present_sequence
+				)
+			)
+		)
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'invalid provider lifetime segment mutation');
+END;
+`,
+
 	},
 }
 

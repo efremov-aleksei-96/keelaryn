@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 84,
+  "revision": 85,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -117,8 +117,8 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28C1_LIFETIME_SEGMENT_DERIVATION_IMPLEMENTATION",
-    "description": "Implement schema v10 provider-object lifetime segments as deterministic rebuildable projections of qualified P0-28B immutable history. Cover bootstrap, UPSERT/REMOVED order including repeated same-object changes in one publication, generation closure, deterministic rebuild/reconciliation, migration/reopen, and direct integrity tests. Do not integrate Artifact bindings yet; no live provider/OAuth and no corpus mutation.",
+    "id": "P0_28C1_LIFETIME_SEGMENT_DERIVATION_QUALIFICATION",
+    "description": "Qualify exact-head schema v10 lifetime-segment derivation on validate, Ubuntu 24.04 and Windows 2025. If failure occurs, fix without widening scope into bindings/authority. After PASS, record C1 qualification and proceed to P0-28C2 segment-scoped binding + RemoteHistory authority integration.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -151,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "f3144d91d3961cb2f2b32fdc84e819ece39466ea",
+  "repository_basis_commit": "9a999ea7d5d33532372efe476b665710afa451de",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2589,7 +2589,7 @@
     }
   },
   "p0_28c": {
-    "status": "CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
+    "status": "C1_IMPLEMENTED_AWAITING_QUALIFICATION",
     "evidence_document": "docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md",
     "dependencies_added": 0,
     "live_oauth_used": false,
@@ -2623,6 +2623,45 @@
       "P0_28C1_SEGMENT_DERIVATION_SCHEMA_V10",
       "P0_28C2_LIFETIME_BINDING_AND_AUTHORITY_INTEGRATION",
       "P0_28C3_BOUNDARY_RETROSPECTIVE"
-    ]
+    ],
+    "schema_version": 10,
+    "c1": {
+      "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+      "implementation": {
+        "domain_file": "internal/remotehistory/lifetime.go",
+        "sqlite_file": "internal/state/sqlite/lifetime_segments.go",
+        "table": "provider_object_lifetime_segments",
+        "segment_id": "hseg_<sha256(provider-lifetime-segment:v1 canonical start tuple)>",
+        "bootstrap": "OPEN_SEGMENT_SEQUENCE_1_BOOTSTRAP",
+        "upsert_present": "CONTINUE_ACTIVE_SEGMENT",
+        "upsert_absent": "CREATE_NEW_SEGMENT_AT_CHANGE_ORDINAL",
+        "removed_present": "CLOSE_REMOVED_FROM_SCOPE",
+        "removed_absent": "NO_SEGMENT_TRANSITION",
+        "generation_close": "CLOSE_ALL_ACTIVE_HISTORY_GENERATION_CLOSED",
+        "repeated_same_object_changes": "ORDERED_BY_PUBLICATION_SEQUENCE_AND_ORDINAL",
+        "projection_verification": "REBUILD_EXPECTED_FROM_IMMUTABLE_HISTORY_AND_COMPARE",
+        "delete_protected": true,
+        "identity_start_fields_immutable": true,
+        "closed_reopen_forbidden": true,
+        "artifact_binding_integrated": false,
+        "authority_producer_integrated": false,
+        "live_provider_used": false,
+        "corpus_mutations": 0
+      },
+      "tests": [
+        "deterministic segment ID and generation scoping",
+        "tampered deterministic ID validation rejection",
+        "bootstrap segment creation",
+        "UPSERT continuation",
+        "REMOVED then same-publication UPSERT creates second segment",
+        "REMOVED while absent creates no segment",
+        "generation close bounds active segments",
+        "rebootstrap same native ID gets distinct segment",
+        "reopen durability and projection verification",
+        "direct SQL identity/delete/reopen guards",
+        "projection drift detected against immutable history",
+        "v9-to-v10 migration"
+      ]
+    }
   }
 }

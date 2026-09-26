@@ -112,6 +112,9 @@ func (s *Store) StartRemoteHistoryGeneration(
 			&sqlitex.ExecOptions{Args: []any{string(generation.ID), string(object.ObjectID), locatorsJSON}}); err != nil {
 			return remotehistory.HistoryGeneration{}, fmt.Errorf("insert remote history bootstrap membership: %w", err)
 		}
+		if err := insertBootstrapLifetimeSegmentConn(conn, generation.ID, object.ObjectID); err != nil {
+			return remotehistory.HistoryGeneration{}, err
+		}
 		if err := sqlitex.Execute(conn,
 			"INSERT INTO remote_history_membership (generation_id, object_id, locators_json, last_sequence) VALUES (?1, ?2, ?3, 1)",
 			&sqlitex.ExecOptions{Args: []any{string(generation.ID), string(object.ObjectID), locatorsJSON}}); err != nil {
@@ -208,6 +211,9 @@ func (s *Store) PublishRemoteHistoryCycle(
 			}}); err != nil {
 			return remotehistory.HistoryGeneration{}, fmt.Errorf("insert remote history publication change: %w", err)
 		}
+		if err := applyLifetimeChangeConn(conn, generationID, nextSequence, int64(i), change); err != nil {
+			return remotehistory.HistoryGeneration{}, err
+		}
 
 		switch change.Kind {
 		case remotehistory.ChangeUpsert:
@@ -302,6 +308,9 @@ func (s *Store) CloseRemoteHistoryGeneration(
 	}
 	if conn.Changes() != 1 {
 		return remotehistory.HistoryGeneration{}, ErrHistoryPublicationConflict
+	}
+	if err := closeLifetimeSegmentsForGenerationConn(conn, generationID, expectedSequence); err != nil {
+		return remotehistory.HistoryGeneration{}, err
 	}
 	generation.Status = remotehistory.HistoryGenerationClosed
 	generation.ClosedAt = closedAt.UTC()
