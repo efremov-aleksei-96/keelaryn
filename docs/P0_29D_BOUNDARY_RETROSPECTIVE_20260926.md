@@ -105,3 +105,36 @@ One minimal blocker-fix slice only:
 5. no live provider access;
 6. exact-head Ubuntu + Windows qualification;
 7. re-audit before declaring C3 qualified.
+
+## Resolution re-audit — PASS
+
+The blockers recorded by this retrospective were resolved without schema expansion.
+
+Audited final product head:
+
+```text
+be53c465823855704d5ac14b12f1bfc3de0160b7
+```
+
+CI run `36257933663`:
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+Resolved:
+
+- managed-root binding is revalidated against current provider-object lifetime;
+- topology nodes/parent edges are revalidated against lifetime start positions;
+- missing-parent semantics retain precedence over lifetime mismatch when ancestry is unavailable;
+- same-ID reincarnation adversarial tests are present;
+- managed-root same-lifetime move is explicitly proven;
+- deterministic topology projection verification detects drift and forged evidence lacking RemoteHistory source authority;
+- ordinary Google transport interruption is explicitly proven non-mutating for both history and topology;
+- an unused ambiguous binding read API was removed;
+- canonical audit doctrine now matches the mandatory per-substantive-stage audit policy.
+
+Final result: **PASS**. No open BLOCKER/HIGH finding remains at the P0-29 boundary.
+
+Schema remains v16. No new dependency, live OAuth/provider access, or corpus mutation occurred.
+
