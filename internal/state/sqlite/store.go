@@ -1436,6 +1436,28 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER gdrive_topology_nodes_insert_requires_unwatermarked
+BEFORE INSERT ON gdrive_topology_nodes
+WHEN EXISTS (
+	SELECT 1 FROM gdrive_topology_watermarks w
+	WHERE w.generation_id=NEW.generation_id
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remove Google Drive topology watermark before mutating projection');
+END;
+
+CREATE TRIGGER gdrive_topology_nodes_update_requires_unwatermarked
+BEFORE UPDATE ON gdrive_topology_nodes
+WHEN EXISTS (
+	SELECT 1 FROM gdrive_topology_watermarks w
+	WHERE w.generation_id=NEW.generation_id
+)
+BEGIN
+	SELECT RAISE(ABORT, 'remove Google Drive topology watermark before mutating projection');
+END;
+`,
+
 	},
 }
 

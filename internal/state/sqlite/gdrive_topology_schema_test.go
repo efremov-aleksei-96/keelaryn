@@ -37,7 +37,6 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 
 	conn, err := store.pool.Get(ctx)
 	if err != nil { t.Fatal(err) }
-	defer store.pool.Put(conn)
 
 	insertBootstrapEvidence := func(objectID string) {
 		t.Helper()
@@ -93,12 +92,16 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 			},
 		}},
 	}
+	store.pool.Put(conn)
 	if _, err := store.PublishRemoteHistoryCycle(
 		ctx, generation.ID, scope, "google-drive-history-universe:v1:test",
 		1, "cursor-1", cycle, time.Now().UTC(),
 	); err != nil {
 		t.Fatal(err)
 	}
+	conn, err = store.pool.Get(ctx)
+	if err != nil { t.Fatal(err) }
+	defer store.pool.Put(conn)
 
 	if err := sqlitex.Execute(conn,
 		"UPDATE gdrive_topology_watermarks SET publication_sequence=2 WHERE generation_id=?1",
@@ -119,11 +122,21 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 	}
 	if err := sqlitex.Execute(conn,
 		"UPDATE gdrive_topology_nodes SET parent_id='folder-new', last_sequence=2, last_ordinal=0 WHERE generation_id=?1 AND object_id='id-1'",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
+		t.Fatal("topology node mutated while watermark remained active")
+	}
+	if err := sqlitex.Execute(conn,
+		"DELETE FROM gdrive_topology_watermarks WHERE generation_id=?1",
 		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := sqlitex.Execute(conn,
-		"UPDATE gdrive_topology_watermarks SET publication_sequence=2 WHERE generation_id=?1",
+		"UPDATE gdrive_topology_nodes SET parent_id='folder-new', last_sequence=2, last_ordinal=0 WHERE generation_id=?1 AND object_id='id-1'",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO gdrive_topology_watermarks (generation_id, publication_sequence) VALUES (?1,2)",
 		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
 		t.Fatal(err)
 	}

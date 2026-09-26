@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 104,
+  "revision": 105,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C1_TOPOLOGY_DOMAIN_SCHEMA_QUALIFICATION",
-    "description": "Qualify exact-head schema v15 topology domain/schema on validate, Ubuntu 24.04 and Windows 2025. Require immutable evidence linked to RemoteHistory, completeness-guarded watermark, safe projection rebuild boundary, managed-root binding invariants, v14-to-v15 migration, all prior tests and go vet. Do not start C2 adapter/history wiring until PASS.",
+    "id": "P0_29C1_V16_TOPOLOGY_SCHEMA_QUALIFICATION",
+    "description": "Qualify exact-head schema v16 on validate, Ubuntu 24.04 and Windows 2025. Require no pool self-deadlock, projection mutation rejected while watermark is active, completeness-guarded watermark restoration, v14-to-v15 and v15-to-v16 migrations, all prior tests and go vet. Do not start C2 wiring until PASS.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "40b9e8a316b07ceb735510a9c5ea6e2b72167069",
+  "repository_basis_commit": "7ff20eaa0d619e40041677656be2bba087cd576d",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2979,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C1_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "C1_V16_HARDENED_AWAITING_QUALIFICATION",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3111,7 +3111,7 @@
       }
     },
     "c": {
-      "status": "C1_IMPLEMENTED_AWAITING_QUALIFICATION",
+      "status": "C1_V16_HARDENED_AWAITING_QUALIFICATION",
       "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
       "core_decisions": {
         "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
@@ -3133,9 +3133,9 @@
       "live_oauth_used": false,
       "live_provider_used": false,
       "corpus_mutations": 0,
-      "schema_version": 15,
+      "schema_version": 16,
       "c1": {
-        "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+        "status": "V16_HARDENED_AWAITING_QUALIFICATION",
         "implementation": {
           "domain_file": "internal/remotehistory/gdrive/topology.go",
           "topology_evidence": "IMMUTABLE_PROVIDER_SPECIFIC_EVIDENCE_BOUND_TO_REMOTE_HISTORY_PUBLICATION",
@@ -3161,7 +3161,22 @@
           "managed-root binding immutable",
           "current projection delete blocked while watermark exists",
           "watermark removal permits safe projection rebuild"
-        ]
+        ],
+        "boundary_findings": [
+          {
+            "id": "C1-B1",
+            "severity": "BLOCKER_BEFORE_QUALIFICATION",
+            "issue": "v15 projection node could be changed to older valid evidence while watermark remained current",
+            "correction": "v16 requires topology watermark removal before node insert/update/delete; transaction must reinsert validated watermark before commit"
+          },
+          {
+            "id": "C1-T1",
+            "severity": "TEST_ONLY",
+            "issue": "schema regression test held the single SQLite pool connection while calling Store.PublishRemoteHistoryCycle",
+            "correction": "return connection before Store call and reacquire afterward"
+          }
+        ],
+        "safe_update_protocol": "DELETE_WATERMARK_THEN_MUTATE_PROJECTION_THEN_INSERT_VALIDATED_WATERMARK_IN_ONE_SQLITE_TRANSACTION"
       }
     }
   }
