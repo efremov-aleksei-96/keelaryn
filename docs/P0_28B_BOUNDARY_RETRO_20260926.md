@@ -91,3 +91,28 @@ P0-28B may be marked QUALIFIED only after exact-head CI passes:
 - membership tamper rejection;
 - normal bootstrap/incremental publication remains functional;
 - go vet.
+
+## Qualification result
+
+P0-28B schema v9 hardening is **PASS**.
+
+Qualified exact product head:
+
+```text
+41e66aafc247c8f1d68a1b91b8e8f41cb1bb6f52
+```
+
+GitHub Actions run:
+
+```text
+36237799373
+```
+
+Results:
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+This qualifies the provider-neutral durable HistoryGeneration/publication boundary through schema v9. It does not qualify provider-object lifetime continuity or live provider identity acceptance; those remain P0-28C and later.
+

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 82,
+  "revision": 83,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -116,8 +116,8 @@
     "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_IMPLEMENTED"
   ],
   "next_objective": {
-    "id": "P0_28B_SCHEMA_V9_HARDENING_QUALIFICATION",
-    "description": "Qualify exact-head schema v9 RemoteHistory hardening on validate, Ubuntu 24.04 and Windows 2025. Require all prior P0-28B tests plus direct-SQL forged generation/publication/membership rejection and v8-to-v9 migration. Do not start P0-28C until PASS.",
+    "id": "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENTS_CONTRACT",
+    "description": "Design the provider-neutral object-lifetime segment model on top of qualified HistoryGeneration/publication evidence. Reuse nearest proven lifetime/epoch concepts, define REMOVED→reappearance semantics and binding scope, then implement only after the contract is durable. No live OAuth/provider access and no corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -150,7 +150,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "11624c92bc6e9ce8410c33515961797d860ca99a",
+  "repository_basis_commit": "41e66aafc247c8f1d68a1b91b8e8f41cb1bb6f52",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2261,10 +2261,10 @@
     "mode": "EVENT_TRIGGERED_PLUS_MAXIMUM_SLICE_INTERVAL",
     "maximum_qualified_substantive_slices_between_retrospectives": 4,
     "last_retrospective": {
-      "head": "11624c92bc6e9ce8410c33515961797d860ca99a",
+      "head": "41e66aafc247c8f1d68a1b91b8e8f41cb1bb6f52",
       "document": "docs/P0_28B_BOUNDARY_RETRO_20260926.md",
-      "ci_run_id": 36237408742,
-      "conclusion": "PRE_HARDENING_CI_SUCCESS_BOUNDARY_BLOCKER_FOUND"
+      "ci_run_id": 36237799373,
+      "conclusion": "SUCCESS"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -2459,7 +2459,7 @@
     }
   },
   "p0_28b": {
-    "status": "BOUNDARY_HARDENED_AWAITING_QUALIFICATION",
+    "status": "QUALIFIED",
     "objective": "Define provider-neutral durable HistoryGeneration/publication authority before object-lifetime integration.",
     "evidence_document": "docs/P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT.md",
     "dependencies_added": 0,
@@ -2541,7 +2541,40 @@
         }
       ],
       "migration_rule": "DO_NOT_REWRITE_ISSUED_V8_ADD_V9",
-      "status": "HARDENING_COMMITTED_QUALIFICATION_PENDING"
+      "status": "PASS",
+      "final_head": "41e66aafc247c8f1d68a1b91b8e8f41cb1bb6f52",
+      "final_ci_run_id": 36237799373,
+      "final_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025"
+    },
+    "qualification": {
+      "exact_head": "41e66aafc247c8f1d68a1b91b8e8f41cb1bb6f52",
+      "ci_run_id": 36237799373,
+      "conclusion": "SUCCESS",
+      "jobs": {
+        "validate": "PASS",
+        "go (ubuntu-24.04)": "PASS",
+        "go (windows-2025)": "PASS"
+      },
+      "schema_version": 9,
+      "gates": [
+        "all prior tests",
+        "v7-to-v8 migration",
+        "v8-to-v9 migration",
+        "atomic bootstrap generation/publication/membership/cursor",
+        "incremental expected-sequence+cursor compare-and-swap",
+        "immutable bootstrap/publication/change evidence",
+        "trust-break generation closure and rebootstrap",
+        "forged generation advance rejected at SQLite boundary",
+        "wrong-prestate publication rejected at SQLite boundary",
+        "membership tamper rejected without matching immutable evidence",
+        "RemoteHistory does not fabricate Observation/Artifact authority",
+        "reopen durability",
+        "go mod tidy -diff",
+        "go vet"
+      ],
+      "live_oauth_used": false,
+      "live_provider_used": false,
+      "corpus_mutations": 0
     }
   }
 }
