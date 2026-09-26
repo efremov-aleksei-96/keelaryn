@@ -973,3 +973,24 @@ Decision:
 
 Detailed contract: `docs/P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT.md`.
 
+## P0-28C — provider-object lifetime/incarnation reuse review
+
+Reviewed official/standards-based analogues before deciding the lifetime-segment contract:
+
+- **Kubernetes object UID** — object names can be reused after deletion while UID distinguishes historical occurrences. Reuse the incarnation-context idea; do not use Kubernetes identity as Artifact identity.
+- **NFSv4 filehandles (RFC 8881)** — persistent handles are stable for an object's lifetime and become stale when the object is removed; the protocol also describes generation numbers for volatile handle slots. Reuse the stable-lifetime + generation/incarnation boundary.
+- **NTFS MFT segment references** — an MFT address is tagged with a reused sequence number. Reuse the principle that a raw native slot/number is insufficient across reuse.
+- **Google Drive file/change contracts** — file IDs are documented as stable throughout the life of a file, while a removed change can mean deletion or loss of access. Therefore REMOVED is a continuity/presence boundary, not a deletion assertion.
+
+Decision:
+
+- introduce a Keelaryn `ProviderObjectLifetimeSegment` inside one exact `HistoryGeneration`;
+- make segment IDs deterministic/rebuildable from immutable history start evidence;
+- scope live provider Artifact bindings to the segment, not the naked provider ID;
+- treat prior-segment/legacy bindings as ambiguity blockers rather than silently inheriting them;
+- require final SAME/NEW mutation to revalidate generation + segment + binding authority inside SQLite.
+
+No new runtime dependency is required.
+
+Detailed contract: `docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md`.
+

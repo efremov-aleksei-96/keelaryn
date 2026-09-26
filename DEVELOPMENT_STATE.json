@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 83,
+  "revision": 84,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -113,11 +113,12 @@
     "P0_28A_BOUNDARY_RETROSPECTIVE_PASS",
     "PROJECT_CONTINUITY_AND_OBSERVATION_POLICY_ARCHITECTURE_ADOPTED",
     "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT_DECIDED",
-    "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_IMPLEMENTED"
+    "P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_IMPLEMENTED",
+    "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENTS_CONTRACT",
-    "description": "Design the provider-neutral object-lifetime segment model on top of qualified HistoryGeneration/publication evidence. Reuse nearest proven lifetime/epoch concepts, define REMOVED→reappearance semantics and binding scope, then implement only after the contract is durable. No live OAuth/provider access and no corpus mutation.",
+    "id": "P0_28C1_LIFETIME_SEGMENT_DERIVATION_IMPLEMENTATION",
+    "description": "Implement schema v10 provider-object lifetime segments as deterministic rebuildable projections of qualified P0-28B immutable history. Cover bootstrap, UPSERT/REMOVED order including repeated same-object changes in one publication, generation closure, deterministic rebuild/reconciliation, migration/reopen, and direct integrity tests. Do not integrate Artifact bindings yet; no live provider/OAuth and no corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -150,7 +151,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "41e66aafc247c8f1d68a1b91b8e8f41cb1bb6f52",
+  "repository_basis_commit": "f3144d91d3961cb2f2b32fdc84e819ece39466ea",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2575,6 +2576,53 @@
       "live_oauth_used": false,
       "live_provider_used": false,
       "corpus_mutations": 0
+    },
+    "qualification_checkpoint": {
+      "head": "f3144d91d3961cb2f2b32fdc84e819ece39466ea",
+      "ci_run_id": 36237974238,
+      "conclusion": "SUCCESS",
+      "jobs": {
+        "validate": "PASS",
+        "go (ubuntu-24.04)": "PASS",
+        "go (windows-2025)": "PASS"
+      }
     }
+  },
+  "p0_28c": {
+    "status": "CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
+    "evidence_document": "docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md",
+    "dependencies_added": 0,
+    "live_oauth_used": false,
+    "corpus_mutations": 0,
+    "reuse_sources": [
+      "Kubernetes object UID historical incarnation",
+      "NFSv4 stable-lifetime/stale filehandle + generation number",
+      "NTFS MFT segment reference + sequence number",
+      "Google Drive stable-for-file-lifetime ID + removal/loss-of-access semantics"
+    ],
+    "contract": {
+      "segment_scope": "ONE_HISTORY_GENERATION_ONLY",
+      "segment_start": [
+        "BOOTSTRAP_PRESENT",
+        "UPSERT_WHILE_ABSENT"
+      ],
+      "segment_continue": "UPSERT_WHILE_PRESENT",
+      "segment_end": [
+        "REMOVED_FROM_SCOPE",
+        "HISTORY_GENERATION_CLOSED"
+      ],
+      "repeated_change_order": "PUBLICATION_SEQUENCE_PLUS_CHANGE_ORDINAL",
+      "segment_id": "DETERMINISTIC_HSEG_SHA256_OF_GENERATION_OBJECT_START_POSITION_V1",
+      "segment_state": "DURABLE_BUT_REBUILDABLE_FROM_IMMUTABLE_HISTORY",
+      "live_binding": "LIFETIME_SEGMENT_ID_TO_ARTIFACT_ID",
+      "naked_binding": "LEGACY_UNSCOPED_NON_CONCLUSIVE_FOR_LIVE_HISTORY",
+      "cross_segment_same": "NEVER_AUTOMATIC",
+      "stale_authority": "REVALIDATE_GENERATION_SEGMENT_MEMBERSHIP_BINDING_INSIDE_FINAL_MUTATION_TRANSACTION"
+    },
+    "implementation_order": [
+      "P0_28C1_SEGMENT_DERIVATION_SCHEMA_V10",
+      "P0_28C2_LIFETIME_BINDING_AND_AUTHORITY_INTEGRATION",
+      "P0_28C3_BOUNDARY_RETROSPECTIVE"
+    ]
   }
 }

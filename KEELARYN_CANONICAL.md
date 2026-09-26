@@ -522,6 +522,43 @@ RemoteHistory publication is identity/membership evidence only. It MUST NOT fabr
 
 Detailed P0 contract: `docs/P0_28B_REMOTE_HISTORY_GENERATION_PUBLICATION_CONTRACT.md`.
 
+### 9.6 Provider-object lifetime segments
+
+For provider IDs that are guaranteed only for the lifetime of a provider resource, conclusive continuity is scoped to a **ProviderObjectLifetimeSegment**, not to the naked provider ID.
+
+A segment is one maximal interval of proven uninterrupted presence inside one `HistoryGeneration`.
+
+```text
+bootstrap presence
+or UPSERT while absent
+→ segment starts
+
+UPSERT while present
+→ same segment continues
+
+REMOVED
+→ segment closes as REMOVED_FROM_SCOPE
+
+HistoryGeneration closes
+→ all active segments close at the last trusted boundary
+```
+
+A later same-ID UPSERT starts a new segment. A new HistoryGeneration always implies new segments. Equal provider IDs across segments do not automatically prove SAME.
+
+Because segments are fully derivable from immutable history evidence, segment identity is deterministic from the exact generation/object/start-position tuple and is rebuildable. This deterministic hash is evidence identity, not Artifact/content identity.
+
+Provider→Artifact authority for live history-qualified providers MUST be scoped to the exact lifetime segment:
+
+```text
+LifetimeSegmentID → ArtifactID
+```
+
+The older naked `(identity_domain, provider_id, native_object_id)` binding is legacy/unscoped provenance and MUST NOT independently authorize live SAME across a disappearance or generation boundary.
+
+Any sealed identity authority referencing a generation/segment MUST be revalidated inside the final SAME/NEW SQLite mutation transaction. Stale/closed/missing segment authority fails closed.
+
+Detailed P0 contract: `docs/P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT.md`.
+
 ---
 
 ## 10. Discovery and change detection
