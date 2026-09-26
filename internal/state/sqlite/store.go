@@ -1732,6 +1732,131 @@ BEGIN
 END;
 `,
 
+		`
+CREATE UNIQUE INDEX observations_occurrence_one_to_one
+	ON observations (occurrence_id);
+
+CREATE TRIGGER provider_object_occurrences_insert_structure_guard
+BEFORE INSERT ON provider_object_occurrences
+WHEN NEW.provider_id=''
+	OR (
+		NEW.identity_state='OBSERVED'
+		AND (NEW.native_object_id IS NULL OR NEW.native_object_id='')
+	)
+BEGIN
+	SELECT RAISE(ABORT, 'invalid provider object occurrence structure');
+END;
+
+CREATE TRIGGER observations_insert_structure_guard
+BEFORE INSERT ON observations
+WHEN NEW.mode>4294967295
+	OR julianday(NEW.observed_at) IS NULL
+	OR julianday(NEW.modified_at) IS NULL
+	OR NOT EXISTS (
+		SELECT 1
+		FROM provider_object_occurrences p
+		LEFT JOIN scan_sessions s ON s.scan_id=NEW.scan_id
+		WHERE p.occurrence_id=NEW.occurrence_id
+		  AND p.provider_id<>''
+		  AND (
+			NEW.scan_id IS NULL
+			OR (
+				s.scan_id=NEW.scan_id
+				AND s.status='OPEN'
+				AND s.provider_id=p.provider_id
+			)
+		  )
+	)
+BEGIN
+	SELECT RAISE(ABORT, 'observation does not match durable occurrence/scan scope');
+END;
+
+CREATE TRIGGER observations_scan_observed_object_unique_guard
+BEFORE INSERT ON observations
+WHEN NEW.scan_id IS NOT NULL
+AND EXISTS (
+	SELECT 1
+	FROM provider_object_occurrences incoming
+	JOIN observations existing_observation
+	  ON existing_observation.scan_id=NEW.scan_id
+	JOIN provider_object_occurrences existing
+	  ON existing.occurrence_id=existing_observation.occurrence_id
+	WHERE incoming.occurrence_id=NEW.occurrence_id
+	  AND incoming.identity_state='OBSERVED'
+	  AND existing.identity_state='OBSERVED'
+	  AND existing.provider_id=incoming.provider_id
+	  AND existing.native_object_id=incoming.native_object_id
+)
+BEGIN
+	SELECT RAISE(ABORT, 'scan already contains an observation for this provider object');
+END;
+
+CREATE TRIGGER locators_insert_structure_guard
+BEFORE INSERT ON locators
+WHEN NEW.provider_id=''
+	OR NEW.root=''
+	OR NEW.path=''
+	OR NOT EXISTS (
+		SELECT 1
+		FROM observations o
+		JOIN provider_object_occurrences p
+		  ON p.occurrence_id=o.occurrence_id
+		LEFT JOIN scan_sessions s
+		  ON s.scan_id=o.scan_id
+		WHERE o.observation_id=NEW.observation_id
+		  AND p.provider_id=NEW.provider_id
+		  AND (
+			o.scan_id IS NULL
+			OR (
+				s.scan_id=o.scan_id
+				AND s.status='OPEN'
+				AND s.provider_id=NEW.provider_id
+				AND s.root=NEW.root
+			)
+		  )
+	)
+BEGIN
+	SELECT RAISE(ABORT, 'locator does not match observation/provider/scan scope');
+END;
+
+CREATE TRIGGER locators_scan_path_unique_guard
+BEFORE INSERT ON locators
+WHEN EXISTS (
+	SELECT 1
+	FROM observations incoming_observation
+	JOIN observations existing_observation
+	  ON existing_observation.scan_id=incoming_observation.scan_id
+	 AND existing_observation.observation_id<>incoming_observation.observation_id
+	JOIN locators existing_locator
+	  ON existing_locator.observation_id=existing_observation.observation_id
+	WHERE incoming_observation.observation_id=NEW.observation_id
+	  AND incoming_observation.scan_id IS NOT NULL
+	  AND existing_locator.provider_id=NEW.provider_id
+	  AND existing_locator.root=NEW.root
+	  AND existing_locator.path=NEW.path
+)
+BEGIN
+	SELECT RAISE(ABORT, 'scan locator is already owned by another observation');
+END;
+
+CREATE TRIGGER scan_sessions_complete_observation_coverage_guard
+BEFORE UPDATE ON scan_sessions
+WHEN OLD.status='OPEN'
+AND NEW.status='COMPLETE'
+AND EXISTS (
+	SELECT 1
+	FROM observations o
+	WHERE o.scan_id=OLD.scan_id
+	  AND NOT EXISTS (
+		SELECT 1 FROM locators l
+		WHERE l.observation_id=o.observation_id
+	  )
+)
+BEGIN
+	SELECT RAISE(ABORT, 'COMPLETE scan contains an observation without a locator');
+END;
+`,
+
 	},
 }
 
