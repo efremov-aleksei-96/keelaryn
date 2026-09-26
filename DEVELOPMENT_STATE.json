@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 110,
+  "revision": 111,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C2B_REFACTOR_QUALIFICATION",
-    "description": "Qualify the behavior-preserving RemoteHistory transaction-helper refactor on validate, Ubuntu 24.04 and Windows 2025. Require all existing P0-28/P0-29 tests and go vet. Do not add Google topology sidecar writes until PASS.",
+    "id": "P0_29C2B_GOOGLE_ATOMIC_TOPOLOGY_SIDECAR",
+    "description": "Implement Google-specific Store entrypoints over the qualified transaction helpers. Bootstrap/incremental bundles must be revalidated at Store boundary; topology evidence, current nodes and exact watermark commit in the same SQLite transaction as RemoteHistory publication. Use existing schema v16 only. No membership traversal, no live provider access.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "b7ca17735aa550d833324bb400a749db4a8f41d9",
+  "repository_basis_commit": "09e590e0b09f2f826a9163a79ef96a23f92a268e",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2979,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C2B_REFACTOR_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "C2B_REFACTOR_QUALIFIED_SIDECAR_NEXT",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3207,7 +3207,7 @@
         }
       },
       "c2": {
-        "status": "B_REFACTOR_IMPLEMENTED_AWAITING_QUALIFICATION",
+        "status": "B_REFACTOR_QUALIFIED_SIDECAR_NEXT",
         "a": {
           "status": "QUALIFIED",
           "scope": "GDRIVE_HISTORY_TOPOLOGY_BUNDLE",
@@ -3269,7 +3269,7 @@
           }
         },
         "b": {
-          "status": "REFACTOR_IMPLEMENTED_AWAITING_QUALIFICATION",
+          "status": "REFACTOR_QUALIFIED",
           "scope": "GENERIC_REMOTE_HISTORY_TRANSACTION_EXTENSION_POINT",
           "implementation": {
             "generic_public_apis": "UNCHANGED",
@@ -3280,6 +3280,27 @@
             "transaction_boundary": "SIDECAR_RUNS_INSIDE_EXISTING_IMMEDIATE_SQLITE_TRANSACTION",
             "behavior_change": false,
             "schema_changed": false,
+            "live_provider_used": false,
+            "corpus_mutations": 0
+          },
+          "qualification": {
+            "exact_head": "09e590e0b09f2f826a9163a79ef96a23f92a268e",
+            "ci_run_id": 36249500920,
+            "conclusion": "SUCCESS",
+            "jobs": {
+              "validate": "PASS",
+              "go (ubuntu-24.04)": "PASS",
+              "go (windows-2025)": "PASS"
+            },
+            "gates": [
+              "generic StartRemoteHistoryGeneration behavior preserved",
+              "generic PublishRemoteHistoryCycle behavior preserved",
+              "optional sidecar runs inside existing SQLite immediate transaction",
+              "nil sidecar is exact generic path",
+              "all prior tests",
+              "go mod tidy -diff",
+              "go vet"
+            ],
             "live_provider_used": false,
             "corpus_mutations": 0
           }
