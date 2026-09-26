@@ -110,13 +110,18 @@ This distinction is preferred to pretending an earlier green slice proved behavi
 
 ## 7. Current audit clock
 
-P0-30B deterministic LIGHTWEIGHT_ALL remote materialization retrospective is complete at hardened product head `273141907d1a4af33b760c03ba219643ff77575f`.
+P0-30B deterministic LIGHTWEIGHT_ALL remote materialization has been **re-qualified after the earlier v23 PASS was reopened by later audits**.
 
-CI run `36271236833`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
+Final product semantics head: `0cf94684182c75ddec688ee8b98710aef0b49c80`.
+Final qualification/test head: `b2cc7c043062d47ba781978835a9130e60cc4201`.
+Exact-head CI run `36274111034`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
+Current SQLite schema authority: **v26**.
 
-Status: **PASS**. Repeated full audits found and resolved the P0-30B authority, replay, persisted-content, provider-scope and Google locator-reuse defects recorded in `docs/P0_30B_BOUNDARY_RETROSPECTIVE_20260927.md`. After the final product correction, a full product re-audit found no new BLOCKER, HIGH, MEDIUM or LOW product finding. Schema authority is v23.
+Status: **PASS**. The reopened audit added and resolved B-B11 through B-B17: unsupported-provider default-success, raw-SQL completion bypass, snapshot-version/policy mismatch, SQLite/Go timestamp mismatch, unbound Observation time, non-newest remote COMPLETE, and non-causal RemoteHistory publication/scan time. Test-only B-T1/B-T2 were also closed. No open BLOCKER/HIGH/MEDIUM/LOW product finding remains at this boundary.
 
-The rolling substantive-slice counter is reset to zero. The next retrospective is mandatory after **P0-30C** and before overall P0-30 qualification or any subsequent substantive stage. Event triggers may require an earlier audit within the stage.
+Qualification scope is deliberately narrow: the P0-30B **library boundary** is qualified. There is still no live CLI/MCP/provider wiring, live OAuth/provider read, content download, or corpus mutation.
+
+The rolling substantive-slice counter is reset to zero. The next substantive stage is **P0-30C**, and its retrospective remains mandatory before overall P0-30 qualification. Event triggers may require an earlier audit.
 
 ## 8. Parallel audit/research during execution
 

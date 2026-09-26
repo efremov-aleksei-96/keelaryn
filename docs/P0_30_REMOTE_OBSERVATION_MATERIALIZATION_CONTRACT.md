@@ -63,6 +63,7 @@ snapshot_fingerprint_sha256
 Requirements:
 - scan_id references the existing ScanSession;
 - generation_id + publication_sequence references an immutable RemoteHistory publication;
+- for the P0-30B snapshot format, `keelaryn.remote-metadata-snapshot:v1` and `LIGHTWEIGHT_ALL:v1` are an exact semantic pair; either half without the other is invalid;
 - source_scope_id is provider-specific source scope evidence; for Google managed-root materialization it identifies the managed root binding used for membership;
 - materialization_policy_id versions the mapping from provider snapshot facts into Observation facts;
 - snapshot fingerprint is replay/provenance evidence only and MUST NOT become Artifact, Revision or ProviderObject identity;
@@ -198,18 +199,26 @@ This prevents stale metadata or ContentEvidence from becoming accepted durable i
 Start:
 1. reconcile exact RemoteHistory/topology prestate;
 2. validate snapshot completeness/fingerprint before durable scan start where practical;
-3. StartRemoteHistoryScan atomically creates OPEN ScanSession + immutable source sidecar.
+3. require the bound RemoteHistory publication to have canonical nondecreasing UTC RFC3339Nano committed time;
+4. require ScanSession.started_at to be at or after the bound publication committed_at;
+5. StartRemoteHistoryScan atomically creates OPEN ScanSession + immutable source sidecar.
 
 Materialize:
 - deterministic object order;
 - write one Observation or accepted SAME/NEW Observation per IN object;
+- for P0-30B metadata materialization, every persisted Observation.observed_at equals the source-bound ScanSession.started_at;
+- scan/Observation durable time is canonical UTC RFC3339Nano;
 - OPEN scan remains non-authoritative inventory.
 
 Complete:
-1. inside the completion boundary reload source binding;
+1. inside the completion boundary reload source binding and revalidate causal source time;
 2. revalidate generation is still at the exact bound publication;
-3. revalidate required topology watermark/source scope;
-4. only then mark ScanSession COMPLETE.
+3. recompute the canonical snapshot fingerprint from persisted Observation/Locator evidence;
+4. revalidate required topology watermark/source scope and the provider-specific exact-IN/locator projection;
+5. fail closed for a provider that has no qualified transaction-time completion validator;
+6. require the candidate remote completion time to be strictly later than the existing latest COMPLETE for the same provider/root so successful COMPLETE actually becomes current Inventory;
+7. issue a connection-local completion capability only after all checks above; the schema rejects source-bound raw-SQL OPEN→COMPLETE without it;
+8. only then mark ScanSession COMPLETE.
 
 If prestate advanced, completion fails and the attempt is ABORTED/rebuilt. The previous COMPLETE inventory remains authoritative.
 
@@ -302,6 +311,7 @@ Do NOT import those systems' identity semantics. Keelaryn Artifact/Revision/life
 ## 20. Explicitly deferred
 
 P0-30 does not authorize:
+- treating P0-30B as live runtime wiring; B is a qualified library boundary only until a later stage explicitly wires and qualifies CLI/MCP/provider execution;
 - live Google OAuth/provider reads;
 - Google-specific production metadata mapping;
 - content downloading solely to force SAME;

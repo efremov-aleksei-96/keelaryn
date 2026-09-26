@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 131,
+  "revision": 132,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -134,11 +134,15 @@
     "P0_30B_DURABLE_AUTHORITY_HARDENED",
     "P0_30B_FULL_REAUDIT_CLEAN",
     "P0_30B_DETERMINISTIC_LIGHTWEIGHT_ALL_MATERIALIZER_QUALIFIED",
-    "P0_30B_BOUNDARY_RETROSPECTIVE_PASS"
+    "P0_30B_BOUNDARY_RETROSPECTIVE_PASS",
+    "P0_30B_REQUALIFICATION_REOPENED_AND_RESOLVED",
+    "P0_30B_SOURCE_BOUND_COMPLETION_CAPABILITY_QUALIFIED",
+    "P0_30B_CAUSAL_TIME_AUTHORITY_SCHEMA_V26_QUALIFIED",
+    "P0_30B_FINAL_REAUDIT_PASS"
   ],
   "next_objective": {
     "id": "P0_30C_EXISTING_IDENTITY_REVISION_INTEGRATION",
-    "description": "Implement only P0-30C: integrate the exact source-bound OPEN remote scan with the existing RemoteHistory identity authority and existing SAME/NEW acceptance path before each object's single Observation is written. Reuse CreateRemoteHistoryIdentityAuthority, AcceptNewObservationInScan, AcceptSameObservationInScan, existing Revision/ContentEvidence rules, and identity-mutation replay. NEW may create Artifact without Revision; regular SAME without exact ContentEvidence remains unresolved; exact content evidence follows existing revision rules. Derive deterministic identity mutation request IDs and revalidate bound generation/publication inside final SAME/NEW mutation transactions. No live Google OAuth/provider reads, content download solely to force SAME, second identity resolver/inventory, or corpus mutation. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI and the mandatory stage retrospective before overall P0-30 qualification.",
+    "description": "Implement only P0-30C at the existing library boundary: integrate the exact source-bound OPEN remote scan with the existing RemoteHistory identity authority and existing SAME/NEW acceptance path before each object's single Observation is written. Reuse CreateRemoteHistoryIdentityAuthority, AcceptNewObservationInScan, AcceptSameObservationInScan, existing Revision/ContentEvidence rules, and identity-mutation replay. NEW may create Artifact without Revision; regular SAME without exact ContentEvidence remains unresolved; exact content evidence follows existing revision rules. Derive deterministic identity mutation request IDs and revalidate the bound generation/publication inside final SAME/NEW mutation transactions. Preserve P0-30B causal/source/provider/current-inventory guards. No live Google OAuth/provider reads, content download solely to force SAME, second identity resolver/inventory, CLI/MCP/HTTP exposure, or corpus mutation. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI and the mandatory stage retrospective before overall P0-30 qualification.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "audit_gate": "MANDATORY_STAGE_RETROSPECTIVE_AFTER_P0_30C_BEFORE_P0_30_QUALIFICATION"
@@ -172,7 +176,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "273141907d1a4af33b760c03ba219643ff77575f",
+  "repository_basis_commit": "b2cc7c043062d47ba781978835a9130e60cc4201",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2283,9 +2287,9 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "273141907d1a4af33b760c03ba219643ff77575f",
+      "head": "b2cc7c043062d47ba781978835a9130e60cc4201",
       "document": "docs/P0_30B_BOUNDARY_RETROSPECTIVE_20260927.md",
-      "ci_run_id": 36271236833,
+      "ci_run_id": 36274111034,
       "conclusion": "PASS"
     },
     "substantive_slices_since_last_retrospective": 0,
@@ -3733,7 +3737,13 @@
       "revision": "UNCHANGED_REGULAR_SAME_REQUIRES_EXACT_CONTENT_EVIDENCE",
       "replay": "RECONCILE_COMPLETE_OPEN_ABORTED_SOURCE_BOUND_SCANS_NO_BLIND_RETRY",
       "dependencies_added": 0,
-      "google_locator_projection": "REUSE_GDRIVE_FILE_ID_LOCATOR_PATH_WITH_URL_PATH_ESCAPE"
+      "google_locator_projection": "REUSE_GDRIVE_FILE_ID_LOCATOR_PATH_WITH_URL_PATH_ESCAPE",
+      "provider_completion_validation": "FAIL_CLOSED_UNLESS_PROVIDER_HAS_TRANSACTION_TIME_VALIDATOR_GOOGLE_DRIVE_ONLY_AT_P0_30B",
+      "snapshot_policy_pairing": "REMOTE_METADATA_SNAPSHOT_V1_IFF_LIGHTWEIGHT_ALL_V1",
+      "remote_completion_authority": "SOURCE_BOUND_COMPLETE_REQUIRES_VALIDATED_CONNECTION_LOCAL_CAPABILITY",
+      "time_authority": "CANONICAL_UTC_RFC3339NANO_SCAN_OBSERVATION_PLUS_NONDECREASING_REMOTE_HISTORY_PUBLICATION",
+      "remote_scan_causality": "SCAN_START_AT_OR_AFTER_BOUND_PUBLICATION_COMMIT",
+      "current_remote_inventory": "NEW_REMOTE_COMPLETE_MUST_HAVE_FINISH_STRICTLY_AFTER_EXISTING_LATEST_COMPLETE"
     },
     "implementation_order": [
       "P0_30A_SOURCE_BOUND_REMOTE_SCANSESSION",
@@ -3745,7 +3755,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 23,
+    "schema_version": 26,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -3878,22 +3888,34 @@
     "b": {
       "status": "QUALIFIED",
       "implementation": {
-        "product_head": "273141907d1a4af33b760c03ba219643ff77575f",
-        "schema_version": 23,
+        "product_head": "0cf94684182c75ddec688ee8b98710aef0b49c80",
+        "qualification_head": "b2cc7c043062d47ba781978835a9130e60cc4201",
+        "schema_version": 26,
         "materialization_policy_id": "LIGHTWEIGHT_ALL:v1",
         "snapshot_fingerprint_version": "keelaryn.remote-metadata-snapshot:v1",
+        "snapshot_policy_pairing": "EXACT_IFF_PAIRING_ENFORCED",
         "general_inventory": "EXISTING_SCANSESSION_OBSERVATION_INVENTORY_ONLY",
         "observation_assignment": "UNRESOLVED_ONLY_IN_P0_30B",
+        "observation_time": "OBSERVED_AT_EQUALS_SCAN_STARTED_AT",
         "exact_in_validation": "REMOTE_HISTORY_MEMBERSHIP_PLUS_PROVIDER_SPECIFIC_MANAGED_SCOPE",
+        "supported_completion_providers": [
+          "google-drive"
+        ],
+        "unsupported_provider_completion": "FAIL_CLOSED",
         "unknown_membership": "FAIL_CLOSED",
         "missing_required_metadata": "FAIL_CLOSED_NO_FABRICATION",
         "source_binding": "EXISTING_REMOTE_SCAN_SOURCE_SIDECAR",
         "persisted_content_seal": "COMPLETE_RECOMPUTES_CANONICAL_FINGERPRINT_FROM_PERSISTED_OBSERVATION_LOCATOR_ROWS",
         "completion_scope_revalidation": "GENERATION_PUBLICATION_PLUS_PROVIDER_MANAGED_SCOPE_REVALIDATED_IN_SQLITE_COMPLETION_TRANSACTION",
+        "source_bound_complete_capability": "CONNECTION_LOCAL_APPLICATION_CAPABILITY_REQUIRED_BY_SCHEMA_V24_TRIGGER",
+        "scan_observation_time_authority": "CANONICAL_UTC_RFC3339NANO_SCHEMA_V25",
+        "remote_history_time_authority": "CANONICAL_NONDECREASING_PUBLICATION_COMMIT_AND_CAUSAL_SCAN_START_SCHEMA_V26",
+        "current_inventory_guard": "REMOTE_COMPLETE_FINISH_STRICTLY_AFTER_EXISTING_LATEST_COMPLETE",
         "google_scan_root": "IDENTITY_DOMAIN_DISAMBIGUATED_CANONICAL_MANAGED_ROOT_KEY",
         "google_locator_projection": "SHARED_GDRIVE_FILE_ID_LOCATOR_PATH_URL_PATH_ESCAPE",
         "replay": "OPEN_RECONCILE_NO_AUTO_ABORT_COMPLETE_REPLAY_REVERIFIED",
         "identity_integration": false,
+        "runtime_reachability": "LIBRARY_BOUNDARY_ONLY_NO_LIVE_CLI_MCP_PROVIDER_WIRING",
         "live_provider_used": false,
         "corpus_mutations": 0,
         "dependencies_added": 0,
@@ -3902,39 +3924,54 @@
           20,
           21,
           22,
-          23
+          23,
+          24,
+          25,
+          26
         ],
-        "portability": "PURE_GO_PLUS_SQLITE_NO_NEW_OS_SPECIFIC_CODE"
+        "portability": "PURE_GO_PLUS_SQLITE_NO_NEW_OS_SPECIFIC_PRODUCT_CODE"
       },
       "tests": [
         "deterministic LIGHTWEIGHT_ALL materialization through existing ScanSession/Observation/Inventory",
         "exact IN set represented; OUT absent; UNKNOWN blocks completion",
         "missing required metadata fails closed",
+        "snapshot fingerprint version and LIGHTWEIGHT_ALL policy exact pairing",
         "different fingerprint at same exact source boundary rejected by API and SQLite",
+        "unsupported provider B completion fails closed",
         "ABORTED newer attempt does not replace previous COMPLETE inventory",
         "matching OPEN scan is never auto-aborted without ownership proof",
         "matching COMPLETE replay invokes durable completion verifier and survives history advance",
         "two managed roots in one provider history universe remain independent inventories",
         "raw managed-root IDs cannot collide across provider identity domains",
         "cross-object locator collision rejected",
-        "Observation/Locator evidence is SQLite immutable",
-        "generic COMPLETE cannot bypass remote-managed-root source provenance",
+        "Observation/Locator evidence is SQLite immutable and structurally scoped",
+        "generic and raw-SQL COMPLETE cannot bypass remote source provenance or validated completion capability",
         "duplicate exact COMPLETE source cannot displace deterministic replay authority",
         "terminal scans reject appended Observation/Locator rows",
         "ScanSession lifecycle is SQLite sealed to OPEN-to-COMPLETE-or-ABORTED",
         "persisted scan content must match immutable snapshot fingerprint before COMPLETE",
-        "Observation occurrence/provider/scan/locator structural authority is SQLite sealed",
+        "Observation observed_at must equal source-bound ScanSession started_at",
         "Google exact managed-root IN set and topology watermark are revalidated inside completion transaction",
         "Google managed-root scan key must be canonical",
-        "Google locator projection must be the shared percent-escaped file-ID locator",
-        "schema migration regressions v18-to-v19-to-v20-to-v21-to-v22-to-v23",
-        "existing local ScanSession regression suite remains green"
+        "Google locator projection uses the shared percent-escaped file-ID locator",
+        "scan/Observation durable time must be canonical UTC RFC3339Nano",
+        "RemoteHistory publication time is canonical and nondecreasing",
+        "source-bound scan cannot start before bound publication; equal time is allowed",
+        "remote current publication cannot COMPLETE with finish earlier than or equal to existing latest COMPLETE",
+        "schema migration regressions v18 through v26",
+        "existing local ScanSession regression behavior remains green"
       ],
       "stage_audit": {
         "document": "docs/P0_30B_BOUNDARY_RETROSPECTIVE_20260927.md",
         "initial_implementation_head": "574c919247e6a2d5ac023d51f16347a86d11818f",
         "initial_ci_run_id": 36266103222,
         "initial_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+        "prior_premature_checkpoint": {
+          "head": "1110c394755c606c22468e6a0d08d6923271ff39",
+          "claimed_product_head": "273141907d1a4af33b760c03ba219643ff77575f",
+          "claimed_schema_version": 23,
+          "status": "SUPERSEDED_BY_REOPENED_AUDIT"
+        },
         "findings": [
           {
             "id": "B-B1",
@@ -4001,27 +4038,91 @@
             "severity": "LOW",
             "issue": "DEVELOPMENT_STATE, engineering audit clock and P0-30 locator wording remained at the P0-30A/B-next boundary after the product became clean",
             "correction": "this checkpoint synchronizes durable state, audit clock, retrospective and canonical escaped Google locator wording"
+          },
+          {
+            "id": "B-B11",
+            "severity": "BLOCKER",
+            "issue": "LIGHTWEIGHT_ALL completion scope validation defaulted to success for providers without an implemented transaction-time provider validator",
+            "correction": "completion now fails closed for unsupported providers; P0-30B qualification supports Google Drive managed-root completion only"
+          },
+          {
+            "id": "B-B12",
+            "severity": "BLOCKER",
+            "issue": "direct SQL could still mark a source-bound OPEN scan COMPLETE after later Go-level persisted-fingerprint/provider-scope validators had passed only in the guarded API",
+            "correction": "schema v24 remote_scan_session_complete_application_guard requires a connection-local application capability issued only by CompleteRemoteHistoryScan after all validators"
+          },
+          {
+            "id": "B-B13",
+            "severity": "BLOCKER",
+            "issue": "remote-metadata snapshot fingerprint version and materialization policy could be mixed, allowing the B fingerprint semantics to bypass LIGHTWEIGHT_ALL provider-scope validation",
+            "correction": "RemoteMetadataSnapshotFingerprintVersion is valid iff paired with LIGHTWEIGHT_ALL:v1, enforced by shared source validation and explicit regressions"
+          },
+          {
+            "id": "B-B14",
+            "severity": "BLOCKER",
+            "issue": "SQLite julianday accepted scan/Observation timestamps that Go time.Parse(RFC3339Nano) later rejected, allowing durable unreadable evidence",
+            "correction": "schema v25 uses the same Go canonical UTC RFC3339Nano parser through deterministic connection-local SQL validation; migration rejects existing noncanonical scan/Observation time without rewriting evidence"
+          },
+          {
+            "id": "B-B15",
+            "severity": "BLOCKER",
+            "issue": "persisted Observation.observed_at was not bound to the materialization boundary and could differ while the snapshot fingerprint still matched",
+            "correction": "for B snapshot-version scans persisted Observation observed_at must equal ScanSession.started_at before completion/replay verification succeeds"
+          },
+          {
+            "id": "B-B16",
+            "severity": "BLOCKER",
+            "issue": "a newer current provider publication could COMPLETE with finished_at earlier than or equal to the existing latest COMPLETE and silently fail to become current Inventory because Inventory orders by finished_at",
+            "correction": "remote completion fails closed unless its finish is strictly later than the existing latest COMPLETE for that provider/root; local scan semantics are unchanged"
+          },
+          {
+            "id": "B-B17",
+            "severity": "BLOCKER",
+            "issue": "RemoteHistory publication committed_at could regress across increasing publication sequence and a source-bound scan could be created before its source publication, breaking causal provenance",
+            "correction": "schema v26 plus application guards make publication committed_at canonical and nondecreasing, preserve bootstrap committed_at==generation.created_at, and require source-bound scan start at or after the bound publication"
+          },
+          {
+            "id": "B-T1",
+            "severity": "TEST_GAP",
+            "issue": "the v25 partial-schema migration harness did not register the custom SQL functions that v25 itself requires",
+            "correction": "test-only harness now uses Store.prepareConn; product semantics were unchanged"
+          },
+          {
+            "id": "B-T2",
+            "severity": "TEST_GAP",
+            "issue": "explicit fingerprint/policy half-pairs, equal publication time, equal source-start time and earlier/equal current-Inventory completion boundary cases were not all directly covered",
+            "correction": "test-only boundary cases added at b2cc7c043062d47ba781978835a9130e60cc4201"
+          },
+          {
+            "id": "B-L2",
+            "severity": "LOW",
+            "issue": "the earlier 273141... checkpoint continued to claim B qualified/C next after subsequent audits reopened B and advanced schema authority from v23 to v26",
+            "correction": "revision 132 supersedes the stale checkpoint and records final v26 evidence, qualification scope and audit chain"
           }
         ],
-        "product_resolution_head": "273141907d1a4af33b760c03ba219643ff77575f",
-        "product_resolution_ci_run_id": 36271236833,
-        "product_resolution_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
-        "final_product_reaudit": "CLEAN_NO_NEW_PRODUCT_FINDINGS_AFTER_B_B10",
+        "final_product_head": "0cf94684182c75ddec688ee8b98710aef0b49c80",
+        "final_qualification_head": "b2cc7c043062d47ba781978835a9130e60cc4201",
+        "final_ci_run_id": 36274111034,
+        "final_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+        "final_product_reaudit": "CLEAN_NO_NEW_BLOCKER_HIGH_MEDIUM_OR_LOW_PRODUCT_FINDING_AFTER_V26_AND_CAUSAL_BOUNDARY_TESTS",
         "blocker_count_open": 0,
         "high_findings_open": 0,
         "medium_findings_open": 0,
         "low_findings_open": 0,
         "dependencies_added": 0,
-        "schema_version": 23,
+        "schema_version": 26,
         "live_provider_used": false,
         "corpus_mutations": 0,
+        "runtime_reachability": "LIBRARY_BOUNDARY_ONLY_NO_LIVE_CLI_MCP_PROVIDER_WIRING",
         "prior_art_recheck": [
           "Microsoft Graph driveItem delta full local state plus durable deltaLink",
           "Google Drive changes pageToken/newStartPageToken checkpoint pattern",
           "Dropbox list_folder cursor plus ordered local cache",
           "Syncthing full Index plus Index Update",
-          "SQLite OLD/NEW triggers plus RAISE(ABORT) for durable invariants",
-          "zombiezen sqlitemigration append-only transactional migrations",
+          "SQLite OLD/NEW triggers plus RAISE(ABORT) durable invariant enforcement",
+          "SQLite application-defined function security guidance for indirect trigger functions",
+          "zombiezen/go-sqlite FunctionImpl AllowIndirect semantics",
+          "zombiezen/sqlitemigration append-only transactional migration pattern",
           "existing Keelaryn Google Drive adapter file-ID locator escaping reused instead of reimplemented"
         ],
         "unnecessary_solutions_rejected": [
@@ -4032,14 +4133,21 @@
           "live provider/OAuth integration in B",
           "content download for B",
           "new synchronization dependency",
-          "extra unscanned-Locator seal without any supported mutation path"
+          "durable completion-capability table",
+          "global timestamp normalization outside the B-critical authority boundary",
+          "automatic repair of preexisting noncanonical durable evidence"
         ],
-        "portability": "PURE_GO_PLUS_SQLITE_WINDOWS2025_AND_UBUNTU2404_PRODUCT_CI_PASS_ANDROID_REMAINS_PLANNED_NOT_CLAIMED",
+        "nonblocking_followups": [
+          "before relying on other historical timestamp fields such as RemoteHistory closed_at as causal authority, run a separate systemic time-authority audit",
+          "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening; current trigger functions are narrow and side-effect-free but intentionally require AllowIndirect"
+        ],
+        "portability": "PURE_GO_PLUS_SQLITE_WINDOWS2025_AND_UBUNTU2404_EXACT_HEAD_PASS_ANDROID_REMAINS_PLANNED_NOT_CLAIMED",
         "conclusion": "PASS"
       },
       "qualification": {
-        "exact_product_head": "273141907d1a4af33b760c03ba219643ff77575f",
-        "ci_run_id": 36271236833,
+        "exact_product_head": "0cf94684182c75ddec688ee8b98710aef0b49c80",
+        "exact_qualification_head": "b2cc7c043062d47ba781978835a9130e60cc4201",
+        "ci_run_id": 36274111034,
         "conclusion": "SUCCESS",
         "jobs": {
           "validate": "PASS",
@@ -4047,23 +4155,29 @@
           "go (windows-2025)": "PASS"
         },
         "gates": [
-          "deterministic exact-source fingerprint",
-          "persisted-content fingerprint seal",
+          "deterministic exact-source fingerprint and exact version/policy pairing",
+          "persisted-content fingerprint and Observation-time seal",
           "exact IN and UNKNOWN fail-closed",
+          "unsupported providers fail closed",
           "provider-scope/topology completion revalidation",
+          "schema-level source-bound completion capability prevents raw-SQL bypass",
           "canonical identity-domain-disambiguated managed root",
           "canonical percent-escaped Google file-ID locator projection",
           "OPEN/ABORTED never replace previous COMPLETE inventory",
-          "COMPLETE replay verifier and post-advance replay reconciliation",
+          "COMPLETE replay verifier and post-advance historical reconciliation",
+          "new current remote COMPLETE must actually become latest Inventory",
+          "canonical scan/Observation time",
+          "nondecreasing canonical RemoteHistory publication time and causal scan start",
           "two managed roots remain independent",
           "Observation/Locator immutable and structurally sealed",
           "ScanSession lifecycle sealed",
-          "v18-to-v23 append-only migration chain",
+          "v18-to-v26 append-only migration chain",
           "no second inventory/identity system",
           "no live provider/OAuth/content download/corpus mutation",
           "no new dependency or OS-specific product code"
         ],
-        "schema_version": 23,
+        "schema_version": 26,
+        "runtime_reachability": "LIBRARY_BOUNDARY_ONLY_NO_LIVE_CLI_MCP_PROVIDER_WIRING",
         "dependencies_added": 0,
         "live_provider_used": false,
         "corpus_mutations": 0
