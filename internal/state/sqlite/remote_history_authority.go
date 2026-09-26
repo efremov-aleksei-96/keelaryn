@@ -65,6 +65,9 @@ func (s *Store) CreateRemoteHistoryIdentityAuthority(
 	if err != nil {
 		return corpus.IdentityAuthoritySet{}, err
 	}
+	if err := validateRemoteHistoryIdentityAuthorityCausalTimeConn(conn, set); err != nil {
+		return corpus.IdentityAuthoritySet{}, err
+	}
 
 	var exists bool
 	if err := sqlitex.Execute(conn,
@@ -106,22 +109,6 @@ func buildRemoteHistoryIdentityAuthorityConn(
 	}
 	if generation.Status != remotehistory.HistoryGenerationActive {
 		return corpus.IdentityAuthoritySet{}, fmt.Errorf("%w: generation %s is %s", ErrRemoteHistoryIdentityAuthorityUnavailable, generationID, generation.Status)
-	}
-	publicationCommittedAt, err := remoteHistoryPublicationCommittedAtConn(
-		conn, generation.ID, generation.CurrentSequence,
-	)
-	if err != nil {
-		return corpus.IdentityAuthoritySet{}, err
-	}
-	if createdAt.UTC().Before(publicationCommittedAt) {
-		return corpus.IdentityAuthoritySet{}, fmt.Errorf(
-			"%w: generation=%s sequence=%d publication=%s authority=%s",
-			ErrRemoteHistoryIdentityAuthorityCausalTime,
-			generation.ID,
-			generation.CurrentSequence,
-			publicationCommittedAt.UTC().Format(time.RFC3339Nano),
-			createdAt.UTC().Format(time.RFC3339Nano),
-		)
 	}
 	segment, err := lifetimeSegmentByIDConn(conn, segmentID)
 	if err != nil {
@@ -201,6 +188,59 @@ func buildRemoteHistoryIdentityAuthorityConn(
 	return set, nil
 }
 
+func validateRemoteHistoryIdentityAuthorityCausalTimeConn(
+	conn *sqlite.Conn,
+	authority corpus.IdentityAuthoritySet,
+) error {
+	if authority.PolicyID != remoteHistoryLifetimeAuthorityPolicyV1 ||
+		authority.GenerationID == "" ||
+		authority.CreatedAt.IsZero() {
+		return ErrRemoteHistoryIdentityAuthorityUnavailable
+	}
+	prefix := "history-publication:" + authority.GenerationID + ":"
+	var sequence remotehistory.HistoryPublicationSequence
+	matches := 0
+	for _, ref := range authority.SourceRefs {
+		if !strings.HasPrefix(ref, prefix) {
+			continue
+		}
+		matches++
+		raw := strings.TrimPrefix(ref, prefix)
+		parsed, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil || parsed == 0 {
+			return fmt.Errorf("%w: invalid publication ref %q", ErrRemoteHistoryIdentityAuthorityUnavailable, ref)
+		}
+		sequence = remotehistory.HistoryPublicationSequence(parsed)
+	}
+	if matches != 1 || sequence == 0 {
+		return fmt.Errorf(
+			"%w: authority=%s publication_refs=%d",
+			ErrRemoteHistoryIdentityAuthorityUnavailable,
+			authority.ID,
+			matches,
+		)
+	}
+	committedAt, err := remoteHistoryPublicationCommittedAtConn(
+		conn,
+		remotehistory.HistoryGenerationID(authority.GenerationID),
+		sequence,
+	)
+	if err != nil {
+		return err
+	}
+	if authority.CreatedAt.Before(committedAt) {
+		return fmt.Errorf(
+			"%w: generation=%s sequence=%d publication=%s authority=%s",
+			ErrRemoteHistoryIdentityAuthorityCausalTime,
+			authority.GenerationID,
+			sequence,
+			committedAt.UTC().Format(time.RFC3339Nano),
+			authority.CreatedAt.UTC().Format(time.RFC3339Nano),
+		)
+	}
+	return nil
+}
+
 func revalidateRemoteHistoryIdentityAuthorityConn(
 	conn *sqlite.Conn,
 	authority corpus.IdentityAuthoritySet,
@@ -210,6 +250,9 @@ func revalidateRemoteHistoryIdentityAuthorityConn(
 	}
 	if authority.GenerationID == "" || authority.LifetimeSegmentID == "" {
 		return remotehistory.ProviderObjectLifetimeSegment{}, nil, true, ErrRemoteHistoryIdentityAuthorityUnavailable
+	}
+	if err := validateRemoteHistoryIdentityAuthorityCausalTimeConn(conn, authority); err != nil {
+		return remotehistory.ProviderObjectLifetimeSegment{}, nil, true, err
 	}
 	generationID := remotehistory.HistoryGenerationID(authority.GenerationID)
 	segmentID := remotehistory.ProviderObjectLifetimeSegmentID(authority.LifetimeSegmentID)
