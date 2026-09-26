@@ -1055,3 +1055,20 @@ Decision reinforced:
 - managed corpus membership is a separate concept when the provider cannot supply a cursor at that exact root;
 - do not force Google Drive to imitate Dropbox/Graph subtree semantics by inference.
 
+## P0-29C — topology/membership prior-art review
+
+Revalidated before implementation:
+
+- **Google Drive changes**: user/shared-drive logs report current changed item state; removals may represent loss of access or corpus moves, not physical deletion. Parent/capability changes do not synthesize change entries for every descendant.
+- **Microsoft Graph driveItem delta**: parent-folder changes do not imply descendants are returned; Microsoft explicitly recommends tracking items by ID.
+
+Decision:
+- maintain a rebuildable provider-ID parent graph;
+- derive managed-root reachability at query time or from an explicitly invalidatable cache;
+- use `IN | OUT | UNKNOWN`, never treat missing ancestry as OUT;
+- bind topology to exact HistoryGeneration/publication watermark;
+- detect cycles/stale projection fail-closed;
+- do not mint new provider lifetime solely because managed-root membership changes.
+
+Detailed contract: `docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md`.
+

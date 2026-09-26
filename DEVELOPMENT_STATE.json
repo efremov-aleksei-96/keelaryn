@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 102,
+  "revision": 103,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -117,11 +117,12 @@
     "P0_28C_PROVIDER_OBJECT_LIFETIME_SEGMENT_CONTRACT_DECIDED",
     "P0_28C3_BOUNDARY_RETROSPECTIVE_PASS",
     "P0_28C_PROVIDER_OBJECT_LIFETIME_PIPELINE_QUALIFIED",
-    "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT_DECIDED"
+    "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT_DECIDED",
+    "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_PROJECTION_CONTRACT",
-    "description": "Design the Google Drive parent-topology and managed-root membership projection on top of the qualified provider history universe. Define durable/rebuildable parent evidence, multi-parent/ancestor handling, move-out/move-in semantics, shared-drive boundaries, reconstruction and query invariants before implementation. No live OAuth/provider access and no corpus mutation.",
+    "id": "P0_29C1_TOPOLOGY_DOMAIN_SCHEMA",
+    "description": "Implement only the P0-29C1 domain/schema slice: Google Drive topology node + managed-root binding + IN/OUT/UNKNOWN domain types, a new rebuildable SQLite topology schema with exact history publication watermark and defensive invariants, migration and direct-SQL tamper tests. Do not wire adapter publications or membership traversal yet.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -154,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "082c25b068ab74eadd1a7ee3d12c50621ccbd3dd",
+  "repository_basis_commit": "90e5669ebc03635dc0817f8e6761f69356452546",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2978,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "B_QUALIFIED_C_NEXT",
+    "status": "C_CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3108,6 +3109,30 @@
         "live_provider_used": false,
         "corpus_mutations": 0
       }
+    },
+    "c": {
+      "status": "CONTRACT_DECIDED_IMPLEMENTATION_NEXT",
+      "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
+      "core_decisions": {
+        "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
+        "membership": "IN_OUT_UNKNOWN",
+        "missing_parent": "UNKNOWN_NOT_OUT",
+        "watermark": "EXACT_HISTORY_GENERATION_PLUS_PUBLICATION_SEQUENCE",
+        "stale_topology": "FAIL_CLOSED",
+        "ancestor_move": "RECOMPUTE_REACHABILITY_NO_SYNTHETIC_DESCENDANT_EVENTS",
+        "membership_change": "DOES_NOT_ALONE_CHANGE_PROVIDER_LIFETIME",
+        "cross_history_universe": "NO_AUTOMATIC_CONTINUITY",
+        "cycle_defense": true
+      },
+      "implementation_order": [
+        "P0_29C1_TOPOLOGY_DOMAIN_SCHEMA",
+        "P0_29C2_HISTORY_TOPOLOGY_PROJECTION",
+        "P0_29C3_MEMBERSHIP_QUERY",
+        "P0_29D_BOUNDARY_RETROSPECTIVE"
+      ],
+      "live_oauth_used": false,
+      "live_provider_used": false,
+      "corpus_mutations": 0
     }
   }
 }

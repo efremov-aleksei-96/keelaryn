@@ -456,6 +456,18 @@ The literal Drive alias `root` is API syntax, not durable parent-graph identity.
 
 Detailed wiring contract: `docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md`.
 
+
+P0-29C topology rule:
+
+- Google Drive provider-history scope and managed-root membership remain separate;
+- managed-root membership is derived from rebuildable provider-ID parent topology;
+- membership is three-valued `IN | OUT | UNKNOWN`;
+- missing parents, cycles, scope mismatch, or stale topology watermark MUST fail closed to UNKNOWN;
+- ancestor moves change descendant membership through graph reachability and do not require synthetic descendant change events;
+- managed-root membership changes alone do not redefine provider-object lifetime.
+
+Detailed topology contract: `docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md`.
+
 Keelaryn MUST remain usable without Google.
 
 ### 9.4 Remote history contract
