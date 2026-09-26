@@ -456,3 +456,26 @@ Not authorized by this contract:
 - automatic cross-universe Artifact continuity;
 - semantic classification/extraction;
 - physical corpus normalization.
+
+## 23. P0-29C1 qualification
+
+Topology domain/schema boundary is **QUALIFIED** through schema v16.
+
+Exact head: `eefb0b847a61588d152626b34d04b915f4a0f761`  
+CI run: `36247476074`
+
+- validate — PASS;
+- Ubuntu 24.04 — PASS;
+- Windows 2025 — PASS.
+
+Qualified properties:
+
+- immutable provider-specific topology evidence is bound to exact RemoteHistory bootstrap/change evidence;
+- current topology nodes are rebuildable projections and require matching evidence;
+- topology watermark cannot publish until evidence coverage and current projection are complete;
+- projection cannot mutate while watermark is active;
+- safe rebuild/update protocol is `remove watermark → mutate projection → restore validated watermark` inside one SQLite transaction;
+- managed-root bindings are immutable and scoped to the exact history generation.
+
+No live provider access or corpus mutation occurred.
+
