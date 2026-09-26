@@ -22,6 +22,7 @@ var (
 	ErrRemoteHistoryRootRequiresSourceBoundScan    = errors.New("remote-managed root requires a source-bound scan")
 	ErrRemoteHistoryScanSnapshotMismatch           = errors.New("remote scan persisted content does not match source snapshot fingerprint")
 	ErrRemoteHistoryScanProviderScopeMismatch       = errors.New("remote scan provider scope does not match exact materialization source")
+	ErrRemoteHistoryScanCompletionNotNewest         = errors.New("remote scan completion would not become current inventory")
 )
 
 func (s *Store) StartRemoteHistoryScan(
@@ -221,6 +222,26 @@ func (s *Store) CompleteRemoteHistoryScan(
 	}
 	if err := validateRemoteMetadataProviderScopeConn(conn, scan, source, generation); err != nil {
 		return corpus.ScanSession{}, false, err
+	}
+	latestID, hasLatest, err := latestCompleteScanID(conn, scan.ProviderID, scan.Root)
+	if err != nil {
+		return corpus.ScanSession{}, false, err
+	}
+	if hasLatest {
+		latest, err := scanSessionConn(conn, latestID)
+		if err != nil {
+			return corpus.ScanSession{}, false, err
+		}
+		if !finishedAt.UTC().After(latest.FinishedAt) {
+			return corpus.ScanSession{}, false, fmt.Errorf(
+				"%w: candidate=%s finished=%s current=%s finished=%s",
+				ErrRemoteHistoryScanCompletionNotNewest,
+				scan.ID,
+				finishedAt.UTC().Format(time.RFC3339Nano),
+				latest.ID,
+				latest.FinishedAt.UTC().Format(time.RFC3339Nano),
+			)
+		}
 	}
 	releaseAuthorization, err := s.authorizeRemoteCompletionConn(conn, scanID)
 	if err != nil {

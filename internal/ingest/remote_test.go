@@ -201,6 +201,83 @@ func TestRemoteMetadataAbortedAttemptDoesNotReplacePreviousCompleteInventory(t *
 	}
 }
 
+func TestRemoteMetadataBackdatedCurrentPublicationDoesNotReplaceLatestCompleteInventory(t *testing.T) {
+	ctx := context.Background()
+	fixture := newGoogleRemoteFixture(t, "account-A", false)
+	baseline := fixture.snapshot(
+		remoteMetadataEntry("managed", corpus.EntryOther, 0, 0, fixture.base),
+		remoteMetadataEntry("child", corpus.EntryRegularFile, 7, 0, fixture.base.Add(time.Second)),
+	)
+	first, _, err := ingest.MaterializeRemoteMetadata(
+		ctx,
+		fixture.store,
+		fixture.projection,
+		baseline,
+		fixture.base.Add(2*time.Minute),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cycle := gdrive.ChangeCycleBundle{
+		History: remotehistory.ChangeCycle{
+			StreamID:       fixture.scope.StreamID,
+			Status:         remotehistory.CycleComplete,
+			PreviousCursor: "cursor-1",
+			NextCursor:     "cursor-2",
+			Coverage:       corpus.ProviderHistoryContinuous,
+		},
+	}
+	if _, err := fixture.store.PublishGoogleDriveRemoteHistoryCycle(
+		ctx,
+		fixture.generation.ID,
+		fixture.scope,
+		fixture.scopeFingerprint,
+		1,
+		"cursor-1",
+		cycle,
+		fixture.base.Add(3*time.Minute),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	changed := fixture.snapshot(
+		remoteMetadataEntry("managed", corpus.EntryOther, 0, 0, fixture.base),
+		remoteMetadataEntry("child", corpus.EntryRegularFile, 99, 0, fixture.base.Add(time.Second)),
+	)
+	changed.PublicationSequence = 2
+	failedScan, _, err := ingest.MaterializeRemoteMetadata(
+		ctx,
+		fixture.store,
+		fixture.projection,
+		changed,
+		fixture.base.Add(time.Minute),
+	)
+	if !errors.Is(err, sqlitestate.ErrRemoteHistoryScanCompletionNotNewest) {
+		t.Fatalf("error=%v want ErrRemoteHistoryScanCompletionNotNewest", err)
+	}
+	storedFailed, err := fixture.store.ScanSession(ctx, failedScan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storedFailed.Status != corpus.ScanAborted {
+		t.Fatalf("backdated scan status=%s want ABORTED", storedFailed.Status)
+	}
+
+	inventory, err := fixture.store.Inventory(ctx, gdrive.ProviderID, fixture.scanRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory) != 2 {
+		t.Fatalf("inventory=%#v", inventory)
+	}
+	for _, item := range inventory {
+		if item.ScanID != first.ID {
+			t.Fatalf("backdated newer publication displaced current inventory: %#v", item)
+		}
+	}
+}
+
 func TestRemoteMetadataMatchingOpenScanIsNotAutoAborted(t *testing.T) {
 	ctx := context.Background()
 	fixture := newGoogleRemoteFixture(t, "account-A", false)
