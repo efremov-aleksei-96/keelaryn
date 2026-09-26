@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 137,
+  "revision": 138,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4321,15 +4321,23 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "535c101103dd9a64d5d66b0ae1decf46720b8646",
-      "dimension": "STALE_DOCUMENTATION_STATE",
-      "finding_id": "AUDIT_D0_L1_STALE_V28_QUALIFICATION_STATE",
-      "severity": "LOW",
-      "issue": "Durable DEVELOPMENT_STATE and audit clock still advertised schema v27 / pre-v28 C1 status and an OPEN causal-time blocker after the v28 fix and exact-head green CI.",
-      "correction": "Synchronize schema/status/finding evidence to v28 while keeping C2 locked pending a fresh full audit.",
-      "closure_effect": "FULL_AUDIT_INVALIDATED_RESTART_FROM_FIRST_DIMENSION"
+      "head": "91ac83330716af18ae1511b18f724febfdefff14",
+      "dimension": "TRANSACTION_CAUSALITY_GENERIC_REMOTE_HISTORY",
+      "finding_id": "AUDIT_C1_B2_GENERIC_REMOTE_IDENTITY_CAUSAL_TIME",
+      "severity": "BLOCKER",
+      "issue": "Generic (non-source-bound) RemoteHistory SAME/NEW acceptance returns from validateAuthorityScope before the remote authority causal-time check. A generic RemoteHistory SAME can persist accepted decision/receipt timestamps earlier than the current authority creation time; source-bound v28 guards do not apply.",
+      "required_correction": "Apply decision-time causal validation to every RemoteHistory authority acceptance, while preserving local non-RemoteHistory semantics. Add SQLite application/causal authority for generic RemoteHistory accepted decisions/receipts so direct SQL cannot bypass the same invariant.",
+      "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
+      "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
-    "open_findings": [],
+    "open_findings": [
+      {
+        "id": "AUDIT_C1_B2_GENERIC_REMOTE_IDENTITY_CAUSAL_TIME",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "91ac83330716af18ae1511b18f724febfdefff14"
+      }
+    ],
     "resolved_findings": [
       {
         "id": "AUDIT_C1_B1_IDENTITY_CAUSAL_TIME_AUTHORITY",
