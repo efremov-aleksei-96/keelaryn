@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 116,
+  "revision": 117,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -121,8 +121,8 @@
     "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_29C3_MANAGED_ROOT_MEMBERSHIP_QUERY",
-    "description": "Implement Store-level Google managed-root binding and membership query on schema v16. Use exact topology watermark and generation prestate, require a durable managed-root binding, classify IN/OUT/UNKNOWN with bounded cycle-safe ancestor traversal, fail closed on stale/missing/unavailable topology, and test ancestor move out/back without changing provider lifetime. No new schema unless a blocker is proven; no live provider access.",
+    "id": "P0_29C3_MANAGED_ROOT_MEMBERSHIP_QUALIFICATION",
+    "description": "Qualify exact-head Store-level managed-root membership on validate, Ubuntu 24.04 and Windows 2025. Require durable binding replay, IN/OUT/UNKNOWN traversal, stale/missing/unavailable/cycle fail-closed behavior, ancestor move out/back without descendant event or lifetime change, cross-history-universe isolation, all prior tests and go vet. No live provider access.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +155,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "7611b85da8af78cfdb77d166f65ec622204ccfc5",
+  "repository_basis_commit": "a931e576874cf3e26c732c8975268ca247cca7fd",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2979,7 +2979,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C2_QUALIFIED_C3_NEXT",
+    "status": "C3_MEMBERSHIP_IMPLEMENTED_AWAITING_QUALIFICATION",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3111,7 +3111,7 @@
       }
     },
     "c": {
-      "status": "C2_QUALIFIED_C3_NEXT",
+      "status": "C3_MEMBERSHIP_IMPLEMENTED_AWAITING_QUALIFICATION",
       "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
       "core_decisions": {
         "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
@@ -3393,6 +3393,42 @@
             "corpus_mutations": 0
           }
         }
+      },
+      "c3": {
+        "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+        "implementation": {
+          "store_file": "internal/state/sqlite/gdrive_membership.go",
+          "bind_api": "BindGoogleDriveManagedRoot",
+          "read_binding_api": "GoogleDriveManagedRootBinding",
+          "membership_api": "GoogleDriveManagedRootMembership",
+          "binding_replay": "IDEMPOTENT_BY_GENERATION_AND_MANAGED_ROOT_ID",
+          "membership_states": "IN_OUT_UNKNOWN",
+          "exact_prestate": "GENERATION_CURRENT_SEQUENCE_EQUALS_QUERY_SEQUENCE_AND_TOPOLOGY_WATERMARK_EQUALS_QUERY_SEQUENCE",
+          "out_proof": "COMPLETE_ANCESTOR_CHAIN_TO_CANONICAL_PROVIDER_ROOT_WITHOUT_MANAGED_ROOT",
+          "unknown_missing_parent": true,
+          "unknown_unavailable_object": true,
+          "unknown_stale_topology": true,
+          "cycle_detection": "VISITED_SET_PLUS_NODE_COUNT_BOUND",
+          "ancestor_move": "RECOMPUTE_REACHABILITY_FROM_CURRENT_GRAPH_NO_DESCENDANT_EVENT_REQUIRED",
+          "membership_change_alone_changes_lifetime": false,
+          "cross_history_universe_auto_continuity": false,
+          "schema_version": 16,
+          "schema_changed": false,
+          "live_provider_used": false,
+          "corpus_mutations": 0
+        },
+        "tests": [
+          "managed root/direct child/deep descendant classify IN",
+          "complete chain to provider root classifies OUT",
+          "unknown parent/missing ancestor/missing object classify UNKNOWN",
+          "durable managed-root binding required",
+          "cycle classifies UNKNOWN without hang",
+          "stale topology watermark classifies UNKNOWN",
+          "ancestor move out/back changes descendant membership without descendant event",
+          "descendant provider lifetime segment remains unchanged across ancestor move out/back",
+          "REMOVED object membership is UNKNOWN not OUT/deletion",
+          "same native object ID in My Drive and shared-drive generations retains distinct lifetime segments and bindings"
+        ]
       }
     }
   }
