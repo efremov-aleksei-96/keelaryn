@@ -2,9 +2,6 @@ package ingest
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
@@ -19,7 +16,6 @@ import (
 const (
 	RemoteMetadataSnapshotFingerprintVersion = remotehistory.RemoteMetadataSnapshotFingerprintVersion
 	LightweightAllMaterializationPolicyID    = remotehistory.LightweightAllMaterializationPolicyID
-	googleManagedRootScanRootVersion         = "google-drive:managed-root:v1"
 )
 
 var (
@@ -463,12 +459,11 @@ func scanFinishTime(scan corpus.ScanSession, requested time.Time) time.Time {
 // it may itself contain account-identifying text; the key is locator scope,
 // never Artifact identity.
 func GoogleDriveManagedRootScanRoot(identityDomain string, managedRootObjectID corpus.ProviderObjectID) (string, error) {
-	if strings.TrimSpace(identityDomain) == "" || managedRootObjectID == "" {
+	root, err := gdrive.ManagedRootScanRoot(identityDomain, managedRootObjectID)
+	if err != nil {
 		return "", ErrInvalidRemoteScopeProjection
 	}
-	domainDigest := sha256.Sum256([]byte(identityDomain))
-	objectSegment := base64.RawURLEncoding.EncodeToString([]byte(managedRootObjectID))
-	return googleManagedRootScanRootVersion + ":" + hex.EncodeToString(domainDigest[:]) + ":" + objectSegment, nil
+	return root, nil
 }
 
 type GoogleDriveManagedRootMembershipStore interface {

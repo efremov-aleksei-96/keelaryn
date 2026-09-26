@@ -8,6 +8,7 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
+	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory/gdrive"
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
@@ -20,6 +21,7 @@ var (
 	ErrRemoteHistoryScanRequiresGuardedCompletion = errors.New("source-bound remote scan requires guarded completion")
 	ErrRemoteHistoryRootRequiresSourceBoundScan    = errors.New("remote-managed root requires a source-bound scan")
 	ErrRemoteHistoryScanSnapshotMismatch           = errors.New("remote scan persisted content does not match source snapshot fingerprint")
+	ErrRemoteHistoryScanProviderScopeMismatch       = errors.New("remote scan provider scope does not match exact materialization source")
 )
 
 func (s *Store) StartRemoteHistoryScan(
@@ -217,6 +219,9 @@ func (s *Store) CompleteRemoteHistoryScan(
 	if err := verifyRemoteMetadataSnapshotFingerprintConn(conn, scan, source); err != nil {
 		return corpus.ScanSession{}, false, err
 	}
+	if err := validateRemoteMetadataProviderScopeConn(conn, scan, source, generation); err != nil {
+		return corpus.ScanSession{}, false, err
+	}
 	if err := finishScanConn(conn, scanID, corpus.ScanComplete, finishedAt.UTC(), true); err != nil {
 		return corpus.ScanSession{}, false, err
 	}
@@ -315,6 +320,153 @@ func verifyRemoteMetadataSnapshotFingerprintConn(
 		)
 	}
 	return nil
+}
+
+func validateRemoteMetadataProviderScopeConn(
+	conn *sqlite.Conn,
+	scan corpus.ScanSession,
+	source remotehistory.RemoteScanSource,
+	generation remotehistory.HistoryGeneration,
+) error {
+	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion ||
+		source.MaterializationPolicyID != remotehistory.LightweightAllMaterializationPolicyID {
+		return nil
+	}
+	if generation.ID != source.GenerationID ||
+		generation.CurrentSequence != source.PublicationSequence ||
+		generation.Scope.ProviderID != scan.ProviderID {
+		return ErrRemoteHistoryScanProviderScopeMismatch
+	}
+
+	switch generation.Scope.ProviderID {
+	case gdrive.ProviderID:
+		managedRootObjectID := corpus.ProviderObjectID(source.SourceScopeID)
+		expectedRoot, err := gdrive.ManagedRootScanRoot(generation.Scope.IdentityDomain, managedRootObjectID)
+		if err != nil || scan.Root != expectedRoot {
+			return fmt.Errorf(
+				"%w: scan root=%q source_scope=%q",
+				ErrRemoteHistoryScanProviderScopeMismatch,
+				scan.Root,
+				source.SourceScopeID,
+			)
+		}
+
+		rootMembership, err := googleDriveManagedRootMembershipConn(
+			conn,
+			generation.ID,
+			source.PublicationSequence,
+			managedRootObjectID,
+			managedRootObjectID,
+		)
+		if err != nil {
+			return fmt.Errorf("%w: managed-root proof: %v", ErrRemoteHistoryScanProviderScopeMismatch, err)
+		}
+		if rootMembership.State != gdrive.MembershipIn {
+			return fmt.Errorf(
+				"%w: managed-root state=%s reason=%s",
+				ErrRemoteHistoryScanProviderScopeMismatch,
+				rootMembership.State,
+				rootMembership.Reason,
+			)
+		}
+
+		observed, err := remoteScanObservedProviderObjectsConn(conn, scan)
+		if err != nil {
+			return err
+		}
+		in := make(map[corpus.ProviderObjectID]struct{}, len(observed))
+		if err := sqlitex.Execute(conn,
+			"SELECT object_id,last_sequence FROM remote_history_membership WHERE generation_id=?1 ORDER BY object_id",
+			&sqlitex.ExecOptions{
+				Args: []any{string(generation.ID)},
+				ResultFunc: func(stmt *sqlite.Stmt) error {
+					objectID := corpus.ProviderObjectID(stmt.ColumnText(0))
+					lastSequence := remotehistory.HistoryPublicationSequence(stmt.ColumnInt64(1))
+					if objectID == "" || lastSequence > source.PublicationSequence {
+						return ErrRemoteHistoryScanProviderScopeMismatch
+					}
+					membership, err := googleDriveManagedRootMembershipConn(
+						conn,
+						generation.ID,
+						source.PublicationSequence,
+						managedRootObjectID,
+						objectID,
+					)
+					if err != nil {
+						return fmt.Errorf("%w: membership %s: %v", ErrRemoteHistoryScanProviderScopeMismatch, objectID, err)
+					}
+					switch membership.State {
+					case gdrive.MembershipIn:
+						in[objectID] = struct{}{}
+					case gdrive.MembershipOut:
+					case gdrive.MembershipUnknown:
+						return fmt.Errorf(
+							"%w: membership %s UNKNOWN reason=%s",
+							ErrRemoteHistoryScanProviderScopeMismatch,
+							objectID,
+							membership.Reason,
+						)
+					default:
+						return ErrRemoteHistoryScanProviderScopeMismatch
+					}
+					return nil
+				},
+			}); err != nil {
+			if errors.Is(err, ErrRemoteHistoryScanProviderScopeMismatch) {
+				return err
+			}
+			return fmt.Errorf("%w: exact IN evaluation: %v", ErrRemoteHistoryScanProviderScopeMismatch, err)
+		}
+		if len(in) != len(observed) {
+			return fmt.Errorf(
+				"%w: persisted=%d exact_in=%d",
+				ErrRemoteHistoryScanProviderScopeMismatch,
+				len(observed),
+				len(in),
+			)
+		}
+		for objectID := range observed {
+			if _, ok := in[objectID]; !ok {
+				return fmt.Errorf(
+					"%w: persisted object %s is not exact IN",
+					ErrRemoteHistoryScanProviderScopeMismatch,
+					objectID,
+				)
+			}
+		}
+	}
+	return nil
+}
+
+func remoteScanObservedProviderObjectsConn(
+	conn *sqlite.Conn,
+	scan corpus.ScanSession,
+) (map[corpus.ProviderObjectID]struct{}, error) {
+	out := make(map[corpus.ProviderObjectID]struct{})
+	if err := sqlitex.Execute(conn,
+		"SELECT p.provider_id,COALESCE(p.native_object_id,''),p.identity_state FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id=o.occurrence_id WHERE o.scan_id=?1 ORDER BY o.observation_id",
+		&sqlitex.ExecOptions{
+			Args: []any{string(scan.ID)},
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				providerID := corpus.ProviderID(stmt.ColumnText(0))
+				objectID := corpus.ProviderObjectID(stmt.ColumnText(1))
+				identityState := corpus.ObjectIdentityState(stmt.ColumnText(2))
+				if providerID != scan.ProviderID || objectID == "" || identityState != corpus.ObjectIdentityObserved {
+					return ErrRemoteHistoryScanProviderScopeMismatch
+				}
+				if _, duplicate := out[objectID]; duplicate {
+					return fmt.Errorf("%w: duplicate object %s", ErrRemoteHistoryScanProviderScopeMismatch, objectID)
+				}
+				out[objectID] = struct{}{}
+				return nil
+			},
+		}); err != nil {
+		if errors.Is(err, ErrRemoteHistoryScanProviderScopeMismatch) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("read remote scan provider objects: %w", err)
+	}
+	return out, nil
 }
 
 func insertRemoteScanSourceConn(conn *sqlite.Conn, source remotehistory.RemoteScanSource) error {

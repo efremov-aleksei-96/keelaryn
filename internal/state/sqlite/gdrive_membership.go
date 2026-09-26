@@ -124,6 +124,28 @@ func (s *Store) GoogleDriveManagedRootMembership(
 		return result, fmt.Errorf("get state connection: %w", err)
 	}
 	defer s.pool.Put(conn)
+	return googleDriveManagedRootMembershipConn(
+		conn, generationID, expectedSequence, managedRootObjectID, objectID,
+	)
+}
+
+func googleDriveManagedRootMembershipConn(
+	conn *sqlite.Conn,
+	generationID remotehistory.HistoryGenerationID,
+	expectedSequence remotehistory.HistoryPublicationSequence,
+	managedRootObjectID corpus.ProviderObjectID,
+	objectID corpus.ProviderObjectID,
+) (gdrive.MembershipResult, error) {
+	result := gdrive.MembershipResult{
+		State:               gdrive.MembershipUnknown,
+		GenerationID:        generationID,
+		PublicationSequence: expectedSequence,
+		ManagedRootObjectID: managedRootObjectID,
+		ObjectID:            objectID,
+	}
+	if generationID == "" || expectedSequence == 0 || managedRootObjectID == "" || objectID == "" {
+		return result, gdrive.ErrInvalidTopologyState
+	}
 
 	generation, err := remoteHistoryGenerationConn(conn, generationID)
 	if err != nil {
