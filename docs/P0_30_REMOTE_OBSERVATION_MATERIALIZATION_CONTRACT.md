@@ -158,7 +158,7 @@ RemoteHistory source locators remain immutable provider evidence.
 
 The Observation materializer produces scan-scoped locator(s) suitable for the selected corpus root. A provider adapter owns this projection; Core does not rewrite arbitrary provider paths generically.
 
-For the deterministic Google-shaped path, file-ID addressing can retain file-id/<objectID> while Root is the canonical managed corpus-root locator key.
+For the deterministic Google-shaped path, file-ID addressing uses the existing canonical Google locator projection `file-id/<url.PathEscape(objectID)>`; Root is the canonical managed corpus-root locator key. P0-30B reuses this provider primitive rather than defining a second locator encoding.
 
 ProviderObject identity remains the provider object ID, never the scoped locator.
 

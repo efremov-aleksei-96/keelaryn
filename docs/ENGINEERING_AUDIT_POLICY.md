@@ -110,13 +110,13 @@ This distinction is preferred to pretending an earlier green slice proved behavi
 
 ## 7. Current audit clock
 
-P0-30A source-bound remote ScanSession retrospective is complete at hardened product head `bec746f4f2d8975c3ac44405b9aaa14551beb0ea`.
+P0-30B deterministic LIGHTWEIGHT_ALL remote materialization retrospective is complete at hardened product head `273141907d1a4af33b760c03ba219643ff77575f`.
 
-CI run `36262810988`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
+CI run `36271236833`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
 
-Status: **PASS**. The retrospective found two SQLite durable-authority blockers in the initial P0-30A implementation and resolved both with append-only schema v18 hardening. No open BLOCKER/HIGH finding remains at the P0-30A boundary.
+Status: **PASS**. Repeated full audits found and resolved the P0-30B authority, replay, persisted-content, provider-scope and Google locator-reuse defects recorded in `docs/P0_30B_BOUNDARY_RETROSPECTIVE_20260927.md`. After the final product correction, a full product re-audit found no new BLOCKER, HIGH, MEDIUM or LOW product finding. Schema authority is v23.
 
-The rolling substantive-slice counter is reset to zero. The next retrospective is mandatory after **P0-30B** and before P0-30C or any other subsequent substantive stage. Event triggers may require an earlier audit within the stage.
+The rolling substantive-slice counter is reset to zero. The next retrospective is mandatory after **P0-30C** and before overall P0-30 qualification or any subsequent substantive stage. Event triggers may require an earlier audit within the stage.
 
 ## 8. Parallel audit/research during execution
 
