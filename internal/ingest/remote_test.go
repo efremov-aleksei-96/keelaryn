@@ -298,6 +298,136 @@ func TestRemoteMetadataCompleteReplaySurvivesHistoryAdvance(t *testing.T) {
 	}
 }
 
+func TestRemoteMetadataMaterializationKeepsManagedRootsIndependent(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlitestate.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	scope := remotehistory.Scope{
+		ProviderID:     gdrive.ProviderID,
+		IdentityDomain: "account-A",
+		StreamID:       "stream-1",
+		Root:           "drive-root",
+	}
+	topology := []gdrive.TopologyState{
+		topologyPresentRemote("managed-a", corpus.ProviderObjectID(scope.Root)),
+		topologyPresentRemote("managed-b", corpus.ProviderObjectID(scope.Root)),
+		topologyPresentRemote("child-a", "managed-a"),
+		topologyPresentRemote("child-b", "managed-b"),
+	}
+	objects := make([]remotehistory.RemoteObjectState, 0, len(topology))
+	for _, state := range topology {
+		objects = append(objects, remoteObjectState(scope, state.ObjectID))
+	}
+	bundle := gdrive.BootstrapBundle{
+		History: remotehistory.BootstrapResult{
+			StreamID: scope.StreamID,
+			Status:   remotehistory.BootstrapComplete,
+			Objects:  objects,
+			Cursor:   "cursor-1",
+			Coverage: corpus.ProviderHistoryContinuous,
+		},
+		Topology: topology,
+	}
+	base := time.Date(2026, 9, 26, 13, 0, 0, 0, time.UTC)
+	fingerprint := remotehistory.ScopePolicyFingerprint("google-drive-history-universe:v1:test")
+	generation, err := store.StartGoogleDriveRemoteHistoryGeneration(ctx, scope, fingerprint, bundle, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, root := range []corpus.ProviderObjectID{"managed-a", "managed-b"} {
+		if _, err := store.BindGoogleDriveManagedRoot(ctx, generation.ID, root, base.Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	projectionA, err := ingest.NewGoogleDriveManagedRootProjection(store, "managed-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectionB, err := ingest.NewGoogleDriveManagedRootProjection(store, "managed-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootA, err := ingest.GoogleDriveManagedRootScanRoot(scope.IdentityDomain, "managed-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootB, err := ingest.GoogleDriveManagedRootScanRoot(scope.IdentityDomain, "managed-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rootA == rootB {
+		t.Fatalf("managed roots collapsed to one scan root: %q", rootA)
+	}
+
+	snapshotA := ingest.RemoteMetadataSnapshot{
+		GenerationID:            generation.ID,
+		PublicationSequence:     1,
+		ScanRoot:                rootA,
+		SourceScopeID:           "managed-a",
+		MaterializationPolicyID: ingest.LightweightAllMaterializationPolicyID,
+		Entries: []ingest.RemoteMetadataEntry{
+			remoteMetadataEntry("managed-a", corpus.EntryOther, 0, 0, base),
+			remoteMetadataEntry("child-a", corpus.EntryRegularFile, 10, 0, base.Add(time.Second)),
+		},
+	}
+	scanA, replayed, err := ingest.MaterializeRemoteMetadata(ctx, store, projectionA, snapshotA, base.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed || scanA.Status != corpus.ScanComplete {
+		t.Fatalf("root A materialization replayed=%v scan=%#v", replayed, scanA)
+	}
+
+	snapshotB := ingest.RemoteMetadataSnapshot{
+		GenerationID:            generation.ID,
+		PublicationSequence:     1,
+		ScanRoot:                rootB,
+		SourceScopeID:           "managed-b",
+		MaterializationPolicyID: ingest.LightweightAllMaterializationPolicyID,
+		Entries: []ingest.RemoteMetadataEntry{
+			remoteMetadataEntry("managed-b", corpus.EntryOther, 0, 0, base),
+			remoteMetadataEntry("child-b", corpus.EntryRegularFile, 20, 0, base.Add(2*time.Second)),
+		},
+	}
+	scanB, replayed, err := ingest.MaterializeRemoteMetadata(ctx, store, projectionB, snapshotB, base.Add(2*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed || scanB.Status != corpus.ScanComplete || scanB.ID == scanA.ID {
+		t.Fatalf("root B materialization replayed=%v scan=%#v rootA=%s", replayed, scanB, scanA.ID)
+	}
+
+	inventoryA, err := store.Inventory(ctx, gdrive.ProviderID, rootA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inventoryB, err := store.Inventory(ctx, gdrive.ProviderID, rootB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := inventoryPathsRemote(inventoryA), []string{"file-id/child-a", "file-id/managed-a"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("root A inventory=%#v want %#v", got, want)
+	}
+	if got, want := inventoryPathsRemote(inventoryB), []string{"file-id/child-b", "file-id/managed-b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("root B inventory=%#v want %#v", got, want)
+	}
+	for _, item := range inventoryA {
+		if item.ScanID != scanA.ID {
+			t.Fatalf("root B completion replaced root A authority: %#v", item)
+		}
+	}
+	for _, item := range inventoryB {
+		if item.ScanID != scanB.ID {
+			t.Fatalf("root B inventory references wrong scan: %#v", item)
+		}
+	}
+}
+
 func TestGoogleDriveManagedRootScanRootSeparatesIdentityDomains(t *testing.T) {
 	a, err := ingest.GoogleDriveManagedRootScanRoot("account-A", "same-root")
 	if err != nil {
