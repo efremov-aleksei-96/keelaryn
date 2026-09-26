@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 117,
+  "revision": 118,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -118,11 +118,12 @@
     "P0_28C3_BOUNDARY_RETROSPECTIVE_PASS",
     "P0_28C_PROVIDER_OBJECT_LIFETIME_PIPELINE_QUALIFIED",
     "P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT_DECIDED",
-    "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED"
+    "P0_29C_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT_DECIDED",
+    "P0_29D_BOUNDARY_RETROSPECTIVE_BLOCKERS_FOUND"
   ],
   "next_objective": {
-    "id": "P0_29C3_MANAGED_ROOT_MEMBERSHIP_QUALIFICATION",
-    "description": "Qualify exact-head Store-level managed-root membership on validate, Ubuntu 24.04 and Windows 2025. Require durable binding replay, IN/OUT/UNKNOWN traversal, stale/missing/unavailable/cycle fail-closed behavior, ancestor move out/back without descendant event or lifetime change, cross-history-universe isolation, all prior tests and go vet. No live provider access.",
+    "id": "P0_29C3_LIFETIME_AWARE_MEMBERSHIP_HARDENING",
+    "description": "Resolve P0-29D blockers without schema change: revalidate non-provider-root managed-root binding against the current active lifetime segment using existing bound_sequence; before following each topology parent edge, prove the edge evidence position is not older than the current parent incarnation start and that the traversed node belongs to its current incarnation; return UNKNOWN on mismatch. Add same-generation managed-root-ID and parent-ID reincarnation adversarial tests. Keep schema v16. No live provider access.",
     "drive_mutation_approved": false,
     "deletion_approved": false
   },
@@ -155,7 +156,7 @@
     "TREAT_LEGACY_HUB_MANAGER_DOCS_AS_CURRENT_ARCHITECTURE",
     "REBUILD_INFRASTRUCTURE_BEFORE_REUSE_SURVEY"
   ],
-  "repository_basis_commit": "a931e576874cf3e26c732c8975268ca247cca7fd",
+  "repository_basis_commit": "b04d321989a379ea54594d1a2323d99ac4b19f23",
   "drive_cleanup": {
     "archive_root": {
       "id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2266,10 +2267,10 @@
     "mode": "EVENT_TRIGGERED_PLUS_MAXIMUM_SLICE_INTERVAL",
     "maximum_qualified_substantive_slices_between_retrospectives": 4,
     "last_retrospective": {
-      "head": "1567f0967b7082db66e5605fa69e5c0a4bc8f027",
-      "document": "docs/P0_28C3_BOUNDARY_RETRO_20260926.md",
-      "ci_run_id": 36244269461,
-      "conclusion": "SUCCESS"
+      "head": "b04d321989a379ea54594d1a2323d99ac4b19f23",
+      "document": "docs/P0_29D_BOUNDARY_RETROSPECTIVE_20260926.md",
+      "ci_run_id": 36254143711,
+      "conclusion": "BLOCKERS_FOUND"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -2280,7 +2281,14 @@
       "before candidate freeze/release qualification",
       "after major architecture reset/migration"
     ],
-    "blocker_rule": "BLOCKER findings pause dependent work until durably resolved or explicitly re-scoped"
+    "blocker_rule": "BLOCKER findings pause dependent work until durably resolved or explicitly re-scoped",
+    "overdue_audit_reconciled": {
+      "detected_at_head": "b04d321989a379ea54594d1a2323d99ac4b19f23",
+      "qualified_substantive_slices_since_previous_retrospective": 6,
+      "maximum_allowed": 4,
+      "accounting_defect": "counter remained zero",
+      "status": "CORRECTED_BY_P0_29D_RETROSPECTIVE"
+    }
   },
   "p0_28a": {
     "status": "QUALIFIED",
@@ -2979,7 +2987,7 @@
     "interruption_rule": "RECONCILE_AUTHORITATIVE_STATE_BEFORE_RETRY"
   },
   "p0_29": {
-    "status": "C3_MEMBERSHIP_IMPLEMENTED_AWAITING_QUALIFICATION",
+    "status": "D_RETROSPECTIVE_BLOCKERS_FOUND",
     "contract_document": "docs/P0_29_GDRIVE_REMOTE_HISTORY_DURABLE_PIPELINE_WIRING_CONTRACT.md",
     "live_oauth_used": false,
     "live_provider_used": false,
@@ -3111,7 +3119,7 @@
       }
     },
     "c": {
-      "status": "C3_MEMBERSHIP_IMPLEMENTED_AWAITING_QUALIFICATION",
+      "status": "C3_AUDIT_BLOCKED",
       "contract_document": "docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md",
       "core_decisions": {
         "topology": "REBUILDABLE_PROVIDER_ID_PARENT_GRAPH",
@@ -3395,7 +3403,7 @@
         }
       },
       "c3": {
-        "status": "IMPLEMENTED_AWAITING_QUALIFICATION",
+        "status": "AUDIT_BLOCKED",
         "implementation": {
           "store_file": "internal/state/sqlite/gdrive_membership.go",
           "bind_api": "BindGoogleDriveManagedRoot",
@@ -3428,7 +3436,52 @@
           "descendant provider lifetime segment remains unchanged across ancestor move out/back",
           "REMOVED object membership is UNKNOWN not OUT/deletion",
           "same native object ID in My Drive and shared-drive generations retains distinct lifetime segments and bindings"
-        ]
+        ],
+        "ci_evidence": {
+          "exact_head": "b04d321989a379ea54594d1a2323d99ac4b19f23",
+          "ci_run_id": 36254143711,
+          "conclusion": "SUCCESS",
+          "scope": "IMPLEMENTED_MECHANICS_ONLY_NOT_LIFETIME_SAFE_C3_QUALIFICATION"
+        },
+        "audit": {
+          "document": "docs/P0_29D_BOUNDARY_RETROSPECTIVE_20260926.md",
+          "status": "BLOCKERS_FOUND",
+          "findings": [
+            {
+              "id": "D-B1",
+              "severity": "BLOCKER",
+              "issue": "managed-root binding can cross same-generation native-ID reincarnation",
+              "correction": "reuse bound_sequence plus current active lifetime-segment start",
+              "schema_change_required": false
+            },
+            {
+              "id": "D-B2",
+              "severity": "BLOCKER",
+              "issue": "topology parent edge can cross parent native-ID reincarnation",
+              "correction": "compare topology evidence position to current parent lifetime-segment start before following edge",
+              "schema_change_required": false
+            },
+            {
+              "id": "D-B3",
+              "severity": "BLOCKER_PROCESS",
+              "issue": "mandatory audit clock remained zero across at least six qualified substantive slices",
+              "correction": "reuse existing audit policy and correct rolling accounting"
+            },
+            {
+              "id": "D-H1",
+              "severity": "HIGH",
+              "issue": "green C3 CI lacks same-generation native-ID reincarnation adversarial cases",
+              "correction": "add root-ID and parent-ID reincarnation tests before C3 qualification"
+            }
+          ],
+          "rejected_unnecessary_solutions": [
+            "schema v17 solely for managed-root lifetime_segment_id",
+            "second managed-root lifetime table",
+            "parent-edge incarnation table",
+            "new generic provider identity layer",
+            "second audit policy"
+          ]
+        }
       }
     }
   }

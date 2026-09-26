@@ -541,3 +541,12 @@ The shared exact-prestate reconciler guarantees stale caller prestate returns be
 
 No live OAuth/provider access or corpus mutation occurred.
 
+## 27. P0-29D pre-qualification retrospective
+
+C3 implementation CI passed on head `b04d321989a379ea54594d1a2323d99ac4b19f23`, but C3 is **NOT QUALIFIED**.
+
+The retrospective found two lifetime/incarnation blockers: stale managed-root binding after native-ID reincarnation, and stale parent edge after parent native-ID reincarnation.
+
+No schema migration is required. Existing lifetime-segment start positions, topology evidence positions and managed-root bound_sequence are sufficient to fail closed.
+
+Detailed findings: docs/P0_29D_BOUNDARY_RETROSPECTIVE_20260926.md.

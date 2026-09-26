@@ -1072,3 +1072,12 @@ Decision:
 
 Detailed contract: `docs/P0_29C_GDRIVE_MANAGED_ROOT_TOPOLOGY_MEMBERSHIP_CONTRACT.md`.
 
+## P0-29D — membership lifetime/reuse retrospective
+
+The pre-qualification membership audit found same-generation native-ID reincarnation gaps in managed-root binding and parent-edge traversal.
+
+The initially considered schema-v17 correction was rejected as unnecessary. Existing state already carries the required incarnation evidence: managed-root bound_sequence, topology node last_sequence/last_ordinal, ProviderObjectLifetimeSegment start_sequence/start_ordinal, and the existing ordinalValue helper.
+
+Decision: compare accepted binding/edge evidence positions against current lifetime-segment starts and return UNKNOWN on mismatch. Keep schema v16; do not add a second lifetime-binding or parent-edge incarnation table.
+
+Detailed audit: docs/P0_29D_BOUNDARY_RETROSPECTIVE_20260926.md.

@@ -108,7 +108,9 @@ This distinction is preferred to pretending an earlier green slice proved behavi
 
 ## 7. Current audit clock
 
-The foundation retrospective at head `467b4e810041532ed39e47dd8b5c16a98c3df5dc` resets the rolling substantive-slice counter to zero.
+P0-29D retrospective at head `b04d321989a379ea54594d1a2323d99ac4b19f23` reset the rolling substantive-slice counter to zero after detecting that the previous counter had not been incremented across at least six qualified substantive slices.
+
+Status: **BLOCKERS FOUND**. The reset records that the retrospective occurred; it does not authorize dependent work. P0-29C3 remains paused until its lifetime/incarnation blockers are resolved and re-audited.
 
 The next full retrospective is mandatory no later than four subsequently qualified substantive slices, and sooner if a trigger fires.
 
