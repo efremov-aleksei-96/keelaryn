@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 170,
+  "revision": 171,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_RESTART_A04_TRANSACTION_ATOMICITY_REVALIDATION",
+    "current_stage": "FULL_AUDIT_RESTART_A06_NEGATIVE_ADVERSARIAL_CASES",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4650,15 +4650,17 @@
         },
         {
           "id": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Re-audited LocalFS/BootstrapLocalFS completeness and transaction boundaries on product HEAD 9010d37a. Core durable writers remain transaction-scoped. Whole-root membership is still not revalidated before COMPLETE; only per-file/group sampling is stabilized. B17 remains reproducible; no new atomicity finding."
         },
         {
           "id": "A05_SCHEMA_MIGRATION_ROLLBACK",
-          "status": "TODO"
+          "status": "DONE",
+          "evidence": "R01 is effective on product HEAD 9010d37a: Store.Open now rejects any PRAGMA user_version not exactly equal to the binary schema count, with regression proving a newer DB remains unchanged. Prior B18 no longer reproduces. Release-level pre-upgrade backup/restore remains absent, so H1 remains open; no new migration finding."
         },
         {
           "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A07_RUNTIME_REACHABILITY",
@@ -4694,12 +4696,14 @@
         "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
         "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
         "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
-        "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY"
+        "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
+        "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
+        "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED"
       ],
       "last_checkpoint": {
         "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-        "completed_through": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
-        "next": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
+        "completed_through": "A05_SCHEMA_MIGRATION_ROLLBACK",
+        "next": "A06_NEGATIVE_ADVERSARIAL_CASES",
         "known_open_finding_count": 13,
         "critical_gate_open": 7
       }
