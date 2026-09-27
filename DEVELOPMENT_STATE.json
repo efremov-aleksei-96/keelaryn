@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 162,
+  "revision": 163,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A11_STALE_DOCS_STATE_CLAIMS",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4448,6 +4448,15 @@
         "issue": "Keelaryn contains targeted consistency verifiers such as VerifyRemoteHistoryLifetimeSegments and VerifyGoogleDriveTopologyProjection, but no production path invokes them and there is no aggregate Doctor/SelfTest/integrity command. SQLite integrity/foreign-key checks and cross-subsystem durable-authority verification therefore cannot be run as one supported diagnostic/recovery gate.",
         "required_correction": "Before operator/runtime qualification, implement a read-only Doctor/SelfTest surface that runs SQLite integrity/foreign-key checks plus registered subsystem verifiers, reports exact failing authority without mutating it, and can be used by update/recovery qualification. Keep metadata-loss reconstruction as a separate later capability.",
         "gate_scope": "OPERABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
+      },
+      {
+        "id": "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK",
+        "severity": "HIGH",
+        "status": "OPEN",
+        "affected_head": "bdac0b2e192cdfadc34b1a4f17c15107ce88f744",
+        "issue": "docs/ENGINEERING_AUDIT_POLICY.md contains a normative section titled 'Current audit clock' that still states schema v34 at 77b8d... is current, B8 is OPEN, and the only permitted product slice is v35. Current DEVELOPMENT_STATE is schema v38 with B12-B20 findings and a full-collection-before-remediation loop. A new autonomous engineering chat can therefore receive contradictory current instructions from two durable authorities and resume already-completed work.",
+        "required_correction": "Remove mutable current-head/finding data from the reusable audit policy or replace it with a pointer to DEVELOPMENT_STATE.json. Preserve old audit clocks only in timestamped retrospectives/checkpoints. Add a policy invariant that normative process docs do not duplicate volatile current development state.",
+        "gate_scope": "D0_AUTONOMY_GOVERNANCE_NOT_CURRENT_P0_C2_PRODUCT_CRITICAL_GATE"
       }
     ],
     "resolved_findings": [
@@ -4661,11 +4670,12 @@
         },
         {
           "id": "A11_STALE_DOCS_STATE_CLAIMS",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Historical retrospectives/contracts are scoped provenance and may retain their original PASS claims. README.md and docs/DEVELOPMENT.md correctly point to DEVELOPMENT_STATE.json as current state. ENGINEERING_AUDIT_POLICY.md section 'Current audit clock' is stale at schema v34/B8/v35 and contradicts current schema v38/full-collection state; H5 recorded."
         },
         {
           "id": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A13_COLLECTION_PASS_SYNTHESIS",
@@ -4687,14 +4697,15 @@
         "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN",
         "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
         "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
-        "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
+        "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
+        "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK"
       ],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "d605cde89eadaf7b251fba3e547c06fa730ae61c",
+        "control_head_before_checkpoint": "bdac0b2e192cdfadc34b1a4f17c15107ce88f744",
         "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
-        "next": "A11_STALE_DOCS_STATE_CLAIMS",
-        "open_finding_count": 14
+        "completed_through": "A11_STALE_DOCS_STATE_CLAIMS",
+        "next": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
+        "open_finding_count": 15
       }
     },
     "interruption_recovery": {
