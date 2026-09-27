@@ -136,9 +136,36 @@ func TestCanonicalScanObservationTimeGuardsRejectSQLiteAcceptedNoncanonicalForms
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sqlitex.Execute(conn,
+	releaseOccurrence, err := store.authorizeOccurrenceInsertConn(conn, occurrenceInsertAuthorization{
+		occurrenceID:   "pobjocc_noncanonical",
+		providerID:     "provider",
+		nativeObjectID: "obj",
+		identityState:  corpus.ObjectIdentityObserved,
+	})
+	if err != nil {
+		store.pool.Put(conn)
+		t.Fatal(err)
+	}
+	writeErr := sqlitex.Execute(conn,
 		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_noncanonical','provider','obj','OBSERVED')",
-		nil); err != nil {
+		nil)
+	releaseOccurrence()
+	if writeErr != nil {
+		store.pool.Put(conn)
+		t.Fatal(writeErr)
+	}
+	releaseObservation, err := store.authorizeObservationInsertConn(conn, observationInsertAuthorization{
+		observationID:   "obs_noncanonical",
+		occurrenceID:    "pobjocc_noncanonical",
+		assignmentState: corpus.AssignmentUnresolved,
+		observedAt:      "2026-09-27T24:00:00Z",
+		kind:            corpus.EntryRegularFile,
+		size:            1,
+		mode:            0,
+		modifiedAt:      base.UTC().Format(time.RFC3339Nano),
+		scanID:          scan.ID,
+	})
+	if err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}
@@ -148,6 +175,7 @@ func TestCanonicalScanObservationTimeGuardsRejectSQLiteAcceptedNoncanonicalForms
 			base.UTC().Format(time.RFC3339Nano),
 			string(scan.ID),
 		}})
+	releaseObservation()
 	store.pool.Put(conn)
 	if err == nil {
 		t.Fatal("noncanonical observation timestamp unexpectedly accepted")

@@ -32,9 +32,40 @@ func TestSourceBoundAssignedObservationRejectsDirectSQLWithoutIdentityCapability
 		t.Fatal(err)
 	}
 	defer fixture.store.pool.Put(conn)
-	if err := sqlitex.Execute(conn,
+	releaseOccurrence, err := fixture.store.authorizeOccurrenceInsertConn(conn, occurrenceInsertAuthorization{
+		occurrenceID:   "pobjocc_direct_identity",
+		providerID:     "google-drive",
+		nativeObjectID: "child",
+		identityState:  corpus.ObjectIdentityObserved,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeErr := sqlitex.Execute(conn,
 		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_direct_identity','google-drive','child','OBSERVED')",
-		nil); err != nil {
+		nil)
+	releaseOccurrence()
+	if writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	releaseAcceptance, err := fixture.store.authorizeIdentityAcceptanceWriteConn(conn, scan.ID, "OBSERVATION")
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseObservation, err := fixture.store.authorizeObservationInsertConn(conn, observationInsertAuthorization{
+		observationID:   "obs_direct_identity",
+		occurrenceID:    "pobjocc_direct_identity",
+		artifactID:      artifact.ID,
+		assignmentState: corpus.AssignmentAssigned,
+		observedAt:      scan.StartedAt.UTC().Format(time.RFC3339Nano),
+		kind:            corpus.EntryRegularFile,
+		size:            7,
+		mode:            0,
+		modifiedAt:      fixture.base.Add(time.Second).UTC().Format(time.RFC3339Nano),
+		scanID:          scan.ID,
+	})
+	if err != nil {
+		releaseAcceptance()
 		t.Fatal(err)
 	}
 	err = sqlitex.Execute(conn,
@@ -45,6 +76,8 @@ func TestSourceBoundAssignedObservationRejectsDirectSQLWithoutIdentityCapability
 			fixture.base.Add(time.Second).UTC().Format(time.RFC3339Nano),
 			string(scan.ID),
 		}})
+	releaseObservation()
+	releaseAcceptance()
 	if err == nil {
 		t.Fatal("direct source-bound assigned Observation unexpectedly succeeded")
 	}

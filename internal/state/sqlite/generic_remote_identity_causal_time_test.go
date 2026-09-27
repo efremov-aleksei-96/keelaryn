@@ -134,15 +134,43 @@ func TestV29SQLiteRejectsGenericRemoteHistoryDecisionAndReceiptWithoutCapability
 	if err != nil { t.Fatal(err) }
 	defer store.pool.Put(conn)
 
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_v29_generic',?1,'id-1','OBSERVED')",
-		&sqlitex.ExecOptions{Args: []any{string(scope.ProviderID)}}); err != nil {
+	releaseOccurrence, err := store.authorizeOccurrenceInsertConn(conn, occurrenceInsertAuthorization{
+		occurrenceID:   "pobjocc_v29_generic",
+		providerID:     scope.ProviderID,
+		nativeObjectID: "id-1",
+		identityState:  corpus.ObjectIdentityObserved,
+	})
+	if err != nil {
 		t.Fatal(err)
+	}
+	writeErr := sqlitex.Execute(conn,
+		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_v29_generic',?1,'id-1','OBSERVED')",
+		&sqlitex.ExecOptions{Args: []any{string(scope.ProviderID)}})
+	releaseOccurrence()
+	if writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	releaseSource, err := store.authorizeIdentityMutationConn(conn, scan2.ID, "", "")
 	if err != nil { t.Fatal(err) }
 	releaseAcceptance, err := store.authorizeIdentityAcceptanceWriteConn(conn, scan2.ID, "OBSERVATION")
 	if err != nil {
+		releaseSource()
+		t.Fatal(err)
+	}
+	releaseObservation, err := store.authorizeObservationInsertConn(conn, observationInsertAuthorization{
+		observationID:   "obs_v29_generic",
+		occurrenceID:    "pobjocc_v29_generic",
+		artifactID:      first.Observation.ArtifactID,
+		assignmentState: corpus.AssignmentAssigned,
+		observedAt:      scan2.StartedAt.UTC().Format(time.RFC3339Nano),
+		kind:            corpus.EntryRegularFile,
+		size:            4,
+		mode:            384,
+		modifiedAt:      scan2.StartedAt.Add(-time.Minute).UTC().Format(time.RFC3339Nano),
+		scanID:          scan2.ID,
+	})
+	if err != nil {
+		releaseAcceptance()
 		releaseSource()
 		t.Fatal(err)
 	}
@@ -154,6 +182,7 @@ func TestV29SQLiteRejectsGenericRemoteHistoryDecisionAndReceiptWithoutCapability
 			scan2.StartedAt.Add(-time.Minute).UTC().Format(time.RFC3339Nano),
 			string(scan2.ID),
 		}})
+	releaseObservation()
 	releaseAcceptance()
 	releaseSource()
 	if err != nil {

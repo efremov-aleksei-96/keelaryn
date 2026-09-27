@@ -130,9 +130,40 @@ func TestV28SQLiteRejectsAuthorizedNoncausalSourceIdentityWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer release()
-	if err := sqlitex.Execute(conn,
+	releaseOccurrence, err := fixture.store.authorizeOccurrenceInsertConn(conn, occurrenceInsertAuthorization{
+		occurrenceID:   "pobjocc_v28_bad_time",
+		providerID:     "google-drive",
+		nativeObjectID: "child",
+		identityState:  corpus.ObjectIdentityObserved,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeErr := sqlitex.Execute(conn,
 		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_v28_bad_time','google-drive','child','OBSERVED')",
-		nil); err != nil {
+		nil)
+	releaseOccurrence()
+	if writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	releaseAcceptance, err := fixture.store.authorizeIdentityAcceptanceWriteConn(conn, scan.ID, "OBSERVATION")
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseObservation, err := fixture.store.authorizeObservationInsertConn(conn, observationInsertAuthorization{
+		observationID:   "obs_v28_bad_time",
+		occurrenceID:    "pobjocc_v28_bad_time",
+		artifactID:      artifact.ID,
+		assignmentState: corpus.AssignmentAssigned,
+		observedAt:      scan.StartedAt.Add(time.Nanosecond).UTC().Format(time.RFC3339Nano),
+		kind:            corpus.EntryRegularFile,
+		size:            7,
+		mode:            0,
+		modifiedAt:      fixture.base.Add(time.Second).UTC().Format(time.RFC3339Nano),
+		scanID:          scan.ID,
+	})
+	if err != nil {
+		releaseAcceptance()
 		t.Fatal(err)
 	}
 	err = sqlitex.Execute(conn,
@@ -143,6 +174,8 @@ func TestV28SQLiteRejectsAuthorizedNoncausalSourceIdentityWrites(t *testing.T) {
 			fixture.base.Add(time.Second).UTC().Format(time.RFC3339Nano),
 			string(scan.ID),
 		}})
+	releaseObservation()
+	releaseAcceptance()
 	if err == nil {
 		t.Fatal("authorized source-bound assigned Observation with noncausal time unexpectedly succeeded")
 	}

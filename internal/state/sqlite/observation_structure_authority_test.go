@@ -119,48 +119,145 @@ func TestObservationSQLiteStructuralAuthority(t *testing.T) {
 		}
 	}
 
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_mode','provider',NULL,'UNRESOLVED')",
-		nil); err != nil {
+	releaseOccurrence, err := store.authorizeOccurrenceInsertConn(conn, occurrenceInsertAuthorization{
+		occurrenceID:  "pobjocc_mode",
+		providerID:    "provider",
+		identityState: corpus.ObjectIdentityUnresolved,
+	})
+	if err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}
-	if err := sqlitex.Execute(conn,
+	writeErr := sqlitex.Execute(conn,
+		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_mode','provider',NULL,'UNRESOLVED')",
+		nil)
+	releaseOccurrence()
+	if writeErr != nil {
+		store.pool.Put(conn)
+		t.Fatal(writeErr)
+	}
+	releaseObservation, err := store.authorizeObservationInsertConn(conn, observationInsertAuthorization{
+		observationID:   "obs_mode",
+		occurrenceID:    "pobjocc_mode",
+		assignmentState: corpus.AssignmentUnresolved,
+		observedAt:      base.Format(time.RFC3339Nano),
+		kind:            corpus.EntryRegularFile,
+		size:            1,
+		mode:            4294967296,
+		modifiedAt:      base.Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		store.pool.Put(conn)
+		t.Fatal(err)
+	}
+	writeErr = sqlitex.Execute(conn,
 		"INSERT INTO observations (observation_id,occurrence_id,artifact_id,revision_id,assignment_state,observed_at,kind,size,mode,modified_at,scan_id) VALUES ('obs_mode','pobjocc_mode',NULL,NULL,'UNRESOLVED',?1,'REGULAR_FILE',1,4294967296,?1,NULL)",
-		&sqlitex.ExecOptions{Args: []any{base.Format(time.RFC3339Nano)}}); err == nil {
+		&sqlitex.ExecOptions{Args: []any{base.Format(time.RFC3339Nano)}})
+	releaseObservation()
+	if writeErr == nil {
 		store.pool.Put(conn)
 		t.Fatal("mode outside uint32 unexpectedly succeeded")
 	}
 
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_other','other','object-x','OBSERVED')",
-		nil); err != nil {
+	releaseOccurrence, err = store.authorizeOccurrenceInsertConn(conn, occurrenceInsertAuthorization{
+		occurrenceID:   "pobjocc_other",
+		providerID:     "other",
+		nativeObjectID: "object-x",
+		identityState:  corpus.ObjectIdentityObserved,
+	})
+	if err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}
-	if err := sqlitex.Execute(conn,
+	writeErr = sqlitex.Execute(conn,
+		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_other','other','object-x','OBSERVED')",
+		nil)
+	releaseOccurrence()
+	if writeErr != nil {
+		store.pool.Put(conn)
+		t.Fatal(writeErr)
+	}
+	releaseObservation, err = store.authorizeObservationInsertConn(conn, observationInsertAuthorization{
+		observationID:   "obs_scope",
+		occurrenceID:    "pobjocc_other",
+		assignmentState: corpus.AssignmentUnresolved,
+		observedAt:      base.Format(time.RFC3339Nano),
+		kind:            corpus.EntryRegularFile,
+		size:            1,
+		mode:            0,
+		modifiedAt:      base.Format(time.RFC3339Nano),
+		scanID:          scan.ID,
+	})
+	if err != nil {
+		store.pool.Put(conn)
+		t.Fatal(err)
+	}
+	writeErr = sqlitex.Execute(conn,
 		"INSERT INTO observations (observation_id,occurrence_id,artifact_id,revision_id,assignment_state,observed_at,kind,size,mode,modified_at,scan_id) VALUES ('obs_scope','pobjocc_other',NULL,NULL,'UNRESOLVED',?1,'REGULAR_FILE',1,0,?1,?2)",
-		&sqlitex.ExecOptions{Args: []any{base.Format(time.RFC3339Nano), string(scan.ID)}}); err == nil {
+		&sqlitex.ExecOptions{Args: []any{base.Format(time.RFC3339Nano), string(scan.ID)}})
+	releaseObservation()
+	if writeErr == nil {
 		store.pool.Put(conn)
 		t.Fatal("observation provider/scan mismatch unexpectedly succeeded")
 	}
 
-	if err := sqlitex.Execute(conn,
+	releaseOccurrence, err = store.authorizeOccurrenceInsertConn(conn, occurrenceInsertAuthorization{
+		occurrenceID:   "pobjocc_no_locator",
+		providerID:     "provider",
+		nativeObjectID: "object-no-locator",
+		identityState:  corpus.ObjectIdentityObserved,
+	})
+	if err != nil {
+		store.pool.Put(conn)
+		t.Fatal(err)
+	}
+	writeErr = sqlitex.Execute(conn,
 		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_no_locator','provider','object-no-locator','OBSERVED')",
-		nil); err != nil {
+		nil)
+	releaseOccurrence()
+	if writeErr != nil {
+		store.pool.Put(conn)
+		t.Fatal(writeErr)
+	}
+	releaseObservation, err = store.authorizeObservationInsertConn(conn, observationInsertAuthorization{
+		observationID:   "obs_no_locator",
+		occurrenceID:    "pobjocc_no_locator",
+		assignmentState: corpus.AssignmentUnresolved,
+		observedAt:      base.Format(time.RFC3339Nano),
+		kind:            corpus.EntryRegularFile,
+		size:            1,
+		mode:            0,
+		modifiedAt:      base.Format(time.RFC3339Nano),
+		scanID:          scan.ID,
+	})
+	if err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}
-	if err := sqlitex.Execute(conn,
+	writeErr = sqlitex.Execute(conn,
 		"INSERT INTO observations (observation_id,occurrence_id,artifact_id,revision_id,assignment_state,observed_at,kind,size,mode,modified_at,scan_id) VALUES ('obs_no_locator','pobjocc_no_locator',NULL,NULL,'UNRESOLVED',?1,'REGULAR_FILE',1,0,?1,?2)",
-		&sqlitex.ExecOptions{Args: []any{base.Format(time.RFC3339Nano), string(scan.ID)}}); err != nil {
+		&sqlitex.ExecOptions{Args: []any{base.Format(time.RFC3339Nano), string(scan.ID)}})
+	releaseObservation()
+	if writeErr != nil {
+		store.pool.Put(conn)
+		t.Fatal(writeErr)
+	}
+	releaseLocator, err := store.authorizeLocatorInsertConn(conn, locatorInsertAuthorization{
+		locatorID:     "loc_bad_scope",
+		observationID: "obs_no_locator",
+		providerID:    "provider",
+		root:          "wrong-root",
+		path:          "path-x",
+	})
+	if err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}
-
-	if err := sqlitex.Execute(conn,
+	writeErr = sqlitex.Execute(conn,
 		"INSERT INTO locators (locator_id,observation_id,provider_id,root,path) VALUES ('loc_bad_scope','obs_no_locator','provider','wrong-root','path-x')",
-		nil); err == nil {
+		nil)
+	releaseLocator()
+	if writeErr == nil {
 		store.pool.Put(conn)
 		t.Fatal("locator root/scan mismatch unexpectedly succeeded")
 	}

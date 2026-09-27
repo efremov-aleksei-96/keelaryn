@@ -60,14 +60,42 @@ func TestGenericIdentityAcceptanceApplicationAuthorityRejectsDirectSQL(t *testin
 	}
 	defer store.pool.Put(conn)
 
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_direct_v38','drive','obj-direct','OBSERVED')",
-		nil); err != nil {
+	releaseOccurrence, err := store.authorizeOccurrenceInsertConn(conn, occurrenceInsertAuthorization{
+		occurrenceID:   "pobjocc_direct_v38",
+		providerID:     "drive",
+		nativeObjectID: "obj-direct",
+		identityState:  corpus.ObjectIdentityObserved,
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sqlitex.Execute(conn,
+	writeErr := sqlitex.Execute(conn,
+		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_direct_v38','drive','obj-direct','OBSERVED')",
+		nil)
+	releaseOccurrence()
+	if writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	releaseObservation, err := store.authorizeObservationInsertConn(conn, observationInsertAuthorization{
+		observationID:   "obs_direct_v38",
+		occurrenceID:    "pobjocc_direct_v38",
+		artifactID:      adopted.ArtifactID,
+		assignmentState: corpus.AssignmentAssigned,
+		observedAt:      at.Format(time.RFC3339Nano),
+		kind:            corpus.EntryOther,
+		size:            0,
+		mode:            0,
+		modifiedAt:      at.Format(time.RFC3339Nano),
+		scanID:          scan.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeErr = sqlitex.Execute(conn,
 		"INSERT INTO observations (observation_id,occurrence_id,artifact_id,revision_id,assignment_state,observed_at,kind,size,mode,modified_at,scan_id) VALUES ('obs_direct_v38','pobjocc_direct_v38',?1,NULL,'ASSIGNED',?2,'OTHER',0,0,?2,?3)",
-		&sqlitex.ExecOptions{Args: []any{string(adopted.ArtifactID), at.Format(time.RFC3339Nano), string(scan.ID)}}); err == nil {
+		&sqlitex.ExecOptions{Args: []any{string(adopted.ArtifactID), at.Format(time.RFC3339Nano), string(scan.ID)}})
+	releaseObservation()
+	if writeErr == nil {
 		t.Fatal("direct assigned Observation unexpectedly succeeded")
 	}
 

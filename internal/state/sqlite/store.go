@@ -3261,7 +3261,7 @@ type observationInsertAuthorization struct {
 	observedAt      string
 	kind            corpus.EntryKind
 	size            int64
-	mode            uint32
+	mode            int64
 	modifiedAt      string
 	scanID          corpus.ScanSessionID
 }

@@ -113,7 +113,7 @@ func (s *Store) recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessi
 		observedAt:      observedText,
 		kind:            input.Kind,
 		size:            input.Size,
-		mode:            input.Mode,
+		mode:            int64(input.Mode),
 		modifiedAt:      modifiedText,
 		scanID:          scanID,
 	})
