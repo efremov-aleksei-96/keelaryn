@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 152,
+  "revision": 153,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A02_DURABLE_AUTHORITY_BOUNDARIES",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4339,6 +4339,30 @@
         "affected_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
         "issue": "AdoptObservationInScan accepts any OPEN ScanSession with matching provider/root. StartBootstrapScan atomically proves that the scope has no prior observed history, but no durable bootstrap provenance is bound to the created scan and AdoptObservationInScan does not re-prove or verify that boundary. A caller can therefore create a normal StartScan (or forge an OPEN scan row) in a scope with prior history and pass it to AdoptObservationInScan, minting a new Artifact outside the intended first-observation bootstrap boundary.",
         "required_correction": "Persist or otherwise durably prove bootstrap-scan eligibility at scan creation and require that exact authority inside AdoptObservationInScan. Normal StartScan, RemoteHistory scans and raw SQL-created OPEN scans must be ineligible. Do not retrofit or invent bootstrap provenance for historical scans; preserve ordinary unresolved scan behavior and SAME/NEW acceptance paths."
+      },
+      {
+        "id": "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Base RemoteHistory durable authority is protected by structural/relational triggers but not by connection-local application authorization. Raw SQL can create an ACTIVE generation and BOOTSTRAP/INCREMENTAL publication with a syntactically valid arbitrary 64-hex publication fingerprint, then create matching bootstrap/change/membership and provider lifetime rows without passing Start/PublishRemoteHistory validation, canonicalization, fingerprint computation, or transaction orchestration. Those rows are later consumed as authoritative provider history and lifetime evidence.",
+        "required_correction": "Add narrow application authority for creation/transition of base RemoteHistory authority and provider lifetime projection, or equivalently prove the exact validated publication payload/fingerprint at the SQLite boundary. Migration must fail closed on historical states that violate reconstructable invariants without inventing provider provenance. Preserve transactional publication semantics and replay behavior."
+      },
+      {
+        "id": "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Google Drive topology sidecar evidence/nodes/watermarks and managed-root bindings have relational completeness guards but no application provenance guard. Raw SQL can attach structurally valid but provider-unvalidated parent topology to genuine RemoteHistory objects, materialize a matching node/watermark projection, and create a managed-root binding. GoogleDriveManagedRootMembership then trusts that topology/scope state even though validateGoogleBootstrapBundle/validateGoogleChangeCycleBundle/BindGoogleDriveManagedRoot were never executed.",
+        "required_correction": "Protect authoritative Google Drive topology evidence and managed-root scope binding behind narrow connection-local application capabilities tied to the exact validated bundle/generation/sequence; distinguish authoritative evidence from rebuildable node projection where possible. Add adversarial raw-SQL tests and conservative migration validation."
+      },
+      {
+        "id": "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Generic scan and unresolved Observation evidence creation lacks application authorization. Raw SQL can create an OPEN scan_session, provider_object_occurrences, unresolved observations and locators satisfying structural guards, then transition the scan to COMPLETE. latestCompleteScanID/Inventory will accept the forged COMPLETE scan as current corpus observation authority, including an empty newer scan that can hide previously observed inventory.",
+        "required_correction": "Protect scan creation/lifecycle and durable occurrence/Observation/Locator writes with transaction-scoped application authority corresponding to validated StartScan/RecordObservationInScan/finish paths, while preserving stronger RemoteHistory completion guards. Add adversarial tests proving raw SQL cannot synthesize a current inventory snapshot."
       }
     ],
     "resolved_findings": [
@@ -4507,12 +4531,12 @@
         },
         {
           "id": "A02_DURABLE_AUTHORITY_BOUNDARIES",
-          "status": "IN_PROGRESS",
-          "evidence": "Exported mutating Store APIs and all production SQL INSERT/UPDATE/DELETE sites inventoried; current candidate: base RemoteHistory/generation/lifetime writes may lack connection-local application authority."
+          "status": "DONE",
+          "evidence": "Completed application-authority coverage review across production SQL write surfaces. Confirmed B13 Base RemoteHistory authority gap, B14 Google Drive topology/scope authority gap, and B15 generic scan/Observation evidence authority gap. Existing v35-v38 guards cover core identity/identity authority/identity acceptance but not these adjacent durable evidence surfaces."
         },
         {
           "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
@@ -4555,15 +4579,20 @@
           "status": "TODO"
         }
       ],
-      "candidate_findings": [
-        {
-          "id": "CANDIDATE_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
-          "status": "UNDER_CONFIRMATION",
-          "dimension": "DURABLE_AUTHORITY_BOUNDARIES",
-          "evidence": "Current authorization UDF inventory covers identity acceptance/core identity/identity authority/remote completion/GDrive watermark, but no equivalent connection-local application authorization is yet evident for base RemoteHistory generation/publication/membership or provider lifetime segment creation/transitions.",
-          "next_check": "Determine whether structural relational triggers alone permit a valid-looking but application-unvalidated raw-SQL RemoteHistory history/lifetime state; avoid splitting one root defect into duplicate findings."
-        }
-      ]
+      "candidate_findings": [],
+      "findings_discovered": [
+        "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
+        "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
+        "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
+        "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY"
+      ],
+      "last_checkpoint": {
+        "control_head_before_checkpoint": "29879163ae1dae7860b8f2510a0d45c9a506c1de",
+        "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "completed_through": "A02_DURABLE_AUTHORITY_BOUNDARIES",
+        "next": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
+        "open_finding_count": 4
+      }
     },
     "interruption_recovery": {
       "mode": "DURABLE_WORK_LEDGER_REQUIRED_FOR_LONG_RUNNING_AUDIT_AND_DEVELOPMENT",
