@@ -122,7 +122,6 @@ func (s *Store) insertIdentityAuthoritySetConn(conn *sqlite.Conn, set corpus.Ide
 	if err != nil {
 		return err
 	}
-	defer releaseSet()
 	if err := sqlitex.Execute(conn,
 		"INSERT INTO identity_authority_sets (authority_set_id, policy_id, provider_id, identity_domain, scope_id, current_object_id, universe_coverage, generation_id, lifetime_segment_id, source_refs_json, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
 		&sqlitex.ExecOptions{Args: []any{
@@ -130,8 +129,10 @@ func (s *Store) insertIdentityAuthoritySetConn(conn *sqlite.Conn, set corpus.Ide
 			set.ScopeID, string(set.CurrentObjectID), string(set.UniverseCoverage),
 			generation, segment, string(sourceRefsJSON), createdAt,
 		}}); err != nil {
+		releaseSet()
 		return fmt.Errorf("insert identity authority set: %w", err)
 	}
+	releaseSet()
 	candidates := append([]corpus.IdentityAuthorityCandidate(nil), set.Candidates...)
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].ArtifactID != candidates[j].ArtifactID {
@@ -171,14 +172,15 @@ func (s *Store) insertIdentityAuthoritySetConn(conn *sqlite.Conn, set corpus.Ide
 	if err != nil {
 		return err
 	}
-	defer releaseSeal()
 	if err := sqlitex.Execute(conn,
 		"UPDATE identity_authority_sets SET sealed_at = ?1 WHERE authority_set_id = ?2 AND sealed_at IS NULL",
 		&sqlitex.ExecOptions{Args: []any{
 			createdAt, string(set.ID),
 		}}); err != nil {
+		releaseSeal()
 		return fmt.Errorf("seal identity authority set: %w", err)
 	}
+	releaseSeal()
 	if conn.Changes() != 1 {
 		return fmt.Errorf("%w: authority set %s was not sealed exactly once", ErrInvalidIdentityAuthoritySet, set.ID)
 	}
