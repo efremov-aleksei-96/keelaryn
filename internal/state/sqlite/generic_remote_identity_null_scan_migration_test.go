@@ -62,6 +62,7 @@ func TestV30RejectsNullScanRemoteIdentityReceiptThatV29MigrationMissed(t *testin
 
 	conn, err := store.pool.Get(ctx)
 	if err != nil { t.Fatal(err) }
+	badTime := base.Add(5*time.Minute).UTC().Format(time.RFC3339Nano)
 	if err := sqlitex.Execute(conn,
 		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_v30_null_scan',?1,'id-1','OBSERVED')",
 		&sqlitex.ExecOptions{Args: []any{string(scope.ProviderID)}}); err != nil {
@@ -73,7 +74,6 @@ func TestV30RejectsNullScanRemoteIdentityReceiptThatV29MigrationMissed(t *testin
 		store.pool.Put(conn); t.Fatal(err)
 	}
 	nullScanObservationID := corpus.ObservationID("obs_v30_null_scan")
-	badTime := base.Add(5*time.Minute).UTC().Format(time.RFC3339Nano)
 	if err := sqlitex.Execute(conn,
 		"INSERT INTO accepted_continuity_decisions (decision_id,observation_id,artifact_id,decision_state,policy_id,resolution_json,decided_at,lifetime_segment_id) VALUES ('cont_v30_null_scan',?1,?2,'RESOLVED_SAME',?3,?4,?5,?6)",
 		&sqlitex.ExecOptions{Args: []any{
