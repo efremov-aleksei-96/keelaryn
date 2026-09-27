@@ -14,11 +14,11 @@ import (
 func TestOpenScanDoesNotChangeInventory(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
-	artifact := mustArtifact(t, store)
 	base := time.Date(2026, 9, 25, 4, 0, 0, 0, time.UTC)
 
-	first := mustStartScan(t, store, "localfs", "/corpus", base)
-	mustRecordAssigned(t, store, first.ID, artifact.ID, "old.txt", base)
+	first := mustStartBootstrapScan(t, store, "localfs", "/corpus", base)
+	assigned := mustAdoptAssigned(t, store, first.ID, "old.txt", base)
+	artifactID := assigned.ArtifactID
 	if err := store.CompleteScan(ctx, first.ID, base.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestOpenScanDoesNotChangeInventory(t *testing.T) {
 	if len(inventory) != 1 || inventory[0].Locator.Path != "old.txt" {
 		t.Fatalf("OPEN scan changed inventory: %#v", inventory)
 	}
-	locators, err := store.CurrentArtifactLocators(ctx, "localfs", "/corpus", artifact.ID)
+	locators, err := store.CurrentArtifactLocators(ctx, "localfs", "/corpus", artifactID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,11 +47,10 @@ func TestOpenScanDoesNotChangeInventory(t *testing.T) {
 func TestAbortedScanDoesNotChangeInventory(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
-	artifact := mustArtifact(t, store)
 	base := time.Date(2026, 9, 25, 5, 0, 0, 0, time.UTC)
 
-	first := mustStartScan(t, store, "localfs", "/corpus", base)
-	mustRecordAssigned(t, store, first.ID, artifact.ID, "old.txt", base)
+	first := mustStartBootstrapScan(t, store, "localfs", "/corpus", base)
+	mustAdoptAssigned(t, store, first.ID, "old.txt", base)
 	if err := store.CompleteScan(ctx, first.ID, base.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -76,11 +75,11 @@ func TestAbortedScanDoesNotChangeInventory(t *testing.T) {
 func TestLatestCompleteScanReplacesInventoryAndClearsStaleArtifactLocator(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
-	artifact := mustArtifact(t, store)
 	base := time.Date(2026, 9, 25, 6, 0, 0, 0, time.UTC)
 
-	first := mustStartScan(t, store, "localfs", "/corpus", base)
-	mustRecordAssigned(t, store, first.ID, artifact.ID, "old.txt", base)
+	first := mustStartBootstrapScan(t, store, "localfs", "/corpus", base)
+	assigned := mustAdoptAssigned(t, store, first.ID, "old.txt", base)
+	artifactID := assigned.ArtifactID
 	if err := store.CompleteScan(ctx, first.ID, base.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +99,7 @@ func TestLatestCompleteScanReplacesInventoryAndClearsStaleArtifactLocator(t *tes
 	if len(inventory) != 1 || inventory[0].Locator.Path != "old.txt" || inventory[0].AssignmentState != corpus.AssignmentUnresolved {
 		t.Fatalf("latest COMPLETE inventory=%#v", inventory)
 	}
-	locators, err := store.CurrentArtifactLocators(ctx, "localfs", "/corpus", artifact.ID)
+	locators, err := store.CurrentArtifactLocators(ctx, "localfs", "/corpus", artifactID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,11 +111,11 @@ func TestLatestCompleteScanReplacesInventoryAndClearsStaleArtifactLocator(t *tes
 func TestEmptyCompleteScanMeansEmptyInventory(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
-	artifact := mustArtifact(t, store)
 	base := time.Date(2026, 9, 25, 7, 0, 0, 0, time.UTC)
 
-	first := mustStartScan(t, store, "localfs", "/corpus", base)
-	mustRecordAssigned(t, store, first.ID, artifact.ID, "old.txt", base)
+	first := mustStartBootstrapScan(t, store, "localfs", "/corpus", base)
+	assigned := mustAdoptAssigned(t, store, first.ID, "old.txt", base)
+	artifactID := assigned.ArtifactID
 	if err := store.CompleteScan(ctx, first.ID, base.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +132,7 @@ func TestEmptyCompleteScanMeansEmptyInventory(t *testing.T) {
 	if len(inventory) != 0 {
 		t.Fatalf("empty COMPLETE scan did not clear inventory: %#v", inventory)
 	}
-	locators, err := store.CurrentArtifactLocators(ctx, "localfs", "/corpus", artifact.ID)
+	locators, err := store.CurrentArtifactLocators(ctx, "localfs", "/corpus", artifactID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,21 +281,18 @@ func mustStartScan(t *testing.T, store *sqlitestate.Store, providerID corpus.Pro
 	return scan
 }
 
-func mustArtifact(t *testing.T, store *sqlitestate.Store) corpus.Artifact {
+func mustStartBootstrapScan(t *testing.T, store *sqlitestate.Store, providerID corpus.ProviderID, root string, at time.Time) corpus.ScanSession {
 	t.Helper()
-	artifact, err := store.AdoptArtifact(context.Background())
+	scan, err := store.StartBootstrapScan(context.Background(), providerID, root, at)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return artifact
+	return scan
 }
 
-func mustRecordAssigned(t *testing.T, store *sqlitestate.Store, scanID corpus.ScanSessionID, artifactID corpus.ArtifactID, path string, at time.Time) corpus.ObservationRecord {
+func mustAdoptAssigned(t *testing.T, store *sqlitestate.Store, scanID corpus.ScanSessionID, path string, at time.Time) corpus.ObservationRecord {
 	t.Helper()
-	input := unresolvedScanObservation(path, at)
-	input.ArtifactID = artifactID
-	input.AssignmentState = corpus.AssignmentAssigned
-	record, err := store.RecordObservationInScan(context.Background(), scanID, input)
+	record, err := store.AdoptObservationInScan(context.Background(), scanID, unresolvedScanObservation(path, at), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

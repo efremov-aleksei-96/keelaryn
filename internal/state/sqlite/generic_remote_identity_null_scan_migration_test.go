@@ -60,30 +60,24 @@ func TestV30RejectsNullScanRemoteIdentityReceiptThatV29MigrationMissed(t *testin
 	resolutionJSON, err := json.Marshal(resolution)
 	if err != nil { t.Fatal(err) }
 
-	nullScanObservation, err := store.RecordObservation(ctx, corpus.ObservationRecordInput{
-		ProviderObject: corpus.ProviderObject{
-			ProviderID: scope.ProviderID,
-			ID: "id-1",
-			IdentityState: corpus.ObjectIdentityObserved,
-		},
-		Locators: []corpus.Locator{{ProviderID: scope.ProviderID, Root: scope.Root, Path: "a.txt"}},
-		ArtifactID: seed.Observation.ArtifactID,
-		AssignmentState: corpus.AssignmentAssigned,
-		ObservedAt: base.Add(5*time.Minute),
-		Kind: corpus.EntryRegularFile,
-		Size: 4,
-		Mode: 0o600,
-		ModifiedAt: base.Add(5*time.Minute),
-	})
-	if err != nil { t.Fatal(err) }
-
 	conn, err := store.pool.Get(ctx)
 	if err != nil { t.Fatal(err) }
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_v30_null_scan',?1,'id-1','OBSERVED')",
+		&sqlitex.ExecOptions{Args: []any{string(scope.ProviderID)}}); err != nil {
+		store.pool.Put(conn); t.Fatal(err)
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO observations (observation_id,occurrence_id,artifact_id,revision_id,assignment_state,observed_at,kind,size,mode,modified_at,scan_id) VALUES ('obs_v30_null_scan','pobjocc_v30_null_scan',?1,NULL,'ASSIGNED',?2,'REGULAR_FILE',4,384,?2,NULL)",
+		&sqlitex.ExecOptions{Args: []any{string(seed.Observation.ArtifactID), badTime}}); err != nil {
+		store.pool.Put(conn); t.Fatal(err)
+	}
+	nullScanObservationID := corpus.ObservationID("obs_v30_null_scan")
 	badTime := base.Add(5*time.Minute).UTC().Format(time.RFC3339Nano)
 	if err := sqlitex.Execute(conn,
 		"INSERT INTO accepted_continuity_decisions (decision_id,observation_id,artifact_id,decision_state,policy_id,resolution_json,decided_at,lifetime_segment_id) VALUES ('cont_v30_null_scan',?1,?2,'RESOLVED_SAME',?3,?4,?5,?6)",
 		&sqlitex.ExecOptions{Args: []any{
-			string(nullScanObservation.ID),
+			string(nullScanObservationID),
 			string(seed.Observation.ArtifactID),
 			remoteHistoryLifetimeAuthorityPolicyV1,
 			string(resolutionJSON),
@@ -96,7 +90,7 @@ func TestV30RejectsNullScanRemoteIdentityReceiptThatV29MigrationMissed(t *testin
 		"INSERT INTO identity_mutation_requests (request_id,operation_kind,fingerprint_version,fingerprint_sha256,authority_set_id,observation_id,artifact_id,revision_id,revision_created,decision_kind,decision_id,accepted_at) VALUES ('req_v30_null_scan','SAME','test:v1','deadbeef',?1,?2,?3,NULL,0,'CONTINUITY','cont_v30_null_scan',?4)",
 		&sqlitex.ExecOptions{Args: []any{
 			string(sameAuthority.ID),
-			string(nullScanObservation.ID),
+			string(nullScanObservationID),
 			string(seed.Observation.ArtifactID),
 			badTime,
 		}}); err != nil {

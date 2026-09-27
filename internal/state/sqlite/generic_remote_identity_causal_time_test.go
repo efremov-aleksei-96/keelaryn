@@ -139,14 +139,24 @@ func TestV29SQLiteRejectsGenericRemoteHistoryDecisionAndReceiptWithoutCapability
 		&sqlitex.ExecOptions{Args: []any{string(scope.ProviderID)}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := sqlitex.Execute(conn,
+	releaseSource, err := store.authorizeIdentityMutationConn(conn, scan2.ID, "", "")
+	if err != nil { t.Fatal(err) }
+	releaseAcceptance, err := store.authorizeIdentityAcceptanceWriteConn(conn, scan2.ID, "OBSERVATION")
+	if err != nil {
+		releaseSource()
+		t.Fatal(err)
+	}
+	err = sqlitex.Execute(conn,
 		"INSERT INTO observations (observation_id,occurrence_id,artifact_id,revision_id,assignment_state,observed_at,kind,size,mode,modified_at,scan_id) VALUES ('obs_v29_generic','pobjocc_v29_generic',?1,NULL,'ASSIGNED',?2,'REGULAR_FILE',4,384,?3,?4)",
 		&sqlitex.ExecOptions{Args: []any{
 			string(first.Observation.ArtifactID),
 			scan2.StartedAt.UTC().Format(time.RFC3339Nano),
 			scan2.StartedAt.Add(-time.Minute).UTC().Format(time.RFC3339Nano),
 			string(scan2.ID),
-		}}); err != nil {
+		}})
+	releaseAcceptance()
+	releaseSource()
+	if err != nil {
 		t.Fatal(err)
 	}
 	decisionAt := base.Add(5*time.Minute)
@@ -165,13 +175,20 @@ func TestV29SQLiteRejectsGenericRemoteHistoryDecisionAndReceiptWithoutCapability
 		t.Fatal("generic RemoteHistory continuity direct SQL unexpectedly bypassed application authority")
 	}
 
-	release, err := store.authorizeIdentityMutationConn(conn, scan2.ID, "", "")
+	releaseSource, err = store.authorizeIdentityMutationConn(conn, scan2.ID, "", "")
 	if err != nil { t.Fatal(err) }
-	if err := insertDecision(); err != nil {
-		release()
-		t.Fatalf("validated capability could not persist generic RemoteHistory decision: %v", err)
+	releaseAcceptance, err = store.authorizeIdentityAcceptanceWriteConn(conn, scan2.ID, "CONTINUITY")
+	if err != nil {
+		releaseSource()
+		t.Fatal(err)
 	}
-	release()
+	if err := insertDecision(); err != nil {
+		releaseAcceptance()
+		releaseSource()
+		t.Fatalf("validated capabilities could not persist generic RemoteHistory decision: %v", err)
+	}
+	releaseAcceptance()
+	releaseSource()
 
 	err = sqlitex.Execute(conn,
 		"INSERT INTO identity_mutation_requests (request_id,operation_kind,fingerprint_version,fingerprint_sha256,authority_set_id,observation_id,artifact_id,revision_id,revision_created,decision_kind,decision_id,accepted_at) VALUES ('req_v29_direct_receipt','SAME','test:v1','deadbeef',?1,'obs_v29_generic',?2,NULL,0,'CONTINUITY','cont_v29_generic',?3)",
