@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 173,
+  "revision": 174,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_RESTART_A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
+    "current_stage": "FULL_AUDIT_RESTART_A11_STALE_DOCS_STATE_CLAIMS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4410,9 +4410,10 @@
         "severity": "HIGH",
         "status": "OPEN",
         "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "Android/direct mobile execution is a stated priority, but development CI qualifies only ubuntu-24.04 and windows-2025. No Android GOOS/arm64 compile gate, emulator/device test, filesystem/SQLite semantics test, or packaging/runtime acceptance exists. The current code appears portable by inspection and uses a CGo-free SQLite stack, but Android support is unproven.",
-        "required_correction": "Add an Android qualification ladder appropriate to product maturity: at minimum GOOS=android/GOARCH=arm64 compile coverage for production packages, then device/emulator filesystem+SQLite smoke tests for local corpus discovery/state, and later packaging/install acceptance. Do not claim Android support before these gates pass.",
-        "gate_scope": "PORTABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
+        "issue": "Android/direct mobile execution is a stated priority, but development CI qualifies only ubuntu-24.04 and windows-2025. The pinned SQLite stack is also not currently qualified for Android: Keelaryn pins zombiezen.com/go/sqlite v1.4.2 and modernc.org/sqlite v1.37.1, whose supported-platform matrix lists darwin/freebsd/linux/windows and omits GOOS=android. Android support is therefore not merely untested; the current state-store substrate requires an explicit compatibility/backend decision before direct Android Core execution can be claimed.",
+        "required_correction": "Choose and prove an Android-capable durable state substrate or intentionally platform-specific backend behind the stable Keelaryn state contract. Add at minimum Android/arm64 compile coverage, then emulator/device filesystem+SQLite smoke tests and later SAF/DocumentProvider acceptance. Do not infer Android support from CGO-free implementation alone.",
+        "gate_scope": "PORTABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE",
+        "external_evidence": "modernc.org/sqlite v1.37.1 doc.go supported-platform matrix omits android; current go.mod pins modernc.org/sqlite v1.37.1 through zombiezen.com/go/sqlite v1.4.2."
       },
       {
         "id": "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
@@ -4670,19 +4671,22 @@
         },
         {
           "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Exact product CI 36318523655 PASS on ubuntu-24.04 and windows-2025. Android remains unqualified. Keelaryn pins zombiezen.com/go/sqlite v1.4.2 / modernc.org/sqlite v1.37.1; the latter's supported-platform matrix lists darwin/freebsd/linux/windows and omits android. H2 remains; no new platform finding."
         },
         {
           "id": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
-          "status": "TODO"
+          "status": "DONE",
+          "evidence": "Google adapter receives externally authenticated *drive.Service; OAuth/service construction remains outside the package. No durable token/credential fields or CLI credential loading found. Store.Open still does not establish/verify restrictive DB/side-file permissions or ACL; H3 remains. No new credential finding."
         },
         {
           "id": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
-          "status": "TODO"
+          "status": "DONE",
+          "evidence": "RemoteHistory reconcile and subsystem verifiers remain present; metadata-loss reconstruction remains explicitly later scope. No aggregate Doctor/SelfTest or SQLite integrity/foreign-key production entrypoint exists, so H4 remains. No additional current P0 blocker."
         },
         {
           "id": "A11_STALE_DOCS_STATE_CLAIMS",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
@@ -4702,12 +4706,15 @@
         "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
         "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
         "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
-        "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION"
+        "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
+        "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
+        "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
+        "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
       ],
       "last_checkpoint": {
         "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-        "completed_through": "A07_RUNTIME_REACHABILITY",
-        "next": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
+        "completed_through": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
+        "next": "A11_STALE_DOCS_STATE_CLAIMS",
         "known_open_finding_count": 13,
         "critical_gate_open": 7
       }
