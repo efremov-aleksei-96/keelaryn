@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 142,
+  "revision": 143,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "FIX_AUDIT_C1_B4_ORPHAN_REMOTE_IDENTITY_PROVENANCE_MIGRATION",
-    "description": "Append schema v31 without rewriting earlier migrations. Add fail-closed reverse provenance validation for existing RemoteHistory accepted continuity/admission decisions and provider lifetime Artifact bindings so every durable identity acceptance is backed by the exact identity_mutation_requests receipt. Add v30-to-v31 migration regressions for orphan decision and orphan lifetime binding. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the full zero-findings audit from the first dimension. P0-30C2 remains locked.",
+    "id": "FIX_AUDIT_C1_B5_DUPLICATE_REMOTE_NEW_PER_LIFETIME",
+    "description": "Append schema v32 without rewriting v31. Add a durable UNIQUE invariant so accepted_artifact_admissions can contain at most one non-null lifetime_segment_id, preserving exactly one original RemoteHistory NEW per provider lifetime. Add v31-to-v32 migration regression for duplicate fully linked NEW provenance. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -4322,12 +4322,12 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "45a2ff7ce29aee5ab9950ac84581816bc944b347",
-      "dimension": "SCHEMA_MIGRATION_REVERSE_IDENTITY_PROVENANCE",
-      "finding_id": "AUDIT_C1_B4_ORPHAN_REMOTE_IDENTITY_PROVENANCE_MIGRATION",
+      "head": "32138a8bc00414e0453ee7d8bd05ba2c77184d6b",
+      "dimension": "SCHEMA_MIGRATION_UNIQUE_NEW_PROVENANCE",
+      "finding_id": "AUDIT_C1_B5_DUPLICATE_REMOTE_NEW_PER_LIFETIME",
       "severity": "BLOCKER",
-      "issue": "v29/v30 migration validation proves RemoteHistory receipt→decision linkage but does not prove the reverse. Pre-v29 durable RemoteHistory accepted continuity/admission rows or lifetime Artifact bindings without identity_mutation_requests can survive upgrade and later influence identity authority without a committed identity mutation receipt.",
-      "required_correction": "Append schema v31. Fail closed unless every RemoteHistory accepted decision has an exact matching identity mutation receipt and every RemoteHistory lifetime→Artifact binding is backed by the original NEW admission receipt with the same authority, segment, Artifact, Observation and accepted time. Add migration regressions for orphan decision and orphan lifetime binding.",
+      "issue": "Schema v31 reverse provenance validation proves that a RemoteHistory lifetime binding has at least one matching NEW admission/receipt, but accepted_artifact_admissions has no UNIQUE invariant on non-null lifetime_segment_id. Historical state can therefore contain multiple fully linked RESOLVED_NEW admissions for one provider lifetime and still satisfy v31.",
+      "required_correction": "Append schema v32 without rewriting v31. Enforce at most one non-null lifetime_segment_id in accepted_artifact_admissions with a durable UNIQUE index; add v31-to-v32 migration regression proving duplicate fully linked NEW provenance fails closed.",
       "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
@@ -4337,6 +4337,12 @@
         "severity": "BLOCKER",
         "status": "OPEN",
         "affected_head": "45a2ff7ce29aee5ab9950ac84581816bc944b347"
+      },
+      {
+        "id": "AUDIT_C1_B5_DUPLICATE_REMOTE_NEW_PER_LIFETIME",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "32138a8bc00414e0453ee7d8bd05ba2c77184d6b"
       }
     ],
     "resolved_findings": [
