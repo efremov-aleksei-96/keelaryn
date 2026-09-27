@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 164,
+  "revision": 165,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,12 +144,12 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "COMPLETE_FULL_AUDIT_COLLECTION_PASS_FROM_LEDGER",
-    "description": "Continue the pinned full read-only audit from work-ledger item A02 through A13. Record findings without remediation until the collection pass is complete. After interruption, reconcile GitHub/VPS/CI and resume from the first ledger item whose status is not DONE. Product audit target remains 578f58b688388591563d80f88f9f17cb0defd4a1 unless an actual product commit occurs.",
+    "id": "REMEDIATE_FULL_AUDIT_FINDINGS_R01",
+    "description": "Remediate the collected full-audit finding set without reopening dependent product development. Begin with R01 SQLite newer-schema fail-closed guard. For every product mutation: reconcile exact prestate, make one coherent change, verify remote HEAD, require exact-head validate/Ubuntu/Windows CI PASS, checkpoint, then continue to the next remediation ledger item. After remediation is complete, restart a full audit from A00 on the latest product HEAD.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-    "audit_gate": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL"
+    "audit_gate": "REMEDIATION_THEN_FULL_AUDIT_UNTIL_ZERO_CRITICAL"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4292,7 +4292,7 @@
         "latest_exact_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39"
       },
       "c2": {
-        "status": "LOCKED_PENDING_ZERO_CRITICAL_FULL_AUDIT",
+        "status": "LOCKED_PENDING_REMEDIATION_AND_ZERO_CRITICAL_FULL_AUDIT",
         "objective": "INTEGRATE_DETERMINISTIC_REMOTE_MATERIALIZER_WITH_EXISTING_IDENTITY_REVISION_ACCEPTANCE"
       }
     }
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A13_COLLECTION_PASS_SYNTHESIS",
+    "current_stage": "FULL_AUDIT_REMEDIATION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4319,7 +4319,7 @@
       "effect": "INTERRUPTED_AUDIT_NOT_CLEAN_RESTART_FULL_AUDIT_FROM_FIRST_DIMENSION",
       "mitigation": "USE_GITHUB_API_AND_DIRECT_FILE_READS_FOR_FULL_AUDIT_NO_SHELL_COMPOSITION"
     },
-    "clean_pass_in_progress": true,
+    "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
       "head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
@@ -4604,7 +4604,7 @@
     },
     "collection_pass": {
       "started_from_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-      "status": "IN_PROGRESS",
+      "status": "COMPLETE",
       "findings_at_start": [
         "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE"
       ],
@@ -4680,7 +4680,8 @@
         },
         {
           "id": "A13_COLLECTION_PASS_SYNTHESIS",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Full collection pass completed on pinned product HEAD 578f58b688388591563d80f88f9f17cb0defd4a1. Findings: 9 BLOCKER, 5 HIGH, 1 MEDIUM. No remediation was performed during discovery."
         }
       ],
       "candidate_findings": [],
@@ -4717,6 +4718,16 @@
           "B16_BORROW_RCLONE_BISYNC_ATTEMPT_RECOVERY_PATTERN_NOT_IDENTITY_SEMANTICS",
           "B17_FSNOTIFY_NOTIFICATION_ONLY_SECOND_SNAPSHOT_OR_EQUIVALENT_FOR_COMPLETENESS"
         ]
+      },
+      "completed_on_control_head": "8447048d6322a28e6dec4fb4fc44c68ac35b50b6",
+      "summary": {
+        "total_open": 15,
+        "blocker": 9,
+        "critical": 0,
+        "high": 5,
+        "medium": 1,
+        "low": 0,
+        "critical_gate_open": 9
       }
     },
     "interruption_recovery": {
@@ -4728,6 +4739,116 @@
       "checkpoint_cadence": "AFTER_EACH_AUDIT_DIMENSION_OR_MEANINGFUL_MULTI_STEP_BOUNDARY_AND_BEFORE_ANY_EXPECTED_LONG_WAIT",
       "timeout_rule": "NEVER_BLIND_RETRY_RECONCILE_DURABLE_EXTERNAL_STATE_FIRST",
       "partial_work_rule": "UNCOMMITTED_SCRATCH_IS_NONAUTHORITATIVE_AND_MUST_BE_REVALIDATED_BEFORE_REUSE"
+    },
+    "remediation": {
+      "status": "IN_PROGRESS",
+      "source_audit_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+      "policy": "REMEDIATE_COLLECTED_FINDINGS_IN_COHERENT_SAFE_SLICES_WITH_EXACT_HEAD_CI_FOR_EACH_PRODUCT_HEAD_THEN_RESTART_FULL_AUDIT",
+      "work_ledger": [
+        {
+          "id": "R01_SQLITE_NEWER_SCHEMA_FAIL_CLOSED",
+          "status": "IN_PROGRESS",
+          "findings": [
+            "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD"
+          ]
+        },
+        {
+          "id": "R02_REMOTE_SCAN_CONTRACT_FAIL_CLOSED",
+          "status": "TODO",
+          "findings": [
+            "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN"
+          ]
+        },
+        {
+          "id": "R03_BOOTSTRAP_SCAN_PROVENANCE",
+          "status": "TODO",
+          "findings": [
+            "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE"
+          ]
+        },
+        {
+          "id": "R04_GENERIC_SCAN_OBSERVATION_APPLICATION_AUTHORITY",
+          "status": "TODO",
+          "findings": [
+            "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY"
+          ]
+        },
+        {
+          "id": "R05_REMOTE_HISTORY_APPLICATION_AUTHORITY",
+          "status": "TODO",
+          "findings": [
+            "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY"
+          ]
+        },
+        {
+          "id": "R06_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
+          "status": "TODO",
+          "findings": [
+            "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY"
+          ]
+        },
+        {
+          "id": "R07_HISTORICAL_AUTHORITY_VALIDATION",
+          "status": "TODO",
+          "findings": [
+            "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
+            "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION"
+          ]
+        },
+        {
+          "id": "R08_LOCALFS_INTERRUPTION_AND_COMPLETENESS",
+          "status": "TODO",
+          "findings": [
+            "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
+            "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION"
+          ]
+        },
+        {
+          "id": "R09_D0_POLICY_CURRENT_CLOCK",
+          "status": "TODO",
+          "findings": [
+            "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK"
+          ]
+        },
+        {
+          "id": "R10_RELEASE_SECURITY_OPERABILITY_PORTABILITY_HARDENING",
+          "status": "TODO",
+          "findings": [
+            "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+            "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
+            "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
+            "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
+          ],
+          "gate_scope": "NON_P0_C2_CRITICAL_BUT_MUST_BE_RESOLVED_OR_EXPLICITLY_CARRIED"
+        }
+      ],
+      "root_clusters": {
+        "authority_and_provenance": [
+          "B12",
+          "B13",
+          "B14",
+          "B15",
+          "B19",
+          "B20",
+          "M1"
+        ],
+        "localfs_reliability": [
+          "B16",
+          "B17"
+        ],
+        "schema_compatibility": [
+          "B18"
+        ],
+        "later_release_runtime_hardening": [
+          "H1",
+          "H2",
+          "H3",
+          "H4"
+        ],
+        "d0_governance": [
+          "H5"
+        ]
+      }
     }
   }
 }
