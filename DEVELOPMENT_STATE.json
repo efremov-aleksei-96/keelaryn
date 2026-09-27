@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 179,
+  "revision": 180,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "REMEDIATE_R05_REMOTE_HISTORY_APPLICATION_AUTHORITY",
-    "description": "Fix B13 by adding narrow application authority for Base RemoteHistory generation/publication/change/membership/provider-lifetime durable writes, tied to validated canonical inputs and exact payload fingerprints. Historical migration must validate conservatively and must not invent provenance. Preserve R04 scan/Observation authority and stronger existing remote completion/identity guards. Qualify the exact product head, then continue directly to the next current BLOCKER without a full re-audit.",
+    "id": "REMEDIATE_R06_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
+    "description": "Fix B14 by adding transaction-scoped application authority for Google Drive topology evidence, topology projection nodes/watermarks and managed-root bindings, tied to the exact validated topology bundle/generation/sequence and scope proof. Preserve v41 Base RemoteHistory authority as the outer transaction boundary, retain existing relational topology guards, and validate historical topology/scope state conservatively without inventing provider provenance. Qualify exact product head, then continue directly to the next current BLOCKER without a full re-audit.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_REMEDIATION_R05_REMOTE_HISTORY_APPLICATION_AUTHORITY",
+    "current_stage": "FULL_AUDIT_REMEDIATION_R06_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4332,14 +4332,6 @@
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
     "open_findings": [
-      {
-        "id": "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "Base RemoteHistory durable authority is protected by structural/relational triggers but not by connection-local application authorization. Raw SQL can create an ACTIVE generation and BOOTSTRAP/INCREMENTAL publication with a syntactically valid arbitrary 64-hex publication fingerprint, then create matching bootstrap/change/membership and provider lifetime rows without passing Start/PublishRemoteHistory validation, canonicalization, fingerprint computation, or transaction orchestration. Those rows are later consumed as authoritative provider history and lifetime evidence.",
-        "required_correction": "Add narrow application authority for creation/transition of base RemoteHistory authority and provider lifetime projection, or equivalently prove the exact validated publication payload/fingerprint at the SQLite boundary. Migration must fail closed on historical states that violate reconstructable invariants without inventing provider provenance. Preserve transactional publication semantics and replay behavior."
-      },
       {
         "id": "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
         "severity": "BLOCKER",
@@ -4596,6 +4588,19 @@
         "schema_version": 40,
         "qualification_ci": 36322570370,
         "resolution": "Schema v40 protects scan creation/lifecycle and durable ProviderObject occurrence, Observation and Locator writes with exact connection-local application authority while preserving stronger RemoteHistory and identity guards. Raw SQL cannot synthesize a valid current inventory snapshot."
+      },
+      {
+        "id": "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Base RemoteHistory durable authority is protected by structural/relational triggers but not by connection-local application authorization. Raw SQL can create an ACTIVE generation and BOOTSTRAP/INCREMENTAL publication with a syntactically valid arbitrary 64-hex publication fingerprint, then create matching bootstrap/change/membership and provider lifetime rows without passing Start/PublishRemoteHistory validation, canonicalization, fingerprint computation, or transaction orchestration. Those rows are later consumed as authoritative provider history and lifetime evidence.",
+        "required_correction": "Add narrow application authority for creation/transition of base RemoteHistory authority and provider lifetime projection, or equivalently prove the exact validated publication payload/fingerprint at the SQLite boundary. Migration must fail closed on historical states that violate reconstructable invariants without inventing provider provenance. Preserve transactional publication semantics and replay behavior.",
+        "implementation_head": "8b256a5e32b4f4fdb289f4ac5367a9960232119c",
+        "qualification_head": "376f5aa7921340277d4e2e0b429bc92af588f539",
+        "schema_version": 41,
+        "qualification_ci": 36325665174,
+        "resolution": "Base RemoteHistory durable writes now require transaction-scoped connection-local application authority tied to the validated generation/sequence and exact publication payload fingerprint. Historical publication chains are reconstructed and fingerprint/projection validated at Store.Open, so arbitrary legacy 64-hex fingerprints no longer pass as authority."
       }
     ],
     "last_resolution_checkpoint": {
@@ -4825,14 +4830,20 @@
         },
         {
           "id": "R05_REMOTE_HISTORY_APPLICATION_AUTHORITY",
-          "status": "IN_PROGRESS",
+          "status": "DONE",
           "findings": [
             "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY"
-          ]
+          ],
+          "implementation_head": "8b256a5e32b4f4fdb289f4ac5367a9960232119c",
+          "product_head": "376f5aa7921340277d4e2e0b429bc92af588f539",
+          "schema_version": 41,
+          "ci_run": 36325665174,
+          "qualification": "validate+ubuntu-24.04+windows-2025 PASS",
+          "note": "Schema v41 requires connection-local application authority for Base RemoteHistory generation/publication/change/membership/provider-lifetime mutations. Publication authorization binds the exact canonical payload fingerprint. Store.Open reconstructs historical publication payloads, recomputes fingerprints, checks publication chain plus membership and lifetime projections, and fails closed on mismatch. Test-only drift fixtures retain lower-layer verifier coverage under the new outer guard."
         },
         {
           "id": "R06_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
-          "status": "TODO",
+          "status": "IN_PROGRESS",
           "findings": [
             "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY"
           ]
@@ -4901,8 +4912,8 @@
           "H5"
         ]
       },
-      "current_product_head": "91ba1100696ed79949b6dfa0b41a0cecadb33202",
-      "critical_gate_open": 5,
+      "current_product_head": "376f5aa7921340277d4e2e0b429bc92af588f539",
+      "critical_gate_open": 4,
       "full_reaudit_between_slices": false,
       "next_full_audit_when": "ALL_FINDINGS_IN_CURRENT_BLOCKER_CRITICAL_REMEDIATION_SET_ARE_RESOLVED_AND_QUALIFIED",
       "new_critical_during_remediation": "ADD_TO_CURRENT_REMEDIATION_SET_AND_CONTINUE_REMEDIATION",
