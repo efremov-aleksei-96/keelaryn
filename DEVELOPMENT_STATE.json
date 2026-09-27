@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 153,
+  "revision": 154,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A05_SCHEMA_MIGRATION_ROLLBACK",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4363,6 +4363,22 @@
         "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
         "issue": "Generic scan and unresolved Observation evidence creation lacks application authorization. Raw SQL can create an OPEN scan_session, provider_object_occurrences, unresolved observations and locators satisfying structural guards, then transition the scan to COMPLETE. latestCompleteScanID/Inventory will accept the forged COMPLETE scan as current corpus observation authority, including an empty newer scan that can hide previously observed inventory.",
         "required_correction": "Protect scan creation/lifecycle and durable occurrence/Observation/Locator writes with transaction-scoped application authority corresponding to validated StartScan/RecordObservationInScan/finish paths, while preserving stronger RemoteHistory completion guards. Add adversarial tests proving raw SQL cannot synthesize a current inventory snapshot."
+      },
+      {
+        "id": "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "LocalFS and BootstrapLocalFS lack durable recovery for an OPEN local scan after lost response/process interruption. StartScan/StartBootstrapScan generate scan IDs internally, but there is no scope-based OPEN-scan reconcile API. Bootstrap is additionally non-atomic across the whole root: AdoptObservationInScan commits each Artifact/Revision/Observation independently; on a later handled error the defer only marks the scan ABORTED, leaving partial identity/history rows. observationHistoryExists counts that history, so a subsequent bootstrap can be permanently refused even after a normal handled failure, not only a crash.",
+        "required_correction": "Introduce durable local-ingest attempt/replay identity or an exact scope-based reconcile/ownership protocol for OPEN local scans. Bootstrap must either be recoverable/resumable with exact occurrence replay or have transaction/compensation semantics that do not leave partial identity adoption blocking future bootstrap. Doctor/recovery must be able to distinguish abandoned versus live attempts without guessing."
+      },
+      {
+        "id": "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "LocalFS Snapshot is a filepath.WalkDir/Lstat observation with no provider generation token or whole-root revalidation before CompleteScan. Files may be created, removed, renamed or modified between discovery and persistence/COMPLETE, producing a mixed or stale scan even though ScanSession is defined as a completeness boundary. Bootstrap content sampling stabilizes individual regular-file groups but does not re-prove whole-root membership or non-regular entries before COMPLETE.",
+        "required_correction": "Add an exact mutation-boundary revalidation strategy for local roots before COMPLETE (for example provider-specific change token where available, deterministic second snapshot/fingerprint comparison, or another fail-closed completeness proof). Bootstrap must likewise prove the final root membership still matches the identity/content observations being committed."
       }
     ],
     "resolved_findings": [
@@ -4536,15 +4552,17 @@
         },
         {
           "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "RemoteHistory coordinator, remote scan, SAME/NEW identity acceptance, RemoteHistory identity authority and GDrive managed-root binding have explicit replay/reconcile semantics. LocalFS/BootstrapLocalFS do not; B16 recorded."
         },
         {
           "id": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
-          "status": "TODO"
+          "status": "DONE",
+          "evidence": "Core durable writers use ImmediateTransaction or delegate into transaction-scoped writers. LocalFS bootstrap commits per occurrence and ordinary/bootstrap LocalFS lacks whole-root mutation-boundary revalidation; B16/B17 recorded."
         },
         {
           "id": "A05_SCHEMA_MIGRATION_ROLLBACK",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
@@ -4584,14 +4602,16 @@
         "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
         "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
         "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
-        "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY"
+        "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
+        "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
+        "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION"
       ],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "29879163ae1dae7860b8f2510a0d45c9a506c1de",
+        "control_head_before_checkpoint": "53e40414da5259a9ce8124f8e1ec1aaec1e72fdd",
         "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A02_DURABLE_AUTHORITY_BOUNDARIES",
-        "next": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
-        "open_finding_count": 4
+        "completed_through": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
+        "next": "A05_SCHEMA_MIGRATION_ROLLBACK",
+        "open_finding_count": 6
       }
     },
     "interruption_recovery": {
