@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 176,
+  "revision": 177,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "REMEDIATE_R03_BOOTSTRAP_SCAN_PROVENANCE",
-    "description": "Fix B12 with durable bootstrap-scan provenance bound atomically to StartBootstrapScan and required by AdoptObservationInScan. Normal scans, RemoteHistory scans and raw-SQL forged OPEN scans must remain ineligible. Do not invent bootstrap provenance for historical scans. Qualify the exact product head, then continue remediation of the remaining collected BLOCKER set without starting P0-30C2.",
+    "id": "REMEDIATE_R04_GENERIC_SCAN_OBSERVATION_APPLICATION_AUTHORITY",
+    "description": "Fix B15 by adding narrow connection-local application authority for scan creation, unresolved observation evidence writes (provider occurrence, Observation, Locator) and scan terminal transitions. Preserve stronger RemoteHistory completion guards and v39 bootstrap provenance. Qualify the exact product head, then continue remediation of the remaining collected blocker set; P0-30C2 stays locked.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -3726,7 +3726,7 @@
     ]
   },
   "p0_30": {
-    "status": "AUDIT_COLLECTION_ACTIVE_C2_LOCKED",
+    "status": "REMEDIATION_ACTIVE_C2_LOCKED",
     "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -3762,7 +3762,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 38,
+    "schema_version": 39,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4191,12 +4191,12 @@
       }
     },
     "c": {
-      "status": "AUDIT_COLLECTION_ACTIVE_C2_LOCKED",
+      "status": "REMEDIATION_ACTIVE_C2_LOCKED",
       "c1": {
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
         "qualification_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
-        "schema_version": 38,
+        "schema_version": 39,
         "implementation": {
           "shared_resolver": "corpus.ResolveIdentityAuthoritySet",
           "local_generic_scope": "UNCHANGED_AUTHORITY_SCOPE_EQUALS_SCAN_ROOT",
@@ -4285,11 +4285,11 @@
           "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening around intentionally indirect application-defined trigger functions"
         ],
         "conclusion": "PASS",
-        "latest_product_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
-        "latest_exact_head_ci_run_id": 36311966699,
+        "latest_product_head": "02f5addc5b1e4c7e0e4b6a485a3ade25f1920e71",
+        "latest_exact_head_ci_run_id": 36320535465,
         "latest_exact_head_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
-        "requalification_status": "FULL_AUDIT_COLLECTION_REQUIRED_BEFORE_REMEDIATION",
-        "latest_exact_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39"
+        "requalification_status": "REMEDIATION_ACTIVE_6_BLOCKERS_OPEN",
+        "latest_exact_head": "02f5addc5b1e4c7e0e4b6a485a3ade25f1920e71"
       },
       "c2": {
         "status": "LOCKED_PENDING_REMEDIATION_AND_ZERO_CRITICAL_FULL_AUDIT",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_REMEDIATION_R03_BOOTSTRAP_SCAN_PROVENANCE",
+    "current_stage": "FULL_AUDIT_REMEDIATION_R04_GENERIC_SCAN_OBSERVATION_APPLICATION_AUTHORITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4332,14 +4332,6 @@
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
     "open_findings": [
-      {
-        "id": "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
-        "issue": "AdoptObservationInScan accepts any OPEN ScanSession with matching provider/root. StartBootstrapScan atomically proves that the scope has no prior observed history, but no durable bootstrap provenance is bound to the created scan and AdoptObservationInScan does not re-prove or verify that boundary. A caller can therefore create a normal StartScan (or forge an OPEN scan row) in a scope with prior history and pass it to AdoptObservationInScan, minting a new Artifact outside the intended first-observation bootstrap boundary.",
-        "required_correction": "Persist or otherwise durably prove bootstrap-scan eligibility at scan creation and require that exact authority inside AdoptObservationInScan. Normal StartScan, RemoteHistory scans and raw SQL-created OPEN scans must be ineligible. Do not retrofit or invent bootstrap provenance for historical scans; preserve ordinary unresolved scan behavior and SAME/NEW acceptance paths."
-      },
       {
         "id": "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
         "severity": "BLOCKER",
@@ -4586,6 +4578,18 @@
         "resolution_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
         "qualification_ci": 36318523655,
         "resolution": "RemoteScanSourceInput now accepts only the explicitly supported RemoteMetadataSnapshotFingerprintVersion + LIGHTWEIGHT_ALL:v1 contract. Durable source reads re-run the same validator, so historical unknown/unknown contracts fail closed during completion/replay. Regressions cover unknown/known, known/unknown and persisted unknown/unknown; legacy tests were moved onto the qualified Google materialization fixture."
+      },
+      {
+        "id": "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "affected_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
+        "issue": "AdoptObservationInScan accepts any OPEN ScanSession with matching provider/root. StartBootstrapScan atomically proves that the scope has no prior observed history, but no durable bootstrap provenance is bound to the created scan and AdoptObservationInScan does not re-prove or verify that boundary. A caller can therefore create a normal StartScan (or forge an OPEN scan row) in a scope with prior history and pass it to AdoptObservationInScan, minting a new Artifact outside the intended first-observation bootstrap boundary.",
+        "required_correction": "Persist or otherwise durably prove bootstrap-scan eligibility at scan creation and require that exact authority inside AdoptObservationInScan. Normal StartScan, RemoteHistory scans and raw SQL-created OPEN scans must be ineligible. Do not retrofit or invent bootstrap provenance for historical scans; preserve ordinary unresolved scan behavior and SAME/NEW acceptance paths.",
+        "resolution_head": "02f5addc5b1e4c7e0e4b6a485a3ade25f1920e71",
+        "schema_version": 39,
+        "qualification_ci": 36320535465,
+        "resolution": "Schema v39 adds an immutable bootstrap_scan_authorities receipt created atomically only by StartBootstrapScan after the no-prior-observation-history proof. Receipt creation requires exact connection-local application authority bound to scan/proof/time; normal scans and raw SQL cannot obtain it. AdoptObservationInScan requires the exact receipt, and v38→v39 migration creates no receipt for historical scans."
       }
     ],
     "last_resolution_checkpoint": {
@@ -4787,14 +4791,18 @@
         },
         {
           "id": "R03_BOOTSTRAP_SCAN_PROVENANCE",
-          "status": "IN_PROGRESS",
+          "status": "DONE",
           "findings": [
             "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE"
-          ]
+          ],
+          "product_head": "02f5addc5b1e4c7e0e4b6a485a3ade25f1920e71",
+          "ci_run": 36320535465,
+          "qualification": "validate+ubuntu-24.04+windows-2025 PASS",
+          "schema_version": 39
         },
         {
           "id": "R04_GENERIC_SCAN_OBSERVATION_APPLICATION_AUTHORITY",
-          "status": "TODO",
+          "status": "IN_PROGRESS",
           "findings": [
             "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY"
           ]
@@ -4875,8 +4883,8 @@
           "H5"
         ]
       },
-      "current_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-      "critical_gate_open": 7
+      "current_product_head": "02f5addc5b1e4c7e0e4b6a485a3ade25f1920e71",
+      "critical_gate_open": 6
     }
   }
 }
