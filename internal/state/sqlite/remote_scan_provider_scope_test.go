@@ -218,9 +218,17 @@ func TestGoogleRemoteMetadataCompletionRejectsMissingTopologyWatermark(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
+	release, err := fixture.store.authorizeGoogleTopologyWatermarkDeleteConn(
+		conn, fixture.generation.ID, fixture.generation.CurrentSequence,
+	)
+	if err != nil {
+		fixture.store.pool.Put(conn)
+		t.Fatal(err)
+	}
 	err = sqlitex.Execute(conn,
-		"DELETE FROM gdrive_topology_watermarks WHERE generation_id=?1",
-		&sqlitex.ExecOptions{Args: []any{string(fixture.generation.ID)}})
+		"DELETE FROM gdrive_topology_watermarks WHERE generation_id=?1 AND publication_sequence=?2",
+		&sqlitex.ExecOptions{Args: []any{string(fixture.generation.ID), int64(fixture.generation.CurrentSequence)}})
+	release()
 	fixture.store.pool.Put(conn)
 	if err != nil {
 		t.Fatal(err)

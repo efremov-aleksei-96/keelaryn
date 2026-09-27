@@ -2709,6 +2709,47 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v34_gdrive_topology_watermark_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v34_gdrive_topology_watermark_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM remote_history_generations g
+		WHERE g.provider_id='google-drive'
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM gdrive_topology_watermarks w
+			WHERE w.generation_id=g.generation_id
+			  AND w.publication_sequence=g.current_sequence
+		  )
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v34_gdrive_topology_watermark_validation;
+
+CREATE TRIGGER gdrive_topology_watermark_delete_application_guard
+BEFORE DELETE ON gdrive_topology_watermarks
+WHEN keelaryn_gdrive_topology_watermark_delete_authorized(
+	OLD.generation_id,
+	CAST(OLD.publication_sequence AS TEXT)
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology watermark removal requires validated application authority');
+END;
+
+CREATE TRIGGER gdrive_topology_watermarks_no_update_v34
+BEFORE UPDATE ON gdrive_topology_watermarks
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology watermark updates are forbidden; rebuild through controlled delete/project/insert');
+END;
+`,
+
 	},
 }
 
@@ -2725,6 +2766,7 @@ const (
 	identityMutationAuthorizationFunction        = "keelaryn_identity_mutation_authorized"
 	remoteHistoryBindingAuthorizationFunction    = "keelaryn_remote_history_binding_authorized"
 	remoteAuthorityPublicationRefFunction        = "keelaryn_remote_authority_publication_ref"
+	gdriveTopologyWatermarkDeleteAuthorizationFunction = "keelaryn_gdrive_topology_watermark_delete_authorized"
 )
 
 type remoteCompletionAuthorization struct {
@@ -2737,11 +2779,17 @@ type identityMutationAuthorization struct {
 	authoritySetID    corpus.IdentityAuthoritySetID
 }
 
+type gdriveTopologyWatermarkDeleteAuthorization struct {
+	generationID        remotehistory.HistoryGenerationID
+	publicationSequence remotehistory.HistoryPublicationSequence
+}
+
 type Store struct {
-	pool                            *sqlitemigration.Pool
-	path                            string
-	remoteCompletionAuthorizations  sync.Map
-	identityMutationAuthorizations  sync.Map
+	pool                                      *sqlitemigration.Pool
+	path                                      string
+	remoteCompletionAuthorizations            sync.Map
+	identityMutationAuthorizations            sync.Map
+	gdriveTopologyWatermarkDeleteAuthorizations sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -2872,7 +2920,53 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		return fmt.Errorf("register RemoteHistory binding authorization function: %w", err)
 	}
 	s.identityMutationAuthorizations.Store(conn, identityAuth)
+
+	topologyAuth := &gdriveTopologyWatermarkDeleteAuthorization{}
+	if err := conn.CreateFunction(gdriveTopologyWatermarkDeleteAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs:         2,
+		Deterministic: false,
+		AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if topologyAuth.generationID != "" &&
+				topologyAuth.publicationSequence != 0 &&
+				string(topologyAuth.generationID) == args[0].Text() &&
+				fmt.Sprint(topologyAuth.publicationSequence) == args[1].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register Google Drive topology watermark delete authorization function: %w", err)
+	}
+	s.gdriveTopologyWatermarkDeleteAuthorizations.Store(conn, topologyAuth)
 	return nil
+}
+
+func (s *Store) authorizeGoogleTopologyWatermarkDeleteConn(
+	conn *sqlite.Conn,
+	generationID remotehistory.HistoryGenerationID,
+	publicationSequence remotehistory.HistoryPublicationSequence,
+) (func(), error) {
+	if generationID == "" || publicationSequence == 0 {
+		return nil, fmt.Errorf("invalid Google Drive topology watermark delete authorization target")
+	}
+	value, ok := s.gdriveTopologyWatermarkDeleteAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("Google Drive topology watermark delete authorization state missing for connection")
+	}
+	auth, ok := value.(*gdriveTopologyWatermarkDeleteAuthorization)
+	if !ok || auth == nil {
+		return nil, fmt.Errorf("Google Drive topology watermark delete authorization state invalid")
+	}
+	if auth.generationID != "" || auth.publicationSequence != 0 {
+		return nil, fmt.Errorf("Google Drive topology watermark delete authorization already active")
+	}
+	auth.generationID = generationID
+	auth.publicationSequence = publicationSequence
+	return func() {
+		auth.generationID = ""
+		auth.publicationSequence = 0
+	}, nil
 }
 
 func (s *Store) authorizeIdentityMutationConn(

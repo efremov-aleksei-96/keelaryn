@@ -112,6 +112,21 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 	if err != nil { t.Fatal(err) }
 	defer store.pool.Put(conn)
 
+	deleteWatermark := func(sequence remotehistory.HistoryPublicationSequence) {
+		t.Helper()
+		release, err := store.authorizeGoogleTopologyWatermarkDeleteConn(conn, generation.ID, sequence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = sqlitex.Execute(conn,
+			"DELETE FROM gdrive_topology_watermarks WHERE generation_id=?1 AND publication_sequence=?2",
+			&sqlitex.ExecOptions{Args: []any{string(generation.ID), int64(sequence)}})
+		release()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	if err := sqlitex.Execute(conn,
 		"UPDATE gdrive_topology_watermarks SET publication_sequence=2 WHERE generation_id=?1",
 		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
@@ -134,11 +149,7 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
 		t.Fatal("topology node mutated while watermark remained active")
 	}
-	if err := sqlitex.Execute(conn,
-		"DELETE FROM gdrive_topology_watermarks WHERE generation_id=?1",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
-		t.Fatal(err)
-	}
+	deleteWatermark(1)
 	if err := sqlitex.Execute(conn,
 		"UPDATE gdrive_topology_nodes SET parent_id='folder-new', last_sequence=2, last_ordinal=0 WHERE generation_id=?1 AND object_id='id-1'",
 		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
@@ -156,11 +167,7 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 		t.Fatal("current topology projection deleted while watermark remained authoritative")
 	}
 
-	if err := sqlitex.Execute(conn,
-		"DELETE FROM gdrive_topology_watermarks WHERE generation_id=?1",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
-		t.Fatal(err)
-	}
+	deleteWatermark(2)
 	if err := sqlitex.Execute(conn,
 		"DELETE FROM gdrive_topology_nodes WHERE generation_id=?1 AND object_id='id-1'",
 		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {

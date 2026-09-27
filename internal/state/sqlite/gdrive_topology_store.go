@@ -90,10 +90,18 @@ func (s *Store) PublishGoogleDriveRemoteHistoryCycle(
 			if len(changes) != len(topology) {
 				return ErrGoogleDriveTopologyBundle
 			}
-			if err := sqlitex.Execute(conn,
-				"DELETE FROM gdrive_topology_watermarks WHERE generation_id=?1 AND publication_sequence=?2",
-				&sqlitex.ExecOptions{Args: []any{string(generation.ID), int64(sequence - 1)}}); err != nil {
-				return fmt.Errorf("remove Google Drive topology watermark: %w", err)
+			deleteErr := func() error {
+				release, err := s.authorizeGoogleTopologyWatermarkDeleteConn(conn, generation.ID, sequence-1)
+				if err != nil {
+					return err
+				}
+				defer release()
+				return sqlitex.Execute(conn,
+					"DELETE FROM gdrive_topology_watermarks WHERE generation_id=?1 AND publication_sequence=?2",
+					&sqlitex.ExecOptions{Args: []any{string(generation.ID), int64(sequence - 1)}})
+			}()
+			if deleteErr != nil {
+				return fmt.Errorf("remove Google Drive topology watermark: %w", deleteErr)
 			}
 			if conn.Changes() != 1 {
 				return fmt.Errorf("%w: expected watermark at sequence %d", ErrGoogleDriveTopologyProjection, sequence-1)
