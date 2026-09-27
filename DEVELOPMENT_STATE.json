@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 163,
+  "revision": 164,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A13_COLLECTION_PASS_SYNTHESIS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4675,11 +4675,12 @@
         },
         {
           "id": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Fresh upstream review found no dependency replacement needed for blocker remediation. Reuse existing Keelaryn connection-local SQLite capability pattern for durable application authority; use application-owned PRAGMA user_version fail-closed guard; retain zombiezen/go-sqlite and its backup API for future release rollback; reuse rclone bisync interruption-recovery concepts for local ingest attempt ownership; retain fsnotify only as notification transport, not completeness/identity authority. No new product finding."
         },
         {
           "id": "A13_COLLECTION_PASS_SYNTHESIS",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         }
       ],
       "candidate_findings": [],
@@ -4701,11 +4702,21 @@
         "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK"
       ],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "bdac0b2e192cdfadc34b1a4f17c15107ce88f744",
+        "control_head_before_checkpoint": "f7f5bf84562d98b822a540fe7fdce558644f24bb",
         "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A11_STALE_DOCS_STATE_CLAIMS",
-        "next": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
+        "completed_through": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
+        "next": "A13_COLLECTION_PASS_SYNTHESIS",
         "open_finding_count": 15
+      },
+      "reuse_review": {
+        "status": "DONE",
+        "decisions": [
+          "NO_NEW_DEPENDENCY_FOR_B12_B15_B20_USE_EXISTING_SQLITE_CAPABILITY_PATTERN",
+          "B18_APPLICATION_OWNED_PRAGMA_USER_VERSION_FAIL_CLOSED",
+          "H1_REUSE_ZOMBIEZEN_SQLITE_BACKUP_API",
+          "B16_BORROW_RCLONE_BISYNC_ATTEMPT_RECOVERY_PATTERN_NOT_IDENTITY_SEMANTICS",
+          "B17_FSNOTIFY_NOTIFICATION_ONLY_SECOND_SNAPSHOT_OR_EQUIVALENT_FOR_COMPLETENESS"
+        ]
       }
     },
     "interruption_recovery": {
