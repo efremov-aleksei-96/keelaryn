@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 139,
+  "revision": 140,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -3726,7 +3726,7 @@
     ]
   },
   "p0_30": {
-    "status": "C1_REQUALIFICATION_AUDIT_IN_PROGRESS_C2_LOCKED",
+    "status": "C1_REQUALIFICATION_BLOCKED_C2_LOCKED",
     "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -4191,7 +4191,7 @@
       }
     },
     "c": {
-      "status": "C1_REQUALIFICATION_AUDIT_IN_PROGRESS_C2_LOCKED",
+      "status": "C1_REQUALIFICATION_BLOCKED_C2_LOCKED",
       "c1": {
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
@@ -4292,7 +4292,7 @@
         "latest_exact_head": "1a213edf688881a3faa14dcef32dec2e4a5e590c"
       },
       "c2": {
-        "status": "LOCKED_PENDING_ZERO_FINDINGS_FULL_AUDIT",
+        "status": "LOCKED_BY_AUDIT_C1_B3",
         "objective": "INTEGRATE_DETERMINISTIC_REMOTE_MATERIALIZER_WITH_EXISTING_IDENTITY_REVISION_ACCEPTANCE"
       }
     }
@@ -4322,16 +4322,23 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "91ac83330716af18ae1511b18f724febfdefff14",
-      "dimension": "TRANSACTION_CAUSALITY_GENERIC_REMOTE_HISTORY",
-      "finding_id": "AUDIT_C1_B2_GENERIC_REMOTE_IDENTITY_CAUSAL_TIME",
+      "head": "4dfd08a30256b5a0d59b9f39882ef01702b6aa74",
+      "dimension": "SCHEMA_MIGRATION_FAIL_CLOSED_EXISTING_STATE",
+      "finding_id": "AUDIT_C1_B3_V29_NULL_SCAN_MIGRATION_BLIND_SPOT",
       "severity": "BLOCKER",
-      "issue": "Generic (non-source-bound) RemoteHistory SAME/NEW acceptance returns from validateAuthorityScope before the remote authority causal-time check. A generic RemoteHistory SAME can persist accepted decision/receipt timestamps earlier than the current authority creation time; source-bound v28 guards do not apply.",
-      "required_correction": "Apply decision-time causal validation to every RemoteHistory authority acceptance, while preserving local non-RemoteHistory semantics. Add SQLite application/causal authority for generic RemoteHistory accepted decisions/receipts so direct SQL cannot bypass the same invariant.",
+      "issue": "Schema v29 migration validation inner-joins scan_sessions through Observation.scan_id. Pre-v29 generic RemoteHistory accepted provenance could be forged on an Observation with scan_id=NULL, causing the invalid receipt to disappear from the validation query and survive upgrade even though v29 future-write guards reject the same state.",
+      "required_correction": "Append schema v30 without rewriting v29. Fail closed if any RemoteHistory identity mutation receipt lacks a real ScanSession or exact linked decision/causal provenance; add a v29-to-v30 migration regression seeded with a null-scan RemoteHistory receipt.",
       "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
-    "open_findings": [],
+    "open_findings": [
+      {
+        "id": "AUDIT_C1_B3_V29_NULL_SCAN_MIGRATION_BLIND_SPOT",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "4dfd08a30256b5a0d59b9f39882ef01702b6aa74"
+      }
+    ],
     "resolved_findings": [
       {
         "id": "AUDIT_C1_B1_IDENTITY_CAUSAL_TIME_AUTHORITY",
