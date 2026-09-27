@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 138,
+  "revision": 139,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -3762,7 +3762,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 28,
+    "schema_version": 29,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4191,12 +4191,12 @@
       }
     },
     "c": {
-      "status": "C1_QUALIFIED_C2_IMPLEMENTATION_NEXT",
+      "status": "C1_REQUALIFICATION_AUDIT_IN_PROGRESS_C2_LOCKED",
       "c1": {
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
         "qualification_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
-        "schema_version": 28,
+        "schema_version": 29,
         "implementation": {
           "shared_resolver": "corpus.ResolveIdentityAuthoritySet",
           "local_generic_scope": "UNCHANGED_AUTHORITY_SCOPE_EQUALS_SCAN_ROOT",
@@ -4285,13 +4285,14 @@
           "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening around intentionally indirect application-defined trigger functions"
         ],
         "conclusion": "PASS",
-        "latest_product_head": "535c101103dd9a64d5d66b0ae1decf46720b8646",
-        "latest_exact_head_ci_run_id": 36278358385,
+        "latest_product_head": "137e20fee3ebdd91b745962b39959198873c461c",
+        "latest_exact_head_ci_run_id": 36299795960,
         "latest_exact_head_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
-        "requalification_status": "PENDING_ZERO_FINDINGS_FULL_REAUDIT"
+        "requalification_status": "PENDING_ZERO_FINDINGS_FULL_REAUDIT",
+        "latest_exact_head": "1a213edf688881a3faa14dcef32dec2e4a5e590c"
       },
       "c2": {
-        "status": "NEXT",
+        "status": "LOCKED_PENDING_ZERO_FINDINGS_FULL_AUDIT",
         "objective": "INTEGRATE_DETERMINISTIC_REMOTE_MATERIALIZER_WITH_EXISTING_IDENTITY_REVISION_ACCEPTANCE"
       }
     }
@@ -4330,14 +4331,7 @@
       "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
-    "open_findings": [
-      {
-        "id": "AUDIT_C1_B2_GENERIC_REMOTE_IDENTITY_CAUSAL_TIME",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "91ac83330716af18ae1511b18f724febfdefff14"
-      }
-    ],
+    "open_findings": [],
     "resolved_findings": [
       {
         "id": "AUDIT_C1_B1_IDENTITY_CAUSAL_TIME_AUTHORITY",
@@ -4353,7 +4347,27 @@
         "severity": "LOW",
         "status": "RESOLVED_BY_METADATA_SYNC",
         "fix_parent_head": "535c101103dd9a64d5d66b0ae1decf46720b8646"
+      },
+      {
+        "id": "AUDIT_C1_B2_GENERIC_REMOTE_IDENTITY_CAUSAL_TIME",
+        "severity": "BLOCKER",
+        "status": "RESOLVED_PENDING_REQUALIFICATION_AUDIT",
+        "finding_head": "91ac83330716af18ae1511b18f724febfdefff14",
+        "fix_head": "137e20fee3ebdd91b745962b39959198873c461c",
+        "qualification_head": "1a213edf688881a3faa14dcef32dec2e4a5e590c",
+        "schema_version": 29,
+        "ci_run_id": 36299795960,
+        "resolution": "Every RemoteHistory SAME/NEW decision is causal to scan start and current authority creation before generic/source-bound branching; schema v29 adds generic RemoteHistory decision/receipt application authority and v28-to-v29 fail-closed migration validation. Local non-RemoteHistory semantics are unchanged."
       }
-    ]
+    ],
+    "last_resolution_checkpoint": {
+      "finding_id": "AUDIT_C1_B2_GENERIC_REMOTE_IDENTITY_CAUSAL_TIME",
+      "product_head": "137e20fee3ebdd91b745962b39959198873c461c",
+      "exact_head": "1a213edf688881a3faa14dcef32dec2e4a5e590c",
+      "ci_run_id": 36299795960,
+      "ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+      "schema_version": 29,
+      "effect": "FIX_QUALIFIED_FULL_AUDIT_FROM_SCRATCH_REQUIRED_BEFORE_C2"
+    }
   }
 }
