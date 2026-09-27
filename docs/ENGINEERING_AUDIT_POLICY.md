@@ -20,7 +20,7 @@ A retrospective architecture/reuse/correctness audit is mandatory:
 6. after a major architectural reset or migration;
 7. **after every substantive development stage, before the next substantive stage begins**, even if no other trigger above fired.
 
-A blocker finding pauses dependent implementation until the finding is resolved or explicitly re-scoped in durable state.
+A BLOCKER or explicitly-classified CRITICAL finding locks dependent implementation. During a full audit collection pass, discovery continues read-only across the remaining dimensions so the complete finding set can be established before remediation begins.
 
 A substantive stage is a coherent unit that changes or qualifies product behavior, durable authority, provider/runtime integration, schema/transaction semantics, recovery behavior, or another meaningful architectural boundary. Tiny mechanical fixes, narrow test-only corrections, documentation-only commits, and qualification metadata inside the same stage do not create a separate audit ceremony unless they materially change semantics.
 
@@ -60,7 +60,8 @@ A green internal test suite is not evidence that reinventing a subsystem was the
 
 Audit findings are durable development state and are classified:
 
-- `BLOCKER`: dependent work must stop;
+- `CRITICAL`: reserved for defects with immediate systemic data-safety, authority, or trust-boundary consequences; dependent work is locked;
+- `BLOCKER`: correctness/authority defect that also locks dependent work and counts as critical for the development gate;
 - `HIGH`: resolve before crossing the next trust/runtime boundary;
 - `MEDIUM`: schedule explicitly; may proceed only if it cannot invalidate dependent correctness;
 - `LOW`: cleanup/maintainability issue.
@@ -84,20 +85,20 @@ Workflow:
 
 ```text
 reconcile authoritative HEAD / CI / runtime
-→ run the complete read-only audit from the first required dimension
+→ run the COMPLETE read-only audit from the first required dimension
+→ record every defensible finding and CONTINUE discovery across all remaining dimensions
 → nearest-analog / reuse audit
-→ if ANY new product finding appears at ANY severity:
-     stop dependent implementation
-     → fix one coherent finding slice
-     → exact-head CI
-     → discard the previous closure attempt
-     → restart the COMPLETE audit from the first dimension
-→ repeat until one complete pass finds ZERO new product findings
-→ durably record CLEAN
-→ only then unlock the next substantive stage
+→ finish the collection pass with the full finding set
+→ remediate the collected findings in coherent safe slices
+→ exact-head CI / qualification for changed product heads
+→ restart the COMPLETE audit from the first dimension
+→ repeat audit → remediation → audit while any CRITICAL/BLOCKER finding remains open
+→ when a complete post-remediation pass records ZERO open CRITICAL/BLOCKER findings:
+     durably record the gate result
+     → dependent development may resume
 ```
 
-A partial re-check is never sufficient after a finding is fixed. A later clean check of only the affected subsystem does not restore qualification. The full audit must restart from the beginning and reach the end without discovering another new product finding.
+A partial re-check is never sufficient after remediation. A later clean check of only an affected subsystem does not restore qualification. HIGH/MEDIUM/LOW findings remain durable: resolve them or explicitly carry them with rationale and scheduling; they do not silently disappear merely because the critical gate is zero.
 
 ## 6. Qualification meaning
 
@@ -148,31 +149,41 @@ Requirements:
 5. interruption recovery still begins from authoritative state, not from unfinished parallel scratch work.
 
 
-## 8A. Zero-findings closure loop
+## 8A. Full-collection critical-gate loop
 
-This project uses a stricter closure rule than ordinary retrospective sampling.
+The project audits for breadth before remediation. Discovery does not stop at the first defect.
 
 A stage or boundary is not closable merely because the latest defect was fixed, its targeted regression is green, exact-head CI is green, or the previously failing subsystem now passes.
 
-Closure requires a fresh complete audit pass after the latest fix.
+The gate requires a fresh complete audit pass after remediation.
 
 ```text
-FULL AUDIT FROM SCRATCH
+FULL AUDIT COLLECTION FROM SCRATCH
 ↓
-new finding?
-├─ YES → stop → fix one coherent slice → exact-head CI → restart FULL AUDIT FROM SCRATCH
-└─ NO  → record CLEAN → unlock dependent stage
+record ALL defensible findings through every required dimension
+↓
+remediate collected findings
+↓
+exact-head qualification
+↓
+FULL AUDIT COLLECTION FROM SCRATCH
+↓
+open CRITICAL/BLOCKER findings?
+├─ YES → remediation → repeat full audit
+└─ NO  → record critical gate CLEAR → dependent development may resume
 ```
 
 Rules:
 
-1. Any newly discovered BLOCKER, HIGH, MEDIUM, or LOW product finding invalidates the current closure attempt.
-2. Any failed closure attempt that reveals a real product defect also invalidates the current closure attempt.
-3. Test-only, metadata-only, and audit-tool corrections do not by themselves qualify product behavior; if they occur before closure, the audit restarts on the new authoritative HEAD.
-4. Audit-tool/harness failure without a product mutation or product finding is recorded as an interrupted audit, not as a clean pass; restart the full audit.
-5. No dependent substantive stage may begin while the zero-findings loop is active.
-6. A clean pass means the engineer reached the end of all required audit dimensions on the latest authoritative HEAD without finding any new product defect.
-7. The CLEAN result must be recorded durably before the next stage is unlocked.
+1. Newly discovered findings are recorded durably and discovery continues through the remaining audit dimensions unless continuing would risk data loss or invalidate evidence.
+2. Remediation begins only after the current full collection pass is complete.
+3. Any remediation that changes product behavior requires exact-head qualification before the next full audit pass.
+4. Test-only, metadata-only, documentation-only, and audit-tool corrections do not by themselves qualify product behavior.
+5. Audit-tool/harness failure without a product mutation or product finding is recorded as an interrupted audit; resume or restart the collection pass from authoritative state as evidence permits.
+6. No dependent substantive stage may begin while any CRITICAL/BLOCKER finding remains open.
+7. The development gate clears only after a complete post-remediation audit pass reaches the end of all required dimensions with zero open CRITICAL/BLOCKER findings.
+8. HIGH/MEDIUM/LOW findings remain tracked and must be resolved or explicitly carried with rationale; zero critical findings is not permission to erase or ignore them.
+9. The gate result must be recorded durably before the next substantive stage is unlocked.
 
 ## 9. Stage-completion audit gate
 
