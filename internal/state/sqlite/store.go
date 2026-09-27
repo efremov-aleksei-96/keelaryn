@@ -2873,6 +2873,48 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v37_identity_authority_structural_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v37_identity_authority_structural_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM identity_authority_sets a
+		WHERE a.sealed_at IS NULL
+		   OR a.sealed_at<>a.created_at
+		   OR keelaryn_identity_authority_set_structurally_valid(
+				a.authority_set_id,
+				a.policy_id,
+				a.provider_id,
+				a.identity_domain,
+				a.scope_id,
+				a.current_object_id,
+				a.universe_coverage,
+				COALESCE(a.generation_id,''),
+				COALESCE(a.lifetime_segment_id,''),
+				a.source_refs_json,
+				a.created_at
+		   )<>1
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM identity_authority_candidates c
+		WHERE keelaryn_identity_authority_candidate_structurally_valid(
+			c.artifact_id,
+			c.direction,
+			c.source_ref
+		)<>1
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v37_identity_authority_structural_validation;
+`,
+
 	},
 }
 
@@ -2896,6 +2938,8 @@ const (
 	identityAuthoritySetInsertAuthorizationFunction = "keelaryn_identity_authority_set_insert_authorized"
 	identityAuthorityCandidateInsertAuthorizationFunction = "keelaryn_identity_authority_candidate_insert_authorized"
 	identityAuthoritySealAuthorizationFunction = "keelaryn_identity_authority_seal_authorized"
+	identityAuthoritySetStructuralValidationFunction = "keelaryn_identity_authority_set_structurally_valid"
+	identityAuthorityCandidateStructuralValidationFunction = "keelaryn_identity_authority_candidate_structurally_valid"
 )
 
 type remoteCompletionAuthorization struct {
@@ -3209,6 +3253,66 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		return fmt.Errorf("register identity authority seal authorization function: %w", err)
 	}
 	s.identityAuthorityWriteAuthorizations.Store(conn, authorityWriteAuth)
+
+	if err := conn.CreateFunction(identityAuthoritySetStructuralValidationFunction, &sqlite.FunctionImpl{
+		NArgs: 11, Deterministic: true, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			var refs []string
+			if err := json.Unmarshal([]byte(args[9].Text()), &refs); err != nil {
+				return sqlite.IntegerValue(0), nil
+			}
+			createdAt, err := time.Parse(time.RFC3339Nano, args[10].Text())
+			if err != nil {
+				return sqlite.IntegerValue(0), nil
+			}
+			set := corpus.IdentityAuthoritySet{
+				ID:                corpus.IdentityAuthoritySetID(args[0].Text()),
+				PolicyID:          args[1].Text(),
+				ProviderID:        corpus.ProviderID(args[2].Text()),
+				IdentityDomain:    args[3].Text(),
+				ScopeID:           args[4].Text(),
+				CurrentObjectID:   corpus.ProviderObjectID(args[5].Text()),
+				UniverseCoverage:  corpus.CandidateUniverseCoverage(args[6].Text()),
+				GenerationID:      args[7].Text(),
+				LifetimeSegmentID: args[8].Text(),
+				SourceRefs:        refs,
+				CreatedAt:         createdAt,
+			}
+			if err := corpus.ValidateIdentityAuthoritySet(set); err != nil {
+				return sqlite.IntegerValue(0), nil
+			}
+			return sqlite.IntegerValue(1), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register identity authority structural validation function: %w", err)
+	}
+	if err := conn.CreateFunction(identityAuthorityCandidateStructuralValidationFunction, &sqlite.FunctionImpl{
+		NArgs: 3, Deterministic: true, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			set := corpus.IdentityAuthoritySet{
+				ID:               "structural-validation",
+				PolicyID:         "structural-validation",
+				ProviderID:       "structural-validation",
+				IdentityDomain:   "structural-validation",
+				ScopeID:          "structural-validation",
+				CurrentObjectID:  "structural-validation",
+				UniverseCoverage: corpus.CandidateUniverseUnknown,
+				SourceRefs:       []string{"structural-validation"},
+				Candidates: []corpus.IdentityAuthorityCandidate{{
+					ArtifactID: corpus.ArtifactID(args[0].Text()),
+					Direction:  corpus.ContinuityDirection(args[1].Text()),
+					SourceRef:  args[2].Text(),
+				}},
+				CreatedAt: time.Unix(1, 0).UTC(),
+			}
+			if err := corpus.ValidateIdentityAuthoritySet(set); err != nil {
+				return sqlite.IntegerValue(0), nil
+			}
+			return sqlite.IntegerValue(1), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register identity authority candidate structural validation function: %w", err)
+	}
 	return nil
 }
 
