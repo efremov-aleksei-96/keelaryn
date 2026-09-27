@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 150,
+  "revision": 151,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,12 +144,12 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "FIX_AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
-    "description": "Append the narrowest durable/bootstrap authority needed so AdoptObservationInScan can prove the supplied ScanSession was opened by StartBootstrapScan after atomically establishing no prior observation history for that provider/root. A normal StartScan, a RemoteHistory scan, or raw SQL-created OPEN scan must not be adoption-eligible. Preserve ordinary unresolved scanning and qualified SAME/NEW paths. Add direct public-API and SQL adversarial regressions plus conservative migration treatment that does not retroactively invent bootstrap provenance. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
+    "id": "COMPLETE_FULL_AUDIT_COLLECTION_PASS_BEFORE_REMEDIATION",
+    "description": "Run the complete engineering audit across every required dimension and reuse review without stopping on the first finding. Accumulate the maximum defensible set of product findings, classify severity and affected authority, and keep P0-30C2 plus further product development locked. After the full collection pass completes, remediate the collected findings in coherent safe slices, qualify each changed head as required, then run another complete audit collection pass from the first dimension. Repeat audit -> remediation -> full audit cycles while any BLOCKER/CRITICAL finding remains open. Resume dependent product development only after a complete post-remediation audit pass records zero open BLOCKER/CRITICAL findings. Do not erase lower-severity findings; resolve or explicitly carry them with rationale.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-    "audit_gate": "FIX_THEN_FULL_AUDIT_FROM_SCRATCH"
+    "audit_gate": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3726,7 +3726,7 @@
     ]
   },
   "p0_30": {
-    "status": "C1_REQUALIFICATION_BLOCKED_C2_LOCKED",
+    "status": "AUDIT_COLLECTION_ACTIVE_C2_LOCKED",
     "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -4191,7 +4191,7 @@
       }
     },
     "c": {
-      "status": "C1_REQUALIFICATION_BLOCKED_C2_LOCKED",
+      "status": "AUDIT_COLLECTION_ACTIVE_C2_LOCKED",
       "c1": {
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
@@ -4288,11 +4288,11 @@
         "latest_product_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
         "latest_exact_head_ci_run_id": 36311966699,
         "latest_exact_head_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
-        "requalification_status": "BLOCKED_BY_AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
+        "requalification_status": "FULL_AUDIT_COLLECTION_REQUIRED_BEFORE_REMEDIATION",
         "latest_exact_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39"
       },
       "c2": {
-        "status": "LOCKED_PENDING_ZERO_FINDINGS_REAUDIT",
+        "status": "LOCKED_PENDING_ZERO_CRITICAL_FULL_AUDIT",
         "objective": "INTEGRATE_DETERMINISTIC_REMOTE_MATERIALIZER_WITH_EXISTING_IDENTITY_REVISION_ACCEPTANCE"
       }
     }
@@ -4301,16 +4301,16 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FIX_AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
-    "audit_loop_mode": "FULL_AUDIT_FROM_SCRATCH_UNTIL_ZERO_NEW_FINDINGS",
+    "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
-    "clean_pass_definition": "ONE_COMPLETE_AUDIT_PASS_FINDS_NO_NEW_BLOCKER_HIGH_MEDIUM_LOW_PRODUCT_FINDINGS",
-    "on_any_new_finding": "STOP_DEPENDENT_WORK_FIX_ONE_COHERENT_FINDING_SLICE_RUN_EXACT_HEAD_CI_THEN_RESTART_FULL_AUDIT_FROM_FIRST_DIMENSION",
-    "on_failed_closure": "INVALIDATE_CURRENT_CLOSURE_ATTEMPT_AND_RESTART_FULL_AUDIT_AFTER_FIX",
+    "clean_pass_definition": "ONE_COMPLETE_POST_REMEDIATION_AUDIT_PASS_ACROSS_ALL_REQUIRED_DIMENSIONS_WITH_ZERO_OPEN_BLOCKER_OR_CRITICAL_FINDINGS",
+    "on_any_new_finding": "RECORD_FINDING_AND_CONTINUE_CURRENT_FULL_AUDIT_COLLECTION_PASS_UNLESS_CONTINUING_WOULD_CAUSE_DATA_LOSS_OR_INVALIDATE_EVIDENCE",
+    "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; COMPLETE_OR_RESTART_FULL_COLLECTION_PASS_AS_NEEDED_THEN_REMEDIATE_COLLECTED_FINDINGS",
     "next_stage_locked": true,
     "blocked_next_stage": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-    "unlock_condition": "FULL_CLEAN_AUDIT_PASS_RECORDED_DURABLY_AFTER_LATEST_FIX",
+    "unlock_condition": "COMPLETE_POST_REMEDIATION_FULL_AUDIT_PASS_WITH_ZERO_OPEN_BLOCKER_OR_CRITICAL_FINDINGS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -4319,7 +4319,7 @@
       "effect": "INTERRUPTED_AUDIT_NOT_CLEAN_RESTART_FULL_AUDIT_FROM_FIRST_DIMENSION",
       "mitigation": "USE_GITHUB_API_AND_DIRECT_FILE_READS_FOR_FULL_AUDIT_NO_SHELL_COMPOSITION"
     },
-    "clean_pass_in_progress": false,
+    "clean_pass_in_progress": true,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
       "head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
@@ -4471,6 +4471,26 @@
       "ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
       "schema_version": 29,
       "effect": "FIX_QUALIFIED_FULL_AUDIT_FROM_SCRATCH_REQUIRED_BEFORE_C2"
+    },
+    "collection_policy": {
+      "mode": "ACCUMULATE_FINDINGS_DO_NOT_STOP_AT_FIRST",
+      "objective": "MAXIMUM_DEFENSIBLE_FINDING_COVERAGE_BEFORE_REMEDIATION",
+      "severity_gate": [
+        "BLOCKER",
+        "CRITICAL"
+      ],
+      "remediation_timing": "AFTER_COMPLETE_COLLECTION_PASS",
+      "cycle": "FULL_AUDIT_COLLECTION -> REMEDIATION -> FULL_AUDIT_COLLECTION",
+      "continue_while": "ANY_OPEN_BLOCKER_OR_CRITICAL_FINDING",
+      "lower_severity_policy": "PRESERVE_AND_REMEDIATE_OR_EXPLICITLY_CARRY_WITH_RATIONALE"
+    },
+    "collection_pass": {
+      "started_from_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+      "status": "IN_PROGRESS",
+      "findings_at_start": [
+        "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE"
+      ],
+      "known_open_at_start": 1
     }
   }
 }
