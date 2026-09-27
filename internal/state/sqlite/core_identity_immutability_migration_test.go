@@ -23,7 +23,8 @@ func TestQualifiedV32DatabaseMigratesToCoreIdentityImmutabilityV33(t *testing.T)
 
 func TestV33CoreIdentityRowsRejectUpdateAndDelete(t *testing.T) {
 	ctx := context.Background()
-	store := openInternalStore(t)
+	store := openV33GoogleTopologyStore(t, filepath.Join(t.TempDir(), "v33-core.db"))
+	defer store.Close()
 
 	artifact, err := store.AdoptArtifact(ctx)
 	if err != nil { t.Fatal(err) }

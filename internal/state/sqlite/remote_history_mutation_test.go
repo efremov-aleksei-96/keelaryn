@@ -114,11 +114,14 @@ func TestRemoteHistorySameUsesLifetimeBindingNotNakedBinding(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	conn, err := store.pool.Get(ctx)
 	if err != nil { t.Fatal(err) }
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO provider_artifact_bindings (identity_domain, provider_id, native_object_id, artifact_id, policy_id, accepted_at) VALUES (?1, ?2, 'id-1', ?3, 'legacy:test', ?4)",
-		&sqlitex.ExecOptions{Args: []any{
-			scope.IdentityDomain, string(scope.ProviderID), string(conflicting.ID), base.Add(4*time.Minute).Format(time.RFC3339Nano),
-		}}); err != nil {
+	if err := store.insertProviderArtifactBindingConn(conn, corpus.ProviderArtifactBinding{
+		IdentityDomain:   scope.IdentityDomain,
+		ProviderID:       scope.ProviderID,
+		ProviderObjectID: "id-1",
+		ArtifactID:       conflicting.ID,
+		PolicyID:         "legacy:test",
+		AcceptedAt:       base.Add(4 * time.Minute),
+	}); err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}

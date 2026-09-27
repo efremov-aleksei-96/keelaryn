@@ -214,12 +214,14 @@ func TestSourceBoundAcceptedAdmissionRejectsDirectSQLWithoutIdentityCapability(t
 		t.Fatal(err)
 	}
 	defer fixture.store.pool.Put(conn)
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO provider_artifact_bindings (identity_domain,provider_id,native_object_id,artifact_id,policy_id,accepted_at) VALUES ('test-domain','google-drive','child',?1,'test-policy',?2)",
-		&sqlitex.ExecOptions{Args: []any{
-			string(artifact.ID),
-			scan.StartedAt.UTC().Format(time.RFC3339Nano),
-		}}); err != nil {
+	if err := fixture.store.insertProviderArtifactBindingConn(conn, corpus.ProviderArtifactBinding{
+		IdentityDomain:   "test-domain",
+		ProviderID:       gdrive.ProviderID,
+		ProviderObjectID: "child",
+		ArtifactID:       artifact.ID,
+		PolicyID:         "test-policy",
+		AcceptedAt:       scan.StartedAt,
+	}); err != nil {
 		t.Fatal(err)
 	}
 	err = sqlitex.Execute(conn,

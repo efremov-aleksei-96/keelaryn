@@ -188,11 +188,14 @@ func TestRemoteHistoryAuthorityLegacyBindingBlocksAutoNew(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = sqlitex.Execute(conn,
-		"INSERT INTO provider_artifact_bindings (identity_domain, provider_id, native_object_id, artifact_id, policy_id, accepted_at) VALUES (?1, ?2, ?3, ?4, 'legacy:test', ?5)",
-		&sqlitex.ExecOptions{Args: []any{
-			scope.IdentityDomain, string(scope.ProviderID), "id-1", string(artifact.ID), base.UTC().Format(time.RFC3339Nano),
-		}})
+	err = store.insertProviderArtifactBindingConn(conn, corpus.ProviderArtifactBinding{
+		IdentityDomain:   scope.IdentityDomain,
+		ProviderID:       scope.ProviderID,
+		ProviderObjectID: "id-1",
+		ArtifactID:       artifact.ID,
+		PolicyID:         "legacy:test",
+		AcceptedAt:       base,
+	})
 	store.pool.Put(conn)
 	if err != nil {
 		t.Fatal(err)
