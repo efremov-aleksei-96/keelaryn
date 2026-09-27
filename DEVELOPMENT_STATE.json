@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 178,
+  "revision": 179,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "REMEDIATE_R04_GENERIC_SCAN_OBSERVATION_APPLICATION_AUTHORITY",
-    "description": "Continue the current collected critical remediation set with R04/B15. Each product slice receives targeted/adversarial regressions and exact-head validate/Ubuntu/Windows CI, then remediation continues directly to the next BLOCKER/CRITICAL item. Do NOT restart the full audit between individual fixes. After the entire current critical remediation set is resolved and qualified, run one complete audit from A00 through A13. P0-30C2 remains locked until that post-remediation audit records zero open BLOCKER/CRITICAL findings.",
+    "id": "REMEDIATE_R05_REMOTE_HISTORY_APPLICATION_AUTHORITY",
+    "description": "Fix B13 by adding narrow application authority for Base RemoteHistory generation/publication/change/membership/provider-lifetime durable writes, tied to validated canonical inputs and exact payload fingerprints. Historical migration must validate conservatively and must not invent provenance. Preserve R04 scan/Observation authority and stronger existing remote completion/identity guards. Qualify the exact product head, then continue directly to the next current BLOCKER without a full re-audit.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_REMEDIATION_R04_GENERIC_SCAN_OBSERVATION_APPLICATION_AUTHORITY",
+    "current_stage": "FULL_AUDIT_REMEDIATION_R05_REMOTE_HISTORY_APPLICATION_AUTHORITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4347,14 +4347,6 @@
         "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
         "issue": "Google Drive topology sidecar evidence/nodes/watermarks and managed-root bindings have relational completeness guards but no application provenance guard. Raw SQL can attach structurally valid but provider-unvalidated parent topology to genuine RemoteHistory objects, materialize a matching node/watermark projection, and create a managed-root binding. GoogleDriveManagedRootMembership then trusts that topology/scope state even though validateGoogleBootstrapBundle/validateGoogleChangeCycleBundle/BindGoogleDriveManagedRoot were never executed.",
         "required_correction": "Protect authoritative Google Drive topology evidence and managed-root scope binding behind narrow connection-local application capabilities tied to the exact validated bundle/generation/sequence; distinguish authoritative evidence from rebuildable node projection where possible. Add adversarial raw-SQL tests and conservative migration validation."
-      },
-      {
-        "id": "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "Generic scan and unresolved Observation evidence creation lacks application authorization. Raw SQL can create an OPEN scan_session, provider_object_occurrences, unresolved observations and locators satisfying structural guards, then transition the scan to COMPLETE. latestCompleteScanID/Inventory will accept the forged COMPLETE scan as current corpus observation authority, including an empty newer scan that can hide previously observed inventory.",
-        "required_correction": "Protect scan creation/lifecycle and durable occurrence/Observation/Locator writes with transaction-scoped application authority corresponding to validated StartScan/RecordObservationInScan/finish paths, while preserving stronger RemoteHistory completion guards. Add adversarial tests proving raw SQL cannot synthesize a current inventory snapshot."
       },
       {
         "id": "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
@@ -4591,6 +4583,19 @@
         "required_correction": "Remove mutable current-head/finding data from the reusable audit policy or replace it with a pointer to DEVELOPMENT_STATE.json. Preserve old audit clocks only in timestamped retrospectives/checkpoints. Add a policy invariant that normative process docs do not duplicate volatile current development state.",
         "gate_scope": "D0_AUTONOMY_GOVERNANCE_NOT_CURRENT_P0_C2_PRODUCT_CRITICAL_GATE",
         "resolution": "Removed the volatile Current audit clock from the reusable policy and replaced it with a normative pointer to DEVELOPMENT_STATE.json as the sole live development clock. The policy now also explicitly forbids full re-audit between individual critical remediation slices."
+      },
+      {
+        "id": "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Generic scan and unresolved Observation evidence creation lacks application authorization. Raw SQL can create an OPEN scan_session, provider_object_occurrences, unresolved observations and locators satisfying structural guards, then transition the scan to COMPLETE. latestCompleteScanID/Inventory will accept the forged COMPLETE scan as current corpus observation authority, including an empty newer scan that can hide previously observed inventory.",
+        "required_correction": "Protect scan creation/lifecycle and durable occurrence/Observation/Locator writes with transaction-scoped application authority corresponding to validated StartScan/RecordObservationInScan/finish paths, while preserving stronger RemoteHistory completion guards. Add adversarial tests proving raw SQL cannot synthesize a current inventory snapshot.",
+        "implementation_head": "545b5c91e2a61ffff273316e6606b1a649f244b6",
+        "qualification_head": "91ba1100696ed79949b6dfa0b41a0cecadb33202",
+        "schema_version": 40,
+        "qualification_ci": 36322570370,
+        "resolution": "Schema v40 protects scan creation/lifecycle and durable ProviderObject occurrence, Observation and Locator writes with exact connection-local application authority while preserving stronger RemoteHistory and identity guards. Raw SQL cannot synthesize a valid current inventory snapshot."
       }
     ],
     "last_resolution_checkpoint": {
@@ -4807,14 +4812,20 @@
         },
         {
           "id": "R04_GENERIC_SCAN_OBSERVATION_APPLICATION_AUTHORITY",
-          "status": "IN_PROGRESS",
+          "status": "DONE",
           "findings": [
             "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY"
-          ]
+          ],
+          "implementation_head": "545b5c91e2a61ffff273316e6606b1a649f244b6",
+          "product_head": "91ba1100696ed79949b6dfa0b41a0cecadb33202",
+          "schema_version": 40,
+          "ci_run": 36322570370,
+          "qualification": "validate+ubuntu-24.04+windows-2025 PASS",
+          "note": "Schema v40 adds exact connection-local application authority for scan START/FINISH and ProviderObject occurrence, Observation and Locator writes. Follow-up fixture hardening preserved lower-layer causal/structural/identity guard coverage instead of allowing v40 to mask those tests."
         },
         {
           "id": "R05_REMOTE_HISTORY_APPLICATION_AUTHORITY",
-          "status": "TODO",
+          "status": "IN_PROGRESS",
           "findings": [
             "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY"
           ]
@@ -4890,8 +4901,8 @@
           "H5"
         ]
       },
-      "current_product_head": "02f5addc5b1e4c7e0e4b6a485a3ade25f1920e71",
-      "critical_gate_open": 6,
+      "current_product_head": "91ba1100696ed79949b6dfa0b41a0cecadb33202",
+      "critical_gate_open": 5,
       "full_reaudit_between_slices": false,
       "next_full_audit_when": "ALL_FINDINGS_IN_CURRENT_BLOCKER_CRITICAL_REMEDIATION_SET_ARE_RESOLVED_AND_QUALIFIED",
       "new_critical_during_remediation": "ADD_TO_CURRENT_REMEDIATION_SET_AND_CONTINUE_REMEDIATION",
