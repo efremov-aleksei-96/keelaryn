@@ -45,9 +45,8 @@ func ValidateRemoteScanSourceInput(source RemoteScanSourceInput) error {
 	if _, err := hex.DecodeString(source.SnapshotFingerprintSHA256); err != nil {
 		return ErrInvalidRemoteScanSource
 	}
-	usesMetadataFingerprint := source.SnapshotFingerprintVersion == RemoteMetadataSnapshotFingerprintVersion
-	usesLightweightPolicy := source.MaterializationPolicyID == LightweightAllMaterializationPolicyID
-	if usesMetadataFingerprint != usesLightweightPolicy {
+	if source.SnapshotFingerprintVersion != RemoteMetadataSnapshotFingerprintVersion ||
+		source.MaterializationPolicyID != LightweightAllMaterializationPolicyID {
 		return ErrInvalidRemoteScanSource
 	}
 	return nil

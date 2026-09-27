@@ -371,11 +371,63 @@ func TestRemoteScanSourceInputValidationFailsClosed(t *testing.T) {
 			SnapshotFingerprintVersion: "other-snapshot:v1",
 			SnapshotFingerprintSHA256: remoteScanFingerprintA,
 		},
+		{
+			GenerationID: "hgen_x", PublicationSequence: 1, SourceScopeID: "scope",
+			MaterializationPolicyID: "other-policy:v1",
+			SnapshotFingerprintVersion: "other-snapshot:v1",
+			SnapshotFingerprintSHA256: remoteScanFingerprintA,
+		},
 	}
 	for i, input := range cases {
 		if err := remotehistory.ValidateRemoteScanSourceInput(input); err == nil {
 			t.Fatalf("case %d unexpectedly validated: %#v", i, input)
 		}
+	}
+}
+
+
+func TestRemoteHistoryCompletionRejectsPersistedUnknownSourceContract(t *testing.T) {
+	ctx := context.Background()
+	store := openStoreInternal(t)
+	scope := remoteHistoryTestScope()
+	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
+	base := time.Date(2026, 9, 27, 8, 30, 0, 0, time.UTC)
+	generation, err := store.StartRemoteHistoryGeneration(
+		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scan, err := store.StartScan(ctx, scope.ProviderID, "managed-unknown-contract", base.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := store.pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = sqlitex.Execute(conn,
+		"INSERT INTO remote_scan_sources (scan_id,generation_id,publication_sequence,source_scope_id,materialization_policy_id,snapshot_fingerprint_version,snapshot_fingerprint_sha256) VALUES (?1,?2,1,'managed-unknown','other-policy:v1','other-snapshot:v1',?3)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(scan.ID),
+			string(generation.ID),
+			remoteScanFingerprintA,
+		}})
+	store.pool.Put(conn)
+	if err != nil {
+		t.Fatalf("seed historical unknown source contract: %v", err)
+	}
+
+	if _, _, err := store.CompleteRemoteHistoryScan(ctx, scan.ID, base.Add(2*time.Second)); !errors.Is(err, remotehistory.ErrInvalidRemoteScanSource) {
+		t.Fatalf("completion error=%v, want ErrInvalidRemoteScanSource", err)
+	}
+	got, err := store.ScanSession(ctx, scan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != corpus.ScanOpen {
+		t.Fatalf("scan status=%s, want OPEN after rejected unknown contract", got.Status)
 	}
 }
 
