@@ -25,10 +25,10 @@ func (s *Store) StartScan(ctx context.Context, providerID corpus.ProviderID, roo
 		return corpus.ScanSession{}, fmt.Errorf("get state connection: %w", err)
 	}
 	defer s.pool.Put(conn)
-	return startScanConn(conn, providerID, root, startedAt)
+	return s.startScanConn(conn, providerID, root, startedAt)
 }
 
-func startScanConn(
+func (s *Store) startScanConn(
 	conn *sqlite.Conn,
 	providerID corpus.ProviderID,
 	root string,
@@ -44,15 +44,29 @@ func startScanConn(
 		Status:     corpus.ScanOpen,
 		StartedAt:  startedAt.UTC(),
 	}
-	if err := sqlitex.Execute(conn,
+	startedText := scan.StartedAt.Format(time.RFC3339Nano)
+	release, err := s.authorizeScanWriteConn(conn, scanWriteAuthorization{
+		phase:      "START",
+		scanID:     scan.ID,
+		providerID: scan.ProviderID,
+		root:       scan.Root,
+		status:     scan.Status,
+		startedAt:  startedText,
+	})
+	if err != nil {
+		return corpus.ScanSession{}, err
+	}
+	writeErr := sqlitex.Execute(conn,
 		"INSERT INTO scan_sessions (scan_id, provider_id, root, status, started_at, finished_at) VALUES (?1, ?2, ?3, 'OPEN', ?4, NULL)",
 		&sqlitex.ExecOptions{Args: []any{
 			string(scan.ID),
 			string(scan.ProviderID),
 			scan.Root,
-			scan.StartedAt.Format(time.RFC3339Nano),
-		}}); err != nil {
-		return corpus.ScanSession{}, fmt.Errorf("insert scan session: %w", err)
+			startedText,
+		}})
+	release()
+	if writeErr != nil {
+		return corpus.ScanSession{}, fmt.Errorf("insert scan session: %w", writeErr)
 	}
 	return scan, nil
 }
@@ -95,7 +109,7 @@ func (s *Store) RecordObservationInScan(ctx context.Context, scanID corpus.ScanS
 			return corpus.ObservationRecord{}, fmt.Errorf("%w: locator=%#v scan=%s/%s", ErrScanScopeMismatch, locator, scan.ProviderID, scan.Root)
 		}
 	}
-	return recordObservationConn(conn, scanID, input)
+	return s.recordObservationConn(conn, scanID, input)
 }
 
 func (s *Store) CompleteScan(ctx context.Context, scanID corpus.ScanSessionID, finishedAt time.Time) error {
@@ -127,10 +141,10 @@ func (s *Store) finishScan(
 		return fmt.Errorf("begin scan finish transaction: %w", err)
 	}
 	defer end(&err)
-	return finishScanConn(conn, scanID, status, finishedAt, allowRemoteCompletion)
+	return s.finishScanConn(conn, scanID, status, finishedAt, allowRemoteCompletion)
 }
 
-func finishScanConn(
+func (s *Store) finishScanConn(
 	conn *sqlite.Conn,
 	scanID corpus.ScanSessionID,
 	status corpus.ScanStatus,
@@ -166,14 +180,29 @@ func finishScanConn(
 	if finishedAt.UTC().Before(scan.StartedAt) {
 		return fmt.Errorf("%w: finish before start", ErrInvalidScan)
 	}
-	if err := sqlitex.Execute(conn,
+	finishedText := finishedAt.UTC().Format(time.RFC3339Nano)
+	release, err := s.authorizeScanWriteConn(conn, scanWriteAuthorization{
+		phase:      "FINISH",
+		scanID:     scanID,
+		providerID: scan.ProviderID,
+		root:       scan.Root,
+		status:     status,
+		startedAt:  scan.StartedAt.UTC().Format(time.RFC3339Nano),
+		finishedAt: finishedText,
+	})
+	if err != nil {
+		return err
+	}
+	writeErr := sqlitex.Execute(conn,
 		"UPDATE scan_sessions SET status = ?1, finished_at = ?2 WHERE scan_id = ?3 AND status = 'OPEN'",
 		&sqlitex.ExecOptions{Args: []any{
 			string(status),
-			finishedAt.UTC().Format(time.RFC3339Nano),
+			finishedText,
 			string(scanID),
-		}}); err != nil {
-		return fmt.Errorf("finish scan: %w", err)
+		}})
+	release()
+	if writeErr != nil {
+		return fmt.Errorf("finish scan: %w", writeErr)
 	}
 	if conn.Changes() != 1 {
 		return fmt.Errorf("%w: %s", ErrScanNotOpen, scanID)

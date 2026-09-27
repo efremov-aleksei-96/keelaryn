@@ -3065,6 +3065,82 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER scan_sessions_insert_application_guard_v40
+BEFORE INSERT ON scan_sessions
+WHEN keelaryn_scan_write_authorized(
+	'START',
+	NEW.scan_id,
+	NEW.provider_id,
+	NEW.root,
+	NEW.status,
+	NEW.started_at,
+	COALESCE(NEW.finished_at, '')
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'scan creation requires validated application authority');
+END;
+
+CREATE TRIGGER scan_sessions_lifecycle_application_guard_v40
+BEFORE UPDATE ON scan_sessions
+WHEN keelaryn_scan_write_authorized(
+	'FINISH',
+	NEW.scan_id,
+	NEW.provider_id,
+	NEW.root,
+	NEW.status,
+	NEW.started_at,
+	COALESCE(NEW.finished_at, '')
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'scan lifecycle transition requires validated application authority');
+END;
+
+CREATE TRIGGER provider_object_occurrences_insert_application_guard_v40
+BEFORE INSERT ON provider_object_occurrences
+WHEN keelaryn_occurrence_insert_authorized(
+	NEW.occurrence_id,
+	NEW.provider_id,
+	COALESCE(NEW.native_object_id, ''),
+	NEW.identity_state
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'provider object occurrence creation requires validated application authority');
+END;
+
+CREATE TRIGGER observations_insert_application_guard_v40
+BEFORE INSERT ON observations
+WHEN keelaryn_observation_insert_authorized(
+	NEW.observation_id,
+	NEW.occurrence_id,
+	COALESCE(NEW.artifact_id, ''),
+	COALESCE(NEW.revision_id, ''),
+	NEW.assignment_state,
+	NEW.observed_at,
+	NEW.kind,
+	NEW.size,
+	NEW.mode,
+	NEW.modified_at,
+	COALESCE(NEW.scan_id, '')
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Observation creation requires validated application authority');
+END;
+
+CREATE TRIGGER locators_insert_application_guard_v40
+BEFORE INSERT ON locators
+WHEN keelaryn_locator_insert_authorized(
+	NEW.locator_id,
+	NEW.observation_id,
+	NEW.provider_id,
+	NEW.root,
+	NEW.path
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Locator creation requires validated application authority');
+END;
+`,
+
 	},
 }
 
@@ -3092,6 +3168,10 @@ const (
 	identityAuthorityCandidateStructuralValidationFunction = "keelaryn_identity_authority_candidate_structurally_valid"
 	identityAcceptanceWriteAuthorizationFunction = "keelaryn_identity_acceptance_write_authorized"
 	bootstrapScanAuthorityInsertAuthorizationFunction = "keelaryn_bootstrap_scan_authority_insert_authorized"
+	scanWriteAuthorizationFunction = "keelaryn_scan_write_authorized"
+	occurrenceInsertAuthorizationFunction = "keelaryn_occurrence_insert_authorized"
+	observationInsertAuthorizationFunction = "keelaryn_observation_insert_authorized"
+	locatorInsertAuthorizationFunction = "keelaryn_locator_insert_authorized"
 	bootstrapNoPriorObservationHistoryProof = "NO_PRIOR_OBSERVATION_HISTORY:v1"
 )
 
@@ -3155,6 +3235,45 @@ type bootstrapScanAuthorityInsertAuthorization struct {
 	provenAt  string
 }
 
+type scanWriteAuthorization struct {
+	phase      string
+	scanID     corpus.ScanSessionID
+	providerID corpus.ProviderID
+	root       string
+	status     corpus.ScanStatus
+	startedAt  string
+	finishedAt string
+}
+
+type occurrenceInsertAuthorization struct {
+	occurrenceID   corpus.ProviderObjectOccurrenceID
+	providerID     corpus.ProviderID
+	nativeObjectID string
+	identityState  corpus.ObjectIdentityState
+}
+
+type observationInsertAuthorization struct {
+	observationID   corpus.ObservationID
+	occurrenceID    corpus.ProviderObjectOccurrenceID
+	artifactID      corpus.ArtifactID
+	revisionID      corpus.RevisionID
+	assignmentState corpus.AssignmentState
+	observedAt      string
+	kind            corpus.EntryKind
+	size            int64
+	mode            uint32
+	modifiedAt      string
+	scanID          corpus.ScanSessionID
+}
+
+type locatorInsertAuthorization struct {
+	locatorID     corpus.LocatorID
+	observationID corpus.ObservationID
+	providerID    corpus.ProviderID
+	root          string
+	path          string
+}
+
 type Store struct {
 	pool                                      *sqlitemigration.Pool
 	path                                      string
@@ -3165,6 +3284,10 @@ type Store struct {
 	identityAuthorityWriteAuthorizations           sync.Map
 	identityAcceptanceWriteAuthorizations          sync.Map
 	bootstrapScanAuthorityInsertAuthorizations     sync.Map
+	scanWriteAuthorizations                        sync.Map
+	occurrenceInsertAuthorizations                  sync.Map
+	observationInsertAuthorizations                 sync.Map
+	locatorInsertAuthorizations                     sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -3515,7 +3638,177 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 	}
 	s.bootstrapScanAuthorityInsertAuthorizations.Store(conn, bootstrapAuth)
 
+	scanWriteAuth := &scanWriteAuthorization{}
+	if err := conn.CreateFunction(scanWriteAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 7, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if scanWriteAuth.phase != "" &&
+				scanWriteAuth.phase == args[0].Text() &&
+				string(scanWriteAuth.scanID) == args[1].Text() &&
+				string(scanWriteAuth.providerID) == args[2].Text() &&
+				scanWriteAuth.root == args[3].Text() &&
+				string(scanWriteAuth.status) == args[4].Text() &&
+				scanWriteAuth.startedAt == args[5].Text() &&
+				scanWriteAuth.finishedAt == args[6].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register scan write authorization function: %w", err)
+	}
+	s.scanWriteAuthorizations.Store(conn, scanWriteAuth)
+
+	occurrenceAuth := &occurrenceInsertAuthorization{}
+	if err := conn.CreateFunction(occurrenceInsertAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 4, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if occurrenceAuth.occurrenceID != "" &&
+				string(occurrenceAuth.occurrenceID) == args[0].Text() &&
+				string(occurrenceAuth.providerID) == args[1].Text() &&
+				occurrenceAuth.nativeObjectID == args[2].Text() &&
+				string(occurrenceAuth.identityState) == args[3].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register occurrence insert authorization function: %w", err)
+	}
+	s.occurrenceInsertAuthorizations.Store(conn, occurrenceAuth)
+
+	observationAuth := &observationInsertAuthorization{}
+	if err := conn.CreateFunction(observationInsertAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 11, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if observationAuth.observationID != "" &&
+				string(observationAuth.observationID) == args[0].Text() &&
+				string(observationAuth.occurrenceID) == args[1].Text() &&
+				string(observationAuth.artifactID) == args[2].Text() &&
+				string(observationAuth.revisionID) == args[3].Text() &&
+				string(observationAuth.assignmentState) == args[4].Text() &&
+				observationAuth.observedAt == args[5].Text() &&
+				string(observationAuth.kind) == args[6].Text() &&
+				fmt.Sprint(observationAuth.size) == args[7].Text() &&
+				fmt.Sprint(observationAuth.mode) == args[8].Text() &&
+				observationAuth.modifiedAt == args[9].Text() &&
+				string(observationAuth.scanID) == args[10].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register Observation insert authorization function: %w", err)
+	}
+	s.observationInsertAuthorizations.Store(conn, observationAuth)
+
+	locatorAuth := &locatorInsertAuthorization{}
+	if err := conn.CreateFunction(locatorInsertAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 5, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if locatorAuth.locatorID != "" &&
+				string(locatorAuth.locatorID) == args[0].Text() &&
+				string(locatorAuth.observationID) == args[1].Text() &&
+				string(locatorAuth.providerID) == args[2].Text() &&
+				locatorAuth.root == args[3].Text() &&
+				locatorAuth.path == args[4].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register Locator insert authorization function: %w", err)
+	}
+	s.locatorInsertAuthorizations.Store(conn, locatorAuth)
+
 	return nil
+}
+
+func (s *Store) authorizeScanWriteConn(conn *sqlite.Conn, auth scanWriteAuthorization) (func(), error) {
+	if auth.phase == "" || auth.scanID == "" || auth.providerID == "" || auth.root == "" || auth.status == "" || auth.startedAt == "" {
+		return nil, fmt.Errorf("scan write authorization target is incomplete")
+	}
+	if auth.phase == "START" {
+		if auth.status != corpus.ScanOpen || auth.finishedAt != "" {
+			return nil, fmt.Errorf("invalid START scan write authorization")
+		}
+	} else if auth.phase == "FINISH" {
+		if (auth.status != corpus.ScanComplete && auth.status != corpus.ScanAborted) || auth.finishedAt == "" {
+			return nil, fmt.Errorf("invalid FINISH scan write authorization")
+		}
+	} else {
+		return nil, fmt.Errorf("invalid scan write authorization phase %q", auth.phase)
+	}
+	value, ok := s.scanWriteAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("scan write authorization state missing for connection")
+	}
+	state, ok := value.(*scanWriteAuthorization)
+	if !ok || state == nil {
+		return nil, fmt.Errorf("scan write authorization state invalid")
+	}
+	if state.phase != "" {
+		return nil, fmt.Errorf("scan write authorization already active")
+	}
+	*state = auth
+	return func() { *state = scanWriteAuthorization{} }, nil
+}
+
+func (s *Store) authorizeOccurrenceInsertConn(conn *sqlite.Conn, auth occurrenceInsertAuthorization) (func(), error) {
+	if auth.occurrenceID == "" || auth.providerID == "" || auth.identityState == "" {
+		return nil, fmt.Errorf("occurrence insert authorization target is incomplete")
+	}
+	value, ok := s.occurrenceInsertAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("occurrence insert authorization state missing for connection")
+	}
+	state, ok := value.(*occurrenceInsertAuthorization)
+	if !ok || state == nil {
+		return nil, fmt.Errorf("occurrence insert authorization state invalid")
+	}
+	if state.occurrenceID != "" {
+		return nil, fmt.Errorf("occurrence insert authorization already active")
+	}
+	*state = auth
+	return func() { *state = occurrenceInsertAuthorization{} }, nil
+}
+
+func (s *Store) authorizeObservationInsertConn(conn *sqlite.Conn, auth observationInsertAuthorization) (func(), error) {
+	if auth.observationID == "" || auth.occurrenceID == "" || auth.assignmentState == "" || auth.observedAt == "" || auth.kind == "" || auth.modifiedAt == "" {
+		return nil, fmt.Errorf("Observation insert authorization target is incomplete")
+	}
+	value, ok := s.observationInsertAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("Observation insert authorization state missing for connection")
+	}
+	state, ok := value.(*observationInsertAuthorization)
+	if !ok || state == nil {
+		return nil, fmt.Errorf("Observation insert authorization state invalid")
+	}
+	if state.observationID != "" {
+		return nil, fmt.Errorf("Observation insert authorization already active")
+	}
+	*state = auth
+	return func() { *state = observationInsertAuthorization{} }, nil
+}
+
+func (s *Store) authorizeLocatorInsertConn(conn *sqlite.Conn, auth locatorInsertAuthorization) (func(), error) {
+	if auth.locatorID == "" || auth.observationID == "" || auth.providerID == "" || auth.root == "" || auth.path == "" {
+		return nil, fmt.Errorf("Locator insert authorization target is incomplete")
+	}
+	value, ok := s.locatorInsertAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("Locator insert authorization state missing for connection")
+	}
+	state, ok := value.(*locatorInsertAuthorization)
+	if !ok || state == nil {
+		return nil, fmt.Errorf("Locator insert authorization state invalid")
+	}
+	if state.locatorID != "" {
+		return nil, fmt.Errorf("Locator insert authorization already active")
+	}
+	*state = auth
+	return func() { *state = locatorInsertAuthorization{} }, nil
 }
 
 func (s *Store) authorizeBootstrapScanAuthorityInsertConn(

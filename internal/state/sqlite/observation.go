@@ -38,10 +38,10 @@ func (s *Store) RecordObservation(ctx context.Context, input corpus.ObservationR
 	}
 	defer end(&err)
 
-	return recordObservationConn(conn, "", input)
+	return s.recordObservationConn(conn, "", input)
 }
 
-func recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessionID, input corpus.ObservationRecordInput) (corpus.ObservationRecord, error) {
+func (s *Store) recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessionID, input corpus.ObservationRecordInput) (corpus.ObservationRecord, error) {
 	if input.AssignmentState == corpus.AssignmentAssigned {
 		exists, err := artifactExists(conn, input.ArtifactID)
 		if err != nil {
@@ -68,15 +68,30 @@ func recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessionID, input
 	if input.ProviderObject.ID != "" {
 		nativeID = string(input.ProviderObject.ID)
 	}
-	if err := sqlitex.Execute(conn,
+	nativeObjectText := ""
+	if input.ProviderObject.ID != "" {
+		nativeObjectText = string(input.ProviderObject.ID)
+	}
+	releaseOccurrence, err := s.authorizeOccurrenceInsertConn(conn, occurrenceInsertAuthorization{
+		occurrenceID:   occurrenceID,
+		providerID:     input.ProviderObject.ProviderID,
+		nativeObjectID: nativeObjectText,
+		identityState:  input.ProviderObject.IdentityState,
+	})
+	if err != nil {
+		return corpus.ObservationRecord{}, err
+	}
+	writeErr := sqlitex.Execute(conn,
 		"INSERT INTO provider_object_occurrences (occurrence_id, provider_id, native_object_id, identity_state) VALUES (?1, ?2, ?3, ?4)",
 		&sqlitex.ExecOptions{Args: []any{
 			string(occurrenceID),
 			string(input.ProviderObject.ProviderID),
 			nativeID,
 			string(input.ProviderObject.IdentityState),
-		}}); err != nil {
-		return corpus.ObservationRecord{}, fmt.Errorf("insert ProviderObject occurrence: %w", err)
+		}})
+	releaseOccurrence()
+	if writeErr != nil {
+		return corpus.ObservationRecord{}, fmt.Errorf("insert ProviderObject occurrence: %w", writeErr)
 	}
 
 	var artifactID any
@@ -87,7 +102,25 @@ func recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessionID, input
 	if input.RevisionID != "" {
 		revisionID = string(input.RevisionID)
 	}
-	if err := sqlitex.Execute(conn,
+	observedText := input.ObservedAt.UTC().Format(time.RFC3339Nano)
+	modifiedText := input.ModifiedAt.UTC().Format(time.RFC3339Nano)
+	releaseObservation, err := s.authorizeObservationInsertConn(conn, observationInsertAuthorization{
+		observationID:   observationID,
+		occurrenceID:    occurrenceID,
+		artifactID:      input.ArtifactID,
+		revisionID:      input.RevisionID,
+		assignmentState: input.AssignmentState,
+		observedAt:      observedText,
+		kind:            input.Kind,
+		size:            input.Size,
+		mode:            input.Mode,
+		modifiedAt:      modifiedText,
+		scanID:          scanID,
+	})
+	if err != nil {
+		return corpus.ObservationRecord{}, err
+	}
+	writeErr = sqlitex.Execute(conn,
 		"INSERT INTO observations (observation_id, occurrence_id, artifact_id, revision_id, assignment_state, observed_at, kind, size, mode, modified_at, scan_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
 		&sqlitex.ExecOptions{Args: []any{
 			string(observationID),
@@ -95,20 +128,32 @@ func recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessionID, input
 			artifactID,
 			revisionID,
 			string(input.AssignmentState),
-			input.ObservedAt.UTC().Format(time.RFC3339Nano),
+			observedText,
 			string(input.Kind),
 			input.Size,
 			int64(input.Mode),
-			input.ModifiedAt.UTC().Format(time.RFC3339Nano),
+			modifiedText,
 			nullableScanID(scanID),
-		}}); err != nil {
-		return corpus.ObservationRecord{}, fmt.Errorf("insert Observation: %w", err)
+		}})
+	releaseObservation()
+	if writeErr != nil {
+		return corpus.ObservationRecord{}, fmt.Errorf("insert Observation: %w", writeErr)
 	}
 
 	locators := make([]corpus.LocatorRecord, 0, len(input.Locators))
 	for _, locator := range input.Locators {
 		locatorID := corpus.LocatorID("loc_" + uuid.NewString())
-		if err := sqlitex.Execute(conn,
+		releaseLocator, err := s.authorizeLocatorInsertConn(conn, locatorInsertAuthorization{
+			locatorID:     locatorID,
+			observationID: observationID,
+			providerID:    locator.ProviderID,
+			root:          locator.Root,
+			path:          locator.Path,
+		})
+		if err != nil {
+			return corpus.ObservationRecord{}, err
+		}
+		writeErr = sqlitex.Execute(conn,
 			"INSERT INTO locators (locator_id, observation_id, provider_id, root, path) VALUES (?1, ?2, ?3, ?4, ?5)",
 			&sqlitex.ExecOptions{Args: []any{
 				string(locatorID),
@@ -116,8 +161,10 @@ func recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessionID, input
 				string(locator.ProviderID),
 				locator.Root,
 				locator.Path,
-			}}); err != nil {
-			return corpus.ObservationRecord{}, fmt.Errorf("insert Locator: %w", err)
+			}})
+		releaseLocator()
+		if writeErr != nil {
+			return corpus.ObservationRecord{}, fmt.Errorf("insert Locator: %w", writeErr)
 		}
 		locators = append(locators, corpus.LocatorRecord{
 			ID:            locatorID,

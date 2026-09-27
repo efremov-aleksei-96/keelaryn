@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
-	"github.com/google/uuid"
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
@@ -44,22 +43,9 @@ func (s *Store) StartBootstrapScan(ctx context.Context, providerID corpus.Provid
 		return corpus.ScanSession{}, fmt.Errorf("%w: %s/%s", ErrObservationHistoryExists, providerID, root)
 	}
 
-	scan = corpus.ScanSession{
-		ID:         corpus.ScanSessionID("scan_" + uuid.NewString()),
-		ProviderID: providerID,
-		Root:       root,
-		Status:     corpus.ScanOpen,
-		StartedAt:  startedAt.UTC(),
-	}
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO scan_sessions (scan_id, provider_id, root, status, started_at, finished_at) VALUES (?1, ?2, ?3, 'OPEN', ?4, NULL)",
-		&sqlitex.ExecOptions{Args: []any{
-			string(scan.ID),
-			string(scan.ProviderID),
-			scan.Root,
-			scan.StartedAt.Format(time.RFC3339Nano),
-		}}); err != nil {
-		return corpus.ScanSession{}, fmt.Errorf("insert bootstrap scan: %w", err)
+	scan, err = s.startScanConn(conn, providerID, root, startedAt)
+	if err != nil {
+		return corpus.ScanSession{}, err
 	}
 	provenAt := scan.StartedAt.Format(time.RFC3339Nano)
 	release, err := s.authorizeBootstrapScanAuthorityInsertConn(conn, scan.ID, provenAt)
@@ -197,7 +183,7 @@ func (s *Store) AdoptObservationInScan(ctx context.Context, scanID corpus.ScanSe
 	if err != nil {
 		return corpus.ObservationRecord{}, err
 	}
-	out, writeErr := recordObservationConn(conn, scanID, input)
+	out, writeErr := s.recordObservationConn(conn, scanID, input)
 	releaseAcceptance()
 	return out, writeErr
 }

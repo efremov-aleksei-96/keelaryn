@@ -106,7 +106,7 @@ func (s *Store) StartRemoteHistoryScan(
 		)
 	}
 
-	scan, err = startScanConn(conn, generation.Scope.ProviderID, scanRoot, startedAt.UTC())
+	scan, err = s.startScanConn(conn, generation.Scope.ProviderID, scanRoot, startedAt.UTC())
 	if err != nil {
 		return corpus.ScanSession{}, false, err
 	}
@@ -273,7 +273,7 @@ func (s *Store) CompleteRemoteHistoryScan(
 		return corpus.ScanSession{}, false, err
 	}
 	defer releaseAuthorization()
-	if err := finishScanConn(conn, scanID, corpus.ScanComplete, finishedAt.UTC(), true); err != nil {
+	if err := s.finishScanConn(conn, scanID, corpus.ScanComplete, finishedAt.UTC(), true); err != nil {
 		return corpus.ScanSession{}, false, err
 	}
 	scan.Status = corpus.ScanComplete

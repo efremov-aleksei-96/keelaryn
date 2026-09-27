@@ -135,7 +135,7 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 		if txErr != nil {
 			return txErr
 		}
-		observation, txErr := recordObservationConn(conn, request.ScanID, input)
+		observation, txErr := s.recordObservationConn(conn, request.ScanID, input)
 		releaseAcceptance()
 		if txErr != nil {
 			return txErr
