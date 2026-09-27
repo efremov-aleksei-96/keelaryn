@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 155,
+  "revision": 156,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A06_NEGATIVE_ADVERSARIAL_CASES",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A07_RUNTIME_REACHABILITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4397,6 +4397,22 @@
         "issue": "Canonical architecture requires deterministic update/rollback and explicit upgrade/rollback, but current product tree contains no release/update implementation that captures and verifies a pre-upgrade SQLite state snapshot or restores schema-compatible state after a successful forward migration. Transactional migration failure rollback does not provide release rollback after migration commit.",
         "required_correction": "Before candidate/release update support is enabled, define and implement an explicit state-compatible rollback protocol: capture/verify pre-upgrade state, bind backup to source/target release/schema identity, perform atomic upgrade qualification, and restore or otherwise migrate compatibly on rollback. Keep this separate from per-migration SQL transaction rollback.",
         "gate_scope": "RELEASE_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
+      },
+      {
+        "id": "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Schema v35 added application guards for Artifact, Revision and local provider_artifact_bindings creation, but its migration validates only contiguous Revision sequence. Historical v34 rows that were legal at the SQLite layer can survive even when they violate the current application contract: e.g. Revision evidence with empty algorithm/digest, or a local provider binding with invalid fields/time or no matching original NEW admission/provenance. Current readers do not re-run ValidateContentEvidence on persisted Revision rows, and local binding rows participate in NEW conflict/SAME consistency decisions.",
+        "required_correction": "Append a migration that validates reconstructable historical core identity structure/provenance before the state is usable: current ContentEvidence sanity for every Revision, non-empty/canonical binding fields/timestamps, and reverse local binding provenance where the historical model makes it provable. Do not invent missing provenance; classify irreconstructable legacy states explicitly. Add v34/v35 adversarial migration regressions."
+      },
+      {
+        "id": "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
+        "severity": "MEDIUM",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "accepted_continuity_decisions.resolution_json and accepted_artifact_admissions.resolution_json are durable authority but historical migrations do not validate JSON syntax/semantic resolution shape. Readers do json.Unmarshal plus semantic validation and fail closed, so malformed historical rows are not silently trusted, but Store.Open can succeed with accepted decisions that cannot later be read/replayed.",
+        "required_correction": "Add conservative migration validation for durable accepted decision JSON and semantic consistency using the same corpus resolution validators where reconstructable. Treat malformed historical authority as explicit invalid state rather than allowing Open success followed by later read/replay failure."
       }
     ],
     "resolved_findings": [
@@ -4585,11 +4601,12 @@
         },
         {
           "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Table-by-table negative coverage and historical-row validation reviewed. Current/future raw-write gaps are already B13-B15. Confirmed v35 migration only validates contiguous Revision sequence and does not validate historical core identity rows against current write-time contracts; B19 recorded. Malformed historical accepted-decision resolution JSON is reader-fail-closed but can leave unreadable accepted authority; M1 recorded."
         },
         {
           "id": "A07_RUNTIME_REACHABILITY",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
@@ -4625,14 +4642,16 @@
         "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
         "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
         "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD",
-        "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED"
+        "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+        "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
+        "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION"
       ],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "c890e69ea84e0ebac331bd9bdd8a6df817cbea98",
+        "control_head_before_checkpoint": "d679f91a434337ec20774884876b28c64c26b903",
         "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A05_SCHEMA_MIGRATION_ROLLBACK",
-        "next": "A06_NEGATIVE_ADVERSARIAL_CASES",
-        "open_finding_count": 8
+        "completed_through": "A06_NEGATIVE_ADVERSARIAL_CASES",
+        "next": "A07_RUNTIME_REACHABILITY",
+        "open_finding_count": 10
       }
     },
     "interruption_recovery": {
