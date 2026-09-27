@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 169,
+  "revision": 170,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_RESTART_A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
+    "current_stage": "FULL_AUDIT_RESTART_A04_TRANSACTION_ATOMICITY_REVALIDATION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4645,11 +4645,12 @@
         },
         {
           "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Re-audited product HEAD 9010d37a. RemoteHistory scan/coordinator paths retain explicit reconcile/replay semantics. LocalFS and BootstrapLocalFS still have no scope/attempt-based recovery for committed OPEN scans or lost responses; bootstrap still commits per occurrence and abort leaves durable identity/history. B16 remains reproducible; no new replay/idempotency finding."
         },
         {
           "id": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A05_SCHEMA_MIGRATION_ROLLBACK",
@@ -4692,12 +4693,13 @@
       "findings_discovered": [
         "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
         "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
-        "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY"
+        "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
+        "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY"
       ],
       "last_checkpoint": {
         "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-        "completed_through": "A02_DURABLE_AUTHORITY_BOUNDARIES",
-        "next": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
+        "completed_through": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
+        "next": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
         "known_open_finding_count": 13,
         "critical_gate_open": 7
       }
