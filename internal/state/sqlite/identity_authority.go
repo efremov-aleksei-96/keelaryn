@@ -76,7 +76,7 @@ func identityAuthoritySetConn(conn *sqlite.Conn, id corpus.IdentityAuthoritySetI
 
 // No exported generic writer exists. Later source-specific qualified producers
 // will call this internal helper. Tests use it for deterministic authority.
-func insertIdentityAuthoritySetConn(conn *sqlite.Conn, set corpus.IdentityAuthoritySet) error {
+func (s *Store) insertIdentityAuthoritySetConn(conn *sqlite.Conn, set corpus.IdentityAuthoritySet) error {
 	if err := corpus.ValidateIdentityAuthoritySet(set); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidIdentityAuthoritySet, err)
 	}
@@ -103,12 +103,32 @@ func insertIdentityAuthoritySetConn(conn *sqlite.Conn, set corpus.IdentityAuthor
 	if set.LifetimeSegmentID != "" {
 		segment = set.LifetimeSegmentID
 	}
+	createdAt := set.CreatedAt.UTC().Format(time.RFC3339Nano)
+	releaseSet, err := s.authorizeIdentityAuthorityWriteConn(conn, identityAuthorityWriteAuthorization{
+		kind: "SET",
+		authoritySetID: set.ID,
+		policyID: set.PolicyID,
+		providerID: set.ProviderID,
+		identityDomain: set.IdentityDomain,
+		scopeID: set.ScopeID,
+		currentObjectID: set.CurrentObjectID,
+		universeCoverage: set.UniverseCoverage,
+		generationID: stringOrEmpty(generation),
+		lifetimeSegmentID: stringOrEmpty(segment),
+		sourceRefsJSON: string(sourceRefsJSON),
+		createdAt: createdAt,
+		sealedAt: "",
+	})
+	if err != nil {
+		return err
+	}
+	defer releaseSet()
 	if err := sqlitex.Execute(conn,
 		"INSERT INTO identity_authority_sets (authority_set_id, policy_id, provider_id, identity_domain, scope_id, current_object_id, universe_coverage, generation_id, lifetime_segment_id, source_refs_json, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
 		&sqlitex.ExecOptions{Args: []any{
 			string(set.ID), set.PolicyID, string(set.ProviderID), set.IdentityDomain,
 			set.ScopeID, string(set.CurrentObjectID), string(set.UniverseCoverage),
-			generation, segment, string(sourceRefsJSON), set.CreatedAt.UTC().Format(time.RFC3339Nano),
+			generation, segment, string(sourceRefsJSON), createdAt,
 		}}); err != nil {
 		return fmt.Errorf("insert identity authority set: %w", err)
 	}
@@ -123,18 +143,39 @@ func insertIdentityAuthoritySetConn(conn *sqlite.Conn, set corpus.IdentityAuthor
 		return candidates[i].SourceRef < candidates[j].SourceRef
 	})
 	for _, candidate := range candidates {
+		releaseCandidate, err := s.authorizeIdentityAuthorityWriteConn(conn, identityAuthorityWriteAuthorization{
+			kind: "CANDIDATE",
+			authoritySetID: set.ID,
+			candidateArtifactID: candidate.ArtifactID,
+			candidateDirection: candidate.Direction,
+			candidateSourceRef: candidate.SourceRef,
+		})
+		if err != nil {
+			return err
+		}
 		if err := sqlitex.Execute(conn,
 			"INSERT INTO identity_authority_candidates (authority_set_id, artifact_id, direction, source_ref) VALUES (?1, ?2, ?3, ?4)",
 			&sqlitex.ExecOptions{Args: []any{
 				string(set.ID), string(candidate.ArtifactID), string(candidate.Direction), candidate.SourceRef,
 			}}); err != nil {
+			releaseCandidate()
 			return fmt.Errorf("insert identity authority candidate: %w", err)
 		}
+		releaseCandidate()
 	}
+	releaseSeal, err := s.authorizeIdentityAuthorityWriteConn(conn, identityAuthorityWriteAuthorization{
+		kind: "SEAL",
+		authoritySetID: set.ID,
+		sealedAt: createdAt,
+	})
+	if err != nil {
+		return err
+	}
+	defer releaseSeal()
 	if err := sqlitex.Execute(conn,
 		"UPDATE identity_authority_sets SET sealed_at = ?1 WHERE authority_set_id = ?2 AND sealed_at IS NULL",
 		&sqlitex.ExecOptions{Args: []any{
-			set.CreatedAt.UTC().Format(time.RFC3339Nano), string(set.ID),
+			createdAt, string(set.ID),
 		}}); err != nil {
 		return fmt.Errorf("seal identity authority set: %w", err)
 	}

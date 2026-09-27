@@ -89,7 +89,7 @@ func TestV28MigrationRejectsExistingBackdatedRemoteIdentityAuthority(t *testing.
 		t.Fatal(err)
 	}
 	set.CreatedAt = base.Add(-time.Nanosecond)
-	if err = insertIdentityAuthoritySetConn(conn, set); err != nil {
+	if err = store.insertIdentityAuthoritySetConn(conn, set); err != nil {
 		end(&err)
 		store.pool.Put(conn)
 		t.Fatal(err)

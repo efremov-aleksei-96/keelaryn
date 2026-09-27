@@ -346,7 +346,7 @@ func TestRemoteHistoryPolicyAuthorityCannotReferenceBogusSegment(t *testing.T) {
 		store.pool.Put(conn)
 		t.Fatal(err)
 	}
-	insertErr := insertIdentityAuthoritySetConn(conn, set)
+	insertErr := store.insertIdentityAuthoritySetConn(conn, set)
 	end(&insertErr)
 	store.pool.Put(conn)
 	if insertErr == nil {

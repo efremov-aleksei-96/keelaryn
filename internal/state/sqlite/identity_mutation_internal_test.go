@@ -48,7 +48,7 @@ func seedAuthoritySet(t *testing.T, store *Store, set corpus.IdentityAuthoritySe
 	end, err := sqlitex.ImmediateTransaction(conn)
 	if err != nil { t.Fatal(err) }
 	defer end(&err)
-	if err = insertIdentityAuthoritySetConn(conn, set); err != nil { t.Fatal(err) }
+	if err = store.insertIdentityAuthoritySetConn(conn, set); err != nil { t.Fatal(err) }
 }
 
 func sameAuthority(id corpus.IdentityAuthoritySetID, artifactID corpus.ArtifactID, objectID corpus.ProviderObjectID, at time.Time) corpus.IdentityAuthoritySet {

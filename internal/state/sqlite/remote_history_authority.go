@@ -91,7 +91,7 @@ func (s *Store) CreateRemoteHistoryIdentityAuthority(
 		}
 		return existing, nil
 	}
-	if err := insertIdentityAuthoritySetConn(conn, set); err != nil {
+	if err := s.insertIdentityAuthoritySetConn(conn, set); err != nil {
 		return corpus.IdentityAuthoritySet{}, err
 	}
 	return set, nil

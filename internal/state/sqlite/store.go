@@ -2809,6 +2809,70 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v36_identity_authority_creation_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v36_identity_authority_creation_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM identity_authority_sets a
+		WHERE a.sealed_at IS NULL
+		   OR a.sealed_at<>a.created_at
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v36_identity_authority_creation_validation;
+
+CREATE TRIGGER identity_authority_sets_insert_application_guard_v36
+BEFORE INSERT ON identity_authority_sets
+WHEN keelaryn_identity_authority_set_insert_authorized(
+	NEW.authority_set_id,
+	NEW.policy_id,
+	NEW.provider_id,
+	NEW.identity_domain,
+	NEW.scope_id,
+	NEW.current_object_id,
+	NEW.universe_coverage,
+	COALESCE(NEW.generation_id,''),
+	COALESCE(NEW.lifetime_segment_id,''),
+	NEW.source_refs_json,
+	NEW.created_at,
+	COALESCE(NEW.sealed_at,'')
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'identity authority set creation requires validated application authority');
+END;
+
+CREATE TRIGGER identity_authority_candidates_insert_application_guard_v36
+BEFORE INSERT ON identity_authority_candidates
+WHEN keelaryn_identity_authority_candidate_insert_authorized(
+	NEW.authority_set_id,
+	NEW.artifact_id,
+	NEW.direction,
+	NEW.source_ref
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'identity authority candidate creation requires validated application authority');
+END;
+
+CREATE TRIGGER identity_authority_sets_seal_application_guard_v36
+BEFORE UPDATE ON identity_authority_sets
+WHEN OLD.sealed_at IS NULL
+AND NEW.sealed_at IS NOT NULL
+AND keelaryn_identity_authority_seal_authorized(
+	NEW.authority_set_id,
+	NEW.sealed_at
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'identity authority sealing requires validated application authority');
+END;
+`,
+
 	},
 }
 
@@ -2829,6 +2893,9 @@ const (
 	artifactInsertAuthorizationFunction = "keelaryn_artifact_insert_authorized"
 	revisionInsertAuthorizationFunction = "keelaryn_revision_insert_authorized"
 	providerArtifactBindingInsertAuthorizationFunction = "keelaryn_provider_artifact_binding_insert_authorized"
+	identityAuthoritySetInsertAuthorizationFunction = "keelaryn_identity_authority_set_insert_authorized"
+	identityAuthorityCandidateInsertAuthorizationFunction = "keelaryn_identity_authority_candidate_insert_authorized"
+	identityAuthoritySealAuthorizationFunction = "keelaryn_identity_authority_seal_authorized"
 )
 
 type remoteCompletionAuthorization struct {
@@ -2861,6 +2928,25 @@ type coreIdentityInsertAuthorization struct {
 	acceptedAt       string
 }
 
+type identityAuthorityWriteAuthorization struct {
+	kind              string
+	authoritySetID    corpus.IdentityAuthoritySetID
+	policyID          string
+	providerID        corpus.ProviderID
+	identityDomain    string
+	scopeID           string
+	currentObjectID   corpus.ProviderObjectID
+	universeCoverage  corpus.CandidateUniverseCoverage
+	generationID      string
+	lifetimeSegmentID string
+	sourceRefsJSON    string
+	createdAt         string
+	sealedAt          string
+	candidateArtifactID corpus.ArtifactID
+	candidateDirection  corpus.ContinuityDirection
+	candidateSourceRef  string
+}
+
 type Store struct {
 	pool                                      *sqlitemigration.Pool
 	path                                      string
@@ -2868,6 +2954,7 @@ type Store struct {
 	identityMutationAuthorizations            sync.Map
 	gdriveTopologyWatermarkDeleteAuthorizations sync.Map
 	coreIdentityInsertAuthorizations              sync.Map
+	identityAuthorityWriteAuthorizations           sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -3068,7 +3155,83 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		return fmt.Errorf("register provider Artifact binding insert authorization function: %w", err)
 	}
 	s.coreIdentityInsertAuthorizations.Store(conn, coreAuth)
+
+	authorityWriteAuth := &identityAuthorityWriteAuthorization{}
+	if err := conn.CreateFunction(identityAuthoritySetInsertAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 12, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if authorityWriteAuth.kind == "SET" &&
+				string(authorityWriteAuth.authoritySetID) == args[0].Text() &&
+				authorityWriteAuth.policyID == args[1].Text() &&
+				string(authorityWriteAuth.providerID) == args[2].Text() &&
+				authorityWriteAuth.identityDomain == args[3].Text() &&
+				authorityWriteAuth.scopeID == args[4].Text() &&
+				string(authorityWriteAuth.currentObjectID) == args[5].Text() &&
+				string(authorityWriteAuth.universeCoverage) == args[6].Text() &&
+				authorityWriteAuth.generationID == args[7].Text() &&
+				authorityWriteAuth.lifetimeSegmentID == args[8].Text() &&
+				authorityWriteAuth.sourceRefsJSON == args[9].Text() &&
+				authorityWriteAuth.createdAt == args[10].Text() &&
+				authorityWriteAuth.sealedAt == args[11].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register identity authority set insert authorization function: %w", err)
+	}
+	if err := conn.CreateFunction(identityAuthorityCandidateInsertAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 4, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if authorityWriteAuth.kind == "CANDIDATE" &&
+				string(authorityWriteAuth.authoritySetID) == args[0].Text() &&
+				string(authorityWriteAuth.candidateArtifactID) == args[1].Text() &&
+				string(authorityWriteAuth.candidateDirection) == args[2].Text() &&
+				authorityWriteAuth.candidateSourceRef == args[3].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register identity authority candidate insert authorization function: %w", err)
+	}
+	if err := conn.CreateFunction(identityAuthoritySealAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 2, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if authorityWriteAuth.kind == "SEAL" &&
+				string(authorityWriteAuth.authoritySetID) == args[0].Text() &&
+				authorityWriteAuth.sealedAt == args[1].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register identity authority seal authorization function: %w", err)
+	}
+	s.identityAuthorityWriteAuthorizations.Store(conn, authorityWriteAuth)
 	return nil
+}
+
+func (s *Store) authorizeIdentityAuthorityWriteConn(
+	conn *sqlite.Conn,
+	auth identityAuthorityWriteAuthorization,
+) (func(), error) {
+	if auth.kind == "" || auth.authoritySetID == "" {
+		return nil, fmt.Errorf("identity authority write authorization target is incomplete")
+	}
+	value, ok := s.identityAuthorityWriteAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("identity authority write authorization state missing for connection")
+	}
+	state, ok := value.(*identityAuthorityWriteAuthorization)
+	if !ok || state == nil {
+		return nil, fmt.Errorf("identity authority write authorization state invalid")
+	}
+	if state.kind != "" {
+		return nil, fmt.Errorf("identity authority write authorization already active")
+	}
+	*state = auth
+	return func() { *state = identityAuthorityWriteAuthorization{} }, nil
 }
 
 func (s *Store) authorizeCoreIdentityInsertConn(
