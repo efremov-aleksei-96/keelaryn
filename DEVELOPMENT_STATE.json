@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 144,
+  "revision": 145,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "FIX_AUDIT_C1_B6_CORE_IDENTITY_ROWS_MUTABLE",
-    "description": "Append schema v33 without rewriting prior migrations. Add SQLite immutability guards for artifacts, revisions, and provider_artifact_bindings so committed Artifact identity, Revision evidence/history, and local provider bindings cannot be rewritten or deleted. Add direct-SQL regressions. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
+    "id": "FIX_AUDIT_C1_B7_GDRIVE_TOPOLOGY_WATERMARK_APPLICATION_AUTHORITY",
+    "description": "Append schema v34 without rewriting prior migrations. Protect Google topology watermark DELETE/UPDATE with a narrow connection-local application capability keyed to generation and existing watermark sequence. Production PublishGoogleDriveRemoteHistoryCycle must authorize only removal of the exact previous watermark inside its transaction. Add v33-to-v34 fail-closed migration validation requiring each Google generation to retain its current topology watermark, direct-SQL rejection regressions, and update intentional rebuild tests to use the controlled capability. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -3726,7 +3726,7 @@
     ]
   },
   "p0_30": {
-    "status": "C1_REQUALIFICATION_AUDIT_IN_PROGRESS_C2_LOCKED",
+    "status": "C1_REQUALIFICATION_BLOCKED_C2_LOCKED",
     "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -3762,7 +3762,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 30,
+    "schema_version": 33,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4196,7 +4196,7 @@
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
         "qualification_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
-        "schema_version": 30,
+        "schema_version": 33,
         "implementation": {
           "shared_resolver": "corpus.ResolveIdentityAuthoritySet",
           "local_generic_scope": "UNCHANGED_AUTHORITY_SCOPE_EQUALS_SCAN_ROOT",
@@ -4285,11 +4285,11 @@
           "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening around intentionally indirect application-defined trigger functions"
         ],
         "conclusion": "PASS",
-        "latest_product_head": "3368f05f1fac8a6ed1ab0fd14107e2de2460d810",
+        "latest_product_head": "62dc596afd758b0a892676c590afbe52c37bb5f4",
         "latest_exact_head_ci_run_id": 36299795960,
-        "latest_exact_head_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
-        "requalification_status": "PENDING_ZERO_FINDINGS_FULL_REAUDIT",
-        "latest_exact_head": "1a213edf688881a3faa14dcef32dec2e4a5e590c"
+        "latest_exact_head_ci": "PENDING",
+        "requalification_status": "BLOCKED_BY_AUDIT_C1_B7_GDRIVE_TOPOLOGY_WATERMARK_APPLICATION_AUTHORITY",
+        "latest_exact_head": "d8a58c05cc62889a1de3dc8d5c8abd7cb9ab46df"
       },
       "c2": {
         "status": "LOCKED_BY_AUDIT_C1_B3",
@@ -4322,33 +4322,21 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "675106147971deb02587b0cf4eb948f298b249c8",
-      "dimension": "CORE_IDENTITY_DURABLE_IMMUTABILITY",
-      "finding_id": "AUDIT_C1_B6_CORE_IDENTITY_ROWS_MUTABLE",
+      "head": "d8a58c05cc62889a1de3dc8d5c8abd7cb9ab46df",
+      "dimension": "GDRIVE_TOPOLOGY_DURABLE_MUTATION_AUTHORITY",
+      "finding_id": "AUDIT_C1_B7_GDRIVE_TOPOLOGY_WATERMARK_APPLICATION_AUTHORITY",
       "severity": "BLOCKER",
-      "issue": "Core durable identity rows remain SQLite-mutable: artifacts and revisions have no UPDATE/DELETE guards, and provider_artifact_bindings has no UPDATE/DELETE guards. A committed Artifact identity, Revision content evidence/sequence, or accepted local provider binding can therefore be rewritten after acceptance.",
-      "required_correction": "Append schema v33 without rewriting earlier migrations. Seal artifacts, revisions, and provider_artifact_bindings against UPDATE/DELETE. Add direct-SQL regressions proving immutable Artifact IDs, Revision evidence/history, and local provider bindings.",
+      "issue": "gdrive_topology_watermarks is the mutation gate for the durable Google topology projection, but DELETE and UPDATE are not protected by application authority. Raw SQL can remove the authoritative watermark, thereby unlocking topology-node mutation and leaving the generation without current topology authority; normal publish then expects the prior watermark and can fail. UPDATE is likewise a direct authority-changing channel outside the controlled publish path.",
+      "required_correction": "Append schema v34 without rewriting prior migrations. Add a narrow connection-local Google topology mutation capability keyed to generation and existing watermark sequence. Require it for watermark DELETE and UPDATE; production Google publish acquires it only around removal of the exact prior watermark. Migration must fail closed if any Google generation lacks exactly the current watermark. Update intentional rebuild tests to use the capability and add direct-SQL regressions.",
       "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
     "open_findings": [
       {
-        "id": "AUDIT_C1_B4_ORPHAN_REMOTE_IDENTITY_PROVENANCE_MIGRATION",
+        "id": "AUDIT_C1_B7_GDRIVE_TOPOLOGY_WATERMARK_APPLICATION_AUTHORITY",
         "severity": "BLOCKER",
         "status": "OPEN",
-        "affected_head": "45a2ff7ce29aee5ab9950ac84581816bc944b347"
-      },
-      {
-        "id": "AUDIT_C1_B5_DUPLICATE_REMOTE_NEW_PER_LIFETIME",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "32138a8bc00414e0453ee7d8bd05ba2c77184d6b"
-      },
-      {
-        "id": "AUDIT_C1_B6_CORE_IDENTITY_ROWS_MUTABLE",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "675106147971deb02587b0cf4eb948f298b249c8"
+        "affected_head": "d8a58c05cc62889a1de3dc8d5c8abd7cb9ab46df"
       }
     ],
     "resolved_findings": [
@@ -4392,6 +4380,33 @@
         "severity": "LOW",
         "status": "RESOLVED_BY_METADATA_SYNC",
         "fix_parent_head": "3368f05f1fac8a6ed1ab0fd14107e2de2460d810"
+      },
+      {
+        "id": "AUDIT_C1_B4_ORPHAN_REMOTE_IDENTITY_PROVENANCE_MIGRATION",
+        "severity": "BLOCKER",
+        "status": "FIXED_PENDING_ZERO_FINDINGS_REQUALIFICATION_AUDIT",
+        "finding_head": "45a2ff7ce29aee5ab9950ac84581816bc944b347",
+        "fix_head": "32138a8bc00414e0453ee7d8bd05ba2c77184d6b",
+        "schema_version": 31,
+        "resolution": "Schema v31 validates reverse RemoteHistory provenance: every accepted RemoteHistory continuity/admission decision has an exact identity mutation receipt, and every lifetime Artifact binding is backed by the original NEW admission/receipt with the same authority, segment, Artifact and accepted time."
+      },
+      {
+        "id": "AUDIT_C1_B5_DUPLICATE_REMOTE_NEW_PER_LIFETIME",
+        "severity": "BLOCKER",
+        "status": "FIXED_PENDING_ZERO_FINDINGS_REQUALIFICATION_AUDIT",
+        "finding_head": "32138a8bc00414e0453ee7d8bd05ba2c77184d6b",
+        "fix_head": "675106147971deb02587b0cf4eb948f298b249c8",
+        "schema_version": 32,
+        "resolution": "Schema v32 adds a durable UNIQUE invariant on non-null accepted_artifact_admissions.lifetime_segment_id, allowing at most one original RemoteHistory NEW acceptance per provider lifetime."
+      },
+      {
+        "id": "AUDIT_C1_B6_CORE_IDENTITY_ROWS_MUTABLE",
+        "severity": "BLOCKER",
+        "status": "FIXED_PENDING_ZERO_FINDINGS_REQUALIFICATION_AUDIT",
+        "finding_head": "675106147971deb02587b0cf4eb948f298b249c8",
+        "fix_head": "62dc596afd758b0a892676c590afbe52c37bb5f4",
+        "schema_version": 33,
+        "resolution": "Schema v33 seals artifacts, revisions, and provider_artifact_bindings against UPDATE/DELETE; direct-SQL migration regressions cover immutable Artifact identity, Revision evidence/history, and local provider bindings."
       }
     ],
     "last_resolution_checkpoint": {
