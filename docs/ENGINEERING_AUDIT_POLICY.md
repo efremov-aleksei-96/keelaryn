@@ -85,20 +85,30 @@ Workflow:
 
 ```text
 reconcile authoritative HEAD / CI / runtime
-→ run the COMPLETE read-only audit from the first required dimension
-→ record every defensible finding and CONTINUE discovery across all remaining dimensions
+→ run ONE COMPLETE read-only audit from the first required dimension
+→ record every defensible finding and CONTINUE through all remaining dimensions
 → nearest-analog / reuse audit
-→ finish the collection pass with the full finding set
-→ remediate the collected findings in coherent safe slices
-→ exact-head CI / qualification for changed product heads
-→ restart the COMPLETE audit from the first dimension
-→ repeat audit → remediation → audit while any CRITICAL/BLOCKER finding remains open
-→ when a complete post-remediation pass records ZERO open CRITICAL/BLOCKER findings:
-     durably record the gate result
-     → dependent development may resume
+→ freeze the collected finding set for this cycle
+→ remediate the ENTIRE collected CRITICAL/BLOCKER set in coherent safe slices
+     for each product slice:
+       → targeted/adversarial regression
+       → exact-head CI / qualification
+       → continue to the next remediation slice
+     DO NOT restart the full audit between individual remediation slices
+     if a new CRITICAL/BLOCKER is exposed during remediation:
+       → record it
+       → add it to the current remediation set
+       → continue remediation
+→ when the current CRITICAL/BLOCKER remediation set is fully resolved and qualified:
+     run ONE COMPLETE audit again from the first dimension
+→ open CRITICAL/BLOCKER findings?
+   ├─ YES → freeze the new complete finding set → remediate it fully → one new full audit
+   └─ NO  → durably record critical gate CLEAR → dependent development may resume
 ```
 
-A partial re-check is never sufficient after remediation. A later clean check of only an affected subsystem does not restore qualification. HIGH/MEDIUM/LOW findings remain durable: resolve them or explicitly carry them with rationale and scheduling; they do not silently disappear merely because the critical gate is zero.
+The process does **not** require the audit to stop finding every HIGH/MEDIUM/LOW issue before development can ever continue. Those findings remain durable and must be resolved or explicitly carried with rationale and a target stage/deadline. The critical development gate is cleared only by a complete post-remediation audit with zero open CRITICAL/BLOCKER findings.
+
+A targeted subsystem re-check or exact-head CI is sufficient to qualify an individual remediation slice inside the current remediation set; it is **not** a substitute for the one complete post-remediation audit that clears the stage gate.
 
 ## 6. Qualification meaning
 
@@ -115,18 +125,27 @@ public/runtime trust boundary: NOT YET QUALIFIED
 
 This distinction is preferred to pretending an earlier green slice proved behavior it did not test.
 
-## 7. Current audit clock
+## 7. Current development-state authority
 
-P0-30C1's earlier v27 qualification remains historical evidence. The current product boundary is hardened through **schema v34** at `77b8d463db6a0cc13cba8f8ce1611aa863911c9b`.
+This reusable policy MUST NOT duplicate volatile branch HEADs, schema revisions, open findings, CI run IDs, or the currently permitted remediation slice.
 
-Exact-head CI run `36302664547`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
+The sole live development clock is:
 
-Audit fixes through v34 are product-fixed but remain pending the required zero-findings full requalification pass. In particular: v31 validates reverse RemoteHistory provenance, v32 enforces one RemoteHistory NEW per provider lifetime, v33 seals core identity rows against UPDATE/DELETE, and v34 protects Google topology watermark mutation behind a narrow application capability.
+```text
+DEVELOPMENT_STATE.json
+```
 
-The restarted full audit found `AUDIT_C1_B8_CORE_IDENTITY_INSERT_APPLICATION_AUTHORITY`: future Artifact, Revision, and local provider-binding creation is not yet protected by equivalent SQLite application authority. Direct SQL can create a Revision outside validated evidence/current-sequence semantics and can create a local provider binding outside NEW acceptance.
+Timestamped retrospectives, qualification records, CI evidence and historical audit documents remain valid provenance for the exact HEADs they qualified, but they never override the current `DEVELOPMENT_STATE.json`.
 
-B8 is **OPEN**. P0-30C2 remains **LOCKED**. The only permitted substantive product slice is schema v35 core identity insert authority, followed by exact-head CI and a complete audit restart from the first dimension.
+After chat loss, timeout, connector interruption, or a new engineering session:
 
+1. reconcile the remote branch and exact product/control HEADs;
+2. read `DEVELOPMENT_STATE.json`;
+3. reconcile relevant CI/VPS/provider evidence;
+4. resume from the first incomplete work-ledger item;
+5. never infer the current permitted product slice from an older PASS/QUALIFIED document or from this reusable policy file.
+
+Normative process documents define stable rules. Volatile current development state belongs only in the durable development-state/checkpoint authority.
 
 ## 8. Parallel audit/research during execution
 
@@ -151,25 +170,28 @@ Requirements:
 
 ## 8A. Full-collection critical-gate loop
 
-The project audits for breadth before remediation. Discovery does not stop at the first defect.
+The project audits for breadth before remediation. Discovery does not stop at the first defect, and remediation does not trigger a new full audit after every individual fix.
 
 A stage or boundary is not closable merely because the latest defect was fixed, its targeted regression is green, exact-head CI is green, or the previously failing subsystem now passes.
 
-The gate requires a fresh complete audit pass after remediation.
+The gate uses **batch discovery + complete critical remediation + one full re-audit**.
 
 ```text
 FULL AUDIT COLLECTION FROM SCRATCH
 ↓
 record ALL defensible findings through every required dimension
 ↓
-remediate collected findings
+freeze the cycle's finding set
 ↓
-exact-head qualification
+remediate ALL CRITICAL/BLOCKER findings in coherent safe slices
 ↓
-FULL AUDIT COLLECTION FROM SCRATCH
+targeted regressions + exact-head qualification for each changed product head
+↓
+when the current CRITICAL/BLOCKER set is fully resolved:
+    FULL AUDIT COLLECTION FROM SCRATCH
 ↓
 open CRITICAL/BLOCKER findings?
-├─ YES → remediation → repeat full audit
+├─ YES → freeze the new full set → remediate all critical findings → one new full audit
 └─ NO  → record critical gate CLEAR → dependent development may resume
 ```
 
@@ -177,13 +199,15 @@ Rules:
 
 1. Newly discovered findings are recorded durably and discovery continues through the remaining audit dimensions unless continuing would risk data loss or invalidate evidence.
 2. Remediation begins only after the current full collection pass is complete.
-3. Any remediation that changes product behavior requires exact-head qualification before the next full audit pass.
-4. Test-only, metadata-only, documentation-only, and audit-tool corrections do not by themselves qualify product behavior.
-5. Audit-tool/harness failure without a product mutation or product finding is recorded as an interrupted audit; resume or restart the collection pass from authoritative state as evidence permits.
-6. No dependent substantive stage may begin while any CRITICAL/BLOCKER finding remains open.
-7. The development gate clears only after a complete post-remediation audit pass reaches the end of all required dimensions with zero open CRITICAL/BLOCKER findings.
-8. HIGH/MEDIUM/LOW findings remain tracked and must be resolved or explicitly carried with rationale; zero critical findings is not permission to erase or ignore them.
-9. The gate result must be recorded durably before the next substantive stage is unlocked.
+3. During remediation, **do not run a complete audit after each individual fix**. Each product fix receives its targeted/adversarial regressions and exact-head qualification, then remediation continues with the next item in the current critical set.
+4. If targeted testing or implementation work exposes another CRITICAL/BLOCKER during remediation, record it and add it to the current remediation set. Do not interrupt the remediation set with a full audit.
+5. Run the next complete audit only after the current CRITICAL/BLOCKER remediation set is fully resolved and qualified.
+6. Test-only, metadata-only, documentation-only, and audit-tool corrections do not by themselves qualify product behavior.
+7. Audit-tool/harness failure without a product mutation or product finding is recorded as an interrupted audit; resume from authoritative durable state and the work ledger.
+8. No dependent substantive stage may begin while any CRITICAL/BLOCKER finding remains open or before the required post-remediation full audit has cleared the critical gate.
+9. The development gate clears only after a complete post-remediation audit reaches the end of all required dimensions with zero open CRITICAL/BLOCKER findings.
+10. HIGH/MEDIUM/LOW findings remain tracked and must be resolved or explicitly carried with rationale and a target stage/deadline. They do not silently disappear, but they do not by themselves keep the critical gate closed.
+11. The gate result must be recorded durably before the next substantive stage is unlocked.
 
 ## 8B. Interruption-safe durable work ledger
 

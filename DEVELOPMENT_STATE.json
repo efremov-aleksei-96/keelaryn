@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 177,
+  "revision": 178,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -145,11 +145,11 @@
   ],
   "next_objective": {
     "id": "REMEDIATE_R04_GENERIC_SCAN_OBSERVATION_APPLICATION_AUTHORITY",
-    "description": "Fix B15 by adding narrow connection-local application authority for scan creation, unresolved observation evidence writes (provider occurrence, Observation, Locator) and scan terminal transitions. Preserve stronger RemoteHistory completion guards and v39 bootstrap provenance. Qualify the exact product head, then continue remediation of the remaining collected blocker set; P0-30C2 stays locked.",
+    "description": "Continue the current collected critical remediation set with R04/B15. Each product slice receives targeted/adversarial regressions and exact-head validate/Ubuntu/Windows CI, then remediation continues directly to the next BLOCKER/CRITICAL item. Do NOT restart the full audit between individual fixes. After the entire current critical remediation set is resolved and qualified, run one complete audit from A00 through A13. P0-30C2 remains locked until that post-remediation audit records zero open BLOCKER/CRITICAL findings.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-    "audit_gate": "REMEDIATE_COLLECTED_BLOCKERS_THEN_FULL_AUDIT_FROM_SCRATCH"
+    "audit_gate": "COMPLETE_CURRENT_CRITICAL_REMEDIATION_SET_THEN_ONE_FULL_AUDIT_ZERO_CRITICAL_REQUIRED"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4303,11 +4303,11 @@
     "substantive_slice_counter": 0,
     "current_stage": "FULL_AUDIT_REMEDIATION_R04_GENERIC_SCAN_OBSERVATION_APPLICATION_AUTHORITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
-    "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
+    "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
     "clean_pass_definition": "ONE_COMPLETE_POST_REMEDIATION_AUDIT_PASS_ACROSS_ALL_REQUIRED_DIMENSIONS_WITH_ZERO_OPEN_BLOCKER_OR_CRITICAL_FINDINGS",
-    "on_any_new_finding": "RECORD_FINDING_AND_CONTINUE_CURRENT_FULL_AUDIT_COLLECTION_PASS_UNLESS_CONTINUING_WOULD_CAUSE_DATA_LOSS_OR_INVALIDATE_EVIDENCE",
-    "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; COMPLETE_OR_RESTART_FULL_COLLECTION_PASS_AS_NEEDED_THEN_REMEDIATE_COLLECTED_FINDINGS",
+    "on_any_new_finding": "DURING_COLLECTION_RECORD_AND_CONTINUE; DURING_REMEDIATION RECORD_AND_ADD_ANY_NEW_BLOCKER_OR_CRITICAL_TO_THE_CURRENT_REMEDIATION_SET_WITHOUT_STARTING_A_FULL_REAUDIT",
+    "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": true,
     "blocked_next_stage": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
     "unlock_condition": "COMPLETE_POST_REMEDIATION_FULL_AUDIT_PASS_WITH_ZERO_OPEN_BLOCKER_OR_CRITICAL_FINDINGS",
@@ -4424,15 +4424,6 @@
         "issue": "Keelaryn contains targeted consistency verifiers such as VerifyRemoteHistoryLifetimeSegments and VerifyGoogleDriveTopologyProjection, but no production path invokes them and there is no aggregate Doctor/SelfTest/integrity command. SQLite integrity/foreign-key checks and cross-subsystem durable-authority verification therefore cannot be run as one supported diagnostic/recovery gate.",
         "required_correction": "Before operator/runtime qualification, implement a read-only Doctor/SelfTest surface that runs SQLite integrity/foreign-key checks plus registered subsystem verifiers, reports exact failing authority without mutating it, and can be used by update/recovery qualification. Keep metadata-loss reconstruction as a separate later capability.",
         "gate_scope": "OPERABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
-      },
-      {
-        "id": "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK",
-        "severity": "HIGH",
-        "status": "OPEN",
-        "affected_head": "bdac0b2e192cdfadc34b1a4f17c15107ce88f744",
-        "issue": "docs/ENGINEERING_AUDIT_POLICY.md contains a normative section titled 'Current audit clock' that still states schema v34 at 77b8d... is current, B8 is OPEN, and the only permitted product slice is v35. Current DEVELOPMENT_STATE is schema v38 with B12-B20 findings and a full-collection-before-remediation loop. A new autonomous engineering chat can therefore receive contradictory current instructions from two durable authorities and resume already-completed work.",
-        "required_correction": "Remove mutable current-head/finding data from the reusable audit policy or replace it with a pointer to DEVELOPMENT_STATE.json. Preserve old audit clocks only in timestamped retrospectives/checkpoints. Add a policy invariant that normative process docs do not duplicate volatile current development state.",
-        "gate_scope": "D0_AUTONOMY_GOVERNANCE_NOT_CURRENT_P0_C2_PRODUCT_CRITICAL_GATE"
       }
     ],
     "resolved_findings": [
@@ -4590,6 +4581,16 @@
         "schema_version": 39,
         "qualification_ci": 36320535465,
         "resolution": "Schema v39 adds an immutable bootstrap_scan_authorities receipt created atomically only by StartBootstrapScan after the no-prior-observation-history proof. Receipt creation requires exact connection-local application authority bound to scan/proof/time; normal scans and raw SQL cannot obtain it. AdoptObservationInScan requires the exact receipt, and v38→v39 migration creates no receipt for historical scans."
+      },
+      {
+        "id": "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK",
+        "severity": "HIGH",
+        "status": "RESOLVED",
+        "affected_head": "bdac0b2e192cdfadc34b1a4f17c15107ce88f744",
+        "issue": "docs/ENGINEERING_AUDIT_POLICY.md contains a normative section titled 'Current audit clock' that still states schema v34 at 77b8d... is current, B8 is OPEN, and the only permitted product slice is v35. Current DEVELOPMENT_STATE is schema v38 with B12-B20 findings and a full-collection-before-remediation loop. A new autonomous engineering chat can therefore receive contradictory current instructions from two durable authorities and resume already-completed work.",
+        "required_correction": "Remove mutable current-head/finding data from the reusable audit policy or replace it with a pointer to DEVELOPMENT_STATE.json. Preserve old audit clocks only in timestamped retrospectives/checkpoints. Add a policy invariant that normative process docs do not duplicate volatile current development state.",
+        "gate_scope": "D0_AUTONOMY_GOVERNANCE_NOT_CURRENT_P0_C2_PRODUCT_CRITICAL_GATE",
+        "resolution": "Removed the volatile Current audit clock from the reusable policy and replaced it with a normative pointer to DEVELOPMENT_STATE.json as the sole live development clock. The policy now also explicitly forbids full re-audit between individual critical remediation slices."
       }
     ],
     "last_resolution_checkpoint": {
@@ -4606,9 +4607,13 @@
         "CRITICAL"
       ],
       "remediation_timing": "AFTER_COMPLETE_COLLECTION_PASS",
-      "cycle": "FULL_AUDIT_COLLECTION -> REMEDIATION -> FULL_AUDIT_COLLECTION",
-      "continue_while": "ANY_OPEN_BLOCKER_OR_CRITICAL_FINDING",
-      "lower_severity_policy": "PRESERVE_AND_REMEDIATE_OR_EXPLICITLY_CARRY_WITH_RATIONALE"
+      "cycle": "FULL_AUDIT_COLLECTION -> COMPLETE_CRITICAL_REMEDIATION_SET -> FULL_AUDIT_COLLECTION",
+      "continue_while": "POST_REMEDIATION_FULL_AUDIT_FINDS_ANY_OPEN_BLOCKER_OR_CRITICAL",
+      "no_full_reaudit_between_remediation_slices": true,
+      "remediation_slice_rule": "EACH_PRODUCT_FIX_GETS_TARGETED_REGRESSIONS_AND_EXACT_HEAD_CI; DO_NOT_RESTART_THE_FULL_AUDIT_UNTIL_THE_CURRENT_COLLECTED_BLOCKER_CRITICAL_SET_IS_CLOSED",
+      "newly_discovered_during_remediation_rule": "RECORD_AND_ADD_NEW_BLOCKER_OR_CRITICAL_TO_CURRENT_REMEDIATION_SET; DO_NOT_INTERRUPT_WITH_A_FULL_REAUDIT",
+      "exit_condition": "ONE_COMPLETE_POST_REMEDIATION_FULL_AUDIT_WITH_ZERO_OPEN_BLOCKER_OR_CRITICAL",
+      "lower_severity_policy": "PRESERVE_AND_REMEDIATE_OR_EXPLICITLY_CARRY_WITH_RATIONALE_AND_TARGET_STAGE_OR_DEADLINE; LOWER_SEVERITY_FINDINGS_DO_NOT_BY_THEMSELVES_KEEP_THE_CRITICAL_GATE_CLOSED"
     },
     "collection_pass": {
       "started_from_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
@@ -4766,7 +4771,7 @@
     "remediation": {
       "status": "IN_PROGRESS",
       "source_audit_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-      "policy": "REMEDIATE_COLLECTED_FINDINGS_IN_COHERENT_SAFE_SLICES_WITH_EXACT_HEAD_CI_FOR_EACH_PRODUCT_HEAD_THEN_RESTART_FULL_AUDIT",
+      "policy": "REMEDIATE_THE_ENTIRE_COLLECTED_BLOCKER_CRITICAL_SET_IN_COHERENT_SAFE_SLICES; TARGETED_REGRESSION_PLUS_EXACT_HEAD_CI_FOR_EACH_PRODUCT_HEAD; DO_NOT_RUN_FULL_REAUDIT_BETWEEN_SLICES; AFTER_THE_CURRENT_CRITICAL_SET_IS_CLOSED RUN_ONE_COMPLETE_FULL_AUDIT_FROM_SCRATCH",
       "work_ledger": [
         {
           "id": "R01_SQLITE_NEWER_SCHEMA_FAIL_CLOSED",
@@ -4839,10 +4844,12 @@
         },
         {
           "id": "R09_D0_POLICY_CURRENT_CLOCK",
-          "status": "TODO",
+          "status": "DONE",
           "findings": [
             "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK"
-          ]
+          ],
+          "qualification": "documentation/control-state governance fix; no product-byte qualification required",
+          "note": "Reusable audit policy no longer contains volatile current HEAD/schema/finding data; DEVELOPMENT_STATE.json is the sole live development clock."
         },
         {
           "id": "R10_RELEASE_SECURITY_OPERABILITY_PORTABILITY_HARDENING",
@@ -4884,7 +4891,11 @@
         ]
       },
       "current_product_head": "02f5addc5b1e4c7e0e4b6a485a3ade25f1920e71",
-      "critical_gate_open": 6
+      "critical_gate_open": 6,
+      "full_reaudit_between_slices": false,
+      "next_full_audit_when": "ALL_FINDINGS_IN_CURRENT_BLOCKER_CRITICAL_REMEDIATION_SET_ARE_RESOLVED_AND_QUALIFIED",
+      "new_critical_during_remediation": "ADD_TO_CURRENT_REMEDIATION_SET_AND_CONTINUE_REMEDIATION",
+      "dependent_development_unlock": "ONLY_AFTER_A_COMPLETE_POST_REMEDIATION_FULL_AUDIT_RECORDS_ZERO_OPEN_BLOCKER_OR_CRITICAL"
     }
   }
 }
