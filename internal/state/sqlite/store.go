@@ -2671,6 +2671,44 @@ CREATE UNIQUE INDEX accepted_admission_remote_lifetime_unique
 	WHERE lifetime_segment_id IS NOT NULL;
 `,
 
+		`
+CREATE TRIGGER artifacts_no_update
+BEFORE UPDATE ON artifacts
+BEGIN
+	SELECT RAISE(ABORT, 'Artifacts are immutable');
+END;
+
+CREATE TRIGGER artifacts_no_delete
+BEFORE DELETE ON artifacts
+BEGIN
+	SELECT RAISE(ABORT, 'Artifacts are immutable');
+END;
+
+CREATE TRIGGER revisions_no_update
+BEFORE UPDATE ON revisions
+BEGIN
+	SELECT RAISE(ABORT, 'Revisions are immutable');
+END;
+
+CREATE TRIGGER revisions_no_delete
+BEFORE DELETE ON revisions
+BEGIN
+	SELECT RAISE(ABORT, 'Revisions are immutable');
+END;
+
+CREATE TRIGGER provider_artifact_bindings_no_update
+BEFORE UPDATE ON provider_artifact_bindings
+BEGIN
+	SELECT RAISE(ABORT, 'provider Artifact bindings are immutable');
+END;
+
+CREATE TRIGGER provider_artifact_bindings_no_delete
+BEFORE DELETE ON provider_artifact_bindings
+BEGIN
+	SELECT RAISE(ABORT, 'provider Artifact bindings are immutable');
+END;
+`,
+
 	},
 }
 
