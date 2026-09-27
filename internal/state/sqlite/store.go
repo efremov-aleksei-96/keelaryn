@@ -2512,6 +2512,68 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v30_remote_identity_existing_state_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v30_remote_identity_existing_state_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM identity_mutation_requests m
+		JOIN identity_authority_sets a
+		  ON a.authority_set_id=m.authority_set_id
+		JOIN observations o
+		  ON o.observation_id=m.observation_id
+		LEFT JOIN scan_sessions s
+		  ON s.scan_id=o.scan_id
+		WHERE a.policy_id='remote-history:lifetime-segment:v1'
+		  AND (
+			o.scan_id IS NULL
+			OR s.scan_id IS NULL
+			OR keelaryn_is_canonical_utc_rfc3339nano(m.accepted_at)<>1
+			OR NOT (
+				m.accepted_at=s.started_at
+				OR keelaryn_utc_rfc3339nano_after(m.accepted_at,s.started_at)=1
+			)
+			OR NOT (
+				m.accepted_at=a.created_at
+				OR keelaryn_utc_rfc3339nano_after(m.accepted_at,a.created_at)=1
+			)
+			OR (
+				m.decision_kind='CONTINUITY'
+				AND NOT EXISTS (
+					SELECT 1
+					FROM accepted_continuity_decisions d
+					WHERE d.decision_id=m.decision_id
+					  AND d.observation_id=m.observation_id
+					  AND d.artifact_id=m.artifact_id
+					  AND d.policy_id='remote-history:lifetime-segment:v1'
+					  AND d.decided_at=m.accepted_at
+				)
+			)
+			OR (
+				m.decision_kind='ADMISSION'
+				AND NOT EXISTS (
+					SELECT 1
+					FROM accepted_artifact_admissions d
+					WHERE d.request_id=m.decision_id
+					  AND d.observation_id=m.observation_id
+					  AND d.artifact_id=m.artifact_id
+					  AND d.policy_id='remote-history:lifetime-segment:v1'
+					  AND d.decided_at=m.accepted_at
+				)
+			)
+		  )
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v30_remote_identity_existing_state_validation;
+`,
+
 	},
 }
 
