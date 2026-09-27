@@ -88,6 +88,17 @@ func (s *Store) BindGoogleDriveManagedRoot(
 	if err := gdrive.ValidateManagedRootBinding(binding); err != nil {
 		return gdrive.ManagedRootBinding{}, err
 	}
+	releaseTopologyWrite, err := s.authorizeGoogleDriveTopologyWriteConn(conn, googleDriveTopologyWriteAuthorization{
+		phase:               googleDriveTopologyWriteManagedRoot,
+		generationID:        binding.GenerationID,
+		sequence:            binding.BoundSequence,
+		managedRootObjectID: binding.ManagedRootObjectID,
+		createdAt:           binding.CreatedAt.Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return gdrive.ManagedRootBinding{}, err
+	}
+	defer releaseTopologyWrite()
 	if err := sqlitex.Execute(conn,
 		"INSERT INTO gdrive_managed_root_bindings (generation_id, managed_root_object_id, bound_sequence, created_at) VALUES (?1,?2,?3,?4)",
 		&sqlitex.ExecOptions{Args: []any{

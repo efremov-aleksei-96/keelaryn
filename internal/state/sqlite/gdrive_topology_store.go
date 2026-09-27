@@ -36,6 +36,16 @@ func (s *Store) StartGoogleDriveRemoteHistoryGeneration(
 		bundle.History,
 		committedAt,
 		func(conn *sqlite.Conn, generation remotehistory.HistoryGeneration, objects []remotehistory.RemoteObjectState) error {
+			releaseTopologyWrite, err := s.authorizeGoogleDriveTopologyWriteConn(conn, googleDriveTopologyWriteAuthorization{
+				phase:        googleDriveTopologyWriteBootstrap,
+				generationID: generation.ID,
+				sequence:     1,
+				entries:      googleBootstrapTopologyAuthorizationEntries(topology),
+			})
+			if err != nil {
+				return err
+			}
+			defer releaseTopologyWrite()
 			for _, object := range objects {
 				state, ok := topology[object.ObjectID]
 				if !ok {
@@ -90,6 +100,16 @@ func (s *Store) PublishGoogleDriveRemoteHistoryCycle(
 			if len(changes) != len(topology) {
 				return ErrGoogleDriveTopologyBundle
 			}
+			releaseTopologyWrite, err := s.authorizeGoogleDriveTopologyWriteConn(conn, googleDriveTopologyWriteAuthorization{
+				phase:        googleDriveTopologyWriteIncremental,
+				generationID: generation.ID,
+				sequence:     sequence,
+				entries:      googleIncrementalTopologyAuthorizationEntries(changes, topology),
+			})
+			if err != nil {
+				return err
+			}
+			defer releaseTopologyWrite()
 			deleteErr := func() error {
 				release, err := s.authorizeGoogleTopologyWatermarkDeleteConn(conn, generation.ID, sequence-1)
 				if err != nil {

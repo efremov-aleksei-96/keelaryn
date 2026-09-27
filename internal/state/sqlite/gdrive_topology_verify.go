@@ -27,7 +27,17 @@ func (s *Store) VerifyGoogleDriveTopologyProjection(
 		return fmt.Errorf("get state connection: %w", err)
 	}
 	defer s.pool.Put(conn)
+	return verifyGoogleDriveTopologyProjectionConn(conn, generationID, expectedSequence)
+}
 
+func verifyGoogleDriveTopologyProjectionConn(
+	conn *sqlite.Conn,
+	generationID remotehistory.HistoryGenerationID,
+	expectedSequence remotehistory.HistoryPublicationSequence,
+) error {
+	if generationID == "" || expectedSequence == 0 {
+		return fmt.Errorf("%w: invalid expected generation/sequence", ErrGoogleDriveTopologyVerification)
+	}
 	generation, err := remoteHistoryGenerationConn(conn, generationID)
 	if err != nil {
 		return err

@@ -3270,6 +3270,95 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER gdrive_topology_evidence_insert_application_guard_v42
+BEFORE INSERT ON gdrive_topology_evidence
+WHEN keelaryn_gdrive_topology_write_authorized(
+	'EVIDENCE_' || NEW.evidence_kind,
+	NEW.generation_id,
+	CAST(NEW.sequence AS TEXT),
+	CAST(NEW.ordinal AS TEXT),
+	NEW.object_id,
+	NEW.presence,
+	NEW.parent_state,
+	COALESCE(NEW.parent_id, ''),
+	NEW.drive_id
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology evidence creation requires validated application authority');
+END;
+
+CREATE TRIGGER gdrive_topology_nodes_insert_application_guard_v42
+BEFORE INSERT ON gdrive_topology_nodes
+WHEN keelaryn_gdrive_topology_write_authorized(
+	'NODE_WRITE',
+	NEW.generation_id,
+	CAST(NEW.last_sequence AS TEXT),
+	CAST(NEW.last_ordinal AS TEXT),
+	NEW.object_id,
+	NEW.presence,
+	NEW.parent_state,
+	COALESCE(NEW.parent_id, ''),
+	NEW.drive_id
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology node creation requires validated application authority');
+END;
+
+CREATE TRIGGER gdrive_topology_nodes_update_application_guard_v42
+BEFORE UPDATE ON gdrive_topology_nodes
+WHEN keelaryn_gdrive_topology_write_authorized(
+	'NODE_WRITE',
+	NEW.generation_id,
+	CAST(NEW.last_sequence AS TEXT),
+	CAST(NEW.last_ordinal AS TEXT),
+	NEW.object_id,
+	NEW.presence,
+	NEW.parent_state,
+	COALESCE(NEW.parent_id, ''),
+	NEW.drive_id
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology node mutation requires validated application authority');
+END;
+
+CREATE TRIGGER gdrive_topology_watermarks_insert_application_guard_v42
+BEFORE INSERT ON gdrive_topology_watermarks
+WHEN keelaryn_gdrive_topology_write_authorized(
+	'WATERMARK_INSERT',
+	NEW.generation_id,
+	CAST(NEW.publication_sequence AS TEXT),
+	'0','','','','',''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology watermark creation requires validated application authority');
+END;
+
+CREATE TRIGGER gdrive_topology_watermarks_delete_application_guard_v42
+BEFORE DELETE ON gdrive_topology_watermarks
+WHEN keelaryn_gdrive_topology_write_authorized(
+	'WATERMARK_DELETE',
+	OLD.generation_id,
+	CAST(OLD.publication_sequence AS TEXT),
+	'0','','','','',''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive topology watermark deletion requires validated application authority');
+END;
+
+CREATE TRIGGER gdrive_managed_root_bindings_insert_application_guard_v42
+BEFORE INSERT ON gdrive_managed_root_bindings
+WHEN keelaryn_gdrive_managed_root_binding_insert_authorized(
+	NEW.generation_id,
+	NEW.managed_root_object_id,
+	CAST(NEW.bound_sequence AS TEXT),
+	NEW.created_at
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Google Drive managed-root binding creation requires validated application authority');
+END;
+`,
+
 	},
 }
 
@@ -3418,6 +3507,7 @@ type Store struct {
 	observationInsertAuthorizations                 sync.Map
 	locatorInsertAuthorizations                     sync.Map
 	remoteHistoryWriteAuthorizations                sync.Map
+	gdriveTopologyWriteAuthorizations               sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -3854,6 +3944,9 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 	if err := s.registerRemoteHistoryWriteAuthorizationConn(conn); err != nil {
 		return err
 	}
+	if err := s.registerGoogleDriveTopologyWriteAuthorizationConn(conn); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -4227,6 +4320,11 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
 	}
 	if err := verifyRemoteHistoryHistoricalAuthorityConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
+	}
+	if err := verifyGoogleDriveHistoricalAuthorityConn(conn); err != nil {
 		pool.Put(conn)
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
