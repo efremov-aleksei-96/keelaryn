@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 140,
+  "revision": 141,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -145,7 +145,7 @@
   ],
   "next_objective": {
     "id": "FULL_AUDIT_UNTIL_CLEAN_BEFORE_P0_30C2",
-    "description": "Run the complete zero-findings audit again from the first dimension on the latest authoritative HEAD after the v28 causal-time fix and durable-state synchronization. C2 remains locked. Any newly discovered BLOCKER/HIGH/MEDIUM/LOW product finding invalidates closure; fix one coherent slice, run exact-head CI, and restart the full audit. Only a complete pass with zero new findings may be durably recorded CLEAN and unlock P0-30C2.",
+    "description": "Restart the complete zero-findings audit from the first dimension on the latest authoritative schema-v30 HEAD after closing the null-scan RemoteHistory migration blocker and synchronizing durable state. C2 remains locked. Any newly discovered BLOCKER/HIGH/MEDIUM/LOW product finding invalidates closure; fix one coherent slice, run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the full audit from the first dimension. Only a complete pass with zero new findings may be durably recorded CLEAN and unlock P0-30C2.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -3726,7 +3726,7 @@
     ]
   },
   "p0_30": {
-    "status": "C1_REQUALIFICATION_BLOCKED_C2_LOCKED",
+    "status": "C1_REQUALIFICATION_AUDIT_IN_PROGRESS_C2_LOCKED",
     "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -3762,7 +3762,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 29,
+    "schema_version": 30,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4196,7 +4196,7 @@
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
         "qualification_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
-        "schema_version": 29,
+        "schema_version": 30,
         "implementation": {
           "shared_resolver": "corpus.ResolveIdentityAuthoritySet",
           "local_generic_scope": "UNCHANGED_AUTHORITY_SCOPE_EQUALS_SCAN_ROOT",
@@ -4285,7 +4285,7 @@
           "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening around intentionally indirect application-defined trigger functions"
         ],
         "conclusion": "PASS",
-        "latest_product_head": "137e20fee3ebdd91b745962b39959198873c461c",
+        "latest_product_head": "3368f05f1fac8a6ed1ab0fd14107e2de2460d810",
         "latest_exact_head_ci_run_id": 36299795960,
         "latest_exact_head_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
         "requalification_status": "PENDING_ZERO_FINDINGS_FULL_REAUDIT",
@@ -4322,23 +4322,16 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "4dfd08a30256b5a0d59b9f39882ef01702b6aa74",
-      "dimension": "SCHEMA_MIGRATION_FAIL_CLOSED_EXISTING_STATE",
-      "finding_id": "AUDIT_C1_B3_V29_NULL_SCAN_MIGRATION_BLIND_SPOT",
-      "severity": "BLOCKER",
-      "issue": "Schema v29 migration validation inner-joins scan_sessions through Observation.scan_id. Pre-v29 generic RemoteHistory accepted provenance could be forged on an Observation with scan_id=NULL, causing the invalid receipt to disappear from the validation query and survive upgrade even though v29 future-write guards reject the same state.",
-      "required_correction": "Append schema v30 without rewriting v29. Fail closed if any RemoteHistory identity mutation receipt lacks a real ScanSession or exact linked decision/causal provenance; add a v29-to-v30 migration regression seeded with a null-scan RemoteHistory receipt.",
+      "head": "3368f05f1fac8a6ed1ab0fd14107e2de2460d810",
+      "dimension": "DURABLE_DEVELOPMENT_STATE_SYNCHRONIZATION",
+      "finding_id": "AUDIT_D0_L2_STALE_V30_QUALIFICATION_STATE",
+      "severity": "LOW",
+      "issue": "Product/schema advanced to v30 and closed the null-scan RemoteHistory migration blocker, but DEVELOPMENT_STATE still declared schema v29 and kept AUDIT_C1_B3 open.",
+      "required_correction": "Synchronize durable development state to schema v30 and record AUDIT_C1_B3 plus the stale-state finding as resolved; then rerun exact-head CI and restart the full audit from the first dimension.",
       "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-      "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
+      "closure_effect": "FULL_AUDIT_INVALIDATED_METADATA_SYNC_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
-    "open_findings": [
-      {
-        "id": "AUDIT_C1_B3_V29_NULL_SCAN_MIGRATION_BLIND_SPOT",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "4dfd08a30256b5a0d59b9f39882ef01702b6aa74"
-      }
-    ],
+    "open_findings": [],
     "resolved_findings": [
       {
         "id": "AUDIT_C1_B1_IDENTITY_CAUSAL_TIME_AUTHORITY",
@@ -4365,6 +4358,21 @@
         "schema_version": 29,
         "ci_run_id": 36299795960,
         "resolution": "Every RemoteHistory SAME/NEW decision is causal to scan start and current authority creation before generic/source-bound branching; schema v29 adds generic RemoteHistory decision/receipt application authority and v28-to-v29 fail-closed migration validation. Local non-RemoteHistory semantics are unchanged."
+      },
+      {
+        "id": "AUDIT_C1_B3_V29_NULL_SCAN_MIGRATION_BLIND_SPOT",
+        "severity": "BLOCKER",
+        "status": "RESOLVED_PENDING_REQUALIFICATION_AUDIT",
+        "finding_head": "4dfd08a30256b5a0d59b9f39882ef01702b6aa74",
+        "fix_head": "3368f05f1fac8a6ed1ab0fd14107e2de2460d810",
+        "schema_version": 30,
+        "resolution": "Schema v30 fail-closes existing generic RemoteHistory mutation receipts with scan_id=NULL or missing exact linked decision/causal provenance; v29-to-v30 migration regression covers the previously missed null-scan state."
+      },
+      {
+        "id": "AUDIT_D0_L2_STALE_V30_QUALIFICATION_STATE",
+        "severity": "LOW",
+        "status": "RESOLVED_BY_METADATA_SYNC",
+        "fix_parent_head": "3368f05f1fac8a6ed1ab0fd14107e2de2460d810"
       }
     ],
     "last_resolution_checkpoint": {
