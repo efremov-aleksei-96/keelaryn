@@ -30,6 +30,11 @@ type remoteHistoryWriteAuthorization struct {
 	fingerprintSHA256 string
 }
 
+type remoteHistoryMembershipProjectionState struct {
+	locators []corpus.Locator
+	sequence remotehistory.HistoryPublicationSequence
+}
+
 func (s *Store) registerRemoteHistoryWriteAuthorizationConn(conn *sqlite.Conn) error {
 	auth := &remoteHistoryWriteAuthorization{}
 	if err := conn.CreateFunction(remoteHistoryWriteAuthorizationFunction, &sqlite.FunctionImpl{
@@ -141,11 +146,7 @@ func verifyRemoteHistoryGenerationHistoricalAuthorityConn(conn *sqlite.Conn, gen
 		return fmt.Errorf("%w: generation=%s has no publication", ErrRemoteHistoryHistoricalAuthorityInvalid, generationID)
 	}
 
-	type membershipState struct {
-		locators []corpus.Locator
-		sequence remotehistory.HistoryPublicationSequence
-	}
-	expectedMembership := make(map[corpus.ProviderObjectID]membershipState)
+	expectedMembership := make(map[corpus.ProviderObjectID]remoteHistoryMembershipProjectionState)
 	var previousCursor remotehistory.HistoryCursor
 
 	for i, publication := range publications {
@@ -187,7 +188,7 @@ func verifyRemoteHistoryGenerationHistoricalAuthorityConn(conn *sqlite.Conn, gen
 				return fmt.Errorf("%w: generation=%s publication=1 fingerprint mismatch", ErrRemoteHistoryHistoricalAuthorityInvalid, generationID)
 			}
 			for _, object := range canonical {
-				expectedMembership[object.ObjectID] = membershipState{locators: object.Locators, sequence: 1}
+				expectedMembership[object.ObjectID] = remoteHistoryMembershipProjectionState{locators: object.Locators, sequence: 1}
 			}
 
 		case remotehistory.HistoryPublicationIncremental:
@@ -220,7 +221,7 @@ func verifyRemoteHistoryGenerationHistoricalAuthorityConn(conn *sqlite.Conn, gen
 			for _, change := range canonical {
 				switch change.Kind {
 				case remotehistory.ChangeUpsert:
-					expectedMembership[change.ObjectID] = membershipState{locators: change.State.Locators, sequence: publication.Sequence}
+					expectedMembership[change.ObjectID] = remoteHistoryMembershipProjectionState{locators: change.State.Locators, sequence: publication.Sequence}
 				case remotehistory.ChangeRemoved:
 					delete(expectedMembership, change.ObjectID)
 				}
@@ -322,15 +323,9 @@ func remoteHistoryChangesConn(conn *sqlite.Conn, generationID remotehistory.Hist
 func verifyRemoteHistoryMembershipProjectionConn(
 	conn *sqlite.Conn,
 	generationID remotehistory.HistoryGenerationID,
-	expected map[corpus.ProviderObjectID]struct {
-		locators []corpus.Locator
-		sequence remotehistory.HistoryPublicationSequence
-	},
+	expected map[corpus.ProviderObjectID]remoteHistoryMembershipProjectionState,
 ) error {
-	actual := make(map[corpus.ProviderObjectID]struct {
-		locators []corpus.Locator
-		sequence remotehistory.HistoryPublicationSequence
-	})
+	actual := make(map[corpus.ProviderObjectID]remoteHistoryMembershipProjectionState)
 	err := sqlitex.Execute(conn,
 		"SELECT object_id,locators_json,last_sequence FROM remote_history_membership WHERE generation_id=?1",
 		&sqlitex.ExecOptions{Args: []any{string(generationID)}, ResultFunc: func(stmt *sqlite.Stmt) error {
@@ -338,24 +333,15 @@ func verifyRemoteHistoryMembershipProjectionConn(
 			if err := json.Unmarshal([]byte(stmt.ColumnText(1)), &locators); err != nil {
 				return err
 			}
-			actual[corpus.ProviderObjectID(stmt.ColumnText(0))] = struct {
-				locators []corpus.Locator
-				sequence remotehistory.HistoryPublicationSequence
-			}{locators: canonicalLocators(locators), sequence: remotehistory.HistoryPublicationSequence(stmt.ColumnInt64(2))}
+			actual[corpus.ProviderObjectID(stmt.ColumnText(0))] = remoteHistoryMembershipProjectionState{locators: canonicalLocators(locators), sequence: remotehistory.HistoryPublicationSequence(stmt.ColumnInt64(2))}
 			return nil
 		}})
 	if err != nil {
 		return fmt.Errorf("%w: generation=%s membership query: %v", ErrRemoteHistoryHistoricalAuthorityInvalid, generationID, err)
 	}
-	normalizedExpected := make(map[corpus.ProviderObjectID]struct {
-		locators []corpus.Locator
-		sequence remotehistory.HistoryPublicationSequence
-	}, len(expected))
+	normalizedExpected := make(map[corpus.ProviderObjectID]remoteHistoryMembershipProjectionState, len(expected))
 	for objectID, state := range expected {
-		normalizedExpected[objectID] = struct {
-			locators []corpus.Locator
-			sequence remotehistory.HistoryPublicationSequence
-		}{locators: canonicalLocators(state.locators), sequence: state.sequence}
+		normalizedExpected[objectID] = remoteHistoryMembershipProjectionState{locators: canonicalLocators(state.locators), sequence: state.sequence}
 	}
 	if !reflect.DeepEqual(actual, normalizedExpected) {
 		return fmt.Errorf("%w: generation=%s membership projection mismatch", ErrRemoteHistoryHistoricalAuthorityInvalid, generationID)
