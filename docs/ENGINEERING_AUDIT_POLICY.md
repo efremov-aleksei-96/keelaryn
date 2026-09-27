@@ -185,6 +185,22 @@ Rules:
 8. HIGH/MEDIUM/LOW findings remain tracked and must be resolved or explicitly carried with rationale; zero critical findings is not permission to erase or ignore them.
 9. The gate result must be recorded durably before the next substantive stage is unlocked.
 
+## 8B. Interruption-safe durable work ledger
+
+Long-running audits and multi-step engineering work MUST maintain a durable work ledger outside ChatGPT conversation memory.
+
+Rules:
+
+1. Pin an immutable `audited_product_head` for the active read-only audit. Metadata/documentation checkpoints may advance the control branch without changing the product snapshot under audit.
+2. Record the ordered work queue with explicit `DONE / IN_PROGRESS / TODO` states, plus any candidate findings that are not yet sufficiently proven to become formal findings.
+3. Update the ledger after each completed audit dimension or other meaningful multi-step boundary, and before an expected long external wait when practical.
+4. After chat loss, timeout, connector interruption, or a maintainer message reporting lost connection, first reconcile GitHub/VPS/CI and then continue from the first ledger item that is not `DONE`. Do not reconstruct the plan from conversation memory alone.
+5. Never blindly repeat a mutation after interruption. Reconcile durable external authority first and distinguish a committed operation from failed post-verification.
+6. Uncommitted scratch/prototypes are non-authoritative. They may be reused only after their base HEAD and contents are revalidated against current authority.
+7. If an actual product commit changes the audited product bytes, close or invalidate the current collection pass as appropriate and pin a new product HEAD before continuing.
+
+This ledger is D0 development infrastructure: it exists specifically so a new chat can recover not only the latest result, but also the exact remaining sequence of work.
+
 ## 9. Stage-completion audit gate
 
 Every substantive stage follows this default lifecycle:

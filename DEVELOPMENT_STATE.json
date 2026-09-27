@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 151,
+  "revision": 152,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "COMPLETE_FULL_AUDIT_COLLECTION_PASS_BEFORE_REMEDIATION",
-    "description": "Run the complete engineering audit across every required dimension and reuse review without stopping on the first finding. Accumulate the maximum defensible set of product findings, classify severity and affected authority, and keep P0-30C2 plus further product development locked. After the full collection pass completes, remediate the collected findings in coherent safe slices, qualify each changed head as required, then run another complete audit collection pass from the first dimension. Repeat audit -> remediation -> full audit cycles while any BLOCKER/CRITICAL finding remains open. Resume dependent product development only after a complete post-remediation audit pass records zero open BLOCKER/CRITICAL findings. Do not erase lower-severity findings; resolve or explicitly carry them with rationale.",
+    "id": "COMPLETE_FULL_AUDIT_COLLECTION_PASS_FROM_LEDGER",
+    "description": "Continue the pinned full read-only audit from work-ledger item A02 through A13. Record findings without remediation until the collection pass is complete. After interruption, reconcile GitHub/VPS/CI and resume from the first ledger item whose status is not DONE. Product audit target remains 578f58b688388591563d80f88f9f17cb0defd4a1 unless an actual product commit occurs.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A02_DURABLE_AUTHORITY_BOUNDARIES",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4490,7 +4490,90 @@
       "findings_at_start": [
         "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE"
       ],
-      "known_open_at_start": 1
+      "known_open_at_start": 1,
+      "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+      "control_head_at_ledger_creation": "8cf08539df5835e2bd999875c3c649aa12065dd2",
+      "ledger_version": 1,
+      "work_ledger": [
+        {
+          "id": "A00_RECONCILE_AUTHORITY",
+          "status": "DONE",
+          "evidence": "GitHub remote/head/state reconciled; product snapshot pinned."
+        },
+        {
+          "id": "A01_CANONICAL_INVARIANTS",
+          "status": "DONE",
+          "evidence": "Core identity invariants reviewed through current v38 boundary; B12 already open."
+        },
+        {
+          "id": "A02_DURABLE_AUTHORITY_BOUNDARIES",
+          "status": "IN_PROGRESS",
+          "evidence": "Exported mutating Store APIs and all production SQL INSERT/UPDATE/DELETE sites inventoried; current candidate: base RemoteHistory/generation/lifetime writes may lack connection-local application authority."
+        },
+        {
+          "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
+          "status": "TODO"
+        },
+        {
+          "id": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
+          "status": "TODO"
+        },
+        {
+          "id": "A05_SCHEMA_MIGRATION_ROLLBACK",
+          "status": "TODO"
+        },
+        {
+          "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
+          "status": "TODO"
+        },
+        {
+          "id": "A07_RUNTIME_REACHABILITY",
+          "status": "TODO"
+        },
+        {
+          "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
+          "status": "TODO"
+        },
+        {
+          "id": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
+          "status": "TODO"
+        },
+        {
+          "id": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
+          "status": "TODO"
+        },
+        {
+          "id": "A11_STALE_DOCS_STATE_CLAIMS",
+          "status": "TODO"
+        },
+        {
+          "id": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
+          "status": "TODO"
+        },
+        {
+          "id": "A13_COLLECTION_PASS_SYNTHESIS",
+          "status": "TODO"
+        }
+      ],
+      "candidate_findings": [
+        {
+          "id": "CANDIDATE_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
+          "status": "UNDER_CONFIRMATION",
+          "dimension": "DURABLE_AUTHORITY_BOUNDARIES",
+          "evidence": "Current authorization UDF inventory covers identity acceptance/core identity/identity authority/remote completion/GDrive watermark, but no equivalent connection-local application authorization is yet evident for base RemoteHistory generation/publication/membership or provider lifetime segment creation/transitions.",
+          "next_check": "Determine whether structural relational triggers alone permit a valid-looking but application-unvalidated raw-SQL RemoteHistory history/lifetime state; avoid splitting one root defect into duplicate findings."
+        }
+      ]
+    },
+    "interruption_recovery": {
+      "mode": "DURABLE_WORK_LEDGER_REQUIRED_FOR_LONG_RUNNING_AUDIT_AND_DEVELOPMENT",
+      "invariant": "AFTER_INTERRUPTION_CONTINUE_FROM_FIRST_UNCOMPLETED_LEDGER_ITEM_NOT_FROM_CHAT_MEMORY",
+      "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+      "control_head_may_advance_for_metadata_only_checkpoints": true,
+      "product_head_change_requires_new_reconcile": true,
+      "checkpoint_cadence": "AFTER_EACH_AUDIT_DIMENSION_OR_MEANINGFUL_MULTI_STEP_BOUNDARY_AND_BEFORE_ANY_EXPECTED_LONG_WAIT",
+      "timeout_rule": "NEVER_BLIND_RETRY_RECONCILE_DURABLE_EXTERNAL_STATE_FIRST",
+      "partial_work_rule": "UNCOMMITTED_SCRATCH_IS_NONAUTHORITATIVE_AND_MUST_BE_REVALIDATED_BEFORE_REUSE"
     }
   }
 }
