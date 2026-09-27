@@ -3,6 +3,7 @@ package sqlitestate_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -169,8 +170,17 @@ func TestStoreRejectsDatabaseNewerThanBinarySchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const newerVersion = 40
-	if err := sqlitex.ExecuteTransient(conn, "PRAGMA user_version = 40;", nil); err != nil {
+	var currentVersion int64
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA user_version;", &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			currentVersion = stmt.ColumnInt64(0)
+			return nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	newerVersion := currentVersion + 1
+	if err := sqlitex.ExecuteTransient(conn, fmt.Sprintf("PRAGMA user_version = %d;", newerVersion), nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.Close(); err != nil {
