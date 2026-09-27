@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 171,
+  "revision": 172,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_RESTART_A06_NEGATIVE_ADVERSARIAL_CASES",
+    "current_stage": "FULL_AUDIT_RESTART_A07_RUNTIME_REACHABILITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4660,11 +4660,12 @@
         },
         {
           "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Re-audited v35-v38 migrations and durable decision readers on product HEAD 9010d37a. B19 remains: v35 historical core identity migration validates contiguous Revision sequence only, not current ContentEvidence/provider-binding contracts. M1 remains: accepted decision resolution_json is validated only when read/replayed, so Store.Open can succeed with unreadable historical authority. No new adversarial finding."
         },
         {
           "id": "A07_RUNTIME_REACHABILITY",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
@@ -4698,12 +4699,14 @@
         "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
         "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
         "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
-        "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED"
+        "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+        "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
+        "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION"
       ],
       "last_checkpoint": {
         "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-        "completed_through": "A05_SCHEMA_MIGRATION_ROLLBACK",
-        "next": "A06_NEGATIVE_ADVERSARIAL_CASES",
+        "completed_through": "A06_NEGATIVE_ADVERSARIAL_CASES",
+        "next": "A07_RUNTIME_REACHABILITY",
         "known_open_finding_count": 13,
         "critical_gate_open": 7
       }
