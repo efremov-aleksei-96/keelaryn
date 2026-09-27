@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 149,
+  "revision": 150,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "FIX_AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
-    "description": "Append schema v38 without rewriting prior migrations. Protect future durable local/generic identity assignment and acceptance writes with narrow connection-local application authority so raw SQL cannot create ASSIGNED observations, SAME/NEW accepted decisions, or identity mutation receipts outside validated identity/adoption paths. Preserve qualified RemoteHistory guards, make legitimate local adoption/SAME/NEW writers acquire only the exact capability they need, add direct-SQL adversarial regressions and fail-closed migration validation for structurally orphaned/invalid acceptance state where historical invariants already require it. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
+    "id": "FIX_AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
+    "description": "Append the narrowest durable/bootstrap authority needed so AdoptObservationInScan can prove the supplied ScanSession was opened by StartBootstrapScan after atomically establishing no prior observation history for that provider/root. A normal StartScan, a RemoteHistory scan, or raw SQL-created OPEN scan must not be adoption-eligible. Preserve ordinary unresolved scanning and qualified SAME/NEW paths. Add direct public-API and SQL adversarial regressions plus conservative migration treatment that does not retroactively invent bootstrap provenance. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -3762,7 +3762,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 37,
+    "schema_version": 38,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4196,7 +4196,7 @@
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
         "qualification_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
-        "schema_version": 37,
+        "schema_version": 38,
         "implementation": {
           "shared_resolver": "corpus.ResolveIdentityAuthoritySet",
           "local_generic_scope": "UNCHANGED_AUTHORITY_SCOPE_EQUALS_SCAN_ROOT",
@@ -4285,11 +4285,11 @@
           "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening around intentionally indirect application-defined trigger functions"
         ],
         "conclusion": "PASS",
-        "latest_product_head": "c337532470115b5aeea1f7c0f526f85651eb0e21",
-        "latest_exact_head_ci_run_id": 36306434508,
+        "latest_product_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
+        "latest_exact_head_ci_run_id": 36311966699,
         "latest_exact_head_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
-        "requalification_status": "BLOCKED_BY_AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
-        "latest_exact_head": "c337532470115b5aeea1f7c0f526f85651eb0e21"
+        "requalification_status": "BLOCKED_BY_AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
+        "latest_exact_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39"
       },
       "c2": {
         "status": "LOCKED_PENDING_ZERO_FINDINGS_REAUDIT",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FIX_AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
+    "current_stage": "FIX_AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_AUDIT_FROM_SCRATCH_UNTIL_ZERO_NEW_FINDINGS",
     "clean_pass_required": true,
@@ -4322,23 +4322,23 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "c337532470115b5aeea1f7c0f526f85651eb0e21",
-      "dimension": "GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
-      "finding_id": "AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
+      "head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
+      "dimension": "BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
+      "finding_id": "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
       "severity": "BLOCKER",
-      "issue": "Application-authority guards for assigned observations, accepted continuity/admission decisions, and identity mutation receipts are conditional on source-bound/RemoteHistory state. In an ordinary local scan, raw SQL can therefore create an ASSIGNED regular-file Observation linked to an arbitrary existing Artifact plus a matching generic SAME decision/receipt, bypassing validateIdentityMutationRequest, validateAuthorityScope, authority-derived resolution, and mandatory content evidence for regular SAME.",
-      "required_correction": "Append schema v38 without rewriting prior migrations. Require an exact connection-local identity/adoption mutation capability for every future ASSIGNED Observation and every accepted continuity/admission decision and identity mutation receipt, not only source-bound/RemoteHistory rows. Update legitimate adoption/SAME/NEW writers to acquire/release that capability at the narrow mutation boundary, retain the stronger RemoteHistory causal/lifetime guards, add direct-SQL local bypass regressions, and validate historical state conservatively without inventing provenance.",
+      "issue": "AdoptObservationInScan accepts any OPEN ScanSession with matching provider/root. StartBootstrapScan atomically proves that the scope has no prior observed history, but no durable bootstrap provenance is bound to the created scan and AdoptObservationInScan does not re-prove or verify that boundary. A caller can therefore create a normal StartScan (or forge an OPEN scan row) in a scope with prior history and pass it to AdoptObservationInScan, minting a new Artifact outside the intended first-observation bootstrap boundary.",
+      "required_correction": "Persist or otherwise durably prove bootstrap-scan eligibility at scan creation and require that exact authority inside AdoptObservationInScan. Normal StartScan, RemoteHistory scans and raw SQL-created OPEN scans must be ineligible. Do not retrofit or invent bootstrap provenance for historical scans; preserve ordinary unresolved scan behavior and SAME/NEW acceptance paths.",
       "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
     "open_findings": [
       {
-        "id": "AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
+        "id": "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
         "severity": "BLOCKER",
         "status": "OPEN",
-        "affected_head": "c337532470115b5aeea1f7c0f526f85651eb0e21",
-        "issue": "Application-authority guards for assigned observations, accepted continuity/admission decisions, and identity mutation receipts are conditional on source-bound/RemoteHistory state. In an ordinary local scan, raw SQL can therefore create an ASSIGNED regular-file Observation linked to an arbitrary existing Artifact plus a matching generic SAME decision/receipt, bypassing validateIdentityMutationRequest, validateAuthorityScope, authority-derived resolution, and mandatory content evidence for regular SAME.",
-        "required_correction": "Append schema v38 without rewriting prior migrations. Require an exact connection-local identity/adoption mutation capability for every future ASSIGNED Observation and every accepted continuity/admission decision and identity mutation receipt, not only source-bound/RemoteHistory rows. Update legitimate adoption/SAME/NEW writers to acquire/release that capability at the narrow mutation boundary, retain the stronger RemoteHistory causal/lifetime guards, add direct-SQL local bypass regressions, and validate historical state conservatively without inventing provenance."
+        "affected_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
+        "issue": "AdoptObservationInScan accepts any OPEN ScanSession with matching provider/root. StartBootstrapScan atomically proves that the scope has no prior observed history, but no durable bootstrap provenance is bound to the created scan and AdoptObservationInScan does not re-prove or verify that boundary. A caller can therefore create a normal StartScan (or forge an OPEN scan row) in a scope with prior history and pass it to AdoptObservationInScan, minting a new Artifact outside the intended first-observation bootstrap boundary.",
+        "required_correction": "Persist or otherwise durably prove bootstrap-scan eligibility at scan creation and require that exact authority inside AdoptObservationInScan. Normal StartScan, RemoteHistory scans and raw SQL-created OPEN scans must be ineligible. Do not retrofit or invent bootstrap provenance for historical scans; preserve ordinary unresolved scan behavior and SAME/NEW acceptance paths."
       }
     ],
     "resolved_findings": [
@@ -4450,6 +4450,17 @@
         "schema_version": 37,
         "ci_run_id": 36306434508,
         "resolution": "Schema v37 transactionally rejects historical sealed identity authority that cannot satisfy the same corpus.ValidateIdentityAuthoritySet structural contract for set/source-ref/timestamp/generation semantics or candidate structure. The fix reuses sqlitemigration PrepareConn UDF support and append-only transactional migrations; no new dependency or historical normalization is introduced."
+      },
+      {
+        "id": "AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "FIXED_PENDING_ZERO_FINDINGS_REQUALIFICATION_AUDIT",
+        "affected_head": "c337532470115b5aeea1f7c0f526f85651eb0e21",
+        "fix_head": "60cf19715b2a10c8c51b93eaa0897684a9964389",
+        "qualification_head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
+        "schema_version": 38,
+        "ci_run_id": 36311966699,
+        "resolution": "Schema v38 protects every future assigned Observation, accepted SAME/NEW decision and identity mutation receipt with narrow connection-local per-phase identity-acceptance authority, makes generic Observation APIs unresolved-only, preserves stronger RemoteHistory guards, and conservatively validates existing receipts without inventing provenance. Follow-up fixture commits through 679a26cc retain pre-v38 migration semantics; exact-head validate/Ubuntu/Windows CI passes."
       }
     ],
     "last_resolution_checkpoint": {
