@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 159,
+  "revision": 160,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A09_SECURITY_CREDENTIAL_BOUNDARIES",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4421,6 +4421,15 @@
         "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
         "issue": "RemoteScanSourceInput validation is fail-open for an unknown snapshot fingerprint version paired with an unknown materialization policy: the validator only rejects when exactly one side is the known RemoteMetadata/LIGHTWEIGHT_ALL pair. CompleteRemoteHistoryScan then returns success from both snapshot fingerprint verification and provider-scope validation when the fingerprint version is not the known RemoteMetadataSnapshotFingerprintVersion. A caller can therefore create and COMPLETE a source-bound remote scan under an unsupported contract without exact snapshot or provider-scope proof.",
         "required_correction": "Make supported remote materialization contracts explicit and fail closed on unknown fingerprint-version/policy pairs in P0. Completion must require a registered validator for the exact contract; no unknown contract may bypass fingerprint and provider-scope verification. Add adversarial tests for unknown/known mismatches and unknown/unknown pairs at start and completion."
+      },
+      {
+        "id": "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
+        "severity": "HIGH",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Android/direct mobile execution is a stated priority, but development CI qualifies only ubuntu-24.04 and windows-2025. No Android GOOS/arm64 compile gate, emulator/device test, filesystem/SQLite semantics test, or packaging/runtime acceptance exists. The current code appears portable by inspection and uses a CGo-free SQLite stack, but Android support is unproven.",
+        "required_correction": "Add an Android qualification ladder appropriate to product maturity: at minimum GOOS=android/GOARCH=arm64 compile coverage for production packages, then device/emulator filesystem+SQLite smoke tests for local corpus discovery/state, and later packaging/install acceptance. Do not claim Android support before these gates pass.",
+        "gate_scope": "PORTABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
       }
     ],
     "resolved_findings": [
@@ -4619,11 +4628,12 @@
         },
         {
           "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Pinned product HEAD 578f58b688388591563d80f88f9f17cb0defd4a1 has exact CI PASS on ubuntu-24.04 and windows-2025 (run 36313957734). Production code has no explicit GOOS/syscall branches; localfs uses standard os/filepath plus os.SameFile. Android is not built or tested in CI, so support remains unqualified; H2 recorded."
         },
         {
           "id": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
@@ -4654,14 +4664,15 @@
         "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
         "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
         "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
-        "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN"
+        "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN",
+        "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT"
       ],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "d2875f01ccd980b1697d2c31f3553dc20fef6c19",
+        "control_head_before_checkpoint": "16c9f34896e627b5d65f039b58ce516f854c52a7",
         "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A07_RUNTIME_REACHABILITY",
-        "next": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
-        "open_finding_count": 11
+        "completed_through": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
+        "next": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
+        "open_finding_count": 12
       }
     },
     "interruption_recovery": {
