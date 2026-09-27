@@ -2574,6 +2574,97 @@ END;
 DROP TABLE keelaryn_v30_remote_identity_existing_state_validation;
 `,
 
+		`
+CREATE TABLE keelaryn_v31_remote_identity_reverse_provenance_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v31_remote_identity_reverse_provenance_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM accepted_continuity_decisions d
+		JOIN observations o ON o.observation_id=d.observation_id
+		JOIN provider_object_occurrences p ON p.occurrence_id=o.occurrence_id
+		WHERE d.policy_id='remote-history:lifetime-segment:v1'
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM identity_mutation_requests m
+			JOIN identity_authority_sets a ON a.authority_set_id=m.authority_set_id
+			WHERE m.operation_kind='SAME'
+			  AND m.decision_kind='CONTINUITY'
+			  AND m.decision_id=d.decision_id
+			  AND m.observation_id=d.observation_id
+			  AND m.artifact_id=d.artifact_id
+			  AND m.accepted_at=d.decided_at
+			  AND a.policy_id=d.policy_id
+			  AND a.lifetime_segment_id=d.lifetime_segment_id
+			  AND a.provider_id=p.provider_id
+			  AND a.current_object_id=p.native_object_id
+		  )
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM accepted_artifact_admissions d
+		WHERE d.policy_id='remote-history:lifetime-segment:v1'
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM identity_mutation_requests m
+			JOIN identity_authority_sets a ON a.authority_set_id=m.authority_set_id
+			JOIN provider_lifetime_artifact_bindings b
+			  ON b.lifetime_segment_id=d.lifetime_segment_id
+			WHERE m.request_id=d.request_id
+			  AND m.operation_kind='NEW'
+			  AND m.decision_kind='ADMISSION'
+			  AND m.decision_id=d.request_id
+			  AND m.observation_id=d.observation_id
+			  AND m.artifact_id=d.artifact_id
+			  AND m.accepted_at=d.decided_at
+			  AND a.policy_id=d.policy_id
+			  AND a.identity_domain=d.identity_domain
+			  AND a.provider_id=d.provider_id
+			  AND a.current_object_id=d.native_object_id
+			  AND a.lifetime_segment_id=d.lifetime_segment_id
+			  AND b.artifact_id=d.artifact_id
+			  AND b.policy_id=d.policy_id
+			  AND b.source_authority_set_id=m.authority_set_id
+			  AND b.accepted_at=d.decided_at
+		  )
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM provider_lifetime_artifact_bindings b
+		WHERE b.policy_id='remote-history:lifetime-segment:v1'
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM accepted_artifact_admissions d
+			JOIN identity_mutation_requests m
+			  ON m.request_id=d.request_id
+			 AND m.operation_kind='NEW'
+			 AND m.decision_kind='ADMISSION'
+			 AND m.decision_id=d.request_id
+			 AND m.observation_id=d.observation_id
+			 AND m.artifact_id=d.artifact_id
+			JOIN identity_authority_sets a
+			  ON a.authority_set_id=m.authority_set_id
+			WHERE d.policy_id=b.policy_id
+			  AND d.lifetime_segment_id=b.lifetime_segment_id
+			  AND d.artifact_id=b.artifact_id
+			  AND d.decided_at=b.accepted_at
+			  AND m.authority_set_id=b.source_authority_set_id
+			  AND m.accepted_at=b.accepted_at
+			  AND a.policy_id=b.policy_id
+			  AND a.lifetime_segment_id=b.lifetime_segment_id
+			  AND a.authority_set_id=b.source_authority_set_id
+		  )
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v31_remote_identity_reverse_provenance_validation;
+`,
+
 	},
 }
 
