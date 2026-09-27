@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 158,
+  "revision": 159,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4615,7 +4615,7 @@
         {
           "id": "A07_RUNTIME_REACHABILITY",
           "status": "DONE",
-          "evidence": "Current executable surface is cmd/keelaryn scan --root, which performs provider/localfs read-only discovery and JSON output only. Durable Store/ingest/RemoteHistory identity mutation mechanisms are internal and not yet exposed through CLI/HTTP/MCP. Existing B12-B19 therefore block dependent runtime/materializer enablement but are not misrepresented as currently exposed user mutation paths."
+          "evidence": "Current product executable surface is only cmd/keelaryn scan --root, which performs read-only localfs.Discover and emits JSON. Durable SQLite ingest/bootstrap/identity/RemoteHistory/materialization/extraction/contextbundle components are currently library/internal paths, not wired into the CLI. Existing authority findings remain blockers before future runtime wiring; no additional critical runtime-reachability defect recorded."
         },
         {
           "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
@@ -4657,10 +4657,10 @@
         "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN"
       ],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "069e457015dbad843b7df8e0a5386122511f8bb3",
+        "control_head_before_checkpoint": "d2875f01ccd980b1697d2c31f3553dc20fef6c19",
         "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A06_NEGATIVE_ADVERSARIAL_CASES_PLUS_B20_SUPPLEMENT",
-        "next": "A07_RUNTIME_REACHABILITY",
+        "completed_through": "A07_RUNTIME_REACHABILITY",
+        "next": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
         "open_finding_count": 11
       }
     },
