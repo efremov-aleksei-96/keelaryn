@@ -3334,18 +3334,6 @@ BEGIN
 	SELECT RAISE(ABORT, 'Google Drive topology watermark creation requires validated application authority');
 END;
 
-CREATE TRIGGER gdrive_topology_watermarks_delete_application_guard_v42
-BEFORE DELETE ON gdrive_topology_watermarks
-WHEN keelaryn_gdrive_topology_write_authorized(
-	'WATERMARK_DELETE',
-	OLD.generation_id,
-	CAST(OLD.publication_sequence AS TEXT),
-	'0','','','','',''
-)<>1
-BEGIN
-	SELECT RAISE(ABORT, 'Google Drive topology watermark deletion requires validated application authority');
-END;
-
 CREATE TRIGGER gdrive_managed_root_bindings_insert_application_guard_v42
 BEFORE INSERT ON gdrive_managed_root_bindings
 WHEN keelaryn_gdrive_managed_root_binding_insert_authorized(

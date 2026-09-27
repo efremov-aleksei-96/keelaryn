@@ -7,6 +7,7 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
+	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory/gdrive"
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
@@ -34,43 +35,72 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 		ctx, scope, "google-drive-history-universe:v1:test", bootstrap,
 		time.Date(2026, 9, 26, 20, 0, 0, 0, time.UTC),
 	)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	conn, err := store.pool.Get(ctx)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	connHeld := true
+	defer func() {
+		if connHeld {
+			store.pool.Put(conn)
+		}
+	}()
 
-	insertBootstrapEvidence := func(objectID string) {
+	bootstrapTopology := map[corpus.ProviderObjectID]gdrive.TopologyState{
+		"id-1": {ObjectID: "id-1", Presence: gdrive.TopologyPresent, ParentKnowledge: gdrive.ParentKnown, ParentObjectID: corpus.ProviderObjectID(scope.Root), DriveID: "drive-a"},
+		"id-2": {ObjectID: "id-2", Presence: gdrive.TopologyPresent, ParentKnowledge: gdrive.ParentKnown, ParentObjectID: corpus.ProviderObjectID(scope.Root), DriveID: "drive-a"},
+	}
+	releaseBootstrap, err := store.authorizeGoogleDriveTopologyWriteConn(conn, googleDriveTopologyWriteAuthorization{
+		phase: googleDriveTopologyWriteBootstrap,
+		generationID: generation.ID,
+		sequence: 1,
+		entries: googleBootstrapTopologyAuthorizationEntries(bootstrapTopology),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertBootstrapEvidence := func(objectID corpus.ProviderObjectID) {
 		t.Helper()
-		if err := sqlitex.Execute(conn,
-			"INSERT INTO gdrive_topology_evidence (generation_id, sequence, ordinal, evidence_kind, object_id, presence, parent_state, parent_id, drive_id) VALUES (?1,1,-1,'BOOTSTRAP',?2,'PRESENT','KNOWN',?3,'')",
-			&sqlitex.ExecOptions{Args: []any{string(generation.ID), objectID, scope.Root}}); err != nil {
+		state := bootstrapTopology[objectID]
+		if err := insertGoogleTopologyEvidenceConn(conn, generation.ID, 1, -1, gdrive.TopologyEvidenceBootstrap, state); err != nil {
 			t.Fatal(err)
 		}
-		if err := sqlitex.Execute(conn,
-			"INSERT INTO gdrive_topology_nodes (generation_id, object_id, presence, parent_state, parent_id, drive_id, last_sequence, last_ordinal) VALUES (?1,?2,'PRESENT','KNOWN',?3,'',1,-1)",
-			&sqlitex.ExecOptions{Args: []any{string(generation.ID), objectID, scope.Root}}); err != nil {
+		if err := upsertGoogleTopologyNodeConn(conn, generation.ID, 1, -1, state); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	insertBootstrapEvidence("id-1")
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO gdrive_topology_watermarks (generation_id, publication_sequence) VALUES (?1,1)",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
+	if err := insertGoogleTopologyWatermarkConn(conn, generation.ID, 1); err == nil {
 		t.Fatal("incomplete bootstrap topology unexpectedly accepted watermark")
 	}
-
 	insertBootstrapEvidence("id-2")
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO gdrive_topology_watermarks (generation_id, publication_sequence) VALUES (?1,1)",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
+	if err := insertGoogleTopologyWatermarkConn(conn, generation.ID, 1); err != nil {
 		t.Fatal(err)
 	}
+	releaseBootstrap()
 
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO gdrive_managed_root_bindings (generation_id, managed_root_object_id, bound_sequence, created_at) VALUES (?1,'id-1',1,?2)",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID), time.Now().UTC().Format(time.RFC3339Nano)}}); err != nil {
+	bindingAt := time.Date(2026, 9, 26, 20, 0, 1, 0, time.UTC)
+	releaseBinding, err := store.authorizeGoogleDriveTopologyWriteConn(conn, googleDriveTopologyWriteAuthorization{
+		phase: googleDriveTopologyWriteManagedRoot,
+		generationID: generation.ID,
+		sequence: 1,
+		managedRootObjectID: "id-1",
+		createdAt: bindingAt.Format(time.RFC3339Nano),
+	})
+	if err != nil {
 		t.Fatal(err)
+	}
+	writeErr := sqlitex.Execute(conn,
+		"INSERT INTO gdrive_managed_root_bindings (generation_id, managed_root_object_id, bound_sequence, created_at) VALUES (?1,'id-1',1,?2)",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID), bindingAt.Format(time.RFC3339Nano)}})
+	releaseBinding()
+	if writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	if err := sqlitex.Execute(conn,
 		"UPDATE gdrive_managed_root_bindings SET managed_root_object_id='id-2' WHERE generation_id=?1 AND managed_root_object_id='id-1'",
@@ -94,23 +124,55 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 		}},
 	}
 	store.pool.Put(conn)
+	connHeld = false
 	if _, err := store.publishRemoteHistoryCycleWithSidecar(
 		ctx, generation.ID, scope, "google-drive-history-universe:v1:test",
-		1, "cursor-1", cycle, time.Now().UTC(),
-		func(
-			*sqlite.Conn,
-			remotehistory.HistoryGeneration,
-			remotehistory.HistoryPublicationSequence,
-			[]remotehistory.RemoteChange,
-		) error {
+		1, "cursor-1", cycle, time.Date(2026, 9, 26, 20, 1, 0, 0, time.UTC),
+		func(*sqlite.Conn, remotehistory.HistoryGeneration, remotehistory.HistoryPublicationSequence, []remotehistory.RemoteChange) error {
 			return nil
 		},
 	); err != nil {
 		t.Fatal(err)
 	}
 	conn, err = store.pool.Get(ctx)
-	if err != nil { t.Fatal(err) }
-	defer store.pool.Put(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connHeld = true
+
+	incrementalState := gdrive.TopologyState{
+		ObjectID: "id-1",
+		Presence: gdrive.TopologyPresent,
+		ParentKnowledge: gdrive.ParentKnown,
+		ParentObjectID: "folder-new",
+		DriveID: "drive-a",
+	}
+	releaseIncremental, err := store.authorizeGoogleDriveTopologyWriteConn(conn, googleDriveTopologyWriteAuthorization{
+		phase: googleDriveTopologyWriteIncremental,
+		generationID: generation.ID,
+		sequence: 2,
+		entries: googleIncrementalTopologyAuthorizationEntries(cycle.Changes, []gdrive.TopologyState{incrementalState}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sqlitex.Execute(conn,
+		"UPDATE gdrive_topology_watermarks SET publication_sequence=2 WHERE generation_id=?1",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
+		t.Fatal("watermark advanced without topology evidence/projection")
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO gdrive_topology_evidence (generation_id, sequence, ordinal, evidence_kind, object_id, presence, parent_state, parent_id, drive_id) VALUES (?1,2,0,'UPSERT','id-2','PRESENT','KNOWN',?2,'drive-a')",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID), scope.Root}}); err == nil {
+		t.Fatal("forged topology evidence outside validated bundle unexpectedly succeeded")
+	}
+	if err := insertGoogleTopologyEvidenceConn(conn, generation.ID, 2, 0, gdrive.TopologyEvidenceUpsert, incrementalState); err != nil {
+		t.Fatal(err)
+	}
+	if err := upsertGoogleTopologyNodeConn(conn, generation.ID, 2, 0, incrementalState); err == nil {
+		t.Fatal("topology node mutated while watermark remained active")
+	}
 
 	deleteWatermark := func(sequence remotehistory.HistoryPublicationSequence) {
 		t.Helper()
@@ -127,46 +189,20 @@ func TestGoogleDriveTopologySchemaFailsClosedAndSupportsSafeRebuild(t *testing.T
 		}
 	}
 
-	if err := sqlitex.Execute(conn,
-		"UPDATE gdrive_topology_watermarks SET publication_sequence=2 WHERE generation_id=?1",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
-		t.Fatal("watermark advanced without topology evidence/projection")
-	}
-
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO gdrive_topology_evidence (generation_id, sequence, ordinal, evidence_kind, object_id, presence, parent_state, parent_id, drive_id) VALUES (?1,2,0,'UPSERT','id-2','PRESENT','KNOWN',?2,'')",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID), scope.Root}}); err == nil {
-		t.Fatal("forged topology evidence not matching RemoteHistory change unexpectedly succeeded")
-	}
-
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO gdrive_topology_evidence (generation_id, sequence, ordinal, evidence_kind, object_id, presence, parent_state, parent_id, drive_id) VALUES (?1,2,0,'UPSERT','id-1','PRESENT','KNOWN','folder-new','')",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := sqlitex.Execute(conn,
-		"UPDATE gdrive_topology_nodes SET parent_id='folder-new', last_sequence=2, last_ordinal=0 WHERE generation_id=?1 AND object_id='id-1'",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
-		t.Fatal("topology node mutated while watermark remained active")
-	}
 	deleteWatermark(1)
-	if err := sqlitex.Execute(conn,
-		"UPDATE gdrive_topology_nodes SET parent_id='folder-new', last_sequence=2, last_ordinal=0 WHERE generation_id=?1 AND object_id='id-1'",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
+	if err := upsertGoogleTopologyNodeConn(conn, generation.ID, 2, 0, incrementalState); err != nil {
 		t.Fatal(err)
 	}
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO gdrive_topology_watermarks (generation_id, publication_sequence) VALUES (?1,2)",
-		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
+	if err := insertGoogleTopologyWatermarkConn(conn, generation.ID, 2); err != nil {
 		t.Fatal(err)
 	}
+	releaseIncremental()
 
 	if err := sqlitex.Execute(conn,
 		"DELETE FROM gdrive_topology_nodes WHERE generation_id=?1 AND object_id='id-1'",
 		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err == nil {
 		t.Fatal("current topology projection deleted while watermark remained authoritative")
 	}
-
 	deleteWatermark(2)
 	if err := sqlitex.Execute(conn,
 		"DELETE FROM gdrive_topology_nodes WHERE generation_id=?1 AND object_id='id-1'",

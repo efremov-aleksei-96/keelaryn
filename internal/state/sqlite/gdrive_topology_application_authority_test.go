@@ -88,7 +88,6 @@ func TestQualifiedV41DatabaseMigratesToGoogleDriveTopologyAuthorityV42(t *testin
 		"gdrive_topology_nodes_insert_application_guard_v42",
 		"gdrive_topology_nodes_update_application_guard_v42",
 		"gdrive_topology_watermarks_insert_application_guard_v42",
-		"gdrive_topology_watermarks_delete_application_guard_v42",
 		"gdrive_managed_root_bindings_insert_application_guard_v42",
 	}{
 		var found bool
@@ -100,41 +99,69 @@ func TestQualifiedV41DatabaseMigratesToGoogleDriveTopologyAuthorityV42(t *testin
 
 func TestHistoricalGoogleTopologySemanticMismatchFailsClosed(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(),"v41-topology.db")
-	legacy := &Store{path:path}
-	v41 := sqlitemigration.Schema{AppID:applicationID,Migrations:append([]string(nil),schema.Migrations[:41]...)}
-	pool := sqlitemigration.NewPool(path,v41,sqlitemigration.Options{
-		Flags:sqlite.OpenReadWrite|sqlite.OpenCreate,PoolSize:1,PrepareConn:legacy.prepareConn,
+	path := filepath.Join(t.TempDir(), "v41-topology.db")
+	legacy := &Store{path: path}
+	v41 := sqlitemigration.Schema{AppID: applicationID, Migrations: append([]string(nil), schema.Migrations[:41]...)}
+	pool := sqlitemigration.NewPool(path, v41, sqlitemigration.Options{
+		Flags: sqlite.OpenReadWrite | sqlite.OpenCreate, PoolSize: 1, PrepareConn: legacy.prepareConn,
 	})
-	legacy.pool=pool
-	conn,err:=pool.Get(ctx); if err!=nil {t.Fatal(err)}
-	// A provider-valid RemoteHistory shell with structurally valid but semantically
-	// invalid topology (PRESENT + UNKNOWN is valid; use self-parent KNOWN to violate
-	// gdrive.ValidateTopologyEvidence while satisfying the old SQL shape would not,
-	// so create an evidence/source mismatch that the historical verifier must reject).
-	// The legacy row set is deliberately partial: any topology durable state must
-	// verify as a complete projection at Open.
-	base:=time.Date(2026,9,27,18,35,0,0,time.UTC).Format(time.RFC3339Nano)
-	if err:=sqlitex.Execute(conn,
-		"INSERT INTO remote_history_generations (generation_id,provider_id,identity_domain,stream_id,root,scope_policy_fingerprint,status,created_at,closed_at,closure_reason,current_sequence,committed_cursor) VALUES ('hgen_gdrive_legacy','google-drive','drive:user-1','drive:user-1:changes','root','scope-policy:v1:gdrive','ACTIVE',?1,NULL,NULL,1,'cursor-1')",
-		&sqlitex.ExecOptions{Args:[]any{base}});err!=nil{t.Fatal(err)}
-	// Use a correct empty-bootstrap fingerprint so v41 RemoteHistory historical verification passes.
-	pub:=remotehistory.HistoryPublication{
-		GenerationID:"hgen_gdrive_legacy",Sequence:1,Kind:remotehistory.HistoryPublicationBootstrap,
-		CommittedCursor:"cursor-1",CommittedAt:time.Date(2026,9,27,18,35,0,0,time.UTC),
-		FingerprintVersion:remoteHistoryPublicationFingerprintVersion,
-	}
-	fp,err:=bootstrapPublicationFingerprint(pub,[]remotehistory.RemoteObjectState{});if err!=nil{t.Fatal(err)}
-	if err:=sqlitex.Execute(conn,
-		"INSERT INTO remote_history_publications (generation_id,sequence,kind,previous_cursor,committed_cursor,committed_at,fingerprint_version,fingerprint_sha256) VALUES ('hgen_gdrive_legacy',1,'BOOTSTRAP','','cursor-1',?1,?2,?3)",
-		&sqlitex.ExecOptions{Args:[]any{base,pub.FingerprintVersion,fp}});err!=nil{t.Fatal(err)}
-	if err:=sqlitex.Execute(conn,
-		"INSERT INTO gdrive_topology_watermarks (generation_id,publication_sequence) VALUES ('hgen_gdrive_legacy',1)",nil);err!=nil{t.Fatal(err)}
-	pool.Put(conn); if err:=pool.Close();err!=nil{t.Fatal(err)}
+	legacy.pool = pool
 
-	reopened,err:=Open(ctx,path)
-	if reopened!=nil {_=reopened.Close()}
-	if !errors.Is(err,ErrGoogleDriveHistoricalAuthorityInvalid){
-		t.Fatalf("Open error=%v want ErrGoogleDriveHistoricalAuthorityInvalid",err)
+	scope := remotehistory.Scope{
+		ProviderID: gdrive.ProviderID,
+		IdentityDomain: "drive:user-1",
+		StreamID: "drive:user-1:changes",
+		Root: "root",
+	}
+	base := time.Date(2026, 9, 27, 18, 35, 0, 0, time.UTC)
+	generation, err := legacy.StartRemoteHistoryGeneration(
+		ctx,
+		scope,
+		remotehistory.ScopePolicyFingerprint("scope-policy:v1:gdrive"),
+		remotehistory.BootstrapResult{
+			StreamID: scope.StreamID,
+			Status: remotehistory.BootstrapComplete,
+			Cursor: "cursor-1",
+			Coverage: corpus.ProviderHistoryContinuous,
+			Objects: []remotehistory.RemoteObjectState{{
+				ObjectID: "child",
+				Locators: []corpus.Locator{{ProviderID: gdrive.ProviderID, Root: "root", Path: "child"}},
+			}},
+		},
+		base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err := pool.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO gdrive_topology_evidence (generation_id,sequence,ordinal,evidence_kind,object_id,presence,parent_state,parent_id,drive_id) VALUES (?1,1,-1,'BOOTSTRAP','child','PRESENT','KNOWN','root','drive-a')",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
+		pool.Put(conn)
+		t.Fatal(err)
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO gdrive_topology_nodes (generation_id,object_id,presence,parent_state,parent_id,drive_id,last_sequence,last_ordinal) VALUES (?1,'child','PRESENT','KNOWN','root','drive-a',1,-1)",
+		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}}); err != nil {
+		pool.Put(conn)
+		t.Fatal(err)
+	}
+	// v41 can persist valid evidence/projection rows without the terminal watermark.
+	// v42 must not invent provenance for this partial historical state.
+	pool.Put(conn)
+	if err := pool.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(ctx, path)
+	if reopened != nil {
+		_ = reopened.Close()
+	}
+	if !errors.Is(err, ErrGoogleDriveHistoricalAuthorityInvalid) {
+		t.Fatalf("Open error=%v want ErrGoogleDriveHistoricalAuthorityInvalid", err)
 	}
 }
