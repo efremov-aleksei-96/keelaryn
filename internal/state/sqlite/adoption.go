@@ -147,5 +147,11 @@ func (s *Store) AdoptObservationInScan(ctx context.Context, scanID corpus.ScanSe
 	input.ArtifactID = artifactID
 	input.RevisionID = revisionID
 	input.AssignmentState = corpus.AssignmentAssigned
-	return recordObservationConn(conn, scanID, input)
+	releaseAcceptance, err := s.authorizeIdentityAcceptanceWriteConn(conn, scanID, "OBSERVATION")
+	if err != nil {
+		return corpus.ObservationRecord{}, err
+	}
+	out, writeErr := recordObservationConn(conn, scanID, input)
+	releaseAcceptance()
+	return out, writeErr
 }

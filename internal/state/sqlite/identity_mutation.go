@@ -228,7 +228,7 @@ func reconcileExistingIdentityMutation(record identityMutationRequestRecord, kin
 	return nil
 }
 
-func insertIdentityMutationRequestConn(conn *sqlite.Conn, record identityMutationRequestRecord) error {
+func (s *Store) insertIdentityMutationRequestConn(conn *sqlite.Conn, scanID corpus.ScanSessionID, record identityMutationRequestRecord) error {
 	var revisionID any
 	if record.RevisionID != "" {
 		revisionID = string(record.RevisionID)
@@ -237,14 +237,20 @@ func insertIdentityMutationRequestConn(conn *sqlite.Conn, record identityMutatio
 	if record.RevisionCreated {
 		created = 1
 	}
-	if err := sqlitex.Execute(conn,
+	releaseAcceptance, err := s.authorizeIdentityAcceptanceWriteConn(conn, scanID, "RECEIPT")
+	if err != nil {
+		return err
+	}
+	err = sqlitex.Execute(conn,
 		"INSERT INTO identity_mutation_requests (request_id, operation_kind, fingerprint_version, fingerprint_sha256, authority_set_id, observation_id, artifact_id, revision_id, revision_created, decision_kind, decision_id, accepted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
 		&sqlitex.ExecOptions{Args: []any{
 			string(record.RequestID), string(record.Kind), record.Fingerprint.Version,
 			record.Fingerprint.SHA256, string(record.AuthoritySetID), string(record.ObservationID),
 			string(record.ArtifactID), revisionID, created, record.DecisionKind, record.DecisionID,
 			record.AcceptedAt.UTC().Format(time.RFC3339Nano),
-		}}); err != nil {
+		}})
+	releaseAcceptance()
+	if err != nil {
 		return fmt.Errorf("insert identity mutation request: %w", err)
 	}
 	return nil

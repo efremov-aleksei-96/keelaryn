@@ -61,6 +61,9 @@ func (s *Store) RecordObservationInScan(ctx context.Context, scanID corpus.ScanS
 	if err := validateObservationInput(input); err != nil {
 		return corpus.ObservationRecord{}, err
 	}
+	if input.AssignmentState != corpus.AssignmentUnresolved {
+		return corpus.ObservationRecord{}, fmt.Errorf("%w: scan Observation recording is unresolved-only", ErrInvalidObservation)
+	}
 	if scanID == "" {
 		return corpus.ObservationRecord{}, ErrInvalidScan
 	}

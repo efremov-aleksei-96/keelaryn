@@ -22,6 +22,9 @@ func (s *Store) RecordObservation(ctx context.Context, input corpus.ObservationR
 	if err := validateObservationInput(input); err != nil {
 		return corpus.ObservationRecord{}, err
 	}
+	if input.AssignmentState != corpus.AssignmentUnresolved {
+		return corpus.ObservationRecord{}, fmt.Errorf("%w: direct Observation recording is unresolved-only", ErrInvalidObservation)
+	}
 
 	conn, err := s.pool.Get(ctx)
 	if err != nil {

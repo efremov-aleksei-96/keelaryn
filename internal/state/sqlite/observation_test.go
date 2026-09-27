@@ -66,42 +66,20 @@ func TestUnresolvedObservationPersistsAcrossReopenWithMultipleLocators(t *testin
 	}
 }
 
-func TestAssignedObservationPersistsArtifactAndRevision(t *testing.T) {
+func TestDirectAssignedObservationIsRejected(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
 	artifact, err := store.AdoptArtifact(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	revision, err := store.ObserveRevision(ctx, artifact.ID, evidence("digest", 6))
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	input := unresolvedObservationInput()
-	input.ProviderObject = corpus.ProviderObject{
-		ProviderID:    "drive",
-		ID:            "file-123",
-		IdentityState: corpus.ObjectIdentityObserved,
-	}
-	input.Locators = []corpus.Locator{{ProviderID: "drive", Root: "root-1", Path: "Docs/report.pdf"}}
 	input.ArtifactID = artifact.ID
-	input.RevisionID = revision.Current.Revision.ID
 	input.AssignmentState = corpus.AssignmentAssigned
 
-	recorded, err := store.RecordObservation(ctx, input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := store.Observation(ctx, recorded.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.ArtifactID != artifact.ID || got.RevisionID != revision.Current.Revision.ID {
-		t.Fatalf("assignment mismatch: %#v", got)
-	}
-	if got.ProviderObject.ID != "file-123" || got.ProviderObject.IdentityState != corpus.ObjectIdentityObserved {
-		t.Fatalf("provider object mismatch: %#v", got.ProviderObject)
+	_, err = store.RecordObservation(ctx, input)
+	if !errors.Is(err, sqlitestate.ErrInvalidObservation) {
+		t.Fatalf("error=%v, want ErrInvalidObservation", err)
 	}
 }
 
@@ -139,7 +117,7 @@ func TestObservationRejectsProviderMismatchWithoutMutation(t *testing.T) {
 	}
 }
 
-func TestObservationRejectsUnknownArtifact(t *testing.T) {
+func TestObservationRejectsAssignedUnknownArtifactAtPublicBoundary(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
 	input := unresolvedObservationInput()
@@ -147,35 +125,31 @@ func TestObservationRejectsUnknownArtifact(t *testing.T) {
 	input.ArtifactID = "art_missing"
 
 	_, err := store.RecordObservation(ctx, input)
-	if !errors.Is(err, corpus.ErrArtifactNotFound) {
-		t.Fatalf("error=%v, want ErrArtifactNotFound", err)
+	if !errors.Is(err, sqlitestate.ErrInvalidObservation) {
+		t.Fatalf("error=%v, want ErrInvalidObservation", err)
 	}
 }
 
-func TestObservationRejectsRevisionFromDifferentArtifact(t *testing.T) {
+func TestObservationRejectsAssignedRevisionAtPublicBoundary(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
-	first, err := store.AdoptArtifact(ctx)
+	artifact, err := store.AdoptArtifact(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.AdoptArtifact(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	revision, err := store.ObserveRevision(ctx, first.ID, evidence("x", 1))
+	revision, err := store.ObserveRevision(ctx, artifact.ID, evidence("x", 1))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	input := unresolvedObservationInput()
 	input.AssignmentState = corpus.AssignmentAssigned
-	input.ArtifactID = second.ID
+	input.ArtifactID = artifact.ID
 	input.RevisionID = revision.Current.Revision.ID
 
 	_, err = store.RecordObservation(ctx, input)
-	if !errors.Is(err, sqlitestate.ErrRevisionArtifactMismatch) {
-		t.Fatalf("error=%v, want ErrRevisionArtifactMismatch", err)
+	if !errors.Is(err, sqlitestate.ErrInvalidObservation) {
+		t.Fatalf("error=%v, want ErrInvalidObservation", err)
 	}
 }
 

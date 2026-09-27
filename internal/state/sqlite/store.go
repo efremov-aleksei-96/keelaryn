@@ -2915,6 +2915,105 @@ END;
 DROP TABLE keelaryn_v37_identity_authority_structural_validation;
 `,
 
+		`
+CREATE TABLE keelaryn_v38_generic_identity_acceptance_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v38_generic_identity_acceptance_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM identity_mutation_requests m
+		JOIN observations o ON o.observation_id=m.observation_id
+		JOIN identity_authority_sets a ON a.authority_set_id=m.authority_set_id
+		WHERE o.assignment_state<>'ASSIGNED'
+		   OR o.artifact_id<>m.artifact_id
+		   OR COALESCE(o.revision_id,'')<>COALESCE(m.revision_id,'')
+		   OR keelaryn_is_canonical_utc_rfc3339nano(m.accepted_at)<>1
+		   OR (
+				m.decision_kind='CONTINUITY'
+				AND (
+					m.operation_kind<>'SAME'
+					OR NOT EXISTS (
+						SELECT 1
+						FROM accepted_continuity_decisions d
+						WHERE d.decision_id=m.decision_id
+						  AND d.observation_id=m.observation_id
+						  AND d.artifact_id=m.artifact_id
+						  AND d.policy_id=a.policy_id
+						  AND d.decided_at=m.accepted_at
+					)
+				)
+		   )
+		   OR (
+				m.decision_kind='ADMISSION'
+				AND (
+					m.operation_kind<>'NEW'
+					OR NOT EXISTS (
+						SELECT 1
+						FROM accepted_artifact_admissions d
+						WHERE d.request_id=m.decision_id
+						  AND d.request_id=m.request_id
+						  AND d.observation_id=m.observation_id
+						  AND d.artifact_id=m.artifact_id
+						  AND d.policy_id=a.policy_id
+						  AND d.identity_domain=a.identity_domain
+						  AND d.provider_id=a.provider_id
+						  AND d.native_object_id=a.current_object_id
+						  AND d.decided_at=m.accepted_at
+					)
+				)
+		   )
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v38_generic_identity_acceptance_validation;
+
+CREATE TRIGGER assigned_observation_application_guard_v38
+BEFORE INSERT ON observations
+WHEN NEW.assignment_state='ASSIGNED'
+AND keelaryn_identity_acceptance_write_authorized(
+	COALESCE(NEW.scan_id,''),
+	'OBSERVATION'
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'assigned Observation requires validated identity acceptance authority');
+END;
+
+CREATE TRIGGER continuity_application_guard_v38
+BEFORE INSERT ON accepted_continuity_decisions
+WHEN keelaryn_identity_acceptance_write_authorized(
+	COALESCE((SELECT o.scan_id FROM observations o WHERE o.observation_id=NEW.observation_id),''),
+	'CONTINUITY'
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'continuity acceptance requires validated identity acceptance authority');
+END;
+
+CREATE TRIGGER admission_application_guard_v38
+BEFORE INSERT ON accepted_artifact_admissions
+WHEN keelaryn_identity_acceptance_write_authorized(
+	COALESCE((SELECT o.scan_id FROM observations o WHERE o.observation_id=NEW.observation_id),''),
+	'ADMISSION'
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Artifact admission requires validated identity acceptance authority');
+END;
+
+CREATE TRIGGER identity_mutation_receipt_application_guard_v38
+BEFORE INSERT ON identity_mutation_requests
+WHEN keelaryn_identity_acceptance_write_authorized(
+	COALESCE((SELECT o.scan_id FROM observations o WHERE o.observation_id=NEW.observation_id),''),
+	'RECEIPT'
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'identity mutation receipt requires validated identity acceptance authority');
+END;
+`,
+
 	},
 }
 
@@ -2940,6 +3039,7 @@ const (
 	identityAuthoritySealAuthorizationFunction = "keelaryn_identity_authority_seal_authorized"
 	identityAuthoritySetStructuralValidationFunction = "keelaryn_identity_authority_set_structurally_valid"
 	identityAuthorityCandidateStructuralValidationFunction = "keelaryn_identity_authority_candidate_structurally_valid"
+	identityAcceptanceWriteAuthorizationFunction = "keelaryn_identity_acceptance_write_authorized"
 )
 
 type remoteCompletionAuthorization struct {
@@ -2991,6 +3091,11 @@ type identityAuthorityWriteAuthorization struct {
 	candidateSourceRef  string
 }
 
+type identityAcceptanceWriteAuthorization struct {
+	scanID corpus.ScanSessionID
+	phase  string
+}
+
 type Store struct {
 	pool                                      *sqlitemigration.Pool
 	path                                      string
@@ -2999,6 +3104,7 @@ type Store struct {
 	gdriveTopologyWatermarkDeleteAuthorizations sync.Map
 	coreIdentityInsertAuthorizations              sync.Map
 	identityAuthorityWriteAuthorizations           sync.Map
+	identityAcceptanceWriteAuthorizations          sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -3313,7 +3419,56 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 	}); err != nil {
 		return fmt.Errorf("register identity authority candidate structural validation function: %w", err)
 	}
+	acceptanceWriteAuth := &identityAcceptanceWriteAuthorization{}
+	if err := conn.CreateFunction(identityAcceptanceWriteAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 2, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if acceptanceWriteAuth.scanID != "" &&
+				acceptanceWriteAuth.phase != "" &&
+				string(acceptanceWriteAuth.scanID) == args[0].Text() &&
+				acceptanceWriteAuth.phase == args[1].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register identity acceptance write authorization function: %w", err)
+	}
+	s.identityAcceptanceWriteAuthorizations.Store(conn, acceptanceWriteAuth)
+
 	return nil
+}
+
+func (s *Store) authorizeIdentityAcceptanceWriteConn(
+	conn *sqlite.Conn,
+	scanID corpus.ScanSessionID,
+	phase string,
+) (func(), error) {
+	if scanID == "" || phase == "" {
+		return nil, fmt.Errorf("identity acceptance write authorization target is incomplete")
+	}
+	switch phase {
+	case "OBSERVATION", "CONTINUITY", "ADMISSION", "RECEIPT":
+	default:
+		return nil, fmt.Errorf("invalid identity acceptance write phase %q", phase)
+	}
+	value, ok := s.identityAcceptanceWriteAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("identity acceptance write authorization state missing for connection")
+	}
+	state, ok := value.(*identityAcceptanceWriteAuthorization)
+	if !ok || state == nil {
+		return nil, fmt.Errorf("identity acceptance write authorization state invalid")
+	}
+	if state.scanID != "" || state.phase != "" {
+		return nil, fmt.Errorf("identity acceptance write authorization already active")
+	}
+	state.scanID = scanID
+	state.phase = phase
+	return func() {
+		state.scanID = ""
+		state.phase = ""
+	}, nil
 }
 
 func (s *Store) authorizeIdentityAuthorityWriteConn(

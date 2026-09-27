@@ -139,7 +139,12 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 		}
 		input.ArtifactID = resolution.SelectedArtifactID
 		input.AssignmentState = corpus.AssignmentAssigned
+		releaseAcceptance, txErr := s.authorizeIdentityAcceptanceWriteConn(conn, request.ScanID, "OBSERVATION")
+		if txErr != nil {
+			return txErr
+		}
 		observation, txErr := recordObservationConn(conn, request.ScanID, input)
+		releaseAcceptance()
 		if txErr != nil {
 			return txErr
 		}
@@ -159,16 +164,22 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 			Resolution:        resolution,
 			DecidedAt:      request.DecidedAt.UTC(),
 		}
-		if txErr := sqlitex.Execute(conn,
+		releaseAcceptance, txErr = s.authorizeIdentityAcceptanceWriteConn(conn, request.ScanID, "CONTINUITY")
+		if txErr != nil {
+			return txErr
+		}
+		txErr = sqlitex.Execute(conn,
 			"INSERT INTO accepted_continuity_decisions (decision_id, observation_id, artifact_id, decision_state, policy_id, resolution_json, decided_at, lifetime_segment_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
 			&sqlitex.ExecOptions{Args: []any{
 				string(decision.ID), string(decision.ObservationID), string(decision.ArtifactID),
 				string(decision.State), decision.PolicyID, string(resolutionJSON),
 				decision.DecidedAt.Format(time.RFC3339Nano), lifetimeSegmentID,
-			}}); txErr != nil {
+			}})
+		releaseAcceptance()
+		if txErr != nil {
 			return fmt.Errorf("insert accepted continuity decision: %w", txErr)
 		}
-		if txErr := insertIdentityMutationRequestConn(conn, identityMutationRequestRecord{
+		if txErr := s.insertIdentityMutationRequestConn(conn, request.ScanID, identityMutationRequestRecord{
 			RequestID: request.ID, Kind: corpus.IdentityMutationSame, Fingerprint: fingerprint,
 			AuthoritySetID: request.AuthoritySetID, ObservationID: observation.ID,
 			ArtifactID: decision.ArtifactID, RevisionID: revisionID,

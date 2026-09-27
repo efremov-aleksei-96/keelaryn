@@ -131,7 +131,12 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 		}
 		input.ArtifactID = artifactID
 		input.AssignmentState = corpus.AssignmentAssigned
+		releaseAcceptance, txErr := s.authorizeIdentityAcceptanceWriteConn(conn, request.ScanID, "OBSERVATION")
+		if txErr != nil {
+			return txErr
+		}
 		observation, txErr := recordObservationConn(conn, request.ScanID, input)
+		releaseAcceptance()
 		if txErr != nil {
 			return txErr
 		}
@@ -168,14 +173,20 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 			LifetimeSegmentID: stringOrEmpty(lifetimeSegmentID),
 			Resolution: resolution, DecidedAt: request.DecidedAt.UTC(),
 		}
-		if txErr := sqlitex.Execute(conn,
+		releaseAcceptance, txErr = s.authorizeIdentityAcceptanceWriteConn(conn, request.ScanID, "ADMISSION")
+		if txErr != nil {
+			return txErr
+		}
+		txErr = sqlitex.Execute(conn,
 			"INSERT INTO accepted_artifact_admissions (request_id, observation_id, artifact_id, identity_domain, provider_id, native_object_id, decision_state, policy_id, resolution_json, decided_at, lifetime_segment_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
 			&sqlitex.ExecOptions{Args: []any{
 				string(decision.RequestID), string(decision.ObservationID), string(decision.ArtifactID),
 				decision.IdentityDomain, string(decision.ProviderID), string(decision.ProviderObjectID),
 				string(decision.State), decision.PolicyID, string(resolutionJSON),
 				decision.DecidedAt.Format(time.RFC3339Nano), lifetimeSegmentID,
-			}}); txErr != nil {
+			}})
+		releaseAcceptance()
+		if txErr != nil {
 			return fmt.Errorf("insert accepted Artifact admission: %w", txErr)
 		}
 		revisionID := corpus.RevisionID("")
@@ -184,7 +195,7 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 			revisionID = revisionObservation.Current.Revision.ID
 			revisionCreated = revisionObservation.Created
 		}
-		if txErr := insertIdentityMutationRequestConn(conn, identityMutationRequestRecord{
+		if txErr := s.insertIdentityMutationRequestConn(conn, request.ScanID, identityMutationRequestRecord{
 			RequestID: request.ID, Kind: corpus.IdentityMutationNew, Fingerprint: fingerprint,
 			AuthoritySetID: request.AuthoritySetID, ObservationID: observation.ID,
 			ArtifactID: artifactID, RevisionID: revisionID, RevisionCreated: revisionCreated,
