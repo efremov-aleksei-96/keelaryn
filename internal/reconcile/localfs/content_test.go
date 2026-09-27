@@ -21,8 +21,11 @@ func TestContentEqualAddsSupportingEvidenceButRemainsAmbiguous(t *testing.T) {
 	store := openState(t)
 	provider := providerlocalfs.New("localfs")
 
-	artifact := adoptArtifactWithRevision(t, store, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", 3)
-	publishAssignedPath(t, store, artifact.ID, "file.txt", root, time.Date(2026, 9, 25, 10, 0, 0, 0, time.UTC))
+	publishAdoptedPath(t, store, "file.txt", root, time.Date(2026, 9, 25, 10, 0, 0, 0, time.UTC), &corpus.ContentEvidence{
+		Algorithm: corpus.ContentAlgorithmSHA256,
+		Digest:    "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+		Size:      3,
+	})
 
 	snapshot, err := provider.Snapshot(ctx, root)
 	if err != nil {
@@ -58,8 +61,11 @@ func TestContentMismatchAddsNoDistinctEvidence(t *testing.T) {
 	store := openState(t)
 	provider := providerlocalfs.New("localfs")
 
-	artifact := adoptArtifactWithRevision(t, store, "different", 9)
-	publishAssignedPath(t, store, artifact.ID, "file.txt", root, time.Date(2026, 9, 25, 11, 0, 0, 0, time.UTC))
+	publishAdoptedPath(t, store, "file.txt", root, time.Date(2026, 9, 25, 11, 0, 0, 0, time.UTC), &corpus.ContentEvidence{
+		Algorithm: corpus.ContentAlgorithmSHA256,
+		Digest:    "different",
+		Size:      9,
+	})
 
 	snapshot, err := provider.Snapshot(ctx, root)
 	if err != nil {
@@ -91,11 +97,7 @@ func TestCandidateWithoutRevisionAddsNoContentSignal(t *testing.T) {
 	store := openState(t)
 	provider := providerlocalfs.New("localfs")
 
-	artifact, err := store.AdoptArtifact(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	publishAssignedPath(t, store, artifact.ID, "link-like.txt", root, time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC))
+	publishAdoptedPath(t, store, "link-like.txt", root, time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC), nil)
 
 	snapshot, err := provider.Snapshot(ctx, root)
 	if err != nil {
@@ -209,46 +211,33 @@ func (emptyRevisionReader) RevisionHistory(context.Context, corpus.ArtifactID) (
 	return nil, nil
 }
 
-func adoptArtifactWithRevision(t *testing.T, store *sqlitestate.Store, digest string, size int64) corpus.Artifact {
+func publishAdoptedPath(t *testing.T, store *sqlitestate.Store, path, root string, at time.Time, evidence *corpus.ContentEvidence) {
 	t.Helper()
-	artifact, err := store.AdoptArtifact(context.Background())
+	scan, err := store.StartBootstrapScan(context.Background(), "localfs", root, at)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.ObserveRevision(context.Background(), artifact.ID, corpus.ContentEvidence{
-		Algorithm: corpus.ContentAlgorithmSHA256,
-		Digest: digest,
-		Size: size,
-	}); err != nil {
-		t.Fatal(err)
+	size := int64(1)
+	if evidence != nil {
+		size = evidence.Size
 	}
-	return artifact
-}
-
-func publishAssignedPath(t *testing.T, store *sqlitestate.Store, artifactID corpus.ArtifactID, path, root string, at time.Time) {
-	t.Helper()
-	scan, err := store.StartScan(context.Background(), "localfs", root, at)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = store.RecordObservationInScan(context.Background(), scan.ID, corpus.ObservationRecordInput{
+	_, err = store.AdoptObservationInScan(context.Background(), scan.ID, corpus.ObservationRecordInput{
 		ProviderObject: corpus.ProviderObject{
-			ProviderID: "localfs",
+			ProviderID:    "localfs",
 			IdentityState: corpus.ObjectIdentityUnresolved,
 		},
 		Locators: []corpus.Locator{{
 			ProviderID: "localfs",
-			Root: root,
-			Path: path,
+			Root:       root,
+			Path:       path,
 		}},
-		ArtifactID: artifactID,
-		AssignmentState: corpus.AssignmentAssigned,
-		ObservedAt: at,
-		Kind: corpus.EntryRegularFile,
-		Size: 1,
-		Mode: 0o600,
-		ModifiedAt: at,
-	})
+		AssignmentState: corpus.AssignmentUnresolved,
+		ObservedAt:      at,
+		Kind:            corpus.EntryRegularFile,
+		Size:            size,
+		Mode:            0o600,
+		ModifiedAt:      at,
+	}, evidence)
 	if err != nil {
 		t.Fatal(err)
 	}

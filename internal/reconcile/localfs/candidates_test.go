@@ -235,22 +235,17 @@ func adoptSnapshot(t *testing.T, store *sqlitestate.Store, snapshot *providerloc
 	}
 	observations := snapshot.Observations()
 	for _, observation := range observations {
-		artifact, err := store.AdoptArtifact(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
 		input := corpus.ObservationRecordInput{
 			ProviderObject: observation.ProviderObject,
 			Locators: []corpus.Locator{observation.Locator},
-			ArtifactID: artifact.ID,
-			AssignmentState: corpus.AssignmentAssigned,
+			AssignmentState: corpus.AssignmentUnresolved,
 			ObservedAt: at,
 			Kind: observation.Kind,
 			Size: observation.Size,
 			Mode: observation.Mode,
 			ModifiedAt: observation.ModifiedAt,
 		}
-		if _, err := store.RecordObservationInScan(context.Background(), scan.ID, input); err != nil {
+		if _, err := store.AdoptObservationInScan(context.Background(), scan.ID, input, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

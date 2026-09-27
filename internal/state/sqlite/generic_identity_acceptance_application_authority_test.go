@@ -18,7 +18,7 @@ func TestGenericObservationAPIsRejectDirectAssignedIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := unresolvedObservationInput()
+	input := genericIdentityUnresolvedObservationInput()
 	input.ArtifactID = artifact.ID
 	input.AssignmentState = corpus.AssignmentAssigned
 	if _, err := store.RecordObservation(ctx, input); !errors.Is(err, ErrInvalidObservation) {
@@ -29,6 +29,7 @@ func TestGenericObservationAPIsRejectDirectAssignedIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	input.ProviderObject = corpus.ProviderObject{ProviderID: "drive", ID: "obj-scan", IdentityState: corpus.ObjectIdentityObserved}
 	input.Locators = []corpus.Locator{{ProviderID: "drive", Root: "root", Path: "x"}}
 	if _, err := store.RecordObservationInScan(ctx, scan.ID, input); !errors.Is(err, ErrInvalidObservation) {
 		t.Fatalf("RecordObservationInScan error=%v, want ErrInvalidObservation", err)
@@ -43,7 +44,7 @@ func TestGenericIdentityAcceptanceApplicationAuthorityRejectsDirectSQL(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := unresolvedObservationInput()
+	input := genericIdentityUnresolvedObservationInput()
 	input.ProviderObject = corpus.ProviderObject{ProviderID: "drive", ID: "obj", IdentityState: corpus.ObjectIdentityObserved}
 	input.Locators = []corpus.Locator{{ProviderID: "drive", Root: "root", Path: "x"}}
 	input.ObservedAt = at
@@ -105,4 +106,26 @@ func sInsertTestProviderBinding(store *Store, conn *sqlite.Conn, artifactID corp
 		IdentityDomain: "test-domain", ProviderID: "drive", ProviderObjectID: "obj-admission",
 		ArtifactID: artifactID, PolicyID: "test-policy", AcceptedAt: at,
 	})
+}
+
+func genericIdentityUnresolvedObservationInput() corpus.ObservationRecordInput {
+	at := time.Date(2026, 9, 27, 13, 45, 0, 0, time.UTC)
+	return corpus.ObservationRecordInput{
+		ProviderObject: corpus.ProviderObject{
+			ProviderID:    "localfs",
+			ID:            "obj-generic-v38",
+			IdentityState: corpus.ObjectIdentityObserved,
+		},
+		Locators: []corpus.Locator{{
+			ProviderID: "localfs",
+			Root:       "root",
+			Path:       "x",
+		}},
+		AssignmentState: corpus.AssignmentUnresolved,
+		ObservedAt:      at,
+		Kind:            corpus.EntryOther,
+		Size:            0,
+		Mode:            0o600,
+		ModifiedAt:      at,
+	}
 }
