@@ -2340,6 +2340,178 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v29_remote_identity_causal_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v29_remote_identity_causal_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM identity_mutation_requests m
+		JOIN identity_authority_sets a
+		  ON a.authority_set_id=m.authority_set_id
+		JOIN observations o
+		  ON o.observation_id=m.observation_id
+		JOIN scan_sessions s
+		  ON s.scan_id=o.scan_id
+		WHERE a.policy_id='remote-history:lifetime-segment:v1'
+		  AND (
+			keelaryn_is_canonical_utc_rfc3339nano(m.accepted_at)<>1
+			OR NOT (
+				m.accepted_at=s.started_at
+				OR keelaryn_utc_rfc3339nano_after(m.accepted_at,s.started_at)=1
+			)
+			OR NOT (
+				m.accepted_at=a.created_at
+				OR keelaryn_utc_rfc3339nano_after(m.accepted_at,a.created_at)=1
+			)
+			OR (
+				m.decision_kind='CONTINUITY'
+				AND NOT EXISTS (
+					SELECT 1
+					FROM accepted_continuity_decisions d
+					WHERE d.decision_id=m.decision_id
+					  AND d.observation_id=m.observation_id
+					  AND d.artifact_id=m.artifact_id
+					  AND d.policy_id='remote-history:lifetime-segment:v1'
+					  AND d.decided_at=m.accepted_at
+				)
+			)
+			OR (
+				m.decision_kind='ADMISSION'
+				AND NOT EXISTS (
+					SELECT 1
+					FROM accepted_artifact_admissions d
+					WHERE d.request_id=m.decision_id
+					  AND d.observation_id=m.observation_id
+					  AND d.artifact_id=m.artifact_id
+					  AND d.policy_id='remote-history:lifetime-segment:v1'
+					  AND d.decided_at=m.accepted_at
+				)
+			)
+		  )
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v29_remote_identity_causal_validation;
+
+CREATE TRIGGER remote_history_continuity_application_causal_guard
+BEFORE INSERT ON accepted_continuity_decisions
+WHEN NEW.policy_id='remote-history:lifetime-segment:v1'
+AND (
+	keelaryn_identity_mutation_authorized(COALESCE((
+		SELECT o.scan_id
+		FROM observations o
+		WHERE o.observation_id=NEW.observation_id
+	), ''))<>1
+	OR NOT EXISTS (
+		SELECT 1
+		FROM observations o
+		JOIN scan_sessions s ON s.scan_id=o.scan_id
+		WHERE o.observation_id=NEW.observation_id
+		  AND keelaryn_is_canonical_utc_rfc3339nano(NEW.decided_at)=1
+		  AND (
+			NEW.decided_at=s.started_at
+			OR keelaryn_utc_rfc3339nano_after(NEW.decided_at,s.started_at)=1
+		  )
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory continuity decision lacks validated causal identity mutation authority');
+END;
+
+CREATE TRIGGER remote_history_admission_application_causal_guard
+BEFORE INSERT ON accepted_artifact_admissions
+WHEN NEW.policy_id='remote-history:lifetime-segment:v1'
+AND (
+	keelaryn_identity_mutation_authorized(COALESCE((
+		SELECT o.scan_id
+		FROM observations o
+		WHERE o.observation_id=NEW.observation_id
+	), ''))<>1
+	OR NOT EXISTS (
+		SELECT 1
+		FROM observations o
+		JOIN scan_sessions s ON s.scan_id=o.scan_id
+		WHERE o.observation_id=NEW.observation_id
+		  AND keelaryn_is_canonical_utc_rfc3339nano(NEW.decided_at)=1
+		  AND (
+			NEW.decided_at=s.started_at
+			OR keelaryn_utc_rfc3339nano_after(NEW.decided_at,s.started_at)=1
+		  )
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory admission decision lacks validated causal identity mutation authority');
+END;
+
+CREATE TRIGGER remote_history_identity_mutation_receipt_application_causal_guard
+BEFORE INSERT ON identity_mutation_requests
+WHEN EXISTS (
+	SELECT 1
+	FROM identity_authority_sets a
+	WHERE a.authority_set_id=NEW.authority_set_id
+	  AND a.policy_id='remote-history:lifetime-segment:v1'
+)
+AND (
+	keelaryn_identity_mutation_authorized(COALESCE((
+		SELECT o.scan_id
+		FROM observations o
+		WHERE o.observation_id=NEW.observation_id
+	), ''))<>1
+	OR NOT EXISTS (
+		SELECT 1
+		FROM observations o
+		JOIN scan_sessions s ON s.scan_id=o.scan_id
+		JOIN identity_authority_sets a ON a.authority_set_id=NEW.authority_set_id
+		WHERE o.observation_id=NEW.observation_id
+		  AND keelaryn_is_canonical_utc_rfc3339nano(NEW.accepted_at)=1
+		  AND (
+			NEW.accepted_at=s.started_at
+			OR keelaryn_utc_rfc3339nano_after(NEW.accepted_at,s.started_at)=1
+		  )
+		  AND (
+			NEW.accepted_at=a.created_at
+			OR keelaryn_utc_rfc3339nano_after(NEW.accepted_at,a.created_at)=1
+		  )
+		  AND (
+			(
+				NEW.decision_kind='CONTINUITY'
+				AND EXISTS (
+					SELECT 1
+					FROM accepted_continuity_decisions d
+					WHERE d.decision_id=NEW.decision_id
+					  AND d.observation_id=NEW.observation_id
+					  AND d.artifact_id=NEW.artifact_id
+					  AND d.policy_id='remote-history:lifetime-segment:v1'
+					  AND d.decided_at=NEW.accepted_at
+				)
+			)
+			OR
+			(
+				NEW.decision_kind='ADMISSION'
+				AND EXISTS (
+					SELECT 1
+					FROM accepted_artifact_admissions d
+					WHERE d.request_id=NEW.decision_id
+					  AND d.observation_id=NEW.observation_id
+					  AND d.artifact_id=NEW.artifact_id
+					  AND d.policy_id='remote-history:lifetime-segment:v1'
+					  AND d.decided_at=NEW.accepted_at
+				)
+			)
+		  )
+	)
+)
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory identity mutation receipt lacks validated causal authority');
+END;
+`,
+
 	},
 }
 
@@ -2353,6 +2525,7 @@ const (
 	canonicalUTCRFC3339NanoFunction       = "keelaryn_is_canonical_utc_rfc3339nano"
 	utcRFC3339NanoAfterFunction                  = "keelaryn_utc_rfc3339nano_after"
 	sourceIdentityMutationAuthorizationFunction  = "keelaryn_source_identity_mutation_authorized"
+	identityMutationAuthorizationFunction        = "keelaryn_identity_mutation_authorized"
 	remoteHistoryBindingAuthorizationFunction    = "keelaryn_remote_history_binding_authorized"
 	remoteAuthorityPublicationRefFunction        = "keelaryn_remote_authority_publication_ref"
 )
@@ -2471,6 +2644,19 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		},
 	}); err != nil {
 		return fmt.Errorf("register source identity mutation authorization function: %w", err)
+	}
+	if err := conn.CreateFunction(identityMutationAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs:         1,
+		Deterministic: false,
+		AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if identityAuth.scanID != "" && string(identityAuth.scanID) == args[0].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register identity mutation authorization function: %w", err)
 	}
 	if err := conn.CreateFunction(remoteHistoryBindingAuthorizationFunction, &sqlite.FunctionImpl{
 		NArgs:         2,

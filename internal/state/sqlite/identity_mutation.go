@@ -89,6 +89,16 @@ func validateAuthorityScope(
 	if err != nil {
 		return err
 	}
+	if set.PolicyID == remoteHistoryLifetimeAuthorityPolicyV1 &&
+		(decidedAt.UTC().Before(scan.StartedAt) || decidedAt.UTC().Before(set.CreatedAt)) {
+		return fmt.Errorf(
+			"%w: decision=%s scan=%s authority=%s",
+			ErrIdentityMutationCausalTime,
+			decidedAt.UTC().Format(time.RFC3339Nano),
+			scan.StartedAt.UTC().Format(time.RFC3339Nano),
+			set.CreatedAt.UTC().Format(time.RFC3339Nano),
+		)
+	}
 	if !sourceBound {
 		if set.ProviderID != scan.ProviderID ||
 			set.ScopeID != scan.Root ||
@@ -110,15 +120,6 @@ func validateAuthorityScope(
 			ErrScanScopeMismatch,
 			input.ObservedAt.UTC().Format(time.RFC3339Nano),
 			scan.StartedAt.UTC().Format(time.RFC3339Nano),
-		)
-	}
-	if decidedAt.UTC().Before(scan.StartedAt) || decidedAt.UTC().Before(set.CreatedAt) {
-		return fmt.Errorf(
-			"%w: decision=%s scan=%s authority=%s",
-			ErrIdentityMutationCausalTime,
-			decidedAt.UTC().Format(time.RFC3339Nano),
-			scan.StartedAt.UTC().Format(time.RFC3339Nano),
-			set.CreatedAt.UTC().Format(time.RFC3339Nano),
 		)
 	}
 	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion ||
