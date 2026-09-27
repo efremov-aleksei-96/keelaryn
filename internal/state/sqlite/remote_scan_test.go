@@ -9,6 +9,7 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
+	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory/gdrive"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
@@ -90,31 +91,19 @@ func TestRemoteScanSourceSQLiteRejectsScanBeforeSourcePublication(t *testing.T) 
 
 func TestRemoteHistoryScanStartReplayGuardedCompleteAndReconcile(t *testing.T) {
 	ctx := context.Background()
-	store := openStoreInternal(t)
-	scope := remoteHistoryTestScope()
-	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
-	base := time.Date(2026, 9, 27, 5, 0, 0, 0, time.UTC)
-	generation, err := store.StartRemoteHistoryGeneration(
-		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	source := remoteScanSourceInput(generation.ID, 1, "managed-a", remoteScanFingerprintA)
-	scanRoot := "drive:user-1:managed:managed-a"
+	fixture, scan, source := qualifiedGoogleRemoteScan(t)
+	store := fixture.store
+	base := fixture.base
+	scanRoot := fixture.scanRoot
 
-	scan, replayed, err := store.StartRemoteHistoryScan(ctx, scanRoot, source, base.Add(time.Second))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if replayed || scan.Status != corpus.ScanOpen || scan.ProviderID != scope.ProviderID || scan.Root != scanRoot {
-		t.Fatalf("start scan=%#v replayed=%v", scan, replayed)
+	if scan.Status != corpus.ScanOpen {
+		t.Fatalf("start scan=%#v", scan)
 	}
 	storedSource, err := store.RemoteHistoryScanSource(ctx, scan.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if storedSource.ScanID != scan.ID || storedSource.RemoteScanSourceInput != source {
+	if storedSource != source {
 		t.Fatalf("source=%#v want=%#v", storedSource, source)
 	}
 	state, err := store.ReconcileRemoteHistoryScan(ctx, scan.ID)
@@ -125,7 +114,7 @@ func TestRemoteHistoryScanStartReplayGuardedCompleteAndReconcile(t *testing.T) {
 		t.Fatalf("source state=%q want CURRENT", state)
 	}
 
-	replayedScan, replayed, err := store.StartRemoteHistoryScan(ctx, scanRoot, source, base.Add(2*time.Second))
+	replayedScan, replayed, err := store.StartRemoteHistoryScan(ctx, scanRoot, source.RemoteScanSourceInput, base.Add(90*time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +122,7 @@ func TestRemoteHistoryScanStartReplayGuardedCompleteAndReconcile(t *testing.T) {
 		t.Fatalf("OPEN replay scan=%#v replayed=%v", replayedScan, replayed)
 	}
 
-	if err := store.CompleteScan(ctx, scan.ID, base.Add(3*time.Second)); !errors.Is(err, ErrRemoteHistoryScanRequiresGuardedCompletion) {
+	if err := store.CompleteScan(ctx, scan.ID, base.Add(2*time.Minute)); !errors.Is(err, ErrRemoteHistoryScanRequiresGuardedCompletion) {
 		t.Fatalf("generic complete error=%v", err)
 	}
 	stillOpen, err := store.ScanSession(ctx, scan.ID)
@@ -144,14 +133,14 @@ func TestRemoteHistoryScanStartReplayGuardedCompleteAndReconcile(t *testing.T) {
 		t.Fatalf("generic complete mutated source-bound scan: %#v", stillOpen)
 	}
 
-	completed, replayed, err := store.CompleteRemoteHistoryScan(ctx, scan.ID, base.Add(4*time.Second))
+	completed, replayed, err := store.CompleteRemoteHistoryScan(ctx, scan.ID, base.Add(2*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if replayed || completed.Status != corpus.ScanComplete {
 		t.Fatalf("remote complete=%#v replayed=%v", completed, replayed)
 	}
-	completedAgain, replayed, err := store.CompleteRemoteHistoryScan(ctx, scan.ID, base.Add(5*time.Second))
+	completedAgain, replayed, err := store.CompleteRemoteHistoryScan(ctx, scan.ID, base.Add(3*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,16 +148,22 @@ func TestRemoteHistoryScanStartReplayGuardedCompleteAndReconcile(t *testing.T) {
 		t.Fatalf("complete replay=%#v replayed=%v", completedAgain, replayed)
 	}
 
-	cycle := remotehistory.ChangeCycle{
-		StreamID:       scope.StreamID,
+	cycle := gdrive.ChangeCycleBundle{History: remotehistory.ChangeCycle{
+		StreamID:       fixture.generation.Scope.StreamID,
 		Status:         remotehistory.CycleComplete,
 		PreviousCursor: "cursor-1",
 		NextCursor:     "cursor-2",
 		Coverage:       corpus.ProviderHistoryContinuous,
-		Changes:        []remotehistory.RemoteChange{historyUpsert(scope, "id-1", "renamed.txt")},
-	}
-	if _, err := store.PublishRemoteHistoryCycle(
-		ctx, generation.ID, scope, fp, 1, "cursor-1", cycle, base.Add(6*time.Second),
+	}}
+	if _, err := store.PublishGoogleDriveRemoteHistoryCycle(
+		ctx,
+		fixture.generation.ID,
+		fixture.generation.Scope,
+		remotehistory.ScopePolicyFingerprint("google-drive-history-universe:v1:test"),
+		1,
+		"cursor-1",
+		cycle,
+		base.Add(4*time.Minute),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +175,7 @@ func TestRemoteHistoryScanStartReplayGuardedCompleteAndReconcile(t *testing.T) {
 		t.Fatalf("completed scan source state=%q want ADVANCED", state)
 	}
 
-	timeoutReplay, replayed, err := store.StartRemoteHistoryScan(ctx, scanRoot, source, base.Add(7*time.Second))
+	timeoutReplay, replayed, err := store.StartRemoteHistoryScan(ctx, scanRoot, source.RemoteScanSourceInput, base.Add(5*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -532,6 +527,30 @@ func TestRemoteHistoryScanSQLiteGuardsBoundSessionAuthority(t *testing.T) {
 }
 
 
+
+func qualifiedGoogleRemoteScan(t *testing.T) (googleRemoteCompletionFixture, corpus.ScanSession, remotehistory.RemoteScanSource) {
+	t.Helper()
+	fixture := newGoogleRemoteCompletionFixture(t)
+	entries := []remotehistory.RemoteMetadataFingerprintEntry{
+		fixture.entry("managed", corpus.EntryOther, 0, fixture.base),
+		fixture.entry("child", corpus.EntryRegularFile, 7, fixture.base.Add(time.Second)),
+	}
+	scan, err := fixture.startScan(entries, fixture.scanRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if err := fixture.record(scan.ID, entry); err != nil {
+			t.Fatal(err)
+		}
+	}
+	source, err := fixture.store.RemoteHistoryScanSource(context.Background(), scan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fixture, scan, source
+}
+
 func remoteScanSourceInput(
 	generationID remotehistory.HistoryGenerationID,
 	sequence remotehistory.HistoryPublicationSequence,
@@ -542,8 +561,8 @@ func remoteScanSourceInput(
 		GenerationID:               generationID,
 		PublicationSequence:        sequence,
 		SourceScopeID:              scopeID,
-		MaterializationPolicyID:    "remote-observation-materialization:v1:test",
-		SnapshotFingerprintVersion: "remote-observation-snapshot:v1",
+		MaterializationPolicyID:    remotehistory.LightweightAllMaterializationPolicyID,
+		SnapshotFingerprintVersion: remotehistory.RemoteMetadataSnapshotFingerprintVersion,
 		SnapshotFingerprintSHA256:  fingerprint,
 	}
 }

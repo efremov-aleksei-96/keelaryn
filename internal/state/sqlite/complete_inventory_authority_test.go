@@ -14,31 +14,17 @@ import (
 
 func TestRemoteManagedRootRejectsGenericComplete(t *testing.T) {
 	ctx := context.Background()
-	store := openStoreInternal(t)
-	scope := remoteHistoryTestScope()
-	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
-	base := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
-	generation, err := store.StartRemoteHistoryGeneration(
-		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	root := "drive:user-1:managed:authority"
-	source := remoteScanSourceInput(generation.ID, 1, "managed-authority", remoteScanFingerprintA)
-	remoteScan, _, err := store.StartRemoteHistoryScan(ctx, root, source, base.Add(time.Second))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := store.CompleteRemoteHistoryScan(ctx, remoteScan.ID, base.Add(2*time.Second)); err != nil {
+	fixture, remoteScan, _ := qualifiedGoogleRemoteScan(t)
+	store := fixture.store
+	if _, _, err := store.CompleteRemoteHistoryScan(ctx, remoteScan.ID, fixture.base.Add(2*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 
-	generic, err := store.StartScan(ctx, scope.ProviderID, root, base.Add(3*time.Second))
+	generic, err := store.StartScan(ctx, remoteScan.ProviderID, fixture.scanRoot, fixture.base.Add(3*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.CompleteScan(ctx, generic.ID, base.Add(4*time.Second)); !errors.Is(err, ErrRemoteHistoryRootRequiresSourceBoundScan) {
+	if err := store.CompleteScan(ctx, generic.ID, fixture.base.Add(4*time.Minute)); !errors.Is(err, ErrRemoteHistoryRootRequiresSourceBoundScan) {
 		t.Fatalf("generic remote-root completion error=%v want ErrRemoteHistoryRootRequiresSourceBoundScan", err)
 	}
 	got, err := store.ScanSession(ctx, generic.ID)
@@ -56,41 +42,27 @@ func TestRemoteManagedRootRejectsGenericComplete(t *testing.T) {
 	err = sqlitex.Execute(conn,
 		"UPDATE scan_sessions SET status='COMPLETE', finished_at=?1 WHERE scan_id=?2",
 		&sqlitex.ExecOptions{Args: []any{
-			base.Add(4 * time.Second).Format(time.RFC3339Nano),
+			fixture.base.Add(4 * time.Minute).Format(time.RFC3339Nano),
 			string(generic.ID),
 		}})
 	store.pool.Put(conn)
 	if err == nil {
 		t.Fatal("direct SQL generic completion on remote-managed root unexpectedly succeeded")
 	}
-	if err := store.AbortScan(ctx, generic.ID, base.Add(5*time.Second)); err != nil {
+	if err := store.AbortScan(ctx, generic.ID, fixture.base.Add(5*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestCompletedRemoteSourceCannotBeDuplicatedByDirectSQL(t *testing.T) {
 	ctx := context.Background()
-	store := openStoreInternal(t)
-	scope := remoteHistoryTestScope()
-	fp := remotehistory.ScopePolicyFingerprint("scope-policy:v1:test")
-	base := time.Date(2026, 9, 27, 13, 0, 0, 0, time.UTC)
-	generation, err := store.StartRemoteHistoryGeneration(
-		ctx, scope, fp, remoteHistoryBootstrap(scope, "cursor-1"), base,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	root := "drive:user-1:managed:replay"
-	source := remoteScanSourceInput(generation.ID, 1, "managed-replay", remoteScanFingerprintA)
-	first, _, err := store.StartRemoteHistoryScan(ctx, root, source, base.Add(time.Second))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := store.CompleteRemoteHistoryScan(ctx, first.ID, base.Add(2*time.Second)); err != nil {
+	fixture, first, source := qualifiedGoogleRemoteScan(t)
+	store := fixture.store
+	if _, _, err := store.CompleteRemoteHistoryScan(ctx, first.ID, fixture.base.Add(2*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 
-	bypass, err := store.StartScan(ctx, scope.ProviderID, root, base.Add(3*time.Second))
+	bypass, err := store.StartScan(ctx, first.ProviderID, fixture.scanRoot, fixture.base.Add(3*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +88,7 @@ func TestCompletedRemoteSourceCannotBeDuplicatedByDirectSQL(t *testing.T) {
 	if _, err := store.RemoteHistoryScanSource(ctx, bypass.ID); !errors.Is(err, ErrRemoteHistoryScanSourceNotFound) {
 		t.Fatalf("rejected duplicate left source sidecar: %v", err)
 	}
-	if err := store.AbortScan(ctx, bypass.ID, base.Add(4*time.Second)); err != nil {
+	if err := store.AbortScan(ctx, bypass.ID, fixture.base.Add(4*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 }
