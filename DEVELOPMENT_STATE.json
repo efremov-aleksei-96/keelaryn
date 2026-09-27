@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 148,
+  "revision": 149,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "FIX_AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
-    "description": "Append schema v37 without rewriting prior migrations. Fail closed when opening historical v36-or-earlier state containing a sealed IdentityAuthoritySet that cannot be reconstructed and validated under the current corpus.ValidateIdentityAuthoritySet contract. Do not normalize or invent provenance. Add adversarial migration regressions for sealed structurally invalid authority, including malformed source_refs/timestamp/required-field semantics. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
+    "id": "FIX_AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
+    "description": "Append schema v38 without rewriting prior migrations. Protect future durable local/generic identity assignment and acceptance writes with narrow connection-local application authority so raw SQL cannot create ASSIGNED observations, SAME/NEW accepted decisions, or identity mutation receipts outside validated identity/adoption paths. Preserve qualified RemoteHistory guards, make legitimate local adoption/SAME/NEW writers acquire only the exact capability they need, add direct-SQL adversarial regressions and fail-closed migration validation for structurally orphaned/invalid acceptance state where historical invariants already require it. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -3762,7 +3762,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 36,
+    "schema_version": 37,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4196,7 +4196,7 @@
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
         "qualification_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
-        "schema_version": 36,
+        "schema_version": 37,
         "implementation": {
           "shared_resolver": "corpus.ResolveIdentityAuthoritySet",
           "local_generic_scope": "UNCHANGED_AUTHORITY_SCOPE_EQUALS_SCAN_ROOT",
@@ -4285,11 +4285,11 @@
           "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening around intentionally indirect application-defined trigger functions"
         ],
         "conclusion": "PASS",
-        "latest_product_head": "d591ca473dacdb6badf029980b8cd75bd3dfca24",
-        "latest_exact_head_ci_run_id": 36305278648,
+        "latest_product_head": "c337532470115b5aeea1f7c0f526f85651eb0e21",
+        "latest_exact_head_ci_run_id": 36306434508,
         "latest_exact_head_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
-        "requalification_status": "BLOCKED_BY_AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
-        "latest_exact_head": "d591ca473dacdb6badf029980b8cd75bd3dfca24"
+        "requalification_status": "BLOCKED_BY_AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
+        "latest_exact_head": "c337532470115b5aeea1f7c0f526f85651eb0e21"
       },
       "c2": {
         "status": "LOCKED_PENDING_ZERO_FINDINGS_REAUDIT",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FIX_AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
+    "current_stage": "FIX_AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_AUDIT_FROM_SCRATCH_UNTIL_ZERO_NEW_FINDINGS",
     "clean_pass_required": true,
@@ -4322,23 +4322,23 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "d591ca473dacdb6badf029980b8cd75bd3dfca24",
-      "dimension": "IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
-      "finding_id": "AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
+      "head": "c337532470115b5aeea1f7c0f526f85651eb0e21",
+      "dimension": "GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
+      "finding_id": "AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
       "severity": "BLOCKER",
-      "issue": "Schema v36 blocks new raw-SQL identity authority creation but its migration validates only sealed_at presence/equality. A v35 authority forged through the previously open raw-SQL path can be sealed with sealed_at==created_at while still violating corpus.ValidateIdentityAuthoritySet (for example malformed source_refs_json, invalid timestamp, or invalid required-field semantics), and Open can therefore migrate that structurally invalid durable authority instead of failing closed.",
-      "required_correction": "Append schema v37 without rewriting v36. Before current state is usable, validate every historical sealed IdentityAuthoritySet against the same structural contract as corpus.ValidateIdentityAuthoritySet, including source refs, timestamp and candidates, and fail closed without normalizing or inventing provenance. Add a regression that constructs a sealed malformed v36 historical authority and proves Open rejects it.",
+      "issue": "Application-authority guards for assigned observations, accepted continuity/admission decisions, and identity mutation receipts are conditional on source-bound/RemoteHistory state. In an ordinary local scan, raw SQL can therefore create an ASSIGNED regular-file Observation linked to an arbitrary existing Artifact plus a matching generic SAME decision/receipt, bypassing validateIdentityMutationRequest, validateAuthorityScope, authority-derived resolution, and mandatory content evidence for regular SAME.",
+      "required_correction": "Append schema v38 without rewriting prior migrations. Require an exact connection-local identity/adoption mutation capability for every future ASSIGNED Observation and every accepted continuity/admission decision and identity mutation receipt, not only source-bound/RemoteHistory rows. Update legitimate adoption/SAME/NEW writers to acquire/release that capability at the narrow mutation boundary, retain the stronger RemoteHistory causal/lifetime guards, add direct-SQL local bypass regressions, and validate historical state conservatively without inventing provenance.",
       "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
     "open_findings": [
       {
-        "id": "AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
+        "id": "AUDIT_C1_B11_GENERIC_IDENTITY_ACCEPTANCE_APPLICATION_AUTHORITY",
         "severity": "BLOCKER",
         "status": "OPEN",
-        "affected_head": "d591ca473dacdb6badf029980b8cd75bd3dfca24",
-        "issue": "Schema v36 blocks new raw-SQL identity authority creation but its migration validates only sealed_at presence/equality. A v35 authority forged through the previously open raw-SQL path can be sealed with sealed_at==created_at while still violating corpus.ValidateIdentityAuthoritySet (for example malformed source_refs_json, invalid timestamp, or invalid required-field semantics), and Open can therefore migrate that structurally invalid durable authority instead of failing closed.",
-        "required_correction": "Append schema v37 without rewriting v36. Before current state is usable, validate every historical sealed IdentityAuthoritySet against the same structural contract as corpus.ValidateIdentityAuthoritySet, including source refs, timestamp and candidates, and fail closed without normalizing or inventing provenance. Add a regression that constructs a sealed malformed v36 historical authority and proves Open rejects it."
+        "affected_head": "c337532470115b5aeea1f7c0f526f85651eb0e21",
+        "issue": "Application-authority guards for assigned observations, accepted continuity/admission decisions, and identity mutation receipts are conditional on source-bound/RemoteHistory state. In an ordinary local scan, raw SQL can therefore create an ASSIGNED regular-file Observation linked to an arbitrary existing Artifact plus a matching generic SAME decision/receipt, bypassing validateIdentityMutationRequest, validateAuthorityScope, authority-derived resolution, and mandatory content evidence for regular SAME.",
+        "required_correction": "Append schema v38 without rewriting prior migrations. Require an exact connection-local identity/adoption mutation capability for every future ASSIGNED Observation and every accepted continuity/admission decision and identity mutation receipt, not only source-bound/RemoteHistory rows. Update legitimate adoption/SAME/NEW writers to acquire/release that capability at the narrow mutation boundary, retain the stronger RemoteHistory causal/lifetime guards, add direct-SQL local bypass regressions, and validate historical state conservatively without inventing provenance."
       }
     ],
     "resolved_findings": [
@@ -4440,6 +4440,16 @@
         "schema_version": 36,
         "ci_run_id": 36305278648,
         "resolution": "Schema v36 protects authority-set creation, candidate insertion and sealing with exact connection-local per-phase application authority; d591ca4 releases each phase capability immediately after its authorized write. A later B10 finding narrows migration qualification only."
+      },
+      {
+        "id": "AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
+        "severity": "BLOCKER",
+        "status": "FIXED_PENDING_ZERO_FINDINGS_REQUALIFICATION_AUDIT",
+        "affected_head": "d591ca473dacdb6badf029980b8cd75bd3dfca24",
+        "fix_head": "c337532470115b5aeea1f7c0f526f85651eb0e21",
+        "schema_version": 37,
+        "ci_run_id": 36306434508,
+        "resolution": "Schema v37 transactionally rejects historical sealed identity authority that cannot satisfy the same corpus.ValidateIdentityAuthoritySet structural contract for set/source-ref/timestamp/generation semantics or candidate structure. The fix reuses sqlitemigration PrepareConn UDF support and append-only transactional migrations; no new dependency or historical normalization is introduced."
       }
     ],
     "last_resolution_checkpoint": {
