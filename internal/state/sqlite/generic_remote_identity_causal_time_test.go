@@ -135,14 +135,6 @@ func TestV29SQLiteRejectsGenericRemoteHistoryDecisionAndReceiptWithoutCapability
 	defer store.pool.Put(conn)
 
 	if err := sqlitex.Execute(conn,
-		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_v29_generic','?bad','id-1','OBSERVED')",
-		nil); err == nil {
-		// The provider typo is intentional only to prove this statement is not reused.
-		if err := sqlitex.Execute(conn, "DELETE FROM provider_object_occurrences WHERE occurrence_id='pobjocc_v29_generic'", nil); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := sqlitex.Execute(conn,
 		"INSERT INTO provider_object_occurrences (occurrence_id,provider_id,native_object_id,identity_state) VALUES ('pobjocc_v29_generic',?1,'id-1','OBSERVED')",
 		&sqlitex.ExecOptions{Args: []any{string(scope.ProviderID)}}); err != nil {
 		t.Fatal(err)
