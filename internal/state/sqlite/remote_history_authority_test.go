@@ -232,9 +232,20 @@ func TestRemoteHistoryAuthorityRejectsProjectionDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	releaseHistoryWrite, authErr := store.authorizeRemoteHistoryWriteConn(conn, remoteHistoryWriteAuthorization{
+		phase:             remoteHistoryWriteIncremental,
+		generationID:      generation.ID,
+		sequence:          2,
+		fingerprintSHA256: "test-only-projection-drift",
+	})
+	if authErr != nil {
+		store.pool.Put(conn)
+		t.Fatal(authErr)
+	}
 	err = sqlitex.Execute(conn,
 		"UPDATE provider_object_lifetime_segments SET last_present_sequence=2, last_present_ordinal=0 WHERE lifetime_segment_id=?1",
 		&sqlitex.ExecOptions{Args: []any{string(segment.ID)}})
+	releaseHistoryWrite()
 	store.pool.Put(conn)
 	if err != nil {
 		t.Fatal(err)

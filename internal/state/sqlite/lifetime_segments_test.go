@@ -279,9 +279,20 @@ func TestLifetimeSegmentProjectionVerifierDetectsHistoryMismatch(t *testing.T) {
 	// This update has a shape allowed for normal projection continuation, but
 	// there is no matching immutable publication evidence. Reconstruction must
 	// therefore detect the divergence.
+	releaseHistoryWrite, authErr := store.authorizeRemoteHistoryWriteConn(conn, remoteHistoryWriteAuthorization{
+		phase:             remoteHistoryWriteIncremental,
+		generationID:      generation.ID,
+		sequence:          2,
+		fingerprintSHA256: "test-only-projection-drift",
+	})
+	if authErr != nil {
+		store.pool.Put(conn)
+		t.Fatal(authErr)
+	}
 	err = sqlitex.Execute(conn,
 		"UPDATE provider_object_lifetime_segments SET last_present_sequence=2, last_present_ordinal=0 WHERE generation_id=?1 AND object_id='id-1'",
 		&sqlitex.ExecOptions{Args: []any{string(generation.ID)}})
+	releaseHistoryWrite()
 	store.pool.Put(conn)
 	if err != nil {
 		t.Fatalf("test projection drift injection failed: %v", err)
