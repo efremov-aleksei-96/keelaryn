@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 172,
+  "revision": 173,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_RESTART_A07_RUNTIME_REACHABILITY",
+    "current_stage": "FULL_AUDIT_RESTART_A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4665,11 +4665,12 @@
         },
         {
           "id": "A07_RUNTIME_REACHABILITY",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Product HEAD 9010d37a executable surface remains cmd/keelaryn scan --root only: localfs.Discover read-only + JSON output. Durable SQLite ingest/bootstrap/identity/RemoteHistory/materialization paths are internal library surfaces and not yet wired into CLI/runtime. Existing correctness findings therefore remain pre-wiring blockers; no new runtime-reachability finding."
         },
         {
           "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
@@ -4705,8 +4706,8 @@
       ],
       "last_checkpoint": {
         "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-        "completed_through": "A06_NEGATIVE_ADVERSARIAL_CASES",
-        "next": "A07_RUNTIME_REACHABILITY",
+        "completed_through": "A07_RUNTIME_REACHABILITY",
+        "next": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
         "known_open_finding_count": 13,
         "critical_gate_open": 7
       }
