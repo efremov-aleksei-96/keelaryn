@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 157,
+  "revision": 158,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4413,6 +4413,14 @@
         "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
         "issue": "accepted_continuity_decisions.resolution_json and accepted_artifact_admissions.resolution_json are durable authority but historical migrations do not validate JSON syntax/semantic resolution shape. Readers do json.Unmarshal plus semantic validation and fail closed, so malformed historical rows are not silently trusted, but Store.Open can succeed with accepted decisions that cannot later be read/replayed.",
         "required_correction": "Add conservative migration validation for durable accepted decision JSON and semantic consistency using the same corpus resolution validators where reconstructable. Treat malformed historical authority as explicit invalid state rather than allowing Open success followed by later read/replay failure."
+      },
+      {
+        "id": "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "RemoteScanSourceInput validation is fail-open for an unknown snapshot fingerprint version paired with an unknown materialization policy: the validator only rejects when exactly one side is the known RemoteMetadata/LIGHTWEIGHT_ALL pair. CompleteRemoteHistoryScan then returns success from both snapshot fingerprint verification and provider-scope validation when the fingerprint version is not the known RemoteMetadataSnapshotFingerprintVersion. A caller can therefore create and COMPLETE a source-bound remote scan under an unsupported contract without exact snapshot or provider-scope proof.",
+        "required_correction": "Make supported remote materialization contracts explicit and fail closed on unknown fingerprint-version/policy pairs in P0. Completion must require a registered validator for the exact contract; no unknown contract may bypass fingerprint and provider-scope verification. Add adversarial tests for unknown/known mismatches and unknown/unknown pairs at start and completion."
       }
     ],
     "resolved_findings": [
@@ -4602,7 +4610,7 @@
         {
           "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
           "status": "DONE",
-          "evidence": "Table-by-table negative coverage and historical-row validation reviewed. Current/future raw-write gaps are already B13-B15. Confirmed v35 migration only validates contiguous Revision sequence and does not validate historical core identity rows against current write-time contracts; B19 recorded. Malformed historical accepted-decision resolution JSON is reader-fail-closed but can leave unreadable accepted authority; M1 recorded."
+          "evidence": "Table-by-table negative coverage and historical-row validation reviewed. Current/future raw-write gaps are already B13-B15. Confirmed v35 migration only validates contiguous Revision sequence and does not validate historical core identity rows against current write-time contracts; B19 recorded. Malformed historical accepted-decision resolution JSON is reader-fail-closed but can leave unreadable accepted authority; M1 recorded. Supplemental post-check confirmed B20: unknown remote scan fingerprint-version + policy pair is accepted and completion skips both fingerprint and provider-scope validation."
         },
         {
           "id": "A07_RUNTIME_REACHABILITY",
@@ -4645,14 +4653,15 @@
         "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD",
         "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
         "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
-        "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION"
+        "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
+        "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN"
       ],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "461bfadb88def2d4ab5cb9a844b22f7f021c8556",
+        "control_head_before_checkpoint": "069e457015dbad843b7df8e0a5386122511f8bb3",
         "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A07_RUNTIME_REACHABILITY",
-        "next": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
-        "open_finding_count": 10
+        "completed_through": "A06_NEGATIVE_ADVERSARIAL_CASES_PLUS_B20_SUPPLEMENT",
+        "next": "A07_RUNTIME_REACHABILITY",
+        "open_finding_count": 11
       }
     },
     "interruption_recovery": {
