@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 154,
+  "revision": 155,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A05_SCHEMA_MIGRATION_ROLLBACK",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A06_NEGATIVE_ADVERSARIAL_CASES",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4379,6 +4379,24 @@
         "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
         "issue": "LocalFS Snapshot is a filepath.WalkDir/Lstat observation with no provider generation token or whole-root revalidation before CompleteScan. Files may be created, removed, renamed or modified between discovery and persistence/COMPLETE, producing a mixed or stale scan even though ScanSession is defined as a completeness boundary. Bootstrap content sampling stabilizes individual regular-file groups but does not re-prove whole-root membership or non-regular entries before COMPLETE.",
         "required_correction": "Add an exact mutation-boundary revalidation strategy for local roots before COMPLETE (for example provider-specific change token where available, deterministic second snapshot/fingerprint comparison, or another fail-closed completeness proof). Bootstrap must likewise prove the final root membership still matches the identity/content observations being committed."
+      },
+      {
+        "id": "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Keelaryn Store.Open delegates schema handling to zombiezen/go-sqlite sqlitemigration v1.4.2 but does not reject a database whose PRAGMA user_version is newer than the binary's schema. The pinned migrateDB loop only runs while schemaVersion < len(schema.Migrations) and otherwise returns success. An older Keelaryn binary can therefore open a state database already upgraded by a newer binary, with an older PrepareConn/UDF set and unsupported durable schema/trigger semantics, instead of failing closed.",
+        "required_correction": "Before exposing the pool, compare durable user_version with the exact supported schema version and fail closed when the database is newer. Add downgrade/open-newer-schema regressions using adjacent schema versions, including a write attempt proving an old binary cannot operate on a newer DB. Integrate this with explicit update/rollback policy rather than relying on incidental missing-UDF failures.",
+        "external_evidence": "zombiezen/go-sqlite v1.4.2 sqlitemigration.go migrateDB: ensureAppID reads user_version; migrations run only while schemaVersion < len(schema.Migrations); no greater-than guard before success."
+      },
+      {
+        "id": "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+        "severity": "HIGH",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Canonical architecture requires deterministic update/rollback and explicit upgrade/rollback, but current product tree contains no release/update implementation that captures and verifies a pre-upgrade SQLite state snapshot or restores schema-compatible state after a successful forward migration. Transactional migration failure rollback does not provide release rollback after migration commit.",
+        "required_correction": "Before candidate/release update support is enabled, define and implement an explicit state-compatible rollback protocol: capture/verify pre-upgrade state, bind backup to source/target release/schema identity, perform atomic upgrade qualification, and restore or otherwise migrate compatibly on rollback. Keep this separate from per-migration SQL transaction rollback.",
+        "gate_scope": "RELEASE_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
       }
     ],
     "resolved_findings": [
@@ -4562,11 +4580,12 @@
         },
         {
           "id": "A05_SCHEMA_MIGRATION_ROLLBACK",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Pinned zombiezen/go-sqlite v1.4.2 migrations are transactionally rolled back on migration-script failure, but migrateDB has no fail-closed guard when PRAGMA user_version is greater than len(schema.Migrations). Keelaryn Open adds no such max-version check. No current product update/rollback implementation or state-DB pre-upgrade backup/restore path was found; canonical architecture requires explicit upgrade/rollback."
         },
         {
           "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A07_RUNTIME_REACHABILITY",
@@ -4604,14 +4623,16 @@
         "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
         "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
         "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
-        "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION"
+        "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
+        "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD",
+        "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED"
       ],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "53e40414da5259a9ce8124f8e1ec1aaec1e72fdd",
+        "control_head_before_checkpoint": "c890e69ea84e0ebac331bd9bdd8a6df817cbea98",
         "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
-        "next": "A05_SCHEMA_MIGRATION_ROLLBACK",
-        "open_finding_count": 6
+        "completed_through": "A05_SCHEMA_MIGRATION_ROLLBACK",
+        "next": "A06_NEGATIVE_ADVERSARIAL_CASES",
+        "open_finding_count": 8
       }
     },
     "interruption_recovery": {
