@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 165,
+  "revision": 166,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "REMEDIATE_FULL_AUDIT_FINDINGS_R01",
-    "description": "Remediate the collected full-audit finding set without reopening dependent product development. Begin with R01 SQLite newer-schema fail-closed guard. For every product mutation: reconcile exact prestate, make one coherent change, verify remote HEAD, require exact-head validate/Ubuntu/Windows CI PASS, checkpoint, then continue to the next remediation ledger item. After remediation is complete, restart a full audit from A00 on the latest product HEAD.",
+    "id": "REMEDIATE_R02_REMOTE_SCAN_CONTRACT_FAIL_CLOSED",
+    "description": "Fix B20 by making the supported remote materialization contract explicit and fail-closed at validation and completion, with adversarial unknown/unknown persisted-source regression. Product mutation requires exact-head CI before R03/R04.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_REMEDIATION",
+    "current_stage": "FULL_AUDIT_REMEDIATION_R02_REMOTE_SCAN_CONTRACT",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4379,15 +4379,6 @@
         "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
         "issue": "LocalFS Snapshot is a filepath.WalkDir/Lstat observation with no provider generation token or whole-root revalidation before CompleteScan. Files may be created, removed, renamed or modified between discovery and persistence/COMPLETE, producing a mixed or stale scan even though ScanSession is defined as a completeness boundary. Bootstrap content sampling stabilizes individual regular-file groups but does not re-prove whole-root membership or non-regular entries before COMPLETE.",
         "required_correction": "Add an exact mutation-boundary revalidation strategy for local roots before COMPLETE (for example provider-specific change token where available, deterministic second snapshot/fingerprint comparison, or another fail-closed completeness proof). Bootstrap must likewise prove the final root membership still matches the identity/content observations being committed."
-      },
-      {
-        "id": "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "Keelaryn Store.Open delegates schema handling to zombiezen/go-sqlite sqlitemigration v1.4.2 but does not reject a database whose PRAGMA user_version is newer than the binary's schema. The pinned migrateDB loop only runs while schemaVersion < len(schema.Migrations) and otherwise returns success. An older Keelaryn binary can therefore open a state database already upgraded by a newer binary, with an older PrepareConn/UDF set and unsupported durable schema/trigger semantics, instead of failing closed.",
-        "required_correction": "Before exposing the pool, compare durable user_version with the exact supported schema version and fail closed when the database is newer. Add downgrade/open-newer-schema regressions using adjacent schema versions, including a write attempt proving an old binary cannot operate on a newer DB. Integrate this with explicit update/rollback policy rather than relying on incidental missing-UDF failures.",
-        "external_evidence": "zombiezen/go-sqlite v1.4.2 sqlitemigration.go migrateDB: ensureAppID reads user_version; migrations run only while schemaVersion < len(schema.Migrations); no greater-than guard before success."
       },
       {
         "id": "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
@@ -4579,6 +4570,18 @@
         "schema_version": 38,
         "ci_run_id": 36311966699,
         "resolution": "Schema v38 protects every future assigned Observation, accepted SAME/NEW decision and identity mutation receipt with narrow connection-local per-phase identity-acceptance authority, makes generic Observation APIs unresolved-only, preserves stronger RemoteHistory guards, and conservatively validates existing receipts without inventing provenance. Follow-up fixture commits through 679a26cc retain pre-v38 migration semantics; exact-head validate/Ubuntu/Windows CI passes."
+      },
+      {
+        "id": "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Keelaryn Store.Open delegates schema handling to zombiezen/go-sqlite sqlitemigration v1.4.2 but does not reject a database whose PRAGMA user_version is newer than the binary's schema. The pinned migrateDB loop only runs while schemaVersion < len(schema.Migrations) and otherwise returns success. An older Keelaryn binary can therefore open a state database already upgraded by a newer binary, with an older PrepareConn/UDF set and unsupported durable schema/trigger semantics, instead of failing closed.",
+        "required_correction": "Before exposing the pool, compare durable user_version with the exact supported schema version and fail closed when the database is newer. Add downgrade/open-newer-schema regressions using adjacent schema versions, including a write attempt proving an old binary cannot operate on a newer DB. Integrate this with explicit update/rollback policy rather than relying on incidental missing-UDF failures.",
+        "external_evidence": "zombiezen/go-sqlite v1.4.2 sqlitemigration.go migrateDB: ensureAppID reads user_version; migrations run only while schemaVersion < len(schema.Migrations); no greater-than guard before success.",
+        "resolution_head": "5a02ff7dd845268ae02a7cef0a6a79aa8c39a991",
+        "qualification_ci": 36317314694,
+        "resolution": "Store.Open now requires exact PRAGMA user_version after migration; newer DB is rejected before Store is returned and regression proves user_version remains unchanged."
       }
     ],
     "last_resolution_checkpoint": {
@@ -4747,14 +4750,17 @@
       "work_ledger": [
         {
           "id": "R01_SQLITE_NEWER_SCHEMA_FAIL_CLOSED",
-          "status": "IN_PROGRESS",
+          "status": "DONE",
           "findings": [
             "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD"
-          ]
+          ],
+          "product_head": "5a02ff7dd845268ae02a7cef0a6a79aa8c39a991",
+          "ci_run": 36317314694,
+          "qualification": "validate+ubuntu-24.04+windows-2025 PASS"
         },
         {
           "id": "R02_REMOTE_SCAN_CONTRACT_FAIL_CLOSED",
-          "status": "TODO",
+          "status": "IN_PROGRESS",
           "findings": [
             "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN"
           ]
@@ -4848,7 +4854,9 @@
         "d0_governance": [
           "H5"
         ]
-      }
+      },
+      "current_product_head": "5a02ff7dd845268ae02a7cef0a6a79aa8c39a991",
+      "critical_gate_open": 8
     }
   }
 }
