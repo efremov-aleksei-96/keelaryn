@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 

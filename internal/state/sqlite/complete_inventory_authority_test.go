@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
-	"github.com/efremov-aleksei-96/keelaryn/internal/remotehistory"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
