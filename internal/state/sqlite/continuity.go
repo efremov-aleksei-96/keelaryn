@@ -128,7 +128,7 @@ func (s *Store) AcceptSameObservationInScan(ctx context.Context, request corpus.
 		var revisionID corpus.RevisionID
 		var revisionCreated bool
 		if request.ContentEvidence != nil {
-			revision, txErr := observeRevisionConn(conn, resolution.SelectedArtifactID, *request.ContentEvidence)
+			revision, txErr := s.observeRevisionConn(conn, resolution.SelectedArtifactID, *request.ContentEvidence)
 			if txErr != nil {
 				return txErr
 			}

@@ -116,15 +116,13 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 		defer releaseAuthorization()
 
 		artifactID := corpus.ArtifactID("art_" + uuid.NewString())
-		if txErr := sqlitex.Execute(conn,
-			"INSERT INTO artifacts (artifact_id) VALUES (?1)",
-			&sqlitex.ExecOptions{Args: []any{string(artifactID)}}); txErr != nil {
-			return fmt.Errorf("insert admitted Artifact: %w", txErr)
+		if txErr := s.insertArtifactConn(conn, artifactID); txErr != nil {
+			return txErr
 		}
 		input := request.Observation
 		var revisionObservation *corpus.RevisionObservation
 		if request.ContentEvidence != nil {
-			revision, txErr := observeRevisionConn(conn, artifactID, *request.ContentEvidence)
+			revision, txErr := s.observeRevisionConn(conn, artifactID, *request.ContentEvidence)
 			if txErr != nil {
 				return txErr
 			}
@@ -143,13 +141,8 @@ func (s *Store) AcceptNewObservationInScan(ctx context.Context, request corpus.I
 			PolicyID: authority.PolicyID, AcceptedAt: request.DecidedAt.UTC(),
 		}
 		if !remoteAuthority {
-			if txErr := sqlitex.Execute(conn,
-				"INSERT INTO provider_artifact_bindings (identity_domain, provider_id, native_object_id, artifact_id, policy_id, accepted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-				&sqlitex.ExecOptions{Args: []any{
-					binding.IdentityDomain, string(binding.ProviderID), string(binding.ProviderObjectID),
-					string(binding.ArtifactID), binding.PolicyID, binding.AcceptedAt.Format(time.RFC3339Nano),
-				}}); txErr != nil {
-				return fmt.Errorf("insert provider Artifact binding: %w", txErr)
+			if txErr := s.insertProviderArtifactBindingConn(conn, binding); txErr != nil {
+				return txErr
 			}
 		}
 		if remoteAuthority {

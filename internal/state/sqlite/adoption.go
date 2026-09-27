@@ -131,26 +131,17 @@ func (s *Store) AdoptObservationInScan(ctx context.Context, scanID corpus.ScanSe
 	}
 
 	artifactID := corpus.ArtifactID("art_" + uuid.NewString())
-	if err := sqlitex.Execute(conn,
-		"INSERT INTO artifacts (artifact_id) VALUES (?1)",
-		&sqlitex.ExecOptions{Args: []any{string(artifactID)}}); err != nil {
-		return corpus.ObservationRecord{}, fmt.Errorf("insert adopted Artifact: %w", err)
+	if err := s.insertArtifactConn(conn, artifactID); err != nil {
+		return corpus.ObservationRecord{}, err
 	}
 
 	var revisionID corpus.RevisionID
 	if evidence != nil {
-		revisionID = corpus.RevisionID("rev_" + uuid.NewString())
-		if err := sqlitex.Execute(conn,
-			"INSERT INTO revisions (revision_id, artifact_id, sequence, content_algorithm, content_digest, content_size) VALUES (?1, ?2, 1, ?3, ?4, ?5)",
-			&sqlitex.ExecOptions{Args: []any{
-				string(revisionID),
-				string(artifactID),
-				evidence.Algorithm,
-				evidence.Digest,
-				evidence.Size,
-			}}); err != nil {
-			return corpus.ObservationRecord{}, fmt.Errorf("insert adopted Revision: %w", err)
+		revision, err := s.observeRevisionConn(conn, artifactID, *evidence)
+		if err != nil {
+			return corpus.ObservationRecord{}, err
 		}
+		revisionID = revision.Current.Revision.ID
 	}
 
 	input.ArtifactID = artifactID

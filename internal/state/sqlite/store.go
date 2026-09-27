@@ -2750,6 +2750,65 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v35_core_identity_insert_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v35_core_identity_insert_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1
+		FROM revisions r
+		WHERE r.sequence <> (
+			SELECT COUNT(*)
+			FROM revisions p
+			WHERE p.artifact_id=r.artifact_id
+			  AND p.sequence<=r.sequence
+		)
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v35_core_identity_insert_validation;
+
+CREATE TRIGGER artifacts_insert_application_guard
+BEFORE INSERT ON artifacts
+WHEN keelaryn_artifact_insert_authorized(NEW.artifact_id)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Artifact creation requires validated application authority');
+END;
+
+CREATE TRIGGER revisions_insert_application_guard
+BEFORE INSERT ON revisions
+WHEN keelaryn_revision_insert_authorized(
+	NEW.revision_id,
+	NEW.artifact_id,
+	CAST(NEW.sequence AS TEXT),
+	NEW.content_algorithm,
+	NEW.content_digest,
+	CAST(NEW.content_size AS TEXT)
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Revision creation requires validated application authority');
+END;
+
+CREATE TRIGGER provider_artifact_bindings_insert_application_guard
+BEFORE INSERT ON provider_artifact_bindings
+WHEN keelaryn_provider_artifact_binding_insert_authorized(
+	NEW.identity_domain,
+	NEW.provider_id,
+	NEW.native_object_id,
+	NEW.artifact_id,
+	NEW.policy_id,
+	NEW.accepted_at
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'provider Artifact binding creation requires validated application authority');
+END;
+`,
+
 	},
 }
 
@@ -2767,6 +2826,9 @@ const (
 	remoteHistoryBindingAuthorizationFunction    = "keelaryn_remote_history_binding_authorized"
 	remoteAuthorityPublicationRefFunction        = "keelaryn_remote_authority_publication_ref"
 	gdriveTopologyWatermarkDeleteAuthorizationFunction = "keelaryn_gdrive_topology_watermark_delete_authorized"
+	artifactInsertAuthorizationFunction = "keelaryn_artifact_insert_authorized"
+	revisionInsertAuthorizationFunction = "keelaryn_revision_insert_authorized"
+	providerArtifactBindingInsertAuthorizationFunction = "keelaryn_provider_artifact_binding_insert_authorized"
 )
 
 type remoteCompletionAuthorization struct {
@@ -2784,12 +2846,28 @@ type gdriveTopologyWatermarkDeleteAuthorization struct {
 	publicationSequence remotehistory.HistoryPublicationSequence
 }
 
+type coreIdentityInsertAuthorization struct {
+	kind             string
+	artifactID       corpus.ArtifactID
+	revisionID       corpus.RevisionID
+	revisionSequence uint64
+	algorithm        string
+	digest           string
+	contentSize      int64
+	identityDomain   string
+	providerID       corpus.ProviderID
+	providerObjectID corpus.ProviderObjectID
+	policyID         string
+	acceptedAt       string
+}
+
 type Store struct {
 	pool                                      *sqlitemigration.Pool
 	path                                      string
 	remoteCompletionAuthorizations            sync.Map
 	identityMutationAuthorizations            sync.Map
 	gdriveTopologyWatermarkDeleteAuthorizations sync.Map
+	coreIdentityInsertAuthorizations              sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -2939,6 +3017,151 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		return fmt.Errorf("register Google Drive topology watermark delete authorization function: %w", err)
 	}
 	s.gdriveTopologyWatermarkDeleteAuthorizations.Store(conn, topologyAuth)
+
+	coreAuth := &coreIdentityInsertAuthorization{}
+	if err := conn.CreateFunction(artifactInsertAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 1, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if coreAuth.kind == "ARTIFACT" && coreAuth.artifactID != "" &&
+				string(coreAuth.artifactID) == args[0].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register Artifact insert authorization function: %w", err)
+	}
+	if err := conn.CreateFunction(revisionInsertAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 6, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if coreAuth.kind == "REVISION" && coreAuth.revisionID != "" && coreAuth.artifactID != "" &&
+				string(coreAuth.revisionID) == args[0].Text() &&
+				string(coreAuth.artifactID) == args[1].Text() &&
+				fmt.Sprint(coreAuth.revisionSequence) == args[2].Text() &&
+				coreAuth.algorithm == args[3].Text() &&
+				coreAuth.digest == args[4].Text() &&
+				fmt.Sprint(coreAuth.contentSize) == args[5].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register Revision insert authorization function: %w", err)
+	}
+	if err := conn.CreateFunction(providerArtifactBindingInsertAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 6, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if coreAuth.kind == "PROVIDER_BINDING" && coreAuth.identityDomain != "" &&
+				coreAuth.providerID != "" && coreAuth.providerObjectID != "" &&
+				coreAuth.artifactID != "" && coreAuth.policyID != "" && coreAuth.acceptedAt != "" &&
+				coreAuth.identityDomain == args[0].Text() &&
+				string(coreAuth.providerID) == args[1].Text() &&
+				string(coreAuth.providerObjectID) == args[2].Text() &&
+				string(coreAuth.artifactID) == args[3].Text() &&
+				coreAuth.policyID == args[4].Text() &&
+				coreAuth.acceptedAt == args[5].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register provider Artifact binding insert authorization function: %w", err)
+	}
+	s.coreIdentityInsertAuthorizations.Store(conn, coreAuth)
+	return nil
+}
+
+func (s *Store) authorizeCoreIdentityInsertConn(
+	conn *sqlite.Conn,
+	auth coreIdentityInsertAuthorization,
+) (func(), error) {
+	if auth.kind == "" {
+		return nil, fmt.Errorf("core identity insert authorization kind is empty")
+	}
+	value, ok := s.coreIdentityInsertAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("core identity insert authorization state missing for connection")
+	}
+	state, ok := value.(*coreIdentityInsertAuthorization)
+	if !ok || state == nil {
+		return nil, fmt.Errorf("core identity insert authorization state invalid")
+	}
+	if state.kind != "" {
+		return nil, fmt.Errorf("core identity insert authorization already active")
+	}
+	*state = auth
+	return func() { *state = coreIdentityInsertAuthorization{} }, nil
+}
+
+func (s *Store) insertArtifactConn(conn *sqlite.Conn, artifactID corpus.ArtifactID) error {
+	if artifactID == "" {
+		return fmt.Errorf("empty Artifact ID")
+	}
+	release, err := s.authorizeCoreIdentityInsertConn(conn, coreIdentityInsertAuthorization{
+		kind: "ARTIFACT", artifactID: artifactID,
+	})
+	if err != nil {
+		return err
+	}
+	defer release()
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO artifacts (artifact_id) VALUES (?1)",
+		&sqlitex.ExecOptions{Args: []any{string(artifactID)}}); err != nil {
+		return fmt.Errorf("insert Artifact: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) insertRevisionRecordConn(conn *sqlite.Conn, record corpus.RevisionRecord) error {
+	if record.Revision.ID == "" || record.Revision.ArtifactID == "" || record.Sequence == 0 {
+		return fmt.Errorf("invalid Revision identity")
+	}
+	if err := corpus.ValidateContentEvidence(record.Evidence); err != nil {
+		return err
+	}
+	release, err := s.authorizeCoreIdentityInsertConn(conn, coreIdentityInsertAuthorization{
+		kind: "REVISION", artifactID: record.Revision.ArtifactID, revisionID: record.Revision.ID,
+		revisionSequence: record.Sequence, algorithm: record.Evidence.Algorithm,
+		digest: record.Evidence.Digest, contentSize: record.Evidence.Size,
+	})
+	if err != nil {
+		return err
+	}
+	defer release()
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO revisions (revision_id, artifact_id, sequence, content_algorithm, content_digest, content_size) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(record.Revision.ID), string(record.Revision.ArtifactID), int64(record.Sequence),
+			record.Evidence.Algorithm, record.Evidence.Digest, record.Evidence.Size,
+		}}); err != nil {
+		return fmt.Errorf("insert Revision: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) insertProviderArtifactBindingConn(conn *sqlite.Conn, binding corpus.ProviderArtifactBinding) error {
+	if binding.IdentityDomain == "" || binding.ProviderID == "" || binding.ProviderObjectID == "" ||
+		binding.ArtifactID == "" || binding.PolicyID == "" || binding.AcceptedAt.IsZero() {
+		return fmt.Errorf("invalid provider Artifact binding")
+	}
+	acceptedAt := binding.AcceptedAt.UTC().Format(time.RFC3339Nano)
+	release, err := s.authorizeCoreIdentityInsertConn(conn, coreIdentityInsertAuthorization{
+		kind: "PROVIDER_BINDING", identityDomain: binding.IdentityDomain,
+		providerID: binding.ProviderID, providerObjectID: binding.ProviderObjectID,
+		artifactID: binding.ArtifactID, policyID: binding.PolicyID, acceptedAt: acceptedAt,
+	})
+	if err != nil {
+		return err
+	}
+	defer release()
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO provider_artifact_bindings (identity_domain, provider_id, native_object_id, artifact_id, policy_id, accepted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+		&sqlitex.ExecOptions{Args: []any{
+			binding.IdentityDomain, string(binding.ProviderID), string(binding.ProviderObjectID),
+			string(binding.ArtifactID), binding.PolicyID, acceptedAt,
+		}}); err != nil {
+		return fmt.Errorf("insert provider Artifact binding: %w", err)
+	}
 	return nil
 }
 
@@ -3070,11 +3293,8 @@ func (s *Store) AdoptArtifact(ctx context.Context) (corpus.Artifact, error) {
 	defer s.pool.Put(conn)
 
 	artifact := corpus.Artifact{ID: corpus.ArtifactID("art_" + uuid.NewString())}
-	err = sqlitex.Execute(conn,
-		"INSERT INTO artifacts (artifact_id) VALUES (?1)",
-		&sqlitex.ExecOptions{Args: []any{string(artifact.ID)}})
-	if err != nil {
-		return corpus.Artifact{}, fmt.Errorf("insert Artifact: %w", err)
+	if err := s.insertArtifactConn(conn, artifact.ID); err != nil {
+		return corpus.Artifact{}, err
 	}
 	return artifact, nil
 }
@@ -3118,10 +3338,10 @@ func (s *Store) ObserveRevision(ctx context.Context, artifactID corpus.ArtifactI
 	}
 	defer end(&err)
 
-	return observeRevisionConn(conn, artifactID, evidence)
+	return s.observeRevisionConn(conn, artifactID, evidence)
 }
 
-func observeRevisionConn(conn *sqlite.Conn, artifactID corpus.ArtifactID, evidence corpus.ContentEvidence) (corpus.RevisionObservation, error) {
+func (s *Store) observeRevisionConn(conn *sqlite.Conn, artifactID corpus.ArtifactID, evidence corpus.ContentEvidence) (corpus.RevisionObservation, error) {
 	if err := corpus.ValidateContentEvidence(evidence); err != nil {
 		return corpus.RevisionObservation{}, err
 	}
@@ -3165,18 +3385,8 @@ func observeRevisionConn(conn *sqlite.Conn, artifactID corpus.ArtifactID, eviden
 		Evidence: evidence,
 	}
 
-	err = sqlitex.Execute(conn, "INSERT INTO revisions (revision_id, artifact_id, sequence, content_algorithm, content_digest, content_size) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", &sqlitex.ExecOptions{
-		Args: []any{
-			string(record.Revision.ID),
-			string(record.Revision.ArtifactID),
-			int64(record.Sequence),
-			record.Evidence.Algorithm,
-			record.Evidence.Digest,
-			record.Evidence.Size,
-		},
-	})
-	if err != nil {
-		return corpus.RevisionObservation{}, fmt.Errorf("insert Revision: %w", err)
+	if err := s.insertRevisionRecordConn(conn, record); err != nil {
+		return corpus.RevisionObservation{}, err
 	}
 
 	return corpus.RevisionObservation{Current: record, Created: true}, nil
