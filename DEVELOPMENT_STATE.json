@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 160,
+  "revision": 161,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A09_SECURITY_CREDENTIAL_BOUNDARIES",
+    "current_stage": "FULL_AUDIT_COLLECTION_PASS_A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4430,6 +4430,15 @@
         "issue": "Android/direct mobile execution is a stated priority, but development CI qualifies only ubuntu-24.04 and windows-2025. No Android GOOS/arm64 compile gate, emulator/device test, filesystem/SQLite semantics test, or packaging/runtime acceptance exists. The current code appears portable by inspection and uses a CGo-free SQLite stack, but Android support is unproven.",
         "required_correction": "Add an Android qualification ladder appropriate to product maturity: at minimum GOOS=android/GOARCH=arm64 compile coverage for production packages, then device/emulator filesystem+SQLite smoke tests for local corpus discovery/state, and later packaging/install acceptance. Do not claim Android support before these gates pass.",
         "gate_scope": "PORTABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
+      },
+      {
+        "id": "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
+        "severity": "HIGH",
+        "status": "OPEN",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "The SQLite state database contains corpus locators, timestamps, identity history and semantic authority, but Store.Open accepts an arbitrary path and does not establish or verify restrictive filesystem permissions/ACL. Canonical architecture assigns platform-specific permission behavior to adapters, but no such state-storage protection adapter/contract is currently implemented.",
+        "required_correction": "Before durable state is exposed through a user runtime, define a platform storage adapter that creates the control directory/database with least-privilege permissions, verifies existing ownership/ACL where practical, and covers SQLite side files. Add Unix and Windows tests; define the Android app-private-storage equivalent.",
+        "gate_scope": "SECURITY_HARDENING_BEFORE_USER_RUNTIME_NOT_CURRENT_P0_C2_CRITICAL_GATE"
       }
     ],
     "resolved_findings": [
@@ -4633,11 +4642,12 @@
         },
         {
           "id": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "Production code does not construct OAuth clients, read credential JSON/env, or persist provider tokens; GoogleClient receives an externally authenticated *drive.Service. No credential material found in SQLite/contextbundle fields. State DB filesystem permissions/ACL are not enforced by Store.Open or a platform adapter; H3 recorded. Existing docs already defer trusted_schema/authorizer hardening before treating state DB as untrusted external input."
         },
         {
           "id": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A11_STALE_DOCS_STATE_CLAIMS",
@@ -4665,14 +4675,15 @@
         "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
         "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
         "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN",
-        "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT"
+        "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
+        "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION"
       ],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "16c9f34896e627b5d65f039b58ce516f854c52a7",
+        "control_head_before_checkpoint": "68b064acc0501e00336a3d70f1316ca795396f8f",
         "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
-        "next": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
-        "open_finding_count": 12
+        "completed_through": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
+        "next": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
+        "open_finding_count": 13
       }
     },
     "interruption_recovery": {
