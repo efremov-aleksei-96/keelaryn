@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 143,
+  "revision": 144,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "FIX_AUDIT_C1_B5_DUPLICATE_REMOTE_NEW_PER_LIFETIME",
-    "description": "Append schema v32 without rewriting v31. Add a durable UNIQUE invariant so accepted_artifact_admissions can contain at most one non-null lifetime_segment_id, preserving exactly one original RemoteHistory NEW per provider lifetime. Add v31-to-v32 migration regression for duplicate fully linked NEW provenance. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
+    "id": "FIX_AUDIT_C1_B6_CORE_IDENTITY_ROWS_MUTABLE",
+    "description": "Append schema v33 without rewriting prior migrations. Add SQLite immutability guards for artifacts, revisions, and provider_artifact_bindings so committed Artifact identity, Revision evidence/history, and local provider bindings cannot be rewritten or deleted. Add direct-SQL regressions. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -4322,12 +4322,12 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "32138a8bc00414e0453ee7d8bd05ba2c77184d6b",
-      "dimension": "SCHEMA_MIGRATION_UNIQUE_NEW_PROVENANCE",
-      "finding_id": "AUDIT_C1_B5_DUPLICATE_REMOTE_NEW_PER_LIFETIME",
+      "head": "675106147971deb02587b0cf4eb948f298b249c8",
+      "dimension": "CORE_IDENTITY_DURABLE_IMMUTABILITY",
+      "finding_id": "AUDIT_C1_B6_CORE_IDENTITY_ROWS_MUTABLE",
       "severity": "BLOCKER",
-      "issue": "Schema v31 reverse provenance validation proves that a RemoteHistory lifetime binding has at least one matching NEW admission/receipt, but accepted_artifact_admissions has no UNIQUE invariant on non-null lifetime_segment_id. Historical state can therefore contain multiple fully linked RESOLVED_NEW admissions for one provider lifetime and still satisfy v31.",
-      "required_correction": "Append schema v32 without rewriting v31. Enforce at most one non-null lifetime_segment_id in accepted_artifact_admissions with a durable UNIQUE index; add v31-to-v32 migration regression proving duplicate fully linked NEW provenance fails closed.",
+      "issue": "Core durable identity rows remain SQLite-mutable: artifacts and revisions have no UPDATE/DELETE guards, and provider_artifact_bindings has no UPDATE/DELETE guards. A committed Artifact identity, Revision content evidence/sequence, or accepted local provider binding can therefore be rewritten after acceptance.",
+      "required_correction": "Append schema v33 without rewriting earlier migrations. Seal artifacts, revisions, and provider_artifact_bindings against UPDATE/DELETE. Add direct-SQL regressions proving immutable Artifact IDs, Revision evidence/history, and local provider bindings.",
       "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
@@ -4343,6 +4343,12 @@
         "severity": "BLOCKER",
         "status": "OPEN",
         "affected_head": "32138a8bc00414e0453ee7d8bd05ba2c77184d6b"
+      },
+      {
+        "id": "AUDIT_C1_B6_CORE_IDENTITY_ROWS_MUTABLE",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "675106147971deb02587b0cf4eb948f298b249c8"
       }
     ],
     "resolved_findings": [
