@@ -12,7 +12,10 @@ import (
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
-var ErrObservationHistoryExists = errors.New("observation history already exists for provider/root")
+var (
+	ErrObservationHistoryExists       = errors.New("observation history already exists for provider/root")
+	ErrBootstrapScanAuthorityRequired = errors.New("bootstrap scan authority is required for first-observation adoption")
+)
 
 // StartBootstrapScan atomically proves that the scope has no prior observed
 // object history before opening a scan eligible for first-observation adoption.
@@ -58,7 +61,47 @@ func (s *Store) StartBootstrapScan(ctx context.Context, providerID corpus.Provid
 		}}); err != nil {
 		return corpus.ScanSession{}, fmt.Errorf("insert bootstrap scan: %w", err)
 	}
+	provenAt := scan.StartedAt.Format(time.RFC3339Nano)
+	release, err := s.authorizeBootstrapScanAuthorityInsertConn(conn, scan.ID, provenAt)
+	if err != nil {
+		return corpus.ScanSession{}, err
+	}
+	writeErr := sqlitex.Execute(conn,
+		"INSERT INTO bootstrap_scan_authorities (scan_id, proof_kind, proven_at) VALUES (?1, ?2, ?3)",
+		&sqlitex.ExecOptions{Args: []any{
+			string(scan.ID),
+			bootstrapNoPriorObservationHistoryProof,
+			provenAt,
+		}})
+	release()
+	if writeErr != nil {
+		return corpus.ScanSession{}, fmt.Errorf("insert bootstrap scan authority: %w", writeErr)
+	}
 	return scan, nil
+}
+
+func requireBootstrapScanAuthorityConn(conn *sqlite.Conn, scan corpus.ScanSession) error {
+	var found bool
+	err := sqlitex.Execute(conn,
+		"SELECT 1 FROM bootstrap_scan_authorities WHERE scan_id=?1 AND proof_kind=?2 AND proven_at=?3",
+		&sqlitex.ExecOptions{
+			Args: []any{
+				string(scan.ID),
+				bootstrapNoPriorObservationHistoryProof,
+				scan.StartedAt.UTC().Format(time.RFC3339Nano),
+			},
+			ResultFunc: func(*sqlite.Stmt) error {
+				found = true
+				return nil
+			},
+		})
+	if err != nil {
+		return fmt.Errorf("query bootstrap scan authority: %w", err)
+	}
+	if !found {
+		return fmt.Errorf("%w: %s", ErrBootstrapScanAuthorityRequired, scan.ID)
+	}
+	return nil
 }
 
 func observationHistoryExistsConn(conn *sqlite.Conn, providerID corpus.ProviderID, root string) (bool, error) {
@@ -120,6 +163,9 @@ func (s *Store) AdoptObservationInScan(ctx context.Context, scanID corpus.ScanSe
 	}
 	if scan.Status != corpus.ScanOpen {
 		return corpus.ObservationRecord{}, fmt.Errorf("%w: %s", ErrScanNotOpen, scanID)
+	}
+	if err := requireBootstrapScanAuthorityConn(conn, scan); err != nil {
+		return corpus.ObservationRecord{}, err
 	}
 	if input.ProviderObject.ProviderID != scan.ProviderID {
 		return corpus.ObservationRecord{}, fmt.Errorf("%w: provider=%s scan_provider=%s", ErrScanScopeMismatch, input.ProviderObject.ProviderID, scan.ProviderID)

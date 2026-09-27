@@ -32,6 +32,21 @@ func TestStartBootstrapScanRefusesObservationHistory(t *testing.T) {
 	}
 }
 
+func TestAdoptObservationInScanRejectsNormalScan(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	at := fixedScanTime()
+
+	scan, err := store.StartScan(ctx, "localfs", "/corpus", at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.AdoptObservationInScan(ctx, scan.ID, unresolvedScanObservation("file.txt", at), nil)
+	if !errors.Is(err, sqlitestate.ErrBootstrapScanAuthorityRequired) {
+		t.Fatalf("error=%v, want ErrBootstrapScanAuthorityRequired", err)
+	}
+}
+
 func TestAdoptObservationInScanIsAtomicPerOccurrence(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)

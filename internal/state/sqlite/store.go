@@ -3017,6 +3017,54 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE bootstrap_scan_authorities (
+	scan_id TEXT PRIMARY KEY NOT NULL
+		REFERENCES scan_sessions(scan_id) ON DELETE RESTRICT,
+	proof_kind TEXT NOT NULL
+		CHECK (proof_kind='NO_PRIOR_OBSERVATION_HISTORY:v1'),
+	proven_at TEXT NOT NULL
+		CHECK (keelaryn_is_canonical_utc_rfc3339nano(proven_at)=1)
+) STRICT;
+
+CREATE TRIGGER bootstrap_scan_authorities_insert_scope_guard_v39
+BEFORE INSERT ON bootstrap_scan_authorities
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM scan_sessions s
+	WHERE s.scan_id=NEW.scan_id
+	  AND s.status='OPEN'
+	  AND s.finished_at IS NULL
+	  AND s.started_at=NEW.proven_at
+)
+BEGIN
+	SELECT RAISE(ABORT, 'bootstrap scan authority must match the exact OPEN scan start boundary');
+END;
+
+CREATE TRIGGER bootstrap_scan_authorities_insert_application_guard_v39
+BEFORE INSERT ON bootstrap_scan_authorities
+WHEN keelaryn_bootstrap_scan_authority_insert_authorized(
+	NEW.scan_id,
+	NEW.proof_kind,
+	NEW.proven_at
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'bootstrap scan authority creation requires validated application authority');
+END;
+
+CREATE TRIGGER bootstrap_scan_authorities_no_update_v39
+BEFORE UPDATE ON bootstrap_scan_authorities
+BEGIN
+	SELECT RAISE(ABORT, 'bootstrap scan authority is immutable');
+END;
+
+CREATE TRIGGER bootstrap_scan_authorities_no_delete_v39
+BEFORE DELETE ON bootstrap_scan_authorities
+BEGIN
+	SELECT RAISE(ABORT, 'bootstrap scan authority is immutable');
+END;
+`,
+
 	},
 }
 
@@ -3043,6 +3091,8 @@ const (
 	identityAuthoritySetStructuralValidationFunction = "keelaryn_identity_authority_set_structurally_valid"
 	identityAuthorityCandidateStructuralValidationFunction = "keelaryn_identity_authority_candidate_structurally_valid"
 	identityAcceptanceWriteAuthorizationFunction = "keelaryn_identity_acceptance_write_authorized"
+	bootstrapScanAuthorityInsertAuthorizationFunction = "keelaryn_bootstrap_scan_authority_insert_authorized"
+	bootstrapNoPriorObservationHistoryProof = "NO_PRIOR_OBSERVATION_HISTORY:v1"
 )
 
 type remoteCompletionAuthorization struct {
@@ -3099,6 +3149,12 @@ type identityAcceptanceWriteAuthorization struct {
 	phase  string
 }
 
+type bootstrapScanAuthorityInsertAuthorization struct {
+	scanID    corpus.ScanSessionID
+	proofKind string
+	provenAt  string
+}
+
 type Store struct {
 	pool                                      *sqlitemigration.Pool
 	path                                      string
@@ -3108,6 +3164,7 @@ type Store struct {
 	coreIdentityInsertAuthorizations              sync.Map
 	identityAuthorityWriteAuthorizations           sync.Map
 	identityAcceptanceWriteAuthorizations          sync.Map
+	bootstrapScanAuthorityInsertAuthorizations     sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -3439,7 +3496,53 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 	}
 	s.identityAcceptanceWriteAuthorizations.Store(conn, acceptanceWriteAuth)
 
+	bootstrapAuth := &bootstrapScanAuthorityInsertAuthorization{}
+	if err := conn.CreateFunction(bootstrapScanAuthorityInsertAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 3, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if bootstrapAuth.scanID != "" &&
+				bootstrapAuth.proofKind != "" &&
+				bootstrapAuth.provenAt != "" &&
+				string(bootstrapAuth.scanID) == args[0].Text() &&
+				bootstrapAuth.proofKind == args[1].Text() &&
+				bootstrapAuth.provenAt == args[2].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register bootstrap scan authority insert authorization function: %w", err)
+	}
+	s.bootstrapScanAuthorityInsertAuthorizations.Store(conn, bootstrapAuth)
+
 	return nil
+}
+
+func (s *Store) authorizeBootstrapScanAuthorityInsertConn(
+	conn *sqlite.Conn,
+	scanID corpus.ScanSessionID,
+	provenAt string,
+) (func(), error) {
+	if scanID == "" || provenAt == "" {
+		return nil, fmt.Errorf("bootstrap scan authority insert target is incomplete")
+	}
+	value, ok := s.bootstrapScanAuthorityInsertAuthorizations.Load(conn)
+	if !ok {
+		return nil, fmt.Errorf("bootstrap scan authority insert authorization state missing for connection")
+	}
+	state, ok := value.(*bootstrapScanAuthorityInsertAuthorization)
+	if !ok || state == nil {
+		return nil, fmt.Errorf("bootstrap scan authority insert authorization state invalid")
+	}
+	if state.scanID != "" || state.proofKind != "" || state.provenAt != "" {
+		return nil, fmt.Errorf("bootstrap scan authority insert authorization already active")
+	}
+	state.scanID = scanID
+	state.proofKind = bootstrapNoPriorObservationHistoryProof
+	state.provenAt = provenAt
+	return func() {
+		*state = bootstrapScanAuthorityInsertAuthorization{}
+	}, nil
 }
 
 func (s *Store) authorizeIdentityAcceptanceWriteConn(
