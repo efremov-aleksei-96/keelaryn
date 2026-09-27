@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 147,
+  "revision": 148,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "FIX_AUDIT_C1_B9_IDENTITY_AUTHORITY_CREATION_APPLICATION_AUTHORITY",
-    "description": "Fix only the identity authority creation application-authority blocker. P0-30C2 remains locked. After exact-head validate/Ubuntu/Windows CI, restart the complete zero-findings audit from the first dimension.",
+    "id": "FIX_AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
+    "description": "Append schema v37 without rewriting prior migrations. Fail closed when opening historical v36-or-earlier state containing a sealed IdentityAuthoritySet that cannot be reconstructed and validated under the current corpus.ValidateIdentityAuthoritySet contract. Do not normalize or invent provenance. Add adversarial migration regressions for sealed structurally invalid authority, including malformed source_refs/timestamp/required-field semantics. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -3726,7 +3726,7 @@
     ]
   },
   "p0_30": {
-    "status": "C1_REQUALIFICATION_AUDIT_IN_PROGRESS_C2_LOCKED",
+    "status": "C1_REQUALIFICATION_BLOCKED_C2_LOCKED",
     "contract_document": "docs/P0_30_REMOTE_OBSERVATION_MATERIALIZATION_CONTRACT.md",
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -3762,7 +3762,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 35,
+    "schema_version": 36,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4191,12 +4191,12 @@
       }
     },
     "c": {
-      "status": "C1_REQUALIFICATION_AUDIT_IN_PROGRESS_C2_LOCKED",
+      "status": "C1_REQUALIFICATION_BLOCKED_C2_LOCKED",
       "c1": {
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
         "qualification_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
-        "schema_version": 35,
+        "schema_version": 36,
         "implementation": {
           "shared_resolver": "corpus.ResolveIdentityAuthoritySet",
           "local_generic_scope": "UNCHANGED_AUTHORITY_SCOPE_EQUALS_SCAN_ROOT",
@@ -4285,11 +4285,11 @@
           "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening around intentionally indirect application-defined trigger functions"
         ],
         "conclusion": "PASS",
-        "latest_product_head": "d2b73fd3fdce82817f77f726d1805adadd0760f9",
-        "latest_exact_head_ci_run_id": 36302664547,
+        "latest_product_head": "d591ca473dacdb6badf029980b8cd75bd3dfca24",
+        "latest_exact_head_ci_run_id": 36305278648,
         "latest_exact_head_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
-        "requalification_status": "AUDIT_INVALIDATED_BY_B9_AUTHORITY_CREATION_APPLICATION_AUTHORITY",
-        "latest_exact_head": "7aac95a17bfbcf2f3479d90b4fd65697090dc37e"
+        "requalification_status": "BLOCKED_BY_AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
+        "latest_exact_head": "d591ca473dacdb6badf029980b8cd75bd3dfca24"
       },
       "c2": {
         "status": "LOCKED_PENDING_ZERO_FINDINGS_REAUDIT",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FIX_AUDIT_C1_B9_IDENTITY_AUTHORITY_CREATION_APPLICATION_AUTHORITY",
+    "current_stage": "FIX_AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_AUDIT_FROM_SCRATCH_UNTIL_ZERO_NEW_FINDINGS",
     "clean_pass_required": true,
@@ -4322,26 +4322,23 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "7aac95a17bfbcf2f3479d90b4fd65697090dc37e",
-      "dimension": "DURABLE_IDENTITY_AUTHORITY_CREATION",
-      "finding_id": "AUDIT_C1_B9_IDENTITY_AUTHORITY_CREATION_APPLICATION_AUTHORITY",
+      "head": "d591ca473dacdb6badf029980b8cd75bd3dfca24",
+      "dimension": "IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
+      "finding_id": "AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
       "severity": "BLOCKER",
+      "issue": "Schema v36 blocks new raw-SQL identity authority creation but its migration validates only sealed_at presence/equality. A v35 authority forged through the previously open raw-SQL path can be sealed with sealed_at==created_at while still violating corpus.ValidateIdentityAuthoritySet (for example malformed source_refs_json, invalid timestamp, or invalid required-field semantics), and Open can therefore migrate that structurally invalid durable authority instead of failing closed.",
+      "required_correction": "Append schema v37 without rewriting v36. Before current state is usable, validate every historical sealed IdentityAuthoritySet against the same structural contract as corpus.ValidateIdentityAuthoritySet, including source refs, timestamp and candidates, and fail closed without normalizing or inventing provenance. Add a regression that constructs a sealed malformed v36 historical authority and proves Open rejects it.",
+      "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
     "open_findings": [
       {
-        "id": "AUDIT_C1_B8_CORE_IDENTITY_INSERT_APPLICATION_AUTHORITY",
+        "id": "AUDIT_C1_B10_IDENTITY_AUTHORITY_MIGRATION_STRUCTURAL_VALIDATION",
         "severity": "BLOCKER",
         "status": "OPEN",
-        "affected_head": "77b8d463db6a0cc13cba8f8ce1611aa863911c9b"
-      },
-      {
-        "id": "AUDIT_C1_B9_IDENTITY_AUTHORITY_CREATION_APPLICATION_AUTHORITY",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "7aac95a17bfbcf2f3479d90b4fd65697090dc37e",
-        "issue": "identity_authority_sets and identity_authority_candidates are immutable after seal but generic authority creation/seal can be reproduced through raw SQL without the validated insertIdentityAuthoritySetConn application path, allowing forged generic SAME/NEW authority.",
-        "required_correction": "Add narrow connection-local application authority for exact authority-set creation, candidate insertion, and seal transition; make insertIdentityAuthoritySetConn the only production writer; migration must fail closed on structurally invalid/unsealed historical authority; direct-SQL adversarial tests must prove set/candidate/seal bypasses fail."
+        "affected_head": "d591ca473dacdb6badf029980b8cd75bd3dfca24",
+        "issue": "Schema v36 blocks new raw-SQL identity authority creation but its migration validates only sealed_at presence/equality. A v35 authority forged through the previously open raw-SQL path can be sealed with sealed_at==created_at while still violating corpus.ValidateIdentityAuthoritySet (for example malformed source_refs_json, invalid timestamp, or invalid required-field semantics), and Open can therefore migrate that structurally invalid durable authority instead of failing closed.",
+        "required_correction": "Append schema v37 without rewriting v36. Before current state is usable, validate every historical sealed IdentityAuthoritySet against the same structural contract as corpus.ValidateIdentityAuthoritySet, including source refs, timestamp and candidates, and fail closed without normalizing or inventing provenance. Add a regression that constructs a sealed malformed v36 historical authority and proves Open rejects it."
       }
     ],
     "resolved_findings": [
@@ -4422,6 +4419,27 @@
         "schema_version": 34,
         "ci_run_id": 36302664547,
         "resolution": "Schema v34 protects Google topology watermark removal with an exact connection-local generation/old-sequence application capability, forbids direct UPDATE, validates current watermark presence during v33→v34 migration, and keeps production publish as the sole authorized rebuild path."
+      },
+      {
+        "id": "AUDIT_C1_B8_CORE_IDENTITY_INSERT_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "FIXED_PENDING_ZERO_FINDINGS_REQUALIFICATION_AUDIT",
+        "affected_head": "77b8d463db6a0cc13cba8f8ce1611aa863911c9b",
+        "fix_head": "d2b73fd3fdce82817f77f726d1805adadd0760f9",
+        "qualification_head": "d591ca473dacdb6badf029980b8cd75bd3dfca24",
+        "schema_version": 35,
+        "ci_run_id": 36305278648,
+        "resolution": "Schema v35 adds exact connection-local application authority for Artifact, Revision and local provider_artifact_bindings creation; current exact-head CI also covers the subsequent fixture alignment and v36 work."
+      },
+      {
+        "id": "AUDIT_C1_B9_IDENTITY_AUTHORITY_CREATION_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "FIXED_PENDING_ZERO_FINDINGS_REQUALIFICATION_AUDIT",
+        "affected_head": "7aac95a17bfbcf2f3479d90b4fd65697090dc37e",
+        "fix_head": "d591ca473dacdb6badf029980b8cd75bd3dfca24",
+        "schema_version": 36,
+        "ci_run_id": 36305278648,
+        "resolution": "Schema v36 protects authority-set creation, candidate insertion and sealing with exact connection-local per-phase application authority; d591ca4 releases each phase capability immediately after its authorized write. A later B10 finding narrows migration qualification only."
       }
     ],
     "last_resolution_checkpoint": {
