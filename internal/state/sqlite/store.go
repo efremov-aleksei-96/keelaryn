@@ -3141,6 +3141,135 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TRIGGER remote_history_generations_insert_application_guard_v41
+BEFORE INSERT ON remote_history_generations
+WHEN keelaryn_remote_history_write_authorized(
+	'GENERATION_INSERT',
+	NEW.generation_id,
+	CAST(NEW.current_sequence AS TEXT),
+	''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory generation creation requires validated application authority');
+END;
+
+CREATE TRIGGER remote_history_generations_update_application_guard_v41
+BEFORE UPDATE ON remote_history_generations
+WHEN keelaryn_remote_history_write_authorized(
+	CASE WHEN NEW.status='CLOSED' THEN 'GENERATION_CLOSE' ELSE 'GENERATION_ADVANCE' END,
+	NEW.generation_id,
+	CAST(NEW.current_sequence AS TEXT),
+	''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory generation mutation requires validated application authority');
+END;
+
+CREATE TRIGGER remote_history_publications_insert_application_guard_v41
+BEFORE INSERT ON remote_history_publications
+WHEN keelaryn_remote_history_write_authorized(
+	'PUBLICATION_INSERT',
+	NEW.generation_id,
+	CAST(NEW.sequence AS TEXT),
+	NEW.fingerprint_sha256
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory publication creation requires validated application authority');
+END;
+
+CREATE TRIGGER remote_history_bootstrap_membership_insert_application_guard_v41
+BEFORE INSERT ON remote_history_bootstrap_membership
+WHEN keelaryn_remote_history_write_authorized(
+	'BOOTSTRAP_MEMBERSHIP_INSERT',
+	NEW.generation_id,
+	'1',
+	''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory bootstrap membership creation requires validated application authority');
+END;
+
+CREATE TRIGGER remote_history_publication_changes_insert_application_guard_v41
+BEFORE INSERT ON remote_history_publication_changes
+WHEN keelaryn_remote_history_write_authorized(
+	'CHANGE_INSERT',
+	NEW.generation_id,
+	CAST(NEW.sequence AS TEXT),
+	''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory change creation requires validated application authority');
+END;
+
+CREATE TRIGGER remote_history_membership_insert_application_guard_v41
+BEFORE INSERT ON remote_history_membership
+WHEN keelaryn_remote_history_write_authorized(
+	'MEMBERSHIP_INSERT',
+	NEW.generation_id,
+	CAST(NEW.last_sequence AS TEXT),
+	''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory membership creation requires validated application authority');
+END;
+
+CREATE TRIGGER remote_history_membership_update_application_guard_v41
+BEFORE UPDATE ON remote_history_membership
+WHEN keelaryn_remote_history_write_authorized(
+	'MEMBERSHIP_UPDATE',
+	NEW.generation_id,
+	CAST(NEW.last_sequence AS TEXT),
+	''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory membership update requires validated application authority');
+END;
+
+CREATE TRIGGER remote_history_membership_delete_application_guard_v41
+BEFORE DELETE ON remote_history_membership
+WHEN keelaryn_remote_history_write_authorized(
+	'MEMBERSHIP_DELETE',
+	OLD.generation_id,
+	CAST(COALESCE((
+		SELECT g.current_sequence + 1
+		FROM remote_history_generations g
+		WHERE g.generation_id=OLD.generation_id
+	), 0) AS TEXT),
+	''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'RemoteHistory membership deletion requires validated application authority');
+END;
+
+CREATE TRIGGER provider_lifetime_segments_insert_application_guard_v41
+BEFORE INSERT ON provider_object_lifetime_segments
+WHEN keelaryn_remote_history_write_authorized(
+	'LIFETIME_INSERT',
+	NEW.generation_id,
+	CAST(NEW.start_sequence AS TEXT),
+	''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'provider lifetime segment creation requires validated RemoteHistory application authority');
+END;
+
+CREATE TRIGGER provider_lifetime_segments_update_application_guard_v41
+BEFORE UPDATE ON provider_object_lifetime_segments
+WHEN keelaryn_remote_history_write_authorized(
+	'LIFETIME_UPDATE',
+	NEW.generation_id,
+	CAST(CASE
+		WHEN NEW.status='CLOSED' THEN NEW.end_sequence
+		ELSE NEW.last_present_sequence
+	END AS TEXT),
+	''
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'provider lifetime segment mutation requires validated RemoteHistory application authority');
+END;
+`,
+
 	},
 }
 
@@ -3288,6 +3417,7 @@ type Store struct {
 	occurrenceInsertAuthorizations                  sync.Map
 	observationInsertAuthorizations                 sync.Map
 	locatorInsertAuthorizations                     sync.Map
+	remoteHistoryWriteAuthorizations                sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -3721,6 +3851,10 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 	}
 	s.locatorInsertAuthorizations.Store(conn, locatorAuth)
 
+	if err := s.registerRemoteHistoryWriteAuthorizationConn(conn); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -4088,6 +4222,11 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
 	}
 	if err := requireExactSchemaVersionConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
+	}
+	if err := verifyRemoteHistoryHistoricalAuthorityConn(conn); err != nil {
 		pool.Put(conn)
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)

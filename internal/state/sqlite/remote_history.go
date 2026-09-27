@@ -109,6 +109,15 @@ func (s *Store) CloseRemoteHistoryGeneration(
 	if generation.CurrentSequence != expectedSequence || generation.CommittedCursor != expectedCursor {
 		return remotehistory.HistoryGeneration{}, ErrHistoryPublicationConflict
 	}
+	releaseHistoryWrite, err := s.authorizeRemoteHistoryWriteConn(conn, remoteHistoryWriteAuthorization{
+		phase:        remoteHistoryWriteClose,
+		generationID: generationID,
+		sequence:     expectedSequence,
+	})
+	if err != nil {
+		return remotehistory.HistoryGeneration{}, err
+	}
+	defer releaseHistoryWrite()
 
 	if err := sqlitex.Execute(conn,
 		"UPDATE remote_history_generations SET status='CLOSED', closed_at=?1, closure_reason=?2 WHERE generation_id=?3 AND status='ACTIVE' AND current_sequence=?4 AND committed_cursor=?5",

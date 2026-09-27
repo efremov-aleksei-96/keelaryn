@@ -95,6 +95,16 @@ func (s *Store) startRemoteHistoryGenerationWithSidecar(
 	if err != nil {
 		return remotehistory.HistoryGeneration{}, err
 	}
+	releaseHistoryWrite, err := s.authorizeRemoteHistoryWriteConn(conn, remoteHistoryWriteAuthorization{
+		phase:             remoteHistoryWriteBootstrap,
+		generationID:      generation.ID,
+		sequence:          publication.Sequence,
+		fingerprintSHA256: publication.FingerprintSHA256,
+	})
+	if err != nil {
+		return remotehistory.HistoryGeneration{}, err
+	}
+	defer releaseHistoryWrite()
 
 	if err := insertRemoteHistoryGeneration(conn, generation); err != nil {
 		return remotehistory.HistoryGeneration{}, err
@@ -223,6 +233,17 @@ func (s *Store) publishRemoteHistoryCycleWithSidecar(
 	if err != nil {
 		return remotehistory.HistoryGeneration{}, err
 	}
+	releaseHistoryWrite, err := s.authorizeRemoteHistoryWriteConn(conn, remoteHistoryWriteAuthorization{
+		phase:             remoteHistoryWriteIncremental,
+		generationID:      generationID,
+		sequence:          publication.Sequence,
+		fingerprintSHA256: publication.FingerprintSHA256,
+	})
+	if err != nil {
+		return remotehistory.HistoryGeneration{}, err
+	}
+	defer releaseHistoryWrite()
+
 	if err := insertRemoteHistoryPublication(conn, publication); err != nil {
 		return remotehistory.HistoryGeneration{}, err
 	}
