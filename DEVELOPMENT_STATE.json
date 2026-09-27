@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 174,
+  "revision": 175,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_RESTART_A11_STALE_DOCS_STATE_CLAIMS",
+    "current_stage": "FULL_AUDIT_RESTART_A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4686,11 +4686,12 @@
         },
         {
           "id": "A11_STALE_DOCS_STATE_CLAIMS",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "README.md and docs/DEVELOPMENT.md correctly point to DEVELOPMENT_STATE.json as current authority. docs/ENGINEERING_AUDIT_POLICY.md still contains a mutable 'Current audit clock' frozen at schema v34/B8/v35, contradicting current v38/R01-R02 state. Existing H5 remains; historical timestamped PASS/QUALIFIED documents are preserved as provenance and are not independently treated as stale-current claims."
         },
         {
           "id": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A13_COLLECTION_PASS_SYNTHESIS",
@@ -4709,12 +4710,13 @@
         "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
         "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
         "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
-        "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
+        "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
+        "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK"
       ],
       "last_checkpoint": {
         "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-        "completed_through": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
-        "next": "A11_STALE_DOCS_STATE_CLAIMS",
+        "completed_through": "A11_STALE_DOCS_STATE_CLAIMS",
+        "next": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
         "known_open_finding_count": 13,
         "critical_gate_open": 7
       }
