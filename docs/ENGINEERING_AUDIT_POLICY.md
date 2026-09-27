@@ -116,18 +116,16 @@ This distinction is preferred to pretending an earlier green slice proved behavi
 
 ## 7. Current audit clock
 
-P0-30C1's v27 qualification remains historical evidence. The current product boundary is hardened through **schema v29**.
+P0-30C1's earlier v27 qualification remains historical evidence. The current product boundary is hardened through **schema v34** at `77b8d463db6a0cc13cba8f8ce1611aa863911c9b`.
 
-Latest product fix head: `137e20fee3ebdd91b745962b39959198873c461c`.
-Latest exact qualification head after the test-only correction: `1a213edf688881a3faa14dcef32dec2e4a5e590c`.
+Exact-head CI run `36302664547`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
 
-Exact-head CI run `36299795960`: validate PASS, Ubuntu 24.04 PASS, Windows 2025 PASS.
+Audit fixes through v34 are product-fixed but remain pending the required zero-findings full requalification pass. In particular: v31 validates reverse RemoteHistory provenance, v32 enforces one RemoteHistory NEW per provider lifetime, v33 seals core identity rows against UPDATE/DELETE, and v34 protects Google topology watermark mutation behind a narrow application capability.
 
-Schema v28 resolved `AUDIT_C1_B1_IDENTITY_CAUSAL_TIME_AUTHORITY`: RemoteHistory authority creation time is bound to its sealed exact publication and source-bound SAME/NEW provenance is causal and schema-guarded.
+The restarted full audit found `AUDIT_C1_B8_CORE_IDENTITY_INSERT_APPLICATION_AUTHORITY`: future Artifact, Revision, and local provider-binding creation is not yet protected by equivalent SQLite application authority. Direct SQL can create a Revision outside validated evidence/current-sequence semantics and can create a local provider binding outside NEW acceptance.
 
-The next full audit found `AUDIT_C1_B2_GENERIC_REMOTE_IDENTITY_CAUSAL_TIME`: generic non-source-bound RemoteHistory SAME/NEW could return before the RemoteHistory causal-time check, and generic accepted decision/receipt rows lacked equivalent SQLite application authority. Schema v29 resolves that boundary without a new durable table or second identity model: every RemoteHistory acceptance is causal to scan start and current authority creation, generic RemoteHistory decision/receipt writes require the existing connection-local identity capability, and migration from v28 rejects pre-existing noncausal accepted provenance.
+B8 is **OPEN**. P0-30C2 remains **LOCKED**. The only permitted substantive product slice is schema v35 core identity insert authority, followed by exact-head CI and a complete audit restart from the first dimension.
 
-The B2 fix is **RESOLVED_PENDING_REQUALIFICATION_AUDIT**, not a CLEAN declaration. P0-30C2 remains **LOCKED**. Only a fresh complete audit on the latest authoritative HEAD with zero new BLOCKER/HIGH/MEDIUM/LOW product findings may durably record CLEAN and unlock C2.
 
 ## 8. Parallel audit/research during execution
 

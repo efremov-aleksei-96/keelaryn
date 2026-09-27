@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 145,
+  "revision": 146,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "FIX_AUDIT_C1_B7_GDRIVE_TOPOLOGY_WATERMARK_APPLICATION_AUTHORITY",
-    "description": "Append schema v34 without rewriting prior migrations. Protect Google topology watermark DELETE/UPDATE with a narrow connection-local application capability keyed to generation and existing watermark sequence. Production PublishGoogleDriveRemoteHistoryCycle must authorize only removal of the exact previous watermark inside its transaction. Add v33-to-v34 fail-closed migration validation requiring each Google generation to retain its current topology watermark, direct-SQL rejection regressions, and update intentional rebuild tests to use the controlled capability. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
+    "id": "FIX_AUDIT_C1_B8_CORE_IDENTITY_INSERT_APPLICATION_AUTHORITY",
+    "description": "Append schema v35 without rewriting prior migrations. Add narrow connection-local application authority for future Artifact, Revision, and local provider_artifact_bindings inserts. Centralize Artifact and provider-binding inserts, make Revision insertion go only through the existing validated observeRevisionConn path, and make adoption reuse observeRevisionConn instead of duplicating Revision SQL. Add direct-SQL regressions for unauthorized Artifact/Revision/local-binding creation and exact legitimate API coverage. Keep migration conservative: validate existing row structure/Revision sequence without inventing provenance that earlier schemas never required. Run exact-head validate/Ubuntu 24.04/Windows 2025 CI, then restart the complete zero-findings audit from the first dimension. P0-30C2 remains locked.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -3762,7 +3762,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 33,
+    "schema_version": 34,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4196,7 +4196,7 @@
         "boundary": "EXISTING_SAME_NEW_ACCEPTANCE_REMOTE_SOURCE_TRANSACTION_HARDENING",
         "product_head": "25ef11c221b1f11040f403cb06cdaf9585346ef2",
         "qualification_head": "029b49d4c1985cabab722214ac9218d3b5eaf2d9",
-        "schema_version": 33,
+        "schema_version": 34,
         "implementation": {
           "shared_resolver": "corpus.ResolveIdentityAuthoritySet",
           "local_generic_scope": "UNCHANGED_AUTHORITY_SCOPE_EQUALS_SCAN_ROOT",
@@ -4285,11 +4285,11 @@
           "before treating the SQLite state file as untrusted external input, re-evaluate trusted_schema/authorizer hardening around intentionally indirect application-defined trigger functions"
         ],
         "conclusion": "PASS",
-        "latest_product_head": "62dc596afd758b0a892676c590afbe52c37bb5f4",
-        "latest_exact_head_ci_run_id": 36299795960,
-        "latest_exact_head_ci": "PENDING",
-        "requalification_status": "BLOCKED_BY_AUDIT_C1_B7_GDRIVE_TOPOLOGY_WATERMARK_APPLICATION_AUTHORITY",
-        "latest_exact_head": "d8a58c05cc62889a1de3dc8d5c8abd7cb9ab46df"
+        "latest_product_head": "77b8d463db6a0cc13cba8f8ce1611aa863911c9b",
+        "latest_exact_head_ci_run_id": 36302664547,
+        "latest_exact_head_ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
+        "requalification_status": "BLOCKED_BY_AUDIT_C1_B8_CORE_IDENTITY_INSERT_APPLICATION_AUTHORITY",
+        "latest_exact_head": "77b8d463db6a0cc13cba8f8ce1611aa863911c9b"
       },
       "c2": {
         "status": "LOCKED_BY_AUDIT_C1_B3",
@@ -4322,21 +4322,21 @@
     "clean_pass_in_progress": false,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
-      "head": "d8a58c05cc62889a1de3dc8d5c8abd7cb9ab46df",
-      "dimension": "GDRIVE_TOPOLOGY_DURABLE_MUTATION_AUTHORITY",
-      "finding_id": "AUDIT_C1_B7_GDRIVE_TOPOLOGY_WATERMARK_APPLICATION_AUTHORITY",
+      "head": "77b8d463db6a0cc13cba8f8ce1611aa863911c9b",
+      "dimension": "CORE_IDENTITY_INSERT_APPLICATION_AUTHORITY",
+      "finding_id": "AUDIT_C1_B8_CORE_IDENTITY_INSERT_APPLICATION_AUTHORITY",
       "severity": "BLOCKER",
-      "issue": "gdrive_topology_watermarks is the mutation gate for the durable Google topology projection, but DELETE and UPDATE are not protected by application authority. Raw SQL can remove the authoritative watermark, thereby unlocking topology-node mutation and leaving the generation without current topology authority; normal publish then expects the prior watermark and can fail. UPDATE is likewise a direct authority-changing channel outside the controlled publish path.",
-      "required_correction": "Append schema v34 without rewriting prior migrations. Add a narrow connection-local Google topology mutation capability keyed to generation and existing watermark sequence. Require it for watermark DELETE and UPDATE; production Google publish acquires it only around removal of the exact prior watermark. Migration must fail closed if any Google generation lacks exactly the current watermark. Update intentional rebuild tests to use the capability and add direct-SQL regressions.",
+      "issue": "Schema v33 sealed Artifact, Revision, and local provider-binding rows only after insertion. Direct SQL can still create Revision rows without corpus.ValidateContentEvidence/current+1 sequencing and can create local provider_artifact_bindings without NEW identity acceptance; raw Artifact insertion is likewise outside a controlled application boundary.",
+      "required_correction": "Append schema v35 without rewriting prior migrations. Add narrow connection-local application authority for future Artifact, Revision, and local provider_artifact_bindings INSERTs. Centralize production writers, reuse observeRevisionConn for adoption instead of duplicate Revision SQL, and add direct-SQL regressions while preserving historically valid migrated state.",
       "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
     "open_findings": [
       {
-        "id": "AUDIT_C1_B7_GDRIVE_TOPOLOGY_WATERMARK_APPLICATION_AUTHORITY",
+        "id": "AUDIT_C1_B8_CORE_IDENTITY_INSERT_APPLICATION_AUTHORITY",
         "severity": "BLOCKER",
         "status": "OPEN",
-        "affected_head": "d8a58c05cc62889a1de3dc8d5c8abd7cb9ab46df"
+        "affected_head": "77b8d463db6a0cc13cba8f8ce1611aa863911c9b"
       }
     ],
     "resolved_findings": [
@@ -4407,6 +4407,16 @@
         "fix_head": "62dc596afd758b0a892676c590afbe52c37bb5f4",
         "schema_version": 33,
         "resolution": "Schema v33 seals artifacts, revisions, and provider_artifact_bindings against UPDATE/DELETE; direct-SQL migration regressions cover immutable Artifact identity, Revision evidence/history, and local provider bindings."
+      },
+      {
+        "id": "AUDIT_C1_B7_GDRIVE_TOPOLOGY_WATERMARK_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "FIXED_PENDING_ZERO_FINDINGS_REQUALIFICATION_AUDIT",
+        "affected_head": "d8a58c05cc62889a1de3dc8d5c8abd7cb9ab46df",
+        "fix_head": "77b8d463db6a0cc13cba8f8ce1611aa863911c9b",
+        "schema_version": 34,
+        "ci_run_id": 36302664547,
+        "resolution": "Schema v34 protects Google topology watermark removal with an exact connection-local generation/old-sequence application capability, forbids direct UPDATE, validates current watermark presence during v33→v34 migration, and keeps production publish as the sole authorized rebuild path."
       }
     ],
     "last_resolution_checkpoint": {
