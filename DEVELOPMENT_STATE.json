@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 167,
+  "revision": 168,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -145,7 +145,7 @@
   ],
   "next_objective": {
     "id": "FULL_AUDIT_RESTART_AFTER_R02",
-    "description": "Run a complete read-only audit from A00 through A13 on product HEAD 9010d37a8f89afcd322f296e857968dd9d52c9ae. Record findings during the pass; do not resume R03 or dependent P0-30C2 development until the full pass completes and the audit policy permits remediation/next action.",
+    "description": "Continue the complete read-only audit on product HEAD 9010d37a8f89afcd322f296e857968dd9d52c9ae from A02 durable authority boundaries through A13. Record findings during the pass; do not resume remediation until the collection pass completes.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_RESTART_A00_RECONCILE_AUTHORITY",
+    "current_stage": "FULL_AUDIT_RESTART_A02_DURABLE_AUTHORITY_BOUNDARIES",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4630,15 +4630,17 @@
       "work_ledger": [
         {
           "id": "A00_RECONCILE_AUTHORITY",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "evidence": "GitHub authority reconciled after R02: control HEAD ef985aa96e7c2ab54620e142e31e601e5ec5e745, audited product HEAD 9010d37a8f89afcd322f296e857968dd9d52c9ae, exact-head CI 36318523655 PASS. New disposable VPS checkout /tmp/keelaryn-full-audit-9010d37a is pinned clean to the audited product HEAD; no active Keelaryn/go-test process was found."
         },
         {
           "id": "A01_CANONICAL_INVARIANTS",
-          "status": "TODO"
+          "status": "DONE",
+          "evidence": "Re-read canonical identity/ambiguity invariants and current production reconciliation paths on 9010d37a. Locator overlap, content equality and local os.SameFile remain SUPPORTING evidence only; ResolveCandidateSet selects RESOLVED_SAME only from a uniquely CONFIRMED_SAME candidate backed by conclusive evidence. R01/R02 do not collapse Path/Hash/ProviderObject into Artifact identity. No new finding."
         },
         {
           "id": "A02_DURABLE_AUTHORITY_BOUNDARIES",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
@@ -4689,8 +4691,8 @@
       "findings_discovered": [],
       "last_checkpoint": {
         "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-        "completed_through": null,
-        "next": "A00_RECONCILE_AUTHORITY",
+        "completed_through": "A01_CANONICAL_INVARIANTS",
+        "next": "A02_DURABLE_AUTHORITY_BOUNDARIES",
         "known_open_finding_count": 13,
         "critical_gate_open": 7
       }
