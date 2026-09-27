@@ -2665,6 +2665,12 @@ END;
 DROP TABLE keelaryn_v31_remote_identity_reverse_provenance_validation;
 `,
 
+		`
+CREATE UNIQUE INDEX accepted_admission_remote_lifetime_unique
+	ON accepted_artifact_admissions (lifetime_segment_id)
+	WHERE lifetime_segment_id IS NOT NULL;
+`,
+
 	},
 }
 
