@@ -3,6 +3,7 @@ package sqlitestate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,8 @@ import (
 )
 
 const applicationID int32 = 0x4b4c5259 // "KLRY"
+
+var ErrUnsupportedSchemaVersion = errors.New("unsupported Keelaryn state schema version")
 
 var schema = sqlitemigration.Schema{
 	AppID: applicationID,
@@ -3688,9 +3691,31 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
 	}
+	if err := requireExactSchemaVersionConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
+	}
 	pool.Put(conn)
 
 	return store, nil
+}
+
+func requireExactSchemaVersionConn(conn *sqlite.Conn) error {
+	var version int64
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA user_version;", &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			version = stmt.ColumnInt64(0)
+			return nil
+		},
+	}); err != nil {
+		return fmt.Errorf("read state schema version: %w", err)
+	}
+	supported := int64(len(schema.Migrations))
+	if version != supported {
+		return fmt.Errorf("%w: database=%d binary=%d", ErrUnsupportedSchemaVersion, version, supported)
+	}
+	return nil
 }
 
 func (s *Store) Close() error {

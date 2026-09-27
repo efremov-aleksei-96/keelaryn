@@ -153,6 +153,57 @@ func TestStoreRejectsWrongApplicationID(t *testing.T) {
 	}
 }
 
+func TestStoreRejectsDatabaseNewerThanBinarySchema(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "newer.db")
+
+	store, err := sqlitestate.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err := sqlite.OpenConn(path, sqlite.OpenReadWrite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const newerVersion = 39
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA user_version = 39;", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = sqlitestate.Open(ctx, path)
+	if store != nil {
+		_ = store.Close()
+	}
+	if !errors.Is(err, sqlitestate.ErrUnsupportedSchemaVersion) {
+		t.Fatalf("error=%v, want ErrUnsupportedSchemaVersion", err)
+	}
+
+	conn, err = sqlite.OpenConn(path, sqlite.OpenReadWrite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	var got int64
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA user_version;", &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			got = stmt.ColumnInt64(0)
+			return nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got != newerVersion {
+		t.Fatalf("user_version=%d, want unchanged %d", got, newerVersion)
+	}
+}
+
 func TestStoreMigrationIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "state.db")
