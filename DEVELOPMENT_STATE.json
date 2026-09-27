@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 166,
+  "revision": 167,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,12 +144,12 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "REMEDIATE_R02_REMOTE_SCAN_CONTRACT_FAIL_CLOSED",
-    "description": "Fix B20 by making the supported remote materialization contract explicit and fail-closed at validation and completion, with adversarial unknown/unknown persisted-source regression. Product mutation requires exact-head CI before R03/R04.",
+    "id": "FULL_AUDIT_RESTART_AFTER_R02",
+    "description": "Run a complete read-only audit from A00 through A13 on product HEAD 9010d37a8f89afcd322f296e857968dd9d52c9ae. Record findings during the pass; do not resume R03 or dependent P0-30C2 development until the full pass completes and the audit policy permits remediation/next action.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-    "audit_gate": "REMEDIATION_THEN_FULL_AUDIT_UNTIL_ZERO_CRITICAL"
+    "audit_gate": "FIX_THEN_FULL_AUDIT_FROM_SCRATCH"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_REMEDIATION_R02_REMOTE_SCAN_CONTRACT",
+    "current_stage": "FULL_AUDIT_RESTART_A00_RECONCILE_AUTHORITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_PASS_THEN_REMEDIATION_REPEAT_UNTIL_ZERO_CRITICAL",
     "clean_pass_required": true,
@@ -4319,7 +4319,7 @@
       "effect": "INTERRUPTED_AUDIT_NOT_CLEAN_RESTART_FULL_AUDIT_FROM_FIRST_DIMENSION",
       "mitigation": "USE_GITHUB_API_AND_DIRECT_FILE_READS_FOR_FULL_AUDIT_NO_SHELL_COMPOSITION"
     },
-    "clean_pass_in_progress": false,
+    "clean_pass_in_progress": true,
     "clean_pass_last_completed": false,
     "last_invalidated_audit": {
       "head": "679a26cc65a438629cb672ab55fbdbea7ebe6c39",
@@ -4404,14 +4404,6 @@
         "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
         "issue": "accepted_continuity_decisions.resolution_json and accepted_artifact_admissions.resolution_json are durable authority but historical migrations do not validate JSON syntax/semantic resolution shape. Readers do json.Unmarshal plus semantic validation and fail closed, so malformed historical rows are not silently trusted, but Store.Open can succeed with accepted decisions that cannot later be read/replayed.",
         "required_correction": "Add conservative migration validation for durable accepted decision JSON and semantic consistency using the same corpus resolution validators where reconstructable. Treat malformed historical authority as explicit invalid state rather than allowing Open success followed by later read/replay failure."
-      },
-      {
-        "id": "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "RemoteScanSourceInput validation is fail-open for an unknown snapshot fingerprint version paired with an unknown materialization policy: the validator only rejects when exactly one side is the known RemoteMetadata/LIGHTWEIGHT_ALL pair. CompleteRemoteHistoryScan then returns success from both snapshot fingerprint verification and provider-scope validation when the fingerprint version is not the known RemoteMetadataSnapshotFingerprintVersion. A caller can therefore create and COMPLETE a source-bound remote scan under an unsupported contract without exact snapshot or provider-scope proof.",
-        "required_correction": "Make supported remote materialization contracts explicit and fail closed on unknown fingerprint-version/policy pairs in P0. Completion must require a registered validator for the exact contract; no unknown contract may bypass fingerprint and provider-scope verification. Add adversarial tests for unknown/known mismatches and unknown/unknown pairs at start and completion."
       },
       {
         "id": "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
@@ -4582,16 +4574,24 @@
         "resolution_head": "5a02ff7dd845268ae02a7cef0a6a79aa8c39a991",
         "qualification_ci": 36317314694,
         "resolution": "Store.Open now requires exact PRAGMA user_version after migration; newer DB is rejected before Store is returned and regression proves user_version remains unchanged."
+      },
+      {
+        "id": "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "RemoteScanSourceInput validation is fail-open for an unknown snapshot fingerprint version paired with an unknown materialization policy: the validator only rejects when exactly one side is the known RemoteMetadata/LIGHTWEIGHT_ALL pair. CompleteRemoteHistoryScan then returns success from both snapshot fingerprint verification and provider-scope validation when the fingerprint version is not the known RemoteMetadataSnapshotFingerprintVersion. A caller can therefore create and COMPLETE a source-bound remote scan under an unsupported contract without exact snapshot or provider-scope proof.",
+        "required_correction": "Make supported remote materialization contracts explicit and fail closed on unknown fingerprint-version/policy pairs in P0. Completion must require a registered validator for the exact contract; no unknown contract may bypass fingerprint and provider-scope verification. Add adversarial tests for unknown/known mismatches and unknown/unknown pairs at start and completion.",
+        "resolution_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
+        "qualification_ci": 36318523655,
+        "resolution": "RemoteScanSourceInput now accepts only the explicitly supported RemoteMetadataSnapshotFingerprintVersion + LIGHTWEIGHT_ALL:v1 contract. Durable source reads re-run the same validator, so historical unknown/unknown contracts fail closed during completion/replay. Regressions cover unknown/known, known/unknown and persisted unknown/unknown; legacy tests were moved onto the qualified Google materialization fixture."
       }
     ],
     "last_resolution_checkpoint": {
-      "finding_id": "AUDIT_C1_B2_GENERIC_REMOTE_IDENTITY_CAUSAL_TIME",
-      "product_head": "137e20fee3ebdd91b745962b39959198873c461c",
-      "exact_head": "1a213edf688881a3faa14dcef32dec2e4a5e590c",
-      "ci_run_id": 36299795960,
-      "ci": "SUCCESS_VALIDATE_UBUNTU24_WINDOWS2025",
-      "schema_version": 29,
-      "effect": "FIX_QUALIFIED_FULL_AUDIT_FROM_SCRATCH_REQUIRED_BEFORE_C2"
+      "finding_id": "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN",
+      "resolution_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
+      "ci_run_id": 36318523655,
+      "result": "RESOLVED_AND_FULL_AUDIT_RESTARTED_FROM_A00"
     },
     "collection_policy": {
       "mode": "ACCUMULATE_FINDINGS_DO_NOT_STOP_AT_FIRST",
@@ -4606,142 +4606,105 @@
       "lower_severity_policy": "PRESERVE_AND_REMEDIATE_OR_EXPLICITLY_CARRY_WITH_RATIONALE"
     },
     "collection_pass": {
-      "started_from_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-      "status": "COMPLETE",
+      "started_from_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
+      "status": "IN_PROGRESS",
       "findings_at_start": [
-        "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE"
-      ],
-      "known_open_at_start": 1,
-      "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-      "control_head_at_ledger_creation": "8cf08539df5835e2bd999875c3c649aa12065dd2",
-      "ledger_version": 1,
-      "work_ledger": [
-        {
-          "id": "A00_RECONCILE_AUTHORITY",
-          "status": "DONE",
-          "evidence": "GitHub remote/head/state reconciled; product snapshot pinned."
-        },
-        {
-          "id": "A01_CANONICAL_INVARIANTS",
-          "status": "DONE",
-          "evidence": "Core identity invariants reviewed through current v38 boundary; B12 already open."
-        },
-        {
-          "id": "A02_DURABLE_AUTHORITY_BOUNDARIES",
-          "status": "DONE",
-          "evidence": "Completed application-authority coverage review across production SQL write surfaces. Confirmed B13 Base RemoteHistory authority gap, B14 Google Drive topology/scope authority gap, and B15 generic scan/Observation evidence authority gap. Existing v35-v38 guards cover core identity/identity authority/identity acceptance but not these adjacent durable evidence surfaces."
-        },
-        {
-          "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
-          "status": "DONE",
-          "evidence": "RemoteHistory coordinator, remote scan, SAME/NEW identity acceptance, RemoteHistory identity authority and GDrive managed-root binding have explicit replay/reconcile semantics. LocalFS/BootstrapLocalFS do not; B16 recorded."
-        },
-        {
-          "id": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
-          "status": "DONE",
-          "evidence": "Core durable writers use ImmediateTransaction or delegate into transaction-scoped writers. LocalFS bootstrap commits per occurrence and ordinary/bootstrap LocalFS lacks whole-root mutation-boundary revalidation; B16/B17 recorded."
-        },
-        {
-          "id": "A05_SCHEMA_MIGRATION_ROLLBACK",
-          "status": "DONE",
-          "evidence": "Pinned zombiezen/go-sqlite v1.4.2 migrations are transactionally rolled back on migration-script failure, but migrateDB has no fail-closed guard when PRAGMA user_version is greater than len(schema.Migrations). Keelaryn Open adds no such max-version check. No current product update/rollback implementation or state-DB pre-upgrade backup/restore path was found; canonical architecture requires explicit upgrade/rollback."
-        },
-        {
-          "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
-          "status": "DONE",
-          "evidence": "Table-by-table negative coverage and historical-row validation reviewed. Current/future raw-write gaps are already B13-B15. Confirmed v35 migration only validates contiguous Revision sequence and does not validate historical core identity rows against current write-time contracts; B19 recorded. Malformed historical accepted-decision resolution JSON is reader-fail-closed but can leave unreadable accepted authority; M1 recorded. Supplemental post-check confirmed B20: unknown remote scan fingerprint-version + policy pair is accepted and completion skips both fingerprint and provider-scope validation."
-        },
-        {
-          "id": "A07_RUNTIME_REACHABILITY",
-          "status": "DONE",
-          "evidence": "Current product executable surface is only cmd/keelaryn scan --root, which performs read-only localfs.Discover and emits JSON. Durable SQLite ingest/bootstrap/identity/RemoteHistory/materialization/extraction/contextbundle components are currently library/internal paths, not wired into the CLI. Existing authority findings remain blockers before future runtime wiring; no additional critical runtime-reachability defect recorded."
-        },
-        {
-          "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
-          "status": "DONE",
-          "evidence": "Pinned product HEAD 578f58b688388591563d80f88f9f17cb0defd4a1 has exact CI PASS on ubuntu-24.04 and windows-2025 (run 36313957734). Production code has no explicit GOOS/syscall branches; localfs uses standard os/filepath plus os.SameFile. Android is not built or tested in CI, so support remains unqualified; H2 recorded."
-        },
-        {
-          "id": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
-          "status": "DONE",
-          "evidence": "Production code does not construct OAuth clients, read credential JSON/env, or persist provider tokens; GoogleClient receives an externally authenticated *drive.Service. No credential material found in SQLite/contextbundle fields. State DB filesystem permissions/ACL are not enforced by Store.Open or a platform adapter; H3 recorded. Existing docs already defer trusted_schema/authorizer hardening before treating state DB as untrusted external input."
-        },
-        {
-          "id": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
-          "status": "DONE",
-          "evidence": "RemoteHistory GAP/INVALID_CURSOR/SCOPE_MISMATCH/INSUFFICIENT_HISTORY closes the active generation fail-closed. Existing explicit verifiers can reconstruct-check lifetime segments and GDrive topology projection, but they have no production callers and there is no aggregate Doctor/SelfTest or SQLite integrity/foreign-key diagnostic surface. Full metadata-loss reconstruction is intentionally later scope and is not treated as a P0 blocker. H4 recorded."
-        },
-        {
-          "id": "A11_STALE_DOCS_STATE_CLAIMS",
-          "status": "DONE",
-          "evidence": "Historical retrospectives/contracts are scoped provenance and may retain their original PASS claims. README.md and docs/DEVELOPMENT.md correctly point to DEVELOPMENT_STATE.json as current state. ENGINEERING_AUDIT_POLICY.md section 'Current audit clock' is stale at schema v34/B8/v35 and contradicts current schema v38/full-collection state; H5 recorded."
-        },
-        {
-          "id": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
-          "status": "DONE",
-          "evidence": "Fresh upstream review found no dependency replacement needed for blocker remediation. Reuse existing Keelaryn connection-local SQLite capability pattern for durable application authority; use application-owned PRAGMA user_version fail-closed guard; retain zombiezen/go-sqlite and its backup API for future release rollback; reuse rclone bisync interruption-recovery concepts for local ingest attempt ownership; retain fsnotify only as notification transport, not completeness/identity authority. No new product finding."
-        },
-        {
-          "id": "A13_COLLECTION_PASS_SYNTHESIS",
-          "status": "DONE",
-          "evidence": "Full collection pass completed on pinned product HEAD 578f58b688388591563d80f88f9f17cb0defd4a1. Findings: 9 BLOCKER, 5 HIGH, 1 MEDIUM. No remediation was performed during discovery."
-        }
-      ],
-      "candidate_findings": [],
-      "findings_discovered": [
         "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
         "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
         "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
         "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
         "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
         "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
-        "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD",
         "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
         "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
         "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
-        "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN",
         "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
         "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
         "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
         "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK"
       ],
+      "known_open_at_start": 13,
+      "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
+      "control_head_at_ledger_creation": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
+      "ledger_version": 2,
+      "work_ledger": [
+        {
+          "id": "A00_RECONCILE_AUTHORITY",
+          "status": "IN_PROGRESS"
+        },
+        {
+          "id": "A01_CANONICAL_INVARIANTS",
+          "status": "TODO"
+        },
+        {
+          "id": "A02_DURABLE_AUTHORITY_BOUNDARIES",
+          "status": "TODO"
+        },
+        {
+          "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
+          "status": "TODO"
+        },
+        {
+          "id": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
+          "status": "TODO"
+        },
+        {
+          "id": "A05_SCHEMA_MIGRATION_ROLLBACK",
+          "status": "TODO"
+        },
+        {
+          "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
+          "status": "TODO"
+        },
+        {
+          "id": "A07_RUNTIME_REACHABILITY",
+          "status": "TODO"
+        },
+        {
+          "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
+          "status": "TODO"
+        },
+        {
+          "id": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
+          "status": "TODO"
+        },
+        {
+          "id": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
+          "status": "TODO"
+        },
+        {
+          "id": "A11_STALE_DOCS_STATE_CLAIMS",
+          "status": "TODO"
+        },
+        {
+          "id": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
+          "status": "TODO"
+        },
+        {
+          "id": "A13_COLLECTION_PASS_SYNTHESIS",
+          "status": "TODO"
+        }
+      ],
+      "candidate_findings": [],
+      "findings_discovered": [],
       "last_checkpoint": {
-        "control_head_before_checkpoint": "f7f5bf84562d98b822a540fe7fdce558644f24bb",
-        "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "completed_through": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
-        "next": "A13_COLLECTION_PASS_SYNTHESIS",
-        "open_finding_count": 15
-      },
-      "reuse_review": {
-        "status": "DONE",
-        "decisions": [
-          "NO_NEW_DEPENDENCY_FOR_B12_B15_B20_USE_EXISTING_SQLITE_CAPABILITY_PATTERN",
-          "B18_APPLICATION_OWNED_PRAGMA_USER_VERSION_FAIL_CLOSED",
-          "H1_REUSE_ZOMBIEZEN_SQLITE_BACKUP_API",
-          "B16_BORROW_RCLONE_BISYNC_ATTEMPT_RECOVERY_PATTERN_NOT_IDENTITY_SEMANTICS",
-          "B17_FSNOTIFY_NOTIFICATION_ONLY_SECOND_SNAPSHOT_OR_EQUIVALENT_FOR_COMPLETENESS"
-        ]
-      },
-      "completed_on_control_head": "8447048d6322a28e6dec4fb4fc44c68ac35b50b6",
-      "summary": {
-        "total_open": 15,
-        "blocker": 9,
-        "critical": 0,
-        "high": 5,
-        "medium": 1,
-        "low": 0,
-        "critical_gate_open": 9
+        "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
+        "completed_through": null,
+        "next": "A00_RECONCILE_AUTHORITY",
+        "known_open_finding_count": 13,
+        "critical_gate_open": 7
       }
     },
     "interruption_recovery": {
       "mode": "DURABLE_WORK_LEDGER_REQUIRED_FOR_LONG_RUNNING_AUDIT_AND_DEVELOPMENT",
       "invariant": "AFTER_INTERRUPTION_CONTINUE_FROM_FIRST_UNCOMPLETED_LEDGER_ITEM_NOT_FROM_CHAT_MEMORY",
-      "audited_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+      "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
       "control_head_may_advance_for_metadata_only_checkpoints": true,
       "product_head_change_requires_new_reconcile": true,
       "checkpoint_cadence": "AFTER_EACH_AUDIT_DIMENSION_OR_MEANINGFUL_MULTI_STEP_BOUNDARY_AND_BEFORE_ANY_EXPECTED_LONG_WAIT",
       "timeout_rule": "NEVER_BLIND_RETRY_RECONCILE_DURABLE_EXTERNAL_STATE_FIRST",
-      "partial_work_rule": "UNCOMMITTED_SCRATCH_IS_NONAUTHORITATIVE_AND_MUST_BE_REVALIDATED_BEFORE_REUSE"
+      "partial_work_rule": "UNCOMMITTED_SCRATCH_IS_NONAUTHORITATIVE_AND_MUST_BE_REVALIDATED_BEFORE_REUSE",
+      "resume_rule": "RECONCILE_GITHUB_VPS_CI_THEN_RESUME_FIRST_LEDGER_ITEM_NOT_DONE"
     },
     "remediation": {
       "status": "IN_PROGRESS",
@@ -4760,10 +4723,14 @@
         },
         {
           "id": "R02_REMOTE_SCAN_CONTRACT_FAIL_CLOSED",
-          "status": "IN_PROGRESS",
+          "status": "DONE",
           "findings": [
             "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN"
-          ]
+          ],
+          "product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
+          "ci_run": 36318523655,
+          "qualification": "validate+ubuntu-24.04+windows-2025 PASS",
+          "note": "Initial qualification attempts exposed legacy tests that depended on the fail-open unknown contract. Tests were migrated to the qualified Google materialization path; production fail-closed semantics were not weakened."
         },
         {
           "id": "R03_BOOTSTRAP_SCAN_PROVENANCE",
@@ -4855,8 +4822,8 @@
           "H5"
         ]
       },
-      "current_product_head": "5a02ff7dd845268ae02a7cef0a6a79aa8c39a991",
-      "critical_gate_open": 8
+      "current_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
+      "critical_gate_open": 7
     }
   }
 }
