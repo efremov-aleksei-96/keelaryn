@@ -131,7 +131,8 @@ func TestVerifyGoogleDriveTopologyProjectionDetectsMaterializedDrift(t *testing.
 	}
 	if err := sqlitex.ExecuteScript(conn,
 		"DROP TRIGGER gdrive_topology_nodes_update_requires_unwatermarked; "+
-			"DROP TRIGGER gdrive_topology_nodes_update_guard;",
+			"DROP TRIGGER gdrive_topology_nodes_update_guard; "+
+			"DROP TRIGGER gdrive_topology_nodes_update_application_guard_v42;",
 		nil,
 	); err != nil {
 		store.pool.Put(conn)
@@ -178,8 +179,10 @@ func TestVerifyGoogleDriveTopologyProjectionRejectsEvidenceWithoutHistorySource(
 	}
 	if err := sqlitex.ExecuteScript(conn,
 		"DROP TRIGGER gdrive_topology_evidence_insert_guard; "+
+			"DROP TRIGGER gdrive_topology_evidence_insert_application_guard_v42; "+
 			"DROP TRIGGER gdrive_topology_nodes_insert_requires_unwatermarked; "+
-			"DROP TRIGGER gdrive_topology_nodes_insert_guard;",
+			"DROP TRIGGER gdrive_topology_nodes_insert_guard; "+
+			"DROP TRIGGER gdrive_topology_nodes_insert_application_guard_v42;",
 		nil,
 	); err != nil {
 		store.pool.Put(conn)
