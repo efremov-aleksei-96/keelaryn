@@ -50,12 +50,10 @@ func TestV33CoreIdentityRowsRejectUpdateAndDelete(t *testing.T) {
 		})
 	}
 
-	bindingArtifact, err := store.AdoptArtifact(ctx)
-	if err != nil { t.Fatal(err) }
 	acceptedAt := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
 	if err := sqlitex.Execute(conn,
 		"INSERT INTO provider_artifact_bindings (identity_domain,provider_id,native_object_id,artifact_id,policy_id,accepted_at) VALUES ('test-domain','test-provider','object-1',?1,'test:local',?2)",
-		&sqlitex.ExecOptions{Args: []any{string(bindingArtifact.ID), acceptedAt}}); err != nil {
+		&sqlitex.ExecOptions{Args: []any{string(otherArtifact.ID), acceptedAt}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := sqlitex.Execute(conn,
