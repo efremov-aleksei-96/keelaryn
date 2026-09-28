@@ -200,7 +200,7 @@ func TestLocalFSIngestDiscoveryFailureLeavesPreviousAuthority(t *testing.T) {
 	}
 }
 
-func TestLocalFSIngestPersistenceFailureAbortsScanAndKeepsPreviousAuthority(t *testing.T) {
+func TestLocalFSIngestAtomicFailureRollsBackAndKeepsPreviousAuthority(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "old.txt"), []byte("old"))
@@ -217,17 +217,15 @@ func TestLocalFSIngestPersistenceFailureAbortsScanAndKeepsPreviousAuthority(t *t
 	mustWrite(t, filepath.Join(root, "a.txt"), []byte("a"))
 	mustWrite(t, filepath.Join(root, "b.txt"), []byte("b"))
 
-	failing := &failAfterStore{Store: store, failAfter: 1}
-	failedScan, err := ingest.LocalFS(ctx, failing, provider, root, fixedTime().Add(time.Minute))
+	failing := &failAtomicStore{Store: store}
+	_, err = ingest.LocalFS(ctx, failing, provider, root, fixedTime().Add(time.Minute))
 	if !errors.Is(err, errInjectedPersistence) {
 		t.Fatalf("error=%v, want injected persistence error", err)
 	}
-	gotScan, scanErr := store.ScanSession(ctx, failedScan.ID)
-	if scanErr != nil {
-		t.Fatal(scanErr)
-	}
-	if gotScan.Status != corpus.ScanAborted {
-		t.Fatalf("failed scan status=%q, want ABORTED", gotScan.Status)
+	if open, found, openErr := store.OpenScanForScope(ctx, "localfs", first.Root); openErr != nil {
+		t.Fatal(openErr)
+	} else if found {
+		t.Fatalf("atomic failure stranded OPEN scan: %#v", open)
 	}
 
 	inventory, err := store.Inventory(ctx, "localfs", first.Root)
@@ -236,6 +234,65 @@ func TestLocalFSIngestPersistenceFailureAbortsScanAndKeepsPreviousAuthority(t *t
 	}
 	if len(inventory) != 1 || inventory[0].Locator.Path != "old.txt" {
 		t.Fatalf("failed ingest replaced previous authority: %#v", inventory)
+	}
+}
+
+func TestLocalFSIngestExactBoundaryReplayReturnsCommittedScan(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "file.txt"), []byte("x"))
+	store := openStore(t)
+	provider := localfs.New("localfs")
+	at := fixedTime()
+
+	first, err := ingest.LocalFS(ctx, store, provider, root, at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := ingest.LocalFS(ctx, store, provider, root, at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("exact replay created second scan: first=%s second=%s", first.ID, second.ID)
+	}
+	receipt, found, err := store.LocalIngestCommitAtBoundary(ctx, "localfs", first.Root, at, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || receipt.Scan.ID != first.ID || receipt.Bootstrap {
+		t.Fatalf("replay receipt=%#v found=%v", receipt, found)
+	}
+}
+
+func TestLocalFSIngestFinalRootRevalidationRollsBackMixedSnapshot(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "a.txt"), []byte("a"))
+	store := openStore(t)
+	provider := localfs.New("localfs")
+
+	mutating := &mutateBeforeValidationStore{
+		Store: store,
+		mutate: func() error {
+			return os.WriteFile(filepath.Join(root, "b.txt"), []byte("b"), 0o600)
+		},
+	}
+	_, err := ingest.LocalFS(ctx, mutating, provider, root, fixedTime())
+	if !errors.Is(err, ingest.ErrLocalFSSnapshotChanged) {
+		t.Fatalf("error=%v, want ErrLocalFSSnapshotChanged", err)
+	}
+	if open, found, openErr := store.OpenScanForScope(ctx, "localfs", filepath.Clean(root)); openErr != nil {
+		t.Fatal(openErr)
+	} else if found {
+		t.Fatalf("revalidation failure stranded OPEN scan: %#v", open)
+	}
+	inventory, err := store.Inventory(ctx, "localfs", filepath.Clean(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory) != 0 {
+		t.Fatalf("mixed snapshot became authoritative: %#v", inventory)
 	}
 }
 
@@ -271,20 +328,89 @@ func TestLocalFSIngestSurvivesStoreReopen(t *testing.T) {
 	}
 }
 
-type failAfterStore struct {
+type failAtomicStore struct {
 	*sqlitestate.Store
-	failAfter int
-	writes    int
 }
 
 var errInjectedPersistence = errors.New("injected persistence failure")
 
-func (s *failAfterStore) RecordObservationInScan(ctx context.Context, scanID corpus.ScanSessionID, input corpus.ObservationRecordInput) (corpus.ObservationRecord, error) {
-	if s.writes >= s.failAfter {
-		return corpus.ObservationRecord{}, errInjectedPersistence
-	}
-	s.writes++
-	return s.Store.RecordObservationInScan(ctx, scanID, input)
+func (s *failAtomicStore) CommitLocalSnapshot(
+	ctx context.Context,
+	providerID corpus.ProviderID,
+	root string,
+	observedAt time.Time,
+	fingerprintVersion string,
+	fingerprintSHA256 string,
+	inputs []corpus.ObservationRecordInput,
+	finalValidate func(context.Context) error,
+) (corpus.ScanSession, error) {
+	return s.Store.CommitLocalSnapshot(
+		ctx, providerID, root, observedAt, fingerprintVersion, fingerprintSHA256, inputs,
+		func(context.Context) error { return errInjectedPersistence },
+	)
+}
+
+func (s *failAtomicStore) CommitBootstrapLocalSnapshot(
+	ctx context.Context,
+	providerID corpus.ProviderID,
+	root string,
+	observedAt time.Time,
+	fingerprintVersion string,
+	fingerprintSHA256 string,
+	inputs []corpus.BootstrapObservationInput,
+	finalValidate func(context.Context) error,
+) (corpus.ScanSession, error) {
+	return s.Store.CommitBootstrapLocalSnapshot(
+		ctx, providerID, root, observedAt, fingerprintVersion, fingerprintSHA256, inputs,
+		func(context.Context) error { return errInjectedPersistence },
+	)
+}
+
+type mutateBeforeValidationStore struct {
+	*sqlitestate.Store
+	mutate func() error
+}
+
+func (s *mutateBeforeValidationStore) CommitLocalSnapshot(
+	ctx context.Context,
+	providerID corpus.ProviderID,
+	root string,
+	observedAt time.Time,
+	fingerprintVersion string,
+	fingerprintSHA256 string,
+	inputs []corpus.ObservationRecordInput,
+	finalValidate func(context.Context) error,
+) (corpus.ScanSession, error) {
+	return s.Store.CommitLocalSnapshot(
+		ctx, providerID, root, observedAt, fingerprintVersion, fingerprintSHA256, inputs,
+		func(validateCtx context.Context) error {
+			if err := s.mutate(); err != nil {
+				return err
+			}
+			return finalValidate(validateCtx)
+		},
+	)
+}
+
+func (s *mutateBeforeValidationStore) CommitBootstrapLocalSnapshot(
+	ctx context.Context,
+	providerID corpus.ProviderID,
+	root string,
+	observedAt time.Time,
+	fingerprintVersion string,
+	fingerprintSHA256 string,
+	inputs []corpus.BootstrapObservationInput,
+	finalValidate func(context.Context) error,
+) (corpus.ScanSession, error) {
+	return s.Store.CommitBootstrapLocalSnapshot(
+		ctx, providerID, root, observedAt, fingerprintVersion, fingerprintSHA256, inputs,
+		func(validateCtx context.Context) error {
+			if err := s.mutate(); err != nil {
+				return err
+			}
+			return finalValidate(validateCtx)
+		},
+	)
 }
 
 func openStore(t *testing.T) *sqlitestate.Store {

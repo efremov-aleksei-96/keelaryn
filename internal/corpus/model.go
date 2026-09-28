@@ -102,6 +102,14 @@ type ObservationRecordInput struct {
 	ModifiedAt      time.Time       `json:"modified_at"`
 }
 
+// BootstrapObservationInput is one first-observation adoption unit.
+// Evidence is optional for non-regular entries. A batch of these inputs may
+// be committed atomically so a failed bootstrap never leaves partial identity.
+type BootstrapObservationInput struct {
+	Observation ObservationRecordInput `json:"observation"`
+	Evidence    *ContentEvidence        `json:"evidence,omitempty"`
+}
+
 // LocatorRecord gives an observation-time Locator its own record identity.
 // LocatorID is provenance bookkeeping, not Artifact or ProviderObject identity.
 type LocatorRecord struct {

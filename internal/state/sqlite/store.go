@@ -3415,6 +3415,70 @@ END;
 DROP TABLE keelaryn_v43_historical_core_identity_validation;
 `,
 
+		`
+CREATE TABLE local_ingest_commits (
+	scan_id TEXT PRIMARY KEY NOT NULL
+		REFERENCES scan_sessions(scan_id) ON DELETE RESTRICT,
+	provider_id TEXT NOT NULL,
+	root TEXT NOT NULL,
+	started_at TEXT NOT NULL
+		CHECK (keelaryn_is_canonical_utc_rfc3339nano(started_at)=1),
+	ingest_mode TEXT NOT NULL
+		CHECK (ingest_mode IN ('SCAN','BOOTSTRAP')),
+	snapshot_fingerprint_version TEXT NOT NULL
+		CHECK (snapshot_fingerprint_version<>''),
+	snapshot_fingerprint_sha256 TEXT NOT NULL
+		CHECK (
+			length(snapshot_fingerprint_sha256)=64
+			AND snapshot_fingerprint_sha256 NOT GLOB '*[^0-9a-f]*'
+		),
+	UNIQUE (provider_id, root, started_at, ingest_mode)
+) STRICT;
+
+CREATE TRIGGER local_ingest_commits_scope_guard_v44
+BEFORE INSERT ON local_ingest_commits
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM scan_sessions s
+	WHERE s.scan_id=NEW.scan_id
+	  AND s.provider_id=NEW.provider_id
+	  AND s.root=NEW.root
+	  AND s.started_at=NEW.started_at
+	  AND s.status='COMPLETE'
+	  AND s.finished_at IS NOT NULL
+)
+BEGIN
+	SELECT RAISE(ABORT, 'local ingest commit must reference the exact COMPLETE scan boundary');
+END;
+
+CREATE TRIGGER local_ingest_commits_application_guard_v44
+BEFORE INSERT ON local_ingest_commits
+WHEN keelaryn_local_ingest_commit_authorized(
+	NEW.scan_id,
+	NEW.provider_id,
+	NEW.root,
+	NEW.started_at,
+	NEW.ingest_mode,
+	NEW.snapshot_fingerprint_version,
+	NEW.snapshot_fingerprint_sha256
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'local ingest commit creation requires validated application authority');
+END;
+
+CREATE TRIGGER local_ingest_commits_no_update_v44
+BEFORE UPDATE ON local_ingest_commits
+BEGIN
+	SELECT RAISE(ABORT, 'local ingest commit receipt is immutable');
+END;
+
+CREATE TRIGGER local_ingest_commits_no_delete_v44
+BEFORE DELETE ON local_ingest_commits
+BEGIN
+	SELECT RAISE(ABORT, 'local ingest commit receipt is immutable');
+END;
+`,
+
 	},
 }
 
@@ -3564,6 +3628,7 @@ type Store struct {
 	locatorInsertAuthorizations                     sync.Map
 	remoteHistoryWriteAuthorizations                sync.Map
 	gdriveTopologyWriteAuthorizations               sync.Map
+	localIngestCommitAuthorizations                 sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -4004,6 +4069,9 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		return err
 	}
 	if err := registerHistoricalCoreIdentityValidationConn(conn); err != nil {
+		return err
+	}
+	if err := s.registerLocalIngestCommitAuthorizationConn(conn); err != nil {
 		return err
 	}
 

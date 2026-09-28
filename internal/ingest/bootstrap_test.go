@@ -156,6 +156,71 @@ func TestBootstrapLocalFSRefusesExistingObservationHistory(t *testing.T) {
 	}
 }
 
+func TestBootstrapLocalFSAtomicFailureLeavesNoPartialIdentityAndCanRetry(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "file.txt"), []byte("abc"))
+	store := openStore(t)
+	provider := localfs.New("localfs")
+
+	_, err := ingest.BootstrapLocalFS(ctx, &failAtomicStore{Store: store}, provider, root, fixedTime())
+	if !errors.Is(err, errInjectedPersistence) {
+		t.Fatalf("error=%v, want injected persistence error", err)
+	}
+	if open, found, openErr := store.OpenScanForScope(ctx, "localfs", filepath.Clean(root)); openErr != nil {
+		t.Fatal(openErr)
+	} else if found {
+		t.Fatalf("failed bootstrap stranded OPEN scan: %#v", open)
+	}
+	inventory, err := store.Inventory(ctx, "localfs", filepath.Clean(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory) != 0 {
+		t.Fatalf("failed bootstrap left authoritative inventory: %#v", inventory)
+	}
+
+	if _, err := ingest.BootstrapLocalFS(ctx, store, provider, root, fixedTime().Add(1)); err != nil {
+		t.Fatalf("partial bootstrap history blocked retry: %v", err)
+	}
+}
+
+func TestBootstrapLocalFSFinalRevalidationDetectsContentDriftWithStableMetadata(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	path := filepath.Join(root, "file.txt")
+	mustWrite(t, path, []byte("abc"))
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalModTime := info.ModTime()
+	store := openStore(t)
+	provider := localfs.New("localfs")
+
+	mutating := &mutateBeforeValidationStore{
+		Store: store,
+		mutate: func() error {
+			if err := os.WriteFile(path, []byte("xyz"), 0o600); err != nil {
+				return err
+			}
+			return os.Chtimes(path, originalModTime, originalModTime)
+		},
+	}
+	_, err = ingest.BootstrapLocalFS(ctx, mutating, provider, root, fixedTime())
+	if !errors.Is(err, ingest.ErrLocalFSSnapshotChanged) {
+		t.Fatalf("error=%v, want ErrLocalFSSnapshotChanged", err)
+	}
+	if inventory, invErr := store.Inventory(ctx, "localfs", filepath.Clean(root)); invErr != nil {
+		t.Fatal(invErr)
+	} else if len(inventory) != 0 {
+		t.Fatalf("content-drift bootstrap became authoritative: %#v", inventory)
+	}
+	if _, err := ingest.BootstrapLocalFS(ctx, store, provider, root, fixedTime().Add(1)); err != nil {
+		t.Fatalf("content-drift rollback blocked later bootstrap: %v", err)
+	}
+}
+
 func TestLaterOrdinaryScanDoesNotAutoReuseBootstrapArtifact(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()

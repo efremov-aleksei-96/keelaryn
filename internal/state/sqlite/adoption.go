@@ -36,6 +36,18 @@ func (s *Store) StartBootstrapScan(ctx context.Context, providerID corpus.Provid
 	}
 	defer end(&err)
 
+	return s.startBootstrapScanConn(conn, providerID, root, startedAt)
+}
+
+func (s *Store) startBootstrapScanConn(
+	conn *sqlite.Conn,
+	providerID corpus.ProviderID,
+	root string,
+	startedAt time.Time,
+) (corpus.ScanSession, error) {
+	if providerID == "" || root == "" || startedAt.IsZero() {
+		return corpus.ScanSession{}, ErrInvalidScan
+	}
 	history, err := observationHistoryExistsConn(conn, providerID, root)
 	if err != nil {
 		return corpus.ScanSession{}, err
@@ -44,11 +56,11 @@ func (s *Store) StartBootstrapScan(ctx context.Context, providerID corpus.Provid
 		return corpus.ScanSession{}, fmt.Errorf("%w: %s/%s", ErrObservationHistoryExists, providerID, root)
 	}
 
-	scan, err = s.startScanConn(conn, providerID, root, startedAt)
+	scan, err := s.startScanConn(conn, providerID, root, startedAt)
 	if err != nil {
 		return corpus.ScanSession{}, err
 	}
-	provenAt := scan.StartedAt.Format(time.RFC3339Nano)
+	provenAt := scan.StartedAt.UTC().Format(time.RFC3339Nano)
 	release, err := s.authorizeBootstrapScanAuthorityInsertConn(conn, scan.ID, provenAt)
 	if err != nil {
 		return corpus.ScanSession{}, err
@@ -114,6 +126,27 @@ func observationHistoryExistsConn(conn *sqlite.Conn, providerID corpus.ProviderI
 // The caller may use this only after a bootstrap boundary has established that
 // the occurrence has no prior continuity candidate.
 func (s *Store) AdoptObservationInScan(ctx context.Context, scanID corpus.ScanSessionID, input corpus.ObservationRecordInput, evidence *corpus.ContentEvidence) (out corpus.ObservationRecord, err error) {
+	conn, err := s.pool.Get(ctx)
+	if err != nil {
+		return corpus.ObservationRecord{}, fmt.Errorf("get state connection: %w", err)
+	}
+	defer s.pool.Put(conn)
+
+	end, err := sqlitex.ImmediateTransaction(conn)
+	if err != nil {
+		return corpus.ObservationRecord{}, fmt.Errorf("begin adoption transaction: %w", err)
+	}
+	defer end(&err)
+
+	return s.adoptObservationInScanConn(conn, scanID, input, evidence)
+}
+
+func (s *Store) adoptObservationInScanConn(
+	conn *sqlite.Conn,
+	scanID corpus.ScanSessionID,
+	input corpus.ObservationRecordInput,
+	evidence *corpus.ContentEvidence,
+) (corpus.ObservationRecord, error) {
 	if err := validateObservationInput(input); err != nil {
 		return corpus.ObservationRecord{}, err
 	}
@@ -131,18 +164,6 @@ func (s *Store) AdoptObservationInScan(ctx context.Context, scanID corpus.ScanSe
 			return corpus.ObservationRecord{}, fmt.Errorf("%w: content evidence size=%d observation size=%d", ErrInvalidObservation, evidence.Size, input.Size)
 		}
 	}
-
-	conn, err := s.pool.Get(ctx)
-	if err != nil {
-		return corpus.ObservationRecord{}, fmt.Errorf("get state connection: %w", err)
-	}
-	defer s.pool.Put(conn)
-
-	end, err := sqlitex.ImmediateTransaction(conn)
-	if err != nil {
-		return corpus.ObservationRecord{}, fmt.Errorf("begin adoption transaction: %w", err)
-	}
-	defer end(&err)
 
 	scan, err := scanSessionConn(conn, scanID)
 	if err != nil {
