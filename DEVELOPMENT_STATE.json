@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 186,
+  "revision": 187,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "POST_R11_FULL_AUDIT_A01_CANONICAL_INVARIANTS",
+    "current_stage": "POST_R11_FULL_AUDIT_A02_DURABLE_AUTHORITY_BOUNDARIES",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4675,11 +4675,13 @@
         },
         {
           "id": "A01_CANONICAL_INVARIANTS",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "result": "PASS",
+          "note": "Exact product head preserves Corpus-first identity invariants. Artifact/Revision IDs are not derived from paths/provider IDs/content hashes; equal content and locator/native continuity signals are SUPPORTING only; candidate ambiguity is first-class; identical bootstrap copies remain distinct Artifacts; later ordinary scans do not guess continuity; changed content creates a new Revision of the same Artifact and returning to old bytes creates another Revision."
         },
         {
           "id": "A02_DURABLE_AUTHORITY_BOUNDARIES",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
