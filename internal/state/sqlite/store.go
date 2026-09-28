@@ -3347,6 +3347,74 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE keelaryn_v43_historical_core_identity_validation (
+	ok INTEGER NOT NULL CHECK (ok=1)
+) STRICT;
+
+INSERT INTO keelaryn_v43_historical_core_identity_validation (ok)
+SELECT CASE
+	WHEN EXISTS (
+		SELECT 1 FROM artifacts a
+		WHERE a.artifact_id=''
+	)
+	OR EXISTS (
+		SELECT 1 FROM revisions r
+		WHERE r.revision_id=''
+		   OR r.artifact_id=''
+		   OR keelaryn_historical_content_evidence_valid(
+				r.content_algorithm,
+				r.content_digest,
+				CAST(r.content_size AS TEXT)
+		   )<>1
+	)
+	OR EXISTS (
+		SELECT 1 FROM provider_artifact_bindings b
+		WHERE b.identity_domain=''
+		   OR b.provider_id=''
+		   OR b.native_object_id=''
+		   OR b.artifact_id=''
+		   OR b.policy_id=''
+		   OR b.policy_id='remote-history:lifetime-segment:v1'
+		   OR keelaryn_is_canonical_utc_rfc3339nano(b.accepted_at)<>1
+		   OR NOT EXISTS (
+				SELECT 1
+				FROM accepted_artifact_admissions d
+				WHERE d.identity_domain=b.identity_domain
+				  AND d.provider_id=b.provider_id
+				  AND d.native_object_id=b.native_object_id
+				  AND d.artifact_id=b.artifact_id
+				  AND d.policy_id=b.policy_id
+				  AND d.decided_at=b.accepted_at
+				  AND d.lifetime_segment_id IS NULL
+		   )
+	)
+	OR EXISTS (
+		SELECT 1 FROM accepted_continuity_decisions d
+		WHERE keelaryn_historical_continuity_resolution_valid(
+			d.resolution_json,
+			d.decision_state,
+			d.artifact_id
+		)<>1
+	)
+	OR EXISTS (
+		SELECT 1 FROM accepted_artifact_admissions d
+		WHERE keelaryn_historical_admission_resolution_valid(
+			d.resolution_json,
+			d.decision_state,
+			d.policy_id,
+			d.identity_domain,
+			d.provider_id,
+			d.native_object_id
+		)<>1
+	)
+	THEN 0
+	ELSE 1
+END;
+
+DROP TABLE keelaryn_v43_historical_core_identity_validation;
+`,
+
 	},
 }
 
@@ -3935,6 +4003,9 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 	if err := s.registerGoogleDriveTopologyWriteAuthorizationConn(conn); err != nil {
 		return err
 	}
+	if err := registerHistoricalCoreIdentityValidationConn(conn); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -4313,6 +4384,11 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
 	}
 	if err := verifyGoogleDriveHistoricalAuthorityConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
+	}
+	if err := verifyHistoricalCoreIdentityAuthorityConn(conn); err != nil {
 		pool.Put(conn)
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)

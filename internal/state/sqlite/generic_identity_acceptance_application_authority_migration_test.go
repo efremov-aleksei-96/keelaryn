@@ -83,7 +83,7 @@ func TestV38MigrationRejectsHistoricalOrphanIdentityMutationReceipt(t *testing.T
 	}
 }
 
-func TestV38MigrationPreservesLegacyGenericDecisionWithoutReceipt(t *testing.T) {
+func TestV43MigrationRejectsMalformedLegacyGenericDecisionWithoutReceipt(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "legacy-decision-v37.db")
 	store := openV37GenericIdentityAcceptanceStore(t, path)
@@ -115,11 +115,11 @@ func TestV38MigrationPreservesLegacyGenericDecisionWithoutReceipt(t *testing.T) 
 		t.Fatal(err)
 	}
 	migrated, err := Open(ctx, path)
-	if err != nil {
-		t.Fatalf("v38 migration rejected pre-receipt legacy decision: %v", err)
+	if migrated != nil {
+		_ = migrated.Close()
 	}
-	if err := migrated.Close(); err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("v43 migration unexpectedly accepted malformed legacy continuity resolution")
 	}
 }
 
