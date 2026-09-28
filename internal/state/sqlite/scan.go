@@ -13,10 +13,11 @@ import (
 )
 
 var (
-	ErrInvalidScan          = errors.New("invalid scan session")
-	ErrScanNotFound         = errors.New("scan session not found")
-	ErrScanNotOpen          = errors.New("scan session is not open")
-	ErrScanScopeMismatch    = errors.New("observation does not match scan scope")
+	ErrInvalidScan             = errors.New("invalid scan session")
+	ErrScanNotFound            = errors.New("scan session not found")
+	ErrScanNotOpen             = errors.New("scan session is not open")
+	ErrScanScopeMismatch       = errors.New("observation does not match scan scope")
+	ErrAmbiguousScanAuthority  = errors.New("ambiguous current COMPLETE scan authority")
 )
 
 func (s *Store) StartScan(ctx context.Context, providerID corpus.ProviderID, root string, startedAt time.Time) (corpus.ScanSession, error) {
@@ -342,12 +343,17 @@ func (s *Store) CurrentArtifactLocators(ctx context.Context, providerID corpus.P
 }
 
 func latestCompleteScanID(conn *sqlite.Conn, providerID corpus.ProviderID, root string) (corpus.ScanSessionID, bool, error) {
-	var bestID corpus.ScanSessionID
-	var bestFinished time.Time
-	var found bool
+	type candidate struct {
+		id       corpus.ScanSessionID
+		finished time.Time
+		order    int64
+		ordered  bool
+	}
+	var latestFinished time.Time
+	var latest []candidate
 
 	err := sqlitex.Execute(conn,
-		"SELECT scan_id, finished_at FROM scan_sessions WHERE provider_id = ?1 AND root = ?2 AND status = 'COMPLETE'",
+		"SELECT s.scan_id, s.finished_at, c.completion_order FROM scan_sessions s LEFT JOIN scan_completion_authorities c ON c.scan_id=s.scan_id WHERE s.provider_id=?1 AND s.root=?2 AND s.status='COMPLETE'",
 		&sqlitex.ExecOptions{
 			Args: []any{string(providerID), root},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
@@ -356,10 +362,16 @@ func latestCompleteScanID(conn *sqlite.Conn, providerID corpus.ProviderID, root 
 				if err != nil {
 					return fmt.Errorf("parse COMPLETE scan finish %s: %w", id, err)
 				}
-				if !found || finished.After(bestFinished) || (finished.Equal(bestFinished) && id > bestID) {
-					found = true
-					bestID = id
-					bestFinished = finished
+				current := candidate{id: id, finished: finished}
+				if !stmt.ColumnIsNull(2) {
+					current.order = stmt.ColumnInt64(2)
+					current.ordered = true
+				}
+				if len(latest) == 0 || finished.After(latestFinished) {
+					latestFinished = finished
+					latest = []candidate{current}
+				} else if finished.Equal(latestFinished) {
+					latest = append(latest, current)
 				}
 				return nil
 			},
@@ -367,5 +379,30 @@ func latestCompleteScanID(conn *sqlite.Conn, providerID corpus.ProviderID, root 
 	if err != nil {
 		return "", false, fmt.Errorf("query latest complete scan: %w", err)
 	}
-	return bestID, found, nil
+	if len(latest) == 0 {
+		return "", false, nil
+	}
+	if len(latest) == 1 {
+		return latest[0].id, true, nil
+	}
+
+	var ordered candidate
+	var hasOrdered bool
+	for _, current := range latest {
+		if current.ordered && (!hasOrdered || current.order > ordered.order) {
+			ordered = current
+			hasOrdered = true
+		}
+	}
+	if hasOrdered {
+		return ordered.id, true, nil
+	}
+	return "", false, fmt.Errorf(
+		"%w: provider=%s root=%s finished_at=%s candidates=%d",
+		ErrAmbiguousScanAuthority,
+		providerID,
+		root,
+		latestFinished.UTC().Format(time.RFC3339Nano),
+		len(latest),
+	)
 }

@@ -3479,6 +3479,67 @@ BEGIN
 END;
 `,
 
+		`
+CREATE TABLE scan_completion_authorities (
+	completion_order INTEGER PRIMARY KEY NOT NULL,
+	scan_id TEXT NOT NULL UNIQUE
+		REFERENCES scan_sessions(scan_id) ON DELETE RESTRICT
+) STRICT;
+
+CREATE TRIGGER scan_completion_authorities_scope_guard_v45
+BEFORE INSERT ON scan_completion_authorities
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM scan_sessions s
+	WHERE s.scan_id=NEW.scan_id
+	  AND s.status='COMPLETE'
+	  AND s.finished_at IS NOT NULL
+)
+BEGIN
+	SELECT RAISE(ABORT, 'scan completion authority requires an exact COMPLETE scan');
+END;
+
+CREATE TRIGGER scan_completion_authorities_application_guard_v45
+BEFORE INSERT ON scan_completion_authorities
+WHEN NOT EXISTS (
+	SELECT 1
+	FROM scan_sessions s
+	WHERE s.scan_id=NEW.scan_id
+	  AND keelaryn_scan_write_authorized(
+		'FINISH',
+		s.scan_id,
+		s.provider_id,
+		s.root,
+		s.status,
+		s.started_at,
+		COALESCE(s.finished_at, '')
+	  )=1
+)
+BEGIN
+	SELECT RAISE(ABORT, 'scan completion authority creation requires validated FINISH application authority');
+END;
+
+CREATE TRIGGER scan_sessions_record_completion_authority_v45
+AFTER UPDATE ON scan_sessions
+WHEN OLD.status='OPEN'
+AND NEW.status='COMPLETE'
+BEGIN
+	INSERT INTO scan_completion_authorities (scan_id) VALUES (NEW.scan_id);
+END;
+
+CREATE TRIGGER scan_completion_authorities_no_update_v45
+BEFORE UPDATE ON scan_completion_authorities
+BEGIN
+	SELECT RAISE(ABORT, 'scan completion authority is immutable');
+END;
+
+CREATE TRIGGER scan_completion_authorities_no_delete_v45
+BEFORE DELETE ON scan_completion_authorities
+BEGIN
+	SELECT RAISE(ABORT, 'scan completion authority is immutable');
+END;
+`,
+
 	},
 }
 
