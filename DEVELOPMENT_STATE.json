@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 182,
+  "revision": 183,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,12 +144,12 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "REMEDIATE_R08_LOCALFS_INTERRUPTION_AND_COMPLETENESS",
-    "description": "Fix B16 and B17 coherently: make LocalFS/bootstrap ingest interruption-safe with durable/reconcilable attempt ownership and resumable or safely compensatable progress, and require a final whole-root mutation-boundary completeness proof before COMPLETE so a scan cannot publish a mixed/stale filesystem snapshot. Preserve Artifact identity invariants and do not use filesystem event streams as authority. Add interruption/adversarial race regressions and exact-head CI. After R08 is fully qualified, run the one complete A00-A13 post-remediation full audit required by policy before unlocking P0-30C2.",
+    "id": "POST_REMEDIATION_FULL_AUDIT_A00_A13",
+    "description": "Run one complete post-remediation audit from A00 through A13 against exact product head a5e3cbd8ac0fc6efb787020358b2b9d8d181a143 and current branch/control authority. Collect all findings before remediation. P0-30C2 remains locked until this complete audit records zero open BLOCKER/CRITICAL. If any new BLOCKER/CRITICAL is found, freeze the full finding set and remediate that entire set before the next full re-audit.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-    "audit_gate": "COMPLETE_CURRENT_CRITICAL_REMEDIATION_SET_THEN_ONE_FULL_AUDIT_ZERO_CRITICAL_REQUIRED"
+    "audit_gate": "ONE_COMPLETE_POST_REMEDIATION_FULL_AUDIT_ZERO_CRITICAL_REQUIRED"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_REMEDIATION_R08_LOCALFS_INTERRUPTION_AND_COMPLETENESS",
+    "current_stage": "POST_REMEDIATION_FULL_AUDIT_A00_RECONCILE_AUTHORITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4332,22 +4332,6 @@
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
     "open_findings": [
-      {
-        "id": "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "LocalFS and BootstrapLocalFS lack durable recovery for an OPEN local scan after lost response/process interruption. StartScan/StartBootstrapScan generate scan IDs internally, but there is no scope-based OPEN-scan reconcile API. Bootstrap is additionally non-atomic across the whole root: AdoptObservationInScan commits each Artifact/Revision/Observation independently; on a later handled error the defer only marks the scan ABORTED, leaving partial identity/history rows. observationHistoryExists counts that history, so a subsequent bootstrap can be permanently refused even after a normal handled failure, not only a crash.",
-        "required_correction": "Introduce durable local-ingest attempt/replay identity or an exact scope-based reconcile/ownership protocol for OPEN local scans. Bootstrap must either be recoverable/resumable with exact occurrence replay or have transaction/compensation semantics that do not leave partial identity adoption blocking future bootstrap. Doctor/recovery must be able to distinguish abandoned versus live attempts without guessing."
-      },
-      {
-        "id": "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "LocalFS Snapshot is a filepath.WalkDir/Lstat observation with no provider generation token or whole-root revalidation before CompleteScan. Files may be created, removed, renamed or modified between discovery and persistence/COMPLETE, producing a mixed or stale scan even though ScanSession is defined as a completeness boundary. Bootstrap content sampling stabilizes individual regular-file groups but does not re-prove whole-root membership or non-regular entries before COMPLETE.",
-        "required_correction": "Add an exact mutation-boundary revalidation strategy for local roots before COMPLETE (for example provider-specific change token where available, deterministic second snapshot/fingerprint comparison, or another fail-closed completeness proof). Bootstrap must likewise prove the final root membership still matches the identity/content observations being committed."
-      },
       {
         "id": "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
         "severity": "HIGH",
@@ -4616,6 +4600,30 @@
         "schema_version": 43,
         "qualification_ci": 36396407054,
         "resolution": "Historical accepted continuity/admission resolution_json is syntax- and semantics-validated using the same corpus resolution validators before Store.Open succeeds."
+      },
+      {
+        "id": "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "LocalFS and BootstrapLocalFS lack durable recovery for an OPEN local scan after lost response/process interruption. StartScan/StartBootstrapScan generate scan IDs internally, but there is no scope-based OPEN-scan reconcile API. Bootstrap is additionally non-atomic across the whole root: AdoptObservationInScan commits each Artifact/Revision/Observation independently; on a later handled error the defer only marks the scan ABORTED, leaving partial identity/history rows. observationHistoryExists counts that history, so a subsequent bootstrap can be permanently refused even after a normal handled failure, not only a crash.",
+        "required_correction": "Introduce durable local-ingest attempt/replay identity or an exact scope-based reconcile/ownership protocol for OPEN local scans. Bootstrap must either be recoverable/resumable with exact occurrence replay or have transaction/compensation semantics that do not leave partial identity adoption blocking future bootstrap. Doctor/recovery must be able to distinguish abandoned versus live attempts without guessing.",
+        "qualification_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+        "schema_version": 44,
+        "qualification_ci": 36405348001,
+        "resolution": "Atomic LocalFS/bootstrap batch transactions prevent partial durable progress; immutable boundary receipts permit exact post-timeout replay/reconcile, and visible legacy OPEN scans remain explicitly queryable instead of guessed."
+      },
+      {
+        "id": "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "LocalFS Snapshot is a filepath.WalkDir/Lstat observation with no provider generation token or whole-root revalidation before CompleteScan. Files may be created, removed, renamed or modified between discovery and persistence/COMPLETE, producing a mixed or stale scan even though ScanSession is defined as a completeness boundary. Bootstrap content sampling stabilizes individual regular-file groups but does not re-prove whole-root membership or non-regular entries before COMPLETE.",
+        "required_correction": "Add an exact mutation-boundary revalidation strategy for local roots before COMPLETE (for example provider-specific change token where available, deterministic second snapshot/fingerprint comparison, or another fail-closed completeness proof). Bootstrap must likewise prove the final root membership still matches the identity/content observations being committed.",
+        "qualification_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+        "schema_version": 44,
+        "qualification_ci": 36405348001,
+        "resolution": "LocalFS completion now requires final provider revalidation inside the durable transaction immediately before COMPLETE; bootstrap also re-hashes content evidence, so membership/metadata/content drift aborts and rolls back the whole batch."
       }
     ],
     "last_resolution_checkpoint": {
@@ -4885,11 +4893,16 @@
         },
         {
           "id": "R08_LOCALFS_INTERRUPTION_AND_COMPLETENESS",
-          "status": "IN_PROGRESS",
+          "status": "DONE",
           "findings": [
             "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
             "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION"
-          ]
+          ],
+          "product_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+          "schema_version": 44,
+          "ci_run": 36405348001,
+          "qualification": "validate+ubuntu-24.04+windows-2025 PASS",
+          "note": "LocalFS and bootstrap ingestion now use atomic batch transactions with immutable v44 commit receipts for exact provider/root/started_at replay reconciliation. No new LocalFS path can strand visible OPEN/partial state. A provider-only final validation callback runs inside the same SQLite transaction immediately before COMPLETE; ordinary scans re-snapshot canonical metadata/grouping and bootstrap re-snapshots plus re-hashes regular-file content, so changed roots roll back the entire scan/Artifact/Revision/Observation batch."
         },
         {
           "id": "R09_D0_POLICY_CURRENT_CLOCK",
@@ -4939,8 +4952,8 @@
           "H5"
         ]
       },
-      "current_product_head": "541b0989beb6cd38949ee4b76e19f64736e31db2",
-      "critical_gate_open": 2,
+      "current_product_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+      "critical_gate_open": 0,
       "full_reaudit_between_slices": false,
       "next_full_audit_when": "ALL_FINDINGS_IN_CURRENT_BLOCKER_CRITICAL_REMEDIATION_SET_ARE_RESOLVED_AND_QUALIFIED",
       "new_critical_during_remediation": "ADD_TO_CURRENT_REMEDIATION_SET_AND_CONTINUE_REMEDIATION",
