@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 183,
+  "revision": 184,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,12 +144,12 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "POST_REMEDIATION_FULL_AUDIT_A00_A13",
-    "description": "Run one complete post-remediation audit from A00 through A13 against exact product head a5e3cbd8ac0fc6efb787020358b2b9d8d181a143 and current branch/control authority. Collect all findings before remediation. P0-30C2 remains locked until this complete audit records zero open BLOCKER/CRITICAL. If any new BLOCKER/CRITICAL is found, freeze the full finding set and remediate that entire set before the next full re-audit.",
+    "id": "REMEDIATE_R11_SCAN_CURRENT_AUTHORITY_ORDERING",
+    "description": "Fix B21 so current COMPLETE scan authority is deterministic for every provider/root and never falls back to random ScanSessionID ordering when timestamps tie. Preserve replay semantics and existing source-bound RemoteHistory guards. Handle historical equal-time COMPLETE scans conservatively without inventing order. Add targeted LocalFS bootstrap→scan same-time and equal-time remote regressions, qualify exact product head, then run one full A00-A13 audit from scratch. P0-30C2 remains locked until that audit records zero open BLOCKER/CRITICAL.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
-    "audit_gate": "ONE_COMPLETE_POST_REMEDIATION_FULL_AUDIT_ZERO_CRITICAL_REQUIRED"
+    "audit_gate": "REMEDIATE_FROZEN_B21_THEN_ONE_FULL_AUDIT_ZERO_CRITICAL_REQUIRED"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "POST_REMEDIATION_FULL_AUDIT_A00_RECONCILE_AUTHORITY",
+    "current_stage": "POST_REMEDIATION_FULL_AUDIT_COMPLETE_FINDINGS_FROZEN",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4368,6 +4368,14 @@
         "issue": "Keelaryn contains targeted consistency verifiers such as VerifyRemoteHistoryLifetimeSegments and VerifyGoogleDriveTopologyProjection, but no production path invokes them and there is no aggregate Doctor/SelfTest/integrity command. SQLite integrity/foreign-key checks and cross-subsystem durable-authority verification therefore cannot be run as one supported diagnostic/recovery gate.",
         "required_correction": "Before operator/runtime qualification, implement a read-only Doctor/SelfTest surface that runs SQLite integrity/foreign-key checks plus registered subsystem verifiers, reports exact failing authority without mutating it, and can be used by update/recovery qualification. Keep metadata-loss reconstruction as a separate later capability.",
         "gate_scope": "OPERABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
+      },
+      {
+        "id": "AUDIT_C2_B21_SCAN_CURRENT_AUTHORITY_ORDERING_AMBIGUITY",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "affected_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+        "issue": "Current inventory authority is selected by latestCompleteScanID using maximum finished_at and, when timestamps tie, lexicographically greatest random ScanSessionID. Scan IDs are generated from uuid.NewString(), while finishScanConn accepts caller-supplied terminal timestamps. Valid APIs can therefore produce multiple COMPLETE scans for one provider/root with the same finished_at. In particular, v44 permits BootstrapLocalFS(provider/root,t) followed by ordinary LocalFS(provider/root,t): commit-receipt uniqueness is mode-scoped, both scans can COMPLETE at t, and the later ordinary scan is not guaranteed to become current inventory because UUID ordering is unrelated to durable commit order. Source-bound remote materializations have the same general equal-time ambiguity. Current Inventory/CurrentArtifactLocators may therefore expose stale authority after a later valid COMPLETE scan.",
+        "required_correction": "Define a deterministic durable current-scan authority order that does not depend on random identifiers. Prefer an explicit monotonic per-scope completion/publication order or another exact semantic authority boundary; alternatively reject ambiguous equal-time completions before commit. Historical equal-time COMPLETE scans must be detected and handled fail-closed/ambiguously rather than guessed. Add adversarial regressions for bootstrap→ordinary LocalFS at the same timestamp and equal-time remote materializations, proving the later qualified authority is selected deterministically."
       }
     ],
     "resolved_findings": [
@@ -4649,144 +4657,114 @@
       "lower_severity_policy": "PRESERVE_AND_REMEDIATE_OR_EXPLICITLY_CARRY_WITH_RATIONALE_AND_TARGET_STAGE_OR_DEADLINE; LOWER_SEVERITY_FINDINGS_DO_NOT_BY_THEMSELVES_KEEP_THE_CRITICAL_GATE_CLOSED"
     },
     "collection_pass": {
-      "started_from_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
+      "started_from_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
       "status": "COMPLETE",
-      "findings_at_start": [
-        "AUDIT_C1_B12_BOOTSTRAP_ADOPTION_SCAN_PROVENANCE",
-        "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
-        "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
-        "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
-        "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
-        "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
-        "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
-        "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
-        "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
-        "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
-        "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
-        "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
-        "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK"
-      ],
-      "known_open_at_start": 13,
-      "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-      "control_head_at_ledger_creation": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-      "ledger_version": 2,
+      "audited_product_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+      "control_head_at_ledger_creation": "9a8239b7dff1014d6cc6345b997d3646991df851",
+      "ledger_version": 3,
       "work_ledger": [
         {
           "id": "A00_RECONCILE_AUTHORITY",
           "status": "DONE",
-          "evidence": "GitHub authority reconciled after R02: control HEAD ef985aa96e7c2ab54620e142e31e601e5ec5e745, audited product HEAD 9010d37a8f89afcd322f296e857968dd9d52c9ae, exact-head CI 36318523655 PASS. New disposable VPS checkout /tmp/keelaryn-full-audit-9010d37a is pinned clean to the audited product HEAD; no active Keelaryn/go-test process was found."
+          "evidence": "Product HEAD a5e3cbd8... is exactly qualified by CI 36405348001 PASS; control HEAD 9a8239b7... changes DEVELOPMENT_STATE.json only and its CI 36406828116 PASS on validate/Ubuntu/Windows."
         },
         {
           "id": "A01_CANONICAL_INVARIANTS",
           "status": "DONE",
-          "evidence": "Re-read canonical identity/ambiguity invariants and current production reconciliation paths on 9010d37a. Locator overlap, content equality and local os.SameFile remain SUPPORTING evidence only; ResolveCandidateSet selects RESOLVED_SAME only from a uniquely CONFIRMED_SAME candidate backed by conclusive evidence. R01/R02 do not collapse Path/Hash/ProviderObject into Artifact identity. No new finding."
+          "evidence": "Artifact identity remains independent of path/hash/provider IDs; LocalFS copies remain distinct and hard links are grouped only as physical occurrence evidence. No new finding."
         },
         {
           "id": "A02_DURABLE_AUTHORITY_BOUNDARIES",
           "status": "DONE",
-          "evidence": "Re-audited all production SQLite write surfaces and registered application authorization UDFs on product HEAD 9010d37a. B13 Base RemoteHistory application authority, B14 Google Drive topology/scope application authority, and B15 generic scan/Observation evidence application authority remain reproducible and unaffected by R01/R02. No additional authority-boundary finding discovered."
+          "evidence": "Re-audited production SQLite write surfaces after schemas v39-v44. Connection-local application authority remains in place for scan/Observation, RemoteHistory, Google topology, core identity and local-ingest receipts. No new finding."
         },
         {
           "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
           "status": "DONE",
-          "evidence": "Re-audited product HEAD 9010d37a. RemoteHistory scan/coordinator paths retain explicit reconcile/replay semantics. LocalFS and BootstrapLocalFS still have no scope/attempt-based recovery for committed OPEN scans or lost responses; bootstrap still commits per occurrence and abort leaves durable identity/history. B16 remains reproducible; no new replay/idempotency finding."
+          "evidence": "v44 LocalFS/bootstrap batch commits and immutable boundary receipts eliminate partial visible local-ingest progress and support exact replay; RemoteHistory replay/reconcile remains explicit. No new finding beyond A04 ordering ambiguity."
         },
         {
           "id": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
           "status": "DONE",
-          "evidence": "Re-audited LocalFS/BootstrapLocalFS completeness and transaction boundaries on product HEAD 9010d37a. Core durable writers remain transaction-scoped. Whole-root membership is still not revalidated before COMPLETE; only per-file/group sampling is stabilized. B17 remains reproducible; no new atomicity finding."
+          "evidence": "Core identity/RemoteHistory/local ingest mutations remain transaction-scoped; LocalFS final provider validation runs inside the atomic transaction immediately before COMPLETE. New B21 found: current COMPLETE authority ordering is ambiguous when terminal timestamps tie because selection falls back to random scan UUID."
         },
         {
           "id": "A05_SCHEMA_MIGRATION_ROLLBACK",
           "status": "DONE",
-          "evidence": "R01 is effective on product HEAD 9010d37a: Store.Open now rejects any PRAGMA user_version not exactly equal to the binary schema count, with regression proving a newer DB remains unchanged. Prior B18 no longer reproduces. Release-level pre-upgrade backup/restore remains absent, so H1 remains open; no new migration finding."
+          "evidence": "Exact schema-version guard and migration regressions remain effective. Release-level verified pre-upgrade backup/restore/downgrade remains absent; existing H1 confirmed, no new finding."
         },
         {
           "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
           "status": "DONE",
-          "evidence": "Re-audited v35-v38 migrations and durable decision readers on product HEAD 9010d37a. B19 remains: v35 historical core identity migration validates contiguous Revision sequence only, not current ContentEvidence/provider-binding contracts. M1 remains: accepted decision resolution_json is validated only when read/replayed, so Store.Open can succeed with unreadable historical authority. No new adversarial finding."
+          "evidence": "Authority/migration adversarial coverage is broad through v44, but no regression covers two valid COMPLETE scans for one scope with equal finished_at. B21 is reachable through valid APIs rather than raw-SQL bypass."
         },
         {
           "id": "A07_RUNTIME_REACHABILITY",
           "status": "DONE",
-          "evidence": "Product HEAD 9010d37a executable surface remains cmd/keelaryn scan --root only: localfs.Discover read-only + JSON output. Durable SQLite ingest/bootstrap/identity/RemoteHistory/materialization paths are internal library surfaces and not yet wired into CLI/runtime. Existing correctness findings therefore remain pre-wiring blockers; no new runtime-reachability finding."
+          "evidence": "Executable surface remains read-only cmd/keelaryn scan --root; durable pipeline is still internal and awaiting the next wiring stage. This is expected stage scope, not a new blocker."
         },
         {
           "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
           "status": "DONE",
-          "evidence": "Exact product CI 36318523655 PASS on ubuntu-24.04 and windows-2025. Android remains unqualified. Keelaryn pins zombiezen.com/go/sqlite v1.4.2 / modernc.org/sqlite v1.37.1; the latter's supported-platform matrix lists darwin/freebsd/linux/windows and omits android. H2 remains; no new platform finding."
+          "evidence": "Exact product CI PASS on ubuntu-24.04/windows-2025. Android remains unqualified and current modernc.org/sqlite support matrix omits Android; existing H2 confirmed."
         },
         {
           "id": "A09_SECURITY_CREDENTIAL_BOUNDARIES",
           "status": "DONE",
-          "evidence": "Google adapter receives externally authenticated *drive.Service; OAuth/service construction remains outside the package. No durable token/credential fields or CLI credential loading found. Store.Open still does not establish/verify restrictive DB/side-file permissions or ACL; H3 remains. No new credential finding."
+          "evidence": "No durable provider credentials found. Store.Open still creates/opens state DB without platform ACL/permission verification or an explicit untrusted-DB hardening contract; existing H3 confirmed. SQLite trusted-schema guidance reinforces the need to define the security domain."
         },
         {
           "id": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
           "status": "DONE",
-          "evidence": "RemoteHistory reconcile and subsystem verifiers remain present; metadata-loss reconstruction remains explicitly later scope. No aggregate Doctor/SelfTest or SQLite integrity/foreign-key production entrypoint exists, so H4 remains. No additional current P0 blocker."
+          "evidence": "Targeted RemoteHistory/topology/lifetime verifiers and reconcile APIs exist. Aggregate read-only Doctor/SelfTest plus SQLite integrity/foreign-key gate remains absent; existing H4 confirmed."
         },
         {
           "id": "A11_STALE_DOCS_STATE_CLAIMS",
           "status": "DONE",
-          "evidence": "README.md and docs/DEVELOPMENT.md correctly point to DEVELOPMENT_STATE.json as current authority. docs/ENGINEERING_AUDIT_POLICY.md still contains a mutable 'Current audit clock' frozen at schema v34/B8/v35, contradicting current v38/R01-R02 state. Existing H5 remains; historical timestamped PASS/QUALIFIED documents are preserved as provenance and are not independently treated as stale-current claims."
+          "evidence": "Live authority remains DEVELOPMENT_STATE.json. Old schema/PASS statements are in dated stage retrospectives/provenance documents, not a mutable current clock. Prior H5 remains resolved."
         },
         {
           "id": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
           "status": "DONE",
-          "evidence": "Fresh reuse review on the post-R02 state found no replacement framework needed. Reuse existing Keelaryn connection-local SQLite capability pattern for B12-B15/B19 authority hardening; retain idempotency/request-fingerprint patterns for B16; use whole-root revalidation rather than event streams as B17 completeness proof. Pinned zombiezen/go-sqlite v1.4.2 already exposes online Backup for future H1. Android needs an explicit state-backend/substrate decision rather than assuming modernc portability. No new finding."
+          "evidence": "Fresh review supports SQLite Online Backup for H1, rclone bisync last-known-good/recovery principles for interruption safety, and confirms Android needs an explicit backend/substrate decision. No replacement framework or new dependency is justified for B21; solve ordering in the existing SQLite authority model."
         },
         {
           "id": "A13_COLLECTION_PASS_SYNTHESIS",
           "status": "DONE",
-          "evidence": "Second full collection pass completed on product HEAD 9010d37a after qualified R01/R02. No new finding was discovered. Remaining open set: 7 BLOCKER, 5 HIGH, 1 MEDIUM. B18 and B20 remain resolved. Critical gate remains closed to dependent development."
+          "evidence": "Complete post-remediation audit found one new BLOCKER (B21) and no new lower-severity finding. Existing H1-H4 remain open/carry. Freeze B21 as the entire current critical remediation set; dependent P0-30C2 remains locked."
         }
       ],
-      "candidate_findings": [],
-      "findings_discovered": [
-        "AUDIT_C1_B13_REMOTE_HISTORY_APPLICATION_AUTHORITY",
-        "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
-        "AUDIT_C1_B15_SCAN_OBSERVATION_EVIDENCE_APPLICATION_AUTHORITY",
-        "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
-        "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
-        "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
-        "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
-        "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
-        "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
-        "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
-        "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
-        "AUDIT_D0_H5_STALE_AUDIT_POLICY_CURRENT_CLOCK"
+      "candidate_findings": [
+        {
+          "id": "AUDIT_C2_B21_SCAN_CURRENT_AUTHORITY_ORDERING_AMBIGUITY",
+          "severity": "BLOCKER",
+          "status": "OPEN",
+          "affected_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+          "issue": "Current inventory authority is selected by latestCompleteScanID using maximum finished_at and, when timestamps tie, lexicographically greatest random ScanSessionID. Scan IDs are generated from uuid.NewString(), while finishScanConn accepts caller-supplied terminal timestamps. Valid APIs can therefore produce multiple COMPLETE scans for one provider/root with the same finished_at. In particular, v44 permits BootstrapLocalFS(provider/root,t) followed by ordinary LocalFS(provider/root,t): commit-receipt uniqueness is mode-scoped, both scans can COMPLETE at t, and the later ordinary scan is not guaranteed to become current inventory because UUID ordering is unrelated to durable commit order. Source-bound remote materializations have the same general equal-time ambiguity. Current Inventory/CurrentArtifactLocators may therefore expose stale authority after a later valid COMPLETE scan.",
+          "required_correction": "Define a deterministic durable current-scan authority order that does not depend on random identifiers. Prefer an explicit monotonic per-scope completion/publication order or another exact semantic authority boundary; alternatively reject ambiguous equal-time completions before commit. Historical equal-time COMPLETE scans must be detected and handled fail-closed/ambiguously rather than guessed. Add adversarial regressions for bootstrap→ordinary LocalFS at the same timestamp and equal-time remote materializations, proving the later qualified authority is selected deterministically."
+        }
       ],
-      "last_checkpoint": {
-        "audited_product_head": "9010d37a8f89afcd322f296e857968dd9d52c9ae",
-        "completed_through": "A11_STALE_DOCS_STATE_CLAIMS",
-        "next": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
-        "known_open_finding_count": 13,
-        "critical_gate_open": 7
-      },
-      "completed_on_control_head": "b79338ea3e78c125a7de9d061929c10e5adb47c6",
+      "findings_discovered": [
+        "AUDIT_C2_B21_SCAN_CURRENT_AUTHORITY_ORDERING_AMBIGUITY"
+      ],
       "summary": {
-        "total_open": 13,
-        "blocker": 7,
+        "total_open": 5,
+        "blocker": 1,
         "critical": 0,
-        "high": 5,
-        "medium": 1,
+        "high": 4,
+        "medium": 0,
         "low": 0,
-        "critical_gate_open": 7,
-        "new_findings_this_pass": 0,
-        "resolved_revalidated": [
-          "AUDIT_C1_B18_SQLITE_NEWER_SCHEMA_DOWNGRADE_GUARD",
-          "AUDIT_C1_B20_REMOTE_SCAN_UNKNOWN_CONTRACT_FAIL_OPEN"
-        ]
+        "critical_gate_open": 1,
+        "new_findings_this_pass": 1
       },
       "reuse_review": {
         "status": "DONE",
         "decisions": [
-          "REUSE_EXISTING_SQLITE_CONNECTION_LOCAL_CAPABILITY_PATTERN_FOR_AUTHORITY_GAPS",
-          "REUSE_EXISTING_REQUEST_FINGERPRINT_REPLAY_PATTERN_FOR_LOCAL_INGEST_RECOVERY",
-          "WHOLE_ROOT_REVALIDATION_FOR_LOCAL_COMPLETENESS_NOT_FS_EVENT_AUTHORITY",
-          "REUSE_ZOMBIEZEN_SQLITE_BACKUP_FOR_FUTURE_RELEASE_ROLLBACK",
-          "ANDROID_REQUIRES_EXPLICIT_STATE_BACKEND_SUBSTRATE_DECISION"
+          "REUSE_EXISTING_SQLITE_AUTHORITY_MODEL_FOR_CURRENT_SCAN_ORDERING",
+          "REUSE_SQLITE_ONLINE_BACKUP_FOR_FUTURE_H1_RELEASE_ROLLBACK",
+          "KEEP_RCLONE_BISYNC_FAIL_CLOSED_RECOVERY_PRINCIPLES",
+          "ANDROID_REQUIRES_EXPLICIT_STATE_BACKEND_SUBSTRATE_DECISION",
+          "DO_NOT_ADD_EVENT_STREAM_OR_NEW_TRANSACTION_FRAMEWORK_FOR_B21"
         ]
       }
     },
@@ -4803,7 +4781,7 @@
     },
     "remediation": {
       "status": "IN_PROGRESS",
-      "source_audit_product_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+      "source_audit_product_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
       "policy": "REMEDIATE_THE_ENTIRE_COLLECTED_BLOCKER_CRITICAL_SET_IN_COHERENT_SAFE_SLICES; TARGETED_REGRESSION_PLUS_EXACT_HEAD_CI_FOR_EACH_PRODUCT_HEAD; DO_NOT_RUN_FULL_REAUDIT_BETWEEN_SLICES; AFTER_THE_CURRENT_CRITICAL_SET_IS_CLOSED RUN_ONE_COMPLETE_FULL_AUDIT_FROM_SCRATCH",
       "work_ledger": [
         {
@@ -4923,6 +4901,13 @@
             "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
           ],
           "gate_scope": "NON_P0_C2_CRITICAL_BUT_MUST_BE_RESOLVED_OR_EXPLICITLY_CARRIED"
+        },
+        {
+          "id": "R11_SCAN_CURRENT_AUTHORITY_ORDERING",
+          "status": "IN_PROGRESS",
+          "findings": [
+            "AUDIT_C2_B21_SCAN_CURRENT_AUTHORITY_ORDERING_AMBIGUITY"
+          ]
         }
       ],
       "root_clusters": {
@@ -4953,7 +4938,7 @@
         ]
       },
       "current_product_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
-      "critical_gate_open": 0,
+      "critical_gate_open": 1,
       "full_reaudit_between_slices": false,
       "next_full_audit_when": "ALL_FINDINGS_IN_CURRENT_BLOCKER_CRITICAL_REMEDIATION_SET_ARE_RESOLVED_AND_QUALIFIED",
       "new_critical_during_remediation": "ADD_TO_CURRENT_REMEDIATION_SET_AND_CONTINUE_REMEDIATION",
