@@ -121,7 +121,41 @@ func MaterializeRemoteMetadata(
 	snapshot RemoteMetadataSnapshot,
 	observedAt time.Time,
 ) (scan corpus.ScanSession, replayed bool, err error) {
-	if store == nil || projection == nil || observedAt.IsZero() {
+	return materializeRemoteMetadata(
+		ctx,
+		store,
+		projection,
+		snapshot,
+		observedAt,
+		func(ctx context.Context, scan corpus.ScanSession, prepared preparedRemoteMetadataSnapshot, entry canonicalRemoteMetadataEntry) error {
+			input, err := remoteObservationInput(scan, prepared, entry)
+			if err != nil {
+				return err
+			}
+			if _, err := store.RecordObservationInScan(ctx, scan.ID, input); err != nil {
+				return fmt.Errorf("persist remote snapshot observation %s: %w", entry.ProviderObjectID, err)
+			}
+			return nil
+		},
+	)
+}
+
+type remoteObservationWriter func(
+	context.Context,
+	corpus.ScanSession,
+	preparedRemoteMetadataSnapshot,
+	canonicalRemoteMetadataEntry,
+) error
+
+func materializeRemoteMetadata(
+	ctx context.Context,
+	store RemoteMaterializationStore,
+	projection RemoteScopeProjection,
+	snapshot RemoteMetadataSnapshot,
+	observedAt time.Time,
+	writeObservation remoteObservationWriter,
+) (scan corpus.ScanSession, replayed bool, err error) {
+	if store == nil || projection == nil || observedAt.IsZero() || writeObservation == nil {
 		return corpus.ScanSession{}, false, ErrInvalidRemoteMetadataSnapshot
 	}
 	observedAt = observedAt.UTC()
@@ -190,26 +224,8 @@ func MaterializeRemoteMetadata(
 	}
 
 	for _, entry := range prepared.entries {
-		modifiedAt, parseErr := time.Parse(time.RFC3339Nano, entry.ModifiedAt)
-		if parseErr != nil {
-			return scan, false, fmt.Errorf("%w: canonical modified time: %v", ErrInvalidRemoteMetadataSnapshot, parseErr)
-		}
-		input := corpus.ObservationRecordInput{
-			ProviderObject: corpus.ProviderObject{
-				ProviderID:    prepared.generation.Scope.ProviderID,
-				ID:            entry.ProviderObjectID,
-				IdentityState: corpus.ObjectIdentityObserved,
-			},
-			Locators:        append([]corpus.Locator(nil), entry.Locators...),
-			AssignmentState: corpus.AssignmentUnresolved,
-			ObservedAt:      observedAt,
-			Kind:            entry.Kind,
-			Size:            entry.Size,
-			Mode:            entry.Mode,
-			ModifiedAt:      modifiedAt,
-		}
-		if _, err = store.RecordObservationInScan(ctx, scan.ID, input); err != nil {
-			return scan, false, fmt.Errorf("persist remote snapshot observation %s: %w", entry.ProviderObjectID, err)
+		if err = writeObservation(ctx, scan, prepared, entry); err != nil {
+			return scan, false, err
 		}
 	}
 
@@ -233,6 +249,31 @@ func MaterializeRemoteMetadata(
 	}
 	finalized = true
 	return completed, completionReplayed, nil
+}
+
+func remoteObservationInput(
+	scan corpus.ScanSession,
+	prepared preparedRemoteMetadataSnapshot,
+	entry canonicalRemoteMetadataEntry,
+) (corpus.ObservationRecordInput, error) {
+	modifiedAt, err := time.Parse(time.RFC3339Nano, entry.ModifiedAt)
+	if err != nil {
+		return corpus.ObservationRecordInput{}, fmt.Errorf("%w: canonical modified time: %v", ErrInvalidRemoteMetadataSnapshot, err)
+	}
+	return corpus.ObservationRecordInput{
+		ProviderObject: corpus.ProviderObject{
+			ProviderID:    prepared.generation.Scope.ProviderID,
+			ID:            entry.ProviderObjectID,
+			IdentityState: corpus.ObjectIdentityObserved,
+		},
+		Locators:        append([]corpus.Locator(nil), entry.Locators...),
+		AssignmentState: corpus.AssignmentUnresolved,
+		ObservedAt:      scan.StartedAt.UTC(),
+		Kind:            entry.Kind,
+		Size:            entry.Size,
+		Mode:            entry.Mode,
+		ModifiedAt:      modifiedAt,
+	}, nil
 }
 
 func (p preparedRemoteMetadataSnapshot) source() remotehistory.RemoteScanSourceInput {
