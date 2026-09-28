@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 180,
+  "revision": 181,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "REMEDIATE_R06_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
-    "description": "Fix B14 by adding transaction-scoped application authority for Google Drive topology evidence, topology projection nodes/watermarks and managed-root bindings, tied to the exact validated topology bundle/generation/sequence and scope proof. Preserve v41 Base RemoteHistory authority as the outer transaction boundary, retain existing relational topology guards, and validate historical topology/scope state conservatively without inventing provider provenance. Qualify exact product head, then continue directly to the next current BLOCKER without a full re-audit.",
+    "id": "REMEDIATE_R07_HISTORICAL_AUTHORITY_VALIDATION",
+    "description": "Fix B19 and M1 by validating historical core identity authority at Store.Open without inventing provenance: revalidate Revision ContentEvidence and provider-binding canonical/current contracts, and validate accepted continuity/admission resolution_json plus linked decision semantics. Add migration/adversarial regressions and exact-head CI. Then continue directly to R08 without a full re-audit.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_REMEDIATION_R06_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
+    "current_stage": "FULL_AUDIT_REMEDIATION_R07_HISTORICAL_AUTHORITY_VALIDATION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4332,14 +4332,6 @@
       "closure_effect": "FULL_AUDIT_INVALIDATED_FIX_THEN_RESTART_FROM_FIRST_DIMENSION"
     },
     "open_findings": [
-      {
-        "id": "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "Google Drive topology sidecar evidence/nodes/watermarks and managed-root bindings have relational completeness guards but no application provenance guard. Raw SQL can attach structurally valid but provider-unvalidated parent topology to genuine RemoteHistory objects, materialize a matching node/watermark projection, and create a managed-root binding. GoogleDriveManagedRootMembership then trusts that topology/scope state even though validateGoogleBootstrapBundle/validateGoogleChangeCycleBundle/BindGoogleDriveManagedRoot were never executed.",
-        "required_correction": "Protect authoritative Google Drive topology evidence and managed-root scope binding behind narrow connection-local application capabilities tied to the exact validated bundle/generation/sequence; distinguish authoritative evidence from rebuildable node projection where possible. Add adversarial raw-SQL tests and conservative migration validation."
-      },
       {
         "id": "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
         "severity": "BLOCKER",
@@ -4601,6 +4593,19 @@
         "schema_version": 41,
         "qualification_ci": 36325665174,
         "resolution": "Base RemoteHistory durable writes now require transaction-scoped connection-local application authority tied to the validated generation/sequence and exact publication payload fingerprint. Historical publication chains are reconstructed and fingerprint/projection validated at Store.Open, so arbitrary legacy 64-hex fingerprints no longer pass as authority."
+      },
+      {
+        "id": "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Google Drive topology sidecar evidence/nodes/watermarks and managed-root bindings have relational completeness guards but no application provenance guard. Raw SQL can attach structurally valid but provider-unvalidated parent topology to genuine RemoteHistory objects, materialize a matching node/watermark projection, and create a managed-root binding. GoogleDriveManagedRootMembership then trusts that topology/scope state even though validateGoogleBootstrapBundle/validateGoogleChangeCycleBundle/BindGoogleDriveManagedRoot were never executed.",
+        "required_correction": "Protect authoritative Google Drive topology evidence and managed-root scope binding behind narrow connection-local application capabilities tied to the exact validated bundle/generation/sequence; distinguish authoritative evidence from rebuildable node projection where possible. Add adversarial raw-SQL tests and conservative migration validation.",
+        "implementation_head": "b9c8ede53e6d95c956b3dd943c63734cb92d11ab",
+        "qualification_head": "32b9b23ccb57c24cfdc6f1527db6e2963decff45",
+        "schema_version": 42,
+        "qualification_ci": 36329749353,
+        "resolution": "Google Drive topology durable state is now application-authorized against exact validated topology inputs; derived projections retain safe rebuild semantics, and historical topology/scope state is verified fail-closed."
       }
     ],
     "last_resolution_checkpoint": {
@@ -4843,14 +4848,20 @@
         },
         {
           "id": "R06_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY",
-          "status": "IN_PROGRESS",
+          "status": "DONE",
           "findings": [
             "AUDIT_C1_B14_GDRIVE_TOPOLOGY_SCOPE_APPLICATION_AUTHORITY"
-          ]
+          ],
+          "implementation_head": "b9c8ede53e6d95c956b3dd943c63734cb92d11ab",
+          "product_head": "32b9b23ccb57c24cfdc6f1527db6e2963decff45",
+          "schema_version": 42,
+          "ci_run": 36329749353,
+          "qualification": "validate+ubuntu-24.04+windows-2025 PASS",
+          "note": "Schema v42 adds connection-local application authority for Google Drive topology evidence, projection nodes/watermarks and managed-root bindings tied to the exact validated generation/sequence/topology entries. Historical topology/scope verification fails closed without inventing provider provenance. Follow-up fixes preserved unwatermarked rebuild semantics and lower-layer corruption verifier coverage."
         },
         {
           "id": "R07_HISTORICAL_AUTHORITY_VALIDATION",
-          "status": "TODO",
+          "status": "IN_PROGRESS",
           "findings": [
             "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
             "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION"
@@ -4912,8 +4923,8 @@
           "H5"
         ]
       },
-      "current_product_head": "376f5aa7921340277d4e2e0b429bc92af588f539",
-      "critical_gate_open": 4,
+      "current_product_head": "32b9b23ccb57c24cfdc6f1527db6e2963decff45",
+      "critical_gate_open": 3,
       "full_reaudit_between_slices": false,
       "next_full_audit_when": "ALL_FINDINGS_IN_CURRENT_BLOCKER_CRITICAL_REMEDIATION_SET_ARE_RESOLVED_AND_QUALIFIED",
       "new_critical_during_remediation": "ADD_TO_CURRENT_REMEDIATION_SET_AND_CONTINUE_REMEDIATION",
