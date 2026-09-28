@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 195,
+  "revision": 196,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "POST_R11_FULL_AUDIT_A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
+    "current_stage": "POST_R11_FULL_AUDIT_A11_STALE_DOCS_STATE_CLAIMS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4729,11 +4729,13 @@
         },
         {
           "id": "A10_RECOVERY_RECONSTRUCTION_HISTORY_GAPS",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "result": "PASS_WITH_EXISTING_HIGH",
+          "note": "Recovery semantics fail closed on provider history gap/invalid cursor/scope mismatch/insufficient history and do not advance trusted coverage/cursor. RemoteHistory lifetime projection and Google Drive topology projection are independently derivable/verified from immutable evidence, and tests detect drift or evidence without history source. No new reconstruction/history-gap correctness blocker found. Existing HIGH AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED remains valid: there is no aggregate production Doctor/SelfTest entry point including SQLite integrity/foreign-key checks and subsystem verification."
         },
         {
           "id": "A11_STALE_DOCS_STATE_CLAIMS",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A12_DEPENDENCY_REUSE_NEAREST_ANALOGS",
