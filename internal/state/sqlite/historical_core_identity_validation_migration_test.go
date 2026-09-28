@@ -96,7 +96,7 @@ func TestV43MigrationRejectsMalformedLegacyAdmissionResolution(t *testing.T) {
 func TestHistoricalDecisionValidatorsAcceptCanonicalPayloads(t *testing.T) {
 	candidates,err:=corpus.ResolveCandidateSet([]corpus.ArtifactCandidateInput{{
 		ArtifactID:"art_same",
-		Evidence:[]corpus.DecisionEvidence{{Source:"test",State:corpus.ContinuityConfirmedSame}},
+		Evidence:[]corpus.DecisionEvidence{{Source:"test",Direction:corpus.DirectionSupportsSame,Strength:corpus.EvidenceConclusive}},
 	}})
 	if err!=nil{t.Fatal(err)}
 	raw,err:=json.Marshal(candidates);if err!=nil{t.Fatal(err)}
