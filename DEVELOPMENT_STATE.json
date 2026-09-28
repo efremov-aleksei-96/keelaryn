@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 187,
+  "revision": 188,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "POST_R11_FULL_AUDIT_A02_DURABLE_AUTHORITY_BOUNDARIES",
+    "current_stage": "POST_R11_FULL_AUDIT_A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4681,11 +4681,13 @@
         },
         {
           "id": "A02_DURABLE_AUTHORITY_BOUNDARIES",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "result": "PASS",
+          "note": "Mapped all durable SQLite authority surfaces and all production INSERT/UPDATE/DELETE callsites on exact product head. Core identity, accepted decisions/receipts, scan/Observation/Locator state, Base RemoteHistory, Google Drive topology/scope, local ingest receipts and scan completion authority are protected by application authorization plus structural/immutability guards. remote_scan_sources is immutable and cannot by itself establish current authority because scan creation/completion remain separately application-authorized. No new authority boundary gap found."
         },
         {
           "id": "A03_REPLAY_IDEMPOTENCY_INTERRUPTION",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A04_TRANSACTION_ATOMICITY_REVALIDATION",
