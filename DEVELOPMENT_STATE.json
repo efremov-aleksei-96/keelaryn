@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 191,
+  "revision": 192,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "POST_R11_FULL_AUDIT_A06_NEGATIVE_ADVERSARIAL_CASES",
+    "current_stage": "POST_R11_FULL_AUDIT_A07_RUNTIME_REACHABILITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4705,11 +4705,13 @@
         },
         {
           "id": "A06_NEGATIVE_ADVERSARIAL_CASES",
-          "status": "IN_PROGRESS"
+          "status": "DONE",
+          "result": "PASS",
+          "note": "Adversarial suite on exact product head covers forged application-authority bypass via direct SQL, immutable-row tampering, malformed/noncanonical historical databases, stale/replayed/conflicting authority, provider/scope mismatch, topology/projection drift, scan ordering ambiguity, mixed LocalFS snapshots, path traversal/symlink/content drift, ambiguous identity and identical-byte distinct copies. Exact-head CI passed the full suite on Ubuntu and Windows; no new fail-open adversarial case found."
         },
         {
           "id": "A07_RUNTIME_REACHABILITY",
-          "status": "TODO"
+          "status": "IN_PROGRESS"
         },
         {
           "id": "A08_CROSS_PLATFORM_WINDOWS_ANDROID_LINUX",
