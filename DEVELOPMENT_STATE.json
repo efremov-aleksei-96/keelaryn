@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 181,
+  "revision": 182,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -144,8 +144,8 @@
     "P0_30C1_FULL_REAUDIT_PASS"
   ],
   "next_objective": {
-    "id": "REMEDIATE_R07_HISTORICAL_AUTHORITY_VALIDATION",
-    "description": "Fix B19 and M1 by validating historical core identity authority at Store.Open without inventing provenance: revalidate Revision ContentEvidence and provider-binding canonical/current contracts, and validate accepted continuity/admission resolution_json plus linked decision semantics. Add migration/adversarial regressions and exact-head CI. Then continue directly to R08 without a full re-audit.",
+    "id": "REMEDIATE_R08_LOCALFS_INTERRUPTION_AND_COMPLETENESS",
+    "description": "Fix B16 and B17 coherently: make LocalFS/bootstrap ingest interruption-safe with durable/reconcilable attempt ownership and resumable or safely compensatable progress, and require a final whole-root mutation-boundary completeness proof before COMPLETE so a scan cannot publish a mixed/stale filesystem snapshot. Preserve Artifact identity invariants and do not use filesystem event streams as authority. Add interruption/adversarial race regressions and exact-head CI. After R08 is fully qualified, run the one complete A00-A13 post-remediation full audit required by policy before unlocking P0-30C2.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
     "dependent_stage_locked": "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION",
@@ -4301,7 +4301,7 @@
     "last_retrospective": "docs/P0_30C1_IDENTITY_ACCEPTANCE_BOUNDARY_RETROSPECTIVE_20260927.md",
     "last_retrospective_result": "PASS",
     "substantive_slice_counter": 0,
-    "current_stage": "FULL_AUDIT_REMEDIATION_R07_HISTORICAL_AUTHORITY_VALIDATION",
+    "current_stage": "FULL_AUDIT_REMEDIATION_R08_LOCALFS_INTERRUPTION_AND_COMPLETENESS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": true,
@@ -4356,22 +4356,6 @@
         "issue": "Canonical architecture requires deterministic update/rollback and explicit upgrade/rollback, but current product tree contains no release/update implementation that captures and verifies a pre-upgrade SQLite state snapshot or restores schema-compatible state after a successful forward migration. Transactional migration failure rollback does not provide release rollback after migration commit.",
         "required_correction": "Before candidate/release update support is enabled, define and implement an explicit state-compatible rollback protocol: capture/verify pre-upgrade state, bind backup to source/target release/schema identity, perform atomic upgrade qualification, and restore or otherwise migrate compatibly on rollback. Keep this separate from per-migration SQL transaction rollback.",
         "gate_scope": "RELEASE_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
-      },
-      {
-        "id": "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "Schema v35 added application guards for Artifact, Revision and local provider_artifact_bindings creation, but its migration validates only contiguous Revision sequence. Historical v34 rows that were legal at the SQLite layer can survive even when they violate the current application contract: e.g. Revision evidence with empty algorithm/digest, or a local provider binding with invalid fields/time or no matching original NEW admission/provenance. Current readers do not re-run ValidateContentEvidence on persisted Revision rows, and local binding rows participate in NEW conflict/SAME consistency decisions.",
-        "required_correction": "Append a migration that validates reconstructable historical core identity structure/provenance before the state is usable: current ContentEvidence sanity for every Revision, non-empty/canonical binding fields/timestamps, and reverse local binding provenance where the historical model makes it provable. Do not invent missing provenance; classify irreconstructable legacy states explicitly. Add v34/v35 adversarial migration regressions."
-      },
-      {
-        "id": "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
-        "severity": "MEDIUM",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "accepted_continuity_decisions.resolution_json and accepted_artifact_admissions.resolution_json are durable authority but historical migrations do not validate JSON syntax/semantic resolution shape. Readers do json.Unmarshal plus semantic validation and fail closed, so malformed historical rows are not silently trusted, but Store.Open can succeed with accepted decisions that cannot later be read/replayed.",
-        "required_correction": "Add conservative migration validation for durable accepted decision JSON and semantic consistency using the same corpus resolution validators where reconstructable. Treat malformed historical authority as explicit invalid state rather than allowing Open success followed by later read/replay failure."
       },
       {
         "id": "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
@@ -4606,6 +4590,32 @@
         "schema_version": 42,
         "qualification_ci": 36329749353,
         "resolution": "Google Drive topology durable state is now application-authorized against exact validated topology inputs; derived projections retain safe rebuild semantics, and historical topology/scope state is verified fail-closed."
+      },
+      {
+        "id": "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Schema v35 added application guards for Artifact, Revision and local provider_artifact_bindings creation, but its migration validates only contiguous Revision sequence. Historical v34 rows that were legal at the SQLite layer can survive even when they violate the current application contract: e.g. Revision evidence with empty algorithm/digest, or a local provider binding with invalid fields/time or no matching original NEW admission/provenance. Current readers do not re-run ValidateContentEvidence on persisted Revision rows, and local binding rows participate in NEW conflict/SAME consistency decisions.",
+        "required_correction": "Append a migration that validates reconstructable historical core identity structure/provenance before the state is usable: current ContentEvidence sanity for every Revision, non-empty/canonical binding fields/timestamps, and reverse local binding provenance where the historical model makes it provable. Do not invent missing provenance; classify irreconstructable legacy states explicitly. Add v34/v35 adversarial migration regressions.",
+        "implementation_head": "e904ecb6b0833534e1e6bbdf07483c900b73d733",
+        "qualification_head": "541b0989beb6cd38949ee4b76e19f64736e31db2",
+        "schema_version": 43,
+        "qualification_ci": 36396407054,
+        "resolution": "Historical Artifact/Revision/local provider-binding authority is validated against current reconstructable application contracts, including reverse NEW-admission provenance, without inventing missing provenance."
+      },
+      {
+        "id": "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION",
+        "severity": "MEDIUM",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "accepted_continuity_decisions.resolution_json and accepted_artifact_admissions.resolution_json are durable authority but historical migrations do not validate JSON syntax/semantic resolution shape. Readers do json.Unmarshal plus semantic validation and fail closed, so malformed historical rows are not silently trusted, but Store.Open can succeed with accepted decisions that cannot later be read/replayed.",
+        "required_correction": "Add conservative migration validation for durable accepted decision JSON and semantic consistency using the same corpus resolution validators where reconstructable. Treat malformed historical authority as explicit invalid state rather than allowing Open success followed by later read/replay failure.",
+        "implementation_head": "e904ecb6b0833534e1e6bbdf07483c900b73d733",
+        "qualification_head": "541b0989beb6cd38949ee4b76e19f64736e31db2",
+        "schema_version": 43,
+        "qualification_ci": 36396407054,
+        "resolution": "Historical accepted continuity/admission resolution_json is syntax- and semantics-validated using the same corpus resolution validators before Store.Open succeeds."
       }
     ],
     "last_resolution_checkpoint": {
@@ -4861,15 +4871,21 @@
         },
         {
           "id": "R07_HISTORICAL_AUTHORITY_VALIDATION",
-          "status": "IN_PROGRESS",
+          "status": "DONE",
           "findings": [
             "AUDIT_C1_B19_V35_HISTORICAL_CORE_IDENTITY_VALIDATION",
             "AUDIT_C1_M1_HISTORICAL_ACCEPTED_DECISION_JSON_VALIDATION"
-          ]
+          ],
+          "implementation_head": "e904ecb6b0833534e1e6bbdf07483c900b73d733",
+          "product_head": "541b0989beb6cd38949ee4b76e19f64736e31db2",
+          "schema_version": 43,
+          "ci_run": 36396407054,
+          "qualification": "validate+ubuntu-24.04+windows-2025 PASS",
+          "note": "Schema v43 validates historical core identity authority before use: current ContentEvidence semantics for every Revision, non-empty/canonical local provider bindings with exact reverse NEW-admission provenance, and accepted continuity/admission resolution_json through the same corpus semantic validators. Store.Open repeats the validation fail-closed; missing historical provenance is not synthesized."
         },
         {
           "id": "R08_LOCALFS_INTERRUPTION_AND_COMPLETENESS",
-          "status": "TODO",
+          "status": "IN_PROGRESS",
           "findings": [
             "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
             "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION"
@@ -4923,8 +4939,8 @@
           "H5"
         ]
       },
-      "current_product_head": "32b9b23ccb57c24cfdc6f1527db6e2963decff45",
-      "critical_gate_open": 3,
+      "current_product_head": "541b0989beb6cd38949ee4b76e19f64736e31db2",
+      "critical_gate_open": 2,
       "full_reaudit_between_slices": false,
       "next_full_audit_when": "ALL_FINDINGS_IN_CURRENT_BLOCKER_CRITICAL_REMEDIATION_SET_ARE_RESOLVED_AND_QUALIFIED",
       "new_critical_during_remediation": "ADD_TO_CURRENT_REMEDIATION_SET_AND_CONTINUE_REMEDIATION",
