@@ -1120,3 +1120,25 @@ External analogues revalidated:
 Decision: reuse the snapshot + exact checkpoint + materialized local view + incremental source pattern, while retaining Keelaryn-specific Artifact/Revision/lifetime semantics.
 
 No new dependency selected. No second inventory or identity layer is justified.
+
+
+## P0-34 — protected control-storage reuse review
+
+Reviewed before implementation:
+
+- **SQLite file layout**: rollback journals and WAL/SHM side files live beside the database, so protecting only `state.db` is not a complete filesystem boundary. Use a dedicated protected control directory.
+- **Go standard library**: retain `os` / `path/filepath` for path and directory lifecycle; do not leak permission logic into Artifact/Revision/Observation semantics.
+- **golang.org/x/sys/windows v0.48.0**: already present in the module graph and exposes current-process token/user SID, security descriptors, named security information, protected-DACL flags and ACL primitives. Reuse it rather than adding a Windows ACL library.
+- **golang.org/x/sys/unix**: same existing module provides direct Unix ownership/stat primitives where standard metadata is insufficient.
+- **Android application sandbox**: app-private storage is the required control-state equivalent. Android execution remains a separate H2 qualification problem and must not be inferred from Linux behavior.
+
+Decision:
+
+- add a thin platform storage adapter around one dedicated `control-dir`;
+- create/protect the directory before SQLite open;
+- verify existing protection fail-closed instead of recursively changing an arbitrary existing user directory;
+- keep low-level SQLite state/search APIs platform-neutral;
+- make the supported executable runtime consume the protected control directory;
+- keep corpus bytes read-only and physically independent from control state.
+
+No new module is selected; `golang.org/x/sys` may become a direct import of the already-pinned version when P0-34 implementation begins.

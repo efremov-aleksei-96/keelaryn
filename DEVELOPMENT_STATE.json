@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 204,
+  "revision": 205,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -160,14 +160,17 @@
     "P0_32_FTS_SECURE_DELETE_SCHEMA_V3_QUALIFIED",
     "P0_32_LOCAL_EXECUTABLE_STATE_SEARCH_COMPOSITION_QUALIFIED",
     "P0_CLOSURE_REAUDIT_AFTER_P0_32_COMPLETE",
-    "P0_33_CONTEXTBUNDLE_RUNTIME_COMPOSITION_SELECTED"
+    "P0_33_CONTEXTBUNDLE_RUNTIME_COMPOSITION_SELECTED",
+    "P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_QUALIFIED",
+    "P0_CLOSURE_REAUDIT_AFTER_P0_33_COMPLETE",
+    "P0_34_PROTECTED_CONTROL_STORAGE_SELECTED"
   ],
   "next_objective": {
-    "id": "P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION",
-    "description": "Compose the qualified local search runtime with the existing P0-18 ContextBundle builder. Resolve literal FTS hits to current Inventory only when exact ArtifactID+RevisionID match, preserve hit order, perform bounded ContextBundle extraction, and re-prove the local bootstrap/source boundary before and after bundle reads. Keep bundles ephemeral/rebuildable and corpus read-only. Add no durable semantic state, MCP/HTTP/web, or new identity model. H3/H4 remain gates before supported production/user-runtime or MCP qualification.",
+    "id": "P0_34_PROTECTED_CONTROL_STORAGE",
+    "description": "Resolve AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION with a dedicated protected control-directory runtime boundary for state.db, search.db and SQLite side files. Keep low-level state/search stores OS-neutral; put filesystem permission/ACL behavior behind a platform adapter. New control directories must be protected before SQLite is opened; existing directories fail closed unless they already satisfy the policy. Unix uses owner-only directory protection; Windows uses a protected DACL via the already-pinned golang.org/x/sys/windows APIs; Android app-private storage is the required mobile equivalent but Android runtime qualification remains H2. No corpus mutation, MCP/HTTP/web, or new identity model.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "P0_32_QUALIFIED_H6_RESOLVED_CONTEXTBUNDLE_RUNTIME_NEXT"
+    "audit_gate": "P0_33_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_H3_NEXT"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2309,9 +2312,9 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "b2cc7c043062d47ba781978835a9130e60cc4201",
-      "document": "docs/P0_30B_BOUNDARY_RETROSPECTIVE_20260927.md",
-      "ci_run_id": 36274111034,
+      "head": "adaa3cc68cece243cd6d6092bf881120c64064a5",
+      "document": "docs/P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_RETROSPECTIVE_20260930.md",
+      "ci_run_id": 36625411480,
       "conclusion": "PASS"
     },
     "substantive_slices_since_last_retrospective": 0,
@@ -3719,20 +3722,19 @@
     }
   },
   "p0_closure_audit": {
-    "date": "2026-09-29",
+    "date": "2026-09-30",
     "status": "P0_NOT_CLOSED",
-    "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_32_20260929.md",
-    "audited_product_head": "926fc82e9abdb831d5fce6f67b3d04df73dee824",
-    "qualification_head": "926fc82e9abdb831d5fce6f67b3d04df73dee824",
-    "qualification_ci_run_id": 36619723490,
-    "conclusion": "PASS_NEXT_AUTONOMOUS_GAP_CONTEXTBUNDLE_RUNTIME",
-    "resolved_gap": "LOCAL_EXECUTABLE_STATE_SEARCH_COMPOSITION_AND_REACHABILITY",
-    "earliest_remaining_autonomous_product_gap": "TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION",
+    "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_33_20260930.md",
+    "audited_product_head": "adaa3cc68cece243cd6d6092bf881120c64064a5",
+    "qualification_head": "adaa3cc68cece243cd6d6092bf881120c64064a5",
+    "qualification_ci_run_id": 36625411480,
+    "conclusion": "PASS_NEXT_AUTONOMOUS_GAP_PROTECTED_CONTROL_STORAGE_H3",
+    "resolved_gap": "TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION",
+    "earliest_remaining_autonomous_product_gap": "PRODUCTION_STORAGE_FILESYSTEM_PROTECTION_H3",
     "p0_closure_gates_remaining": [
-      "TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION",
-      "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
       "PRODUCTION_STORAGE_FILESYSTEM_PROTECTION_H3",
       "DOCTOR_SELFTEST_RUNTIME_H4",
+      "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
       "MINIMAL_MCP_ACCESS",
       "EMBEDDED_MINIMAL_WEB_STATUS",
       "P0_FINAL_PROOF_REAUDIT"
@@ -4393,10 +4395,10 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_32_LOCAL_EXECUTABLE_STATE_SEARCH_COMPOSITION_RETROSPECTIVE_20260929.md",
-    "last_retrospective_result": "PASS_P0_32_QUALIFIED_H6_RESOLVED_H3_H4_CARRIED",
-    "substantive_slice_counter": 1,
-    "current_stage": "P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION",
+    "last_retrospective": "docs/P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_RETROSPECTIVE_20260930.md",
+    "last_retrospective_result": "PASS_P0_33_QUALIFIED_H3_SELECTED",
+    "substantive_slice_counter": 0,
+    "current_stage": "P0_34_PROTECTED_CONTROL_STORAGE",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -4405,7 +4407,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": null,
-    "unlock_condition": "P0_32_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED",
+    "unlock_condition": "P0_33_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -5160,7 +5162,7 @@
     ]
   },
   "p0_33": {
-    "status": "IMPLEMENTED_AWAITING_QUALIFICATION_CI_RETRY",
+    "status": "QUALIFIED",
     "objective": "TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION",
     "product_mutation_started": true,
     "dependencies_added": 0,
@@ -5187,16 +5189,8 @@
     "production_runtime_gate": "H3_AND_H4_REMAIN_OPEN_BEFORE_SUPPORTED_USER_RUNTIME_OR_MCP_QUALIFICATION",
     "contract": "docs/P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_CONTRACT.md",
     "initial_implementation_head": "30b619a16c18d0bbcd9f2e9bf763709c2eef2763",
-    "product_head": "0e276b62eb02fa125c21e6d3b30bd503dc5ec3ff",
+    "product_head": "adaa3cc68cece243cd6d6092bf881120c64064a5",
     "bounded_outcome_correction_head": "0e276b62eb02fa125c21e6d3b30bd503dc5ec3ff",
-    "stale_ci_run_id": 36623745363,
-    "stale_ci_classification": "GITHUB_ACTIONS_WINDOWS_JOB_STALE_IN_PROGRESS_BEYOND_DECLARED_15_MINUTE_JOB_TIMEOUT",
-    "stale_ci_jobs": {
-      "validate": "SUCCESS",
-      "ubuntu_24_04": "SUCCESS",
-      "windows_2025": "STALE_IN_PROGRESS"
-    },
-    "qualification_rule": "DO_NOT_QUALIFY_FROM_STALE_RUN; REQUIRE_A_NEW_EXACT_HEAD_VALIDATE_UBUNTU_WINDOWS_PASS",
     "findings": [
       {
         "id": "P0_33_M1_BOUNDED_CONTEXT_OUTCOME_OVERCONSTRAINT",
@@ -5204,7 +5198,67 @@
         "status": "RESOLVED",
         "fix_head": "0e276b62eb02fa125c21e6d3b30bd503dc5ec3ff",
         "resolution": "ContextBundle verification preserves qualified LIMIT_EXCEEDED/UNSUPPORTED outcomes without requiring fresh ContentEvidence; STALE_REVISION still fails closed"
+      },
+      {
+        "id": "P0_33_M2_PARTIAL_BOUNDED_EVIDENCE_VALIDATION",
+        "severity": "MEDIUM",
+        "status": "RESOLVED",
+        "fix_head": "adaa3cc68cece243cd6d6092bf881120c64064a5",
+        "resolution": "bounded UNSUPPORTED/LIMIT_EXCEEDED items must carry the complete zero-value ContentEvidence, not merely an empty digest; regression rejects partially populated evidence"
       }
-    ]
+    ],
+    "retrospective": "docs/P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_RETROSPECTIVE_20260930.md",
+    "qualification_head": "adaa3cc68cece243cd6d6092bf881120c64064a5",
+    "qualification_ci_run_id": 36625411480,
+    "bounded_evidence_hardening_head": "adaa3cc68cece243cd6d6092bf881120c64064a5",
+    "authority_schema_version": 45,
+    "search_cache_schema_version": 3,
+    "runtime_reachability": "ONE_EXECUTABLE_DEVELOPMENT_SPIKE_LITERAL_SEARCH_TO_EPHEMERAL_TASK_CONTEXTBUNDLE",
+    "commands": [
+      "keelaryn context-bundle --root <corpus> --state-db <state.db> --search-db <search.db> --query <literal terms> --reason <task reason>"
+    ],
+    "open_product_blocker_critical": 0,
+    "production_runtime_gates": [
+      "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
+      "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
+    ],
+    "explicitly_absent": [
+      "NORMAL_POST_BOOTSTRAP_RESCAN_RUNTIME",
+      "LIVE_REMOTE_PROVIDER_RUNTIME",
+      "PROTECTED_CONTROL_STORAGE_RUNTIME",
+      "MCP_HTTP_WEB",
+      "ANDROID_QUALIFICATION",
+      "PHYSICAL_CORPUS_MUTATION"
+    ],
+    "ci_timing_correction": {
+      "erroneous_checkpoint_head": "018d5a8edf8715508deec9491b6f8f158fcbb15c",
+      "correction": "The prior checkpoint incorrectly classified an in-progress Windows job as stale. GitHub timestamps were UTC across the Yerevan date boundary, and historical exact-head Windows jobs show the repository test suite normally requires about ten minutes. Intermediate Windows jobs were cancelled by workflow concurrency after newer commits, not by a proven runner hang.",
+      "final_exact_head_run": 36625411480,
+      "final_result": "validate + ubuntu-24.04 + windows-2025 SUCCESS"
+    }
+  },
+  "p0_34": {
+    "status": "CONTRACT_NEXT",
+    "objective": "PROTECTED_CONTROL_STORAGE_RUNTIME_BOUNDARY",
+    "finding": "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
+    "dependencies_added": 0,
+    "planned_dependency_reuse": [
+      "standard library os/path/filepath",
+      "golang.org/x/sys/windows v0.48.0 already present in the module graph",
+      "golang.org/x/sys/unix from the same existing module"
+    ],
+    "invariants": [
+      "CONTROL_STATE_REMAINS_OUTSIDE_CORPUS",
+      "CONTROL_DIRECTORY_IS_DEDICATED_AND_PROTECTED_BEFORE_SQLITE_OPEN",
+      "EXISTING_INSECURE_CONTROL_DIRECTORY_FAILS_CLOSED_INSTEAD_OF_MUTATING_ARBITRARY_USER_DIRECTORY",
+      "SQLITE_STATE_AND_SEARCH_SIDE_FILES_REMAIN_INSIDE_THE_PROTECTED_BOUNDARY",
+      "LOW_LEVEL_IDENTITY_AND_SEARCH_STORES_REMAIN_OS_NEUTRAL",
+      "WINDOWS_USES_REAL_DACL_SEMANTICS_NOT_POSIX_CHMOD_EMULATION",
+      "ANDROID_EQUIVALENT_IS_APP_PRIVATE_STORAGE_AND_REMAINS_UNQUALIFIED_UNTIL_H2",
+      "CORPUS_BYTES_REMAIN_READ_ONLY"
+    ],
+    "live_provider_used": false,
+    "corpus_mutations": 0,
+    "mcp_http_web": false
   }
 }
