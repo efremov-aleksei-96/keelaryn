@@ -64,6 +64,42 @@ func TestBuildContextPreservesSearchOrderAndExactProvenance(t *testing.T) {
 	}
 }
 
+func TestBuildContextPreservesLimitExceededOutcome(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("searchable bounded context"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	indexOptions := localruntime.IndexOptions{
+		Root: root,
+		StateDB: filepath.Join(control, "state.db"),
+		SearchDB: filepath.Join(control, "search.db"),
+		ObservedAt: time.Date(2026, 9, 29, 20, 0, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapIndex(ctx, indexOptions); err != nil {
+		t.Fatal(err)
+	}
+
+	bundle, err := localruntime.BuildContext(ctx, localruntime.ContextOptions{
+		Root: root, StateDB: indexOptions.StateDB, SearchDB: indexOptions.SearchDB,
+		Query: "searchable", Reason: "bounded task", Limit: 10, MaxBytes: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bundle.Items) != 1 ||
+		bundle.Items[0].Status != "LIMIT_EXCEEDED" ||
+		bundle.Items[0].ArtifactID == "" ||
+		bundle.Items[0].RevisionID == "" ||
+		bundle.Items[0].ExtractorID == "" ||
+		bundle.Items[0].Text != "" ||
+		bundle.Items[0].Evidence.Digest != "" {
+		t.Fatalf("bundle=%#v", bundle)
+	}
+}
+
 func TestBuildContextRejectsChangedRootWithoutReturningStaleBundle(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()

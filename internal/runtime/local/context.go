@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
+	"github.com/efremov-aleksei-96/keelaryn/internal/extract"
 	contextlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/contextbundle/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	extractlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/extract/localfs"
@@ -151,9 +152,27 @@ func verifyBundleAgainstHits(bundle contextbundle.Bundle, hits []search.Hit) err
 		hit := hits[i]
 		if item.ArtifactID != hit.ArtifactID ||
 			item.RevisionID != hit.RevisionID ||
-			item.ExtractorID != hit.ExtractorID ||
-			item.Evidence != hit.Evidence {
+			item.ExtractorID != hit.ExtractorID {
 			return fmt.Errorf("%w: index=%d", ErrContextProvenanceMismatch, i)
+		}
+		switch item.Status {
+		case extract.StatusExtracted, extract.StatusOpaque:
+			if item.Evidence != hit.Evidence {
+				return fmt.Errorf("%w: evidence index=%d", ErrContextProvenanceMismatch, i)
+			}
+		case extract.StatusUnsupported, extract.StatusLimitExceeded:
+			// These qualified bounded outcomes intentionally carry no fresh
+			// ContentEvidence. Exact Artifact/Revision/extractor provenance is
+			// still preserved; no text is returned.
+			if item.Text != "" || item.Evidence.Digest != "" {
+				return fmt.Errorf("%w: bounded outcome index=%d", ErrContextProvenanceMismatch, i)
+			}
+		case extract.StatusStaleRevision:
+			return fmt.Errorf("%w: artifact=%s revision=%s",
+				ErrCorpusChanged, item.ArtifactID, item.RevisionID)
+		default:
+			return fmt.Errorf("%w: unexpected status=%s index=%d",
+				ErrContextProvenanceMismatch, item.Status, i)
 		}
 	}
 	return nil

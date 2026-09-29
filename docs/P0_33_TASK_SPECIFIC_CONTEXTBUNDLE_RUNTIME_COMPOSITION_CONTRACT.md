@@ -43,8 +43,10 @@ For every hit:
 3. the P0 local extractor identity must match;
 4. the first locator in deterministic current Inventory order is selected only as a read locator;
 5. ContextBundle extraction revalidates exact Revision ContentEvidence;
-6. returned bundle item provenance must equal the search hit;
-7. the complete local source boundary is replay-proved again after all bundle reads.
+6. returned bundle ArtifactID/RevisionID/extractor provenance must equal the search hit;
+7. EXTRACTED/OPAQUE outcomes with fresh bytes must also match exact ContentEvidence; qualified bounded outcomes such as LIMIT_EXCEEDED may carry no fresh evidence and no text;
+8. STALE_REVISION fails closed as corpus change;
+9. the complete local source boundary is replay-proved again after all bundle reads.
 
 If any hit is historical/stale relative to current Inventory, P0-33 fails closed instead of substituting another Revision or silently skipping the hit.
 
@@ -85,3 +87,10 @@ H3 filesystem protection and H4 Doctor/SelfTest remain production/user-runtime g
 - missing read-side state DB is not created;
 - one executable exposes the ContextBundle path;
 - exact-head Ubuntu 24.04 and Windows 2025 CI pass.
+
+
+## Pre-qualification bounded-outcome correction
+
+The initial slice compared ContentEvidence for every ContextBundle item. That was too strict for the already-qualified builder contract: `LIMIT_EXCEEDED` and `UNSUPPORTED` deliberately preserve exact Artifact/Revision/extractor provenance without reading bytes and therefore carry no fresh ContentEvidence.
+
+P0-33 now preserves those bounded outcomes instead of misclassifying them as provenance corruption. `STALE_REVISION` remains fail-closed and does not return a stale task bundle.
