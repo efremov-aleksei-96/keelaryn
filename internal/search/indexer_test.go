@@ -16,7 +16,7 @@ func (r revisionReader) RevisionHistory(_ context.Context, artifactID corpus.Art
 	return append([]corpus.RevisionRecord(nil), r[artifactID]...), nil
 }
 
-func TestDocumentFromCurrentExtraction(t *testing.T) {
+func TestDocumentFromExtraction(t *testing.T) {
 	evidence := corpus.ContentEvidence{Algorithm: corpus.ContentAlgorithmSHA256, Digest: "aaa", Size: 5}
 	reader := revisionReader{
 		"art-1": {{
@@ -30,7 +30,7 @@ func TestDocumentFromCurrentExtraction(t *testing.T) {
 		ExtractorID: "builtin:text-utf8:v1", MediaType: "text/plain",
 		Evidence: evidence, Text: "hello",
 	}
-	document, err := search.DocumentFromCurrentExtraction(context.Background(), reader, result)
+	document, err := search.DocumentFromExtraction(context.Background(), reader, result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestDocumentFromCurrentExtraction(t *testing.T) {
 	}
 }
 
-func TestDocumentFromCurrentExtractionRejectsHistoricalRevision(t *testing.T) {
+func TestDocumentFromExtractionAcceptsExactHistoricalRevision(t *testing.T) {
 	oldEvidence := corpus.ContentEvidence{Algorithm: corpus.ContentAlgorithmSHA256, Digest: "aaa", Size: 5}
 	newEvidence := corpus.ContentEvidence{Algorithm: corpus.ContentAlgorithmSHA256, Digest: "bbb", Size: 6}
 	reader := revisionReader{
@@ -51,17 +51,40 @@ func TestDocumentFromCurrentExtractionRejectsHistoricalRevision(t *testing.T) {
 			{Revision: corpus.Revision{ID: "rev-2", ArtifactID: "art-1"}, Sequence: 2, Evidence: newEvidence},
 		},
 	}
-	_, err := search.DocumentFromCurrentExtraction(context.Background(), reader, extract.Result{
+	document, err := search.DocumentFromExtraction(context.Background(), reader, extract.Result{
 		Status: extract.StatusExtracted, ArtifactID: "art-1", RevisionID: "rev-1",
 		ExtractorID: "builtin:text-utf8:v1", Evidence: oldEvidence, Text: "hello",
 	})
-	if !errors.Is(err, search.ErrExtractionRevisionNotCurrent) {
-		t.Fatalf("error=%v want ErrExtractionRevisionNotCurrent", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.RevisionID != "rev-1" || document.Evidence != oldEvidence {
+		t.Fatalf("document=%#v", document)
 	}
 }
 
-func TestDocumentFromCurrentExtractionRejectsNonExtracted(t *testing.T) {
-	_, err := search.DocumentFromCurrentExtraction(context.Background(), revisionReader{}, extract.Result{
+func TestDocumentFromExtractionRejectsEvidenceMismatch(t *testing.T) {
+	evidence := corpus.ContentEvidence{Algorithm: corpus.ContentAlgorithmSHA256, Digest: "aaa", Size: 5}
+	reader := revisionReader{
+		"art-1": {{
+			Revision: corpus.Revision{ID: "rev-1", ArtifactID: "art-1"},
+			Sequence: 1,
+			Evidence: evidence,
+		}},
+	}
+	wrong := evidence
+	wrong.Digest = "wrong"
+	_, err := search.DocumentFromExtraction(context.Background(), reader, extract.Result{
+		Status: extract.StatusExtracted, ArtifactID: "art-1", RevisionID: "rev-1",
+		ExtractorID: "builtin:text-utf8:v1", Evidence: wrong, Text: "hello",
+	})
+	if !errors.Is(err, search.ErrExtractionRevisionMismatch) {
+		t.Fatalf("error=%v want ErrExtractionRevisionMismatch", err)
+	}
+}
+
+func TestDocumentFromExtractionRejectsNonExtracted(t *testing.T) {
+	_, err := search.DocumentFromExtraction(context.Background(), revisionReader{}, extract.Result{
 		Status: extract.StatusUnsupported,
 	})
 	if !errors.Is(err, search.ErrExtractionNotIndexable) {

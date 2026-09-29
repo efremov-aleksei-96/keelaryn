@@ -60,16 +60,15 @@ Locator is deliberately not search-document identity and is not stored as curren
 
 Only `extract.StatusExtracted` results may become search documents.
 
-Before a result is converted into a search document, the caller must re-read Revision authority and prove that:
+Before a result is persisted as a search document, the search persistence API re-reads Revision authority and proves that:
 
-- the Artifact exists in Revision history;
-- the referenced Revision is the current highest-sequence Revision at that check;
+- the exact referenced Revision exists in that Artifact's immutable Revision history;
 - ArtifactID and RevisionID match exactly;
 - ContentEvidence matches exactly.
 
-This check narrows the race window but does not claim cross-database atomic currentness. A search hit therefore always names its exact Revision and never silently claims to be current inventory authority.
+The search-document identity does **not** require that Revision to be the latest sequence. Current-corpus selection is a separate inventory/policy concern; a search hit names the exact Revision it indexed and never silently claims current inventory authority.
 
-Later ContextBundle/current-inventory use must continue to revalidate its exact source boundary.
+Later ContextBundle/current-inventory use must therefore continue to revalidate its exact source boundary and currentness policy.
 
 ## 5. FTS5 layout
 
@@ -89,7 +88,7 @@ No custom tokenizer is introduced in P0-31; use the built-in `unicode61` tokeniz
 
 The first P0 path publishes search state through **atomic ReplaceAll**:
 
-1. validate every document;
+1. convert every supplied extraction result through exact Revision/evidence validation;
 2. reject duplicate derived keys before mutation;
 3. deterministic key ordering;
 4. one SQLite immediate transaction;
@@ -150,7 +149,7 @@ Existing filesystem-protection HIGH H3 must eventually cover this derived cache 
 ## 11. Qualification targets for the first slice
 
 - exact Revision-bound extraction converts to a search document;
-- stale/non-current extraction is rejected;
+- missing or evidence-mismatched Revision provenance is rejected;
 - FTS5 ReplaceAll is atomic;
 - literal multi-term query returns exact provenance;
 - duplicate replacement input cannot destroy the prior complete index;
@@ -159,3 +158,12 @@ Existing filesystem-protection HIGH H3 must eventually cover this derived cache 
 - search cache survives reopen;
 - newer search-cache schema fails closed;
 - existing full repository tests remain green on Ubuntu 24.04 and Windows 2025.
+
+
+## 12. Pre-qualification design finding
+
+### P0-31-M1 — exact Revision versus latest Revision — RESOLVED
+
+The initial product slice required every indexed extraction to reference the highest-sequence Revision for its Artifact. That was stricter than the canonical derived-state model, which binds extraction/index data to an **exact** Revision and keeps current-inventory selection separate.
+
+The corrected boundary accepts any exact immutable Revision whose ContentEvidence matches the extraction result. Search hits still do not claim currentness. The persistence API performs this validation itself before replacing the cache, so another internal caller cannot bypass provenance validation by constructing a raw Document.

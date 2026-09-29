@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/extract"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 	zsqlite "zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitemigration"
@@ -140,9 +141,30 @@ func (i *Index) Path() string {
 	return i.path
 }
 
-// ReplaceAll atomically replaces the complete derived document set. A failure
-// leaves the previous complete search index authoritative for search-cache use.
-func (i *Index) ReplaceAll(ctx context.Context, documents []search.Document) (err error) {
+// ReplaceAll atomically replaces the complete derived document set. Every
+// supplied extraction is first revalidated against exact immutable Revision
+// authority; callers cannot persist a raw Document that bypasses provenance
+// validation. A failure leaves the previous complete cache unchanged.
+func (i *Index) ReplaceAll(
+	ctx context.Context,
+	revisions search.RevisionReader,
+	results []extract.Result,
+) error {
+	if revisions == nil {
+		return search.ErrExtractionNotIndexable
+	}
+	documents := make([]search.Document, 0, len(results))
+	for _, result := range results {
+		document, err := search.DocumentFromExtraction(ctx, revisions, result)
+		if err != nil {
+			return err
+		}
+		documents = append(documents, document)
+	}
+	return i.replaceAllDocuments(ctx, documents)
+}
+
+func (i *Index) replaceAllDocuments(ctx context.Context, documents []search.Document) (err error) {
 	normalized, err := normalizeDocuments(documents)
 	if err != nil {
 		return err

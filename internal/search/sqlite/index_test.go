@@ -7,11 +7,18 @@ import (
 	"testing"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/extract"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
 	zsqlite "zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
+
+type revisionReader map[corpus.ArtifactID][]corpus.RevisionRecord
+
+func (r revisionReader) RevisionHistory(_ context.Context, artifactID corpus.ArtifactID) ([]corpus.RevisionRecord, error) {
+	return append([]corpus.RevisionRecord(nil), r[artifactID]...), nil
+}
 
 func TestReplaceSearchVerifyRebuildAndReopen(t *testing.T) {
 	ctx := context.Background()
@@ -20,11 +27,11 @@ func TestReplaceSearchVerifyRebuildAndReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	documents := []search.Document{
-		searchDocument("art-1", "rev-1", "alpha beta gamma"),
-		searchDocument("art-2", "rev-2", "delta epsilon"),
+	results := []extract.Result{
+		searchExtraction("art-1", "rev-1", "alpha beta gamma"),
+		searchExtraction("art-2", "rev-2", "delta epsilon"),
 	}
-	if err := index.ReplaceAll(ctx, documents); err != nil {
+	if err := index.ReplaceAll(ctx, revisionsFor(results), results); err != nil {
 		t.Fatal(err)
 	}
 	if err := index.Verify(ctx); err != nil {
@@ -46,9 +53,8 @@ func TestReplaceSearchVerifyRebuildAndReopen(t *testing.T) {
 	defer index.Close()
 	assertSingleHit(t, index, "delta", "art-2", "rev-2")
 
-	if err := index.ReplaceAll(ctx, []search.Document{
-		searchDocument("art-3", "rev-3", "zeta eta"),
-	}); err != nil {
+	replacement := []extract.Result{searchExtraction("art-3", "rev-3", "zeta eta")}
+	if err := index.ReplaceAll(ctx, revisionsFor(replacement), replacement); err != nil {
 		t.Fatal(err)
 	}
 	hits, err := index.Search(ctx, "alpha", 10)
@@ -61,7 +67,7 @@ func TestReplaceSearchVerifyRebuildAndReopen(t *testing.T) {
 	assertSingleHit(t, index, "zeta", "art-3", "rev-3")
 }
 
-func TestDuplicateReplacementRollsBackPriorCompleteIndex(t *testing.T) {
+func TestDuplicateReplacementPreservesPriorCompleteIndex(t *testing.T) {
 	ctx := context.Background()
 	index, err := searchsqlite.Open(ctx, filepath.Join(t.TempDir(), "search.db"))
 	if err != nil {
@@ -69,15 +75,37 @@ func TestDuplicateReplacementRollsBackPriorCompleteIndex(t *testing.T) {
 	}
 	defer index.Close()
 
-	baseline := searchDocument("art-1", "rev-1", "baseline token")
-	if err := index.ReplaceAll(ctx, []search.Document{baseline}); err != nil {
+	baseline := searchExtraction("art-1", "rev-1", "baseline token")
+	if err := index.ReplaceAll(ctx, revisionsFor([]extract.Result{baseline}), []extract.Result{baseline}); err != nil {
 		t.Fatal(err)
 	}
 	duplicate := baseline
 	duplicate.Text = "different text"
-	err = index.ReplaceAll(ctx, []search.Document{baseline, duplicate})
+	results := []extract.Result{baseline, duplicate}
+	err = index.ReplaceAll(ctx, revisionsFor(results), results)
 	if !errors.Is(err, searchsqlite.ErrDuplicateDocument) {
 		t.Fatalf("error=%v want ErrDuplicateDocument", err)
+	}
+	assertSingleHit(t, index, "baseline", "art-1", "rev-1")
+}
+
+func TestRevisionMismatchPreservesPriorCompleteIndex(t *testing.T) {
+	ctx := context.Background()
+	index, err := searchsqlite.Open(ctx, filepath.Join(t.TempDir(), "search.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer index.Close()
+
+	baseline := searchExtraction("art-1", "rev-1", "baseline token")
+	reader := revisionsFor([]extract.Result{baseline})
+	if err := index.ReplaceAll(ctx, reader, []extract.Result{baseline}); err != nil {
+		t.Fatal(err)
+	}
+	bad := searchExtraction("art-2", "rev-2", "replacement")
+	err = index.ReplaceAll(ctx, reader, []extract.Result{bad})
+	if !errors.Is(err, search.ErrExtractionRevisionMismatch) {
+		t.Fatalf("error=%v want ErrExtractionRevisionMismatch", err)
 	}
 	assertSingleHit(t, index, "baseline", "art-1", "rev-1")
 }
@@ -89,10 +117,11 @@ func TestLiteralQueryDoesNotExecuteFTSOperators(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer index.Close()
-	if err := index.ReplaceAll(ctx, []search.Document{
-		searchDocument("art-1", "rev-1", "alpha OR beta"),
-		searchDocument("art-2", "rev-2", "alpha only"),
-	}); err != nil {
+	results := []extract.Result{
+		searchExtraction("art-1", "rev-1", "alpha OR beta"),
+		searchExtraction("art-2", "rev-2", "alpha only"),
+	}
+	if err := index.ReplaceAll(ctx, revisionsFor(results), results); err != nil {
 		t.Fatal(err)
 	}
 	assertSingleHit(t, index, "alpha OR beta", "art-1", "rev-1")
@@ -127,12 +156,13 @@ func TestOpenRejectsNewerSearchSchema(t *testing.T) {
 	}
 }
 
-func searchDocument(artifactID corpus.ArtifactID, revisionID corpus.RevisionID, text string) search.Document {
-	return search.Document{
-		ArtifactID: artifactID,
-		RevisionID: revisionID,
+func searchExtraction(artifactID corpus.ArtifactID, revisionID corpus.RevisionID, text string) extract.Result {
+	return extract.Result{
+		Status:      extract.StatusExtracted,
+		ArtifactID:  artifactID,
+		RevisionID:  revisionID,
 		ExtractorID: "builtin:text-utf8:v1",
-		MediaType: "text/plain",
+		MediaType:   "text/plain",
 		Evidence: corpus.ContentEvidence{
 			Algorithm: corpus.ContentAlgorithmSHA256,
 			Digest:    "digest-" + string(revisionID),
@@ -140,6 +170,26 @@ func searchDocument(artifactID corpus.ArtifactID, revisionID corpus.RevisionID, 
 		},
 		Text: text,
 	}
+}
+
+func revisionsFor(results []extract.Result) revisionReader {
+	out := revisionReader{}
+	seen := map[string]bool{}
+	nextSequence := map[corpus.ArtifactID]uint64{}
+	for _, result := range results {
+		key := string(result.ArtifactID) + "\x00" + string(result.RevisionID)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		nextSequence[result.ArtifactID]++
+		out[result.ArtifactID] = append(out[result.ArtifactID], corpus.RevisionRecord{
+			Revision: corpus.Revision{ID: result.RevisionID, ArtifactID: result.ArtifactID},
+			Sequence: nextSequence[result.ArtifactID],
+			Evidence: result.Evidence,
+		})
+	}
+	return out
 }
 
 func assertSingleHit(

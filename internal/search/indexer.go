@@ -10,17 +10,18 @@ import (
 )
 
 var (
-	ErrExtractionNotIndexable       = errors.New("extraction is not indexable")
-	ErrExtractionRevisionNotCurrent = errors.New("extraction Revision is not current")
+	ErrExtractionNotIndexable      = errors.New("extraction is not indexable")
+	ErrExtractionRevisionMismatch  = errors.New("extraction Revision provenance mismatch")
 )
 
 type RevisionReader interface {
 	RevisionHistory(context.Context, corpus.ArtifactID) ([]corpus.RevisionRecord, error)
 }
 
-// DocumentFromCurrentExtraction revalidates Revision authority immediately
-// before publishing an extracted result into derived search state.
-func DocumentFromCurrentExtraction(
+// DocumentFromExtraction revalidates exact Revision authority before an
+// extraction result can enter derived search state. It deliberately does not
+// claim that the Revision is current inventory authority.
+func DocumentFromExtraction(
 	ctx context.Context,
 	revisions RevisionReader,
 	result extract.Result,
@@ -37,23 +38,23 @@ func DocumentFromCurrentExtraction(
 	if err != nil {
 		return Document{}, fmt.Errorf("read Revision history for search: %w", err)
 	}
-	var current corpus.RevisionRecord
+	var exact corpus.RevisionRecord
 	var found bool
 	for _, record := range history {
-		if !found || record.Sequence > current.Sequence {
-			current = record
+		if record.Revision.ID == result.RevisionID {
+			exact = record
 			found = true
+			break
 		}
 	}
 	if !found ||
-		current.Revision.ArtifactID != result.ArtifactID ||
-		current.Revision.ID != result.RevisionID ||
-		current.Evidence.Algorithm != result.Evidence.Algorithm ||
-		current.Evidence.Digest != result.Evidence.Digest ||
-		current.Evidence.Size != result.Evidence.Size {
+		exact.Revision.ArtifactID != result.ArtifactID ||
+		exact.Evidence.Algorithm != result.Evidence.Algorithm ||
+		exact.Evidence.Digest != result.Evidence.Digest ||
+		exact.Evidence.Size != result.Evidence.Size {
 		return Document{}, fmt.Errorf(
 			"%w: artifact=%s revision=%s",
-			ErrExtractionRevisionNotCurrent,
+			ErrExtractionRevisionMismatch,
 			result.ArtifactID,
 			result.RevisionID,
 		)
