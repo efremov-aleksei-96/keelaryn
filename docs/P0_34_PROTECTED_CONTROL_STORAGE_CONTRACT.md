@@ -41,7 +41,9 @@ Therefore:
 - existing directory that already satisfies the policy → accept;
 - existing directory that does not satisfy the policy → fail closed;
 - missing parent hierarchy → fail instead of silently creating arbitrary ancestors;
-- symlink/reparse-point control boundaries are rejected.
+- symlink/reparse-point control boundaries are rejected;
+- an existing parent path is physically canonicalized before the control directory can be created, so ancestor symlink aliases cannot hide the real storage location;
+- existing `state.db` / `search.db` slots must be regular non-link files; Windows reparse-point slots fail closed.
 
 A later explicit migration tool may harden/move legacy control state, but ordinary runtime open does not silently mutate an insecure existing directory.
 
@@ -102,3 +104,13 @@ P0-34B will compose the qualified adapter into the executable runtime so durable
 - `golang.org/x/sys/unix` from the same module.
 
 No new ACL package or OS abstraction framework is introduced.
+
+
+## P0-34A targeted security hardening
+
+Review of the first adapter slice found two pre-runtime escape paths that must be closed before P0-34B:
+
+1. a lexical control path could traverse a symlinked ancestor, so later corpus-boundary checks might compare the wrong physical location;
+2. an existing protected directory could contain `state.db` or `search.db` as a symlink/reparse point to storage outside the protected directory.
+
+The adapter now resolves the existing parent physically before returning the layout and verifies both database slots on every existing-directory open. These checks remain read-only for existing state.

@@ -45,3 +45,7 @@ func verifyProtectedDir(path string) error {
 	}
 	return nil
 }
+
+func verifyControlFile(string) error {
+	return nil
+}

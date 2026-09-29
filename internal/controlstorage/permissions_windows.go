@@ -130,6 +130,21 @@ func verifyProtectedDir(path string) error {
 	return nil
 }
 
+func verifyControlFile(path string) error {
+	name, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	attrs, err := windows.GetFileAttributes(name)
+	if err != nil {
+		return err
+	}
+	if attrs&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+		return fmt.Errorf("database path is a reparse point")
+	}
+	return nil
+}
+
 func currentUserSID() (*windows.SID, error) {
 	user, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {

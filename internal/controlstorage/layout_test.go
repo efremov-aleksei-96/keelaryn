@@ -70,3 +70,43 @@ func TestPrepareDoesNotCreateMissingParents(t *testing.T) {
 		t.Fatalf("missing parent was created: %v", statErr)
 	}
 }
+
+func TestResolveCanonicalizesSymlinkedParent(t *testing.T) {
+	target := t.TempDir()
+	container := t.TempDir()
+	alias := filepath.Join(container, "alias")
+	if err := os.Symlink(target, alias); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	layout, err := controlstorage.Resolve(filepath.Join(alias, "control"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedTarget, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(resolvedTarget, "control")
+	if layout.Dir != want {
+		t.Fatalf("layout.Dir=%q want=%q", layout.Dir, want)
+	}
+}
+
+func TestOpenExistingRejectsLinkedDatabaseSlot(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "control")
+	layout, err := controlstorage.Prepare(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	external := filepath.Join(t.TempDir(), "external.db")
+	if err := os.WriteFile(external, []byte("external"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(external, layout.StateDB); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	_, err = controlstorage.OpenExisting(dir)
+	if !errors.Is(err, controlstorage.ErrControlFileUnsafe) {
+		t.Fatalf("error=%v want ErrControlFileUnsafe", err)
+	}
+}

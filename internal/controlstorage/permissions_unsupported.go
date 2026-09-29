@@ -11,3 +11,7 @@ func createProtectedDir(path string) error {
 func verifyProtectedDir(path string) error {
 	return fmt.Errorf("%w: platform has no control-storage adapter", ErrInvalidControlDir)
 }
+
+func verifyControlFile(path string) error {
+	return fmt.Errorf("%w: platform has no control-storage adapter", ErrInvalidControlDir)
+}

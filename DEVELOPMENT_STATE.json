@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 205,
+  "revision": 206,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -4397,7 +4397,7 @@
   "audit": {
     "last_retrospective": "docs/P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_RETROSPECTIVE_20260930.md",
     "last_retrospective_result": "PASS_P0_33_QUALIFIED_H3_SELECTED",
-    "substantive_slice_counter": 0,
+    "substantive_slice_counter": 1,
     "current_stage": "P0_34_PROTECTED_CONTROL_STORAGE",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
@@ -5238,7 +5238,7 @@
     }
   },
   "p0_34": {
-    "status": "CONTRACT_NEXT",
+    "status": "ADAPTER_HARDENED_AWAITING_CI",
     "objective": "PROTECTED_CONTROL_STORAGE_RUNTIME_BOUNDARY",
     "finding": "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
     "dependencies_added": 0,
@@ -5259,6 +5259,24 @@
     ],
     "live_provider_used": false,
     "corpus_mutations": 0,
-    "mcp_http_web": false
+    "mcp_http_web": false,
+    "product_mutation_started": true,
+    "contract": "docs/P0_34_PROTECTED_CONTROL_STORAGE_CONTRACT.md",
+    "adapter_initial_head": "8d5d541ce366a8cbd2a916e8f059f27622265409",
+    "current_substage": "P0_34A_PLATFORM_ADAPTER",
+    "targeted_findings": [
+      {
+        "id": "P0_34A_S1_ANCESTOR_ALIAS_PHYSICAL_BOUNDARY",
+        "severity": "SECURITY_HARDENING",
+        "status": "RESOLVED_IN_PENDING_HEAD",
+        "resolution": "Resolve canonicalizes the existing parent before returning control layout paths"
+      },
+      {
+        "id": "P0_34A_S2_DATABASE_SLOT_LINK_ESCAPE",
+        "severity": "SECURITY_HARDENING",
+        "status": "RESOLVED_IN_PENDING_HEAD",
+        "resolution": "Open/Prepare reject state.db/search.db symlink or Windows reparse-point slots"
+      }
+    ]
   }
 }
