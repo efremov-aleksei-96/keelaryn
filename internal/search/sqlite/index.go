@@ -76,6 +76,10 @@ BEGIN
 	VALUES (NEW.document_id, NEW.text);
 END;
 `,
+		`
+INSERT INTO search_documents_fts(search_documents_fts, rank)
+VALUES('secure-delete', 1);
+`,
 	},
 }
 
@@ -93,8 +97,9 @@ func Open(ctx context.Context, path string) (*Index, error) {
 	}
 	index := &Index{path: absPath}
 	index.pool = sqlitemigration.NewPool(absPath, schema, sqlitemigration.Options{
-		Flags:    zsqlite.OpenReadWrite | zsqlite.OpenCreate,
-		PoolSize: 1,
+		Flags:       zsqlite.OpenReadWrite | zsqlite.OpenCreate,
+		PoolSize:    1,
+		PrepareConn: index.prepareConn,
 	})
 	conn, err := index.pool.Get(ctx)
 	if err != nil {
@@ -108,6 +113,25 @@ func Open(ctx context.Context, path string) (*Index, error) {
 	}
 	index.pool.Put(conn)
 	return index, nil
+}
+
+func (i *Index) prepareConn(conn *zsqlite.Conn) error {
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA secure_delete = ON", nil); err != nil {
+		return fmt.Errorf("enable search database secure_delete: %w", err)
+	}
+	var enabled int64
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA secure_delete", &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *zsqlite.Stmt) error {
+			enabled = stmt.ColumnInt64(0)
+			return nil
+		},
+	}); err != nil {
+		return fmt.Errorf("verify search database secure_delete: %w", err)
+	}
+	if enabled != 1 {
+		return fmt.Errorf("search database secure_delete is disabled")
+	}
+	return nil
 }
 
 func requireExactSchemaVersionConn(conn *zsqlite.Conn) error {

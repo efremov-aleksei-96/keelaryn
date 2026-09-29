@@ -220,6 +220,35 @@ func (s *Store) ScanSession(ctx context.Context, scanID corpus.ScanSessionID) (c
 	return scanSessionConn(conn, scanID)
 }
 
+// LatestCompleteScan returns the current COMPLETE scan authority for one
+// provider/root scope without mutating state. It is used by runtime recovery
+// to distinguish "bootstrap never committed" from "bootstrap committed and a
+// later derived step was interrupted", including an empty corpus.
+func (s *Store) LatestCompleteScan(
+	ctx context.Context,
+	providerID corpus.ProviderID,
+	root string,
+) (corpus.ScanSession, bool, error) {
+	conn, err := s.pool.Get(ctx)
+	if err != nil {
+		return corpus.ScanSession{}, false, fmt.Errorf("get state connection: %w", err)
+	}
+	defer s.pool.Put(conn)
+
+	scanID, found, err := latestCompleteScanID(conn, providerID, root)
+	if err != nil {
+		return corpus.ScanSession{}, false, err
+	}
+	if !found {
+		return corpus.ScanSession{}, false, nil
+	}
+	scan, err := scanSessionConn(conn, scanID)
+	if err != nil {
+		return corpus.ScanSession{}, false, err
+	}
+	return scan, true, nil
+}
+
 func scanSessionConn(conn *sqlite.Conn, scanID corpus.ScanSessionID) (corpus.ScanSession, error) {
 	var scan corpus.ScanSession
 	var found bool
