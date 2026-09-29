@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 201,
+  "revision": 202,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -148,14 +148,20 @@
     "P0_30_REMOTE_OBSERVATION_MATERIALIZATION_QUALIFIED",
     "P0_CLOSURE_REAUDIT_AFTER_P0_30_COMPLETE",
     "P0_30C2_SCHEMA_AUTHORITY_METADATA_CORRECTED_TO_V45",
-    "P0_31_FTS5_SELECTED_AS_NEXT_AUTONOMOUS_PRODUCT_GAP"
+    "P0_31_FTS5_SELECTED_AS_NEXT_AUTONOMOUS_PRODUCT_GAP",
+    "P0_31_REBUILDABLE_SQLITE_FTS5_SEARCH_IMPLEMENTED",
+    "P0_31_EXACT_REVISION_PROVENANCE_HARDENED",
+    "P0_31_FTS_DRIFT_RECOVERY_QUALIFIED",
+    "P0_31_REBUILDABLE_SQLITE_FTS5_SEARCH_QUALIFIED",
+    "P0_CLOSURE_REAUDIT_AFTER_P0_31_COMPLETE",
+    "P0_32_LOCAL_EXECUTABLE_COMPOSITION_SELECTED"
   ],
   "next_objective": {
-    "id": "P0_31_REBUILDABLE_SQLITE_FTS5_SEARCH_CONTRACT",
-    "description": "Define and implement the minimum rebuildable SQLite FTS5 search layer over exact Revision-bound extracted text. Reuse the current zombiezen/go-sqlite FTS5 capability; add no external search dependency unless proven necessary. Search is derived/non-authoritative, must preserve exact Artifact/Revision/extractor provenance, must not own current Locator identity, and must provide deterministic verification/rebuild semantics. Keep live remote/provider runtime qualification as an explicit separate P0 closure gate. Do not expand into MCP/HTTP/UI/vector search/physical mutation.",
+    "id": "P0_32_LOCAL_EXECUTABLE_STATE_SEARCH_COMPOSITION",
+    "description": "Define and implement the minimum one-executable local happy path that composes the already-qualified durable LocalFS bootstrap/inventory, exact Revision-bound extraction, and P0-31 FTS search. Use explicit runtime-local state/search paths outside the scanned corpus in the first slice. Reconcile an already durable COMPLETE bootstrap before retrying; never blind-bootstrap after interruption. Keep corpus bytes read-only. Resolve FTS residual-text security H6 before claiming persistent user-runtime search-cache qualification. Do not add MCP/HTTP/web/vector search or a new identity resolver in this first slice.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "P0_30_QUALIFIED_CLOSURE_REAUDIT_SELECTED_FTS5"
+    "audit_gate": "P0_31_QUALIFIED_CLOSURE_REAUDIT_SELECTED_RUNTIME_COMPOSITION"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3709,38 +3715,34 @@
   "p0_closure_audit": {
     "date": "2026-09-29",
     "status": "P0_NOT_CLOSED",
-    "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_30_20260929.md",
-    "audited_product_head": "3b951a66650ab98d213b0823b0bce145b587872c",
-    "qualification_head": "be12edd43c41ef57896f92706867bb85d9d9c5b2",
-    "qualification_ci_run_id": 36474994106,
-    "control_head_before_audit": "92e07542fb483f966e6ef4a11330bf3b10c98378",
-    "control_ci_run_id": 36604971233,
-    "conclusion": "PASS_NEXT_AUTONOMOUS_GAP_FTS5_LIVE_REMOTE_GATE_CARRIED",
-    "resolved_gap": "REMOTE_PROVIDER_STATE_TO_EXISTING_OBSERVATION_INVENTORY_MATERIALIZATION_AND_IDENTITY_ORCHESTRATION",
-    "earliest_remaining_autonomous_product_gap": "REBUILDABLE_SQLITE_FTS5_SEARCH",
+    "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_31_20260929.md",
+    "audited_product_head": "85d2a5b527203e4bfe6fec82fbf628649b97b30c",
+    "qualification_head": "c4b850e15a6746ef5dcf9bd73857cb4e940dafbf",
+    "qualification_ci_run_id": 36615407840,
+    "conclusion": "PASS_NEXT_AUTONOMOUS_GAP_LOCAL_EXECUTABLE_COMPOSITION",
+    "resolved_gap": "REBUILDABLE_SQLITE_FTS5_SEARCH",
+    "earliest_remaining_autonomous_product_gap": "LOCAL_EXECUTABLE_STATE_SEARCH_COMPOSITION_AND_REACHABILITY",
     "p0_closure_gates_remaining": [
+      "LOCAL_EXECUTABLE_STATE_SEARCH_COMPOSITION_AND_REACHABILITY",
       "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
-      "SQLITE_FTS5_SEARCH",
+      "TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION",
       "MINIMAL_MCP_ACCESS",
       "EMBEDDED_MINIMAL_WEB_STATUS",
       "P0_FINAL_PROOF_REAUDIT"
     ],
-    "do_not_duplicate": [
-      "ScanSession/Observation/Inventory",
-      "RemoteHistory generation/publication",
-      "provider lifetime segmentation",
-      "remote identity authority",
-      "SAME/NEW acceptance",
-      "Revision identity",
-      "ContextBundle explicit-selection provenance"
+    "carried_high_findings": [
+      "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+      "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
+      "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
+      "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
+      "AUDIT_SECURITY_H6_FTS_SEARCH_CACHE_RESIDUAL_TEXT"
     ],
-    "explicit_not_next": [
-      "MCP/HTTP/UI",
-      "vector search",
-      "Android backend",
-      "physical mutation",
-      "release hardening H1-H4"
-    ]
+    "mcp_prior_art": {
+      "project": "modelcontextprotocol/go-sdk",
+      "latest_reviewed_version": "v1.8.0",
+      "disposition": "REUSE_LATER_AFTER_RUNTIME_COMPOSITION",
+      "dependency_added": false
+    }
   },
   "p0_30": {
     "status": "QUALIFIED",
@@ -4384,10 +4386,10 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION_RETROSPECTIVE_20260929.md",
-    "last_retrospective_result": "PASS_WITH_METADATA_CORRECTION_TO_SCHEMA_V45",
+    "last_retrospective": "docs/P0_31_REBUILDABLE_SQLITE_FTS5_SEARCH_RETROSPECTIVE_20260929.md",
+    "last_retrospective_result": "PASS_WITH_RUNTIME_SECURITY_HIGH_CARRIED",
     "substantive_slice_counter": 1,
-    "current_stage": "P0_31_REBUILDABLE_SQLITE_FTS5_SEARCH_CONTRACT",
+    "current_stage": "P0_32_LOCAL_EXECUTABLE_STATE_SEARCH_COMPOSITION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -4396,7 +4398,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": null,
-    "unlock_condition": "P0_30_QUALIFIED_AND_CLOSURE_REAUDIT_SELECTED_P0_31",
+    "unlock_condition": "P0_31_QUALIFIED_AND_CLOSURE_REAUDIT_SELECTED_P0_32",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -4454,6 +4456,16 @@
         "issue": "Keelaryn contains targeted consistency verifiers such as VerifyRemoteHistoryLifetimeSegments and VerifyGoogleDriveTopologyProjection, but no production path invokes them and there is no aggregate Doctor/SelfTest/integrity command. SQLite integrity/foreign-key checks and cross-subsystem durable-authority verification therefore cannot be run as one supported diagnostic/recovery gate.",
         "required_correction": "Before operator/runtime qualification, implement a read-only Doctor/SelfTest surface that runs SQLite integrity/foreign-key checks plus registered subsystem verifiers, reports exact failing authority without mutating it, and can be used by update/recovery qualification. Keep metadata-loss reconstruction as a separate later capability.",
         "gate_scope": "OPERABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
+      },
+      {
+        "id": "AUDIT_SECURITY_H6_FTS_SEARCH_CACHE_RESIDUAL_TEXT",
+        "severity": "HIGH",
+        "status": "OPEN",
+        "affected_head": "85d2a5b527203e4bfe6fec82fbf628649b97b30c",
+        "issue": "Derived SQLite FTS5 search cache contains extracted user text. SQLite documents that ordinary FTS updates/deletes may leave old index entries recoverable until merge; core deleted/free content also requires explicit secure-delete policy. P0-31 has not yet enabled or qualified FTS5 secure-delete plus PRAGMA secure_delete.",
+        "required_correction": "Before user-runtime persistent search-cache qualification, enable and test SQLite core secure_delete and FTS5 secure-delete for the derived search DB; verify replace/delete/rebuild behavior and compatibility. Keep filesystem permission/ACL hardening under H3 as a separate layer.",
+        "gate_scope": "SEARCH_CACHE_USER_RUNTIME_SECURITY_GATE_NOT_P0_31_CORE_CORRECTNESS_GATE",
+        "external_evidence": "SQLite official FTS5 documentation sections 6.13 secure-delete and external-content/rebuild semantics."
       }
     ],
     "resolved_findings": [
@@ -5032,26 +5044,58 @@
     }
   },
   "p0_31": {
-    "status": "CONTRACT_NEXT",
+    "status": "QUALIFIED",
     "objective": "REBUILDABLE_SQLITE_FTS5_SEARCH_OVER_EXACT_REVISION_BOUND_EXTRACTION",
-    "product_mutation_started": false,
+    "contract": "docs/P0_31_REBUILDABLE_SQLITE_FTS5_SEARCH_CONTRACT.md",
+    "retrospective": "docs/P0_31_REBUILDABLE_SQLITE_FTS5_SEARCH_RETROSPECTIVE_20260929.md",
+    "initial_implementation_head": "1e8c55e73741e9caf93ef3916289488ea2321d73",
+    "initial_ci_run_id": 36610586189,
+    "product_head": "85d2a5b527203e4bfe6fec82fbf628649b97b30c",
+    "product_ci_run_id": 36612216185,
+    "qualification_head": "c4b850e15a6746ef5dcf9bd73857cb4e940dafbf",
+    "qualification_ci_run_id": 36615407840,
+    "authority_schema_version": 45,
+    "search_cache_schema_version": 1,
     "dependencies_added": 0,
     "live_provider_used": false,
     "corpus_mutations": 0,
-    "invariants": [
-      "DERIVED_REBUILDABLE_NOT_IDENTITY_AUTHORITY",
-      "INDEX_ONLY_EXACT_REVISION_BOUND_EXTRACTION",
-      "HITS_CARRY_EXACT_ARTIFACT_REVISION_EXTRACTOR_PROVENANCE",
-      "CURRENT_LOCATOR_REMAINS_INVENTORY_AUTHORITY",
-      "STALE_EXTRACTION_NOT_INDEXED_AS_CURRENT",
-      "NO_VECTOR_OR_EXTERNAL_SEARCH_ENGINE",
-      "VERIFY_AND_REBUILD_PATH_REQUIRED"
+    "runtime_reachability": "LIBRARY_AND_COMPOSITION_TEST_BOUNDARY_ONLY",
+    "findings": [
+      {
+        "id": "P0_31_M1_EXACT_VS_LATEST_REVISION_OVERCONSTRAINT",
+        "severity": "MEDIUM",
+        "status": "RESOLVED",
+        "fix_head": "85d2a5b527203e4bfe6fec82fbf628649b97b30c",
+        "resolution": "search admission now validates exact immutable Revision + ContentEvidence rather than requiring the latest sequence; currentness remains inventory authority"
+      },
+      {
+        "id": "P0_31_T1_FTS_DRIFT_RECOVERY_PROOF",
+        "severity": "TEST_GAP",
+        "status": "RESOLVED",
+        "qualification_head": "c4b850e15a6746ef5dcf9bd73857cb4e940dafbf",
+        "resolution": "adversarial test desynchronizes external-content FTS, Verify fails, RebuildFTS restores integrity and search"
+      }
     ],
-    "reuse": [
-      "SQLite FTS5 already compiled in zombiezen.com/go/sqlite",
-      "existing extract/localfs exact Revision-bound extractor",
-      "existing SQLite migration framework"
+    "open_product_blocker_critical": 0,
+    "carried_runtime_security_findings": [
+      "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
+      "AUDIT_SECURITY_H6_FTS_SEARCH_CACHE_RESIDUAL_TEXT"
     ],
     "live_remote_gate": "OUTSTANDING_SEPARATE_P0_CLOSURE_GATE"
+  },
+  "p0_32": {
+    "status": "CONTRACT_NEXT",
+    "objective": "LOCAL_EXECUTABLE_STATE_SEARCH_COMPOSITION_AND_REACHABILITY",
+    "product_mutation_started": false,
+    "constraints": [
+      "ONE_GO_EXECUTABLE",
+      "EXPLICIT_RUNTIME_LOCAL_STATE_AND_SEARCH_PATHS_OUTSIDE_SCANNED_CORPUS_FIRST_SLICE",
+      "RECONCILE_EXISTING_DURABLE_COMPLETE_BOOTSTRAP_BEFORE_ANY_RETRY",
+      "CORPUS_READ_ONLY",
+      "REUSE_BOOTSTRAP_LOCALFS_INVENTORY_EXTRACTION_FTS",
+      "NO_NEW_IDENTITY_RESOLVER",
+      "NO_MCP_HTTP_WEB_IN_FIRST_SLICE",
+      "RESOLVE_H6_BEFORE_USER_RUNTIME_SEARCH_CACHE_QUALIFICATION"
+    ]
   }
 }
