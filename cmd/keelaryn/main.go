@@ -24,7 +24,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: keelaryn <scan|bootstrap-index|search> [options]")
+		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle> [options]")
 	}
 
 	switch args[0] {
@@ -85,6 +85,32 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		return encodeJSON(stdout, hits)
+
+
+	case "context-bundle":
+		flags := flag.NewFlagSet("context-bundle", flag.ContinueOnError)
+		flags.SetOutput(stderr)
+		root := flags.String("root", "", "existing local corpus directory")
+		stateDB := flags.String("state-db", "", "existing runtime-local Keelaryn state database")
+		searchDB := flags.String("search-db", "", "existing runtime-local derived search database")
+		query := flags.String("query", "", "literal all-terms search query")
+		reason := flags.String("reason", "", "explicit task reason for selected context")
+		limit := flags.Int("limit", 20, "maximum search hits (1-100)")
+		maxBytes := flags.Int64("max-bytes", 4*1024*1024, "maximum bytes read from one selected text file")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *root == "" || *stateDB == "" || *searchDB == "" || *query == "" || *reason == "" {
+			return errors.New("context-bundle requires --root, --state-db, --search-db, --query and --reason")
+		}
+		bundle, err := localruntime.BuildContext(context.Background(), localruntime.ContextOptions{
+			Root: *root, StateDB: *stateDB, SearchDB: *searchDB,
+			Query: *query, Reason: *reason, Limit: *limit, MaxBytes: *maxBytes,
+		})
+		if err != nil {
+			return err
+		}
+		return encodeJSON(stdout, bundle)
 
 	default:
 		return fmt.Errorf("unknown command %q", args[0])

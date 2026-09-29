@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
@@ -110,6 +111,52 @@ func TestBootstrapIndexAndSearchThroughExecutableSurface(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].Name() != "note.md" {
 		t.Fatalf("corpus mutated by runtime composition: %#v", entries)
+	}
+}
+
+func TestContextBundleThroughExecutableSurface(t *testing.T) {
+	root := t.TempDir()
+	control := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("context runtime searchable"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stateDB := filepath.Join(control, "state.db")
+	searchDB := filepath.Join(control, "search.db")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{
+		"bootstrap-index",
+		"--root", root,
+		"--state-db", stateDB,
+		"--search-db", searchDB,
+		"--max-bytes", "4096",
+	}, &stdout, &stderr); err != nil {
+		t.Fatalf("bootstrap-index: %v; stderr=%s", err, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if err := run([]string{
+		"context-bundle",
+		"--root", root,
+		"--state-db", stateDB,
+		"--search-db", searchDB,
+		"--query", "runtime searchable",
+		"--reason", "answer exact task",
+		"--max-bytes", "4096",
+	}, &stdout, &stderr); err != nil {
+		t.Fatalf("context-bundle: %v; stderr=%s", err, stderr.String())
+	}
+	var bundle contextbundle.Bundle
+	if err := json.Unmarshal(stdout.Bytes(), &bundle); err != nil {
+		t.Fatal(err)
+	}
+	if len(bundle.Items) != 1 ||
+		bundle.Items[0].Reason != "answer exact task" ||
+		bundle.Items[0].Text != "context runtime searchable" ||
+		bundle.Items[0].ArtifactID == "" ||
+		bundle.Items[0].RevisionID == "" {
+		t.Fatalf("bundle=%#v", bundle)
 	}
 }
 
