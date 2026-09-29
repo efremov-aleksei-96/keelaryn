@@ -86,3 +86,15 @@ This does not replace H3 filesystem/ACL protection.
 - root content is unchanged;
 - search-cache secure-delete settings are qualified;
 - Ubuntu 24.04 and Windows 2025 exact-head CI pass.
+
+
+## Pre-qualification hardening after initial CI
+
+The first P0-32 CI exposed one versioned-test maintenance failure: the newer-schema regression still wrote `user_version=2` after search-cache schema v2 became current. Commit `0ef11e19...` updates that adversarial test to v3 without changing product code.
+
+Targeted static review also closed two fail-open runtime edges before qualification:
+
+1. **read-only query path** — `search` first requires an existing cache file and therefore cannot create a new empty SQLite database due to a mistyped path;
+2. **bootstrap reuse boundary** — an existing COMPLETE scan is reused only after the qualified immutable local-ingest commit receipt exactly replays against the current root using the original `StartedAt` boundary. The same replay runs again after extraction and before FTS replacement. Corpus additions/removals/metadata/content drift therefore abort without replacing the previous complete search cache.
+
+The runtime additionally rejects a regular-file inventory row that is not already Artifact+Revision assigned; this first slice does not silently turn unresolved post-bootstrap inventory into an incomplete search view.

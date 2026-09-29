@@ -20,10 +20,13 @@ import (
 )
 
 var (
-	ErrInvalidOptions        = errors.New("invalid local runtime options")
-	ErrRuntimeStateInCorpus  = errors.New("runtime state path is inside scanned corpus")
-	ErrRuntimeDatabaseAlias  = errors.New("state and search databases resolve to the same path")
-	ErrCorpusChanged         = errors.New("corpus changed after durable observation")
+	ErrInvalidOptions          = errors.New("invalid local runtime options")
+	ErrRuntimeStateInCorpus    = errors.New("runtime state path is inside scanned corpus")
+	ErrRuntimeDatabaseAlias    = errors.New("state and search databases resolve to the same path")
+	ErrCorpusChanged           = errors.New("corpus changed after durable observation")
+	ErrUnreconciledInventory   = errors.New("current inventory is not fully revision-assigned")
+	ErrSearchCacheNotFound     = errors.New("search cache does not exist")
+	ErrBootstrapReplayMismatch = errors.New("durable bootstrap replay returned a different scan")
 )
 
 const ProviderID corpus.ProviderID = "localfs"
@@ -49,10 +52,11 @@ type IndexResult struct {
 // BootstrapIndex composes the first useful local runtime path. It is a P0
 // development-spike surface, not production/user-runtime qualification.
 //
-// Durable state is reconciled before mutation: if a COMPLETE bootstrap already
-// exists, it is reused and the derived search cache is rebuilt. This makes an
-// interruption after the state commit but before search publication safe to
-// retry without blind bootstrap.
+// Durable state is reconciled before mutation. A committed bootstrap is not
+// trusted merely because it exists: the qualified bootstrap commit-receipt
+// replay must still match the current complete root snapshot. This recovers an
+// interrupted derived-index build without silently treating later corpus
+// changes as the old durable snapshot.
 func BootstrapIndex(ctx context.Context, options IndexOptions) (IndexResult, error) {
 	root, stateDB, searchDB, err := validateOptions(options)
 	if err != nil {
@@ -71,7 +75,12 @@ func BootstrapIndex(ctx context.Context, options IndexOptions) (IndexResult, err
 		return IndexResult{}, err
 	}
 	reused := found
-	if !found {
+	if found {
+		scan, err = replayBootstrap(ctx, state, provider, scan)
+		if err != nil {
+			return IndexResult{}, err
+		}
+	} else {
 		scan, err = ingest.BootstrapLocalFS(ctx, state, provider, root, options.ObservedAt.UTC())
 		if err != nil {
 			return IndexResult{}, err
@@ -86,12 +95,16 @@ func BootstrapIndex(ctx context.Context, options IndexOptions) (IndexResult, err
 	result := IndexResult{ScanID: scan.ID, Root: scan.Root, ReusedScan: reused}
 	extractions := make([]extract.Result, 0, len(inventory))
 	for _, entry := range inventory {
-		if entry.AssignmentState != corpus.AssignmentAssigned ||
-			entry.ArtifactID == "" ||
-			entry.RevisionID == "" ||
-			entry.Kind != corpus.EntryRegularFile {
+		if entry.Kind != corpus.EntryRegularFile {
 			continue
 		}
+		if entry.AssignmentState != corpus.AssignmentAssigned ||
+			entry.ArtifactID == "" ||
+			entry.RevisionID == "" {
+			return IndexResult{}, fmt.Errorf("%w: observation=%s locator=%s",
+				ErrUnreconciledInventory, entry.ObservationID, entry.Locator.Path)
+		}
+
 		extracted, err := extractlocalfs.Extract(ctx, state, provider, entry, options.MaxBytes)
 		if err != nil {
 			return IndexResult{}, err
@@ -114,6 +127,13 @@ func BootstrapIndex(ctx context.Context, options IndexOptions) (IndexResult, err
 		}
 	}
 
+	// Re-prove the exact bootstrap receipt after all source reads so additions,
+	// removals, locator/metadata drift or content changes during extraction
+	// fail before the derived cache is replaced.
+	if _, err := replayBootstrap(ctx, state, provider, scan); err != nil {
+		return IndexResult{}, err
+	}
+
 	index, err := searchsqlite.Open(ctx, searchDB)
 	if err != nil {
 		return IndexResult{}, err
@@ -128,11 +148,46 @@ func BootstrapIndex(ctx context.Context, options IndexOptions) (IndexResult, err
 	return result, nil
 }
 
+func replayBootstrap(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	provider *providerlocalfs.Provider,
+	expected corpus.ScanSession,
+) (corpus.ScanSession, error) {
+	replayed, err := ingest.BootstrapLocalFS(ctx, state, provider, expected.Root, expected.StartedAt)
+	if err != nil {
+		if errors.Is(err, sqlitestate.ErrLocalIngestReplayConflict) ||
+			errors.Is(err, ingest.ErrLocalFSSnapshotChanged) {
+			return corpus.ScanSession{}, fmt.Errorf("%w: %v", ErrCorpusChanged, err)
+		}
+		return corpus.ScanSession{}, fmt.Errorf("reconcile durable bootstrap: %w", err)
+	}
+	if replayed.ID != expected.ID {
+		return corpus.ScanSession{}, fmt.Errorf("%w: expected=%s actual=%s",
+			ErrBootstrapReplayMismatch, expected.ID, replayed.ID)
+	}
+	return replayed, nil
+}
+
 func Query(ctx context.Context, searchDB, query string, limit int) ([]search.Hit, error) {
 	if strings.TrimSpace(searchDB) == "" {
 		return nil, ErrInvalidOptions
 	}
-	index, err := searchsqlite.Open(ctx, searchDB)
+	absPath, err := filepath.Abs(searchDB)
+	if err != nil {
+		return nil, fmt.Errorf("resolve search database: %w", err)
+	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrSearchCacheNotFound
+		}
+		return nil, fmt.Errorf("inspect search database: %w", err)
+	}
+	if info.IsDir() {
+		return nil, ErrInvalidOptions
+	}
+	index, err := searchsqlite.Open(ctx, absPath)
 	if err != nil {
 		return nil, err
 	}
