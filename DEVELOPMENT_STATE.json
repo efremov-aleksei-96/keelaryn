@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 203,
+  "revision": 204,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -5160,9 +5160,9 @@
     ]
   },
   "p0_33": {
-    "status": "CONTRACT_NEXT",
+    "status": "IMPLEMENTED_AWAITING_QUALIFICATION_CI_RETRY",
     "objective": "TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION",
-    "product_mutation_started": false,
+    "product_mutation_started": true,
     "dependencies_added": 0,
     "live_provider_used": false,
     "corpus_mutations": 0,
@@ -5184,6 +5184,27 @@
       "NO_MCP_HTTP_WEB_IN_THIS_STAGE",
       "CORPUS_READ_ONLY"
     ],
-    "production_runtime_gate": "H3_AND_H4_REMAIN_OPEN_BEFORE_SUPPORTED_USER_RUNTIME_OR_MCP_QUALIFICATION"
+    "production_runtime_gate": "H3_AND_H4_REMAIN_OPEN_BEFORE_SUPPORTED_USER_RUNTIME_OR_MCP_QUALIFICATION",
+    "contract": "docs/P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_CONTRACT.md",
+    "initial_implementation_head": "30b619a16c18d0bbcd9f2e9bf763709c2eef2763",
+    "product_head": "0e276b62eb02fa125c21e6d3b30bd503dc5ec3ff",
+    "bounded_outcome_correction_head": "0e276b62eb02fa125c21e6d3b30bd503dc5ec3ff",
+    "stale_ci_run_id": 36623745363,
+    "stale_ci_classification": "GITHUB_ACTIONS_WINDOWS_JOB_STALE_IN_PROGRESS_BEYOND_DECLARED_15_MINUTE_JOB_TIMEOUT",
+    "stale_ci_jobs": {
+      "validate": "SUCCESS",
+      "ubuntu_24_04": "SUCCESS",
+      "windows_2025": "STALE_IN_PROGRESS"
+    },
+    "qualification_rule": "DO_NOT_QUALIFY_FROM_STALE_RUN; REQUIRE_A_NEW_EXACT_HEAD_VALIDATE_UBUNTU_WINDOWS_PASS",
+    "findings": [
+      {
+        "id": "P0_33_M1_BOUNDED_CONTEXT_OUTCOME_OVERCONSTRAINT",
+        "severity": "MEDIUM",
+        "status": "RESOLVED",
+        "fix_head": "0e276b62eb02fa125c21e6d3b30bd503dc5ec3ff",
+        "resolution": "ContextBundle verification preserves qualified LIMIT_EXCEEDED/UNSUPPORTED outcomes without requiring fresh ContentEvidence; STALE_REVISION still fails closed"
+      }
+    ]
   }
 }
