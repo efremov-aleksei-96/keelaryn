@@ -164,7 +164,7 @@ func verifyBundleAgainstHits(bundle contextbundle.Bundle, hits []search.Hit) err
 			// These qualified bounded outcomes intentionally carry no fresh
 			// ContentEvidence. Exact Artifact/Revision/extractor provenance is
 			// still preserved; no text is returned.
-			if item.Text != "" || item.Evidence.Digest != "" {
+			if item.Text != "" || item.Evidence != (corpus.ContentEvidence{}) {
 				return fmt.Errorf("%w: bounded outcome index=%d", ErrContextProvenanceMismatch, i)
 			}
 		case extract.StatusStaleRevision:

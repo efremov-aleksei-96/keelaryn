@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	extractlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/extract/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
@@ -43,5 +44,22 @@ func TestSelectionsForHitsRejectsNonCurrentExactRevision(t *testing.T) {
 	_, err := selectionsForHits([]search.Hit{hit}, inventory, "task", 1024)
 	if !errors.Is(err, ErrSearchHitNotCurrent) {
 		t.Fatalf("error=%v want ErrSearchHitNotCurrent", err)
+	}
+}
+
+func TestVerifyBundleAgainstHitsRejectsPartialBoundedEvidence(t *testing.T) {
+	hit := search.Hit{
+		ArtifactID: "art-1", RevisionID: "rev-1", ExtractorID: extractlocalfs.ExtractorID,
+	}
+	bundle := contextbundle.Bundle{Items: []contextbundle.Item{{
+		Status:      "LIMIT_EXCEEDED",
+		ArtifactID:  hit.ArtifactID,
+		RevisionID:  hit.RevisionID,
+		ExtractorID: hit.ExtractorID,
+		Evidence:    corpus.ContentEvidence{Algorithm: "sha256", Size: 1},
+	}}}
+	err := verifyBundleAgainstHits(bundle, []search.Hit{hit})
+	if !errors.Is(err, ErrContextProvenanceMismatch) {
+		t.Fatalf("error=%v want ErrContextProvenanceMismatch", err)
 	}
 }
