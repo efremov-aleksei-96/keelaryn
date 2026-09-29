@@ -6,7 +6,7 @@ Product implementation HEAD: `3b951a66650ab98d213b0823b0bce145b587872c`
 Qualification HEAD: `be12edd43c41ef57896f92706867bb85d9d9c5b2`  
 Exact-head CI: **36474994106 — SUCCESS**  
 Initial product CI: **36473715486 — SUCCESS**  
-SQLite schema authority: **v39**
+SQLite schema authority: **v45**
 
 ## Scope
 
@@ -133,7 +133,7 @@ The existing Graph/Dropbox/Syncthing snapshot + checkpoint + materialized-view p
 ## Portability and mutation scope
 
 - new product dependencies: **0**;
-- schema change: **none**; authority remains **v39**;
+- schema change in C2: **none**; inherited authority remains **v45**;
 - live provider/OAuth use: **none**;
 - corpus file mutation: **0**;
 - OS-specific product code added: **0**;

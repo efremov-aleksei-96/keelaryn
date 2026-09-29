@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 200,
+  "revision": 201,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -145,14 +145,17 @@
     "P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION_IMPLEMENTED",
     "P0_30C2_HISTORY_ADVANCE_RACE_REGRESSION_QUALIFIED",
     "P0_30C2_BOUNDARY_RETROSPECTIVE_PASS",
-    "P0_30_REMOTE_OBSERVATION_MATERIALIZATION_QUALIFIED"
+    "P0_30_REMOTE_OBSERVATION_MATERIALIZATION_QUALIFIED",
+    "P0_CLOSURE_REAUDIT_AFTER_P0_30_COMPLETE",
+    "P0_30C2_SCHEMA_AUTHORITY_METADATA_CORRECTED_TO_V45",
+    "P0_31_FTS5_SELECTED_AS_NEXT_AUTONOMOUS_PRODUCT_GAP"
   ],
   "next_objective": {
-    "id": "P0_CLOSURE_REAUDIT_AFTER_P0_30",
-    "description": "Run one read-only P0 closure re-audit from qualified P0-30C2 product head 3b951a66650ab98d213b0823b0bce145b587872c / qualification head be12edd43c41ef57896f92706867bb85d9d9c5b2. Confirm that the previously selected remote materialization/identity gap is closed, identify the earliest remaining coherent P0 gap, check for duplicate/unnecessary mechanisms and reusable prior art, then record the next bounded development objective. Do not begin live provider/OAuth, FTS, MCP/HTTP/UI, Android adapter, physical corpus mutation, or release hardening merely by assumption.",
+    "id": "P0_31_REBUILDABLE_SQLITE_FTS5_SEARCH_CONTRACT",
+    "description": "Define and implement the minimum rebuildable SQLite FTS5 search layer over exact Revision-bound extracted text. Reuse the current zombiezen/go-sqlite FTS5 capability; add no external search dependency unless proven necessary. Search is derived/non-authoritative, must preserve exact Artifact/Revision/extractor provenance, must not own current Locator identity, and must provide deterministic verification/rebuild semantics. Keep live remote/provider runtime qualification as an explicit separate P0 closure gate. Do not expand into MCP/HTTP/UI/vector search/physical mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "P0_30C2_QUALIFIED_ZERO_OPEN_C2_BLOCKER_CRITICAL"
+    "audit_gate": "P0_30_QUALIFIED_CLOSURE_REAUDIT_SELECTED_FTS5"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3704,34 +3707,40 @@
     }
   },
   "p0_closure_audit": {
-    "date": "2026-09-26",
+    "date": "2026-09-29",
     "status": "P0_NOT_CLOSED",
-    "document": "docs/P0_CLOSURE_AUDIT_20260926.md",
-    "audited_head": "057535e98b686fb6edfba8cb98c4c911562abea2",
-    "ci_run_id": 36258258088,
-    "conclusion": "PASS_AUDIT_NEXT_GAP_SELECTED",
-    "earliest_remaining_gap": "REMOTE_PROVIDER_STATE_TO_EXISTING_OBSERVATION_INVENTORY_MATERIALIZATION_AND_IDENTITY_ORCHESTRATION",
+    "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_30_20260929.md",
+    "audited_product_head": "3b951a66650ab98d213b0823b0bce145b587872c",
+    "qualification_head": "be12edd43c41ef57896f92706867bb85d9d9c5b2",
+    "qualification_ci_run_id": 36474994106,
+    "control_head_before_audit": "92e07542fb483f966e6ef4a11330bf3b10c98378",
+    "control_ci_run_id": 36604971233,
+    "conclusion": "PASS_NEXT_AUTONOMOUS_GAP_FTS5_LIVE_REMOTE_GATE_CARRIED",
+    "resolved_gap": "REMOTE_PROVIDER_STATE_TO_EXISTING_OBSERVATION_INVENTORY_MATERIALIZATION_AND_IDENTITY_ORCHESTRATION",
+    "earliest_remaining_autonomous_product_gap": "REBUILDABLE_SQLITE_FTS5_SEARCH",
+    "p0_closure_gates_remaining": [
+      "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
+      "SQLITE_FTS5_SEARCH",
+      "MINIMAL_MCP_ACCESS",
+      "EMBEDDED_MINIMAL_WEB_STATUS",
+      "P0_FINAL_PROOF_REAUDIT"
+    ],
     "do_not_duplicate": [
+      "ScanSession/Observation/Inventory",
       "RemoteHistory generation/publication",
       "provider lifetime segmentation",
       "remote identity authority",
-      "SAME acceptance",
-      "NEW acceptance",
-      "Google topology/membership"
+      "SAME/NEW acceptance",
+      "Revision identity",
+      "ContextBundle explicit-selection provenance"
     ],
     "explicit_not_next": [
-      "live Google OAuth qualification",
-      "FTS",
       "MCP/HTTP/UI",
-      "Android adapter",
+      "vector search",
+      "Android backend",
       "physical mutation",
-      "new identity schema"
-    ],
-    "followup_status": "P0_30_QUALIFIED_REAUDIT_REQUIRED",
-    "resolved_gap": "REMOTE_PROVIDER_STATE_TO_EXISTING_OBSERVATION_INVENTORY_MATERIALIZATION_AND_IDENTITY_ORCHESTRATION",
-    "resolved_by_product_head": "3b951a66650ab98d213b0823b0bce145b587872c",
-    "resolved_by_qualification_head": "be12edd43c41ef57896f92706867bb85d9d9c5b2",
-    "next_action": "READ_ONLY_P0_CLOSURE_REAUDIT_TO_SELECT_NEXT_GAP"
+      "release hardening H1-H4"
+    ]
   },
   "p0_30": {
     "status": "QUALIFIED",
@@ -3770,7 +3779,7 @@
       "Dropbox list_folder + cursor",
       "Syncthing BEP Index + Index Update"
     ],
-    "schema_version": 39,
+    "schema_version": 45,
     "a": {
       "status": "QUALIFIED",
       "implementation": {
@@ -4304,7 +4313,7 @@
         "objective": "INTEGRATE_DETERMINISTIC_REMOTE_MATERIALIZER_WITH_EXISTING_IDENTITY_REVISION_ACCEPTANCE",
         "product_head": "3b951a66650ab98d213b0823b0bce145b587872c",
         "qualification_head": "be12edd43c41ef57896f92706867bb85d9d9c5b2",
-        "schema_version": 39,
+        "schema_version": 45,
         "implementation": {
           "materializer": "REUSE_P0_30B_WITH_INTERNAL_OBSERVATION_WRITER_SEAM",
           "identity_resolver": "corpus.ResolveIdentityAuthoritySet",
@@ -4359,20 +4368,26 @@
             "go (ubuntu-24.04)": "PASS",
             "go (windows-2025)": "PASS"
           },
-          "schema_version": 39,
+          "schema_version": 45,
           "dependencies_added": 0,
           "live_provider_used": false,
           "corpus_mutations": 0,
           "portability": "PURE_GO_PLUS_SQLITE_WINDOWS2025_AND_UBUNTU2404_EXACT_HEAD_PASS_ANDROID_REMAINS_PLANNED_NOT_CLAIMED"
+        },
+        "control_state_correction": {
+          "id": "P0_30C2_L1_SCHEMA_AUTHORITY_METADATA",
+          "status": "RESOLVED",
+          "issue": "initial C2 checkpoint recorded inherited schema authority v39 although qualified base had advanced to v45 before C2",
+          "correction": "record inherited schema authority v45; C2 product bytes and qualification remain unchanged"
         }
       }
     }
   },
   "audit": {
     "last_retrospective": "docs/P0_30C2_MATERIALIZER_IDENTITY_REVISION_INTEGRATION_RETROSPECTIVE_20260929.md",
-    "last_retrospective_result": "PASS",
+    "last_retrospective_result": "PASS_WITH_METADATA_CORRECTION_TO_SCHEMA_V45",
     "substantive_slice_counter": 1,
-    "current_stage": "P0_CLOSURE_REAUDIT_AFTER_P0_30",
+    "current_stage": "P0_31_REBUILDABLE_SQLITE_FTS5_SEARCH_CONTRACT",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -4381,7 +4396,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": null,
-    "unlock_condition": "P0_30C2_QUALIFIED_NEXT_ACTION_IS_READ_ONLY_CLOSURE_REAUDIT",
+    "unlock_condition": "P0_30_QUALIFIED_AND_CLOSURE_REAUDIT_SELECTED_P0_31",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -5015,5 +5030,28 @@
       "new_critical_during_remediation": "ADD_TO_CURRENT_REMEDIATION_SET_AND_CONTINUE_REMEDIATION",
       "dependent_development_unlock": "SATISFIED_BY_POST_R11_FULL_AUDIT_ZERO_OPEN_BLOCKER_CRITICAL"
     }
+  },
+  "p0_31": {
+    "status": "CONTRACT_NEXT",
+    "objective": "REBUILDABLE_SQLITE_FTS5_SEARCH_OVER_EXACT_REVISION_BOUND_EXTRACTION",
+    "product_mutation_started": false,
+    "dependencies_added": 0,
+    "live_provider_used": false,
+    "corpus_mutations": 0,
+    "invariants": [
+      "DERIVED_REBUILDABLE_NOT_IDENTITY_AUTHORITY",
+      "INDEX_ONLY_EXACT_REVISION_BOUND_EXTRACTION",
+      "HITS_CARRY_EXACT_ARTIFACT_REVISION_EXTRACTOR_PROVENANCE",
+      "CURRENT_LOCATOR_REMAINS_INVENTORY_AUTHORITY",
+      "STALE_EXTRACTION_NOT_INDEXED_AS_CURRENT",
+      "NO_VECTOR_OR_EXTERNAL_SEARCH_ENGINE",
+      "VERIFY_AND_REBUILD_PATH_REQUIRED"
+    ],
+    "reuse": [
+      "SQLite FTS5 already compiled in zombiezen.com/go/sqlite",
+      "existing extract/localfs exact Revision-bound extractor",
+      "existing SQLite migration framework"
+    ],
+    "live_remote_gate": "OUTSTANDING_SEPARATE_P0_CLOSURE_GATE"
   }
 }
