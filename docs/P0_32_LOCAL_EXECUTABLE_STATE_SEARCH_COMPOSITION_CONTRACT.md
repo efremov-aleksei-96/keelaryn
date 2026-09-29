@@ -57,12 +57,14 @@ This does not claim complete production storage hardening against symlink/juncti
 
 ## Search-cache privacy hardening
 
-P0-32 advances the derived search-cache schema to **v2** and resolves H6 for newly written/upgraded cache connections:
+P0-32 advances the derived search-cache schema to **v3** and resolves H6 for newly written and upgraded cache connections:
 
 - SQLite core `PRAGMA secure_delete=ON` is enforced on every pooled search connection;
-- FTS5 `secure-delete=1` is persisted in the FTS configuration.
+- FTS5 `secure-delete=1` is persisted in the FTS configuration;
+- v3 rebuilds the FTS index after enabling secure-delete;
+- a durable one-time upgrade marker then forces a resumable `VACUUM` outside the migration transaction, purging free-page remnants from pre-v3 caches before the cache can be used.
 
-Both are required because SQLite documents that core secure_delete alone does not scrub FTS shadow-table traces.
+Both mechanisms are required because SQLite documents that core secure_delete alone does not scrub FTS shadow-table traces, and previously deleted ordinary-table content requires VACUUM if secure_delete was not already active.
 
 This does not replace H3 filesystem/ACL protection.
 
@@ -98,3 +100,22 @@ Targeted static review also closed two fail-open runtime edges before qualificat
 2. **bootstrap reuse boundary** — an existing COMPLETE scan is reused only after the qualified immutable local-ingest commit receipt exactly replays against the current root using the original `StartedAt` boundary. The same replay runs again after extraction and before FTS replacement. Corpus additions/removals/metadata/content drift therefore abort without replacing the previous complete search cache.
 
 The runtime additionally rejects a regular-file inventory row that is not already Artifact+Revision assigned; this first slice does not silently turn unresolved post-bootstrap inventory into an incomplete search view.
+
+
+### H6 targeted security correction
+
+The initial v2 hardening enabled both secure-delete mechanisms for future writes but did not prove that a pre-v2/v1 cache had no residual text from deletions that occurred before those settings were active.
+
+Search-cache schema v3 closes that upgrade gap without changing authoritative state:
+
+```text
+enable FTS5 secure-delete
+→ rebuild FTS from current external content
+→ mark security vacuum pending
+→ migration commits
+→ resumable VACUUM on Open
+→ mark complete
+→ verify core + FTS + upgrade state
+```
+
+An interruption before or during VACUUM leaves the pending marker set, so the next Open repeats the safe derived-cache cleanup instead of assuming it completed.

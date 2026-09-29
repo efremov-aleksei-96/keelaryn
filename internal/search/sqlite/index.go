@@ -80,6 +80,21 @@ END;
 INSERT INTO search_documents_fts(search_documents_fts, rank)
 VALUES('secure-delete', 1);
 `,
+		`
+INSERT INTO search_documents_fts(search_documents_fts, rank)
+VALUES('secure-delete', 1);
+
+INSERT INTO search_documents_fts(search_documents_fts)
+VALUES('rebuild');
+
+CREATE TABLE search_security_upgrade (
+	id INTEGER PRIMARY KEY NOT NULL CHECK (id=1),
+	vacuum_pending INTEGER NOT NULL CHECK (vacuum_pending IN (0,1))
+) STRICT;
+
+INSERT INTO search_security_upgrade (id, vacuum_pending)
+VALUES (1, 1);
+`,
 	},
 }
 
@@ -111,6 +126,16 @@ func Open(ctx context.Context, path string) (*Index, error) {
 		_ = index.pool.Close()
 		return nil, fmt.Errorf("open Keelaryn search index: %w", err)
 	}
+	if err := completeSearchSecurityUpgradeConn(conn); err != nil {
+		index.pool.Put(conn)
+		_ = index.pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index: %w", err)
+	}
+	if err := verifySearchSecurityPolicyConn(conn); err != nil {
+		index.pool.Put(conn)
+		_ = index.pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index: %w", err)
+	}
 	index.pool.Put(conn)
 	return index, nil
 }
@@ -130,6 +155,91 @@ func (i *Index) prepareConn(conn *zsqlite.Conn) error {
 	}
 	if enabled != 1 {
 		return fmt.Errorf("search database secure_delete is disabled")
+	}
+	return nil
+}
+
+func completeSearchSecurityUpgradeConn(conn *zsqlite.Conn) error {
+	var pending int64
+	var found bool
+	if err := sqlitex.Execute(conn,
+		"SELECT vacuum_pending FROM search_security_upgrade WHERE id=1",
+		&sqlitex.ExecOptions{ResultFunc: func(stmt *zsqlite.Stmt) error {
+			found = true
+			pending = stmt.ColumnInt64(0)
+			return nil
+		}}); err != nil {
+		return fmt.Errorf("read search security upgrade state: %w", err)
+	}
+	if !found {
+		return fmt.Errorf("search security upgrade state missing")
+	}
+	if pending == 0 {
+		return nil
+	}
+	if pending != 1 {
+		return fmt.Errorf("invalid search security upgrade state: %d", pending)
+	}
+
+	// VACUUM cannot run inside the schema migration transaction. Migration v3
+	// first rebuilds FTS under secure-delete, then this resumable one-time step
+	// purges free-page remnants from pre-v3 caches before use.
+	if err := sqlitex.ExecuteTransient(conn, "VACUUM;", nil); err != nil {
+		return fmt.Errorf("vacuum search cache security upgrade: %w", err)
+	}
+	if err := sqlitex.Execute(conn,
+		"UPDATE search_security_upgrade SET vacuum_pending=0 WHERE id=1 AND vacuum_pending=1",
+		nil); err != nil {
+		return fmt.Errorf("commit search security upgrade state: %w", err)
+	}
+	if conn.Changes() != 1 {
+		return fmt.Errorf("commit search security upgrade state changed %d rows", conn.Changes())
+	}
+	return nil
+}
+
+func verifySearchSecurityPolicyConn(conn *zsqlite.Conn) error {
+	var core int64
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA secure_delete;", &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *zsqlite.Stmt) error {
+			core = stmt.ColumnInt64(0)
+			return nil
+		},
+	}); err != nil {
+		return fmt.Errorf("verify SQLite secure_delete: %w", err)
+	}
+	if core != 1 {
+		return fmt.Errorf("search database secure_delete is disabled")
+	}
+
+	var fts int64
+	var ftsFound bool
+	if err := sqlitex.Execute(conn,
+		"SELECT v FROM search_documents_fts_config WHERE k='secure-delete'",
+		&sqlitex.ExecOptions{ResultFunc: func(stmt *zsqlite.Stmt) error {
+			ftsFound = true
+			fts = stmt.ColumnInt64(0)
+			return nil
+		}}); err != nil {
+		return fmt.Errorf("verify FTS5 secure-delete: %w", err)
+	}
+	if !ftsFound || fts != 1 {
+		return fmt.Errorf("FTS5 secure-delete is disabled")
+	}
+
+	var pending int64
+	var upgradeFound bool
+	if err := sqlitex.Execute(conn,
+		"SELECT vacuum_pending FROM search_security_upgrade WHERE id=1",
+		&sqlitex.ExecOptions{ResultFunc: func(stmt *zsqlite.Stmt) error {
+			upgradeFound = true
+			pending = stmt.ColumnInt64(0)
+			return nil
+		}}); err != nil {
+		return fmt.Errorf("verify search security upgrade state: %w", err)
+	}
+	if !upgradeFound || pending != 0 {
+		return fmt.Errorf("search security upgrade is incomplete")
 	}
 	return nil
 }
@@ -339,6 +449,9 @@ func (i *Index) Verify(ctx context.Context) error {
 		return fmt.Errorf("get search connection: %w", err)
 	}
 	defer i.pool.Put(conn)
+	if err := verifySearchSecurityPolicyConn(conn); err != nil {
+		return err
+	}
 	return integrityCheckConn(conn)
 }
 
