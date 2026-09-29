@@ -127,6 +127,65 @@ func TestLiteralQueryDoesNotExecuteFTSOperators(t *testing.T) {
 	assertSingleHit(t, index, "alpha OR beta", "art-1", "rev-1")
 }
 
+func TestVerifyDetectsFTSDriftAndRebuildRestores(t *testing.T) {
+	ctx := context.Background()
+	index, err := searchsqlite.Open(ctx, filepath.Join(t.TempDir(), "search.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer index.Close()
+
+	result := searchExtraction("art-1", "rev-1", "drift recovery token")
+	if err := index.ReplaceAll(ctx, revisionsFor([]extract.Result{result}), []extract.Result{result}); err != nil {
+		t.Fatal(err)
+	}
+	assertSingleHit(t, index, "recovery", "art-1", "rev-1")
+
+	conn, err := zsqlite.OpenConn(index.Path(), zsqlite.OpenReadWrite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rowID int64
+	var textValue string
+	if err := sqlitex.Execute(conn,
+		"SELECT document_id, text FROM search_documents WHERE artifact_id=?1 AND revision_id=?2",
+		&sqlitex.ExecOptions{
+			Args: []any{"art-1", "rev-1"},
+			ResultFunc: func(stmt *zsqlite.Stmt) error {
+				rowID = stmt.ColumnInt64(0)
+				textValue = stmt.ColumnText(1)
+				return nil
+			},
+		}); err != nil {
+		conn.Close()
+		t.Fatal(err)
+	}
+	if rowID == 0 {
+		conn.Close()
+		t.Fatal("search document row not found")
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO search_documents_fts(search_documents_fts, rowid, text) VALUES('delete', ?1, ?2)",
+		&sqlitex.ExecOptions{Args: []any{rowID, textValue}}); err != nil {
+		conn.Close()
+		t.Fatal(err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := index.Verify(ctx); err == nil {
+		t.Fatal("Verify accepted FTS drift against external content")
+	}
+	if err := index.RebuildFTS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := index.Verify(ctx); err != nil {
+		t.Fatal(err)
+	}
+	assertSingleHit(t, index, "recovery", "art-1", "rev-1")
+}
+
 func TestOpenRejectsNewerSearchSchema(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "search.db")
