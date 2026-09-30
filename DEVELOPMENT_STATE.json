@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 209,
+  "revision": 210,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -164,14 +164,15 @@
     "P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_QUALIFIED",
     "P0_CLOSURE_REAUDIT_AFTER_P0_33_COMPLETE",
     "P0_34_PROTECTED_CONTROL_STORAGE_SELECTED",
-    "P0_34_PROTECTED_CONTROL_STORAGE_RUNTIME_IMPLEMENTED"
+    "P0_34_PROTECTED_CONTROL_STORAGE_RUNTIME_IMPLEMENTED",
+    "P0_34_PROTECTED_CONTROL_STORAGE_RUNTIME_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_34_PROTECTED_CONTROL_STORAGE",
-    "description": "Resolve AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION with a dedicated protected control-directory runtime boundary for state.db, search.db and SQLite side files. Keep low-level state/search stores OS-neutral; put filesystem permission/ACL behavior behind a platform adapter. New control directories must be protected before SQLite is opened; existing directories fail closed unless they already satisfy the policy. Unix uses owner-only directory protection; Windows uses a protected DACL via the already-pinned golang.org/x/sys/windows APIs; Android app-private storage is the required mobile equivalent but Android runtime qualification remains H2. No corpus mutation, MCP/HTTP/web, or new identity model.",
+    "id": "P0_35_DOCTOR_SELFTEST",
+    "description": "Resolve AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED with a read-only Doctor over the protected control directory and a disposable end-to-end SelfTest. Doctor must never create, migrate, repair or write user state: open SQLite read-only, verify application/schema identity, full SQLite integrity plus foreign-key consistency, existing historical authority, search security/FTS integrity, and control-storage protection; emit structured findings to stdout only. SelfTest may mutate only disposable temporary corpus/control state and must prove protected bootstrap -> search -> ContextBundle. Reuse legacy Doctor only for report shape, not Hub-first checks. No MCP/HTTP/web or corpus mutation.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "P0_33_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_H3_NEXT"
+    "audit_gate": "P0_34_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_H4_NEXT"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3725,15 +3726,14 @@
   "p0_closure_audit": {
     "date": "2026-09-30",
     "status": "P0_NOT_CLOSED",
-    "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_33_20260930.md",
-    "audited_product_head": "adaa3cc68cece243cd6d6092bf881120c64064a5",
-    "qualification_head": "adaa3cc68cece243cd6d6092bf881120c64064a5",
-    "qualification_ci_run_id": 36625411480,
-    "conclusion": "PASS_NEXT_AUTONOMOUS_GAP_PROTECTED_CONTROL_STORAGE_H3",
-    "resolved_gap": "TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION",
-    "earliest_remaining_autonomous_product_gap": "PRODUCTION_STORAGE_FILESYSTEM_PROTECTION_H3",
+    "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_34_20260930.md",
+    "audited_product_head": "6ade05b9595458693eea701091fd2aef54117f8b",
+    "qualification_head": "6ade05b9595458693eea701091fd2aef54117f8b",
+    "qualification_ci_run_id": 36670536752,
+    "conclusion": "PASS_NEXT_AUTONOMOUS_GAP_DOCTOR_SELFTEST_H4",
+    "resolved_gap": "PRODUCTION_STORAGE_FILESYSTEM_PROTECTION_H3",
+    "earliest_remaining_autonomous_product_gap": "DOCTOR_SELFTEST_RUNTIME_H4",
     "p0_closure_gates_remaining": [
-      "PRODUCTION_STORAGE_FILESYSTEM_PROTECTION_H3",
       "DOCTOR_SELFTEST_RUNTIME_H4",
       "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
       "MINIMAL_MCP_ACCESS",
@@ -3743,7 +3743,6 @@
     "carried_high_findings": [
       "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
       "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
-      "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
       "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
     ],
     "resolved_runtime_security_finding": "AUDIT_SECURITY_H6_FTS_SEARCH_CACHE_RESIDUAL_TEXT",
@@ -3752,7 +3751,11 @@
       "latest_reviewed_version": "v1.8.0",
       "disposition": "REUSE_LATER_AFTER_CONTEXTBUNDLE_AND_RUNTIME_SECURITY_GATES",
       "dependency_added": false
-    }
+    },
+    "resolved_runtime_security_findings": [
+      "AUDIT_SECURITY_H6_FTS_SEARCH_CACHE_RESIDUAL_TEXT",
+      "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION"
+    ]
   },
   "p0_30": {
     "status": "QUALIFIED",
@@ -4398,8 +4401,8 @@
   "audit": {
     "last_retrospective": "docs/P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_RETROSPECTIVE_20260930.md",
     "last_retrospective_result": "PASS_P0_33_QUALIFIED_H3_SELECTED",
-    "substantive_slice_counter": 1,
-    "current_stage": "P0_34_PROTECTED_CONTROL_STORAGE",
+    "substantive_slice_counter": 0,
+    "current_stage": "P0_35_DOCTOR_SELFTEST",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -4448,15 +4451,6 @@
         "required_correction": "Choose and prove an Android-capable durable state substrate or intentionally platform-specific backend behind the stable Keelaryn state contract. Add at minimum Android/arm64 compile coverage, then emulator/device filesystem+SQLite smoke tests and later SAF/DocumentProvider acceptance. Do not infer Android support from CGO-free implementation alone.",
         "gate_scope": "PORTABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE",
         "external_evidence": "modernc.org/sqlite v1.37.1 doc.go supported-platform matrix omits android; current go.mod pins modernc.org/sqlite v1.37.1 through zombiezen.com/go/sqlite v1.4.2."
-      },
-      {
-        "id": "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
-        "severity": "HIGH",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "The SQLite state database contains corpus locators, timestamps, identity history and semantic authority, but Store.Open accepts an arbitrary path and does not establish or verify restrictive filesystem permissions/ACL. Canonical architecture assigns platform-specific permission behavior to adapters, but no such state-storage protection adapter/contract is currently implemented.",
-        "required_correction": "Before durable state is exposed through a user runtime, define a platform storage adapter that creates the control directory/database with least-privilege permissions, verifies existing ownership/ACL where practical, and covers SQLite side files. Add Unix and Windows tests; define the Android app-private-storage equivalent.",
-        "gate_scope": "SECURITY_HARDENING_BEFORE_USER_RUNTIME_NOT_CURRENT_P0_C2_CRITICAL_GATE"
       },
       {
         "id": "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
@@ -5239,7 +5233,7 @@
     }
   },
   "p0_34": {
-    "status": "WINDOWS_OWNER_AND_CI_GATE_FIXED_AWAITING_CI",
+    "status": "QUALIFIED",
     "objective": "PROTECTED_CONTROL_STORAGE_RUNTIME_BOUNDARY",
     "finding": "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
     "dependencies_added": 0,
@@ -5269,38 +5263,44 @@
       {
         "id": "P0_34A_S1_ANCESTOR_ALIAS_PHYSICAL_BOUNDARY",
         "severity": "SECURITY_HARDENING",
-        "status": "RESOLVED_IN_PENDING_HEAD",
-        "resolution": "Resolve canonicalizes the existing parent before returning control layout paths"
+        "status": "RESOLVED",
+        "resolution": "Resolve canonicalizes the existing parent before returning control layout paths",
+        "qualification_head": "6ade05b9595458693eea701091fd2aef54117f8b"
       },
       {
         "id": "P0_34A_S2_DATABASE_SLOT_LINK_ESCAPE",
         "severity": "SECURITY_HARDENING",
-        "status": "RESOLVED_IN_PENDING_HEAD",
-        "resolution": "Open/Prepare reject state.db/search.db symlink or Windows reparse-point slots"
+        "status": "RESOLVED",
+        "resolution": "Open/Prepare reject state.db/search.db symlink or Windows reparse-point slots",
+        "qualification_head": "6ade05b9595458693eea701091fd2aef54117f8b"
       },
       {
         "id": "P0_34A_S3_WINDOWS_CHILD_FILE_DACL",
         "severity": "SECURITY_HARDENING",
-        "status": "RESOLVED_IN_PENDING_HEAD",
-        "resolution": "Existing state/search and SQLite side files are verified as non-reparse regular files with restricted current-user/System/Administrators DACL; unexpected control entries fail closed"
+        "status": "RESOLVED",
+        "resolution": "Existing state/search and SQLite side files are verified as non-reparse regular files with restricted current-user/System/Administrators DACL; unexpected control entries fail closed",
+        "qualification_head": "6ade05b9595458693eea701091fd2aef54117f8b"
       },
       {
         "id": "P0_34B_S4_UNIX_CONTROL_FILE_HARDLINK_ALIAS",
         "severity": "SECURITY_HARDENING",
-        "status": "RESOLVED_IN_PENDING_HEAD",
-        "resolution": "Existing Unix control files must be owned by current euid and have link count exactly one"
+        "status": "RESOLVED",
+        "resolution": "Existing Unix control files must be owned by current euid and have link count exactly one",
+        "qualification_head": "6ade05b9595458693eea701091fd2aef54117f8b"
       },
       {
         "id": "P0_34B_S5_WINDOWS_DIRECTORY_DEFAULT_OWNER",
         "severity": "CORRECTNESS_SECURITY",
-        "status": "RESOLVED_IN_PENDING_HEAD",
-        "resolution": "Windows control-directory SDDL now specifies O:<current-user-SID>; child-file owner verification accepts only trusted exact-DACL principals"
+        "status": "RESOLVED",
+        "resolution": "Windows control-directory SDDL now specifies O:<current-user-SID>; child-file owner verification accepts only trusted exact-DACL principals",
+        "qualification_head": "6ade05b9595458693eea701091fd2aef54117f8b"
       },
       {
         "id": "P0_34_Q1_WINDOWS_NATIVE_EXIT_MASKING",
         "severity": "QUALIFICATION_BLOCKER",
-        "status": "RESOLVED_IN_PENDING_HEAD",
-        "resolution": "Go dependency lock, test and vet now run as separate GitHub Actions steps so a failed Windows native command cannot be masked by a later successful command"
+        "status": "RESOLVED",
+        "resolution": "Go dependency lock, test and vet now run as separate GitHub Actions steps so a failed Windows native command cannot be masked by a later successful command",
+        "qualification_head": "6ade05b9595458693eea701091fd2aef54117f8b"
       }
     ],
     "security_basis": "Windows existing child files require their own ACL verification; the protected parent alone is not treated as sufficient authority",
@@ -5328,6 +5328,40 @@
       "classification": "FALSE_GREEN_WINDOWS_POWERSHELL_NATIVE_EXIT_MASKED_BY_LATER_GO_VET",
       "disposition": "DO_NOT_USE_AS_QUALIFICATION_EVIDENCE"
     },
-    "qualification_rule": "REQUIRE_NEW_EXACT_HEAD_VALIDATE_UBUNTU_WINDOWS_PASS_WITH_SEPARATE_GO_TEST_STEP"
+    "qualification_rule": "REQUIRE_NEW_EXACT_HEAD_VALIDATE_UBUNTU_WINDOWS_PASS_WITH_SEPARATE_GO_TEST_STEP",
+    "product_head": "6ade05b9595458693eea701091fd2aef54117f8b",
+    "qualification_head": "6ade05b9595458693eea701091fd2aef54117f8b",
+    "qualification_ci_run_id": 36670536752,
+    "qualification": "validate + ubuntu-24.04 + windows-2025 PASS; Go dependency lock/tests/vet are separate failure-propagating steps",
+    "retrospective": "docs/P0_34_PROTECTED_CONTROL_STORAGE_RETROSPECTIVE_20260930.md",
+    "open_product_blocker_critical": 0
+  },
+  "p0_35": {
+    "status": "CONTRACT_NEXT",
+    "objective": "READ_ONLY_DOCTOR_AND_DISPOSABLE_SELFTEST",
+    "finding": "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
+    "dependencies_added": 0,
+    "reuse": [
+      "controlstorage.OpenExisting/Verify",
+      "state SQLite historical authority verifiers",
+      "search SQLite security/FTS verification",
+      "zombiezen.com/go/sqlite read-only connections",
+      "legacy Doctor report shape only"
+    ],
+    "invariants": [
+      "DOCTOR_READ_ONLY_NO_CREATE_NO_MIGRATION_NO_REPAIR",
+      "DOCTOR_REPORT_TO_STDOUT_NOT_CONTROL_DIR",
+      "SQLITE_INTEGRITY_CHECK_AND_FOREIGN_KEY_CHECK",
+      "EXACT_APPLICATION_AND_SCHEMA_IDENTITY",
+      "REGISTERED_AUTHORITY_VERIFIERS_REUSED",
+      "SEARCH_SECURITY_AND_FTS_VERIFIED_WITHOUT_MUTATING_USER_DB",
+      "SELFTEST_MUTATES_ONLY_DISPOSABLE_TEMP_STATE",
+      "NO_MCP_HTTP_WEB",
+      "CORPUS_USER_BYTES_READ_ONLY"
+    ],
+    "authority_schema_version": 45,
+    "search_cache_schema_version": 3,
+    "corpus_mutations": 0,
+    "live_provider_used": false
   }
 }
