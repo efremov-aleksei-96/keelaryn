@@ -1,0 +1,190 @@
+name: P0-36C live Drive acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'dev/corpus-first-p0'
+    paths:
+      - '.github/workflows/p0-36c-live-acceptance.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p0-36c-live-drive-acceptance
+  cancel-in-progress: false
+
+jobs:
+  live-drive-read-only:
+    if: github.event_name == 'workflow_dispatch' || (github.actor == 'efremov-aleksei-96' && contains(github.event.head_commit.message, '[p0-36c-live]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      KEELARYN_DISPOSABLE_ENABLE: ${{ secrets.KEELARYN_DISPOSABLE_ENABLE }}
+      KEELARYN_GOOGLE_CLIENT_ID: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_ID }}
+      KEELARYN_GOOGLE_CLIENT_SECRET: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_SECRET }}
+      KEELARYN_GOOGLE_REFRESH_TOKEN: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Fail closed unless disposable OAuth is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${KEELARYN_DISPOSABLE_ENABLE:-}" = "YES"
+          for name in KEELARYN_GOOGLE_CLIENT_ID KEELARYN_GOOGLE_CLIENT_SECRET KEELARYN_GOOGLE_REFRESH_TOKEN; do
+            test -n "${!name:-}" || { echo "::error::Required disposable secret is missing: $name"; exit 1; }
+          done
+
+      - name: Show Go runtime
+        run: go version
+
+      - name: Build exact executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          go build -trimpath -o "$RUNNER_TEMP/keelaryn" ./cmd/keelaryn
+
+      - name: Run real metadata-only acceptance
+        shell: bash
+        env:
+          KEELARYN_P036C_EVIDENCE: ${{ runner.temp }}/p0-36c-live-evidence.json
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          required_scope = "https://www.googleapis.com/auth/drive.metadata.readonly"
+
+          form = urllib.parse.urlencode({
+              "client_id": os.environ["KEELARYN_GOOGLE_CLIENT_ID"],
+              "client_secret": os.environ["KEELARYN_GOOGLE_CLIENT_SECRET"],
+              "refresh_token": os.environ["KEELARYN_GOOGLE_REFRESH_TOKEN"],
+              "grant_type": "refresh_token",
+              "scope": required_scope,
+          }).encode()
+          request = urllib.request.Request(
+              "https://oauth2.googleapis.com/token",
+              data=form,
+              method="POST",
+              headers={"Content-Type": "application/x-www-form-urlencoded"},
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  token_payload = json.load(response)
+          except urllib.error.HTTPError as exc:
+              raw = exc.read(8192)
+              try:
+                  problem = json.loads(raw)
+              except Exception:
+                  problem = {}
+              print(
+                  "oauth_refresh_failed "
+                  f"status={exc.code} "
+                  f"error={problem.get('error', 'unknown')} "
+                  f"description={problem.get('error_description', 'unavailable')}",
+                  file=sys.stderr,
+              )
+              raise SystemExit(2)
+
+          access_token = token_payload.get("access_token")
+          if not isinstance(access_token, str) or not access_token:
+              raise SystemExit("OAuth refresh returned no access token")
+
+          binary = str(Path(os.environ["RUNNER_TEMP"]) / "keelaryn")
+          control = Path(os.environ["RUNNER_TEMP"]) / "p0-36c-control"
+          if control.exists():
+              shutil.rmtree(control)
+
+          child_env = os.environ.copy()
+          child_env["KEELARYN_GOOGLE_DRIVE_ACCESS_TOKEN"] = access_token
+          proc = subprocess.run(
+              [binary, "google-drive-bootstrap", "--control-dir", str(control)],
+              env=child_env,
+              text=True,
+              capture_output=True,
+              check=False,
+          )
+          child_env.pop("KEELARYN_GOOGLE_DRIVE_ACCESS_TOKEN", None)
+          if proc.returncode != 0:
+              print(f"keelaryn_live_acceptance_failed rc={proc.returncode}", file=sys.stderr)
+              if proc.stderr:
+                  print(proc.stderr, file=sys.stderr)
+              raise SystemExit(proc.returncode)
+
+          result = json.loads(proc.stdout)
+          if result.get("required_scope") != required_scope:
+              raise SystemExit("runtime result scope mismatch")
+
+          doctor = subprocess.run(
+              [binary, "doctor", "--control-dir", str(control)],
+              text=True,
+              capture_output=True,
+              check=False,
+          )
+          if doctor.returncode != 0:
+              raise SystemExit(f"doctor failed rc={doctor.returncode}")
+
+          control_files = [p for p in control.rglob("*") if p.is_file()]
+          token_bytes = access_token.encode()
+          for path in control_files:
+              if token_bytes in path.read_bytes():
+                  raise SystemExit(f"access token persisted in protected control state: {path.name}")
+
+          def digest(value):
+              return hashlib.sha256(str(value).encode()).hexdigest()
+
+          evidence = {
+              "schema": "keelaryn.p0-36c-live-acceptance.v1",
+              "source_head": os.environ["GITHUB_SHA"],
+              "provider_id": result.get("provider_id"),
+              "required_scope": result.get("required_scope"),
+              "coordinator_status": result.get("coordinator_status"),
+              "publication_sequence": result.get("publication_sequence"),
+              "metadata_count": result.get("metadata_count"),
+              "scan_replayed": result.get("scan_replayed"),
+              "identity_domain_sha256": digest(result.get("identity_domain")),
+              "stream_id_sha256": digest(result.get("stream_id")),
+              "canonical_root_id_sha256": digest(result.get("canonical_root_id")),
+              "generation_id_sha256": digest(result.get("generation_id")),
+              "scan_id_sha256": digest(result.get("scan_id")),
+              "doctor_pass": True,
+              "access_token_persisted": False,
+              "drive_write_scope_requested": False,
+              "control_file_count": len(control_files),
+          }
+          Path(os.environ["KEELARYN_P036C_EVIDENCE"]).write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps({
+              "status": "PASS",
+              "required_scope": required_scope,
+              "metadata_count": evidence["metadata_count"],
+              "publication_sequence": evidence["publication_sequence"],
+              "doctor_pass": True,
+              "access_token_persisted": False,
+          }, separators=(",", ":")))
+          PY
+
+      - name: Upload sanitized live evidence
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: p0-36c-live-evidence-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ env.KEELARYN_P036C_EVIDENCE }}
+          if-no-files-found: error
+          retention-days: 3
