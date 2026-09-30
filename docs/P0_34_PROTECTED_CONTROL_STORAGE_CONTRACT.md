@@ -1,7 +1,7 @@
 # P0-34 — Protected control storage contract
 
 Date: 2026-09-30
-Status: **P0-34A PLATFORM ADAPTER FIRST SLICE**
+Status: **P0-34B RUNTIME COMPOSITION / AWAITING EXACT-HEAD CI**
 
 ## Goal
 
@@ -121,3 +121,31 @@ The adapter now resolves the existing parent physically before returning the lay
 A protected parent directory is not sufficient authority for a pre-existing child file. Existing control files therefore retain an independently verified Windows ACL boundary.
 
 The adapter now verifies every existing control entry, including SQLite `-journal`, `-wal` and `-shm` side files. On Windows each file must be a non-reparse regular file, owned by the current process user, with only the current-user / LocalSystem / Builtin Administrators full-access principals. Unexpected entries in the dedicated control directory fail closed.
+
+
+## P0-34B — executable runtime composition
+
+The supported local executable surface now derives both SQLite paths exclusively from `--control-dir`.
+
+```text
+keelaryn bootstrap-index --root <corpus> --control-dir <control>
+keelaryn search --control-dir <control> --query <literal terms>
+keelaryn context-bundle --root <corpus> --control-dir <control> --query <literal terms> --reason <task>
+```
+
+Raw `--state-db` and `--search-db` flags are removed from the executable surface. The lower-level path-taking functions remain internal P0 primitives and are not a supported runtime bypass.
+
+Before any SQLite open, the runtime:
+
+1. resolves the corpus root and its physical symlink target;
+2. resolves the physical parent of the control directory;
+3. rejects lexical or physical placement inside the corpus;
+4. creates or verifies the protected control directory.
+
+After each SQLite operation, the control directory is verified again before results are returned. A failed operation plus failed storage verification returns the joined error rather than treating partial state as safe.
+
+### Unix hard-link boundary
+
+A `0700` directory protects ordinary children, but an existing hard link could expose the same inode through another directory. Existing Unix control files therefore must be owned by the current effective UID and have link count exactly one. File mode is not forced to `0600`: the protected directory remains the normal confidentiality boundary, while the hard-link check prevents an alias from escaping it.
+
+P0-34B does not change identity schema v45 or search schema v3, does not mutate corpus bytes and does not add a new module version.

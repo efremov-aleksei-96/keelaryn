@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 207,
+  "revision": 208,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -163,7 +163,8 @@
     "P0_33_CONTEXTBUNDLE_RUNTIME_COMPOSITION_SELECTED",
     "P0_33_TASK_SPECIFIC_CONTEXTBUNDLE_RUNTIME_COMPOSITION_QUALIFIED",
     "P0_CLOSURE_REAUDIT_AFTER_P0_33_COMPLETE",
-    "P0_34_PROTECTED_CONTROL_STORAGE_SELECTED"
+    "P0_34_PROTECTED_CONTROL_STORAGE_SELECTED",
+    "P0_34_PROTECTED_CONTROL_STORAGE_RUNTIME_IMPLEMENTED"
   ],
   "next_objective": {
     "id": "P0_34_PROTECTED_CONTROL_STORAGE",
@@ -5238,7 +5239,7 @@
     }
   },
   "p0_34": {
-    "status": "ADAPTER_FILE_ACL_HARDENED_AWAITING_CI",
+    "status": "RUNTIME_COMPOSED_AWAITING_CI",
     "objective": "PROTECTED_CONTROL_STORAGE_RUNTIME_BOUNDARY",
     "finding": "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
     "dependencies_added": 0,
@@ -5263,7 +5264,7 @@
     "product_mutation_started": true,
     "contract": "docs/P0_34_PROTECTED_CONTROL_STORAGE_CONTRACT.md",
     "adapter_initial_head": "8d5d541ce366a8cbd2a916e8f059f27622265409",
-    "current_substage": "P0_34A_PLATFORM_ADAPTER",
+    "current_substage": "P0_34B_RUNTIME_COMPOSITION",
     "targeted_findings": [
       {
         "id": "P0_34A_S1_ANCESTOR_ALIAS_PHYSICAL_BOUNDARY",
@@ -5282,8 +5283,30 @@
         "severity": "SECURITY_HARDENING",
         "status": "RESOLVED_IN_PENDING_HEAD",
         "resolution": "Existing state/search and SQLite side files are verified as non-reparse regular files with restricted current-user/System/Administrators DACL; unexpected control entries fail closed"
+      },
+      {
+        "id": "P0_34B_S4_UNIX_CONTROL_FILE_HARDLINK_ALIAS",
+        "severity": "SECURITY_HARDENING",
+        "status": "RESOLVED_IN_PENDING_HEAD",
+        "resolution": "Existing Unix control files must be owned by current euid and have link count exactly one"
       }
     ],
-    "security_basis": "Windows existing child files require their own ACL verification; the protected parent alone is not treated as sufficient authority"
+    "security_basis": "Windows existing child files require their own ACL verification; the protected parent alone is not treated as sufficient authority",
+    "adapter_head": "b406cb789f9da6fcf241b955d7d86b3987bc7692",
+    "pre_runtime_baseline_ci_run_id": 36628601216,
+    "executable_surface": "CONTROL_DIR_ONLY",
+    "authority_schema_version": 45,
+    "search_cache_schema_version": 3,
+    "commands": [
+      "keelaryn bootstrap-index --root <corpus> --control-dir <control>",
+      "keelaryn search --control-dir <control> --query <literal terms>",
+      "keelaryn context-bundle --root <corpus> --control-dir <control> --query <literal terms> --reason <task>"
+    ],
+    "runtime_invariants": [
+      "PHYSICAL_CONTROL_PARENT_RESOLVED_BEFORE_MUTATION",
+      "PHYSICAL_CORPUS_ROOT_COMPARED_BEFORE_CONTROL_CREATION",
+      "CONTROL_STORAGE_VERIFIED_BEFORE_AND_AFTER_SQLITE_OPERATION",
+      "EXECUTABLE_HAS_NO_RAW_STATE_DB_OR_SEARCH_DB_FLAG_BYPASS"
+    ]
   }
 }

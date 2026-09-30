@@ -38,7 +38,6 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if *root == "" {
 			return errors.New("scan requires --root")
 		}
-
 		discoverer := localfs.New(corpus.ProviderID("localfs"))
 		observations, err := discoverer.Discover(context.Background(), *root)
 		if err != nil {
@@ -50,17 +49,16 @@ func run(args []string, stdout, stderr io.Writer) error {
 		flags := flag.NewFlagSet("bootstrap-index", flag.ContinueOnError)
 		flags.SetOutput(stderr)
 		root := flags.String("root", "", "existing local corpus directory")
-		stateDB := flags.String("state-db", "", "runtime-local Keelaryn state database path outside the corpus")
-		searchDB := flags.String("search-db", "", "runtime-local derived search database path outside the corpus")
+		controlDir := flags.String("control-dir", "", "dedicated protected Keelaryn control directory outside the corpus")
 		maxBytes := flags.Int64("max-bytes", 4*1024*1024, "maximum bytes read from one supported text file")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
-		if *root == "" || *stateDB == "" || *searchDB == "" {
-			return errors.New("bootstrap-index requires --root, --state-db and --search-db")
+		if *root == "" || *controlDir == "" {
+			return errors.New("bootstrap-index requires --root and --control-dir")
 		}
-		result, err := localruntime.BootstrapIndex(context.Background(), localruntime.IndexOptions{
-			Root: *root, StateDB: *stateDB, SearchDB: *searchDB,
+		result, err := localruntime.BootstrapProtectedIndex(context.Background(), localruntime.ProtectedIndexOptions{
+			Root: *root, ControlDir: *controlDir,
 			ObservedAt: time.Now().UTC(), MaxBytes: *maxBytes,
 		})
 		if err != nil {
@@ -71,28 +69,26 @@ func run(args []string, stdout, stderr io.Writer) error {
 	case "search":
 		flags := flag.NewFlagSet("search", flag.ContinueOnError)
 		flags.SetOutput(stderr)
-		searchDB := flags.String("search-db", "", "runtime-local derived search database path")
+		controlDir := flags.String("control-dir", "", "existing protected Keelaryn control directory")
 		query := flags.String("query", "", "literal all-terms search query")
 		limit := flags.Int("limit", 20, "maximum search hits (1-100)")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
-		if *searchDB == "" || *query == "" {
-			return errors.New("search requires --search-db and --query")
+		if *controlDir == "" || *query == "" {
+			return errors.New("search requires --control-dir and --query")
 		}
-		hits, err := localruntime.Query(context.Background(), *searchDB, *query, *limit)
+		hits, err := localruntime.QueryProtected(context.Background(), *controlDir, *query, *limit)
 		if err != nil {
 			return err
 		}
 		return encodeJSON(stdout, hits)
 
-
 	case "context-bundle":
 		flags := flag.NewFlagSet("context-bundle", flag.ContinueOnError)
 		flags.SetOutput(stderr)
 		root := flags.String("root", "", "existing local corpus directory")
-		stateDB := flags.String("state-db", "", "existing runtime-local Keelaryn state database")
-		searchDB := flags.String("search-db", "", "existing runtime-local derived search database")
+		controlDir := flags.String("control-dir", "", "existing protected Keelaryn control directory")
 		query := flags.String("query", "", "literal all-terms search query")
 		reason := flags.String("reason", "", "explicit task reason for selected context")
 		limit := flags.Int("limit", 20, "maximum search hits (1-100)")
@@ -100,11 +96,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
-		if *root == "" || *stateDB == "" || *searchDB == "" || *query == "" || *reason == "" {
-			return errors.New("context-bundle requires --root, --state-db, --search-db, --query and --reason")
+		if *root == "" || *controlDir == "" || *query == "" || *reason == "" {
+			return errors.New("context-bundle requires --root, --control-dir, --query and --reason")
 		}
-		bundle, err := localruntime.BuildContext(context.Background(), localruntime.ContextOptions{
-			Root: *root, StateDB: *stateDB, SearchDB: *searchDB,
+		bundle, err := localruntime.BuildProtectedContext(context.Background(), localruntime.ProtectedContextOptions{
+			Root: *root, ControlDir: *controlDir,
 			Query: *query, Reason: *reason, Limit: *limit, MaxBytes: *maxBytes,
 		})
 		if err != nil {

@@ -46,6 +46,19 @@ func verifyProtectedDir(path string) error {
 	return nil
 }
 
-func verifyControlFile(string) error {
+func verifyControlFile(path string) error {
+	var stat unix.Stat_t
+	if err := unix.Lstat(path, &stat); err != nil {
+		return fmt.Errorf("read control file metadata: %w", err)
+	}
+	if stat.Mode&unix.S_IFMT != unix.S_IFREG {
+		return fmt.Errorf("control file is not regular")
+	}
+	if int(stat.Uid) != unix.Geteuid() {
+		return fmt.Errorf("control file owner uid=%d current euid=%d", stat.Uid, unix.Geteuid())
+	}
+	if stat.Nlink != 1 {
+		return fmt.Errorf("control file link count=%d want=1", stat.Nlink)
+	}
 	return nil
 }
