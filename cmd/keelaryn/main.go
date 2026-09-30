@@ -18,6 +18,9 @@ import (
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
+		if errors.Is(err, doctor.ErrFailed) {
+			os.Exit(1)
+		}
 		fmt.Fprintln(os.Stderr, "keelaryn:", err)
 		os.Exit(1)
 	}

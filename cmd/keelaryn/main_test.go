@@ -179,3 +179,27 @@ func TestDoctorThroughExecutableSurface(t *testing.T) {
 		t.Fatalf("report=%#v", report)
 	}
 }
+
+
+func TestDoctorFailureKeepsFindingsOnStdoutOnly(t *testing.T) {
+	control := filepath.Join(t.TempDir(), "missing")
+	var stdout, stderr bytes.Buffer
+
+	err := run([]string{"doctor", "--control-dir", control}, &stdout, &stderr)
+	if !errors.Is(err, doctor.ErrFailed) {
+		t.Fatalf("error=%v want doctor.ErrFailed", err)
+	}
+	var report doctor.Report
+	if decodeErr := json.Unmarshal(stdout.Bytes(), &report); decodeErr != nil {
+		t.Fatalf("decode doctor failure report: %v\n%s", decodeErr, stdout.String())
+	}
+	if report.Passed() {
+		t.Fatalf("failure report unexpectedly passed: %#v", report)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("doctor failure emitted unstructured stderr: %q", stderr.String())
+	}
+	if _, statErr := os.Stat(control); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("doctor created missing control directory: %v", statErr)
+	}
+}
