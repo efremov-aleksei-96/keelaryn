@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 213,
+  "revision": 214,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -174,14 +174,16 @@
     "P0_35B_DISPOSABLE_SELFTEST_QUALIFIED",
     "P0_35_DOCTOR_SELFTEST_QUALIFIED",
     "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_RESOLVED",
-    "P0_35_BOUNDARY_RETROSPECTIVE_PASS"
+    "P0_35_BOUNDARY_RETROSPECTIVE_PASS",
+    "P0_36_LIVE_PROVIDER_BOUNDARY_REVIEW_STARTED",
+    "P0_36A_PROVIDER_NEUTRAL_METADATA_OPTIONALITY_CONTRACT_DECIDED"
   ],
   "next_objective": {
-    "id": "P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
-    "description": "Resolve the next P0 closure gate by qualifying a bounded live remote-provider runtime over the already-implemented RemoteHistory/Google Drive pipeline. Begin with read-only reconciliation and an explicit trust-boundary/runtime contract; reuse the existing official Drive client and durable authority mechanisms. Do not mutate user corpus content, do not expose MCP/HTTP/web yet, and never repeat a provider/control-state mutation after interruption without reconciling durable prestate.",
+    "id": "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS",
+    "description": "Resolve P0-36_B1 before any live provider wiring. Make provider metadata fact availability explicit in the durable Observation model without fabricating values; preserve existing local semantics and historical LIGHTWEIGHT_ALL:v1 replay; introduce an exact v2 snapshot/policy pair for optional provider facts and update transaction/fingerprint guards accordingly. Run cross-platform qualification and a structural retrospective/full risk audit before enabling live Google runtime.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "P0_35_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_H4_RESOLVED_LIVE_PROVIDER_BOUNDARY_REVIEW_REQUIRED"
+    "audit_gate": "P0_36_B1_OPEN_NO_LIVE_PROVIDER_RUNTIME_UNTIL_OPTIONAL_FACTS_QUALIFIED"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4412,16 +4414,16 @@
     "last_retrospective": "docs/P0_35_DOCTOR_SELFTEST_RETROSPECTIVE_20260930.md",
     "last_retrospective_result": "PASS_P0_35_H4_RESOLVED_ZERO_NEW_BLOCKER_CRITICAL",
     "substantive_slice_counter": 0,
-    "current_stage": "P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
+    "current_stage": "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
     "clean_pass_definition": "ONE_COMPLETE_POST_REMEDIATION_AUDIT_PASS_ACROSS_ALL_REQUIRED_DIMENSIONS_WITH_ZERO_OPEN_BLOCKER_OR_CRITICAL_FINDINGS",
     "on_any_new_finding": "DURING_COLLECTION_RECORD_AND_CONTINUE; DURING_REMEDIATION RECORD_AND_ADD_ANY_NEW_BLOCKER_OR_CRITICAL_TO_THE_CURRENT_REMEDIATION_SET_WITHOUT_STARTING_A_FULL_REAUDIT",
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
-    "next_stage_locked": false,
-    "blocked_next_stage": null,
-    "unlock_condition": "P0_35_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_H4_RESOLVED",
+    "next_stage_locked": true,
+    "blocked_next_stage": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
+    "unlock_condition": "P0_36A_OPTIONAL_FACTS_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_AND_STRUCTURAL_AUDIT_PASS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -4461,6 +4463,15 @@
         "required_correction": "Choose and prove an Android-capable durable state substrate or intentionally platform-specific backend behind the stable Keelaryn state contract. Add at minimum Android/arm64 compile coverage, then emulator/device filesystem+SQLite smoke tests and later SAF/DocumentProvider acceptance. Do not infer Android support from CGO-free implementation alone.",
         "gate_scope": "PORTABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE",
         "external_evidence": "modernc.org/sqlite v1.37.1 doc.go supported-platform matrix omits android; current go.mod pins modernc.org/sqlite v1.37.1 through zombiezen.com/go/sqlite v1.4.2."
+      },
+      {
+        "id": "P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY",
+        "severity": "BLOCKER",
+        "status": "OPEN",
+        "scope": "P0_36_LIVE_REMOTE_PROVIDER_RUNTIME",
+        "discovered_at_head": "9cc044a352cae8c5fe8c18d0874f1d5040725eaa",
+        "description": "Current durable Observation and LIGHTWEIGHT_ALL:v1 require size/mode/modified_at for every provider object. Google Drive does not expose POSIX mode at all and omits size for objects such as folders and shortcuts. Fabricating zero/default values would violate provider-neutral immutable-evidence semantics and the P0-30 contract.",
+        "required_resolution": "Represent unavailable observation metadata explicitly without inventing provider facts; preserve v1 historical replay; add a new exact snapshot/policy version for optional facts; only then wire live Google metadata/runtime."
       }
     ],
     "resolved_findings": [
@@ -5479,5 +5490,27 @@
     "qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, Go tests and Go vet all PASS",
     "retrospective": "docs/P0_35_DOCTOR_SELFTEST_RETROSPECTIVE_20260930.md",
     "h4_status": "RESOLVED"
+  },
+  "p0_36": {
+    "status": "PREREQUISITE_BLOCKER_FOUND",
+    "contract": "docs/P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_CONTRACT.md",
+    "current_substage": "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS",
+    "blocker": "P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY",
+    "evidence": {
+      "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
+      "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
+      "current_product": "Observation DB/API and LIGHTWEIGHT_ALL:v1 require size, mode and modified_at for every entry"
+    },
+    "rejected_shortcuts": [
+      "fabricate size=0 or mode=0 and call them provider facts",
+      "exclude folders/shortcuts from an otherwise complete managed-root inventory",
+      "qualify history-only live access while leaving Observation materialization unreachable",
+      "create a second provider-specific inventory or metadata authority"
+    ],
+    "planned_substages": [
+      "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS",
+      "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
+      "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE"
+    ]
   }
 }
