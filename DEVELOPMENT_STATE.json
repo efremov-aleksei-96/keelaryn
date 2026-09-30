@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 216,
+  "revision": 217,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -183,7 +183,8 @@
     "P0_36A_BOUNDARY_RETROSPECTIVE_PASS",
     "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION_IMPLEMENTED",
     "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION_QUALIFIED",
-    "P0_36B_BOUNDARY_RETROSPECTIVE_PASS"
+    "P0_36B_BOUNDARY_RETROSPECTIVE_PASS",
+    "P0_36C_EXECUTABLE_RUNTIME_SURFACE_QUALIFIED"
   ],
   "next_objective": {
     "id": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
@@ -5507,14 +5508,14 @@
     "h4_status": "RESOLVED"
   },
   "p0_36": {
-    "status": "P0_36B_QUALIFIED_P0_36C_NEXT",
+    "status": "P0_36C_EXECUTABLE_QUALIFIED_LIVE_ACCEPTANCE_PENDING",
     "contract": "docs/P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_CONTRACT.md",
     "current_substage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
     "blocker": null,
     "evidence": {
       "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
       "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
-      "current_product": "P0-36A provider-neutral optional Observation facts and P0-36B Google metadata bootstrap/runtime composition are qualified; authenticated executable real-provider acceptance remains outstanding."
+      "current_product": "P0-36A and P0-36B are qualified; the P0-36C authenticated executable/runtime surface is exact-head cross-platform qualified, while real token-backed Google Drive acceptance remains outstanding."
     },
     "rejected_shortcuts": [
       "fabricate size=0 or mode=0 and call them provider facts",
@@ -5579,6 +5580,25 @@
         "NO_GOOGLE_DRIVE_WRITE_API_OR_WRITE_SCOPE",
         "NO_OAUTH_OR_LIVE_PROVIDER_ACCEPTANCE_YET"
       ]
+    },
+    "p0_36c": {
+      "status": "EXECUTABLE_QUALIFIED_LIVE_ACCEPTANCE_PENDING",
+      "implementation_head": "eadbba916f607ed7a03b5a0be4bcbcde0aa91182",
+      "qualification_head": "09363714673d3c92fc89f2200d8b9de5ec908545",
+      "qualification_ci_run_id": 36749826725,
+      "qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, Go tests and Go vet all PASS",
+      "runtime_surface": "keelaryn google-drive-bootstrap",
+      "required_scope": "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "credential_transport": "temporary access token supplied through an environment variable; raw token CLI argument rejected",
+      "provider_identity": "Google Drive about.user.permissionId",
+      "protected_control_state": true,
+      "drive_write_api_used": false,
+      "drive_write_scope_requested": false,
+      "token_persisted": false,
+      "live_provider_used": false,
+      "live_acceptance_qualified": false,
+      "corpus_mutations": 0,
+      "remaining_gate": "REAL_AUTHENTICATED_GOOGLE_DRIVE_METADATA_ONLY_EXECUTABLE_ACCEPTANCE"
     }
   }
 }

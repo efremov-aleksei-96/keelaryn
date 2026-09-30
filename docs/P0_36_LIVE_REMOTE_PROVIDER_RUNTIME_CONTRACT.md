@@ -1,8 +1,8 @@
 # P0-36 — Live Remote Provider Runtime Contract
 
 Date: 2026-09-30  
-Status: **P0-36A QUALIFIED / P0-36B QUALIFIED / P0-36C NEXT**
-Live provider authorization: **P0-36C READ-ONLY ACCEPTANCE ONLY; NOT YET QUALIFIED**
+Status: **P0-36A QUALIFIED / P0-36B QUALIFIED / P0-36C EXECUTABLE QUALIFIED — LIVE ACCEPTANCE PENDING**
+Live provider authorization: **P0-36C READ-ONLY ACCEPTANCE ONLY; EXECUTABLE QUALIFIED, REAL PROVIDER ACCEPTANCE NOT YET QUALIFIED**
 Corpus mutation: **FORBIDDEN**
 
 ## 1. Goal
@@ -145,6 +145,16 @@ Runtime composition must reuse:
 ## 6. P0-36C — authenticated executable live acceptance
 
 The final gate requires a real authenticated provider read through a supported executable/runtime surface.
+
+Current checkpoint after exact-head qualification:
+
+- supported command: `keelaryn google-drive-bootstrap`;
+- exact-head qualification: `09363714673d3c92fc89f2200d8b9de5ec908545`, CI `36749826725` — validate, Ubuntu 24.04 and Windows 2025 PASS;
+- temporary access token is accepted only through an environment variable; a raw token CLI argument is rejected;
+- granted scope is validated before protected control-state mutation;
+- provider identity is derived read-only from Drive `about.user.permissionId`;
+- no Drive write API/scope is present in the qualified runtime surface;
+- **real token-backed Google Drive execution is still pending and P0-36C is not yet closed**.
 
 Authorization requirements:
 
