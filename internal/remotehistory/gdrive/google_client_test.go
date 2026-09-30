@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	drive "google.golang.org/api/drive/v3"
@@ -124,6 +125,68 @@ func TestGoogleClientMyDriveBinding(t *testing.T) {
 	assertQuery(t, queries[1], "includeItemsFromAllDrives", "false")
 	assertQuery(t, queries[1], "includeRemoved", "true")
 	assertQuery(t, queries[1], "spaces", "drive")
+}
+
+func TestGoogleClientRequestsAndDecodesOptionalMetadataFacts(t *testing.T) {
+	var requests []capturedRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, capturedRequest{path: r.URL.Path, query: r.URL.Query()})
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/files":
+			_, _ = w.Write([]byte(`{"files":[{"id":"blob-zero","parents":["actual-root-id"],"mimeType":"application/octet-stream","size":"0","modifiedTime":"2026-09-30T10:00:00Z"},{"id":"folder","parents":["actual-root-id"],"mimeType":"application/vnd.google-apps.folder","modifiedTime":"2026-09-30T10:01:00Z"},{"id":"native","parents":["actual-root-id"],"mimeType":"application/vnd.google-apps.document","size":"12","modifiedTime":"2026-09-30T10:02:00Z"}]}`))
+		case "/changes":
+			_, _ = w.Write([]byte(`{"newStartPageToken":"cursor-2","changes":[{"changeType":"file","fileId":"blob-zero","removed":false,"file":{"id":"blob-zero","parents":["actual-root-id"],"mimeType":"application/octet-stream","size":"0","modifiedTime":"2026-09-30T10:03:00Z"}}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client, err := gdrive.NewGoogleClient(mustTestService(t, server))
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := gdrive.Config{
+		IdentityDomain: "google-drive:user:user-1",
+		StreamID:       "google-drive:user:user-1:my-drive:changes",
+		Root:           "actual-root-id",
+		Kind:           gdrive.StreamMyDrive,
+	}
+	files, err := client.ListFiles(context.Background(), config, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files.Files) != 3 {
+		t.Fatalf("files=%#v", files.Files)
+	}
+	if got := files.Files[0]; !got.SizeKnown || got.Size != 0 || got.MimeType != "application/octet-stream" || got.ModifiedTime == "" {
+		t.Fatalf("zero-byte blob metadata=%#v", got)
+	}
+	if got := files.Files[1]; got.SizeKnown || got.MimeType != "application/vnd.google-apps.folder" {
+		t.Fatalf("folder invented size=%#v", got)
+	}
+	if got := files.Files[2]; !got.SizeKnown || got.Size != 12 || got.MimeType != "application/vnd.google-apps.document" {
+		t.Fatalf("native metadata=%#v", got)
+	}
+	changes, err := client.ListChanges(context.Background(), config, "cursor-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes.Changes) != 1 || changes.Changes[0].File == nil || !changes.Changes[0].File.SizeKnown {
+		t.Fatalf("changes=%#v", changes)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("requests=%#v", requests)
+	}
+	for _, request := range requests {
+		fields := request.query.Get("fields")
+		for _, want := range []string{"mimeType", "size", "modifiedTime"} {
+			if !strings.Contains(fields, want) {
+				t.Fatalf("fields=%q missing %q", fields, want)
+			}
+		}
+	}
 }
 
 func TestGoogleClientResolvesCanonicalMyDriveRootID(t *testing.T) {

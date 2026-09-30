@@ -121,6 +121,61 @@ func (c *TopologyCoordinator) Bootstrap(
 	}, nil
 }
 
+type MetadataCoordinatorResult struct {
+	Coordinator remotehistory.CoordinatorResult
+	Bootstrap   BootstrapMetadataBundle
+}
+
+// BootstrapWithMetadata is the P0 live-provider bootstrap path. It preserves
+// the existing durable coordinator transaction while returning only transient
+// metadata captured by the exact bundle that was committed.
+func (c *TopologyCoordinator) BootstrapWithMetadata(
+	ctx context.Context,
+	committedAt time.Time,
+) (MetadataCoordinatorResult, error) {
+	if committedAt.IsZero() {
+		return MetadataCoordinatorResult{}, remotehistory.ErrInvalidCoordinator
+	}
+	active, found, err := c.store.ActiveRemoteHistoryGeneration(ctx, c.scope)
+	if err != nil {
+		return MetadataCoordinatorResult{}, err
+	}
+	if found {
+		if active.Scope != c.scope {
+			return MetadataCoordinatorResult{}, remotehistory.ErrCoordinatorScopeMismatch
+		}
+		if active.ScopePolicyFingerprint != c.fingerprint {
+			return MetadataCoordinatorResult{}, remotehistory.ErrCoordinatorPolicyMismatch
+		}
+		return MetadataCoordinatorResult{Coordinator: remotehistory.CoordinatorResult{
+			Status: remotehistory.CoordinatorAlreadyActive, Generation: active,
+		}}, nil
+	}
+
+	bundle, err := c.adapter.BootstrapWithMetadata(ctx, c.scope)
+	if err != nil {
+		return MetadataCoordinatorResult{Coordinator: remotehistory.CoordinatorResult{Status: remotehistory.CoordinatorNoMutation}}, err
+	}
+	if bundle.Bundle.History.Status != remotehistory.BootstrapComplete {
+		return MetadataCoordinatorResult{Coordinator: remotehistory.CoordinatorResult{
+			Status: remotehistory.CoordinatorNoMutation, BootstrapStatus: bundle.Bundle.History.Status,
+		}, Bootstrap: bundle}, nil
+	}
+	generation, err := c.store.StartGoogleDriveRemoteHistoryGeneration(
+		ctx, c.scope, c.fingerprint, bundle.Bundle, committedAt,
+	)
+	if err != nil {
+		return MetadataCoordinatorResult{Coordinator: remotehistory.CoordinatorResult{Status: remotehistory.CoordinatorNoMutation}}, err
+	}
+	return MetadataCoordinatorResult{
+		Coordinator: remotehistory.CoordinatorResult{
+			Status: remotehistory.CoordinatorBootstrapCommitted, Generation: generation,
+			BootstrapStatus: bundle.Bundle.History.Status,
+		},
+		Bootstrap: bundle,
+	}, nil
+}
+
 func (c *TopologyCoordinator) Advance(
 	ctx context.Context,
 	expected remotehistory.ExpectedHistoryPrestate,

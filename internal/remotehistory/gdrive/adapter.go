@@ -43,6 +43,10 @@ type FileRecord struct {
 	DriveID          string
 	Trashed          bool
 	ShortcutTargetID string
+	MimeType         string
+	Size             int64
+	SizeKnown        bool
+	ModifiedTime     string
 }
 
 type FilePage struct {

@@ -61,6 +61,173 @@ func (a *Adapter) BootstrapWithTopology(ctx context.Context, scope remotehistory
 	return out, nil
 }
 
+// BootstrapWithMetadata captures provider metadata inside the same
+// StartPageToken -> enumeration -> changes catch-up fence as RemoteHistory.
+// Metadata is transient and must only be persisted through the generic
+// Observation/materialization authority.
+func (a *Adapter) BootstrapWithMetadata(
+	ctx context.Context,
+	scope remotehistory.Scope,
+) (BootstrapMetadataBundle, error) {
+	if !a.matches(scope) {
+		return BootstrapMetadataBundle{
+			Bundle: BootstrapBundle{History: bootstrapFailure(scope.StreamID, remotehistory.BootstrapScopeMismatch)},
+		}, nil
+	}
+
+	fence, err := a.client.StartPageToken(ctx, a.config)
+	if err != nil {
+		history, mappedErr := a.bootstrapClientFailure(scope.StreamID, err)
+		return BootstrapMetadataBundle{Bundle: BootstrapBundle{History: history}}, mappedErr
+	}
+	if strings.TrimSpace(fence) == "" {
+		return BootstrapMetadataBundle{}, fmt.Errorf("%w: empty start page token", ErrInvalidClientResponse)
+	}
+
+	files, err := a.enumerateFiles(ctx)
+	if err != nil {
+		history, mappedErr := a.bootstrapClientFailure(scope.StreamID, err)
+		return BootstrapMetadataBundle{Bundle: BootstrapBundle{History: history}}, mappedErr
+	}
+	objects := a.initialObjects(files)
+	topology, err := topologyForObjects(files, objects)
+	if err != nil {
+		return BootstrapMetadataBundle{}, err
+	}
+	objectSet := make(map[corpus.ProviderObjectID]struct{}, len(objects))
+	for objectID := range objects {
+		objectSet[objectID] = struct{}{}
+	}
+	metadata, err := metadataForObjects(files, objectSet)
+	if err != nil {
+		return BootstrapMetadataBundle{}, err
+	}
+
+	cursor, err := a.catchUpWithMetadata(ctx, fence, objects, topology, metadata)
+	if err != nil {
+		history, mappedErr := a.bootstrapClientFailure(scope.StreamID, err)
+		return BootstrapMetadataBundle{Bundle: BootstrapBundle{History: history}}, mappedErr
+	}
+	history := remotehistory.BootstrapResult{
+		StreamID: scope.StreamID,
+		Status:   remotehistory.BootstrapComplete,
+		Objects:  sortedObjects(objects),
+		Cursor:   remotehistory.HistoryCursor(cursor),
+		Coverage: corpus.ProviderHistoryContinuous,
+	}
+	if err := remotehistory.ValidateBootstrap(scope, history); err != nil {
+		return BootstrapMetadataBundle{}, err
+	}
+	out := BootstrapMetadataBundle{
+		Bundle: BootstrapBundle{
+			History:  history,
+			Topology: sortedTopologyStates(topology),
+		},
+		Metadata: sortedMetadataRecords(metadata),
+	}
+	if err := validateBootstrapMetadataBundle(out); err != nil {
+		return BootstrapMetadataBundle{}, err
+	}
+	return out, nil
+}
+
+func (a *Adapter) catchUpWithMetadata(
+	ctx context.Context,
+	fence string,
+	objects map[corpus.ProviderObjectID]remotehistory.RemoteObjectState,
+	topology map[corpus.ProviderObjectID]TopologyState,
+	metadata map[corpus.ProviderObjectID]MetadataRecord,
+) (string, error) {
+	seen := map[string]struct{}{fence: {}}
+	token := fence
+	for {
+		page, err := a.client.ListChanges(ctx, a.config, token)
+		if err != nil {
+			return "", err
+		}
+		changes, topologyChanges, metadataChanges, err := a.convertChangesWithMetadata(page.Changes)
+		if err != nil {
+			return "", err
+		}
+		for i, change := range changes {
+			switch change.Kind {
+			case remotehistory.ChangeUpsert:
+				objects[change.ObjectID] = *change.State
+				topology[change.ObjectID] = topologyChanges[i]
+				metadata[change.ObjectID] = metadataChanges[i]
+			case remotehistory.ChangeRemoved:
+				delete(objects, change.ObjectID)
+				delete(topology, change.ObjectID)
+				delete(metadata, change.ObjectID)
+			default:
+				return "", remotehistory.ErrInvalidHistoryPage
+			}
+		}
+		next := strings.TrimSpace(page.NextPageToken)
+		terminal := strings.TrimSpace(page.NewStartPageToken)
+		if next != "" && terminal != "" || next == "" && terminal == "" {
+			return "", fmt.Errorf("%w: expected exactly one next or terminal token", ErrInvalidClientResponse)
+		}
+		if terminal != "" {
+			return terminal, nil
+		}
+		if _, duplicate := seen[next]; duplicate {
+			return "", fmt.Errorf("%w: repeated change page token", ErrInvalidClientResponse)
+		}
+		seen[next] = struct{}{}
+		token = next
+	}
+}
+
+func (a *Adapter) convertChangesWithMetadata(
+	records []ChangeRecord,
+) ([]remotehistory.RemoteChange, []TopologyState, []MetadataRecord, error) {
+	changes := make([]remotehistory.RemoteChange, 0, len(records))
+	topology := make([]TopologyState, 0, len(records))
+	metadata := make([]MetadataRecord, 0, len(records))
+	for _, record := range records {
+		if record.ChangeType != "" && record.ChangeType != "file" {
+			continue
+		}
+		id := strings.TrimSpace(record.FileID)
+		if id == "" && record.File != nil {
+			id = strings.TrimSpace(record.File.ID)
+		}
+		if id == "" {
+			return nil, nil, nil, fmt.Errorf("%w: file change without file ID", ErrInvalidClientResponse)
+		}
+		objectID := corpus.ProviderObjectID(id)
+		if record.Removed {
+			changes = append(changes, remotehistory.RemoteChange{Kind: remotehistory.ChangeRemoved, ObjectID: objectID})
+			topology = append(topology, unavailableTopologyState(objectID))
+			metadata = append(metadata, MetadataRecord{ObjectID: objectID})
+			continue
+		}
+		if record.File == nil || strings.TrimSpace(record.File.ID) != id {
+			return nil, nil, nil, fmt.Errorf("%w: current file state missing or ID mismatch", ErrInvalidClientResponse)
+		}
+		if record.File.Trashed || !a.fileBelongsToStream(*record.File) {
+			changes = append(changes, remotehistory.RemoteChange{Kind: remotehistory.ChangeRemoved, ObjectID: objectID})
+			topology = append(topology, unavailableTopologyState(objectID))
+			metadata = append(metadata, MetadataRecord{ObjectID: objectID})
+			continue
+		}
+		historyState := a.objectState(id)
+		topologyState, err := topologyStateFromFile(*record.File)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		metadataState, err := metadataRecordFromFile(*record.File)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		changes = append(changes, remotehistory.RemoteChange{Kind: remotehistory.ChangeUpsert, ObjectID: objectID, State: &historyState})
+		topology = append(topology, topologyState)
+		metadata = append(metadata, metadataState)
+	}
+	return changes, topology, metadata, nil
+}
+
 func (a *Adapter) ReadChangesWithTopology(
 	ctx context.Context,
 	scope remotehistory.Scope,

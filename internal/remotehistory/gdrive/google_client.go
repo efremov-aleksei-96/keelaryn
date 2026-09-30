@@ -64,7 +64,7 @@ func (c *GoogleClient) ListFiles(ctx context.Context, config Config, pageToken s
 	call := c.service.Files.List().
 		Context(ctx).
 		Spaces("drive").
-		Fields("nextPageToken,files(id,parents,driveId,trashed,shortcutDetails(targetId))")
+		Fields("nextPageToken,files(id,parents,driveId,trashed,shortcutDetails(targetId),mimeType,size,modifiedTime)")
 
 	switch config.Kind {
 	case StreamSharedDrive:
@@ -102,7 +102,7 @@ func (c *GoogleClient) ListChanges(ctx context.Context, config Config, pageToken
 		Context(ctx).
 		IncludeRemoved(true).
 		Spaces("drive").
-		Fields("nextPageToken,newStartPageToken,changes(changeType,fileId,removed,file(id,parents,driveId,trashed,shortcutDetails(targetId)))")
+		Fields("nextPageToken,newStartPageToken,changes(changeType,fileId,removed,file(id,parents,driveId,trashed,shortcutDetails(targetId),mimeType,size,modifiedTime))")
 
 	switch config.Kind {
 	case StreamSharedDrive:
@@ -145,13 +145,40 @@ func (c *GoogleClient) ListChanges(ctx context.Context, config Config, pageToken
 
 func fileRecordFromGoogle(file *drive.File) FileRecord {
 	record := FileRecord{
-		ID:      file.Id,
-		Parents: append([]string(nil), file.Parents...),
-		DriveID: file.DriveId,
-		Trashed: file.Trashed,
+		ID:           file.Id,
+		Parents:      append([]string(nil), file.Parents...),
+		DriveID:      file.DriveId,
+		Trashed:      file.Trashed,
+		MimeType:     file.MimeType,
+		Size:         file.Size,
+		SizeKnown:    googleFileSizeKnown(file),
+		ModifiedTime: file.ModifiedTime,
 	}
 	if file.ShortcutDetails != nil {
 		record.ShortcutTargetID = file.ShortcutDetails.TargetId
 	}
 	return record
+}
+
+func googleFileSizeKnown(file *drive.File) bool {
+	if file == nil {
+		return false
+	}
+	mime := strings.TrimSpace(file.MimeType)
+	switch mime {
+	case googleFolderMIMEType, googleShortcutMIMEType, googleDriveSDKMIMEType:
+		return false
+	}
+	if file.Size != 0 {
+		return true
+	}
+	if mime == "" {
+		return false
+	}
+	// The generated Drive client represents size as an int64, so a missing
+	// provider field and an explicit zero decode to the same Go value. A blob
+	// MIME type is sufficient provider evidence that size is defined; for
+	// Google-native types with a zero value we remain conservative and leave
+	// availability unknown rather than fabricate a fact.
+	return !strings.HasPrefix(mime, "application/vnd.google-apps.")
 }
