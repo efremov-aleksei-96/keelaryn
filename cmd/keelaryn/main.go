@@ -8,14 +8,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
-	"github.com/efremov-aleksei-96/keelaryn/internal/selftest"
 	"github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
+	gdriveruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/gdrive"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
+	"github.com/efremov-aleksei-96/keelaryn/internal/selftest"
 )
+
+var bootstrapGoogleDriveReadOnly = gdriveruntime.BootstrapReadOnly
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -29,7 +33,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle|doctor|self-test> [options]")
+		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle|google-drive-bootstrap|doctor|self-test> [options]")
 	}
 
 	switch args[0] {
@@ -113,6 +117,38 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		return encodeJSON(stdout, bundle)
 
+	case "google-drive-bootstrap":
+		flags := flag.NewFlagSet("google-drive-bootstrap", flag.ContinueOnError)
+		flags.SetOutput(stderr)
+		controlDir := flags.String("control-dir", "", "dedicated protected Keelaryn control directory")
+		accessTokenEnv := flags.String("access-token-env", "KEELARYN_GOOGLE_DRIVE_ACCESS_TOKEN", "environment variable containing a temporary Google OAuth access token")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 0 {
+			return errors.New("google-drive-bootstrap accepts no positional arguments")
+		}
+		if *controlDir == "" {
+			return errors.New("google-drive-bootstrap requires --control-dir")
+		}
+		envName := strings.TrimSpace(*accessTokenEnv)
+		if envName == "" {
+			return errors.New("google-drive-bootstrap requires non-empty --access-token-env")
+		}
+		accessToken := strings.TrimSpace(os.Getenv(envName))
+		if accessToken == "" {
+			return fmt.Errorf("google-drive-bootstrap requires a non-empty access token in environment variable %s", envName)
+		}
+		result, err := bootstrapGoogleDriveReadOnly(context.Background(), gdriveruntime.Options{
+			ControlDir:  *controlDir,
+			AccessToken: accessToken,
+			ObservedAt:  time.Now().UTC(),
+		})
+		if err != nil {
+			return err
+		}
+		return encodeJSON(stdout, result)
+
 	case "doctor":
 		flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
 		flags.SetOutput(stderr)
@@ -149,7 +185,6 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return selftest.ErrFailed
 		}
 		return nil
-
 
 	default:
 		return fmt.Errorf("unknown command %q", args[0])

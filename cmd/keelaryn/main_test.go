@@ -2,18 +2,21 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
-	"github.com/efremov-aleksei-96/keelaryn/internal/selftest"
+	gdriveruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/gdrive"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
+	"github.com/efremov-aleksei-96/keelaryn/internal/selftest"
 )
 
 func TestScanOutputsObservationsWithoutInventingIdentity(t *testing.T) {
@@ -154,6 +157,94 @@ func TestExecutableRejectsRawDatabasePathBypass(t *testing.T) {
 	}
 }
 
+func TestGoogleDriveBootstrapReadsTokenFromEnvironmentWithoutEmittingIt(t *testing.T) {
+	const token = "cli-secret-token-never-output"
+	const envName = "KEELARYN_TEST_GOOGLE_TOKEN"
+	t.Setenv(envName, token)
+	control := filepath.Join(t.TempDir(), "control")
+
+	original := bootstrapGoogleDriveReadOnly
+	t.Cleanup(func() { bootstrapGoogleDriveReadOnly = original })
+	var captured gdriveruntime.Options
+	bootstrapGoogleDriveReadOnly = func(_ context.Context, options gdriveruntime.Options) (gdriveruntime.Result, error) {
+		captured = options
+		return gdriveruntime.Result{
+			ProviderID:      "google-drive",
+			IdentityDomain:  "google-drive:user:test",
+			CanonicalRootID: "root-id",
+			RequiredScope:   gdriveruntime.RequiredScope,
+		}, nil
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{
+		"google-drive-bootstrap",
+		"--control-dir", control,
+		"--access-token-env", envName,
+	}, &stdout, &stderr); err != nil {
+		t.Fatalf("run: %v; stderr=%s", err, stderr.String())
+	}
+	if captured.ControlDir != control || captured.AccessToken != token || captured.ObservedAt.IsZero() {
+		t.Fatalf("captured=%#v", captured)
+	}
+	if strings.Contains(stdout.String(), token) || strings.Contains(stderr.String(), token) {
+		t.Fatal("access token leaked through executable output")
+	}
+	var result gdriveruntime.Result
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.RequiredScope != gdriveruntime.RequiredScope {
+		t.Fatalf("result=%#v", result)
+	}
+}
+
+func TestGoogleDriveBootstrapRequiresEnvironmentTokenBeforeRuntime(t *testing.T) {
+	const envName = "KEELARYN_TEST_MISSING_GOOGLE_TOKEN"
+	t.Setenv(envName, "")
+	control := filepath.Join(t.TempDir(), "control")
+
+	original := bootstrapGoogleDriveReadOnly
+	t.Cleanup(func() { bootstrapGoogleDriveReadOnly = original })
+	called := false
+	bootstrapGoogleDriveReadOnly = func(context.Context, gdriveruntime.Options) (gdriveruntime.Result, error) {
+		called = true
+		return gdriveruntime.Result{}, nil
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{
+		"google-drive-bootstrap",
+		"--control-dir", control,
+		"--access-token-env", envName,
+	}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("missing environment token unexpectedly accepted")
+	}
+	if called {
+		t.Fatal("runtime called without access token")
+	}
+	if _, statErr := os.Stat(control); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("control directory created before runtime: %v", statErr)
+	}
+}
+
+func TestGoogleDriveBootstrapRejectsTokenArgument(t *testing.T) {
+	const token = "do-not-put-token-in-argv"
+	var stdout, stderr bytes.Buffer
+	err := run([]string{
+		"google-drive-bootstrap",
+		"--control-dir", filepath.Join(t.TempDir(), "control"),
+		"--access-token", token,
+	}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("raw access-token CLI argument unexpectedly accepted")
+	}
+	if strings.Contains(stderr.String(), token) || strings.Contains(err.Error(), token) {
+		t.Fatal("rejected token argument leaked token value")
+	}
+}
+
 func TestDoctorThroughExecutableSurface(t *testing.T) {
 	root := t.TempDir()
 	control := filepath.Join(t.TempDir(), "control")
@@ -181,7 +272,6 @@ func TestDoctorThroughExecutableSurface(t *testing.T) {
 	}
 }
 
-
 func TestDoctorFailureKeepsFindingsOnStdoutOnly(t *testing.T) {
 	control := filepath.Join(t.TempDir(), "missing")
 	var stdout, stderr bytes.Buffer
@@ -204,7 +294,6 @@ func TestDoctorFailureKeepsFindingsOnStdoutOnly(t *testing.T) {
 		t.Fatalf("doctor created missing control directory: %v", statErr)
 	}
 }
-
 
 func TestSelfTestThroughExecutableSurface(t *testing.T) {
 	var stdout, stderr bytes.Buffer
