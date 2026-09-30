@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 212,
+  "revision": 213,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -169,14 +169,19 @@
     "P0_FULL_A00_A13_AUDIT_20260930_ZERO_BLOCKER_CRITICAL",
     "P0_35A_READ_ONLY_DOCTOR_IMPLEMENTED",
     "P0_35A_READ_ONLY_DOCTOR_QUALIFIED",
-    "P0_35A_BOUNDARY_RETROSPECTIVE_PASS"
+    "P0_35A_BOUNDARY_RETROSPECTIVE_PASS",
+    "P0_35B_DISPOSABLE_SELFTEST_IMPLEMENTED",
+    "P0_35B_DISPOSABLE_SELFTEST_QUALIFIED",
+    "P0_35_DOCTOR_SELFTEST_QUALIFIED",
+    "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_RESOLVED",
+    "P0_35_BOUNDARY_RETROSPECTIVE_PASS"
   ],
   "next_objective": {
-    "id": "P0_35B_DISPOSABLE_SELFTEST",
-    "description": "Implement keelaryn self-test with no user paths. It must create only disposable temporary corpus/control state, execute protected bootstrap -> literal search -> exact ContextBundle provenance -> Doctor, prove the fixture corpus is byte/topology unchanged, clean up temporary state, and emit a structured result. No live provider, MCP/HTTP/web, or user corpus mutation.",
+    "id": "P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
+    "description": "Resolve the next P0 closure gate by qualifying a bounded live remote-provider runtime over the already-implemented RemoteHistory/Google Drive pipeline. Begin with read-only reconciliation and an explicit trust-boundary/runtime contract; reuse the existing official Drive client and durable authority mechanisms. Do not mutate user corpus content, do not expose MCP/HTTP/web yet, and never repeat a provider/control-state mutation after interruption without reconciling durable prestate.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "P0_35A_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_SELFTEST_NEXT"
+    "audit_gate": "P0_35_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_H4_RESOLVED_LIVE_PROVIDER_BOUNDARY_REVIEW_REQUIRED"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2318,10 +2323,10 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "cc4ab2c9bae381efa7e0dde1bef2438968556036",
-      "document": "docs/P0_35A_READ_ONLY_DOCTOR_RETROSPECTIVE_20260930.md",
-      "ci_run_id": 36678330990,
-      "conclusion": "PASS_P0_35A_ZERO_BLOCKER_CRITICAL_SELFTEST_NEXT"
+      "head": "b7631e3bccdd34d361612a5be7b6ae011cdc8486",
+      "document": "docs/P0_35_DOCTOR_SELFTEST_RETROSPECTIVE_20260930.md",
+      "ci_run_id": 36679914886,
+      "conclusion": "PASS_P0_35_H4_RESOLVED_ZERO_NEW_BLOCKER_CRITICAL"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -3736,9 +3741,8 @@
     "qualification_ci_run_id": 36670536752,
     "conclusion": "PASS_FULL_A00_A13_ZERO_BLOCKER_CRITICAL_H4_NEXT",
     "resolved_gap": "PRODUCTION_STORAGE_FILESYSTEM_PROTECTION_H3",
-    "earliest_remaining_autonomous_product_gap": "DOCTOR_SELFTEST_RUNTIME_H4",
+    "earliest_remaining_autonomous_product_gap": "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
     "p0_closure_gates_remaining": [
-      "DOCTOR_SELFTEST_RUNTIME_H4",
       "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
       "MINIMAL_MCP_ACCESS",
       "EMBEDDED_MINIMAL_WEB_STATUS",
@@ -3746,8 +3750,7 @@
     ],
     "carried_high_findings": [
       "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
-      "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
-      "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
+      "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT"
     ],
     "resolved_runtime_security_finding": "AUDIT_SECURITY_H6_FTS_SEARCH_CACHE_RESIDUAL_TEXT",
     "mcp_prior_art": {
@@ -3761,7 +3764,8 @@
       "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION"
     ],
     "full_audit_result": "ZERO_OPEN_BLOCKER_CRITICAL",
-    "resolved_d0_finding": "AUDIT_D0_M1_RETROSPECTIVE_POINTER_DRIFT"
+    "resolved_d0_finding": "AUDIT_D0_M1_RETROSPECTIVE_POINTER_DRIFT",
+    "resolved_operability_finding": "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
   },
   "p0_30": {
     "status": "QUALIFIED",
@@ -4405,10 +4409,10 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_35A_READ_ONLY_DOCTOR_RETROSPECTIVE_20260930.md",
-    "last_retrospective_result": "PASS_P0_35A_ZERO_BLOCKER_CRITICAL_SELFTEST_NEXT",
+    "last_retrospective": "docs/P0_35_DOCTOR_SELFTEST_RETROSPECTIVE_20260930.md",
+    "last_retrospective_result": "PASS_P0_35_H4_RESOLVED_ZERO_NEW_BLOCKER_CRITICAL",
     "substantive_slice_counter": 0,
-    "current_stage": "P0_35_DOCTOR_SELFTEST",
+    "current_stage": "P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -4417,7 +4421,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": null,
-    "unlock_condition": "P0_35A_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED",
+    "unlock_condition": "P0_35_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_H4_RESOLVED",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -4457,15 +4461,6 @@
         "required_correction": "Choose and prove an Android-capable durable state substrate or intentionally platform-specific backend behind the stable Keelaryn state contract. Add at minimum Android/arm64 compile coverage, then emulator/device filesystem+SQLite smoke tests and later SAF/DocumentProvider acceptance. Do not infer Android support from CGO-free implementation alone.",
         "gate_scope": "PORTABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE",
         "external_evidence": "modernc.org/sqlite v1.37.1 doc.go supported-platform matrix omits android; current go.mod pins modernc.org/sqlite v1.37.1 through zombiezen.com/go/sqlite v1.4.2."
-      },
-      {
-        "id": "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
-        "severity": "HIGH",
-        "status": "OPEN",
-        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
-        "issue": "Keelaryn contains targeted consistency verifiers such as VerifyRemoteHistoryLifetimeSegments and VerifyGoogleDriveTopologyProjection, but no production path invokes them and there is no aggregate Doctor/SelfTest/integrity command. SQLite integrity/foreign-key checks and cross-subsystem durable-authority verification therefore cannot be run as one supported diagnostic/recovery gate.",
-        "required_correction": "Before operator/runtime qualification, implement a read-only Doctor/SelfTest surface that runs SQLite integrity/foreign-key checks plus registered subsystem verifiers, reports exact failing authority without mutating it, and can be used by update/recovery qualification. Keep metadata-loss reconstruction as a separate later capability.",
-        "gate_scope": "OPERABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE"
       }
     ],
     "resolved_findings": [
@@ -4758,6 +4753,20 @@
         "required_correction": "Synchronize the generic audit clock to the newest completed full audit evidence so a fresh autonomous engineering session cannot select stale retrospective evidence.",
         "resolution_revision": 211,
         "resolution": "Generic audit-policy and audit retrospective pointers now identify the completed full A00-A13 audit on the unchanged qualified product head. Product qualification was not invalidated."
+      },
+      {
+        "id": "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
+        "severity": "HIGH",
+        "status": "RESOLVED",
+        "affected_head": "578f58b688388591563d80f88f9f17cb0defd4a1",
+        "issue": "Keelaryn contains targeted consistency verifiers such as VerifyRemoteHistoryLifetimeSegments and VerifyGoogleDriveTopologyProjection, but no production path invokes them and there is no aggregate Doctor/SelfTest/integrity command. SQLite integrity/foreign-key checks and cross-subsystem durable-authority verification therefore cannot be run as one supported diagnostic/recovery gate.",
+        "required_correction": "Before operator/runtime qualification, implement a read-only Doctor/SelfTest surface that runs SQLite integrity/foreign-key checks plus registered subsystem verifiers, reports exact failing authority without mutating it, and can be used by update/recovery qualification. Keep metadata-loss reconstruction as a separate later capability.",
+        "gate_scope": "OPERABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE",
+        "doctor_fix_head": "cc4ab2c9bae381efa7e0dde1bef2438968556036",
+        "selftest_fix_head": "b7631e3bccdd34d361612a5be7b6ae011cdc8486",
+        "qualification_head": "b7631e3bccdd34d361612a5be7b6ae011cdc8486",
+        "qualification_ci_run_id": 36679914886,
+        "resolution": "P0-35 adds a supported read-only Doctor over protected control state and a no-user-path disposable end-to-end SelfTest covering protected bootstrap, literal search, exact ContextBundle provenance, Doctor, corpus immutability, and cleanup. Doctor never creates/migrates/repairs user state; FTS write-shaped integrity verification runs only on an in-memory backup."
       }
     ],
     "last_resolution_checkpoint": {
@@ -5373,7 +5382,7 @@
     "open_product_blocker_critical": 0
   },
   "p0_35": {
-    "status": "DOCTOR_QUALIFIED_SELFTEST_NEXT",
+    "status": "QUALIFIED",
     "objective": "READ_ONLY_DOCTOR_AND_DISPOSABLE_SELFTEST",
     "finding": "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
     "dependencies_added": 0,
@@ -5399,7 +5408,7 @@
     "search_cache_schema_version": 3,
     "corpus_mutations": 0,
     "live_provider_used": false,
-    "current_substage": "P0_35B_DISPOSABLE_SELFTEST",
+    "current_substage": "COMPLETE",
     "doctor": {
       "status": "QUALIFIED",
       "product_head": "cc4ab2c9bae381efa7e0dde1bef2438968556036",
@@ -5434,7 +5443,7 @@
       "corpus_mutations": 0
     },
     "selftest": {
-      "status": "NEXT",
+      "status": "QUALIFIED",
       "scope": "DISPOSABLE_TEMP_CORPUS_AND_CONTROL_ONLY",
       "required_proof": [
         "bootstrap protected index",
@@ -5443,7 +5452,32 @@
         "Doctor passes on generated control state",
         "fixture corpus bytes and topology unchanged",
         "cleanup disposable state"
-      ]
-    }
+      ],
+      "product_head": "b7631e3bccdd34d361612a5be7b6ae011cdc8486",
+      "qualification_head": "b7631e3bccdd34d361612a5be7b6ae011cdc8486",
+      "qualification_ci_run_id": 36679914886,
+      "executable_surface": "keelaryn self-test",
+      "user_path_arguments": 0,
+      "structured_result": true,
+      "failure_exit_code": 1,
+      "proof": [
+        "creates only an OS-temp disposable workspace with sibling corpus/control roots",
+        "protected bootstrap indexes one deterministic fixture",
+        "literal search returns one non-empty Artifact/Revision provenance pair",
+        "ContextBundle returns the same exact Artifact/Revision plus explicit task reason and fixture text",
+        "read-only Doctor passes over generated protected control state",
+        "fixture corpus bytes and topology match the pre-bootstrap snapshot",
+        "workspace is removed before return"
+      ],
+      "corpus_mutations": 0,
+      "live_provider_used": false,
+      "dependencies_added": 0
+    },
+    "product_head": "b7631e3bccdd34d361612a5be7b6ae011cdc8486",
+    "qualification_head": "b7631e3bccdd34d361612a5be7b6ae011cdc8486",
+    "qualification_ci_run_id": 36679914886,
+    "qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, Go tests and Go vet all PASS",
+    "retrospective": "docs/P0_35_DOCTOR_SELFTEST_RETROSPECTIVE_20260930.md",
+    "h4_status": "RESOLVED"
   }
 }
