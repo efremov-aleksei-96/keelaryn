@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
 	"github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 )
@@ -24,7 +25,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle> [options]")
+		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle|doctor> [options]")
 	}
 
 	switch args[0] {
@@ -107,6 +108,25 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		return encodeJSON(stdout, bundle)
+
+	case "doctor":
+		flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
+		flags.SetOutput(stderr)
+		controlDir := flags.String("control-dir", "", "existing protected Keelaryn control directory")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *controlDir == "" {
+			return errors.New("doctor requires --control-dir")
+		}
+		report := doctor.Run(context.Background(), *controlDir)
+		if err := encodeJSON(stdout, report); err != nil {
+			return err
+		}
+		if !report.Passed() {
+			return doctor.ErrFailed
+		}
+		return nil
 
 	default:
 		return fmt.Errorf("unknown command %q", args[0])

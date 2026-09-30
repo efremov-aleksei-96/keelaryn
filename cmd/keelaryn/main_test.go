@@ -10,6 +10,7 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 )
@@ -149,5 +150,32 @@ func TestExecutableRejectsRawDatabasePathBypass(t *testing.T) {
 	}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("raw --search-db executable bypass unexpectedly accepted")
+	}
+}
+
+func TestDoctorThroughExecutableSurface(t *testing.T) {
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("doctor cli searchable"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{
+		"bootstrap-index", "--root", root, "--control-dir", control, "--max-bytes", "4096",
+	}, &stdout, &stderr); err != nil {
+		t.Fatalf("bootstrap-index: %v; stderr=%s", err, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+
+	if err := run([]string{"doctor", "--control-dir", control}, &stdout, &stderr); err != nil {
+		t.Fatalf("doctor: %v; stderr=%s", err, stderr.String())
+	}
+	var report doctor.Report
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("decode doctor report: %v\n%s", err, stdout.String())
+	}
+	if !report.Passed() || len(report.Checks) != 4 {
+		t.Fatalf("report=%#v", report)
 	}
 }
