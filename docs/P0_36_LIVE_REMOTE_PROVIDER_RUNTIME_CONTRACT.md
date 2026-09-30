@@ -1,8 +1,8 @@
 # P0-36 — Live Remote Provider Runtime Contract
 
 Date: 2026-09-30  
-Status: **BOUNDARY REVIEW / BLOCKER FOUND / P0-36A PREREQUISITE**  
-Live provider authorization: **NOT YET ENABLED**  
+Status: **P0-36A QUALIFIED / P0-36B QUALIFIED / P0-36C NEXT**
+Live provider authorization: **P0-36C READ-ONLY ACCEPTANCE ONLY; NOT YET QUALIFIED**
 Corpus mutation: **FORBIDDEN**
 
 ## 1. Goal
@@ -24,7 +24,7 @@ P0-36 MUST reuse the P0-29/P0-30 machinery. It MUST NOT introduce a second remot
 
 ## 2. Boundary-review blocker
 
-### P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY — BLOCKER
+### P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY — RESOLVED BY P0-36A
 
 The canonical architecture says an Observation *may* record size, MIME/type, provider metadata and timestamps where meaningful. Provider metadata is evidence, not unquestioned truth.
 
@@ -220,6 +220,6 @@ Google Drive API documentation used for this boundary review:
 
 ## 11. Current decision
 
-P0-36 live wiring is **blocked intentionally** until P0-36A is qualified.
+P0-36A and P0-36B are qualified. The provider-neutral optional-fact boundary is durable, and the Google metadata bootstrap is composed through the existing RemoteHistory/topology/materialization/identity authority without provider writes or a second inventory.
 
-This is not a new feature detour. It is the smallest correction that makes the already-canonical provider-neutral Observation promise true for the first live cloud provider without fabricated evidence.
+P0-36C is now the only remaining P0-36 substage. It may add only the supported authenticated **read-only** executable acceptance path defined above. The `LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION` closure gate remains outstanding until that exact-head live evidence checkpoint passes.

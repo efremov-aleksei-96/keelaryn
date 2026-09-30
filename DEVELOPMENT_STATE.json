@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 215,
+  "revision": 216,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -180,14 +180,20 @@
     "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS_IMPLEMENTED",
     "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS_QUALIFIED",
     "P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY_RESOLVED",
-    "P0_36A_BOUNDARY_RETROSPECTIVE_PASS"
+    "P0_36A_BOUNDARY_RETROSPECTIVE_PASS",
+    "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION_IMPLEMENTED",
+    "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION_QUALIFIED",
+    "P0_36B_BOUNDARY_RETROSPECTIVE_PASS"
   ],
   "next_objective": {
-    "id": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
-    "description": "Compose a bounded read-only Google Drive live metadata adapter into the already-qualified RemoteHistory/materialization pipeline using the existing official Drive client and LIGHTWEIGHT_ALL:v2 optional-fact contract. Enumerate the managed root without fabricating unsupported metadata or mutating user corpus content; persist only Keelaryn control/observation state through existing transaction and reconciliation boundaries. Keep provider writes, MCP/HTTP/web, and authenticated end-user acceptance out of this substage. After interruption, reconcile provider and durable control prestate before any retry.",
+    "id": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
+    "description": "Add a supported executable/runtime surface for a real authenticated Google Drive metadata-only read using the narrow drive.metadata.readonly scope, with OAuth/service construction outside the pure history adapter. Use disposable protected control state for acceptance where possible; credentials/tokens must not be written to corpus or Git. Prove provider operations are read-only, the exact runtime result is reconciled against durable RemoteHistory/topology/Observation/identity authority, and interruption never causes a blind bootstrap/materialization retry. No Drive content mutation, deletion, export/download-for-metadata, or production-control contamination is approved.",
+    "provider_read_only_acceptance_approved": true,
+    "required_google_drive_scope": "https://www.googleapis.com/auth/drive.metadata.readonly",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "P0_36A_B1_RESOLVED_P0_36B_READ_ONLY_LIVE_METADATA_RUNTIME_ALLOWED"
+    "credential_persistence_in_repo_or_corpus_approved": false,
+    "audit_gate": "P0_36B_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_AND_BOUNDARY_AUDIT_PASS"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4415,10 +4421,10 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS_RETROSPECTIVE_20260930.md",
-    "last_retrospective_result": "PASS_P0_36A_B1_RESOLVED_ZERO_NEW_BLOCKER_CRITICAL",
+    "last_retrospective": "docs/P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION_RETROSPECTIVE_20260930.md",
+    "last_retrospective_result": "PASS_P0_36B_ZERO_NEW_BLOCKER_CRITICAL",
     "substantive_slice_counter": 0,
-    "current_stage": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
+    "current_stage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -4426,8 +4432,8 @@
     "on_any_new_finding": "DURING_COLLECTION_RECORD_AND_CONTINUE; DURING_REMEDIATION RECORD_AND_ADD_ANY_NEW_BLOCKER_OR_CRITICAL_TO_THE_CURRENT_REMEDIATION_SET_WITHOUT_STARTING_A_FULL_REAUDIT",
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": true,
-    "blocked_next_stage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
-    "unlock_condition": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_AND_BOUNDARY_AUDIT_PASS",
+    "blocked_next_stage": "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
+    "unlock_condition": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_EXACT_HEAD_QUALIFIED_AND_LIVE_EVIDENCE_CHECKPOINT_PASS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -5501,14 +5507,14 @@
     "h4_status": "RESOLVED"
   },
   "p0_36": {
-    "status": "P0_36A_QUALIFIED_P0_36B_NEXT",
+    "status": "P0_36B_QUALIFIED_P0_36C_NEXT",
     "contract": "docs/P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_CONTRACT.md",
-    "current_substage": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
+    "current_substage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
     "blocker": null,
     "evidence": {
       "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
       "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
-      "current_product": "Observation DB/API and LIGHTWEIGHT_ALL:v1 require size, mode and modified_at for every entry"
+      "current_product": "P0-36A provider-neutral optional Observation facts and P0-36B Google metadata bootstrap/runtime composition are qualified; authenticated executable real-provider acceptance remains outstanding."
     },
     "rejected_shortcuts": [
       "fabricate size=0 or mode=0 and call them provider facts",
@@ -5544,6 +5550,34 @@
         "SQLITE_V46_HISTORICAL_FACTS_MIGRATE_AS_KNOWN",
         "SQLITE_V46_AVAILABILITY_STRUCTURE_AND_APPLICATION_AUTHORITY",
         "NO_LIVE_PROVIDER_OR_USER_CORPUS_MUTATION"
+      ]
+    },
+    "p0_36b": {
+      "status": "QUALIFIED",
+      "product_head": "2e92db262c4ab8804531cc509501c3e8f1a6bbc1",
+      "product_tree": "6b3a52f7bcfc348c0d13ba98aa2e76aa48b19788",
+      "qualification_head": "2e92db262c4ab8804531cc509501c3e8f1a6bbc1",
+      "qualification_ci_run_id": 36736005980,
+      "qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, Go tests and Go vet all PASS",
+      "retrospective": "docs/P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION_RETROSPECTIVE_20260930.md",
+      "corpus_mutations": 0,
+      "live_provider_used": false,
+      "oauth_enabled": false,
+      "dependencies_added": 0,
+      "runtime_profile": "BOOTSTRAP_ONLY_READ_ONLY_METADATA_COMPOSITION",
+      "invariants": [
+        "OFFICIAL_PINNED_GOOGLE_DRIVE_CLIENT_REUSED",
+        "EXACT_METADATA_FIELD_MASK_MIME_SIZE_MODIFIED_TIME",
+        "PROVIDER_SIZE_AVAILABILITY_CONSERVATIVE_NOT_FABRICATED",
+        "PROVIDER_MODE_ALWAYS_UNAVAILABLE",
+        "FENCED_METADATA_AND_REMOTE_HISTORY_SHARE_TERMINAL_CURSOR",
+        "NO_SECOND_PROVIDER_METADATA_OR_INVENTORY_AUTHORITY",
+        "GENERIC_LIGHTWEIGHT_ALL_V2_MATERIALIZER_AND_IDENTITY_AUTHORITY_REUSED",
+        "RECOVERY_REPLAYS_ONLY_AFTER_CURSOR_AND_OBJECT_SET_RECONCILIATION",
+        "CHANGED_PROVIDER_PRESTATE_FAILS_CLOSED_WITHOUT_INVENTORY_MUTATION",
+        "BOOTSTRAP_ONLY_SEQUENCE_ONE_SCOPE_EXPLICIT",
+        "NO_GOOGLE_DRIVE_WRITE_API_OR_WRITE_SCOPE",
+        "NO_OAUTH_OR_LIVE_PROVIDER_ACCEPTANCE_YET"
       ]
     }
   }
