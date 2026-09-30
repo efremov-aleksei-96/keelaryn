@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 217,
+  "revision": 218,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -184,7 +184,9 @@
     "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION_IMPLEMENTED",
     "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION_QUALIFIED",
     "P0_36B_BOUNDARY_RETROSPECTIVE_PASS",
-    "P0_36C_EXECUTABLE_RUNTIME_SURFACE_QUALIFIED"
+    "P0_36C_EXECUTABLE_RUNTIME_SURFACE_QUALIFIED",
+    "P0_36C_LIVE_ACCEPTANCE_HARNESS_QUALIFIED",
+    "P0_36C_EXTERNAL_OAUTH_BLOCKER_CLASSIFIED"
   ],
   "next_objective": {
     "id": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
@@ -5508,14 +5510,14 @@
     "h4_status": "RESOLVED"
   },
   "p0_36": {
-    "status": "P0_36C_EXECUTABLE_QUALIFIED_LIVE_ACCEPTANCE_PENDING",
+    "status": "P0_36C_LIVE_HARNESS_QUALIFIED_EXTERNAL_OAUTH_BLOCKED",
     "contract": "docs/P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_CONTRACT.md",
     "current_substage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
-    "blocker": null,
+    "blocker": "P0_36C_DISPOSABLE_OAUTH_REAUTH_REQUIRED",
     "evidence": {
       "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
       "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
-      "current_product": "P0-36A and P0-36B are qualified; the P0-36C authenticated executable/runtime surface is exact-head cross-platform qualified, while real token-backed Google Drive acceptance remains outstanding."
+      "current_product": "P0-36C executable and guarded disposable live-acceptance harness are exact-head cross-platform qualified. First real acceptance attempt reached OAuth refresh but failed before any Drive API read because the disposable refresh token is expired/revoked; reauthorization is required before live acceptance can complete."
     },
     "rejected_shortcuts": [
       "fabricate size=0 or mode=0 and call them provider facts",
@@ -5582,7 +5584,7 @@
       ]
     },
     "p0_36c": {
-      "status": "EXECUTABLE_QUALIFIED_LIVE_ACCEPTANCE_PENDING",
+      "status": "LIVE_HARNESS_QUALIFIED_EXTERNAL_OAUTH_BLOCKED",
       "implementation_head": "eadbba916f607ed7a03b5a0be4bcbcde0aa91182",
       "qualification_head": "09363714673d3c92fc89f2200d8b9de5ec908545",
       "qualification_ci_run_id": 36749826725,
@@ -5598,7 +5600,21 @@
       "live_provider_used": false,
       "live_acceptance_qualified": false,
       "corpus_mutations": 0,
-      "remaining_gate": "REAL_AUTHENTICATED_GOOGLE_DRIVE_METADATA_ONLY_EXECUTABLE_ACCEPTANCE"
+      "remaining_gate": "REAL_AUTHENTICATED_GOOGLE_DRIVE_METADATA_ONLY_EXECUTABLE_ACCEPTANCE",
+      "harness_head": "1ba1b1b8969a8486f895bb5300116e45ace5a5e4",
+      "harness_ci_run_id": 36763172141,
+      "harness_qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, Go tests and Go vet all PASS",
+      "live_workflow": ".github/workflows/p0-36c-live-acceptance.yml",
+      "first_live_run_id": 36763172280,
+      "first_live_job_id": 110050619469,
+      "first_live_result": "FAILED_BEFORE_DRIVE_READ",
+      "first_live_failure_classification": "DISPOSABLE_REFRESH_TOKEN_EXPIRED_OR_REVOKED",
+      "oauth_error": "invalid_grant",
+      "oauth_error_description": "Token has been expired or revoked.",
+      "drive_api_reached": false,
+      "product_runtime_invoked": false,
+      "protected_control_state_created": false,
+      "next_action": "Reauthorize the dedicated disposable Google identity, replace the protected GitHub secret KEELARYN_DISPOSABLE_GOOGLE_REFRESH_TOKEN, then rerun failed live job 110050619469. Do not retry the unchanged expired/revoked refresh token."
     }
   }
 }

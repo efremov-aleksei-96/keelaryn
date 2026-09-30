@@ -156,6 +156,16 @@ Current checkpoint after exact-head qualification:
 - no Drive write API/scope is present in the qualified runtime surface;
 - **real token-backed Google Drive execution is still pending and P0-36C is not yet closed**.
 
+Live-acceptance harness checkpoint:
+
+- guarded disposable workflow: `.github/workflows/p0-36c-live-acceptance.yml`;
+- harness head: `1ba1b1b8969a8486f895bb5300116e45ace5a5e4`; normal CI `36763172141` — validate, Ubuntu 24.04 and Windows 2025 PASS;
+- first live run: `36763172280`, job `110050619469`;
+- OAuth refresh failed with `invalid_grant: Token has been expired or revoked.`;
+- failure occurred **before Drive API access, before Keelaryn runtime invocation, and before protected control-state creation**; corpus mutations = 0;
+- classification: external disposable credential expiry/revocation, not a P0-36C runtime defect;
+- do not blind-retry the unchanged refresh token; reauthorize the dedicated disposable identity, replace the protected GitHub refresh-token secret, then rerun the failed live job.
+
 Authorization requirements:
 
 - request the narrowest sufficient Drive scope; P0 inventory/history should use `drive.metadata.readonly`;
