@@ -83,8 +83,8 @@ func TestGenericScanObservationApplicationAuthorityRejectsDirectSQL(t *testing.T
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt: base,
 		Kind: corpus.EntryRegularFile,
-		Size: 1,
-		ModifiedAt: base,
+		Size: corpus.KnownSize(1),
+		ModifiedAt: corpus.KnownModifiedAt(base),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -122,8 +122,8 @@ func TestGenericScanObservationApplicationAuthorityAllowsDirectObservationAPI(t 
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt: at,
 		Kind: corpus.EntryRegularFile,
-		Size: 1,
-		ModifiedAt: at,
+		Size: corpus.KnownSize(1),
+		ModifiedAt: corpus.KnownModifiedAt(at),
 	}); err != nil {
 		t.Fatal(err)
 	}

@@ -140,12 +140,11 @@ func inputFromObservation(observation corpus.Observation, locators []corpus.Loca
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      observedAt,
 		Kind:            observation.Kind,
-		Size:            observation.Size,
-		Mode:            observation.Mode,
-		ModifiedAt:      observation.ModifiedAt,
+		Size:            corpus.KnownSize(observation.Size),
+		Mode:            corpus.KnownMode(observation.Mode),
+		ModifiedAt:      corpus.KnownModifiedAt(observation.ModifiedAt),
 	}
 }
-
 
 // BootstrapStore commits the entire first-observation adoption batch atomically.
 type BootstrapStore interface {
@@ -260,12 +259,12 @@ func localSnapshotFingerprint(mode string, providerID corpus.ProviderID, root st
 		ObservedAt time.Time         `json:"observed_at"`
 		Payload    any               `json:"payload"`
 	}{
-		Version: localFSSnapshotFingerprintVersion,
-		Mode: mode,
+		Version:    localFSSnapshotFingerprintVersion,
+		Mode:       mode,
 		ProviderID: providerID,
-		Root: root,
+		Root:       root,
 		ObservedAt: observedAt.UTC(),
-		Payload: payload,
+		Payload:    payload,
 	})
 	if err != nil {
 		return "", fmt.Errorf("encode local snapshot fingerprint: %w", err)

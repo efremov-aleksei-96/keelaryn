@@ -33,9 +33,9 @@ func TestObservationEvidenceSQLiteImmutable(t *testing.T) {
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      at,
 		Kind:            corpus.EntryRegularFile,
-		Size:            7,
-		Mode:            0o600,
-		ModifiedAt:      at.Add(-time.Minute),
+		Size:            corpus.KnownSize(7),
+		Mode:            corpus.KnownMode(0o600),
+		ModifiedAt:      corpus.KnownModifiedAt(at.Add(-time.Minute)),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -70,9 +70,23 @@ func TestObservationEvidenceSQLiteImmutable(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.ProviderObject != recorded.ProviderObject ||
-		got.Size != recorded.Size ||
+		!equalInt64Fact(got.Size, recorded.Size) ||
+		!equalUint32Fact(got.Mode, recorded.Mode) ||
+		!equalTimeFact(got.ModifiedAt, recorded.ModifiedAt) ||
 		len(got.Locators) != 1 ||
 		got.Locators[0].Locator != recorded.Locators[0].Locator {
 		t.Fatalf("immutable observation evidence changed: got=%#v want=%#v", got, recorded)
 	}
+}
+
+func equalInt64Fact(a, b *int64) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
+}
+
+func equalUint32Fact(a, b *uint32) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
+}
+
+func equalTimeFact(a, b *time.Time) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && a.Equal(*b))
 }

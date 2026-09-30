@@ -116,11 +116,14 @@ func validatePreviousBinding(snapshot *providerlocalfs.Snapshot, inventory []cor
 		}
 		seen[entry.Locator.Path] = struct{}{}
 
+		if entry.Size == nil || entry.ModifiedAt == nil {
+			return fmt.Errorf("%w: previous LocalFS inventory lacks required size/modified_at facts at %q", ErrInvalidNativeSnapshotBinding, entry.Locator.Path)
+		}
 		observation, ok := byPath[entry.Locator.Path]
 		if !ok ||
 			observation.Kind != entry.Kind ||
-			observation.Size != entry.Size ||
-			!observation.ModifiedAt.Equal(entry.ModifiedAt) {
+			observation.Size != *entry.Size ||
+			!observation.ModifiedAt.Equal(*entry.ModifiedAt) {
 			return fmt.Errorf("%w: previous inventory does not match Snapshot at %q", ErrInvalidNativeSnapshotBinding, entry.Locator.Path)
 		}
 	}

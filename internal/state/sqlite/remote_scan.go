@@ -19,11 +19,11 @@ var (
 	ErrRemoteHistoryScanSourceAdvanced            = errors.New("remote history scan source publication is no longer current")
 	ErrRemoteHistoryScanSourceClosed              = errors.New("remote history scan source generation is closed")
 	ErrRemoteHistoryScanRequiresGuardedCompletion = errors.New("source-bound remote scan requires guarded completion")
-	ErrRemoteHistoryRootRequiresSourceBoundScan    = errors.New("remote-managed root requires a source-bound scan")
-	ErrRemoteHistoryScanSnapshotMismatch           = errors.New("remote scan persisted content does not match source snapshot fingerprint")
-	ErrRemoteHistoryScanProviderScopeMismatch       = errors.New("remote scan provider scope does not match exact materialization source")
-	ErrRemoteHistoryScanCompletionNotNewest         = errors.New("remote scan completion would not become current inventory")
-	ErrRemoteHistoryScanStartedBeforeSource         = errors.New("remote scan started before its source publication")
+	ErrRemoteHistoryRootRequiresSourceBoundScan   = errors.New("remote-managed root requires a source-bound scan")
+	ErrRemoteHistoryScanSnapshotMismatch          = errors.New("remote scan persisted content does not match source snapshot fingerprint")
+	ErrRemoteHistoryScanProviderScopeMismatch     = errors.New("remote scan provider scope does not match exact materialization source")
+	ErrRemoteHistoryScanCompletionNotNewest       = errors.New("remote scan completion would not become current inventory")
+	ErrRemoteHistoryScanStartedBeforeSource       = errors.New("remote scan started before its source publication")
 )
 
 func (s *Store) StartRemoteHistoryScan(
@@ -286,13 +286,24 @@ func verifyRemoteMetadataSnapshotFingerprintConn(
 	scan corpus.ScanSession,
 	source remotehistory.RemoteScanSource,
 ) error {
-	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion {
-		return nil
+	if !remotehistory.IsRemoteMetadataSnapshotPolicyPair(source.SnapshotFingerprintVersion, source.MaterializationPolicyID) {
+		return remotehistory.ErrInvalidRemoteScanSource
 	}
-	entries := make([]remotehistory.RemoteMetadataFingerprintEntry, 0)
+	type persistedEntry struct {
+		objectID      corpus.ProviderObjectID
+		locators      []corpus.Locator
+		kind          corpus.EntryKind
+		size          int64
+		mode          uint32
+		modified      string
+		sizeKnown     bool
+		modeKnown     bool
+		modifiedKnown bool
+	}
+	var persisted []persistedEntry
 	seenObjects := make(map[corpus.ProviderObjectID]struct{})
 	if err := sqlitex.Execute(conn,
-		"SELECT o.observation_id,p.provider_id,COALESCE(p.native_object_id,''),p.identity_state,o.kind,o.size,o.mode,o.observed_at,o.modified_at FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id=o.occurrence_id WHERE o.scan_id=?1 ORDER BY o.observation_id",
+		"SELECT o.observation_id,p.provider_id,COALESCE(p.native_object_id,''),p.identity_state,o.kind,o.size,o.mode,o.observed_at,o.modified_at,o.size_known,o.mode_known,o.modified_at_known FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id=o.occurrence_id WHERE o.scan_id=?1 ORDER BY o.observation_id",
 		&sqlitex.ExecOptions{
 			Args: []any{string(scan.ID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
@@ -305,6 +316,9 @@ func verifyRemoteMetadataSnapshotFingerprintConn(
 				modeValue := stmt.ColumnInt64(6)
 				observedText := stmt.ColumnText(7)
 				modifiedText := stmt.ColumnText(8)
+				sizeKnown := stmt.ColumnInt64(9) == 1
+				modeKnown := stmt.ColumnInt64(10) == 1
+				modifiedKnown := stmt.ColumnInt64(11) == 1
 				if providerID != scan.ProviderID || objectID == "" || identityState != corpus.ObjectIdentityObserved ||
 					size < 0 || modeValue < 0 || modeValue > int64(^uint32(0)) {
 					return ErrRemoteHistoryScanSnapshotMismatch
@@ -317,9 +331,10 @@ func verifyRemoteMetadataSnapshotFingerprintConn(
 					return fmt.Errorf("%w: duplicate provider object %s", ErrRemoteHistoryScanSnapshotMismatch, objectID)
 				}
 				seenObjects[objectID] = struct{}{}
-				modifiedAt, err := time.Parse(time.RFC3339Nano, modifiedText)
-				if err != nil {
-					return fmt.Errorf("%w: invalid modified_at for %s", ErrRemoteHistoryScanSnapshotMismatch, objectID)
+				if modifiedKnown {
+					if _, err := time.Parse(time.RFC3339Nano, modifiedText); err != nil {
+						return fmt.Errorf("%w: invalid modified_at for %s", ErrRemoteHistoryScanSnapshotMismatch, objectID)
+					}
 				}
 				var locators []corpus.Locator
 				if err := sqlitex.Execute(conn,
@@ -337,13 +352,9 @@ func verifyRemoteMetadataSnapshotFingerprintConn(
 					}); err != nil {
 					return err
 				}
-				entries = append(entries, remotehistory.RemoteMetadataFingerprintEntry{
-					ProviderObjectID: objectID,
-					Locators:         locators,
-					Kind:             kind,
-					Size:             size,
-					Mode:             uint32(modeValue),
-					ModifiedAt:       modifiedAt.UTC().Format(time.RFC3339Nano),
+				persisted = append(persisted, persistedEntry{
+					objectID: objectID, locators: locators, kind: kind, size: size, mode: uint32(modeValue),
+					modified: modifiedText, sizeKnown: sizeKnown, modeKnown: modeKnown, modifiedKnown: modifiedKnown,
 				})
 				return nil
 			},
@@ -353,27 +364,59 @@ func verifyRemoteMetadataSnapshotFingerprintConn(
 		}
 		return fmt.Errorf("read remote scan materialized content: %w", err)
 	}
-
-	actual, err := remotehistory.FingerprintRemoteMetadataSnapshot(remotehistory.RemoteMetadataFingerprintInput{
-		GenerationID:            source.GenerationID,
-		PublicationSequence:     source.PublicationSequence,
-		ProviderID:              scan.ProviderID,
-		ScanRoot:                scan.Root,
-		SourceScopeID:           source.SourceScopeID,
-		MaterializationPolicyID: source.MaterializationPolicyID,
-		Entries:                 entries,
-	})
+	var actual string
+	var err error
+	switch source.SnapshotFingerprintVersion {
+	case remotehistory.RemoteMetadataSnapshotFingerprintVersion:
+		entries := make([]remotehistory.RemoteMetadataFingerprintEntry, 0, len(persisted))
+		for _, item := range persisted {
+			if !item.sizeKnown || !item.modeKnown || !item.modifiedKnown {
+				return ErrRemoteHistoryScanSnapshotMismatch
+			}
+			entries = append(entries, remotehistory.RemoteMetadataFingerprintEntry{
+				ProviderObjectID: item.objectID, Locators: item.locators, Kind: item.kind,
+				Size: item.size, Mode: item.mode, ModifiedAt: item.modified,
+			})
+		}
+		actual, err = remotehistory.FingerprintRemoteMetadataSnapshot(remotehistory.RemoteMetadataFingerprintInput{
+			GenerationID: source.GenerationID, PublicationSequence: source.PublicationSequence,
+			ProviderID: scan.ProviderID, ScanRoot: scan.Root, SourceScopeID: source.SourceScopeID,
+			MaterializationPolicyID: source.MaterializationPolicyID, Entries: entries,
+		})
+	case remotehistory.RemoteMetadataSnapshotFingerprintVersionV2:
+		entries := make([]remotehistory.RemoteMetadataFingerprintEntryV2, 0, len(persisted))
+		for _, item := range persisted {
+			var size *int64
+			if item.sizeKnown {
+				size = corpus.KnownSize(item.size)
+			}
+			var mode *uint32
+			if item.modeKnown {
+				mode = corpus.KnownMode(item.mode)
+			}
+			var modified *string
+			if item.modifiedKnown {
+				value := item.modified
+				modified = &value
+			}
+			entries = append(entries, remotehistory.RemoteMetadataFingerprintEntryV2{
+				ProviderObjectID: item.objectID, Locators: item.locators, Kind: item.kind,
+				Size: size, Mode: mode, ModifiedAt: modified,
+			})
+		}
+		actual, err = remotehistory.FingerprintRemoteMetadataSnapshotV2(remotehistory.RemoteMetadataFingerprintInputV2{
+			GenerationID: source.GenerationID, PublicationSequence: source.PublicationSequence,
+			ProviderID: scan.ProviderID, ScanRoot: scan.Root, SourceScopeID: source.SourceScopeID,
+			MaterializationPolicyID: source.MaterializationPolicyID, Entries: entries,
+		})
+	default:
+		return remotehistory.ErrInvalidRemoteScanSource
+	}
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrRemoteHistoryScanSnapshotMismatch, err)
 	}
 	if actual != source.SnapshotFingerprintSHA256 {
-		return fmt.Errorf(
-			"%w: scan=%s expected=%s actual=%s",
-			ErrRemoteHistoryScanSnapshotMismatch,
-			scan.ID,
-			source.SnapshotFingerprintSHA256,
-			actual,
-		)
+		return fmt.Errorf("%w: scan=%s expected=%s actual=%s", ErrRemoteHistoryScanSnapshotMismatch, scan.ID, source.SnapshotFingerprintSHA256, actual)
 	}
 	return nil
 }
@@ -443,15 +486,11 @@ func validateRemoteMetadataProviderScopeConn(
 	source remotehistory.RemoteScanSource,
 	generation remotehistory.HistoryGeneration,
 ) error {
-	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion {
-		return nil
-	}
-	if source.MaterializationPolicyID != remotehistory.LightweightAllMaterializationPolicyID {
+	if !remotehistory.IsRemoteMetadataSnapshotPolicyPair(source.SnapshotFingerprintVersion, source.MaterializationPolicyID) {
 		return fmt.Errorf(
-			"%w: fingerprint=%s requires policy=%s, got=%s",
+			"%w: unsupported fingerprint/policy pair %s/%s",
 			ErrRemoteHistoryScanProviderScopeMismatch,
 			source.SnapshotFingerprintVersion,
-			remotehistory.LightweightAllMaterializationPolicyID,
 			source.MaterializationPolicyID,
 		)
 	}

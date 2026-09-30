@@ -9,10 +9,10 @@ import (
 )
 
 type RemoteScanSourceInput struct {
-	GenerationID              HistoryGenerationID
-	PublicationSequence       HistoryPublicationSequence
-	SourceScopeID             string
-	MaterializationPolicyID   string
+	GenerationID               HistoryGenerationID
+	PublicationSequence        HistoryPublicationSequence
+	SourceScopeID              string
+	MaterializationPolicyID    string
 	SnapshotFingerprintVersion string
 	SnapshotFingerprintSHA256  string
 }
@@ -45,8 +45,7 @@ func ValidateRemoteScanSourceInput(source RemoteScanSourceInput) error {
 	if _, err := hex.DecodeString(source.SnapshotFingerprintSHA256); err != nil {
 		return ErrInvalidRemoteScanSource
 	}
-	if source.SnapshotFingerprintVersion != RemoteMetadataSnapshotFingerprintVersion ||
-		source.MaterializationPolicyID != LightweightAllMaterializationPolicyID {
+	if !IsRemoteMetadataSnapshotPolicyPair(source.SnapshotFingerprintVersion, source.MaterializationPolicyID) {
 		return ErrInvalidRemoteScanSource
 	}
 	return nil

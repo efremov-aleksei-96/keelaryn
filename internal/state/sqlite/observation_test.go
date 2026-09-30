@@ -209,8 +209,8 @@ func unresolvedObservationInput() corpus.ObservationRecordInput {
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      observed,
 		Kind:            corpus.EntryRegularFile,
-		Size:            4,
-		Mode:            0o600,
-		ModifiedAt:      observed.Add(-time.Minute),
+		Size:            corpus.KnownSize(4),
+		Mode:            corpus.KnownMode(0o600),
+		ModifiedAt:      corpus.KnownModifiedAt(observed.Add(-time.Minute)),
 	}
 }

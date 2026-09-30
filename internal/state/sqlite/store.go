@@ -3540,6 +3540,39 @@ BEGIN
 END;
 `,
 
+		`
+ALTER TABLE observations ADD COLUMN size_known INTEGER NOT NULL DEFAULT 1 CHECK (size_known IN (0,1));
+ALTER TABLE observations ADD COLUMN mode_known INTEGER NOT NULL DEFAULT 1 CHECK (mode_known IN (0,1));
+ALTER TABLE observations ADD COLUMN modified_at_known INTEGER NOT NULL DEFAULT 1 CHECK (modified_at_known IN (0,1));
+
+CREATE TABLE keelaryn_v46_observation_fact_validation (ok INTEGER NOT NULL CHECK (ok=1)) STRICT;
+INSERT INTO keelaryn_v46_observation_fact_validation (ok)
+SELECT CASE WHEN EXISTS (
+	SELECT 1 FROM observations WHERE size_known<>1 OR mode_known<>1 OR modified_at_known<>1
+) THEN 0 ELSE 1 END;
+DROP TABLE keelaryn_v46_observation_fact_validation;
+
+CREATE TRIGGER observations_fact_availability_structure_guard_v46
+BEFORE INSERT ON observations
+WHEN (NEW.size_known=0 AND NEW.size<>0)
+	OR (NEW.mode_known=0 AND NEW.mode<>0)
+	OR (NEW.modified_at_known=0 AND NEW.modified_at<>NEW.observed_at)
+BEGIN
+	SELECT RAISE(ABORT, 'unknown Observation facts must use canonical compatibility sentinels');
+END;
+
+CREATE TRIGGER observations_fact_availability_application_guard_v46
+BEFORE INSERT ON observations
+WHEN keelaryn_observation_fact_availability_authorized_v46(
+	NEW.observation_id, NEW.occurrence_id, NEW.assignment_state, NEW.observed_at, NEW.kind,
+	CAST(NEW.size AS TEXT), CAST(NEW.mode AS TEXT), NEW.modified_at,
+	CAST(NEW.size_known AS TEXT), CAST(NEW.mode_known AS TEXT), CAST(NEW.modified_at_known AS TEXT),
+	COALESCE(NEW.scan_id,''), COALESCE(NEW.artifact_id,''), COALESCE(NEW.revision_id,'')
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'Observation fact availability requires validated application authority');
+END;
+`,
 	},
 }
 
@@ -3549,29 +3582,30 @@ END;
 // corpus file bytes, Locators, extracted text, previews, embeddings, or search
 // indexes.
 const (
-	remoteCompletionAuthorizationFunction = "keelaryn_remote_completion_authorized"
-	canonicalUTCRFC3339NanoFunction       = "keelaryn_is_canonical_utc_rfc3339nano"
-	utcRFC3339NanoAfterFunction                  = "keelaryn_utc_rfc3339nano_after"
-	sourceIdentityMutationAuthorizationFunction  = "keelaryn_source_identity_mutation_authorized"
-	identityMutationAuthorizationFunction        = "keelaryn_identity_mutation_authorized"
-	remoteHistoryBindingAuthorizationFunction    = "keelaryn_remote_history_binding_authorized"
-	remoteAuthorityPublicationRefFunction        = "keelaryn_remote_authority_publication_ref"
-	gdriveTopologyWatermarkDeleteAuthorizationFunction = "keelaryn_gdrive_topology_watermark_delete_authorized"
-	artifactInsertAuthorizationFunction = "keelaryn_artifact_insert_authorized"
-	revisionInsertAuthorizationFunction = "keelaryn_revision_insert_authorized"
-	providerArtifactBindingInsertAuthorizationFunction = "keelaryn_provider_artifact_binding_insert_authorized"
-	identityAuthoritySetInsertAuthorizationFunction = "keelaryn_identity_authority_set_insert_authorized"
-	identityAuthorityCandidateInsertAuthorizationFunction = "keelaryn_identity_authority_candidate_insert_authorized"
-	identityAuthoritySealAuthorizationFunction = "keelaryn_identity_authority_seal_authorized"
-	identityAuthoritySetStructuralValidationFunction = "keelaryn_identity_authority_set_structurally_valid"
+	remoteCompletionAuthorizationFunction                  = "keelaryn_remote_completion_authorized"
+	canonicalUTCRFC3339NanoFunction                        = "keelaryn_is_canonical_utc_rfc3339nano"
+	utcRFC3339NanoAfterFunction                            = "keelaryn_utc_rfc3339nano_after"
+	sourceIdentityMutationAuthorizationFunction            = "keelaryn_source_identity_mutation_authorized"
+	identityMutationAuthorizationFunction                  = "keelaryn_identity_mutation_authorized"
+	remoteHistoryBindingAuthorizationFunction              = "keelaryn_remote_history_binding_authorized"
+	remoteAuthorityPublicationRefFunction                  = "keelaryn_remote_authority_publication_ref"
+	gdriveTopologyWatermarkDeleteAuthorizationFunction     = "keelaryn_gdrive_topology_watermark_delete_authorized"
+	artifactInsertAuthorizationFunction                    = "keelaryn_artifact_insert_authorized"
+	revisionInsertAuthorizationFunction                    = "keelaryn_revision_insert_authorized"
+	providerArtifactBindingInsertAuthorizationFunction     = "keelaryn_provider_artifact_binding_insert_authorized"
+	identityAuthoritySetInsertAuthorizationFunction        = "keelaryn_identity_authority_set_insert_authorized"
+	identityAuthorityCandidateInsertAuthorizationFunction  = "keelaryn_identity_authority_candidate_insert_authorized"
+	identityAuthoritySealAuthorizationFunction             = "keelaryn_identity_authority_seal_authorized"
+	identityAuthoritySetStructuralValidationFunction       = "keelaryn_identity_authority_set_structurally_valid"
 	identityAuthorityCandidateStructuralValidationFunction = "keelaryn_identity_authority_candidate_structurally_valid"
-	identityAcceptanceWriteAuthorizationFunction = "keelaryn_identity_acceptance_write_authorized"
-	bootstrapScanAuthorityInsertAuthorizationFunction = "keelaryn_bootstrap_scan_authority_insert_authorized"
-	scanWriteAuthorizationFunction = "keelaryn_scan_write_authorized"
-	occurrenceInsertAuthorizationFunction = "keelaryn_occurrence_insert_authorized"
-	observationInsertAuthorizationFunction = "keelaryn_observation_insert_authorized"
-	locatorInsertAuthorizationFunction = "keelaryn_locator_insert_authorized"
-	bootstrapNoPriorObservationHistoryProof = "NO_PRIOR_OBSERVATION_HISTORY:v1"
+	identityAcceptanceWriteAuthorizationFunction           = "keelaryn_identity_acceptance_write_authorized"
+	bootstrapScanAuthorityInsertAuthorizationFunction      = "keelaryn_bootstrap_scan_authority_insert_authorized"
+	scanWriteAuthorizationFunction                         = "keelaryn_scan_write_authorized"
+	occurrenceInsertAuthorizationFunction                  = "keelaryn_occurrence_insert_authorized"
+	observationInsertAuthorizationFunction                 = "keelaryn_observation_insert_authorized"
+	observationFactAvailabilityAuthorizationFunction       = "keelaryn_observation_fact_availability_authorized_v46"
+	locatorInsertAuthorizationFunction                     = "keelaryn_locator_insert_authorized"
+	bootstrapNoPriorObservationHistoryProof                = "NO_PRIOR_OBSERVATION_HISTORY:v1"
 )
 
 type remoteCompletionAuthorization struct {
@@ -3605,19 +3639,19 @@ type coreIdentityInsertAuthorization struct {
 }
 
 type identityAuthorityWriteAuthorization struct {
-	kind              string
-	authoritySetID    corpus.IdentityAuthoritySetID
-	policyID          string
-	providerID        corpus.ProviderID
-	identityDomain    string
-	scopeID           string
-	currentObjectID   corpus.ProviderObjectID
-	universeCoverage  corpus.CandidateUniverseCoverage
-	generationID      string
-	lifetimeSegmentID string
-	sourceRefsJSON    string
-	createdAt         string
-	sealedAt          string
+	kind                string
+	authoritySetID      corpus.IdentityAuthoritySetID
+	policyID            string
+	providerID          corpus.ProviderID
+	identityDomain      string
+	scopeID             string
+	currentObjectID     corpus.ProviderObjectID
+	universeCoverage    corpus.CandidateUniverseCoverage
+	generationID        string
+	lifetimeSegmentID   string
+	sourceRefsJSON      string
+	createdAt           string
+	sealedAt            string
 	candidateArtifactID corpus.ArtifactID
 	candidateDirection  corpus.ContinuityDirection
 	candidateSourceRef  string
@@ -3662,6 +3696,9 @@ type observationInsertAuthorization struct {
 	size            int64
 	mode            int64
 	modifiedAt      string
+	sizeKnown       int64
+	modeKnown       int64
+	modifiedAtKnown int64
 	scanID          corpus.ScanSessionID
 }
 
@@ -3674,22 +3711,22 @@ type locatorInsertAuthorization struct {
 }
 
 type Store struct {
-	pool                                      *sqlitemigration.Pool
-	path                                      string
-	remoteCompletionAuthorizations            sync.Map
-	identityMutationAuthorizations            sync.Map
+	pool                                        *sqlitemigration.Pool
+	path                                        string
+	remoteCompletionAuthorizations              sync.Map
+	identityMutationAuthorizations              sync.Map
 	gdriveTopologyWatermarkDeleteAuthorizations sync.Map
-	coreIdentityInsertAuthorizations              sync.Map
-	identityAuthorityWriteAuthorizations           sync.Map
-	identityAcceptanceWriteAuthorizations          sync.Map
-	bootstrapScanAuthorityInsertAuthorizations     sync.Map
-	scanWriteAuthorizations                        sync.Map
-	occurrenceInsertAuthorizations                  sync.Map
-	observationInsertAuthorizations                 sync.Map
-	locatorInsertAuthorizations                     sync.Map
-	remoteHistoryWriteAuthorizations                sync.Map
-	gdriveTopologyWriteAuthorizations               sync.Map
-	localIngestCommitAuthorizations                 sync.Map
+	coreIdentityInsertAuthorizations            sync.Map
+	identityAuthorityWriteAuthorizations        sync.Map
+	identityAcceptanceWriteAuthorizations       sync.Map
+	bootstrapScanAuthorityInsertAuthorizations  sync.Map
+	scanWriteAuthorizations                     sync.Map
+	occurrenceInsertAuthorizations              sync.Map
+	observationInsertAuthorizations             sync.Map
+	locatorInsertAuthorizations                 sync.Map
+	remoteHistoryWriteAuthorizations            sync.Map
+	gdriveTopologyWriteAuthorizations           sync.Map
+	localIngestCommitAuthorizations             sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -4103,6 +4140,31 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 		return fmt.Errorf("register Observation insert authorization function: %w", err)
 	}
 	s.observationInsertAuthorizations.Store(conn, observationAuth)
+	if err := conn.CreateFunction(observationFactAvailabilityAuthorizationFunction, &sqlite.FunctionImpl{
+		NArgs: 14, Deterministic: false, AllowIndirect: true,
+		Scalar: func(_ sqlite.Context, args []sqlite.Value) (sqlite.Value, error) {
+			if observationAuth.observationID != "" &&
+				string(observationAuth.observationID) == args[0].Text() &&
+				string(observationAuth.occurrenceID) == args[1].Text() &&
+				string(observationAuth.assignmentState) == args[2].Text() &&
+				observationAuth.observedAt == args[3].Text() &&
+				string(observationAuth.kind) == args[4].Text() &&
+				fmt.Sprint(observationAuth.size) == args[5].Text() &&
+				fmt.Sprint(observationAuth.mode) == args[6].Text() &&
+				observationAuth.modifiedAt == args[7].Text() &&
+				fmt.Sprint(observationAuth.sizeKnown) == args[8].Text() &&
+				fmt.Sprint(observationAuth.modeKnown) == args[9].Text() &&
+				fmt.Sprint(observationAuth.modifiedAtKnown) == args[10].Text() &&
+				string(observationAuth.scanID) == args[11].Text() &&
+				string(observationAuth.artifactID) == args[12].Text() &&
+				string(observationAuth.revisionID) == args[13].Text() {
+				return sqlite.IntegerValue(1), nil
+			}
+			return sqlite.IntegerValue(0), nil
+		},
+	}); err != nil {
+		return fmt.Errorf("register Observation fact-availability authorization function: %w", err)
+	}
 
 	locatorAuth := &locatorInsertAuthorization{}
 	if err := conn.CreateFunction(locatorInsertAuthorizationFunction, &sqlite.FunctionImpl{
@@ -4189,7 +4251,8 @@ func (s *Store) authorizeOccurrenceInsertConn(conn *sqlite.Conn, auth occurrence
 }
 
 func (s *Store) authorizeObservationInsertConn(conn *sqlite.Conn, auth observationInsertAuthorization) (func(), error) {
-	if auth.observationID == "" || auth.occurrenceID == "" || auth.assignmentState == "" || auth.observedAt == "" || auth.kind == "" || auth.modifiedAt == "" {
+	if auth.observationID == "" || auth.occurrenceID == "" || auth.assignmentState == "" || auth.observedAt == "" || auth.kind == "" || auth.modifiedAt == "" ||
+		(auth.sizeKnown != 0 && auth.sizeKnown != 1) || (auth.modeKnown != 0 && auth.modeKnown != 1) || (auth.modifiedAtKnown != 0 && auth.modifiedAtKnown != 1) {
 		return nil, fmt.Errorf("Observation insert authorization target is incomplete")
 	}
 	value, ok := s.observationInsertAuthorizations.Load(conn)

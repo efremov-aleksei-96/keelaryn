@@ -68,7 +68,7 @@ func TestV39MigrationDoesNotInventBootstrapAuthorityForHistoricalScan(t *testing
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      at,
 		Kind:            corpus.EntryOther,
-		ModifiedAt:      at,
+		ModifiedAt:      corpus.KnownModifiedAt(at),
 	}
 	_, err = migrated.AdoptObservationInScan(ctx, scan.ID, input, nil)
 	if !errors.Is(err, ErrBootstrapScanAuthorityRequired) {

@@ -125,7 +125,7 @@ func TestRemoteMetadataEqualTimeNewPublicationFailsClosed(t *testing.T) {
 		if item.ScanID != first.ID {
 			t.Fatalf("equal-time rejected remote attempt replaced current scan: %#v", item)
 		}
-		if item.Locator.Path == "file-id/child" && item.Size != 7 {
+		if item.Locator.Path == "file-id/child" && (item.Size == nil || *item.Size != 7) {
 			t.Fatalf("equal-time rejected remote attempt leaked changed metadata: %#v", item)
 		}
 	}

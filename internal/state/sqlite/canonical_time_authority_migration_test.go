@@ -164,7 +164,10 @@ func TestCanonicalScanObservationTimeGuardsRejectSQLiteAcceptedNoncanonicalForms
 		mode:            0,
 		modifiedAt:      base.UTC().Format(time.RFC3339Nano),
 		scanID:          scan.ID,
-	})
+			sizeKnown:       1,
+		modeKnown:       1,
+		modifiedAtKnown: 1,
+})
 	if err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)

@@ -54,8 +54,8 @@ func TestAtomicLocalIngestValidationFailureRollsBackAllDurableRows(t *testing.T)
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt: at,
 		Kind: corpus.EntryRegularFile,
-		Size: 1,
-		ModifiedAt: at,
+		Size: corpus.KnownSize(1),
+		ModifiedAt: corpus.KnownModifiedAt(at),
 	}
 	_, err = store.CommitLocalSnapshot(
 		ctx, "localfs", "/root", at, "localfs-snapshot:v1",

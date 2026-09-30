@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	RemoteMetadataSnapshotFingerprintVersion = remotehistory.RemoteMetadataSnapshotFingerprintVersion
-	LightweightAllMaterializationPolicyID    = remotehistory.LightweightAllMaterializationPolicyID
+	RemoteMetadataSnapshotFingerprintVersion   = remotehistory.RemoteMetadataSnapshotFingerprintVersion
+	LightweightAllMaterializationPolicyID      = remotehistory.LightweightAllMaterializationPolicyID
+	RemoteMetadataSnapshotFingerprintVersionV2 = remotehistory.RemoteMetadataSnapshotFingerprintVersionV2
+	LightweightAllMaterializationPolicyIDV2    = remotehistory.LightweightAllMaterializationPolicyIDV2
 )
 
 var (
@@ -26,7 +28,7 @@ var (
 	ErrRemoteMaterializationOpen     = errors.New("matching remote metadata materialization is already open")
 	ErrRemoteSnapshotConflict        = errors.New("remote metadata snapshot fingerprint changed during materialization")
 	ErrInvalidRemoteScopeProjection  = errors.New("invalid remote managed-scope projection")
-	ErrRemoteLocatorCollision       = errors.New("remote metadata snapshot maps different provider objects to the same locator")
+	ErrRemoteLocatorCollision        = errors.New("remote metadata snapshot maps different provider objects to the same locator")
 )
 
 // RemoteMetadataEntry contains provider metadata facts only. Pointer fields
@@ -97,7 +99,14 @@ type RemoteMaterializationStore interface {
 	AbortScan(context.Context, corpus.ScanSessionID, time.Time) error
 }
 
-type canonicalRemoteMetadataEntry = remotehistory.RemoteMetadataFingerprintEntry
+type canonicalRemoteMetadataEntry struct {
+	ProviderObjectID corpus.ProviderObjectID
+	Locators         []corpus.Locator
+	Kind             corpus.EntryKind
+	Size             *int64
+	Mode             *uint32
+	ModifiedAt       *time.Time
+}
 
 type preparedRemoteMetadataSnapshot struct {
 	generation  remotehistory.HistoryGeneration
@@ -256,10 +265,6 @@ func remoteObservationInput(
 	prepared preparedRemoteMetadataSnapshot,
 	entry canonicalRemoteMetadataEntry,
 ) (corpus.ObservationRecordInput, error) {
-	modifiedAt, err := time.Parse(time.RFC3339Nano, entry.ModifiedAt)
-	if err != nil {
-		return corpus.ObservationRecordInput{}, fmt.Errorf("%w: canonical modified time: %v", ErrInvalidRemoteMetadataSnapshot, err)
-	}
 	return corpus.ObservationRecordInput{
 		ProviderObject: corpus.ProviderObject{
 			ProviderID:    prepared.generation.Scope.ProviderID,
@@ -270,20 +275,23 @@ func remoteObservationInput(
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      scan.StartedAt.UTC(),
 		Kind:            entry.Kind,
-		Size:            entry.Size,
-		Mode:            entry.Mode,
-		ModifiedAt:      modifiedAt,
+		Size:            cloneInt64(entry.Size),
+		Mode:            cloneUint32(entry.Mode),
+		ModifiedAt:      cloneTime(entry.ModifiedAt),
 	}, nil
 }
 
 func (p preparedRemoteMetadataSnapshot) source() remotehistory.RemoteScanSourceInput {
 	return remotehistory.RemoteScanSourceInput{
-		GenerationID:               p.snapshot.GenerationID,
-		PublicationSequence:        p.snapshot.PublicationSequence,
-		SourceScopeID:              p.snapshot.SourceScopeID,
-		MaterializationPolicyID:    p.snapshot.MaterializationPolicyID,
-		SnapshotFingerprintVersion: RemoteMetadataSnapshotFingerprintVersion,
-		SnapshotFingerprintSHA256:  p.fingerprint,
+		GenerationID:            p.snapshot.GenerationID,
+		PublicationSequence:     p.snapshot.PublicationSequence,
+		SourceScopeID:           p.snapshot.SourceScopeID,
+		MaterializationPolicyID: p.snapshot.MaterializationPolicyID,
+		SnapshotFingerprintVersion: func() string {
+			version, _ := remotehistory.RemoteMetadataSnapshotVersionForPolicy(p.snapshot.MaterializationPolicyID)
+			return version
+		}(),
+		SnapshotFingerprintSHA256: p.fingerprint,
 	}
 }
 
@@ -295,8 +303,10 @@ func prepareRemoteMetadataSnapshot(
 ) (preparedRemoteMetadataSnapshot, error) {
 	if snapshot.GenerationID == "" || snapshot.PublicationSequence == 0 ||
 		!isCanonicalNonEmpty(snapshot.ScanRoot) ||
-		!isCanonicalNonEmpty(snapshot.SourceScopeID) ||
-		snapshot.MaterializationPolicyID != LightweightAllMaterializationPolicyID {
+		!isCanonicalNonEmpty(snapshot.SourceScopeID) {
+		return preparedRemoteMetadataSnapshot{}, ErrInvalidRemoteMetadataSnapshot
+	}
+	if _, err := remotehistory.RemoteMetadataSnapshotVersionForPolicy(snapshot.MaterializationPolicyID); err != nil {
 		return preparedRemoteMetadataSnapshot{}, ErrInvalidRemoteMetadataSnapshot
 	}
 	generation, err := store.RemoteHistoryGeneration(ctx, snapshot.GenerationID)
@@ -323,7 +333,7 @@ func prepareRemoteMetadataSnapshot(
 			return preparedRemoteMetadataSnapshot{}, fmt.Errorf("%w: duplicate object %s", ErrInvalidRemoteMetadataSnapshot, entry.ProviderObjectID)
 		}
 		seenObjects[entry.ProviderObjectID] = struct{}{}
-		if err := validateRemoteMetadataEntry(entry); err != nil {
+		if err := validateRemoteMetadataEntry(entry, snapshot.MaterializationPolicyID); err != nil {
 			return preparedRemoteMetadataSnapshot{}, err
 		}
 
@@ -351,9 +361,9 @@ func prepareRemoteMetadataSnapshot(
 			ProviderObjectID: entry.ProviderObjectID,
 			Locators:         locators,
 			Kind:             entry.Kind,
-			Size:             *entry.Size,
-			Mode:             *entry.Mode,
-			ModifiedAt:       entry.ModifiedAt.UTC().Format(time.RFC3339Nano),
+			Size:             cloneInt64(entry.Size),
+			Mode:             cloneUint32(entry.Mode),
+			ModifiedAt:       cloneTimeUTC(entry.ModifiedAt),
 		})
 	}
 	sort.Slice(entries, func(i, j int) bool {
@@ -372,14 +382,26 @@ func prepareRemoteMetadataSnapshot(
 	}, nil
 }
 
-func validateRemoteMetadataEntry(entry RemoteMetadataEntry) error {
+func validateRemoteMetadataEntry(entry RemoteMetadataEntry, policy string) error {
 	switch entry.Kind {
 	case corpus.EntryRegularFile, corpus.EntrySymlink, corpus.EntryOther:
 	default:
 		return fmt.Errorf("%w: object %s has invalid kind %q", ErrInvalidRemoteMetadataSnapshot, entry.ProviderObjectID, entry.Kind)
 	}
-	if entry.Size == nil || *entry.Size < 0 || entry.Mode == nil || entry.ModifiedAt == nil || entry.ModifiedAt.IsZero() {
-		return fmt.Errorf("%w: object %s lacks required metadata facts", ErrInvalidRemoteMetadataSnapshot, entry.ProviderObjectID)
+	if entry.Size != nil && *entry.Size < 0 {
+		return fmt.Errorf("%w: object %s has invalid size", ErrInvalidRemoteMetadataSnapshot, entry.ProviderObjectID)
+	}
+	if entry.ModifiedAt != nil && entry.ModifiedAt.IsZero() {
+		return fmt.Errorf("%w: object %s has invalid modified time", ErrInvalidRemoteMetadataSnapshot, entry.ProviderObjectID)
+	}
+	switch policy {
+	case LightweightAllMaterializationPolicyID:
+		if entry.Size == nil || entry.Mode == nil || entry.ModifiedAt == nil {
+			return fmt.Errorf("%w: object %s lacks required v1 metadata facts", ErrInvalidRemoteMetadataSnapshot, entry.ProviderObjectID)
+		}
+	case LightweightAllMaterializationPolicyIDV2:
+	default:
+		return ErrInvalidRemoteMetadataSnapshot
 	}
 	return nil
 }
@@ -474,20 +496,59 @@ func validateRemoteExactInSet(
 	return nil
 }
 
-func remoteMetadataFingerprint(
-	generation remotehistory.HistoryGeneration,
-	snapshot RemoteMetadataSnapshot,
-	entries []canonicalRemoteMetadataEntry,
-) (string, error) {
-	return remotehistory.FingerprintRemoteMetadataSnapshot(remotehistory.RemoteMetadataFingerprintInput{
-		GenerationID:            snapshot.GenerationID,
-		PublicationSequence:     snapshot.PublicationSequence,
-		ProviderID:              generation.Scope.ProviderID,
-		ScanRoot:                snapshot.ScanRoot,
-		SourceScopeID:           snapshot.SourceScopeID,
-		MaterializationPolicyID: snapshot.MaterializationPolicyID,
-		Entries:                 entries,
-	})
+func remoteMetadataFingerprint(generation remotehistory.HistoryGeneration, snapshot RemoteMetadataSnapshot, entries []canonicalRemoteMetadataEntry) (string, error) {
+	switch snapshot.MaterializationPolicyID {
+	case LightweightAllMaterializationPolicyID:
+		v1 := make([]remotehistory.RemoteMetadataFingerprintEntry, 0, len(entries))
+		for _, entry := range entries {
+			if entry.Size == nil || entry.Mode == nil || entry.ModifiedAt == nil {
+				return "", ErrInvalidRemoteMetadataSnapshot
+			}
+			v1 = append(v1, remotehistory.RemoteMetadataFingerprintEntry{ProviderObjectID: entry.ProviderObjectID, Locators: append([]corpus.Locator(nil), entry.Locators...), Kind: entry.Kind, Size: *entry.Size, Mode: *entry.Mode, ModifiedAt: entry.ModifiedAt.UTC().Format(time.RFC3339Nano)})
+		}
+		return remotehistory.FingerprintRemoteMetadataSnapshot(remotehistory.RemoteMetadataFingerprintInput{GenerationID: snapshot.GenerationID, PublicationSequence: snapshot.PublicationSequence, ProviderID: generation.Scope.ProviderID, ScanRoot: snapshot.ScanRoot, SourceScopeID: snapshot.SourceScopeID, MaterializationPolicyID: snapshot.MaterializationPolicyID, Entries: v1})
+	case LightweightAllMaterializationPolicyIDV2:
+		v2 := make([]remotehistory.RemoteMetadataFingerprintEntryV2, 0, len(entries))
+		for _, entry := range entries {
+			var modified *string
+			if entry.ModifiedAt != nil {
+				v := entry.ModifiedAt.UTC().Format(time.RFC3339Nano)
+				modified = &v
+			}
+			v2 = append(v2, remotehistory.RemoteMetadataFingerprintEntryV2{ProviderObjectID: entry.ProviderObjectID, Locators: append([]corpus.Locator(nil), entry.Locators...), Kind: entry.Kind, Size: cloneInt64(entry.Size), Mode: cloneUint32(entry.Mode), ModifiedAt: modified})
+		}
+		return remotehistory.FingerprintRemoteMetadataSnapshotV2(remotehistory.RemoteMetadataFingerprintInputV2{GenerationID: snapshot.GenerationID, PublicationSequence: snapshot.PublicationSequence, ProviderID: generation.Scope.ProviderID, ScanRoot: snapshot.ScanRoot, SourceScopeID: snapshot.SourceScopeID, MaterializationPolicyID: snapshot.MaterializationPolicyID, Entries: v2})
+	default:
+		return "", ErrInvalidRemoteMetadataSnapshot
+	}
+}
+func cloneInt64(v *int64) *int64 {
+	if v == nil {
+		return nil
+	}
+	x := *v
+	return &x
+}
+func cloneUint32(v *uint32) *uint32 {
+	if v == nil {
+		return nil
+	}
+	x := *v
+	return &x
+}
+func cloneTime(v *time.Time) *time.Time {
+	if v == nil {
+		return nil
+	}
+	x := *v
+	return &x
+}
+func cloneTimeUTC(v *time.Time) *time.Time {
+	if v == nil {
+		return nil
+	}
+	x := v.UTC()
+	return &x
 }
 
 func isCanonicalNonEmpty(value string) bool {
@@ -596,7 +657,8 @@ func (p *GoogleDriveManagedRootProjection) ProjectLocators(
 func (p *GoogleDriveManagedRootProjection) validateScope(scope RemoteMaterializationScope) error {
 	if scope.Generation.Scope.ProviderID != gdrive.ProviderID ||
 		scope.SourceScopeID != string(p.managedRootObjectID) ||
-		scope.MaterializationPolicyID != LightweightAllMaterializationPolicyID {
+		(scope.MaterializationPolicyID != LightweightAllMaterializationPolicyID &&
+			scope.MaterializationPolicyID != LightweightAllMaterializationPolicyIDV2) {
 		return ErrInvalidRemoteScopeProjection
 	}
 	expectedRoot, err := GoogleDriveManagedRootScanRoot(scope.Generation.Scope.IdentityDomain, p.managedRootObjectID)

@@ -197,7 +197,8 @@ func TestNativeBindingRejectsInventoryNotMatchingPreviousSnapshot(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	prior[0].Size++
+	if prior[0].Size == nil { t.Fatal("previous LocalFS inventory size unexpectedly unavailable") }
+	(*prior[0].Size)++
 
 	current, err := provider.Snapshot(ctx, root)
 	if err != nil {

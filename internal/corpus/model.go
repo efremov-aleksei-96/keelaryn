@@ -85,7 +85,6 @@ func NewCatalog() *Catalog {
 	}
 }
 
-
 // ObservationRecordInput is provider-neutral append-only evidence to persist.
 // Empty ArtifactID/RevisionID with AssignmentUnresolved is a valid first-class
 // state and must not be "fixed" by guessing identity.
@@ -97,25 +96,34 @@ type ObservationRecordInput struct {
 	AssignmentState AssignmentState `json:"assignment_state"`
 	ObservedAt      time.Time       `json:"observed_at"`
 	Kind            EntryKind       `json:"kind"`
-	Size            int64           `json:"size"`
-	Mode            uint32          `json:"mode"`
-	ModifiedAt      time.Time       `json:"modified_at"`
+	Size            *int64          `json:"size,omitempty"`
+	Mode            *uint32         `json:"mode,omitempty"`
+	ModifiedAt      *time.Time      `json:"modified_at,omitempty"`
 }
+
+// KnownSize marks an exact provider size fact as available.
+func KnownSize(value int64) *int64 { v := value; return &v }
+
+// KnownMode marks an exact provider mode fact as available.
+func KnownMode(value uint32) *uint32 { v := value; return &v }
+
+// KnownModifiedAt marks an exact provider modification-time fact as available.
+func KnownModifiedAt(value time.Time) *time.Time { v := value; return &v }
 
 // BootstrapObservationInput is one first-observation adoption unit.
 // Evidence is optional for non-regular entries. A batch of these inputs may
 // be committed atomically so a failed bootstrap never leaves partial identity.
 type BootstrapObservationInput struct {
 	Observation ObservationRecordInput `json:"observation"`
-	Evidence    *ContentEvidence        `json:"evidence,omitempty"`
+	Evidence    *ContentEvidence       `json:"evidence,omitempty"`
 }
 
 // LocatorRecord gives an observation-time Locator its own record identity.
 // LocatorID is provenance bookkeeping, not Artifact or ProviderObject identity.
 type LocatorRecord struct {
-	ID            LocatorID      `json:"id"`
-	ObservationID ObservationID  `json:"observation_id"`
-	Locator       Locator        `json:"locator"`
+	ID            LocatorID     `json:"id"`
+	ObservationID ObservationID `json:"observation_id"`
+	Locator       Locator       `json:"locator"`
 }
 
 // ObservationRecord is the durable append-only form of discovery evidence.
@@ -123,20 +131,19 @@ type LocatorRecord struct {
 // occurrence record; it deliberately does not claim continuity with any other
 // occurrence.
 type ObservationRecord struct {
-	ID                       ObservationID              `json:"id"`
+	ID                         ObservationID              `json:"id"`
 	ProviderObjectOccurrenceID ProviderObjectOccurrenceID `json:"provider_object_occurrence_id"`
-	ProviderObject           ProviderObject             `json:"provider_object"`
-	Locators                 []LocatorRecord            `json:"locators"`
-	ArtifactID               ArtifactID                 `json:"artifact_id,omitempty"`
-	RevisionID               RevisionID                 `json:"revision_id,omitempty"`
-	AssignmentState          AssignmentState            `json:"assignment_state"`
-	ObservedAt               time.Time                  `json:"observed_at"`
-	Kind                     EntryKind                  `json:"kind"`
-	Size                     int64                      `json:"size"`
-	Mode                     uint32                     `json:"mode"`
-	ModifiedAt               time.Time                  `json:"modified_at"`
+	ProviderObject             ProviderObject             `json:"provider_object"`
+	Locators                   []LocatorRecord            `json:"locators"`
+	ArtifactID                 ArtifactID                 `json:"artifact_id,omitempty"`
+	RevisionID                 RevisionID                 `json:"revision_id,omitempty"`
+	AssignmentState            AssignmentState            `json:"assignment_state"`
+	ObservedAt                 time.Time                  `json:"observed_at"`
+	Kind                       EntryKind                  `json:"kind"`
+	Size                       *int64                     `json:"size,omitempty"`
+	Mode                       *uint32                    `json:"mode,omitempty"`
+	ModifiedAt                 *time.Time                 `json:"modified_at,omitempty"`
 }
-
 
 // ScanStatus marks whether one provider/root enumeration is eligible to define
 // current inventory. Only COMPLETE scans are authoritative.
@@ -150,28 +157,28 @@ const (
 
 // ScanSession is a completeness boundary for exactly one provider/root.
 type ScanSession struct {
-	ID          ScanSessionID `json:"id"`
-	ProviderID  ProviderID    `json:"provider_id"`
-	Root        string        `json:"root"`
-	Status      ScanStatus    `json:"status"`
-	StartedAt   time.Time     `json:"started_at"`
-	FinishedAt  time.Time     `json:"finished_at,omitempty"`
+	ID         ScanSessionID `json:"id"`
+	ProviderID ProviderID    `json:"provider_id"`
+	Root       string        `json:"root"`
+	Status     ScanStatus    `json:"status"`
+	StartedAt  time.Time     `json:"started_at"`
+	FinishedAt time.Time     `json:"finished_at,omitempty"`
 }
 
 // InventoryEntry is a derived row from the latest COMPLETE scan. It is not
 // stored authority: the Observation plus ScanSession remain authoritative.
 type InventoryEntry struct {
-	ScanID          ScanSessionID  `json:"scan_id"`
-	ObservationID   ObservationID  `json:"observation_id"`
-	ArtifactID      ArtifactID     `json:"artifact_id,omitempty"`
-	RevisionID      RevisionID     `json:"revision_id,omitempty"`
+	ScanID          ScanSessionID   `json:"scan_id"`
+	ObservationID   ObservationID   `json:"observation_id"`
+	ArtifactID      ArtifactID      `json:"artifact_id,omitempty"`
+	RevisionID      RevisionID      `json:"revision_id,omitempty"`
 	AssignmentState AssignmentState `json:"assignment_state"`
-	Locator         Locator        `json:"locator"`
-	Kind            EntryKind      `json:"kind"`
-	Size            int64          `json:"size"`
-	ModifiedAt      time.Time      `json:"modified_at"`
+	Locator         Locator         `json:"locator"`
+	Kind            EntryKind       `json:"kind"`
+	Size            *int64          `json:"size,omitempty"`
+	Mode            *uint32         `json:"mode,omitempty"`
+	ModifiedAt      *time.Time      `json:"modified_at,omitempty"`
 }
-
 
 // OccurrenceCandidateSet is a read-only reconciliation view for one currently
 // observed provider-object occurrence. It carries every current Locator plus
@@ -180,8 +187,8 @@ type InventoryEntry struct {
 // Inputs are retained so callers can explicitly add stronger evidence and call
 // ResolveCandidateSet again without re-running candidate discovery.
 type OccurrenceCandidateSet struct {
-	Locators    []Locator                `json:"locators"`
-	Kind        EntryKind                `json:"kind"`
-	Inputs      []ArtifactCandidateInput `json:"inputs"`
-	Resolution  CandidateSetResolution   `json:"resolution"`
+	Locators   []Locator                `json:"locators"`
+	Kind       EntryKind                `json:"kind"`
+	Inputs     []ArtifactCandidateInput `json:"inputs"`
+	Resolution CandidateSetResolution   `json:"resolution"`
 }

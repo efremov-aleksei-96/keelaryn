@@ -38,9 +38,9 @@ func TestObservationSQLiteStructuralAuthority(t *testing.T) {
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      base,
 		Kind:            corpus.EntryRegularFile,
-		Size:            1,
-		Mode:            0o600,
-		ModifiedAt:      base,
+		Size:            corpus.KnownSize(1),
+		Mode:            corpus.KnownMode(0o600),
+		ModifiedAt:      corpus.KnownModifiedAt(base),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -60,9 +60,9 @@ func TestObservationSQLiteStructuralAuthority(t *testing.T) {
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      base,
 		Kind:            corpus.EntryRegularFile,
-		Size:            1,
-		Mode:            0o600,
-		ModifiedAt:      base,
+		Size:            corpus.KnownSize(1),
+		Mode:            corpus.KnownMode(0o600),
+		ModifiedAt:      corpus.KnownModifiedAt(base),
 	}); err == nil {
 		t.Fatal("duplicate observed provider object in one scan unexpectedly succeeded")
 	}
@@ -81,9 +81,9 @@ func TestObservationSQLiteStructuralAuthority(t *testing.T) {
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      base,
 		Kind:            corpus.EntryRegularFile,
-		Size:            1,
-		Mode:            0o600,
-		ModifiedAt:      base,
+		Size:            corpus.KnownSize(1),
+		Mode:            corpus.KnownMode(0o600),
+		ModifiedAt:      corpus.KnownModifiedAt(base),
 	}); err == nil {
 		t.Fatal("cross-object locator collision in one scan unexpectedly succeeded")
 	}
@@ -145,7 +145,10 @@ func TestObservationSQLiteStructuralAuthority(t *testing.T) {
 		size:            1,
 		mode:            4294967296,
 		modifiedAt:      base.Format(time.RFC3339Nano),
-	})
+			sizeKnown:       1,
+		modeKnown:       1,
+		modifiedAtKnown: 1,
+})
 	if err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)
@@ -187,7 +190,10 @@ func TestObservationSQLiteStructuralAuthority(t *testing.T) {
 		mode:            0,
 		modifiedAt:      base.Format(time.RFC3339Nano),
 		scanID:          scan.ID,
-	})
+			sizeKnown:       1,
+		modeKnown:       1,
+		modifiedAtKnown: 1,
+})
 	if err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)
@@ -229,7 +235,10 @@ func TestObservationSQLiteStructuralAuthority(t *testing.T) {
 		mode:            0,
 		modifiedAt:      base.Format(time.RFC3339Nano),
 		scanID:          scan.ID,
-	})
+			sizeKnown:       1,
+		modeKnown:       1,
+		modifiedAtKnown: 1,
+})
 	if err != nil {
 		store.pool.Put(conn)
 		t.Fatal(err)
@@ -297,9 +306,9 @@ func TestObservationSQLiteAcceptsMultipleLocatorsForOneObservation(t *testing.T)
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      base,
 		Kind:            corpus.EntryRegularFile,
-		Size:            1,
-		Mode:            0o600,
-		ModifiedAt:      base,
+		Size:            corpus.KnownSize(1),
+		Mode:            corpus.KnownMode(0o600),
+		ModifiedAt:      corpus.KnownModifiedAt(base),
 	}); err != nil {
 		t.Fatal(err)
 	}

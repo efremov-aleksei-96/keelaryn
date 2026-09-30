@@ -313,9 +313,9 @@ func unresolvedScanObservation(path string, at time.Time) corpus.ObservationReco
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      at,
 		Kind:            corpus.EntryRegularFile,
-		Size:            4,
-		Mode:            0o600,
-		ModifiedAt:      at.Add(-time.Minute),
+		Size:            corpus.KnownSize(4),
+		Mode:            corpus.KnownMode(0o600),
+		ModifiedAt:      corpus.KnownModifiedAt(at.Add(-time.Minute)),
 	}
 }
 

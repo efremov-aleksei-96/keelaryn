@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	ErrInvalidObservation        = errors.New("invalid observation")
-	ErrObservationNotFound       = errors.New("observation not found")
-	ErrRevisionArtifactMismatch  = errors.New("revision does not belong to artifact")
+	ErrInvalidObservation       = errors.New("invalid observation")
+	ErrObservationNotFound      = errors.New("observation not found")
+	ErrRevisionArtifactMismatch = errors.New("revision does not belong to artifact")
 )
 
 func (s *Store) RecordObservation(ctx context.Context, input corpus.ObservationRecordInput) (out corpus.ObservationRecord, err error) {
@@ -103,7 +103,10 @@ func (s *Store) recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessi
 		revisionID = string(input.RevisionID)
 	}
 	observedText := input.ObservedAt.UTC().Format(time.RFC3339Nano)
-	modifiedText := input.ModifiedAt.UTC().Format(time.RFC3339Nano)
+	sizeValue, sizeKnown, modeValue, modeKnown, modifiedText, modifiedKnown, err := observationStorageFacts(input)
+	if err != nil {
+		return corpus.ObservationRecord{}, err
+	}
 	releaseObservation, err := s.authorizeObservationInsertConn(conn, observationInsertAuthorization{
 		observationID:   observationID,
 		occurrenceID:    occurrenceID,
@@ -112,29 +115,44 @@ func (s *Store) recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessi
 		assignmentState: input.AssignmentState,
 		observedAt:      observedText,
 		kind:            input.Kind,
-		size:            input.Size,
-		mode:            int64(input.Mode),
+		size:            sizeValue,
+		mode:            modeValue,
 		modifiedAt:      modifiedText,
+		sizeKnown:       sizeKnown,
+		modeKnown:       modeKnown,
+		modifiedAtKnown: modifiedKnown,
 		scanID:          scanID,
 	})
 	if err != nil {
 		return corpus.ObservationRecord{}, err
 	}
-	writeErr = sqlitex.Execute(conn,
-		"INSERT INTO observations (observation_id, occurrence_id, artifact_id, revision_id, assignment_state, observed_at, kind, size, mode, modified_at, scan_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-		&sqlitex.ExecOptions{Args: []any{
-			string(observationID),
-			string(occurrenceID),
-			artifactID,
-			revisionID,
-			string(input.AssignmentState),
-			observedText,
-			string(input.Kind),
-			input.Size,
-			int64(input.Mode),
-			modifiedText,
-			nullableScanID(scanID),
-		}})
+	availabilitySupported, err := observationFactAvailabilitySupportedConn(conn)
+	if err != nil {
+		releaseObservation()
+		return corpus.ObservationRecord{}, err
+	}
+	if !availabilitySupported && (sizeKnown != 1 || modeKnown != 1 || modifiedKnown != 1) {
+		releaseObservation()
+		return corpus.ObservationRecord{}, fmt.Errorf("%w: pre-v46 Observation schema cannot represent unavailable facts", ErrInvalidObservation)
+	}
+	if availabilitySupported {
+		writeErr = sqlitex.Execute(conn,
+			"INSERT INTO observations (observation_id, occurrence_id, artifact_id, revision_id, assignment_state, observed_at, kind, size, mode, modified_at, scan_id, size_known, mode_known, modified_at_known) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+			&sqlitex.ExecOptions{Args: []any{
+				string(observationID), string(occurrenceID), artifactID, revisionID,
+				string(input.AssignmentState), observedText, string(input.Kind),
+				sizeValue, modeValue, modifiedText, nullableScanID(scanID),
+				sizeKnown, modeKnown, modifiedKnown,
+			}})
+	} else {
+		writeErr = sqlitex.Execute(conn,
+			"INSERT INTO observations (observation_id, occurrence_id, artifact_id, revision_id, assignment_state, observed_at, kind, size, mode, modified_at, scan_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+			&sqlitex.ExecOptions{Args: []any{
+				string(observationID), string(occurrenceID), artifactID, revisionID,
+				string(input.AssignmentState), observedText, string(input.Kind),
+				sizeValue, modeValue, modifiedText, nullableScanID(scanID),
+			}})
+	}
 	releaseObservation()
 	if writeErr != nil {
 		return corpus.ObservationRecord{}, fmt.Errorf("insert Observation: %w", writeErr)
@@ -183,9 +201,9 @@ func (s *Store) recordObservationConn(conn *sqlite.Conn, scanID corpus.ScanSessi
 		AssignmentState:            input.AssignmentState,
 		ObservedAt:                 input.ObservedAt.UTC(),
 		Kind:                       input.Kind,
-		Size:                       input.Size,
-		Mode:                       input.Mode,
-		ModifiedAt:                 input.ModifiedAt.UTC(),
+		Size:                       cloneObservationSize(input.Size),
+		Mode:                       cloneObservationMode(input.Mode),
+		ModifiedAt:                 cloneObservationTime(input.ModifiedAt),
 	}, nil
 }
 
@@ -199,8 +217,9 @@ func (s *Store) Observation(ctx context.Context, observationID corpus.Observatio
 	var record corpus.ObservationRecord
 	var found bool
 	var observedAtText, modifiedAtText string
+	var sizeValue, modeValue, sizeKnown, modeKnown, modifiedKnown int64
 	err = sqlitex.Execute(conn,
-		"SELECT o.occurrence_id, p.provider_id, COALESCE(p.native_object_id, ''), p.identity_state, COALESCE(o.artifact_id, ''), COALESCE(o.revision_id, ''), o.assignment_state, o.observed_at, o.kind, o.size, o.mode, o.modified_at FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id = o.occurrence_id WHERE o.observation_id = ?1",
+		"SELECT o.occurrence_id, p.provider_id, COALESCE(p.native_object_id, ''), p.identity_state, COALESCE(o.artifact_id, ''), COALESCE(o.revision_id, ''), o.assignment_state, o.observed_at, o.kind, o.size, o.mode, o.modified_at, o.size_known, o.mode_known, o.modified_at_known FROM observations o JOIN provider_object_occurrences p ON p.occurrence_id = o.occurrence_id WHERE o.observation_id = ?1",
 		&sqlitex.ExecOptions{
 			Args: []any{string(observationID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
@@ -217,9 +236,12 @@ func (s *Store) Observation(ctx context.Context, observationID corpus.Observatio
 				record.AssignmentState = corpus.AssignmentState(stmt.ColumnText(6))
 				observedAtText = stmt.ColumnText(7)
 				record.Kind = corpus.EntryKind(stmt.ColumnText(8))
-				record.Size = stmt.ColumnInt64(9)
-				record.Mode = uint32(stmt.ColumnInt64(10))
+				sizeValue = stmt.ColumnInt64(9)
+				modeValue = stmt.ColumnInt64(10)
 				modifiedAtText = stmt.ColumnText(11)
+				sizeKnown = stmt.ColumnInt64(12)
+				modeKnown = stmt.ColumnInt64(13)
+				modifiedKnown = stmt.ColumnInt64(14)
 				return nil
 			},
 		})
@@ -234,9 +256,18 @@ func (s *Store) Observation(ctx context.Context, observationID corpus.Observatio
 	if err != nil {
 		return corpus.ObservationRecord{}, fmt.Errorf("parse Observation time: %w", err)
 	}
-	record.ModifiedAt, err = time.Parse(time.RFC3339Nano, modifiedAtText)
-	if err != nil {
-		return corpus.ObservationRecord{}, fmt.Errorf("parse modified time: %w", err)
+	if sizeKnown == 1 {
+		record.Size = corpus.KnownSize(sizeValue)
+	}
+	if modeKnown == 1 {
+		record.Mode = corpus.KnownMode(uint32(modeValue))
+	}
+	if modifiedKnown == 1 {
+		parsed, parseErr := time.Parse(time.RFC3339Nano, modifiedAtText)
+		if parseErr != nil {
+			return corpus.ObservationRecord{}, fmt.Errorf("parse modified time: %w", parseErr)
+		}
+		record.ModifiedAt = corpus.KnownModifiedAt(parsed)
 	}
 
 	err = sqlitex.Execute(conn,
@@ -306,10 +337,69 @@ func validateObservationInput(input corpus.ObservationRecordInput) error {
 	default:
 		return fmt.Errorf("%w: invalid entry kind %q", ErrInvalidObservation, input.Kind)
 	}
-	if input.Size < 0 || input.ObservedAt.IsZero() {
-		return fmt.Errorf("%w: invalid size/time", ErrInvalidObservation)
+	if input.Size != nil && *input.Size < 0 {
+		return fmt.Errorf("%w: invalid size", ErrInvalidObservation)
+	}
+	if input.ModifiedAt != nil && input.ModifiedAt.IsZero() {
+		return fmt.Errorf("%w: invalid modified time", ErrInvalidObservation)
+	}
+	if input.ObservedAt.IsZero() {
+		return fmt.Errorf("%w: invalid observation time", ErrInvalidObservation)
 	}
 	return nil
+}
+
+const observationFactAvailabilitySchemaVersion int64 = 46
+
+func observationFactAvailabilitySupportedConn(conn *sqlite.Conn) (bool, error) {
+	var version int64
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA user_version;", &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			version = stmt.ColumnInt64(0)
+			return nil
+		},
+	}); err != nil {
+		return false, fmt.Errorf("read Observation fact-availability schema version: %w", err)
+	}
+	return version >= observationFactAvailabilitySchemaVersion, nil
+}
+
+func observationStorageFacts(input corpus.ObservationRecordInput) (size, sizeKnown, mode, modeKnown int64, modified string, modifiedKnown int64, err error) {
+	if input.Size != nil {
+		if *input.Size < 0 {
+			return 0, 0, 0, 0, "", 0, ErrInvalidObservation
+		}
+		size, sizeKnown = *input.Size, 1
+	}
+	if input.Mode != nil {
+		mode, modeKnown = int64(*input.Mode), 1
+	}
+	modified = input.ObservedAt.UTC().Format(time.RFC3339Nano)
+	if input.ModifiedAt != nil {
+		if input.ModifiedAt.IsZero() {
+			return 0, 0, 0, 0, "", 0, ErrInvalidObservation
+		}
+		modified, modifiedKnown = input.ModifiedAt.UTC().Format(time.RFC3339Nano), 1
+	}
+	return
+}
+func cloneObservationSize(v *int64) *int64 {
+	if v == nil {
+		return nil
+	}
+	return corpus.KnownSize(*v)
+}
+func cloneObservationMode(v *uint32) *uint32 {
+	if v == nil {
+		return nil
+	}
+	return corpus.KnownMode(*v)
+}
+func cloneObservationTime(v *time.Time) *time.Time {
+	if v == nil {
+		return nil
+	}
+	return corpus.KnownModifiedAt(v.UTC())
 }
 
 func revisionBelongsToArtifact(conn *sqlite.Conn, revisionID corpus.RevisionID, artifactID corpus.ArtifactID) (bool, error) {
@@ -328,7 +418,6 @@ func revisionBelongsToArtifact(conn *sqlite.Conn, revisionID corpus.RevisionID, 
 	}
 	return matches, nil
 }
-
 
 func nullableScanID(scanID corpus.ScanSessionID) any {
 	if scanID == "" {

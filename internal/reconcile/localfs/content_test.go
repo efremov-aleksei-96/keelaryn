@@ -234,9 +234,9 @@ func publishAdoptedPath(t *testing.T, store *sqlitestate.Store, path, root strin
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      at,
 		Kind:            corpus.EntryRegularFile,
-		Size:            size,
-		Mode:            0o600,
-		ModifiedAt:      at,
+		Size:            corpus.KnownSize(size),
+		Mode:            corpus.KnownMode(0o600),
+		ModifiedAt:      corpus.KnownModifiedAt(at),
 	}, evidence)
 	if err != nil {
 		t.Fatal(err)

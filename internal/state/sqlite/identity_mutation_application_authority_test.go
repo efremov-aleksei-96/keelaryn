@@ -63,7 +63,10 @@ func TestSourceBoundAssignedObservationRejectsDirectSQLWithoutIdentityCapability
 		mode:            0,
 		modifiedAt:      fixture.base.Add(time.Second).UTC().Format(time.RFC3339Nano),
 		scanID:          scan.ID,
-	})
+			sizeKnown:       1,
+		modeKnown:       1,
+		modifiedAtKnown: 1,
+})
 	if err != nil {
 		releaseAcceptance()
 		t.Fatal(err)
@@ -153,7 +156,7 @@ func TestSourceBoundIdentityMutationAPICapabilityStillAllowsNew(t *testing.T) {
 			Locators: append([]corpus.Locator(nil), entries[1].Locators...),
 			AssignmentState: corpus.AssignmentUnresolved,
 			ObservedAt: scan.StartedAt,
-			Kind: entries[1].Kind, Size: entries[1].Size, Mode: entries[1].Mode, ModifiedAt: modifiedAt,
+			Kind: entries[1].Kind, Size: corpus.KnownSize(entries[1].Size), Mode: corpus.KnownMode(entries[1].Mode), ModifiedAt: corpus.KnownModifiedAt(modifiedAt),
 		},
 		AuthoritySetID: authority.ID,
 		DecidedAt: scan.StartedAt,
@@ -188,7 +191,7 @@ func TestSourceBoundAcceptedContinuityRejectsDirectSQLWithoutIdentityCapability(
 		Locators: append([]corpus.Locator(nil), entries[1].Locators...),
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt: scan.StartedAt,
-		Kind: entries[1].Kind, Size: entries[1].Size, Mode: entries[1].Mode, ModifiedAt: modifiedAt,
+		Kind: entries[1].Kind, Size: corpus.KnownSize(entries[1].Size), Mode: corpus.KnownMode(entries[1].Mode), ModifiedAt: corpus.KnownModifiedAt(modifiedAt),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -233,7 +236,7 @@ func TestSourceBoundAcceptedAdmissionRejectsDirectSQLWithoutIdentityCapability(t
 		Locators: append([]corpus.Locator(nil), entries[1].Locators...),
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt: scan.StartedAt,
-		Kind: entries[1].Kind, Size: entries[1].Size, Mode: entries[1].Mode, ModifiedAt: modifiedAt,
+		Kind: entries[1].Kind, Size: corpus.KnownSize(entries[1].Size), Mode: corpus.KnownMode(entries[1].Mode), ModifiedAt: corpus.KnownModifiedAt(modifiedAt),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -288,7 +291,7 @@ func TestSourceBoundIdentityMutationReceiptRejectsDirectSQLWithoutIdentityCapabi
 		Locators: append([]corpus.Locator(nil), entries[1].Locators...),
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt: scan.StartedAt,
-		Kind: entries[1].Kind, Size: entries[1].Size, Mode: entries[1].Mode, ModifiedAt: modifiedAt,
+		Kind: entries[1].Kind, Size: corpus.KnownSize(entries[1].Size), Mode: corpus.KnownMode(entries[1].Mode), ModifiedAt: corpus.KnownModifiedAt(modifiedAt),
 	})
 	if err != nil {
 		t.Fatal(err)

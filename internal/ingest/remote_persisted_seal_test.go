@@ -78,9 +78,9 @@ func (s *injectExtraObservationBeforeRemoteCompleteStore) CompleteRemoteHistoryS
 			AssignmentState: corpus.AssignmentUnresolved,
 			ObservedAt:      s.at,
 			Kind:            corpus.EntryRegularFile,
-			Size:            1,
-			Mode:            0,
-			ModifiedAt:      s.at,
+			Size:            corpus.KnownSize(1),
+			Mode:            corpus.KnownMode(0),
+			ModifiedAt:      corpus.KnownModifiedAt(s.at),
 		}); err != nil {
 			return corpus.ScanSession{}, false, err
 		}

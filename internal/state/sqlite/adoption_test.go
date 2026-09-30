@@ -60,7 +60,7 @@ func TestAdoptObservationInScanIsAtomicPerOccurrence(t *testing.T) {
 	evidence := corpus.ContentEvidence{
 		Algorithm: corpus.ContentAlgorithmSHA256,
 		Digest:    "abc",
-		Size:      input.Size + 1,
+		Size:      *input.Size + 1,
 	}
 	_, err = store.AdoptObservationInScan(ctx, scan.ID, input, &evidence)
 	if !errors.Is(err, sqlitestate.ErrInvalidObservation) {
@@ -78,7 +78,7 @@ func TestAdoptObservationInScanIsAtomicPerOccurrence(t *testing.T) {
 	valid := corpus.ContentEvidence{
 		Algorithm: corpus.ContentAlgorithmSHA256,
 		Digest:    "abcd",
-		Size:      input.Size,
+		Size:      *input.Size,
 	}
 	record, err := store.AdoptObservationInScan(ctx, scan.ID, input, &valid)
 	if err != nil {

@@ -111,9 +111,9 @@ func TestTerminalScanRejectsObservationAndLocatorAppend(t *testing.T) {
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt: base,
 		Kind: corpus.EntryRegularFile,
-		Size: 1,
-		Mode: 0o600,
-		ModifiedAt: base,
+		Size: corpus.KnownSize(1),
+		Mode: corpus.KnownMode(0o600),
+		ModifiedAt: corpus.KnownModifiedAt(base),
 	})
 	if err != nil {
 		t.Fatal(err)

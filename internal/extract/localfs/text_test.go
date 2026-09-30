@@ -135,8 +135,8 @@ func TestUnassignedInventoryCannotBeExtracted(t *testing.T) {
 		AssignmentState: corpus.AssignmentUnresolved,
 		Locator: obs.Locator,
 		Kind: obs.Kind,
-		Size: obs.Size,
-		ModifiedAt: obs.ModifiedAt,
+		Size: corpus.KnownSize(obs.Size),
+		ModifiedAt: corpus.KnownModifiedAt(obs.ModifiedAt),
 	}
 	_, err = extractlocalfs.Extract(context.Background(), emptyRevisionReader{}, provider, entry, 1024)
 	if !errors.Is(err, extractlocalfs.ErrInvalidExtractionRequest) {

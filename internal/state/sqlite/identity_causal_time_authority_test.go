@@ -84,9 +84,9 @@ func TestSourceBoundIdentityMutationRejectsDecisionBeforeScanOrAuthority(t *test
 					AssignmentState: corpus.AssignmentUnresolved,
 					ObservedAt: scan.StartedAt,
 					Kind: entry.Kind,
-					Size: entry.Size,
-					Mode: entry.Mode,
-					ModifiedAt: modifiedAt,
+					Size: corpus.KnownSize(entry.Size),
+					Mode: corpus.KnownMode(entry.Mode),
+					ModifiedAt: corpus.KnownModifiedAt(modifiedAt),
 				},
 				AuthoritySetID: authority.ID,
 				DecidedAt: fixture.base.Add(tc.decisionOffset),
@@ -161,7 +161,10 @@ func TestV28SQLiteRejectsAuthorizedNoncausalSourceIdentityWrites(t *testing.T) {
 		mode:            0,
 		modifiedAt:      fixture.base.Add(time.Second).UTC().Format(time.RFC3339Nano),
 		scanID:          scan.ID,
-	})
+			sizeKnown:       1,
+		modeKnown:       1,
+		modifiedAtKnown: 1,
+})
 	if err != nil {
 		releaseAcceptance()
 		t.Fatal(err)

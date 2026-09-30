@@ -168,7 +168,10 @@ func TestV29SQLiteRejectsGenericRemoteHistoryDecisionAndReceiptWithoutCapability
 		mode:            384,
 		modifiedAt:      scan2.StartedAt.Add(-time.Minute).UTC().Format(time.RFC3339Nano),
 		scanID:          scan2.ID,
-	})
+			sizeKnown:       1,
+		modeKnown:       1,
+		modifiedAtKnown: 1,
+})
 	if err != nil {
 		releaseAcceptance()
 		releaseSource()

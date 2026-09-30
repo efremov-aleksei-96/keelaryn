@@ -454,9 +454,9 @@ func (f googleRemoteCompletionFixture) recordAt(
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      observedAt,
 		Kind:            entry.Kind,
-		Size:            entry.Size,
-		Mode:            entry.Mode,
-		ModifiedAt:      modifiedAt,
+		Size:            corpus.KnownSize(entry.Size),
+		Mode:            corpus.KnownMode(entry.Mode),
+		ModifiedAt:      corpus.KnownModifiedAt(modifiedAt),
 	})
 	return err
 }

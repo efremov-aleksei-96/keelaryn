@@ -14,7 +14,7 @@ func TestIdentityMutationFingerprintCanonicalizesLocatorOrder(t *testing.T) {
 		Observation:corpus.ObservationRecordInput{
 			ProviderObject:corpus.ProviderObject{ProviderID:"drive",ID:"obj-1",IdentityState:corpus.ObjectIdentityObserved},
 			Locators:[]corpus.Locator{{ProviderID:"drive",Root:"root",Path:"b"},{ProviderID:"drive",Root:"root",Path:"a"}},
-			AssignmentState:corpus.AssignmentUnresolved,ObservedAt:at,Kind:corpus.EntryRegularFile,Size:4,Mode:0o600,ModifiedAt:at,
+			AssignmentState:corpus.AssignmentUnresolved,ObservedAt:at,Kind:corpus.EntryRegularFile,Size:corpus.KnownSize(4),Mode:corpus.KnownMode(0o600),ModifiedAt:corpus.KnownModifiedAt(at),
 		},
 		ContentEvidence:&corpus.ContentEvidence{Algorithm:corpus.ContentAlgorithmSHA256,Digest:"same",Size:4},DecidedAt:at,
 	}
@@ -32,7 +32,7 @@ func TestIdentityMutationFingerprintChangesWithSemanticInput(t *testing.T) {
 		Observation:corpus.ObservationRecordInput{
 			ProviderObject:corpus.ProviderObject{ProviderID:"drive",ID:"obj-1",IdentityState:corpus.ObjectIdentityObserved},
 			Locators:[]corpus.Locator{{ProviderID:"drive",Root:"root",Path:"a"}},
-			AssignmentState:corpus.AssignmentUnresolved,ObservedAt:at,Kind:corpus.EntryRegularFile,Size:4,Mode:0o600,ModifiedAt:at,
+			AssignmentState:corpus.AssignmentUnresolved,ObservedAt:at,Kind:corpus.EntryRegularFile,Size:corpus.KnownSize(4),Mode:corpus.KnownMode(0o600),ModifiedAt:corpus.KnownModifiedAt(at),
 		},
 		ContentEvidence:&corpus.ContentEvidence{Algorithm:corpus.ContentAlgorithmSHA256,Digest:"same",Size:4},DecidedAt:at,
 	}

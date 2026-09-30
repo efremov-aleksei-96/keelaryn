@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	ErrInvalidScan             = errors.New("invalid scan session")
-	ErrScanNotFound            = errors.New("scan session not found")
-	ErrScanNotOpen             = errors.New("scan session is not open")
-	ErrScanScopeMismatch       = errors.New("observation does not match scan scope")
-	ErrAmbiguousScanAuthority  = errors.New("ambiguous current COMPLETE scan authority")
+	ErrInvalidScan            = errors.New("invalid scan session")
+	ErrScanNotFound           = errors.New("scan session not found")
+	ErrScanNotOpen            = errors.New("scan session is not open")
+	ErrScanScopeMismatch      = errors.New("observation does not match scan scope")
+	ErrAmbiguousScanAuthority = errors.New("ambiguous current COMPLETE scan authority")
 )
 
 func (s *Store) StartScan(ctx context.Context, providerID corpus.ProviderID, root string, startedAt time.Time) (corpus.ScanSession, error) {
@@ -304,13 +304,25 @@ func (s *Store) Inventory(ctx context.Context, providerID corpus.ProviderID, roo
 
 	var entries []corpus.InventoryEntry
 	err = sqlitex.Execute(conn,
-		"SELECT o.observation_id, COALESCE(o.artifact_id, ''), COALESCE(o.revision_id, ''), o.assignment_state, l.provider_id, l.root, l.path, o.kind, o.size, o.modified_at FROM observations o JOIN locators l ON l.observation_id = o.observation_id WHERE o.scan_id = ?1 ORDER BY l.path, o.observation_id",
+		"SELECT o.observation_id, COALESCE(o.artifact_id, ''), COALESCE(o.revision_id, ''), o.assignment_state, l.provider_id, l.root, l.path, o.kind, o.size, o.size_known, o.mode, o.mode_known, o.modified_at, o.modified_at_known FROM observations o JOIN locators l ON l.observation_id = o.observation_id WHERE o.scan_id = ?1 ORDER BY l.path, o.observation_id",
 		&sqlitex.ExecOptions{
 			Args: []any{string(scanID)},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
-				modifiedAt, err := time.Parse(time.RFC3339Nano, stmt.ColumnText(9))
-				if err != nil {
-					return err
+				var size *int64
+				if stmt.ColumnInt64(9) == 1 {
+					size = corpus.KnownSize(stmt.ColumnInt64(8))
+				}
+				var mode *uint32
+				if stmt.ColumnInt64(11) == 1 {
+					mode = corpus.KnownMode(uint32(stmt.ColumnInt64(10)))
+				}
+				var modifiedAt *time.Time
+				if stmt.ColumnInt64(13) == 1 {
+					parsed, err := time.Parse(time.RFC3339Nano, stmt.ColumnText(12))
+					if err != nil {
+						return err
+					}
+					modifiedAt = corpus.KnownModifiedAt(parsed)
 				}
 				entries = append(entries, corpus.InventoryEntry{
 					ScanID:          scanID,
@@ -324,7 +336,8 @@ func (s *Store) Inventory(ctx context.Context, providerID corpus.ProviderID, roo
 						Path:       stmt.ColumnText(6),
 					},
 					Kind:       corpus.EntryKind(stmt.ColumnText(7)),
-					Size:       stmt.ColumnInt64(8),
+					Size:       size,
+					Mode:       mode,
 					ModifiedAt: modifiedAt,
 				})
 				return nil

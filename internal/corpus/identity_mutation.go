@@ -26,7 +26,10 @@ const (
 	IdentityMutationNew  IdentityMutationKind = "NEW"
 )
 
-const IdentityMutationFingerprintV1 = "identity-mutation-fingerprint:v1"
+const (
+	IdentityMutationFingerprintV1 = "identity-mutation-fingerprint:v1"
+	IdentityMutationFingerprintV2 = "identity-mutation-fingerprint:v2"
+)
 
 // IdentityAuthorityCandidate is one authority-bearing predecessor fact.
 // Strength is deliberately absent: persistence by a qualified producer is what
@@ -175,6 +178,24 @@ type identityMutationFingerprintPayload struct {
 	AuthoritySetID  IdentityAuthoritySetID
 }
 
+type identityMutationFingerprintPayloadV2 struct {
+	Version         string                 `json:"version"`
+	Kind            IdentityMutationKind   `json:"kind"`
+	ScanID          ScanSessionID          `json:"scan_id"`
+	ProviderObject  ProviderObject         `json:"provider_object"`
+	Locators        []Locator              `json:"locators"`
+	ArtifactID      ArtifactID             `json:"artifact_id,omitempty"`
+	RevisionID      RevisionID             `json:"revision_id,omitempty"`
+	AssignmentState AssignmentState        `json:"assignment_state"`
+	ObservedAt      string                 `json:"observed_at"`
+	EntryKind       EntryKind              `json:"entry_kind"`
+	Size            *int64                 `json:"size"`
+	Mode            *uint32                `json:"mode"`
+	ModifiedAt      *string                `json:"modified_at"`
+	ContentEvidence *ContentEvidence       `json:"content_evidence,omitempty"`
+	AuthoritySetID  IdentityAuthoritySetID `json:"authority_set_id"`
+}
+
 // FingerprintIdentityMutation binds an idempotency key to request meaning.
 // DecidedAt and request ID are intentionally excluded: exact replay returns the
 // original durable timestamp and result.
@@ -187,7 +208,6 @@ func FingerprintIdentityMutation(kind IdentityMutationKind, request IdentityMuta
 	if request.ScanID == "" || request.AuthoritySetID == "" {
 		return IdentityMutationFingerprint{}, ErrInvalidIdentityMutationRequest
 	}
-
 	locators := append([]Locator(nil), request.Observation.Locators...)
 	sort.Slice(locators, func(i, j int) bool {
 		if locators[i].ProviderID != locators[j].ProviderID {
@@ -198,37 +218,45 @@ func FingerprintIdentityMutation(kind IdentityMutationKind, request IdentityMuta
 		}
 		return locators[i].Path < locators[j].Path
 	})
-
 	var evidence *ContentEvidence
 	if request.ContentEvidence != nil {
 		value := *request.ContentEvidence
 		evidence = &value
 	}
-
-	payload := identityMutationFingerprintPayload{
-		Version:         IdentityMutationFingerprintV1,
-		Kind:            kind,
-		ScanID:          request.ScanID,
-		ProviderObject:  request.Observation.ProviderObject,
-		Locators:        locators,
-		ArtifactID:      request.Observation.ArtifactID,
-		RevisionID:      request.Observation.RevisionID,
-		AssignmentState: request.Observation.AssignmentState,
-		ObservedAt:      request.Observation.ObservedAt.UTC().Format(time.RFC3339Nano),
-		EntryKind:       request.Observation.Kind,
-		Size:            request.Observation.Size,
-		Mode:            request.Observation.Mode,
-		ModifiedAt:      request.Observation.ModifiedAt.UTC().Format(time.RFC3339Nano),
-		ContentEvidence: evidence,
-		AuthoritySetID:  request.AuthoritySetID,
+	if request.Observation.Size != nil && request.Observation.Mode != nil && request.Observation.ModifiedAt != nil {
+		payload := identityMutationFingerprintPayload{
+			Version: IdentityMutationFingerprintV1, Kind: kind, ScanID: request.ScanID,
+			ProviderObject: request.Observation.ProviderObject, Locators: locators,
+			ArtifactID: request.Observation.ArtifactID, RevisionID: request.Observation.RevisionID,
+			AssignmentState: request.Observation.AssignmentState,
+			ObservedAt:      request.Observation.ObservedAt.UTC().Format(time.RFC3339Nano),
+			EntryKind:       request.Observation.Kind, Size: *request.Observation.Size, Mode: *request.Observation.Mode,
+			ModifiedAt:      request.Observation.ModifiedAt.UTC().Format(time.RFC3339Nano),
+			ContentEvidence: evidence, AuthoritySetID: request.AuthoritySetID,
+		}
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return IdentityMutationFingerprint{}, fmt.Errorf("marshal identity mutation fingerprint: %w", err)
+		}
+		sum := sha256.Sum256(data)
+		return IdentityMutationFingerprint{Version: IdentityMutationFingerprintV1, SHA256: hex.EncodeToString(sum[:])}, nil
+	}
+	var modifiedAt *string
+	if request.Observation.ModifiedAt != nil {
+		value := request.Observation.ModifiedAt.UTC().Format(time.RFC3339Nano)
+		modifiedAt = &value
+	}
+	payload := identityMutationFingerprintPayloadV2{
+		Version: IdentityMutationFingerprintV2, Kind: kind, ScanID: request.ScanID, ProviderObject: request.Observation.ProviderObject,
+		Locators: locators, ArtifactID: request.Observation.ArtifactID, RevisionID: request.Observation.RevisionID,
+		AssignmentState: request.Observation.AssignmentState, ObservedAt: request.Observation.ObservedAt.UTC().Format(time.RFC3339Nano),
+		EntryKind: request.Observation.Kind, Size: request.Observation.Size, Mode: request.Observation.Mode,
+		ModifiedAt: modifiedAt, ContentEvidence: evidence, AuthoritySetID: request.AuthoritySetID,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return IdentityMutationFingerprint{}, fmt.Errorf("marshal identity mutation fingerprint: %w", err)
 	}
 	sum := sha256.Sum256(data)
-	return IdentityMutationFingerprint{
-		Version: IdentityMutationFingerprintV1,
-		SHA256:  hex.EncodeToString(sum[:]),
-	}, nil
+	return IdentityMutationFingerprint{Version: IdentityMutationFingerprintV2, SHA256: hex.EncodeToString(sum[:])}, nil
 }

@@ -160,8 +160,8 @@ func (s *Store) adoptObservationInScanConn(
 		if err := corpus.ValidateContentEvidence(*evidence); err != nil {
 			return corpus.ObservationRecord{}, err
 		}
-		if evidence.Size != input.Size {
-			return corpus.ObservationRecord{}, fmt.Errorf("%w: content evidence size=%d observation size=%d", ErrInvalidObservation, evidence.Size, input.Size)
+		if input.Size == nil || evidence.Size != *input.Size {
+			return corpus.ObservationRecord{}, fmt.Errorf("%w: content evidence size=%d observation size unavailable/mismatch", ErrInvalidObservation, evidence.Size)
 		}
 	}
 

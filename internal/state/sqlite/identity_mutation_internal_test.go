@@ -36,7 +36,7 @@ func observedIdentityInput(provider corpus.ProviderID, root string, objectID cor
 		ProviderObject: corpus.ProviderObject{ProviderID: provider, ID: objectID, IdentityState: corpus.ObjectIdentityObserved},
 		Locators: []corpus.Locator{{ProviderID: provider, Root: root, Path: path}},
 		AssignmentState: corpus.AssignmentUnresolved,
-		ObservedAt: at, Kind: corpus.EntryRegularFile, Size: 4, Mode: 0o600, ModifiedAt: at.Add(-time.Minute),
+		ObservedAt: at, Kind: corpus.EntryRegularFile, Size: corpus.KnownSize(4), Mode: corpus.KnownMode(0o600), ModifiedAt: corpus.KnownModifiedAt(at.Add(-time.Minute)),
 	}
 }
 

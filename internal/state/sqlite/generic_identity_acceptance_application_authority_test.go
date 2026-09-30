@@ -48,7 +48,7 @@ func TestGenericIdentityAcceptanceApplicationAuthorityRejectsDirectSQL(t *testin
 	input.ProviderObject = corpus.ProviderObject{ProviderID: "drive", ID: "obj", IdentityState: corpus.ObjectIdentityObserved}
 	input.Locators = []corpus.Locator{{ProviderID: "drive", Root: "root", Path: "x"}}
 	input.ObservedAt = at
-	input.ModifiedAt = at
+	input.ModifiedAt = corpus.KnownModifiedAt(at)
 	adopted, err := store.AdoptObservationInScan(ctx, scan.ID, input, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +87,10 @@ func TestGenericIdentityAcceptanceApplicationAuthorityRejectsDirectSQL(t *testin
 		mode:            0,
 		modifiedAt:      at.Format(time.RFC3339Nano),
 		scanID:          scan.ID,
-	})
+			sizeKnown:       1,
+		modeKnown:       1,
+		modifiedAtKnown: 1,
+})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,8 +155,8 @@ func genericIdentityUnresolvedObservationInput() corpus.ObservationRecordInput {
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt:      at,
 		Kind:            corpus.EntryOther,
-		Size:            0,
-		Mode:            0o600,
-		ModifiedAt:      at,
+		Size:            corpus.KnownSize(0),
+		Mode:            corpus.KnownMode(0o600),
+		ModifiedAt:      corpus.KnownModifiedAt(at),
 	}
 }

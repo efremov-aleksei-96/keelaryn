@@ -67,8 +67,8 @@ func validateIdentityMutationRequest(request corpus.IdentityMutationRequest, req
 		if err := corpus.ValidateContentEvidence(*request.ContentEvidence); err != nil {
 			return err
 		}
-		if request.ContentEvidence.Size != request.Observation.Size {
-			return fmt.Errorf("%w: evidence size mismatch", ErrInvalidIdentityMutationRequest)
+		if request.Observation.Size == nil || request.ContentEvidence.Size != *request.Observation.Size {
+			return fmt.Errorf("%w: evidence size mismatch or unavailable", ErrInvalidIdentityMutationRequest)
 		}
 	default:
 		if request.ContentEvidence != nil {
@@ -122,8 +122,7 @@ func validateAuthorityScope(
 			scan.StartedAt.UTC().Format(time.RFC3339Nano),
 		)
 	}
-	if source.SnapshotFingerprintVersion != remotehistory.RemoteMetadataSnapshotFingerprintVersion ||
-		source.MaterializationPolicyID != remotehistory.LightweightAllMaterializationPolicyID ||
+	if !remotehistory.IsRemoteMetadataSnapshotPolicyPair(source.SnapshotFingerprintVersion, source.MaterializationPolicyID) ||
 		set.PolicyID != remoteHistoryLifetimeAuthorityPolicyV1 ||
 		set.GenerationID != string(source.GenerationID) {
 		return fmt.Errorf("%w: remote source/authority policy mismatch", ErrScanScopeMismatch)
@@ -275,8 +274,8 @@ func (s *Store) revisionRecordByID(ctx context.Context, artifactID corpus.Artifa
 					Sequence: uint64(stmt.ColumnInt64(0)),
 					Evidence: corpus.ContentEvidence{
 						Algorithm: stmt.ColumnText(1),
-						Digest: stmt.ColumnText(2),
-						Size: stmt.ColumnInt64(3),
+						Digest:    stmt.ColumnText(2),
+						Size:      stmt.ColumnInt64(3),
 					},
 				}
 				return nil

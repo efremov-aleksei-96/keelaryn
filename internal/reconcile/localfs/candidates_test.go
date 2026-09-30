@@ -149,9 +149,9 @@ func TestUnresolvedPriorInventoryDoesNotBecomeArtifactCandidate(t *testing.T) {
 		AssignmentState: corpus.AssignmentUnresolved,
 		ObservedAt: at,
 		Kind: obs.Kind,
-		Size: obs.Size,
-		Mode: obs.Mode,
-		ModifiedAt: obs.ModifiedAt,
+		Size: corpus.KnownSize(obs.Size),
+		Mode: corpus.KnownMode(obs.Mode),
+		ModifiedAt: corpus.KnownModifiedAt(obs.ModifiedAt),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -241,9 +241,9 @@ func adoptSnapshot(t *testing.T, store *sqlitestate.Store, snapshot *providerloc
 			AssignmentState: corpus.AssignmentUnresolved,
 			ObservedAt: at,
 			Kind: observation.Kind,
-			Size: observation.Size,
-			Mode: observation.Mode,
-			ModifiedAt: observation.ModifiedAt,
+			Size: corpus.KnownSize(observation.Size),
+			Mode: corpus.KnownMode(observation.Mode),
+			ModifiedAt: corpus.KnownModifiedAt(observation.ModifiedAt),
 		}
 		if _, err := store.AdoptObservationInScan(context.Background(), scan.ID, input, nil); err != nil {
 			t.Fatal(err)
