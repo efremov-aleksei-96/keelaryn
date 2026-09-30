@@ -11,6 +11,7 @@ import (
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
+	"github.com/efremov-aleksei-96/keelaryn/internal/selftest"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 )
@@ -201,5 +202,39 @@ func TestDoctorFailureKeepsFindingsOnStdoutOnly(t *testing.T) {
 	}
 	if _, statErr := os.Stat(control); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("doctor created missing control directory: %v", statErr)
+	}
+}
+
+
+func TestSelfTestThroughExecutableSurface(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"self-test"}, &stdout, &stderr); err != nil {
+		t.Fatalf("self-test: %v; stderr=%s", err, stderr.String())
+	}
+	var report selftest.Report
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("decode self-test report: %v\n%s", err, stdout.String())
+	}
+	if !report.Passed() {
+		t.Fatalf("report=%#v", report)
+	}
+	if report.Proof.ArtifactID == "" || report.Proof.RevisionID == "" ||
+		report.Proof.Reason != "prove disposable exact provenance" ||
+		!report.Proof.CorpusUnchanged || !report.Proof.Cleaned {
+		t.Fatalf("proof=%#v", report.Proof)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("self-test emitted stderr on success: %q", stderr.String())
+	}
+}
+
+func TestSelfTestRejectsUserArguments(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"self-test", "unexpected"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("self-test unexpectedly accepted a user argument")
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("self-test emitted a report after invalid arguments: %q", stdout.String())
 	}
 }

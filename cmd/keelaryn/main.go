@@ -12,13 +12,14 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
+	"github.com/efremov-aleksei-96/keelaryn/internal/selftest"
 	"github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 )
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
-		if errors.Is(err, doctor.ErrFailed) {
+		if errors.Is(err, doctor.ErrFailed) || errors.Is(err, selftest.ErrFailed) {
 			os.Exit(1)
 		}
 		fmt.Fprintln(os.Stderr, "keelaryn:", err)
@@ -28,7 +29,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle|doctor> [options]")
+		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle|doctor|self-test> [options]")
 	}
 
 	switch args[0] {
@@ -130,6 +131,25 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return doctor.ErrFailed
 		}
 		return nil
+
+	case "self-test":
+		flags := flag.NewFlagSet("self-test", flag.ContinueOnError)
+		flags.SetOutput(stderr)
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 0 {
+			return errors.New("self-test accepts no arguments")
+		}
+		report := selftest.Run(context.Background())
+		if err := encodeJSON(stdout, report); err != nil {
+			return err
+		}
+		if !report.Passed() {
+			return selftest.ErrFailed
+		}
+		return nil
+
 
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
