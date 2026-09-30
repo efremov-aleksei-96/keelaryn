@@ -162,9 +162,6 @@ func verifyControlFile(path string) error {
 	if err != nil {
 		return fmt.Errorf("read control file owner: %w", err)
 	}
-	if owner == nil || !owner.Equals(user) {
-		return fmt.Errorf("control file owner is not current process user")
-	}
 	dacl, _, err := sd.DACL()
 	if err != nil || dacl == nil {
 		if err == nil {
@@ -182,6 +179,9 @@ func verifyControlFile(path string) error {
 		return fmt.Errorf("create Administrators SID: %w", err)
 	}
 	expected := []*windows.SID{user, system, admins}
+	if owner == nil || !sidMatchesAny(owner, expected) {
+		return fmt.Errorf("control file owner is not a trusted control principal")
+	}
 	seen := make([]bool, len(expected))
 	if int(dacl.AceCount) != len(expected) {
 		return fmt.Errorf("control file ACE count=%d want=%d", dacl.AceCount, len(expected))
@@ -213,6 +213,18 @@ func verifyControlFile(path string) error {
 	return nil
 }
 
+func sidMatchesAny(candidate *windows.SID, expected []*windows.SID) bool {
+	if candidate == nil {
+		return false
+	}
+	for _, sid := range expected {
+		if sid != nil && candidate.Equals(sid) {
+			return true
+		}
+	}
+	return false
+}
+
 func currentUserSID() (*windows.SID, error) {
 	user, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
@@ -225,8 +237,10 @@ func currentUserSID() (*windows.SID, error) {
 }
 
 func directorySDDL(user *windows.SID) string {
+	sid := user.String()
 	return fmt.Sprintf(
-		"D:P(A;OICI;FA;;;%s)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
-		user.String(),
+		"O:%sD:P(A;OICI;FA;;;%s)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+		sid,
+		sid,
 	)
 }

@@ -83,3 +83,31 @@ func TestWindowsVerifyRejectsPermissiveControlFileDACL(t *testing.T) {
 		t.Fatalf("error=%v want ErrControlFileUnsafe", err)
 	}
 }
+
+
+func TestWindowsPrepareAssignsCurrentUserOwner(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "control")
+	layout, err := controlstorage.Prepare(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sd, err := windows.GetNamedSecurityInfo(
+		layout.Dir,
+		windows.SE_FILE_OBJECT,
+		windows.OWNER_SECURITY_INFORMATION,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, _, err := sd.Owner()
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if owner == nil || user == nil || user.User.Sid == nil || !owner.Equals(user.User.Sid) {
+		t.Fatalf("control directory owner=%v want current user", owner)
+	}
+}

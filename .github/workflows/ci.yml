@@ -67,9 +67,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Go dependency lock, test and vet
-        run: |
-          go version
-          go mod tidy -diff
-          go test ./...
-          go vet ./...
+      - name: Go version
+        run: go version
+
+      - name: Go dependency lock
+        run: go mod tidy -diff
+
+      - name: Go tests
+        run: go test ./...
+
+      - name: Go vet
+        run: go vet ./...

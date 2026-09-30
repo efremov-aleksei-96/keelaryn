@@ -149,3 +149,15 @@ After each SQLite operation, the control directory is verified again before resu
 A `0700` directory protects ordinary children, but an existing hard link could expose the same inode through another directory. Existing Unix control files therefore must be owned by the current effective UID and have link count exactly one. File mode is not forced to `0600`: the protected directory remains the normal confidentiality boundary, while the hard-link check prevents an alias from escaping it.
 
 P0-34B does not change identity schema v45 or search schema v3, does not mutate corpus bytes and does not add a new module version.
+
+
+## P0-34 qualification correction — Windows owner and CI exit propagation
+
+Exact-head run `36669415168` exposed two defects and is **not** qualification evidence even though the GitHub summary API reported success.
+
+1. The Windows directory SDDL specified a protected DACL but omitted the `O:` owner component. Windows therefore applied the token default owner, which may be Builtin Administrators for an elevated token. The control-directory verifier correctly rejected that result. Creation now specifies the current process user SID explicitly as the directory owner.
+2. The matrix workflow placed `go test ./...` and `go vet ./...` in one PowerShell step. A failing test followed by a successful vet left the step with the final native exit code 0. The workflow now runs version, dependency lock, tests and vet as separate steps, so each native command owns the step exit code.
+
+Windows control **files** may naturally receive the token default owner when SQLite creates them. Their owner is therefore accepted only when it is one of the same trusted control principals already granted full access by the exact DACL: current user, LocalSystem or Builtin Administrators. The directory itself remains explicitly owned by the current user.
+
+A new exact-head cross-platform run is required; the false-green run cannot qualify P0-34.

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 208,
+  "revision": 209,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -5239,7 +5239,7 @@
     }
   },
   "p0_34": {
-    "status": "RUNTIME_COMPOSED_AWAITING_CI",
+    "status": "WINDOWS_OWNER_AND_CI_GATE_FIXED_AWAITING_CI",
     "objective": "PROTECTED_CONTROL_STORAGE_RUNTIME_BOUNDARY",
     "finding": "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
     "dependencies_added": 0,
@@ -5264,7 +5264,7 @@
     "product_mutation_started": true,
     "contract": "docs/P0_34_PROTECTED_CONTROL_STORAGE_CONTRACT.md",
     "adapter_initial_head": "8d5d541ce366a8cbd2a916e8f059f27622265409",
-    "current_substage": "P0_34B_RUNTIME_COMPOSITION",
+    "current_substage": "P0_34B_QUALIFICATION_HARDENING",
     "targeted_findings": [
       {
         "id": "P0_34A_S1_ANCESTOR_ALIAS_PHYSICAL_BOUNDARY",
@@ -5289,6 +5289,18 @@
         "severity": "SECURITY_HARDENING",
         "status": "RESOLVED_IN_PENDING_HEAD",
         "resolution": "Existing Unix control files must be owned by current euid and have link count exactly one"
+      },
+      {
+        "id": "P0_34B_S5_WINDOWS_DIRECTORY_DEFAULT_OWNER",
+        "severity": "CORRECTNESS_SECURITY",
+        "status": "RESOLVED_IN_PENDING_HEAD",
+        "resolution": "Windows control-directory SDDL now specifies O:<current-user-SID>; child-file owner verification accepts only trusted exact-DACL principals"
+      },
+      {
+        "id": "P0_34_Q1_WINDOWS_NATIVE_EXIT_MASKING",
+        "severity": "QUALIFICATION_BLOCKER",
+        "status": "RESOLVED_IN_PENDING_HEAD",
+        "resolution": "Go dependency lock, test and vet now run as separate GitHub Actions steps so a failed Windows native command cannot be masked by a later successful command"
       }
     ],
     "security_basis": "Windows existing child files require their own ACL verification; the protected parent alone is not treated as sufficient authority",
@@ -5307,6 +5319,15 @@
       "PHYSICAL_CORPUS_ROOT_COMPARED_BEFORE_CONTROL_CREATION",
       "CONTROL_STORAGE_VERIFIED_BEFORE_AND_AFTER_SQLITE_OPERATION",
       "EXECUTABLE_HAS_NO_RAW_STATE_DB_OR_SEARCH_DB_FLAG_BYPASS"
-    ]
+    ],
+    "invalid_qualification_run": {
+      "run_id": 36669415168,
+      "head": "ea4c815659999764a809f7f98a5f244d3a869d46",
+      "api_summary": "SUCCESS",
+      "actual_windows_test_result": "FAIL",
+      "classification": "FALSE_GREEN_WINDOWS_POWERSHELL_NATIVE_EXIT_MASKED_BY_LATER_GO_VET",
+      "disposition": "DO_NOT_USE_AS_QUALIFICATION_EVIDENCE"
+    },
+    "qualification_rule": "REQUIRE_NEW_EXACT_HEAD_VALIDATE_UBUNTU_WINDOWS_PASS_WITH_SEPARATE_GO_TEST_STEP"
   }
 }
