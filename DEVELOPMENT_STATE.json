@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 214,
+  "revision": 215,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -176,14 +176,18 @@
     "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_RESOLVED",
     "P0_35_BOUNDARY_RETROSPECTIVE_PASS",
     "P0_36_LIVE_PROVIDER_BOUNDARY_REVIEW_STARTED",
-    "P0_36A_PROVIDER_NEUTRAL_METADATA_OPTIONALITY_CONTRACT_DECIDED"
+    "P0_36A_PROVIDER_NEUTRAL_METADATA_OPTIONALITY_CONTRACT_DECIDED",
+    "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS_IMPLEMENTED",
+    "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS_QUALIFIED",
+    "P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY_RESOLVED",
+    "P0_36A_BOUNDARY_RETROSPECTIVE_PASS"
   ],
   "next_objective": {
-    "id": "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS",
-    "description": "Resolve P0-36_B1 before any live provider wiring. Make provider metadata fact availability explicit in the durable Observation model without fabricating values; preserve existing local semantics and historical LIGHTWEIGHT_ALL:v1 replay; introduce an exact v2 snapshot/policy pair for optional provider facts and update transaction/fingerprint guards accordingly. Run cross-platform qualification and a structural retrospective/full risk audit before enabling live Google runtime.",
+    "id": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
+    "description": "Compose a bounded read-only Google Drive live metadata adapter into the already-qualified RemoteHistory/materialization pipeline using the existing official Drive client and LIGHTWEIGHT_ALL:v2 optional-fact contract. Enumerate the managed root without fabricating unsupported metadata or mutating user corpus content; persist only Keelaryn control/observation state through existing transaction and reconciliation boundaries. Keep provider writes, MCP/HTTP/web, and authenticated end-user acceptance out of this substage. After interruption, reconcile provider and durable control prestate before any retry.",
     "drive_mutation_approved": false,
     "deletion_approved": false,
-    "audit_gate": "P0_36_B1_OPEN_NO_LIVE_PROVIDER_RUNTIME_UNTIL_OPTIONAL_FACTS_QUALIFIED"
+    "audit_gate": "P0_36A_B1_RESOLVED_P0_36B_READ_ONLY_LIVE_METADATA_RUNTIME_ALLOWED"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4411,10 +4415,10 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_35_DOCTOR_SELFTEST_RETROSPECTIVE_20260930.md",
-    "last_retrospective_result": "PASS_P0_35_H4_RESOLVED_ZERO_NEW_BLOCKER_CRITICAL",
+    "last_retrospective": "docs/P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS_RETROSPECTIVE_20260930.md",
+    "last_retrospective_result": "PASS_P0_36A_B1_RESOLVED_ZERO_NEW_BLOCKER_CRITICAL",
     "substantive_slice_counter": 0,
-    "current_stage": "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS",
+    "current_stage": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -4422,8 +4426,8 @@
     "on_any_new_finding": "DURING_COLLECTION_RECORD_AND_CONTINUE; DURING_REMEDIATION RECORD_AND_ADD_ANY_NEW_BLOCKER_OR_CRITICAL_TO_THE_CURRENT_REMEDIATION_SET_WITHOUT_STARTING_A_FULL_REAUDIT",
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": true,
-    "blocked_next_stage": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
-    "unlock_condition": "P0_36A_OPTIONAL_FACTS_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_AND_STRUCTURAL_AUDIT_PASS",
+    "blocked_next_stage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
+    "unlock_condition": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_AND_BOUNDARY_AUDIT_PASS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -4463,15 +4467,6 @@
         "required_correction": "Choose and prove an Android-capable durable state substrate or intentionally platform-specific backend behind the stable Keelaryn state contract. Add at minimum Android/arm64 compile coverage, then emulator/device filesystem+SQLite smoke tests and later SAF/DocumentProvider acceptance. Do not infer Android support from CGO-free implementation alone.",
         "gate_scope": "PORTABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE",
         "external_evidence": "modernc.org/sqlite v1.37.1 doc.go supported-platform matrix omits android; current go.mod pins modernc.org/sqlite v1.37.1 through zombiezen.com/go/sqlite v1.4.2."
-      },
-      {
-        "id": "P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY",
-        "severity": "BLOCKER",
-        "status": "OPEN",
-        "scope": "P0_36_LIVE_REMOTE_PROVIDER_RUNTIME",
-        "discovered_at_head": "9cc044a352cae8c5fe8c18d0874f1d5040725eaa",
-        "description": "Current durable Observation and LIGHTWEIGHT_ALL:v1 require size/mode/modified_at for every provider object. Google Drive does not expose POSIX mode at all and omits size for objects such as folders and shortcuts. Fabricating zero/default values would violate provider-neutral immutable-evidence semantics and the P0-30 contract.",
-        "required_resolution": "Represent unavailable observation metadata explicitly without inventing provider facts; preserve v1 historical replay; add a new exact snapshot/policy version for optional facts; only then wire live Google metadata/runtime."
       }
     ],
     "resolved_findings": [
@@ -4778,6 +4773,20 @@
         "qualification_head": "b7631e3bccdd34d361612a5be7b6ae011cdc8486",
         "qualification_ci_run_id": 36679914886,
         "resolution": "P0-35 adds a supported read-only Doctor over protected control state and a no-user-path disposable end-to-end SelfTest covering protected bootstrap, literal search, exact ContextBundle provenance, Doctor, corpus immutability, and cleanup. Doctor never creates/migrates/repairs user state; FTS write-shaped integrity verification runs only on an in-memory backup."
+      },
+      {
+        "id": "P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY",
+        "severity": "BLOCKER",
+        "status": "RESOLVED",
+        "scope": "P0_36_LIVE_REMOTE_PROVIDER_RUNTIME",
+        "discovered_at_head": "9cc044a352cae8c5fe8c18d0874f1d5040725eaa",
+        "description": "Current durable Observation and LIGHTWEIGHT_ALL:v1 require size/mode/modified_at for every provider object. Google Drive does not expose POSIX mode at all and omits size for objects such as folders and shortcuts. Fabricating zero/default values would violate provider-neutral immutable-evidence semantics and the P0-30 contract.",
+        "required_resolution": "Represent unavailable observation metadata explicitly without inventing provider facts; preserve v1 historical replay; add a new exact snapshot/policy version for optional facts; only then wire live Google metadata/runtime.",
+        "resolution_head": "50d8793ee19ee2b85492db2403555780af1b4088",
+        "qualification_head": "50d8793ee19ee2b85492db2403555780af1b4088",
+        "schema_version": 46,
+        "qualification_ci": 36717965505,
+        "resolution": "Provider-neutral Observation facts size/mode/modified_at now carry explicit availability instead of fabricated provider values. LocalFS still records all exact facts. Historical LIGHTWEIGHT_ALL:v1 and identity-mutation fingerprint v1 remain exact for fully-known facts; LIGHTWEIGHT_ALL:v2 and identity-mutation fingerprint v2 encode optional facts. SQLite schema v46 preserves historical rows as known, uses canonical compatibility sentinels only behind availability flags, and protects new availability state with structural plus connection-local application authority."
       }
     ],
     "last_resolution_checkpoint": {
@@ -5492,10 +5501,10 @@
     "h4_status": "RESOLVED"
   },
   "p0_36": {
-    "status": "PREREQUISITE_BLOCKER_FOUND",
+    "status": "P0_36A_QUALIFIED_P0_36B_NEXT",
     "contract": "docs/P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_CONTRACT.md",
-    "current_substage": "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS",
-    "blocker": "P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY",
+    "current_substage": "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
+    "blocker": null,
     "evidence": {
       "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
       "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
@@ -5511,6 +5520,31 @@
       "P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS",
       "P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION",
       "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE"
-    ]
+    ],
+    "resolved_blocker": "P0_36_B1_PROVIDER_NEUTRAL_OBSERVATION_FACT_AVAILABILITY",
+    "p0_36a": {
+      "status": "QUALIFIED",
+      "product_head": "50d8793ee19ee2b85492db2403555780af1b4088",
+      "product_tree": "0bff5a5b1033feea9d269878016745cea7147ba9",
+      "qualification_head": "50d8793ee19ee2b85492db2403555780af1b4088",
+      "qualification_ci_run_id": 36717965505,
+      "authority_schema_version": 46,
+      "qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, Go tests and Go vet all PASS",
+      "retrospective": "docs/P0_36A_PROVIDER_NEUTRAL_OBSERVATION_OPTIONAL_FACTS_RETROSPECTIVE_20260930.md",
+      "corpus_mutations": 0,
+      "live_provider_used": false,
+      "dependencies_added": 0,
+      "invariants": [
+        "PROVIDER_METADATA_ABSENCE_IS_EXPLICIT_NOT_FABRICATED",
+        "LOCALFS_EXACT_FACT_SEMANTICS_PRESERVED",
+        "LIGHTWEIGHT_ALL_V1_HISTORICAL_FINGERPRINT_PRESERVED",
+        "LIGHTWEIGHT_ALL_V2_OPTIONAL_FACTS_EXACT_PAIR",
+        "IDENTITY_MUTATION_V1_FOR_FULLY_KNOWN_FACTS",
+        "IDENTITY_MUTATION_V2_FOR_OPTIONAL_FACTS",
+        "SQLITE_V46_HISTORICAL_FACTS_MIGRATE_AS_KNOWN",
+        "SQLITE_V46_AVAILABILITY_STRUCTURE_AND_APPLICATION_AUTHORITY",
+        "NO_LIVE_PROVIDER_OR_USER_CORPUS_MUTATION"
+      ]
+    }
   }
 }
