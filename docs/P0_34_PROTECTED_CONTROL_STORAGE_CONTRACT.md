@@ -114,3 +114,10 @@ Review of the first adapter slice found two pre-runtime escape paths that must b
 2. an existing protected directory could contain `state.db` or `search.db` as a symlink/reparse point to storage outside the protected directory.
 
 The adapter now resolves the existing parent physically before returning the layout and verifies both database slots on every existing-directory open. These checks remain read-only for existing state.
+
+
+## P0-34A Windows child-file ACL hardening
+
+A protected parent directory is not sufficient authority for a pre-existing child file. Existing control files therefore retain an independently verified Windows ACL boundary.
+
+The adapter now verifies every existing control entry, including SQLite `-journal`, `-wal` and `-shm` side files. On Windows each file must be a non-reparse regular file, owned by the current process user, with only the current-user / LocalSystem / Builtin Administrators full-access principals. Unexpected entries in the dedicated control directory fail closed.

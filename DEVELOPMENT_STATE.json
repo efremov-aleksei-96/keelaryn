@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 206,
+  "revision": 207,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -5238,7 +5238,7 @@
     }
   },
   "p0_34": {
-    "status": "ADAPTER_HARDENED_AWAITING_CI",
+    "status": "ADAPTER_FILE_ACL_HARDENED_AWAITING_CI",
     "objective": "PROTECTED_CONTROL_STORAGE_RUNTIME_BOUNDARY",
     "finding": "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION",
     "dependencies_added": 0,
@@ -5276,7 +5276,14 @@
         "severity": "SECURITY_HARDENING",
         "status": "RESOLVED_IN_PENDING_HEAD",
         "resolution": "Open/Prepare reject state.db/search.db symlink or Windows reparse-point slots"
+      },
+      {
+        "id": "P0_34A_S3_WINDOWS_CHILD_FILE_DACL",
+        "severity": "SECURITY_HARDENING",
+        "status": "RESOLVED_IN_PENDING_HEAD",
+        "resolution": "Existing state/search and SQLite side files are verified as non-reparse regular files with restricted current-user/System/Administrators DACL; unexpected control entries fail closed"
       }
-    ]
+    ],
+    "security_basis": "Windows existing child files require their own ACL verification; the protected parent alone is not treated as sufficient authority"
   }
 }

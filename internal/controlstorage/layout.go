@@ -152,13 +152,18 @@ func verifyLayout(layout Layout) error {
 	if err := verifyProtectedDir(layout.Dir); err != nil {
 		return err
 	}
-	for _, path := range []string{layout.StateDB, layout.SearchDB} {
-		info, err := os.Lstat(path)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
+	entries, err := os.ReadDir(layout.Dir)
+	if err != nil {
+		return fmt.Errorf("read control directory: %w", err)
+	}
+	for _, entry := range entries {
+		if !allowedControlFileName(entry.Name()) {
+			return fmt.Errorf("%w: unexpected control entry %s", ErrControlFileUnsafe, entry.Name())
 		}
+		path := filepath.Join(layout.Dir, entry.Name())
+		info, err := os.Lstat(path)
 		if err != nil {
-			return fmt.Errorf("inspect control database path: %w", err)
+			return fmt.Errorf("inspect control file: %w", err)
 		}
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return fmt.Errorf("%w: %s", ErrControlFileUnsafe, path)
@@ -168,6 +173,15 @@ func verifyLayout(layout Layout) error {
 		}
 	}
 	return nil
+}
+
+func allowedControlFileName(name string) bool {
+	for _, base := range []string{StateDatabaseName, SearchDatabaseName} {
+		if name == base || name == base+"-journal" || name == base+"-wal" || name == base+"-shm" {
+			return true
+		}
+	}
+	return false
 }
 
 func validateDirectoryInfo(info os.FileInfo) error {

@@ -140,7 +140,75 @@ func verifyControlFile(path string) error {
 		return err
 	}
 	if attrs&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-		return fmt.Errorf("database path is a reparse point")
+		return fmt.Errorf("control file is a reparse point")
+	}
+
+	user, err := currentUserSID()
+	if err != nil {
+		return err
+	}
+	sd, err := windows.GetNamedSecurityInfo(
+		path,
+		windows.SE_FILE_OBJECT,
+		windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION,
+	)
+	if err != nil {
+		return fmt.Errorf("read control file security descriptor: %w", err)
+	}
+	if sd == nil {
+		return fmt.Errorf("missing control file security descriptor")
+	}
+	owner, _, err := sd.Owner()
+	if err != nil {
+		return fmt.Errorf("read control file owner: %w", err)
+	}
+	if owner == nil || !owner.Equals(user) {
+		return fmt.Errorf("control file owner is not current process user")
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil || dacl == nil {
+		if err == nil {
+			err = windows.ERROR_OBJECT_NOT_FOUND
+		}
+		return fmt.Errorf("read control file DACL: %v", err)
+	}
+
+	system, err := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	if err != nil {
+		return fmt.Errorf("create LocalSystem SID: %w", err)
+	}
+	admins, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
+	if err != nil {
+		return fmt.Errorf("create Administrators SID: %w", err)
+	}
+	expected := []*windows.SID{user, system, admins}
+	seen := make([]bool, len(expected))
+	if int(dacl.AceCount) != len(expected) {
+		return fmt.Errorf("control file ACE count=%d want=%d", dacl.AceCount, len(expected))
+	}
+	for i := uint32(0); i < uint32(dacl.AceCount); i++ {
+		var ace *windows.ACCESS_ALLOWED_ACE
+		if err := windows.GetAce(dacl, i, &ace); err != nil {
+			return fmt.Errorf("read control file ACE %d: %w", i, err)
+		}
+		if ace == nil ||
+			ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE ||
+			ace.Mask != windowsFileAllAccess ||
+			ace.Header.AceFlags&windows.INHERIT_ONLY_ACE != 0 {
+			return fmt.Errorf("unexpected control file ACE %d", i)
+		}
+		aceSID := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+		match := -1
+		for j, sid := range expected {
+			if !seen[j] && aceSID.Equals(sid) {
+				match = j
+				break
+			}
+		}
+		if match < 0 {
+			return fmt.Errorf("unexpected or duplicate control file ACE principal")
+		}
+		seen[match] = true
 	}
 	return nil
 }
