@@ -44,6 +44,9 @@ jobs:
           assert Path("docs/REUSE_LEDGER.md").is_file()
           PY
 
+      - name: Summarize current development authority
+        run: python3 scripts/development_preflight.py
+
       - name: Prove legacy implementation is absent
         run: |
           set -euo pipefail
