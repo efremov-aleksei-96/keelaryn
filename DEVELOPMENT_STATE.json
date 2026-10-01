@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 221,
+  "revision": 222,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -5514,14 +5514,14 @@
     "h4_status": "RESOLVED"
   },
   "p0_36": {
-    "status": "P0_36C_LIVE_RUNTIME_PASS_HARNESS_EVIDENCE_HARDENING",
+    "status": "P0_36C_WORKFLOW_VALIDATION_FIX_PENDING_EXACT_HEAD_CI_AND_LIVE",
     "contract": "docs/P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_CONTRACT.md",
     "current_substage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
-    "blocker": "P0_36C_SANITIZED_EVIDENCE_AND_EXACT_DURABLE_RECONCILIATION_PENDING",
+    "blocker": "P0_36C_EXACT_HEAD_CI_AND_GUARDED_LIVE_ACCEPTANCE_PENDING",
     "evidence": {
       "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
       "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
-      "current_product": "Exact-head live run 36862902907 on bf62904939afb0d83c87eb66a34ee7ed2f6f6ed8 completed the real metadata-only acceptance step successfully: scope drive.metadata.readonly, metadata_count 1726, publication_sequence 1, Doctor PASS and access token not persisted. The job failed only because the evidence path was step-scoped and therefore absent from upload-artifact. Closure audit also requires independent exact result-to-durable-state reconciliation before P0-36C is closed."
+      "current_product": "Exact-head live run 36862902907 on bf62904939afb0d83c87eb66a34ee7ed2f6f6ed8 completed the real metadata-only acceptance step successfully: scope drive.metadata.readonly, metadata_count 1726, publication_sequence 1, Doctor PASS and access token not persisted. The job failed only because the evidence path was step-scoped and therefore absent from upload-artifact. Closure audit also requires independent exact result-to-durable-state reconciliation before P0-36C is closed. Exact-head workflow run 36863566542 failed before jobs with validation error: Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp at line 31; the runner.temp evidence path is moved to step scope and the upload input now resolves runner.temp directly. Exact-head normal CI and guarded live acceptance are pending."
     },
     "rejected_shortcuts": [
       "fabricate size=0 or mode=0 and call them provider facts",
@@ -5588,7 +5588,7 @@
       ]
     },
     "p0_36c": {
-      "status": "LIVE_RUNTIME_PASS_HARNESS_EVIDENCE_HARDENING",
+      "status": "WORKFLOW_VALIDATION_SCOPE_FIX_PENDING_EXACT_HEAD_RUNS",
       "implementation_head": "eadbba916f607ed7a03b5a0be4bcbcde0aa91182",
       "qualification_head": "09363714673d3c92fc89f2200d8b9de5ec908545",
       "qualification_ci_run_id": 36749826725,
@@ -5631,7 +5631,11 @@
       "latest_live_metadata_count": 1726,
       "latest_live_publication_sequence": 1,
       "latest_live_doctor_pass": true,
-      "latest_live_job_result": "FAIL_EVIDENCE_UPLOAD_PATH_ONLY"
+      "latest_live_job_result": "FAIL_EVIDENCE_UPLOAD_PATH_ONLY",
+      "workflow_validation_failure_run_id": 36863566542,
+      "workflow_validation_failure": "Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp",
+      "latest_normal_ci_run_id": 36863569107,
+      "latest_normal_ci_head": "182c919258808c9fba1b4b1daded54cfbe5ce823"
     },
     "targeted_findings": [
       {
@@ -5672,6 +5676,13 @@
         "status": "FIX_IMPLEMENTED_PENDING_LIVE",
         "evidence": "Client secret and refresh token were job-scoped, making them available to build and inherited product child environments even though Keelaryn only requires a temporary access token.",
         "resolution": "Scope client credentials and refresh token only to OAuth steps; strip them from the product child environment and pass only the temporary access token. Doctor also runs without OAuth secrets."
+      },
+      {
+        "id": "P0_36C_H6_RUNNER_CONTEXT_INVALID_AT_JOB_ENV",
+        "severity": "WORKFLOW_VALIDATION",
+        "status": "FIX_IMPLEMENTED_PENDING_EXACT_HEAD_RUNS",
+        "evidence": "GitHub annotation for run 36863566542: Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp at .github/workflows/p0-36c-live-acceptance.yml line 31. Workflow run had zero jobs and no check runs.",
+        "resolution": "Move KEELARYN_P036C_EVIDENCE using runner.temp to the acceptance step env, where runner context is available, and resolve upload-artifact path directly from runner.temp in step with."
       }
     ]
   }

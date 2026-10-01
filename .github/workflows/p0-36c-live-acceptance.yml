@@ -27,8 +27,6 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || (github.actor == 'efremov-aleksei-96' && contains(github.event.head_commit.message, '[p0-36c-live]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      KEELARYN_P036C_EVIDENCE: ${{ runner.temp }}/p0-36c-live-evidence.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,6 +59,7 @@ jobs:
       - name: Run real metadata-only acceptance
         shell: bash
         env:
+          KEELARYN_P036C_EVIDENCE: ${{ runner.temp }}/p0-36c-live-evidence.json
           KEELARYN_GOOGLE_CLIENT_ID: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_ID }}
           KEELARYN_GOOGLE_CLIENT_SECRET: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_SECRET }}
           KEELARYN_GOOGLE_REFRESH_TOKEN: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_REFRESH_TOKEN }}
@@ -294,6 +293,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: p0-36c-live-evidence-${{ github.sha }}-${{ github.run_attempt }}
-          path: ${{ env.KEELARYN_P036C_EVIDENCE }}
+          path: ${{ runner.temp }}/p0-36c-live-evidence.json
           if-no-files-found: error
           retention-days: 3
