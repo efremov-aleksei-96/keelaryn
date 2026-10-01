@@ -7,6 +7,13 @@ on:
       - 'dev/corpus-first-p0'
     paths:
       - '.github/workflows/p0-36c-live-acceptance.yml'
+      - 'cmd/keelaryn/**'
+      - 'internal/controlstorage/**'
+      - 'internal/doctor/**'
+      - 'internal/ingest/**'
+      - 'internal/remotehistory/**'
+      - 'internal/runtime/gdrive/**'
+      - 'internal/state/**'
 
 permissions:
   contents: read

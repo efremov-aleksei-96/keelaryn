@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 219,
+  "revision": 220,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -188,7 +188,8 @@
     "P0_36C_LIVE_ACCEPTANCE_HARNESS_QUALIFIED",
     "P0_36C_EXTERNAL_OAUTH_BLOCKER_CLASSIFIED",
     "P0_36C_DISPOSABLE_OAUTH_REAUTHORIZED",
-    "P0_36C_LIVE_PROVIDER_RUNTIME_REACHED"
+    "P0_36C_LIVE_PROVIDER_RUNTIME_REACHED",
+    "P0_36C_DOCTOR_CACHE_PROFILE_FIX_QUALIFIED"
   ],
   "next_objective": {
     "id": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
@@ -5512,14 +5513,14 @@
     "h4_status": "RESOLVED"
   },
   "p0_36": {
-    "status": "P0_36C_LIVE_PROVIDER_REACHED_DOCTOR_CACHE_PROFILE_FIX_PENDING_CI",
+    "status": "P0_36C_EXACT_HEAD_LIVE_RERUN_TRIGGERED",
     "contract": "docs/P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_CONTRACT.md",
     "current_substage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
-    "blocker": "P0_36C_DOCTOR_REBUILDABLE_SEARCH_ABSENCE_DEFECT",
+    "blocker": "P0_36C_EXACT_HEAD_LIVE_ACCEPTANCE_PENDING",
     "evidence": {
       "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
       "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
-      "current_product": "Second disposable live attempt refreshed OAuth successfully and completed the real metadata-only Google Drive runtime bootstrap. Acceptance then failed only at Doctor because the runtime correctly creates authoritative state.db without a rebuildable FTS search.db. A targeted Doctor fix is implemented pending exact-head CI."
+      "current_product": "The Doctor rebuildable-search-cache profile fix is exact-head cross-platform qualified at bb17fe4328c6357dc8d8ef5c4cbd8e8b38674a23, CI 36826368574. The guarded live workflow path filter is being hardened so tagged changes to runtime/Doctor authority paths can trigger exact-head disposable acceptance instead of forcing an old-head rerun."
     },
     "rejected_shortcuts": [
       "fabricate size=0 or mode=0 and call them provider facts",
@@ -5586,7 +5587,7 @@
       ]
     },
     "p0_36c": {
-      "status": "LIVE_PROVIDER_REACHED_DOCTOR_CACHE_PROFILE_FIX_PENDING_CI",
+      "status": "EXACT_HEAD_LIVE_RERUN_TRIGGERED",
       "implementation_head": "eadbba916f607ed7a03b5a0be4bcbcde0aa91182",
       "qualification_head": "09363714673d3c92fc89f2200d8b9de5ec908545",
       "qualification_ci_run_id": 36749826725,
@@ -5616,19 +5617,30 @@
       "drive_api_reached": true,
       "product_runtime_invoked": true,
       "protected_control_state_created": true,
-      "next_action": "Qualify the targeted Doctor rebuildable-search-cache fix on exact-head Ubuntu/Windows CI, then rerun the guarded disposable live acceptance once. Do not reauthorize OAuth again unless a fresh OAuth failure is observed.",
+      "next_action": "Observe the tagged exact-head live workflow and normal development CI created by this harness-hardening commit. Do not rerun the old live job. If both pass, inspect sanitized live evidence and close P0-36C.",
       "second_live_run_id": 36763172280,
       "second_live_job_id": 110232451988,
       "second_live_result": "FAILED_AFTER_SUCCESSFUL_LIVE_BOOTSTRAP_DURING_DOCTOR",
-      "second_live_failure_classification": "DOCTOR_REQUIRES_ABSENT_REBUILDABLE_SEARCH_CACHE"
+      "second_live_failure_classification": "DOCTOR_REQUIRES_ABSENT_REBUILDABLE_SEARCH_CACHE",
+      "doctor_cache_profile_fix_head": "bb17fe4328c6357dc8d8ef5c4cbd8e8b38674a23",
+      "doctor_cache_profile_fix_ci_run_id": 36826368574
     },
     "targeted_findings": [
       {
         "id": "P0_36C_H1_DOCTOR_REQUIRES_REBUILDABLE_SEARCH_CACHE",
         "severity": "CORRECTNESS_OPERABILITY",
-        "status": "FIX_IMPLEMENTED_PENDING_CI",
+        "status": "RESOLVED",
         "evidence": "live run 36763172280 attempt job 110232451988 completed OAuth refresh, exact executable build and real google-drive-bootstrap, then failed at Doctor; qualified runtime creates state.db only while Doctor required search.db unconditionally",
-        "resolution": "Treat absent search.db as SKIPPED rebuildable derived state; if search.db exists, keep strict read-only verification and FAIL on invalid/corrupt cache."
+        "resolution": "Treat absent search.db as SKIPPED rebuildable derived state; if search.db exists, keep strict read-only verification and FAIL on invalid/corrupt cache.",
+        "qualification_head": "bb17fe4328c6357dc8d8ef5c4cbd8e8b38674a23",
+        "qualification_ci_run_id": 36826368574
+      },
+      {
+        "id": "P0_36C_H2_LIVE_WORKFLOW_PATH_FILTER_BLOCKS_EXACT_HEAD_ACCEPTANCE",
+        "severity": "OPERABILITY_QUALIFICATION",
+        "status": "FIX_IMPLEMENTED_PENDING_EXACT_HEAD_CI_AND_LIVE",
+        "evidence": "The live workflow previously listened only to changes of its own YAML file, so the qualified Doctor product fix did not create a new live run on the fixed source head. Re-running the prior failed job would execute the old source head.",
+        "resolution": "Keep the owner+commit-tag guard and extend push path filters only to executable, protected-control, Doctor, ingest, RemoteHistory, Google Drive runtime and durable-state paths that can affect live acceptance."
       }
     ]
   }
