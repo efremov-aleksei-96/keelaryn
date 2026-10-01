@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 223,
+  "revision": 224,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -194,9 +194,9 @@
     "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_CLOSURE_REAUDIT_AFTER_P0_36C_COMPLETE",
-    "description": "Reconcile the remaining P0 closure gates after the P0-36C live provider runtime qualification, then continue from the first unfinished gate.",
-    "audit_gate": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_QUALIFIED"
+    "id": "P0_MINIMAL_MCP_ACCESS",
+    "description": "Implement and qualify a minimal read-only MCP endpoint using the official Go SDK and existing search/ContextBundle semantics; then audit the stage before moving to embedded web status.",
+    "audit_gate": "P0_36C_LIVE_METADATA_RUNTIME_QUALIFIED_AND_STAGE_RETROSPECTIVE_COMPLETE"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2338,10 +2338,10 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "b7631e3bccdd34d361612a5be7b6ae011cdc8486",
-      "document": "docs/P0_35_DOCTOR_SELFTEST_RETROSPECTIVE_20260930.md",
-      "ci_run_id": 36679914886,
-      "conclusion": "PASS_P0_35_H4_RESOLVED_ZERO_NEW_BLOCKER_CRITICAL"
+      "head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
+      "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_36C_20261001.md",
+      "ci_run_id": 36864835408,
+      "conclusion": "PASS_P0_36C_ZERO_NEW_BLOCKER_CRITICAL_ONE_MEDIUM_CARRIED"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -3748,17 +3748,16 @@
     }
   },
   "p0_closure_audit": {
-    "date": "2026-09-30",
+    "date": "2026-10-01",
     "status": "P0_NOT_CLOSED",
-    "document": "docs/P0_FULL_A00_A13_AUDIT_20260930.md",
-    "audited_product_head": "6ade05b9595458693eea701091fd2aef54117f8b",
-    "qualification_head": "6ade05b9595458693eea701091fd2aef54117f8b",
-    "qualification_ci_run_id": 36670536752,
-    "conclusion": "PASS_FULL_A00_A13_ZERO_BLOCKER_CRITICAL_H4_NEXT",
+    "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_36C_20261001.md",
+    "audited_product_head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
+    "qualification_head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
+    "qualification_ci_run_id": 36864835408,
+    "conclusion": "PASS_P0_36C_ZERO_NEW_BLOCKER_CRITICAL_ONE_MEDIUM_CARRIED_MINIMAL_MCP_NEXT",
     "resolved_gap": "PRODUCTION_STORAGE_FILESYSTEM_PROTECTION_H3",
-    "earliest_remaining_autonomous_product_gap": "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
+    "earliest_remaining_autonomous_product_gap": "MINIMAL_MCP_ACCESS",
     "p0_closure_gates_remaining": [
-      "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
       "MINIMAL_MCP_ACCESS",
       "EMBEDDED_MINIMAL_WEB_STATUS",
       "P0_FINAL_PROOF_REAUDIT"
@@ -3767,11 +3766,14 @@
       "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
       "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT"
     ],
+    "carried_medium_findings": [
+      "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY"
+    ],
     "resolved_runtime_security_finding": "AUDIT_SECURITY_H6_FTS_SEARCH_CACHE_RESIDUAL_TEXT",
     "mcp_prior_art": {
       "project": "modelcontextprotocol/go-sdk",
       "latest_reviewed_version": "v1.8.0",
-      "disposition": "REUSE_LATER_AFTER_CONTEXTBUNDLE_AND_RUNTIME_SECURITY_GATES",
+      "disposition": "REUSE_OFFICIAL_SDK_V1_8_0_AT_MINIMAL_READ_ONLY_MCP_GATE",
       "dependency_added": false
     },
     "resolved_runtime_security_findings": [
@@ -4435,18 +4437,18 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_36B_GOOGLE_LIVE_METADATA_ADAPTER_RUNTIME_COMPOSITION_RETROSPECTIVE_20260930.md",
-    "last_retrospective_result": "PASS_P0_36B_ZERO_NEW_BLOCKER_CRITICAL",
+    "last_retrospective": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_36C_20261001.md",
+    "last_retrospective_result": "PASS_P0_36C_ZERO_NEW_BLOCKER_CRITICAL_ONE_MEDIUM_CARRIED",
     "substantive_slice_counter": 0,
-    "current_stage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
+    "current_stage": "P0_MINIMAL_MCP_ACCESS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
     "clean_pass_definition": "ONE_COMPLETE_POST_REMEDIATION_AUDIT_PASS_ACROSS_ALL_REQUIRED_DIMENSIONS_WITH_ZERO_OPEN_BLOCKER_OR_CRITICAL_FINDINGS",
     "on_any_new_finding": "DURING_COLLECTION_RECORD_AND_CONTINUE; DURING_REMEDIATION RECORD_AND_ADD_ANY_NEW_BLOCKER_OR_CRITICAL_TO_THE_CURRENT_REMEDIATION_SET_WITHOUT_STARTING_A_FULL_REAUDIT",
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
-    "next_stage_locked": true,
-    "blocked_next_stage": "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION",
+    "next_stage_locked": false,
+    "blocked_next_stage": "NONE",
     "unlock_condition": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_EXACT_HEAD_QUALIFIED_AND_LIVE_EVIDENCE_CHECKPOINT_PASS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
@@ -4487,6 +4489,16 @@
         "required_correction": "Choose and prove an Android-capable durable state substrate or intentionally platform-specific backend behind the stable Keelaryn state contract. Add at minimum Android/arm64 compile coverage, then emulator/device filesystem+SQLite smoke tests and later SAF/DocumentProvider acceptance. Do not infer Android support from CGO-free implementation alone.",
         "gate_scope": "PORTABILITY_GATE_NOT_CURRENT_P0_C2_CRITICAL_GATE",
         "external_evidence": "modernc.org/sqlite v1.37.1 doc.go supported-platform matrix omits android; current go.mod pins modernc.org/sqlite v1.37.1 through zombiezen.com/go/sqlite v1.4.2."
+      },
+      {
+        "id": "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY",
+        "severity": "MEDIUM",
+        "status": "OPEN",
+        "affected_head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
+        "issue": "Live Drive bootstrap introspects each opaque access token through Google's tokeninfo endpoint to verify exact scope. Google documents access-token introspection there for diagnostic use. A transient failure stops bootstrap before Drive reads and protected control-state creation, so the current risk is availability rather than corpus integrity or write authorization.",
+        "required_correction": "Before final P0 proof and any production live-provider claim, reassess the dependency and qualify a durable scope-validation source plus its timeout/failure behavior, while preserving exact least-scope enforcement.",
+        "gate_scope": "REASSESS_AT_P0_FINAL_PROOF_REAUDIT_AND_BEFORE_PRODUCTION_LIVE_PROVIDER_RUNTIME",
+        "external_evidence": "https://docs.cloud.google.com/docs/authentication/token-types"
       }
     ],
     "resolved_findings": [
@@ -5528,7 +5540,7 @@
     "evidence": {
       "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
       "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
-      "current_product": "Exact-head live run 36862902907 on bf62904939afb0d83c87eb66a34ee7ed2f6f6ed8 completed the real metadata-only acceptance step successfully: scope drive.metadata.readonly, metadata_count 1726, publication_sequence 1, Doctor PASS and access token not persisted. The job failed only because the evidence path was step-scoped and therefore absent from upload-artifact. Closure audit also requires independent exact result-to-durable-state reconciliation before P0-36C is closed. Exact-head workflow run 36863566542 failed before jobs with validation error: Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp at line 31; the runner.temp evidence path is moved to step scope and the upload input now resolves runner.temp directly. Exact-head normal CI and guarded live acceptance are pending. Final P0-36C acceptance passed on exact source head 18589d226de031d76a31fa1b35c5dfedebc7836f: live workflow 36864835423 and cross-platform CI 36864835408 both PASS; artifact 11162809590 sha256:9768843681557f46c013902532818a3508596771a26f3c32e6fb85d66d8d5448 records 1,726 metadata observations with exact durable parity, Doctor PASS, access token neither persisted nor emitted, and no Drive write scope. The runtime client calls only About.Get, Files.Get, Files.List, Changes.GetStartPageToken and Changes.List."
+      "current_product": "P0-36C qualified on exact source head 18589d226de031d76a31fa1b35c5dfedebc7836f: cross-platform CI 36864835408 and guarded live acceptance 36864835423 PASS. Sanitized artifact 11162809590 records 1,726 metadata observations with exact durable parity, Doctor PASS, token absent from durable state/logs/artifact, no Drive write scope/API, and zero corpus mutations."
     },
     "rejected_shortcuts": [
       "fabricate size=0 or mode=0 and call them provider facts",
@@ -5625,7 +5637,7 @@
       "drive_api_reached": true,
       "product_runtime_invoked": true,
       "protected_control_state_created": true,
-      "next_action": "Run the P0 closure re-audit after P0-36C authenticated live acceptance qualification.",
+      "next_action": "Proceed to minimal read-only MCP access after the P0-36C stage retrospective.",
       "second_live_run_id": 36763172280,
       "second_live_job_id": 110232451988,
       "second_live_result": "FAILED_AFTER_SUCCESSFUL_LIVE_BOOTSTRAP_DURING_DOCTOR",
@@ -5638,11 +5650,11 @@
       "latest_live_metadata_count": 1726,
       "latest_live_publication_sequence": 1,
       "latest_live_doctor_pass": true,
-      "latest_live_job_result": "FAIL_EVIDENCE_UPLOAD_PATH_ONLY",
+      "latest_live_job_result": "PASS",
       "workflow_validation_failure_run_id": 36863566542,
       "workflow_validation_failure": "Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp",
-      "latest_normal_ci_run_id": 36863569107,
-      "latest_normal_ci_head": "182c919258808c9fba1b4b1daded54cfbe5ce823",
+      "latest_normal_ci_run_id": 36864835408,
+      "latest_normal_ci_head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
       "latest_live_result": "PASS",
       "latest_live_durable_reconciliation_pass": true,
       "latest_live_evidence_artifact_id": 11162809590,
@@ -5653,7 +5665,8 @@
       "latest_live_drive_write_scope_requested": false,
       "latest_live_drive_write_api_used": false,
       "latest_live_corpus_mutations": 0,
-      "workflow_validation_fix_head": "18589d226de031d76a31fa1b35c5dfedebc7836f"
+      "workflow_validation_fix_head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
+      "retrospective": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_36C_20261001.md"
     },
     "targeted_findings": [
       {
