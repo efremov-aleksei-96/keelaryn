@@ -35,6 +35,12 @@ Keelaryn product development itself follows this rule through repository-local `
 ## Observation policy
 Baseline corpus discovery is `LIGHTWEIGHT_ALL`: keep low-cost observations for every in-scope object. Expensive hashing/extraction is separately configurable and may run on change or in bounded background mode. Exact fresh derived results should be reused before rereading unchanged source bytes.
 
+## Development continuation profiles
+
+Fresh AI development sessions use `AGENTS.md` as the repository entrypoint and `docs/DEVELOPMENT_CONTINUATION.md` as the model-specific continuation contract.
+
+The user-facing command may be as small as `продолжить работу`. The active model determines the execution profile: Luna is the continuous safe-autonomous/verified Work profile; Sol owns strong-model-required architecture and authority decisions. Both always reconstruct from live GitHub + `DEVELOPMENT_STATE.json`, never from chat memory alone.
+
 ## Execution cadence and anti-stall discipline
 
 Long engineering runs must be decomposed into short transactional slices.
