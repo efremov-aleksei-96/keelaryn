@@ -3,6 +3,7 @@ package doctor
 import (
 	"context"
 	"errors"
+	"os"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
 	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
@@ -58,7 +59,15 @@ func Run(ctx context.Context, controlDir string) Report {
 		report.Checks = append(report.Checks, Check{ID: "state-database", Status: StatusPass})
 	}
 
-	if err := searchsqlite.VerifyReadOnly(ctx, layout.SearchDB); err != nil {
+	// search.db is rebuildable derived state. Its absence is a valid control
+	// profile (for example a metadata-only remote bootstrap). If it exists,
+	// it remains subject to the same strict read-only verification.
+	if _, err := os.Lstat(layout.SearchDB); errors.Is(err, os.ErrNotExist) {
+		report.Checks = append(report.Checks, Check{ID: "search-database", Status: StatusSkipped})
+	} else if err != nil {
+		report.Status = StatusFail
+		report.Checks = append(report.Checks, Check{ID: "search-database", Status: StatusFail, Error: err.Error()})
+	} else if err := searchsqlite.VerifyReadOnly(ctx, layout.SearchDB); err != nil {
 		report.Status = StatusFail
 		report.Checks = append(report.Checks, Check{ID: "search-database", Status: StatusFail, Error: err.Error()})
 	} else {
