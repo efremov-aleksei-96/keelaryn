@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 222,
+  "revision": 223,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -190,17 +190,13 @@
     "P0_36C_DISPOSABLE_OAUTH_REAUTHORIZED",
     "P0_36C_LIVE_PROVIDER_RUNTIME_REACHED",
     "P0_36C_DOCTOR_CACHE_PROFILE_FIX_QUALIFIED",
-    "P0_36C_REAL_METADATA_ONLY_RUNTIME_ACCEPTANCE_PASS_BEFORE_EVIDENCE_UPLOAD"
+    "P0_36C_REAL_METADATA_ONLY_RUNTIME_ACCEPTANCE_PASS_BEFORE_EVIDENCE_UPLOAD",
+    "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_QUALIFIED"
   ],
   "next_objective": {
-    "id": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
-    "description": "Add a supported executable/runtime surface for a real authenticated Google Drive metadata-only read using the narrow drive.metadata.readonly scope, with OAuth/service construction outside the pure history adapter. Use disposable protected control state for acceptance where possible; credentials/tokens must not be written to corpus or Git. Prove provider operations are read-only, the exact runtime result is reconciled against durable RemoteHistory/topology/Observation/identity authority, and interruption never causes a blind bootstrap/materialization retry. No Drive content mutation, deletion, export/download-for-metadata, or production-control contamination is approved.",
-    "provider_read_only_acceptance_approved": true,
-    "required_google_drive_scope": "https://www.googleapis.com/auth/drive.metadata.readonly",
-    "drive_mutation_approved": false,
-    "deletion_approved": false,
-    "credential_persistence_in_repo_or_corpus_approved": false,
-    "audit_gate": "P0_36B_EXACT_HEAD_CROSS_PLATFORM_QUALIFIED_AND_BOUNDARY_AUDIT_PASS"
+    "id": "P0_CLOSURE_REAUDIT_AFTER_P0_36C_COMPLETE",
+    "description": "Reconcile the remaining P0 closure gates after the P0-36C live provider runtime qualification, then continue from the first unfinished gate.",
+    "audit_gate": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_QUALIFIED"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -3784,7 +3780,18 @@
     ],
     "full_audit_result": "ZERO_OPEN_BLOCKER_CRITICAL",
     "resolved_d0_finding": "AUDIT_D0_M1_RETROSPECTIVE_POINTER_DRIFT",
-    "resolved_operability_finding": "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
+    "resolved_operability_finding": "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
+    "post_audit_gate_progress": {
+      "as_of": "2026-10-01",
+      "LIVE_REMOTE_PROVIDER_RUNTIME_QUALIFICATION": {
+        "status": "QUALIFIED",
+        "qualification_head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
+        "cross_platform_ci_run_id": 36864835408,
+        "live_acceptance_run_id": 36864835423,
+        "evidence_artifact_id": 11162809590,
+        "evidence_artifact_sha256": "sha256:9768843681557f46c013902532818a3508596771a26f3c32e6fb85d66d8d5448"
+      }
+    }
   },
   "p0_30": {
     "status": "QUALIFIED",
@@ -5514,14 +5521,14 @@
     "h4_status": "RESOLVED"
   },
   "p0_36": {
-    "status": "P0_36C_WORKFLOW_VALIDATION_FIX_PENDING_EXACT_HEAD_CI_AND_LIVE",
+    "status": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_QUALIFIED",
     "contract": "docs/P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_CONTRACT.md",
     "current_substage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
-    "blocker": "P0_36C_EXACT_HEAD_CI_AND_GUARDED_LIVE_ACCEPTANCE_PENDING",
+    "blocker": "NONE",
     "evidence": {
       "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
       "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
-      "current_product": "Exact-head live run 36862902907 on bf62904939afb0d83c87eb66a34ee7ed2f6f6ed8 completed the real metadata-only acceptance step successfully: scope drive.metadata.readonly, metadata_count 1726, publication_sequence 1, Doctor PASS and access token not persisted. The job failed only because the evidence path was step-scoped and therefore absent from upload-artifact. Closure audit also requires independent exact result-to-durable-state reconciliation before P0-36C is closed. Exact-head workflow run 36863566542 failed before jobs with validation error: Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp at line 31; the runner.temp evidence path is moved to step scope and the upload input now resolves runner.temp directly. Exact-head normal CI and guarded live acceptance are pending."
+      "current_product": "Exact-head live run 36862902907 on bf62904939afb0d83c87eb66a34ee7ed2f6f6ed8 completed the real metadata-only acceptance step successfully: scope drive.metadata.readonly, metadata_count 1726, publication_sequence 1, Doctor PASS and access token not persisted. The job failed only because the evidence path was step-scoped and therefore absent from upload-artifact. Closure audit also requires independent exact result-to-durable-state reconciliation before P0-36C is closed. Exact-head workflow run 36863566542 failed before jobs with validation error: Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp at line 31; the runner.temp evidence path is moved to step scope and the upload input now resolves runner.temp directly. Exact-head normal CI and guarded live acceptance are pending. Final P0-36C acceptance passed on exact source head 18589d226de031d76a31fa1b35c5dfedebc7836f: live workflow 36864835423 and cross-platform CI 36864835408 both PASS; artifact 11162809590 sha256:9768843681557f46c013902532818a3508596771a26f3c32e6fb85d66d8d5448 records 1,726 metadata observations with exact durable parity, Doctor PASS, access token neither persisted nor emitted, and no Drive write scope. The runtime client calls only About.Get, Files.Get, Files.List, Changes.GetStartPageToken and Changes.List."
     },
     "rejected_shortcuts": [
       "fabricate size=0 or mode=0 and call them provider facts",
@@ -5588,11 +5595,11 @@
       ]
     },
     "p0_36c": {
-      "status": "WORKFLOW_VALIDATION_SCOPE_FIX_PENDING_EXACT_HEAD_RUNS",
+      "status": "QUALIFIED",
       "implementation_head": "eadbba916f607ed7a03b5a0be4bcbcde0aa91182",
-      "qualification_head": "09363714673d3c92fc89f2200d8b9de5ec908545",
-      "qualification_ci_run_id": 36749826725,
-      "qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, Go tests and Go vet all PASS",
+      "qualification_head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
+      "qualification_ci_run_id": 36864835408,
+      "qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, Go tests and Go vet PASS on exact source head",
       "runtime_surface": "keelaryn google-drive-bootstrap",
       "required_scope": "https://www.googleapis.com/auth/drive.metadata.readonly",
       "credential_transport": "temporary access token supplied through an environment variable; raw token CLI argument rejected",
@@ -5602,9 +5609,9 @@
       "drive_write_scope_requested": false,
       "token_persisted": false,
       "live_provider_used": true,
-      "live_acceptance_qualified": false,
+      "live_acceptance_qualified": true,
       "corpus_mutations": 0,
-      "remaining_gate": "REAL_AUTHENTICATED_GOOGLE_DRIVE_METADATA_ONLY_EXECUTABLE_ACCEPTANCE",
+      "remaining_gate": "NONE",
       "harness_head": "1ba1b1b8969a8486f895bb5300116e45ace5a5e4",
       "harness_ci_run_id": 36763172141,
       "harness_qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, Go tests and Go vet all PASS",
@@ -5618,15 +5625,15 @@
       "drive_api_reached": true,
       "product_runtime_invoked": true,
       "protected_control_state_created": true,
-      "next_action": "Run the tagged exact-head hardened live acceptance. Require real runtime PASS, exact read-only durable-state reconciliation PASS, sanitized artifact upload PASS, no access-token persistence/emission, and exact-head normal CI before closing P0-36C.",
+      "next_action": "Run the P0 closure re-audit after P0-36C authenticated live acceptance qualification.",
       "second_live_run_id": 36763172280,
       "second_live_job_id": 110232451988,
       "second_live_result": "FAILED_AFTER_SUCCESSFUL_LIVE_BOOTSTRAP_DURING_DOCTOR",
       "second_live_failure_classification": "DOCTOR_REQUIRES_ABSENT_REBUILDABLE_SEARCH_CACHE",
       "doctor_cache_profile_fix_head": "bb17fe4328c6357dc8d8ef5c4cbd8e8b38674a23",
       "doctor_cache_profile_fix_ci_run_id": 36826368574,
-      "latest_live_run_id": 36862902907,
-      "latest_live_job_id": 110371221602,
+      "latest_live_run_id": 36864835423,
+      "latest_live_job_id": 110377649927,
       "latest_live_runtime_result": "PASS",
       "latest_live_metadata_count": 1726,
       "latest_live_publication_sequence": 1,
@@ -5635,7 +5642,18 @@
       "workflow_validation_failure_run_id": 36863566542,
       "workflow_validation_failure": "Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp",
       "latest_normal_ci_run_id": 36863569107,
-      "latest_normal_ci_head": "182c919258808c9fba1b4b1daded54cfbe5ce823"
+      "latest_normal_ci_head": "182c919258808c9fba1b4b1daded54cfbe5ce823",
+      "latest_live_result": "PASS",
+      "latest_live_durable_reconciliation_pass": true,
+      "latest_live_evidence_artifact_id": 11162809590,
+      "latest_live_evidence_artifact_sha256": "sha256:9768843681557f46c013902532818a3508596771a26f3c32e6fb85d66d8d5448",
+      "latest_live_evidence_artifact_upload_pass": true,
+      "latest_live_access_token_persisted": false,
+      "latest_live_access_token_emitted": false,
+      "latest_live_drive_write_scope_requested": false,
+      "latest_live_drive_write_api_used": false,
+      "latest_live_corpus_mutations": 0,
+      "workflow_validation_fix_head": "18589d226de031d76a31fa1b35c5dfedebc7836f"
     },
     "targeted_findings": [
       {
@@ -5659,29 +5677,29 @@
       {
         "id": "P0_36C_H3_EVIDENCE_PATH_STEP_SCOPE",
         "severity": "QUALIFICATION_OPERABILITY",
-        "status": "FIX_IMPLEMENTED_PENDING_LIVE",
-        "evidence": "Live run 36862902907 real acceptance step PASS, but upload-artifact failed with 'Input required and not supplied: path' because KEELARYN_P036C_EVIDENCE was scoped only to the preceding step.",
-        "resolution": "Move only the sanitized evidence path to job scope so upload-artifact receives it; keep OAuth secrets step-scoped."
+        "status": "RESOLVED",
+        "evidence": "Run 36864835423 completed the metadata-only runtime acceptance and uploaded artifact 11162809590 successfully.",
+        "resolution": "Place the evidence path in the acceptance step env and use runner.temp directly in the upload-artifact step with path."
       },
       {
         "id": "P0_36C_H4_RUNTIME_RESULT_NOT_EXACTLY_RECONCILED_TO_DURABLE_ROWS",
         "severity": "QUALIFICATION_CORRECTNESS",
-        "status": "FIX_IMPLEMENTED_PENDING_LIVE",
-        "evidence": "The harness previously trusted runtime JSON plus aggregate Doctor integrity, but did not independently compare that exact generation/sequence/root/scan/metadata_count with the resulting state.db rows.",
+        "status": "RESOLVED",
+        "evidence": "Run 36864835423's sanitized artifact records durable_reconciliation_pass=true and exact metadata_count/durable_observation_count parity at 1,726.",
         "resolution": "Open state.db read-only/query_only in the acceptance harness and require exact generation, bootstrap publication, managed-root binding, source-bound COMPLETE scan and observation-count parity with the runtime result."
       },
       {
         "id": "P0_36C_H5_LONG_LIVED_OAUTH_SECRETS_OVEREXPOSED_IN_JOB_ENV",
         "severity": "SECURITY_HARDENING",
-        "status": "FIX_IMPLEMENTED_PENDING_LIVE",
-        "evidence": "Client secret and refresh token were job-scoped, making them available to build and inherited product child environments even though Keelaryn only requires a temporary access token.",
+        "status": "RESOLVED",
+        "evidence": "Live acceptance passed with OAuth credentials scoped to the OAuth step; evidence confirms access token persisted/emitted=false and logs contain no token-shaped or credential-assignment values.",
         "resolution": "Scope client credentials and refresh token only to OAuth steps; strip them from the product child environment and pass only the temporary access token. Doctor also runs without OAuth secrets."
       },
       {
         "id": "P0_36C_H6_RUNNER_CONTEXT_INVALID_AT_JOB_ENV",
         "severity": "WORKFLOW_VALIDATION",
-        "status": "FIX_IMPLEMENTED_PENDING_EXACT_HEAD_RUNS",
-        "evidence": "GitHub annotation for run 36863566542: Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp at .github/workflows/p0-36c-live-acceptance.yml line 31. Workflow run had zero jobs and no check runs.",
+        "status": "RESOLVED",
+        "evidence": "Run 36863566542's exact runner context validation failure was fixed in 18589d226de031d76a31fa1b35c5dfedebc7836f; new live job 110377649927 completed PASS.",
         "resolution": "Move KEELARYN_P036C_EVIDENCE using runner.temp to the acceptance step env, where runner context is available, and resolve upload-artifact path directly from runner.temp in step with."
       }
     ]
