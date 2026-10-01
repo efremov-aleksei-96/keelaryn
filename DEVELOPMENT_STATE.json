@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 224,
+  "revision": 225,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -5716,5 +5716,19 @@
         "resolution": "Move KEELARYN_P036C_EVIDENCE using runner.temp to the acceptance step env, where runner context is available, and resolve upload-artifact path directly from runner.temp in step with."
       }
     ]
+  },
+  "continuation_protocol": {
+    "status": "ADOPTED",
+    "authority": "docs/DEVELOPMENT_CONTINUATION.md",
+    "entrypoint": "AGENTS.md",
+    "invocation": {
+      "generic": "продолжить работу",
+      "luna": "продолжить работу при помощи Luna",
+      "sol": "продолжить работу при помощи Sol"
+    },
+    "active_model_rule": "USE_THE_ACTUAL_ACTIVE_MODEL_PROFILE; NEVER_PRETEND_TO_SWITCH_MODELS",
+    "luna_work_mode": "CONTINUE_SAFE_AUTONOMOUS_SLICES_UNTIL_A_DEFINED_STOP_CONDITION; USE_GIT_PR_CI_AS_DURABLE_SLICE_LEDGER; DO_NOT_STOP_AFTER_ONE_SUCCESSFUL_SLICE",
+    "sol_mode": "OWN_STRONG_MODEL_DECISIONS_AND_HIGH_RISK_SURFACES_WHILE_PRESERVING_THE_SAME_TRANSACTION_DISCIPLINE",
+    "durable_resume_rule": "RECONCILE_GITHUB_AND_DEVELOPMENT_STATE; CHAT_HISTORY_IS_NEVER_REQUIRED_AUTHORITY"
   }
 }
