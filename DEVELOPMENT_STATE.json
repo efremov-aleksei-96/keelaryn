@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 220,
+  "revision": 221,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -189,7 +189,8 @@
     "P0_36C_EXTERNAL_OAUTH_BLOCKER_CLASSIFIED",
     "P0_36C_DISPOSABLE_OAUTH_REAUTHORIZED",
     "P0_36C_LIVE_PROVIDER_RUNTIME_REACHED",
-    "P0_36C_DOCTOR_CACHE_PROFILE_FIX_QUALIFIED"
+    "P0_36C_DOCTOR_CACHE_PROFILE_FIX_QUALIFIED",
+    "P0_36C_REAL_METADATA_ONLY_RUNTIME_ACCEPTANCE_PASS_BEFORE_EVIDENCE_UPLOAD"
   ],
   "next_objective": {
     "id": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
@@ -5513,14 +5514,14 @@
     "h4_status": "RESOLVED"
   },
   "p0_36": {
-    "status": "P0_36C_EXACT_HEAD_LIVE_RERUN_TRIGGERED",
+    "status": "P0_36C_LIVE_RUNTIME_PASS_HARNESS_EVIDENCE_HARDENING",
     "contract": "docs/P0_36_LIVE_REMOTE_PROVIDER_RUNTIME_CONTRACT.md",
     "current_substage": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE",
-    "blocker": "P0_36C_EXACT_HEAD_LIVE_ACCEPTANCE_PENDING",
+    "blocker": "P0_36C_SANITIZED_EVIDENCE_AND_EXACT_DURABLE_RECONCILIATION_PENDING",
     "evidence": {
       "canonical": "Observation metadata is optional/where meaningful and providers are neutral",
       "google_drive": "Drive file.size is absent for objects with no size such as folders/shortcuts; Drive has no POSIX mode fact",
-      "current_product": "The Doctor rebuildable-search-cache profile fix is exact-head cross-platform qualified at bb17fe4328c6357dc8d8ef5c4cbd8e8b38674a23, CI 36826368574. The guarded live workflow path filter is being hardened so tagged changes to runtime/Doctor authority paths can trigger exact-head disposable acceptance instead of forcing an old-head rerun."
+      "current_product": "Exact-head live run 36862902907 on bf62904939afb0d83c87eb66a34ee7ed2f6f6ed8 completed the real metadata-only acceptance step successfully: scope drive.metadata.readonly, metadata_count 1726, publication_sequence 1, Doctor PASS and access token not persisted. The job failed only because the evidence path was step-scoped and therefore absent from upload-artifact. Closure audit also requires independent exact result-to-durable-state reconciliation before P0-36C is closed."
     },
     "rejected_shortcuts": [
       "fabricate size=0 or mode=0 and call them provider facts",
@@ -5587,7 +5588,7 @@
       ]
     },
     "p0_36c": {
-      "status": "EXACT_HEAD_LIVE_RERUN_TRIGGERED",
+      "status": "LIVE_RUNTIME_PASS_HARNESS_EVIDENCE_HARDENING",
       "implementation_head": "eadbba916f607ed7a03b5a0be4bcbcde0aa91182",
       "qualification_head": "09363714673d3c92fc89f2200d8b9de5ec908545",
       "qualification_ci_run_id": 36749826725,
@@ -5617,13 +5618,20 @@
       "drive_api_reached": true,
       "product_runtime_invoked": true,
       "protected_control_state_created": true,
-      "next_action": "Observe the tagged exact-head live workflow and normal development CI created by this harness-hardening commit. Do not rerun the old live job. If both pass, inspect sanitized live evidence and close P0-36C.",
+      "next_action": "Run the tagged exact-head hardened live acceptance. Require real runtime PASS, exact read-only durable-state reconciliation PASS, sanitized artifact upload PASS, no access-token persistence/emission, and exact-head normal CI before closing P0-36C.",
       "second_live_run_id": 36763172280,
       "second_live_job_id": 110232451988,
       "second_live_result": "FAILED_AFTER_SUCCESSFUL_LIVE_BOOTSTRAP_DURING_DOCTOR",
       "second_live_failure_classification": "DOCTOR_REQUIRES_ABSENT_REBUILDABLE_SEARCH_CACHE",
       "doctor_cache_profile_fix_head": "bb17fe4328c6357dc8d8ef5c4cbd8e8b38674a23",
-      "doctor_cache_profile_fix_ci_run_id": 36826368574
+      "doctor_cache_profile_fix_ci_run_id": 36826368574,
+      "latest_live_run_id": 36862902907,
+      "latest_live_job_id": 110371221602,
+      "latest_live_runtime_result": "PASS",
+      "latest_live_metadata_count": 1726,
+      "latest_live_publication_sequence": 1,
+      "latest_live_doctor_pass": true,
+      "latest_live_job_result": "FAIL_EVIDENCE_UPLOAD_PATH_ONLY"
     },
     "targeted_findings": [
       {
@@ -5638,9 +5646,32 @@
       {
         "id": "P0_36C_H2_LIVE_WORKFLOW_PATH_FILTER_BLOCKS_EXACT_HEAD_ACCEPTANCE",
         "severity": "OPERABILITY_QUALIFICATION",
-        "status": "FIX_IMPLEMENTED_PENDING_EXACT_HEAD_CI_AND_LIVE",
+        "status": "RESOLVED",
         "evidence": "The live workflow previously listened only to changes of its own YAML file, so the qualified Doctor product fix did not create a new live run on the fixed source head. Re-running the prior failed job would execute the old source head.",
-        "resolution": "Keep the owner+commit-tag guard and extend push path filters only to executable, protected-control, Doctor, ingest, RemoteHistory, Google Drive runtime and durable-state paths that can affect live acceptance."
+        "resolution": "Keep the owner+commit-tag guard and extend push path filters only to executable, protected-control, Doctor, ingest, RemoteHistory, Google Drive runtime and durable-state paths that can affect live acceptance.",
+        "live_run_id": 36862902907,
+        "result": "EXACT_HEAD_LIVE_WORKFLOW_TRIGGERED"
+      },
+      {
+        "id": "P0_36C_H3_EVIDENCE_PATH_STEP_SCOPE",
+        "severity": "QUALIFICATION_OPERABILITY",
+        "status": "FIX_IMPLEMENTED_PENDING_LIVE",
+        "evidence": "Live run 36862902907 real acceptance step PASS, but upload-artifact failed with 'Input required and not supplied: path' because KEELARYN_P036C_EVIDENCE was scoped only to the preceding step.",
+        "resolution": "Move only the sanitized evidence path to job scope so upload-artifact receives it; keep OAuth secrets step-scoped."
+      },
+      {
+        "id": "P0_36C_H4_RUNTIME_RESULT_NOT_EXACTLY_RECONCILED_TO_DURABLE_ROWS",
+        "severity": "QUALIFICATION_CORRECTNESS",
+        "status": "FIX_IMPLEMENTED_PENDING_LIVE",
+        "evidence": "The harness previously trusted runtime JSON plus aggregate Doctor integrity, but did not independently compare that exact generation/sequence/root/scan/metadata_count with the resulting state.db rows.",
+        "resolution": "Open state.db read-only/query_only in the acceptance harness and require exact generation, bootstrap publication, managed-root binding, source-bound COMPLETE scan and observation-count parity with the runtime result."
+      },
+      {
+        "id": "P0_36C_H5_LONG_LIVED_OAUTH_SECRETS_OVEREXPOSED_IN_JOB_ENV",
+        "severity": "SECURITY_HARDENING",
+        "status": "FIX_IMPLEMENTED_PENDING_LIVE",
+        "evidence": "Client secret and refresh token were job-scoped, making them available to build and inherited product child environments even though Keelaryn only requires a temporary access token.",
+        "resolution": "Scope client credentials and refresh token only to OAuth steps; strip them from the product child environment and pass only the temporary access token. Doctor also runs without OAuth secrets."
       }
     ]
   }

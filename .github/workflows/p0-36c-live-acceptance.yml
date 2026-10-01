@@ -28,10 +28,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      KEELARYN_DISPOSABLE_ENABLE: ${{ secrets.KEELARYN_DISPOSABLE_ENABLE }}
-      KEELARYN_GOOGLE_CLIENT_ID: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_ID }}
-      KEELARYN_GOOGLE_CLIENT_SECRET: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_SECRET }}
-      KEELARYN_GOOGLE_REFRESH_TOKEN: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_REFRESH_TOKEN }}
+      KEELARYN_P036C_EVIDENCE: ${{ runner.temp }}/p0-36c-live-evidence.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,6 +37,11 @@ jobs:
 
       - name: Fail closed unless disposable OAuth is available
         shell: bash
+        env:
+          KEELARYN_DISPOSABLE_ENABLE: ${{ secrets.KEELARYN_DISPOSABLE_ENABLE }}
+          KEELARYN_GOOGLE_CLIENT_ID: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_ID }}
+          KEELARYN_GOOGLE_CLIENT_SECRET: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_SECRET }}
+          KEELARYN_GOOGLE_REFRESH_TOKEN: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_REFRESH_TOKEN }}
         run: |
           set -euo pipefail
           test "${KEELARYN_DISPOSABLE_ENABLE:-}" = "YES"
@@ -59,7 +61,9 @@ jobs:
       - name: Run real metadata-only acceptance
         shell: bash
         env:
-          KEELARYN_P036C_EVIDENCE: ${{ runner.temp }}/p0-36c-live-evidence.json
+          KEELARYN_GOOGLE_CLIENT_ID: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_ID }}
+          KEELARYN_GOOGLE_CLIENT_SECRET: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_CLIENT_SECRET }}
+          KEELARYN_GOOGLE_REFRESH_TOKEN: ${{ secrets.KEELARYN_DISPOSABLE_GOOGLE_REFRESH_TOKEN }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -68,6 +72,7 @@ jobs:
           import os
           from pathlib import Path
           import shutil
+          import sqlite3
           import subprocess
           import sys
           import urllib.error
@@ -117,6 +122,13 @@ jobs:
               shutil.rmtree(control)
 
           child_env = os.environ.copy()
+          for name in (
+              "KEELARYN_DISPOSABLE_ENABLE",
+              "KEELARYN_GOOGLE_CLIENT_ID",
+              "KEELARYN_GOOGLE_CLIENT_SECRET",
+              "KEELARYN_GOOGLE_REFRESH_TOKEN",
+          ):
+              child_env.pop(name, None)
           child_env["KEELARYN_GOOGLE_DRIVE_ACCESS_TOKEN"] = access_token
           proc = subprocess.run(
               [binary, "google-drive-bootstrap", "--control-dir", str(control)],
@@ -131,19 +143,113 @@ jobs:
               if proc.stderr:
                   print(proc.stderr, file=sys.stderr)
               raise SystemExit(proc.returncode)
+          if access_token in proc.stdout or access_token in proc.stderr:
+              raise SystemExit("access token emitted by product runtime")
 
           result = json.loads(proc.stdout)
           if result.get("required_scope") != required_scope:
               raise SystemExit("runtime result scope mismatch")
 
+          doctor_env = child_env.copy()
           doctor = subprocess.run(
               [binary, "doctor", "--control-dir", str(control)],
+              env=doctor_env,
               text=True,
               capture_output=True,
               check=False,
           )
           if doctor.returncode != 0:
               raise SystemExit(f"doctor failed rc={doctor.returncode}")
+
+          generation_id = result.get("generation_id")
+          scan_id = result.get("scan_id")
+          publication_sequence = result.get("publication_sequence")
+          metadata_count = result.get("metadata_count")
+          provider_id = result.get("provider_id")
+          identity_domain = result.get("identity_domain")
+          stream_id = result.get("stream_id")
+          canonical_root_id = result.get("canonical_root_id")
+          if (
+              not all(isinstance(value, str) and value for value in (
+                  generation_id, scan_id, provider_id, identity_domain,
+                  stream_id, canonical_root_id,
+              ))
+              or not isinstance(publication_sequence, int)
+              or publication_sequence < 1
+              or not isinstance(metadata_count, int)
+              or metadata_count < 0
+          ):
+              raise SystemExit("runtime result lacks exact durable reconciliation fields")
+
+          state_db = control / "state.db"
+          conn = sqlite3.connect(f"file:{state_db}?mode=ro", uri=True)
+          try:
+              conn.execute("PRAGMA query_only = ON")
+
+              generation_rows = conn.execute(
+                  """
+                  SELECT provider_id, identity_domain, stream_id, root, status, current_sequence
+                  FROM remote_history_generations
+                  WHERE generation_id = ?
+                  """,
+                  (generation_id,),
+              ).fetchall()
+              expected_generation = [(
+                  provider_id, identity_domain, stream_id, canonical_root_id,
+                  "ACTIVE", publication_sequence,
+              )]
+              if generation_rows != expected_generation:
+                  raise SystemExit("durable generation does not match runtime result")
+
+              publication_rows = conn.execute(
+                  """
+                  SELECT kind
+                  FROM remote_history_publications
+                  WHERE generation_id = ? AND sequence = ?
+                  """,
+                  (generation_id, publication_sequence),
+              ).fetchall()
+              if publication_rows != [("BOOTSTRAP",)]:
+                  raise SystemExit("durable publication does not match bootstrap result")
+
+              binding_rows = conn.execute(
+                  """
+                  SELECT bound_sequence
+                  FROM gdrive_managed_root_bindings
+                  WHERE generation_id = ? AND managed_root_object_id = ?
+                  """,
+                  (generation_id, canonical_root_id),
+              ).fetchall()
+              if binding_rows != [(publication_sequence,)]:
+                  raise SystemExit("durable managed-root binding does not match runtime result")
+
+              scan_rows = conn.execute(
+                  """
+                  SELECT s.provider_id, s.status, r.generation_id,
+                         r.publication_sequence, r.source_scope_id
+                  FROM scan_sessions AS s
+                  JOIN remote_scan_sources AS r ON r.scan_id = s.scan_id
+                  WHERE s.scan_id = ?
+                  """,
+                  (scan_id,),
+              ).fetchall()
+              expected_scan = [(
+                  provider_id, "COMPLETE", generation_id,
+                  publication_sequence, canonical_root_id,
+              )]
+              if scan_rows != expected_scan:
+                  raise SystemExit("durable scan source does not match runtime result")
+
+              durable_observation_count = conn.execute(
+                  "SELECT COUNT(*) FROM observations WHERE scan_id = ?",
+                  (scan_id,),
+              ).fetchone()[0]
+              if durable_observation_count != metadata_count:
+                  raise SystemExit(
+                      "durable observation count does not match runtime metadata count"
+                  )
+          finally:
+              conn.close()
 
           control_files = [p for p in control.rglob("*") if p.is_file()]
           token_bytes = access_token.encode()
@@ -169,7 +275,10 @@ jobs:
               "generation_id_sha256": digest(result.get("generation_id")),
               "scan_id_sha256": digest(result.get("scan_id")),
               "doctor_pass": True,
+              "durable_reconciliation_pass": True,
+              "durable_observation_count": durable_observation_count,
               "access_token_persisted": False,
+              "access_token_emitted": False,
               "drive_write_scope_requested": False,
               "control_file_count": len(control_files),
           }
@@ -177,14 +286,7 @@ jobs:
               json.dumps(evidence, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
-          print(json.dumps({
-              "status": "PASS",
-              "required_scope": required_scope,
-              "metadata_count": evidence["metadata_count"],
-              "publication_sequence": evidence["publication_sequence"],
-              "doctor_pass": True,
-              "access_token_persisted": False,
-          }, separators=(",", ":")))
+          print(json.dumps(evidence, sort_keys=True, separators=(",", ":")))
           PY
 
       - name: Upload sanitized live evidence
