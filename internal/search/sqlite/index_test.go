@@ -248,7 +248,7 @@ func TestOpenRejectsNewerSearchSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sqlitex.ExecuteTransient(conn, "PRAGMA user_version = 4", nil); err != nil {
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA user_version = 5", nil); err != nil {
 		conn.Close()
 		t.Fatal(err)
 	}
