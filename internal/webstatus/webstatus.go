@@ -21,6 +21,7 @@ import (
 const (
 	DefaultListenAddress = "127.0.0.1:0"
 	diagnosticTimeout     = 30 * time.Second
+	responseWriteTimeout  = 40 * time.Second
 )
 
 var (
@@ -105,7 +106,7 @@ func Run(ctx context.Context, options Options, announce io.Writer) error {
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       5 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      responseWriteTimeout,
 		IdleTimeout:       30 * time.Second,
 		MaxHeaderBytes:    16 << 10,
 	}

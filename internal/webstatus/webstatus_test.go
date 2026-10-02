@@ -165,6 +165,15 @@ func TestDiagnosticVerificationIsSingleFlightAndBounded(t *testing.T) {
 	}
 }
 
+func TestWebStatusWriteBudgetExceedsDiagnosticBudget(t *testing.T) {
+	if responseWriteTimeout <= diagnosticTimeout {
+		t.Fatalf("response write timeout=%s must exceed diagnostic timeout=%s", responseWriteTimeout, diagnosticTimeout)
+	}
+	if responseWriteTimeout-diagnosticTimeout < 5*time.Second {
+		t.Fatalf("response margin=%s is too small", responseWriteTimeout-diagnosticTimeout)
+	}
+}
+
 func TestDiagnosticVerificationContextHasDeadline(t *testing.T) {
 	h := &handler{
 		controlDir: "test-control",

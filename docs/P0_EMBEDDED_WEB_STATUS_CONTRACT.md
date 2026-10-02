@@ -56,7 +56,7 @@ Responses use no-store and restrictive browser security headers. No client-side 
 
 ## Resource bounds
 
-The server uses standard-library `net/http` with bounded header size and read/write/idle timeouts. Doctor verification has a 30-second context deadline and a single in-flight slot; overlapping status requests fail fast with HTTP 503 + `Retry-After` rather than creating concurrent full search-verification scratch copies. The UI contains only small assets embedded in the executable.
+The server uses standard-library `net/http` with bounded header size and read/write/idle timeouts. Doctor verification has a 30-second context deadline and a single in-flight slot; overlapping status requests fail fast with HTTP 503 + `Retry-After` rather than creating concurrent full search-verification scratch copies. The HTTP write timeout is 40 seconds, leaving a 10-second margin after the diagnostic deadline for rendering and returning a bounded failure response. The UI contains only small assets embedded in the executable.
 
 Doctor's existing read-only SQLite/FTS verification semantics remain authoritative; the web layer does not duplicate them.
 
