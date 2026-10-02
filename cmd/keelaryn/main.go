@@ -18,11 +18,13 @@ import (
 	gdriveruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/gdrive"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 	"github.com/efremov-aleksei-96/keelaryn/internal/selftest"
+	"github.com/efremov-aleksei-96/keelaryn/internal/webstatus"
 )
 
 var (
 	bootstrapGoogleDriveReadOnly = gdriveruntime.BootstrapReadOnly
 	runMCPStdio                 = mcpaccess.RunStdio
+	runWebStatus                = webstatus.Run
 )
 
 func main() {
@@ -37,7 +39,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle|mcp-stdio|google-drive-bootstrap|doctor|self-test> [options]")
+		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle|mcp-stdio|web-status|google-drive-bootstrap|doctor|self-test> [options]")
 	}
 
 	switch args[0] {
@@ -138,6 +140,25 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return runMCPStdio(context.Background(), mcpaccess.Options{
 			Root: *root, ControlDir: *controlDir,
 		})
+
+	case "web-status":
+		flags := flag.NewFlagSet("web-status", flag.ContinueOnError)
+		flags.SetOutput(stderr)
+		controlDir := flags.String("control-dir", "", "existing protected Keelaryn control directory")
+		listen := flags.String("listen", webstatus.DefaultListenAddress, "literal loopback listen address")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 0 {
+			return errors.New("web-status accepts no positional arguments")
+		}
+		if *controlDir == "" {
+			return errors.New("web-status requires --control-dir")
+		}
+		return runWebStatus(context.Background(), webstatus.Options{
+			ControlDir: *controlDir,
+			Listen:     *listen,
+		}, stdout)
 
 	case "google-drive-bootstrap":
 		flags := flag.NewFlagSet("google-drive-bootstrap", flag.ContinueOnError)
