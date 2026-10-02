@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
 	zsqlite "zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
@@ -105,17 +106,21 @@ func verifyReadOnlyForeignKeysConn(conn *zsqlite.Conn) error {
 }
 
 func verifyFTSOnScratchBackup(ctx context.Context, src *zsqlite.Conn) error {
-	dir, err := os.MkdirTemp("", "keelaryn-search-verify-*")
+	dir, err := controlstorage.CreateProtectedTempDir("keelaryn-search-verify-")
 	if err != nil {
-		return fmt.Errorf("create search verification scratch directory: %w", err)
+		return fmt.Errorf("create protected search verification scratch directory: %w", err)
 	}
 	defer os.RemoveAll(dir)
 
-	dst, err := zsqlite.OpenConn(filepath.Join(dir, "search.db"), zsqlite.OpenReadWrite|zsqlite.OpenCreate)
+	dstPath := filepath.Join(dir, "search.db")
+	dst, err := zsqlite.OpenConn(dstPath, zsqlite.OpenReadWrite|zsqlite.OpenCreate)
 	if err != nil {
 		return fmt.Errorf("open scratch search verification copy: %w", err)
 	}
 	defer dst.Close()
+	if err := controlstorage.VerifyProtectedTempFile(dstPath); err != nil {
+		return fmt.Errorf("verify protected search verification scratch file: %w", err)
+	}
 	oldInterrupt := dst.SetInterrupt(ctx.Done())
 	defer dst.SetInterrupt(oldInterrupt)
 
