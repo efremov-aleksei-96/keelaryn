@@ -466,35 +466,44 @@ func TestMCPContextRejectsSearchCacheSwapAfterStartup(t *testing.T) {
 	}
 }
 
-func TestMCPContextKeepsPinnedPhysicalRootAfterAliasRetarget(t *testing.T) {
+func TestMCPContextKeepsPinnedPhysicalRootAfterAncestorAliasRetarget(t *testing.T) {
 	ctx := context.Background()
-	targetA := t.TempDir()
-	targetB := t.TempDir()
-	aliasParent := t.TempDir()
-	alias := filepath.Join(aliasParent, "corpus")
-	if err := os.WriteFile(filepath.Join(targetA, "note.txt"), []byte("pinned physical corpus"), 0o600); err != nil {
+	parentA := t.TempDir()
+	parentB := t.TempDir()
+	rootA := filepath.Join(parentA, "root")
+	rootB := filepath.Join(parentB, "root")
+	if err := os.Mkdir(rootA, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(targetB, "note.txt"), []byte("retargeted foreign corpus"), 0o600); err != nil {
+	if err := os.Mkdir(rootB, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(targetA, alias); err != nil {
+	if err := os.WriteFile(filepath.Join(rootA, "note.txt"), []byte("pinned physical corpus"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootB, "note.txt"), []byte("retargeted foreign corpus"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	aliasHost := t.TempDir()
+	aliasParent := filepath.Join(aliasHost, "parent")
+	if err := os.Symlink(parentA, aliasParent); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
+	authorityRoot := filepath.Join(aliasParent, "root")
 	control := filepath.Join(t.TempDir(), "control")
 	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
-		Root: alias, ControlDir: control, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+		Root: authorityRoot, ControlDir: control, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServer(Options{Root: alias, ControlDir: control})
+	server, err := NewServer(Options{Root: authorityRoot, ControlDir: control})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(alias); err != nil {
+	if err := os.Remove(aliasParent); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(targetB, alias); err != nil {
+	if err := os.Symlink(parentB, aliasParent); err != nil {
 		t.Fatal(err)
 	}
 
@@ -519,7 +528,7 @@ func TestMCPContextKeepsPinnedPhysicalRootAfterAliasRetarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result.IsError {
-		t.Fatalf("pinned ContextBundle failed after alias retarget: %#v", result.Content)
+		t.Fatalf("pinned ContextBundle failed after ancestor alias retarget: %#v", result.Content)
 	}
 	var out ContextBundleOutput
 	decodeStructured(t, result.StructuredContent, &out)
