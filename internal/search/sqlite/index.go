@@ -106,6 +106,14 @@ type connectionPool interface {
 	Close() error
 }
 
+type readOnlyConnectionPool struct {
+	*sqlitex.Pool
+}
+
+func (p *readOnlyConnectionPool) Get(ctx context.Context) (*zsqlite.Conn, error) {
+	return p.Take(ctx)
+}
+
 type Index struct {
 	pool connectionPool
 	path string
@@ -172,9 +180,10 @@ func OpenReadOnly(ctx context.Context, path string) (*Index, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
 	}
-	index.pool = pool
+	readPool := &readOnlyConnectionPool{Pool: pool}
+	index.pool = readPool
 
-	conn, err := pool.Get(ctx)
+	conn, err := readPool.Get(ctx)
 	if err != nil {
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)

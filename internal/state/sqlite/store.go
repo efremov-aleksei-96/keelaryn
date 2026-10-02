@@ -3716,6 +3716,14 @@ type connectionPool interface {
 	Close() error
 }
 
+type readOnlyConnectionPool struct {
+	*sqlitex.Pool
+}
+
+func (p *readOnlyConnectionPool) Get(ctx context.Context) (*sqlite.Conn, error) {
+	return p.Take(ctx)
+}
+
 type Store struct {
 	pool                                        connectionPool
 	path                                        string
@@ -4564,9 +4572,10 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		PoolSize:    1,
 		PrepareConn: store.prepareConn,
 	})
-	store.pool = pool
+	readPool := &readOnlyConnectionPool{Pool: pool}
+	store.pool = readPool
 
-	conn, err := pool.Get(ctx)
+	conn, err := readPool.Get(ctx)
 	if err != nil {
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
