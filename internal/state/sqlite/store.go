@@ -4572,10 +4572,9 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		PoolSize:    1,
 		PrepareConn: store.prepareConn,
 	})
-	readPool := &readOnlyConnectionPool{Pool: pool}
-	store.pool = readPool
+	store.pool = pool
 
-	conn, err := readPool.Get(ctx)
+	conn, err := pool.Get(ctx)
 	if err != nil {
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
@@ -4629,9 +4628,10 @@ func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
 	}
-	store.pool = pool
+	readPool := &readOnlyConnectionPool{Pool: pool}
+	store.pool = readPool
 
-	conn, err := pool.Get(ctx)
+	conn, err := readPool.Get(ctx)
 	if err != nil {
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
