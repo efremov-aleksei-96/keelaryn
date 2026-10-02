@@ -11,6 +11,8 @@ import (
 
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	zsqlite "zombiezen.com/go/sqlite"
+	"zombiezen.com/go/sqlite/sqlitex"
 )
 
 func TestMinimalMCPAccessSearchAndContextBundle(t *testing.T) {
@@ -240,6 +242,73 @@ func TestNewServerRejectsIncompleteProtectedControlStore(t *testing.T) {
 	}
 	if _, err := NewServer(Options{Root: root, ControlDir: control}); err == nil {
 		t.Fatal("MCP server unexpectedly accepted protected control without search database")
+	}
+}
+
+func TestNewServerRejectsControlStoreForDifferentRoot(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	otherRoot := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("bound MCP root"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatalf("bootstrap protected index: %v", err)
+	}
+	if _, err := NewServer(Options{Root: otherRoot, ControlDir: control}); err == nil {
+		t.Fatal("MCP server unexpectedly accepted control store bound to a different corpus root")
+	}
+}
+
+func TestNewServerRejectsFTSDrift(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("MCP FTS integrity"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatalf("bootstrap protected index: %v", err)
+	}
+
+	searchDB := filepath.Join(control, "search.db")
+	conn, err := zsqlite.OpenConn(searchDB, zsqlite.OpenReadWrite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rowID int64
+	var textValue string
+	if err := sqlitex.Execute(conn,
+		"SELECT document_id, text FROM search_documents LIMIT 1",
+		&sqlitex.ExecOptions{ResultFunc: func(stmt *zsqlite.Stmt) error {
+			rowID = stmt.ColumnInt64(0)
+			textValue = stmt.ColumnText(1)
+			return nil
+		}}); err != nil {
+		conn.Close()
+		t.Fatal(err)
+	}
+	if rowID == 0 {
+		conn.Close()
+		t.Fatal("bootstrap search database contained no document to corrupt")
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO search_documents_fts(search_documents_fts, rowid, text) VALUES('delete', ?1, ?2)",
+		&sqlitex.ExecOptions{Args: []any{rowID, textValue}}); err != nil {
+		conn.Close()
+		t.Fatal(err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := NewServer(Options{Root: root, ControlDir: control}); err == nil {
+		t.Fatal("MCP server unexpectedly advertised search over an FTS-drifted control store")
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
+	providerlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
@@ -46,7 +47,7 @@ func ValidateProtectedScope(root, controlDir string) error {
 // protected/read-only validation so this startup check is fail-fast rather
 // than a substitute for per-request authority checks.
 func ValidateProtectedReadOnlyScope(ctx context.Context, root, controlDir string) error {
-	_, layout, err := resolveProtectedLayout(root, controlDir)
+	root, layout, err := resolveProtectedLayout(root, controlDir)
 	if err != nil {
 		return err
 	}
@@ -55,14 +56,32 @@ func ValidateProtectedReadOnlyScope(ctx context.Context, root, controlDir string
 		return err
 	}
 
-	state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
-	if err != nil {
+	if err := sqlitestate.VerifyReadOnly(ctx, layout.StateDB); err != nil {
 		return err
 	}
-	if err := state.Close(); err != nil {
+	if err := func() error {
+		state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
+		if err != nil {
+			return err
+		}
+		defer state.Close()
+
+		scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return ErrRuntimeStateUnavailable
+		}
+		provider := providerlocalfs.New(ProviderID)
+		return proveBootstrapReadOnly(ctx, state, provider, scan)
+	}(); err != nil {
 		return err
 	}
 
+	if err := searchsqlite.VerifyReadOnly(ctx, layout.SearchDB); err != nil {
+		return err
+	}
 	index, err := searchsqlite.OpenReadOnly(ctx, layout.SearchDB)
 	if err != nil {
 		return err
