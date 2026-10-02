@@ -48,6 +48,7 @@ P0 is local-only:
 - bind must be a literal loopback IP;
 - the actual listener address is rechecked after bind;
 - requests with a non-local Host header are rejected;
+- browser Fetch Metadata is fail-closed for `cross-site` and `same-site` requests while direct navigation (`none`), same-origin requests, and non-browser clients without the header remain supported;
 - no TLS/authentication design is claimed because remote access is not exposed;
 - a future non-loopback/remote mode is a separate security boundary and requires its own explicit authentication/origin/TLS contract and audit.
 
@@ -65,7 +66,7 @@ The stage is qualified only after:
 
 1. handler tests prove page/API parity with Doctor;
 2. protected state database bytes are unchanged by status requests;
-3. non-local Host and mutating methods fail closed;
+3. non-local Host, cross-site/same-site browser fetches, and mutating methods fail closed;
 4. non-loopback listen addresses fail closed;
 5. a real ephemeral loopback listener starts and stops under context cancellation;
 6. CLI tests prove only `--control-dir` and loopback `--listen` are exposed;

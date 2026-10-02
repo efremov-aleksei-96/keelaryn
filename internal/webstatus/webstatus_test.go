@@ -97,6 +97,18 @@ func TestHandlerRejectsNonLocalHostAndMutationMethods(t *testing.T) {
 		t.Fatalf("foreign Host status=%d want %d", foreignResponse.Code, http.StatusForbidden)
 	}
 
+	crossSite := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/status", nil)
+	crossSite.Host = "127.0.0.1"
+	crossSite.Header.Set("Sec-Fetch-Site", "cross-site")
+	crossSiteResponse := httptest.NewRecorder()
+	h.ServeHTTP(crossSiteResponse, crossSite)
+	if crossSiteResponse.Code != http.StatusForbidden {
+		t.Fatalf("cross-site request status=%d want %d", crossSiteResponse.Code, http.StatusForbidden)
+	}
+	if vary := crossSiteResponse.Header().Get("Vary"); !strings.Contains(vary, "Sec-Fetch-Site") {
+		t.Fatalf("cross-site response missing Vary: %q", vary)
+	}
+
 	post := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/status", strings.NewReader("{}"))
 	post.Host = "127.0.0.1"
 	postResponse := httptest.NewRecorder()

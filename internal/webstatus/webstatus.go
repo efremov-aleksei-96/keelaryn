@@ -56,7 +56,7 @@ func NewHandler(controlDir string) (http.Handler, error) {
 	mux.HandleFunc("/", h.servePage)
 	mux.HandleFunc("/api/status", h.serveAPI)
 	mux.HandleFunc("/assets/status.css", h.serveCSS)
-	return securityHeaders(localHostOnly(mux)), nil
+	return securityHeaders(fetchMetadataOnly(localHostOnly(mux))), nil
 }
 
 func Run(ctx context.Context, options Options, announce io.Writer) error {
@@ -141,6 +141,18 @@ func validateLoopbackListenAddress(address string) error {
 func listenerIsLoopback(address net.Addr) bool {
 	tcp, ok := address.(*net.TCPAddr)
 	return ok && tcp.IP != nil && tcp.IP.IsLoopback()
+}
+
+func fetchMetadataOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Sec-Fetch-Site")
+		switch strings.ToLower(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site"))) {
+		case "", "same-origin", "none":
+			next.ServeHTTP(w, r)
+		default:
+			http.Error(w, "forbidden", http.StatusForbidden)
+		}
+	})
 }
 
 func localHostOnly(next http.Handler) http.Handler {
