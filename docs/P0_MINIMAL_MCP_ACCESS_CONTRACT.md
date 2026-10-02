@@ -50,7 +50,7 @@ Output:
 
 - exact derived search hits preserving ArtifactID, RevisionID, extractor identity and ContentEvidence.
 
-Execution delegates to `runtime/local.QueryProtected`. Search remains rebuildable selection assistance and does not become identity or Locator authority.
+Execution delegates to the MCP-only strict reader `runtime/local.QueryProtectedReadOnly`. The previously qualified CLI `search` path retains its existing migration-capable behavior; this stage does not silently redefine that surface. Search remains rebuildable selection assistance and does not become identity or Locator authority.
 
 ### `keelaryn_context_bundle`
 
@@ -65,7 +65,7 @@ Output:
 
 - the existing ephemeral `ContextBundle`.
 
-Execution delegates to `runtime/local.BuildProtectedContext`, preserving the already-qualified gates:
+Execution delegates to the MCP-only strict reader `runtime/local.BuildProtectedContextReadOnly`. The previously qualified CLI `context-bundle` path retains its existing behavior; this stage does not broaden its semantics. The strict MCP path preserves the already-qualified gates:
 
 - exact current Artifact+Revision match;
 - supported extractor identity;

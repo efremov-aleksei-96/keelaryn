@@ -85,6 +85,28 @@ func QueryProtected(ctx context.Context, controlDir, query string, limit int) ([
 	return hits, nil
 }
 
+func QueryProtectedReadOnly(ctx context.Context, controlDir, query string, limit int) ([]search.Hit, error) {
+	if strings.TrimSpace(controlDir) == "" {
+		return nil, ErrInvalidOptions
+	}
+	layout, err := controlstorage.OpenExisting(controlDir)
+	if err != nil {
+		return nil, err
+	}
+	hits, operationErr := QueryReadOnly(ctx, layout.SearchDB, query, limit)
+	verifyErr := controlstorage.Verify(layout.Dir)
+	if operationErr != nil {
+		if verifyErr != nil {
+			return nil, errors.Join(operationErr, verifyErr)
+		}
+		return nil, operationErr
+	}
+	if verifyErr != nil {
+		return nil, verifyErr
+	}
+	return hits, nil
+}
+
 func BuildProtectedContext(ctx context.Context, options ProtectedContextOptions) (contextbundle.Bundle, error) {
 	if strings.TrimSpace(options.Query) == "" ||
 		strings.TrimSpace(options.Reason) == "" ||
@@ -102,6 +124,39 @@ func BuildProtectedContext(ctx context.Context, options ProtectedContextOptions)
 	}
 
 	bundle, operationErr := BuildContext(ctx, ContextOptions{
+		Root: root, StateDB: layout.StateDB, SearchDB: layout.SearchDB,
+		Query: options.Query, Reason: options.Reason, Limit: options.Limit, MaxBytes: options.MaxBytes,
+	})
+	verifyErr := controlstorage.Verify(layout.Dir)
+	if operationErr != nil {
+		if verifyErr != nil {
+			return contextbundle.Bundle{}, errors.Join(operationErr, verifyErr)
+		}
+		return contextbundle.Bundle{}, operationErr
+	}
+	if verifyErr != nil {
+		return contextbundle.Bundle{}, verifyErr
+	}
+	return bundle, nil
+}
+
+func BuildProtectedContextReadOnly(ctx context.Context, options ProtectedContextOptions) (contextbundle.Bundle, error) {
+	if strings.TrimSpace(options.Query) == "" ||
+		strings.TrimSpace(options.Reason) == "" ||
+		options.Limit < 1 ||
+		options.MaxBytes < 0 {
+		return contextbundle.Bundle{}, ErrInvalidOptions
+	}
+	root, layout, err := resolveProtectedLayout(options.Root, options.ControlDir)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	layout, err = controlstorage.OpenExisting(layout.Dir)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+
+	bundle, operationErr := BuildContextReadOnly(ctx, ContextOptions{
 		Root: root, StateDB: layout.StateDB, SearchDB: layout.SearchDB,
 		Query: options.Query, Reason: options.Reason, Limit: options.Limit, MaxBytes: options.MaxBytes,
 	})

@@ -82,7 +82,7 @@ func NewServer(options Options) (*mcp.Server, error) {
 		if strings.TrimSpace(input.Query) == "" || limit < 1 || limit > maxSearchLimit {
 			return nil, SearchOutput{}, ErrInvalidRequest
 		}
-		hits, err := localruntime.QueryProtected(ctx, options.ControlDir, input.Query, limit)
+		hits, err := localruntime.QueryProtectedReadOnly(ctx, options.ControlDir, input.Query, limit)
 		if err != nil {
 			return nil, SearchOutput{}, err
 		}
@@ -111,7 +111,7 @@ func NewServer(options Options) (*mcp.Server, error) {
 			maxBytes < 0 || maxBytes > maxContextMaxBytes {
 			return nil, ContextBundleOutput{}, ErrInvalidRequest
 		}
-		bundle, err := localruntime.BuildProtectedContext(ctx, localruntime.ProtectedContextOptions{
+		bundle, err := localruntime.BuildProtectedContextReadOnly(ctx, localruntime.ProtectedContextOptions{
 			Root:       options.Root,
 			ControlDir: options.ControlDir,
 			Query:      input.Query,

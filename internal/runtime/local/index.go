@@ -187,6 +187,33 @@ func Query(ctx context.Context, searchDB, query string, limit int) ([]search.Hit
 	if info.IsDir() {
 		return nil, ErrInvalidOptions
 	}
+	index, err := searchsqlite.Open(ctx, absPath)
+	if err != nil {
+		return nil, err
+	}
+	defer index.Close()
+	return index.Search(ctx, query, limit)
+}
+
+
+func QueryReadOnly(ctx context.Context, searchDB, query string, limit int) ([]search.Hit, error) {
+	if strings.TrimSpace(searchDB) == "" {
+		return nil, ErrInvalidOptions
+	}
+	absPath, err := filepath.Abs(searchDB)
+	if err != nil {
+		return nil, fmt.Errorf("resolve search database: %w", err)
+	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrSearchCacheNotFound
+		}
+		return nil, fmt.Errorf("inspect search database: %w", err)
+	}
+	if info.IsDir() {
+		return nil, ErrInvalidOptions
+	}
 	index, err := searchsqlite.OpenReadOnly(ctx, absPath)
 	if err != nil {
 		return nil, err
