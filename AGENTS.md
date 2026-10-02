@@ -14,13 +14,25 @@ Detailed continuation rules: `docs/DEVELOPMENT_CONTINUATION.md`.
 
 ## "Continue work" contract
 
-The user may start a fresh chat and say only:
+The user may start a fresh chat and say:
 
-- `продолжить работу`
-- `продолжить работу при помощи Luna`
-- `продолжить работу при помощи Sol`
+- `продолжить работу над Keelaryn`
+- `продолжить работу над Keelaryn при помощи Luna`
+- `продолжить работу над Keelaryn при помощи Sol`
 
-Treat these as commands to resume Keelaryn development from durable live state.
+Treat these as commands to resume Keelaryn development from durable live state. A bare `продолжить работу` is only a context-bound shorthand as defined below.
+
+## Project identity gate
+
+This repository's canonical project identity is **Keelaryn** (`KEELARYN`). In a multi-project environment, the preferred commands are:
+
+- `продолжить работу над Keelaryn`
+- `продолжить работу над Keelaryn при помощи Luna`
+- `продолжить работу над Keelaryn при помощи Sol`
+
+A bare `продолжить работу` is valid only when the active chat, Work workspace, or repository context is already unambiguously bound to Keelaryn.
+
+Before any write, verify that the named/active project resolves to this repository and this project's durable state. If the user names another project, or project identity is missing/ambiguous in a multi-project context, **do not write**. Resolve/select the project first. Never reuse Keelaryn branches, PRs, CI, objectives, or `DEVELOPMENT_STATE.json` as authority for another project.
 
 Resolve the execution profile fail-closed:
 

@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 226,
+  "revision": 227,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -5722,9 +5722,10 @@
     "authority": "docs/DEVELOPMENT_CONTINUATION.md",
     "entrypoint": "AGENTS.md",
     "invocation": {
-      "generic": "продолжить работу",
-      "luna": "продолжить работу при помощи Luna",
-      "sol": "продолжить работу при помощи Sol"
+      "generic": "продолжить работу над Keelaryn",
+      "luna": "продолжить работу над Keelaryn при помощи Luna",
+      "sol": "продолжить работу над Keelaryn при помощи Sol",
+      "bare_context_bound": "продолжить работу"
     },
     "active_model_rule": "EXPLICIT_LUNA_ENFORCES_LUNA_SAFE; EXPLICIT_SOL_REQUIRES_POSITIVE_SOL_IDENTITY; GENERIC_USES_POSITIVE_ACTIVE_IDENTITY; ANY_UNKNOWN_OR_MISMATCH_FALLS_BACK_TO_LUNA_SAFE_LEAST_PRIVILEGE",
     "luna_work_mode": "CONTINUE_SAFE_AUTONOMOUS_SLICES_UNTIL_A_DEFINED_STOP_CONDITION; USE_GIT_PR_CI_AS_DURABLE_SLICE_LEDGER; DO_NOT_STOP_AFTER_ONE_SUCCESSFUL_SLICE",
@@ -5735,6 +5736,23 @@
       "explicit_sol": "USE_SOL_PROFILE_ONLY_IF_THE_ENVIRONMENT_POSITIVELY_IDENTIFIES_THE_ACTIVE_MODEL_AS_SOL; OTHERWISE_USE_LUNA_SAFE_PROFILE_AND_REPORT_THE_MISMATCH_OR_UNCERTAINTY",
       "generic": "USE_THE_POSITIVELY_IDENTIFIED_ACTIVE_MODEL_PROFILE; IF_IDENTITY_IS_UNAVAILABLE_OR_AMBIGUOUS_USE_LUNA_SAFE_PROFILE",
       "unknown_identity_fallback": "LUNA_SAFE_LEAST_PRIVILEGE"
+    },
+    "project_scope": {
+      "canonical_project_id": "KEELARYN",
+      "canonical_name": "Keelaryn",
+      "accepted_user_aliases": [
+        "Keelaryn",
+        "Киларин",
+        "Киларин/Keelaryn"
+      ],
+      "preferred_invocation": {
+        "generic": "продолжить работу над Keelaryn",
+        "luna": "продолжить работу над Keelaryn при помощи Luna",
+        "sol": "продолжить работу над Keelaryn при помощи Sol"
+      },
+      "bare_command_rule": "ALLOW_ONLY_WHEN_THE_ACTIVE_CHAT_WORKSPACE_OR_REPOSITORY_CONTEXT_IS_UNAMBIGUOUSLY_BOUND_TO_KEELARYN",
+      "mismatch_rule": "IF_THE_NAMED_PROJECT_IS_NOT_KEELARYN_OR_PROJECT_IDENTITY_IS_AMBIGUOUS_DO_NOT_WRITE; RESOLVE_OR_REQUEST_PROJECT_SELECTION_FIRST",
+      "cross_project_rule": "NEVER_REUSE_KEELARYN_STATE_BRANCHES_PRS_OR_OBJECTIVES_FOR_ANOTHER_PROJECT"
     }
   }
 }
