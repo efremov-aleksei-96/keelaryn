@@ -24,11 +24,18 @@ The phrase is a resume command, not a request to guess from conversation memory.
 
 ## 2. Model identity
 
-The active model identity controls the execution profile.
+The active model identity and the user's explicit invocation jointly determine the execution profile, using fail-closed resolution.
 
-A session must never pretend that it changed from Sol to Luna or from Luna to Sol merely because the user named another model. The user selects the model in the ChatGPT UI; the repository contract tells that selected model how to work.
+Profile precedence:
 
-If no model is named, use the actual active model profile.
+1. **Explicit Luna request** — `продолжить работу при помощи Luna` always selects the Luna-safe profile. This is safe even if the active model is Sol, because a stronger model may operate under lower privileges.
+2. **Explicit Sol request** — `продолжить работу при помощи Sol` selects the Sol profile only if the environment positively identifies the active model as Sol.
+3. **Generic request** — `продолжить работу` uses the positively identified active model profile.
+4. **Unknown, ambiguous or mismatched identity** — use Luna-safe / least-privilege. Never infer or assume Sol.
+
+A session must never pretend that it changed models merely because the user named another model. The user selects the model in the ChatGPT UI; this contract constrains what the selected model may do.
+
+If an explicit Sol request cannot be positively matched to a Sol identity, report that fact briefly and continue only under Luna-safe rules unless the user changes the selected model.
 
 ## 3. Mandatory startup reconcile
 
