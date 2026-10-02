@@ -39,7 +39,13 @@ Baseline corpus discovery is `LIGHTWEIGHT_ALL`: keep low-cost observations for e
 
 Fresh AI development sessions use `AGENTS.md` as the repository entrypoint and `docs/DEVELOPMENT_CONTINUATION.md` as the model-specific continuation contract.
 
-The user-facing command may be as small as `продолжить работу`. The active model determines the execution profile: Luna is the continuous safe-autonomous/verified Work profile; Sol owns strong-model-required architecture and authority decisions. Both always reconstruct from live GitHub + `DEVELOPMENT_STATE.json`, never from chat memory alone.
+In multi-project workspaces, prefer a project-scoped command:
+
+- `продолжить работу над Keelaryn`
+- `продолжить работу над Keelaryn при помощи Luna`
+- `продолжить работу над Keelaryn при помощи Sol`
+
+The bare `продолжить работу` is allowed only when the active chat, Work workspace, or repository context is unambiguously bound to Keelaryn. Resolve project identity before the execution profile. A Luna request enforces the Luna-safe profile; Sol requires positive model identification. Naming a model constrains the execution profile and does not switch the active model. Always reconstruct from live GitHub and `DEVELOPMENT_STATE.json`, never from chat memory alone.
 
 ## Execution cadence and anti-stall discipline
 
