@@ -21,6 +21,41 @@ var (
 
 const localFSSnapshotFingerprintVersion = "localfs-snapshot:v1"
 
+// BootstrapLocalFSSnapshotFingerprint computes the exact deterministic
+// fingerprint used by bootstrap receipts without writing durable state.
+// Callers can compare it with an existing durable receipt to prove that the
+// current filesystem boundary still matches the committed bootstrap snapshot.
+func BootstrapLocalFSSnapshotFingerprint(
+	ctx context.Context,
+	provider *localfs.Provider,
+	root string,
+	observedAt time.Time,
+) (version string, fingerprint string, err error) {
+	if provider == nil || root == "" || observedAt.IsZero() {
+		return "", "", ErrInvalidLocalFSIngest
+	}
+	observedAt = observedAt.UTC()
+	snapshot, err := provider.Snapshot(ctx, root)
+	if err != nil {
+		return "", "", fmt.Errorf("snapshot local corpus: %w", err)
+	}
+	occurrences, err := bootstrapOccurrences(ctx, snapshot, observedAt)
+	if err != nil {
+		return "", "", err
+	}
+	fingerprint, err = localSnapshotFingerprint(
+		"BOOTSTRAP",
+		snapshot.ProviderID(),
+		snapshot.Root(),
+		observedAt,
+		occurrences,
+	)
+	if err != nil {
+		return "", "", err
+	}
+	return localFSSnapshotFingerprintVersion, fingerprint, nil
+}
+
 // ScanStore is the minimal durable-state contract required by local ingestion.
 // The whole provider snapshot is committed atomically. finalValidate executes
 // inside the same durable transaction immediately before COMPLETE.

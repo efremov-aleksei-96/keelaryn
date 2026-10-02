@@ -100,8 +100,14 @@ VALUES (1, 1);
 
 // Index owns rebuildable full-text state only. Identity/provenance authority
 // remains in the separate Keelaryn state Store.
+type connectionPool interface {
+	Get(context.Context) (*zsqlite.Conn, error)
+	Put(*zsqlite.Conn)
+	Close() error
+}
+
 type Index struct {
-	pool *sqlitemigration.Pool
+	pool connectionPool
 	path string
 }
 
@@ -137,6 +143,58 @@ func Open(ctx context.Context, path string) (*Index, error) {
 		return nil, fmt.Errorf("open Keelaryn search index: %w", err)
 	}
 	index.pool.Put(conn)
+	return index, nil
+}
+
+// OpenReadOnly opens an existing derived search database without creating,
+// migrating, repairing, vacuuming, or writing it. Schema/security state that
+// still requires an upgrade fails closed and must be prepared outside the
+// read-only query path.
+func OpenReadOnly(ctx context.Context, path string) (*Index, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve search database path: %w", err)
+	}
+	index := &Index{path: absPath}
+	pool, err := sqlitex.NewPool(absPath, sqlitex.PoolOptions{
+		Flags:    zsqlite.OpenReadOnly,
+		PoolSize: 1,
+		PrepareConn: func(conn *zsqlite.Conn) error {
+			if err := index.prepareConn(conn); err != nil {
+				return err
+			}
+			if err := sqlitex.ExecuteTransient(conn, "PRAGMA query_only = ON;", nil); err != nil {
+				return fmt.Errorf("enable search query-only mode: %w", err)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	index.pool = pool
+
+	conn, err := pool.Get(ctx)
+	if err != nil {
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	if err := requireReadOnlyApplicationIDConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	if err := requireExactSchemaVersionConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	if err := verifySearchSecurityPolicyConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	pool.Put(conn)
 	return index, nil
 }
 

@@ -1,8 +1,10 @@
 package sqlite_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -18,6 +20,51 @@ type revisionReader map[corpus.ArtifactID][]corpus.RevisionRecord
 
 func (r revisionReader) RevisionHistory(_ context.Context, artifactID corpus.ArtifactID) ([]corpus.RevisionRecord, error) {
 	return append([]corpus.RevisionRecord(nil), r[artifactID]...), nil
+}
+
+func TestOpenReadOnlySearchesWithoutMutationAndRejectsWrites(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "search.db")
+	index, err := searchsqlite.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := searchExtraction("art-ro", "rev-ro", "strict readonly searchable")
+	if err := index.ReplaceAll(ctx, revisionsFor([]extract.Result{result}), []extract.Result{result}); err != nil {
+		t.Fatal(err)
+	}
+	if err := index.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := searchsqlite.OpenReadOnly(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits, err := reader.Search(ctx, "readonly searchable", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].ArtifactID != "art-ro" || hits[0].RevisionID != "rev-ro" {
+		t.Fatalf("hits=%#v", hits)
+	}
+	if err := reader.ReplaceAll(ctx, revisionsFor([]extract.Result{result}), []extract.Result{result}); err == nil {
+		t.Fatal("read-only search index unexpectedly accepted replacement")
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("read-only search changed derived database bytes")
+	}
 }
 
 func TestReplaceSearchVerifyRebuildAndReopen(t *testing.T) {

@@ -187,7 +187,7 @@ func Query(ctx context.Context, searchDB, query string, limit int) ([]search.Hit
 	if info.IsDir() {
 		return nil, ErrInvalidOptions
 	}
-	index, err := searchsqlite.Open(ctx, absPath)
+	index, err := searchsqlite.OpenReadOnly(ctx, absPath)
 	if err != nil {
 		return nil, err
 	}

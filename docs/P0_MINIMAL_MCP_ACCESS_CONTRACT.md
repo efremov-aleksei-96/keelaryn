@@ -35,6 +35,8 @@ MCP tool arguments MUST NOT accept:
 
 Therefore an AI client cannot use the MCP tool surface to retarget Keelaryn at another local path. Existing protected runtime checks remain authoritative for control-storage and current-corpus provenance.
 
+The MCP read path is strictly read-only at the SQLite boundary as well as at the corpus boundary. State/search databases are opened with SQLite read-only handles plus `query_only`; the MCP path never creates, migrates, repairs or vacuums them. A database that still needs a schema/security upgrade fails closed until an explicit non-MCP preparation path completes that work.
+
 ## Tool surface
 
 ### `keelaryn_search`
@@ -96,6 +98,7 @@ Before this slice can be marked qualified:
 5. search returns exact Artifact/Revision provenance through MCP;
 6. ContextBundle returns the same exact selected revision and source text through MCP;
 7. CLI startup accepts only operator-scoped `--root` and `--control-dir`;
-8. existing full Go tests and vet pass on Ubuntu 24.04 and Windows 2025;
-9. exact PR diff contains no corpus/provider mutation surface;
-10. a stage retrospective/audit is completed before moving to embedded web status.
+8. state/search database bytes remain unchanged across qualified read-only access and attempted writes fail closed;
+9. existing full Go tests and vet pass on Ubuntu 24.04 and Windows 2025;
+10. exact PR diff contains no corpus/provider mutation surface;
+11. a stage retrospective/audit is completed before moving to embedded web status.

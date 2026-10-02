@@ -10,6 +10,7 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/extract"
+	"github.com/efremov-aleksei-96/keelaryn/internal/ingest"
 	contextlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/contextbundle/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	extractlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/extract/localfs"
@@ -48,7 +49,7 @@ func BuildContext(ctx context.Context, options ContextOptions) (contextbundle.Bu
 		return contextbundle.Bundle{}, err
 	}
 
-	state, err := sqlitestate.Open(ctx, stateDB)
+	state, err := sqlitestate.OpenReadOnly(ctx, stateDB)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
@@ -65,7 +66,7 @@ func BuildContext(ctx context.Context, options ContextOptions) (contextbundle.Bu
 
 	// Re-prove the exact immutable bootstrap/source boundary before any
 	// ContextBundle corpus reads.
-	if _, err := replayBootstrap(ctx, state, provider, scan); err != nil {
+	if err := proveBootstrapReadOnly(ctx, state, provider, scan); err != nil {
 		return contextbundle.Bundle{}, err
 	}
 
@@ -92,10 +93,45 @@ func BuildContext(ctx context.Context, options ContextOptions) (contextbundle.Bu
 
 	// A change to any part of the observed root during bundle construction,
 	// including an unrelated addition/removal, invalidates the task context.
-	if _, err := replayBootstrap(ctx, state, provider, scan); err != nil {
+	if err := proveBootstrapReadOnly(ctx, state, provider, scan); err != nil {
 		return contextbundle.Bundle{}, err
 	}
 	return bundle, nil
+}
+
+func proveBootstrapReadOnly(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	provider *providerlocalfs.Provider,
+	expected corpus.ScanSession,
+) error {
+	version, fingerprint, err := ingest.BootstrapLocalFSSnapshotFingerprint(
+		ctx,
+		provider,
+		expected.Root,
+		expected.StartedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("reconcile durable bootstrap read-only: %w", err)
+	}
+	receipt, found, err := state.LocalIngestCommitAtBoundary(
+		ctx,
+		ProviderID,
+		expected.Root,
+		expected.StartedAt,
+		true,
+	)
+	if err != nil {
+		return fmt.Errorf("read durable bootstrap receipt: %w", err)
+	}
+	if !found || receipt.Scan.ID != expected.ID {
+		return fmt.Errorf("%w: expected=%s receipt_found=%t receipt=%s",
+			ErrBootstrapReplayMismatch, expected.ID, found, receipt.Scan.ID)
+	}
+	if receipt.FingerprintVersion != version || receipt.FingerprintSHA256 != fingerprint {
+		return fmt.Errorf("%w: bootstrap fingerprint mismatch", ErrCorpusChanged)
+	}
+	return nil
 }
 
 func selectionsForHits(
