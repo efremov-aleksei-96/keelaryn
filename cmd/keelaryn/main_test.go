@@ -13,6 +13,7 @@ import (
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
+	"github.com/efremov-aleksei-96/keelaryn/internal/mcpaccess"
 	gdriveruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/gdrive"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
@@ -154,6 +155,56 @@ func TestExecutableRejectsRawDatabasePathBypass(t *testing.T) {
 	}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("raw --search-db executable bypass unexpectedly accepted")
+	}
+}
+
+func TestMCPStdioCommandPassesOnlyOperatorScopedPaths(t *testing.T) {
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+
+	original := runMCPStdio
+	t.Cleanup(func() { runMCPStdio = original })
+	called := false
+	var captured mcpaccess.Options
+	runMCPStdio = func(_ context.Context, options mcpaccess.Options) error {
+		called = true
+		captured = options
+		return nil
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{
+		"mcp-stdio", "--root", root, "--control-dir", control,
+	}, &stdout, &stderr); err != nil {
+		t.Fatalf("mcp-stdio: %v; stderr=%s", err, stderr.String())
+	}
+	if !called {
+		t.Fatal("MCP stdio runtime was not called")
+	}
+	if captured.Root != root || captured.ControlDir != control {
+		t.Fatalf("captured=%#v", captured)
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("unexpected command output: stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestMCPStdioCommandRequiresOperatorScope(t *testing.T) {
+	original := runMCPStdio
+	t.Cleanup(func() { runMCPStdio = original })
+	called := false
+	runMCPStdio = func(context.Context, mcpaccess.Options) error {
+		called = true
+		return nil
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"mcp-stdio", "--root", t.TempDir()}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("mcp-stdio unexpectedly accepted missing --control-dir")
+	}
+	if called {
+		t.Fatal("MCP runtime called without complete operator scope")
 	}
 }
 

@@ -13,13 +13,17 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
+	"github.com/efremov-aleksei-96/keelaryn/internal/mcpaccess"
 	"github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	gdriveruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/gdrive"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 	"github.com/efremov-aleksei-96/keelaryn/internal/selftest"
 )
 
-var bootstrapGoogleDriveReadOnly = gdriveruntime.BootstrapReadOnly
+var (
+	bootstrapGoogleDriveReadOnly = gdriveruntime.BootstrapReadOnly
+	runMCPStdio                 = mcpaccess.RunStdio
+)
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -33,7 +37,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle|google-drive-bootstrap|doctor|self-test> [options]")
+		return errors.New("usage: keelaryn <scan|bootstrap-index|search|context-bundle|mcp-stdio|google-drive-bootstrap|doctor|self-test> [options]")
 	}
 
 	switch args[0] {
@@ -116,6 +120,24 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		return encodeJSON(stdout, bundle)
+
+	case "mcp-stdio":
+		flags := flag.NewFlagSet("mcp-stdio", flag.ContinueOnError)
+		flags.SetOutput(stderr)
+		root := flags.String("root", "", "existing local corpus directory fixed for this MCP server")
+		controlDir := flags.String("control-dir", "", "existing protected Keelaryn control directory fixed for this MCP server")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 0 {
+			return errors.New("mcp-stdio accepts no positional arguments")
+		}
+		if *root == "" || *controlDir == "" {
+			return errors.New("mcp-stdio requires --root and --control-dir")
+		}
+		return runMCPStdio(context.Background(), mcpaccess.Options{
+			Root: *root, ControlDir: *controlDir,
+		})
 
 	case "google-drive-bootstrap":
 		flags := flag.NewFlagSet("google-drive-bootstrap", flag.ContinueOnError)

@@ -22,6 +22,7 @@ import (
 var (
 	ErrInvalidOptions          = errors.New("invalid local runtime options")
 	ErrRuntimeStateInCorpus    = errors.New("runtime state path is inside scanned corpus")
+	ErrRuntimeRootAlias        = errors.New("MCP corpus root must not resolve through a filesystem alias")
 	ErrRuntimeDatabaseAlias    = errors.New("state and search databases resolve to the same path")
 	ErrCorpusChanged           = errors.New("corpus changed after durable observation")
 	ErrUnreconciledInventory   = errors.New("current inventory is not fully revision-assigned")
@@ -134,12 +135,25 @@ func BootstrapIndex(ctx context.Context, options IndexOptions) (IndexResult, err
 		return IndexResult{}, err
 	}
 
+	receipt, err := proveBootstrapReceiptReadOnly(ctx, state, scan)
+	if err != nil {
+		return IndexResult{}, err
+	}
+	boundary := searchsqlite.SourceBoundary{
+		ProviderID:         ProviderID,
+		Root:               scan.Root,
+		ScanID:             scan.ID,
+		StartedAt:          scan.StartedAt,
+		FingerprintVersion: receipt.FingerprintVersion,
+		FingerprintSHA256:  receipt.FingerprintSHA256,
+	}
+
 	index, err := searchsqlite.Open(ctx, searchDB)
 	if err != nil {
 		return IndexResult{}, err
 	}
 	defer index.Close()
-	if err := index.ReplaceAll(ctx, state, extractions); err != nil {
+	if err := index.ReplaceAllBound(ctx, state, extractions, boundary); err != nil {
 		return IndexResult{}, err
 	}
 	if err := index.Verify(ctx); err != nil {
@@ -188,6 +202,33 @@ func Query(ctx context.Context, searchDB, query string, limit int) ([]search.Hit
 		return nil, ErrInvalidOptions
 	}
 	index, err := searchsqlite.Open(ctx, absPath)
+	if err != nil {
+		return nil, err
+	}
+	defer index.Close()
+	return index.Search(ctx, query, limit)
+}
+
+
+func QueryReadOnly(ctx context.Context, searchDB, query string, limit int) ([]search.Hit, error) {
+	if strings.TrimSpace(searchDB) == "" {
+		return nil, ErrInvalidOptions
+	}
+	absPath, err := filepath.Abs(searchDB)
+	if err != nil {
+		return nil, fmt.Errorf("resolve search database: %w", err)
+	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrSearchCacheNotFound
+		}
+		return nil, fmt.Errorf("inspect search database: %w", err)
+	}
+	if info.IsDir() {
+		return nil, ErrInvalidOptions
+	}
+	index, err := searchsqlite.OpenReadOnly(ctx, absPath)
 	if err != nil {
 		return nil, err
 	}

@@ -3,8 +3,10 @@ package sqlite
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
+	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
 	zsqlite "zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
@@ -12,7 +14,8 @@ import (
 // VerifyReadOnly validates an existing derived search database without
 // creating, migrating, repairing, vacuuming, or writing the source database.
 // FTS5's special integrity-check command is write-shaped, so it runs only
-// against an in-memory SQLite backup of the read-only source.
+// against an ephemeral on-disk SQLite backup of the read-only source. This
+// keeps memory bounded by SQLite page buffers rather than full index size.
 func VerifyReadOnly(ctx context.Context, path string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -50,7 +53,7 @@ func VerifyReadOnly(ctx context.Context, path string) error {
 	if err := verifyReadOnlyForeignKeysConn(src); err != nil {
 		return err
 	}
-	if err := verifyFTSOnMemoryBackup(ctx, src); err != nil {
+	if err := verifyFTSOnScratchBackup(ctx, src); err != nil {
 		return err
 	}
 	return nil
@@ -102,18 +105,28 @@ func verifyReadOnlyForeignKeysConn(conn *zsqlite.Conn) error {
 	})
 }
 
-func verifyFTSOnMemoryBackup(ctx context.Context, src *zsqlite.Conn) error {
-	dst, err := zsqlite.OpenConn(":memory:", zsqlite.OpenReadWrite)
+func verifyFTSOnScratchBackup(ctx context.Context, src *zsqlite.Conn) error {
+	dir, err := controlstorage.CreateProtectedTempDir("keelaryn-search-verify-")
 	if err != nil {
-		return fmt.Errorf("open in-memory search verification copy: %w", err)
+		return fmt.Errorf("create protected search verification scratch directory: %w", err)
+	}
+	defer os.RemoveAll(dir)
+
+	dstPath := filepath.Join(dir, "search.db")
+	dst, err := zsqlite.OpenConn(dstPath, zsqlite.OpenReadWrite|zsqlite.OpenCreate)
+	if err != nil {
+		return fmt.Errorf("open scratch search verification copy: %w", err)
 	}
 	defer dst.Close()
+	if err := controlstorage.VerifyProtectedTempFile(dstPath); err != nil {
+		return fmt.Errorf("verify protected search verification scratch file: %w", err)
+	}
 	oldInterrupt := dst.SetInterrupt(ctx.Done())
 	defer dst.SetInterrupt(oldInterrupt)
 
 	backup, err := zsqlite.NewBackup(dst, "main", src, "main")
 	if err != nil {
-		return fmt.Errorf("start in-memory search backup: %w", err)
+		return fmt.Errorf("start scratch search backup: %w", err)
 	}
 	defer backup.Close()
 
@@ -132,7 +145,7 @@ func verifyFTSOnMemoryBackup(ctx context.Context, src *zsqlite.Conn) error {
 		}
 	}
 	if err := integrityCheckConn(dst); err != nil {
-		return fmt.Errorf("verify FTS5 search index on in-memory copy: %w", err)
+		return fmt.Errorf("verify FTS5 search index on scratch copy: %w", err)
 	}
 	return nil
 }

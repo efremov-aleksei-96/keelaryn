@@ -95,13 +95,38 @@ CREATE TABLE search_security_upgrade (
 INSERT INTO search_security_upgrade (id, vacuum_pending)
 VALUES (1, 1);
 `,
+		`
+CREATE TABLE search_source_boundary (
+	id INTEGER PRIMARY KEY NOT NULL CHECK (id=1),
+	provider_id TEXT NOT NULL CHECK (provider_id<>''),
+	root TEXT NOT NULL CHECK (root<>''),
+	scan_id TEXT NOT NULL CHECK (scan_id<>''),
+	started_at TEXT NOT NULL CHECK (started_at<>''),
+	fingerprint_version TEXT NOT NULL CHECK (fingerprint_version<>''),
+	fingerprint_sha256 TEXT NOT NULL CHECK (length(fingerprint_sha256)=64)
+) STRICT;
+`,
 	},
 }
 
 // Index owns rebuildable full-text state only. Identity/provenance authority
 // remains in the separate Keelaryn state Store.
+type connectionPool interface {
+	Get(context.Context) (*zsqlite.Conn, error)
+	Put(*zsqlite.Conn)
+	Close() error
+}
+
+type readOnlyConnectionPool struct {
+	*sqlitex.Pool
+}
+
+func (p *readOnlyConnectionPool) Get(ctx context.Context) (*zsqlite.Conn, error) {
+	return p.Take(ctx)
+}
+
 type Index struct {
-	pool *sqlitemigration.Pool
+	pool connectionPool
 	path string
 }
 
@@ -137,6 +162,59 @@ func Open(ctx context.Context, path string) (*Index, error) {
 		return nil, fmt.Errorf("open Keelaryn search index: %w", err)
 	}
 	index.pool.Put(conn)
+	return index, nil
+}
+
+// OpenReadOnly opens an existing derived search database without creating,
+// migrating, repairing, vacuuming, or writing it. Schema/security state that
+// still requires an upgrade fails closed and must be prepared outside the
+// read-only query path.
+func OpenReadOnly(ctx context.Context, path string) (*Index, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve search database path: %w", err)
+	}
+	index := &Index{path: absPath}
+	pool, err := sqlitex.NewPool(absPath, sqlitex.PoolOptions{
+		Flags:    zsqlite.OpenReadOnly,
+		PoolSize: 1,
+		PrepareConn: func(conn *zsqlite.Conn) error {
+			if err := index.prepareConn(conn); err != nil {
+				return err
+			}
+			if err := sqlitex.ExecuteTransient(conn, "PRAGMA query_only = ON;", nil); err != nil {
+				return fmt.Errorf("enable search query-only mode: %w", err)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	readPool := &readOnlyConnectionPool{Pool: pool}
+	index.pool = readPool
+
+	conn, err := readPool.Get(ctx)
+	if err != nil {
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	if err := requireReadOnlyApplicationIDConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	if err := requireExactSchemaVersionConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	if err := verifySearchSecurityPolicyConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn search index read-only: %w", err)
+	}
+	pool.Put(conn)
 	return index, nil
 }
 
@@ -295,10 +373,35 @@ func (i *Index) ReplaceAll(
 		}
 		documents = append(documents, document)
 	}
-	return i.replaceAllDocuments(ctx, documents)
+	return i.replaceAllDocuments(ctx, documents, nil)
 }
 
-func (i *Index) replaceAllDocuments(ctx context.Context, documents []search.Document) (err error) {
+// ReplaceAllBound atomically replaces the complete derived document set and
+// binds that replacement to the authoritative source receipt it was built from.
+func (i *Index) ReplaceAllBound(
+	ctx context.Context,
+	revisions search.RevisionReader,
+	results []extract.Result,
+	boundary SourceBoundary,
+) error {
+	if revisions == nil {
+		return search.ErrExtractionNotIndexable
+	}
+	if err := validateSourceBoundary(boundary); err != nil {
+		return err
+	}
+	documents := make([]search.Document, 0, len(results))
+	for _, result := range results {
+		document, err := search.DocumentFromExtraction(ctx, revisions, result)
+		if err != nil {
+			return err
+		}
+		documents = append(documents, document)
+	}
+	return i.replaceAllDocuments(ctx, documents, &boundary)
+}
+
+func (i *Index) replaceAllDocuments(ctx context.Context, documents []search.Document, boundary *SourceBoundary) (err error) {
 	normalized, err := normalizeDocuments(documents)
 	if err != nil {
 		return err
@@ -322,6 +425,9 @@ func (i *Index) replaceAllDocuments(ctx context.Context, documents []search.Docu
 		if err := insertDocumentConn(conn, document); err != nil {
 			return err
 		}
+	}
+	if err := replaceSourceBoundaryConn(conn, boundary); err != nil {
+		return err
 	}
 	if err := integrityCheckConn(conn); err != nil {
 		return err
@@ -388,9 +494,12 @@ func (i *Index) Search(ctx context.Context, query string, limit int) ([]search.H
 		return nil, fmt.Errorf("get search connection: %w", err)
 	}
 	defer i.pool.Put(conn)
+	return searchConn(conn, expression, limit)
+}
 
+func searchConn(conn *zsqlite.Conn, expression string, limit int) ([]search.Hit, error) {
 	var hits []search.Hit
-	err = sqlitex.Execute(conn,
+	err := sqlitex.Execute(conn,
 		`SELECT
 			d.artifact_id,
 			d.revision_id,

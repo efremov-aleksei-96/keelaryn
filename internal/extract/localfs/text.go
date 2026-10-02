@@ -33,7 +33,18 @@ func Extract(
 	entry corpus.InventoryEntry,
 	maxBytes int64,
 ) (extract.Result, error) {
-	if revisions == nil || provider == nil || maxBytes < 0 {
+	return ExtractAtRoot(ctx, revisions, provider, entry, entry.Locator.Root, maxBytes)
+}
+
+func ExtractAtRoot(
+	ctx context.Context,
+	revisions RevisionReader,
+	provider *providerlocalfs.Provider,
+	entry corpus.InventoryEntry,
+	readRoot string,
+	maxBytes int64,
+) (extract.Result, error) {
+	if revisions == nil || provider == nil || strings.TrimSpace(readRoot) == "" || maxBytes < 0 {
 		return extract.Result{}, ErrInvalidExtractionRequest
 	}
 	if entry.AssignmentState != corpus.AssignmentAssigned ||
@@ -65,7 +76,7 @@ func Extract(
 		return extract.Result{}, err
 	}
 
-	sample, err := provider.ReadBoundedRegularFile(ctx, entry.Locator.Root, entry.Locator.Path, maxBytes)
+	sample, err := provider.ReadBoundedRegularFile(ctx, readRoot, entry.Locator.Path, maxBytes)
 	if err != nil {
 		if errors.Is(err, providerlocalfs.ErrContentLimitExceeded) {
 			result.Status = extract.StatusLimitExceeded

@@ -3710,8 +3710,22 @@ type locatorInsertAuthorization struct {
 	path          string
 }
 
+type connectionPool interface {
+	Get(context.Context) (*sqlite.Conn, error)
+	Put(*sqlite.Conn)
+	Close() error
+}
+
+type readOnlyConnectionPool struct {
+	*sqlitex.Pool
+}
+
+func (p *readOnlyConnectionPool) Get(ctx context.Context) (*sqlite.Conn, error) {
+	return p.Take(ctx)
+}
+
 type Store struct {
-	pool                                        *sqlitemigration.Pool
+	pool                                        connectionPool
 	path                                        string
 	remoteCompletionAuthorizations              sync.Map
 	identityMutationAuthorizations              sync.Map
@@ -4587,6 +4601,67 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	}
 	pool.Put(conn)
 
+	return store, nil
+}
+
+// OpenReadOnly opens an existing authoritative state database without
+// creating, migrating, repairing, or otherwise writing durable state.
+// The returned Store is backed by an SQLite read-only/query-only pool, so any
+// accidental call to a mutation method fails at the database boundary.
+func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve state database path: %w", err)
+	}
+
+	store := &Store{path: absPath}
+	pool, err := sqlitex.NewPool(absPath, sqlitex.PoolOptions{
+		Flags:    sqlite.OpenReadOnly,
+		PoolSize: 1,
+		PrepareConn: func(conn *sqlite.Conn) error {
+			if err := sqlitex.ExecuteTransient(conn, "PRAGMA query_only = ON;", nil); err != nil {
+				return fmt.Errorf("enable state query-only mode: %w", err)
+			}
+			return store.prepareConn(conn)
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
+	}
+	readPool := &readOnlyConnectionPool{Pool: pool}
+	store.pool = readPool
+
+	conn, err := readPool.Get(ctx)
+	if err != nil {
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
+	}
+	if err := requireReadOnlyApplicationIDConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
+	}
+	if err := requireExactSchemaVersionConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
+	}
+	if err := verifyRemoteHistoryHistoricalAuthorityConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
+	}
+	if err := verifyGoogleDriveHistoricalAuthorityConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
+	}
+	if err := verifyHistoricalCoreIdentityAuthorityConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
+	}
+	pool.Put(conn)
 	return store, nil
 }
 

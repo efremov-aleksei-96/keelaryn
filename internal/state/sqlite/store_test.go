@@ -1,9 +1,11 @@
 package sqlitestate_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +15,51 @@ import (
 	"zombiezen.com/go/sqlite"
 	"zombiezen.com/go/sqlite/sqlitex"
 )
+
+func TestOpenReadOnlyPreservesStateAndRejectsMutation(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "state.db")
+	store, err := sqlitestate.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact, err := store.AdoptArtifact(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := sqlitestate.OpenReadOnly(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exists, err := reader.ArtifactExists(ctx, artifact.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatalf("artifact %q missing through read-only store", artifact.ID)
+	}
+	if _, err := reader.AdoptArtifact(ctx); err == nil {
+		t.Fatal("read-only store unexpectedly accepted mutation")
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("read-only store changed authoritative database bytes")
+	}
+}
 
 func TestStoreReopenPreservesArtifactAndRevision(t *testing.T) {
 	ctx := context.Background()

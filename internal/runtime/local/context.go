@@ -9,12 +9,14 @@ import (
 	"strings"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
-	"github.com/efremov-aleksei-96/keelaryn/internal/extract"
 	contextlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/contextbundle/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/extract"
 	extractlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/extract/localfs"
+	"github.com/efremov-aleksei-96/keelaryn/internal/ingest"
 	providerlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
+	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
 )
 
@@ -27,13 +29,16 @@ var (
 )
 
 type ContextOptions struct {
-	Root      string
-	StateDB   string
-	SearchDB  string
-	Query     string
-	Reason    string
-	Limit     int
-	MaxBytes  int64
+	Root           string
+	ReadRoot       string
+	SearchBoundary *searchsqlite.SourceBoundary
+	StateDB        string
+	SearchDB      string
+	Query         string
+	Reason        string
+	Limit         int
+	MaxBytes      int64
+	MaxTotalBytes int64
 }
 
 // BuildContext composes literal FTS hits with the current durable Inventory and
@@ -82,7 +87,7 @@ func BuildContext(ctx context.Context, options ContextOptions) (contextbundle.Bu
 		return contextbundle.Bundle{}, err
 	}
 
-	bundle, err := contextlocalfs.Build(ctx, state, provider, selections)
+	bundle, err := buildContextBundle(ctx, state, provider, selections, options.MaxTotalBytes)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
@@ -96,6 +101,167 @@ func BuildContext(ctx context.Context, options ContextOptions) (contextbundle.Bu
 		return contextbundle.Bundle{}, err
 	}
 	return bundle, nil
+}
+
+
+func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextbundle.Bundle, error) {
+	root, stateDB, searchDB, err := validateContextOptions(options)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	readRoot, err := resolveContextReadRoot(options.ReadRoot, root)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+
+	state, err := sqlitestate.OpenReadOnly(ctx, stateDB)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	defer state.Close()
+
+	provider := providerlocalfs.New(ProviderID)
+	scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	if !found {
+		return contextbundle.Bundle{}, ErrRuntimeStateUnavailable
+	}
+
+	// Re-prove the exact immutable bootstrap/source boundary before any
+	// ContextBundle corpus reads.
+	if err := proveBootstrapReadOnlyAtRoot(ctx, state, provider, scan, readRoot); err != nil {
+		return contextbundle.Bundle{}, err
+	}
+
+	var hits []search.Hit
+	if options.SearchBoundary == nil {
+		hits, err = QueryReadOnly(ctx, searchDB, options.Query, options.Limit)
+	} else {
+		index, openErr := searchsqlite.OpenReadOnly(ctx, searchDB)
+		if openErr != nil {
+			return contextbundle.Bundle{}, openErr
+		}
+		hits, err = index.SearchBound(ctx, *options.SearchBoundary, options.Query, options.Limit)
+		closeErr := index.Close()
+		if err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	inventory, err := state.Inventory(ctx, ProviderID, scan.Root)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	selections, err := selectionsForHits(hits, inventory, options.Reason, options.MaxBytes)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+
+	bundle, err := buildContextBundleAtRoot(ctx, state, provider, selections, readRoot, options.MaxTotalBytes)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	if err := verifyBundleAgainstHits(bundle, hits); err != nil {
+		return contextbundle.Bundle{}, err
+	}
+
+	// A change to any part of the observed root during bundle construction,
+	// including an unrelated addition/removal, invalidates the task context.
+	if err := proveBootstrapReadOnlyAtRoot(ctx, state, provider, scan, readRoot); err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	return bundle, nil
+}
+
+func buildContextBundle(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	provider *providerlocalfs.Provider,
+	selections []contextbundle.Selection,
+	maxTotalBytes int64,
+) (contextbundle.Bundle, error) {
+	if maxTotalBytes > 0 {
+		return contextlocalfs.BuildWithTotalMaxBytes(ctx, state, provider, selections, maxTotalBytes)
+	}
+	return contextlocalfs.Build(ctx, state, provider, selections)
+}
+
+func proveBootstrapReceiptReadOnly(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	expected corpus.ScanSession,
+) (sqlitestate.LocalIngestCommitReceipt, error) {
+	receipt, found, err := state.LocalIngestCommitAtBoundary(
+		ctx,
+		ProviderID,
+		expected.Root,
+		expected.StartedAt,
+		true,
+	)
+	if err != nil {
+		return sqlitestate.LocalIngestCommitReceipt{}, fmt.Errorf("read durable bootstrap receipt: %w", err)
+	}
+	if !found || receipt.Scan.ID != expected.ID {
+		return sqlitestate.LocalIngestCommitReceipt{}, fmt.Errorf(
+			"%w: expected=%s receipt_found=%t receipt=%s",
+			ErrBootstrapReplayMismatch, expected.ID, found, receipt.Scan.ID,
+		)
+	}
+	return receipt, nil
+}
+
+func buildContextBundleAtRoot(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	provider *providerlocalfs.Provider,
+	selections []contextbundle.Selection,
+	readRoot string,
+	maxTotalBytes int64,
+) (contextbundle.Bundle, error) {
+	if maxTotalBytes > 0 {
+		return contextlocalfs.BuildWithTotalMaxBytesAtRoot(ctx, state, provider, selections, readRoot, maxTotalBytes)
+	}
+	return contextlocalfs.BuildAtRoot(ctx, state, provider, selections, readRoot)
+}
+
+func proveBootstrapReadOnly(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	provider *providerlocalfs.Provider,
+	expected corpus.ScanSession,
+) error {
+	return proveBootstrapReadOnlyAtRoot(ctx, state, provider, expected, expected.Root)
+}
+
+func proveBootstrapReadOnlyAtRoot(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	provider *providerlocalfs.Provider,
+	expected corpus.ScanSession,
+	readRoot string,
+) error {
+	version, fingerprint, err := ingest.BootstrapLocalFSSnapshotFingerprintAtRoot(
+		ctx,
+		provider,
+		readRoot,
+		expected.Root,
+		expected.StartedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("reconcile durable bootstrap read-only: %w", err)
+	}
+	receipt, err := proveBootstrapReceiptReadOnly(ctx, state, expected)
+	if err != nil {
+		return err
+	}
+	if receipt.FingerprintVersion != version || receipt.FingerprintSHA256 != fingerprint {
+		return fmt.Errorf("%w: bootstrap fingerprint mismatch", ErrCorpusChanged)
+	}
+	return nil
 }
 
 func selectionsForHits(
@@ -178,6 +344,25 @@ func verifyBundleAgainstHits(bundle contextbundle.Bundle, hits []search.Hit) err
 	return nil
 }
 
+func resolveContextReadRoot(value, authorityRoot string) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		return authorityRoot, nil
+	}
+	readRoot, err := filepath.Abs(value)
+	if err != nil {
+		return "", fmt.Errorf("resolve corpus read root: %w", err)
+	}
+	readRoot = filepath.Clean(readRoot)
+	info, err := os.Stat(readRoot)
+	if err != nil {
+		return "", fmt.Errorf("inspect corpus read root: %w", err)
+	}
+	if !info.IsDir() {
+		return "", ErrInvalidOptions
+	}
+	return readRoot, nil
+}
+
 func validateContextOptions(options ContextOptions) (root, stateDB, searchDB string, err error) {
 	if strings.TrimSpace(options.Root) == "" ||
 		strings.TrimSpace(options.StateDB) == "" ||
@@ -185,7 +370,8 @@ func validateContextOptions(options ContextOptions) (root, stateDB, searchDB str
 		strings.TrimSpace(options.Query) == "" ||
 		strings.TrimSpace(options.Reason) == "" ||
 		options.Limit < 1 ||
-		options.MaxBytes < 0 {
+		options.MaxBytes < 0 ||
+		options.MaxTotalBytes < 0 {
 		return "", "", "", ErrInvalidOptions
 	}
 

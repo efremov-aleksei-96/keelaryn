@@ -21,6 +21,59 @@ var (
 
 const localFSSnapshotFingerprintVersion = "localfs-snapshot:v1"
 
+// BootstrapLocalFSSnapshotFingerprint computes the exact deterministic
+// fingerprint used by bootstrap receipts without writing durable state.
+// Callers can compare it with an existing durable receipt to prove that the
+// current filesystem boundary still matches the committed bootstrap snapshot.
+func BootstrapLocalFSSnapshotFingerprint(
+	ctx context.Context,
+	provider *localfs.Provider,
+	root string,
+	observedAt time.Time,
+) (version string, fingerprint string, err error) {
+	return BootstrapLocalFSSnapshotFingerprintAtRoot(ctx, provider, root, root, observedAt)
+}
+
+// BootstrapLocalFSSnapshotFingerprintAtRoot reads from readRoot while preserving
+// authorityRoot in the deterministic receipt payload. This lets a caller pin a
+// physical filesystem path without changing the already-durable locator root.
+func BootstrapLocalFSSnapshotFingerprintAtRoot(
+	ctx context.Context,
+	provider *localfs.Provider,
+	readRoot string,
+	authorityRoot string,
+	observedAt time.Time,
+) (version string, fingerprint string, err error) {
+	if provider == nil || readRoot == "" || authorityRoot == "" || observedAt.IsZero() {
+		return "", "", ErrInvalidLocalFSIngest
+	}
+	observedAt = observedAt.UTC()
+	snapshot, err := provider.Snapshot(ctx, readRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("snapshot local corpus: %w", err)
+	}
+	occurrences, err := bootstrapOccurrences(ctx, snapshot, observedAt)
+	if err != nil {
+		return "", "", err
+	}
+	for i := range occurrences {
+		for j := range occurrences[i].Observation.Locators {
+			occurrences[i].Observation.Locators[j].Root = authorityRoot
+		}
+	}
+	fingerprint, err = localSnapshotFingerprint(
+		"BOOTSTRAP",
+		snapshot.ProviderID(),
+		authorityRoot,
+		observedAt,
+		occurrences,
+	)
+	if err != nil {
+		return "", "", err
+	}
+	return localFSSnapshotFingerprintVersion, fingerprint, nil
+}
+
 // ScanStore is the minimal durable-state contract required by local ingestion.
 // The whole provider snapshot is committed atomically. finalValidate executes
 // inside the same durable transaction immediately before COMPLETE.
