@@ -118,6 +118,71 @@ func TestHandlerRejectsNonLocalHostAndMutationMethods(t *testing.T) {
 	}
 }
 
+func TestDiagnosticVerificationIsSingleFlightAndBounded(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	h := &handler{
+		controlDir: "test-control",
+		diagnostic: make(chan struct{}, 1),
+		runDoctor: func(ctx context.Context, _ string) doctor.Report {
+			close(started)
+			select {
+			case <-release:
+				return doctor.Report{Status: doctor.StatusPass}
+			case <-ctx.Done():
+				return doctor.Report{Status: doctor.StatusFail}
+			}
+		},
+	}
+
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/status", nil)
+		resp := httptest.NewRecorder()
+		h.serveAPI(resp, req)
+	}()
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first diagnostic did not start")
+	}
+
+	second := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/status", nil)
+	secondResponse := httptest.NewRecorder()
+	h.serveAPI(secondResponse, second)
+	if secondResponse.Code != http.StatusServiceUnavailable {
+		t.Fatalf("concurrent diagnostic status=%d want %d", secondResponse.Code, http.StatusServiceUnavailable)
+	}
+	if secondResponse.Header().Get("Retry-After") != "1" {
+		t.Fatalf("Retry-After=%q", secondResponse.Header().Get("Retry-After"))
+	}
+	close(release)
+	select {
+	case <-firstDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first diagnostic did not finish")
+	}
+}
+
+func TestDiagnosticVerificationContextHasDeadline(t *testing.T) {
+	h := &handler{
+		controlDir: "test-control",
+		diagnostic: make(chan struct{}, 1),
+		runDoctor: func(ctx context.Context, _ string) doctor.Report {
+			deadline, ok := ctx.Deadline()
+			if !ok || time.Until(deadline) > diagnosticTimeout || time.Until(deadline) <= 0 {
+				t.Fatalf("diagnostic context deadline=%v ok=%t", deadline, ok)
+			}
+			return doctor.Report{Status: doctor.StatusPass}
+		},
+	}
+	report, ok := h.diagnosticReport(context.Background())
+	if !ok || !report.Passed() {
+		t.Fatalf("diagnostic report=%#v ok=%t", report, ok)
+	}
+}
+
 func TestNewHandlerMissingControlDoesNotCreate(t *testing.T) {
 	control := filepath.Join(t.TempDir(), "missing")
 	if _, err := NewHandler(control); err == nil {

@@ -388,9 +388,12 @@ func TestWebStatusCommandUsesLoopbackDefault(t *testing.T) {
 	t.Cleanup(func() { runWebStatus = original })
 	called := false
 	var captured webstatus.Options
-	runWebStatus = func(_ context.Context, options webstatus.Options, announce io.Writer) error {
+	runWebStatus = func(ctx context.Context, options webstatus.Options, announce io.Writer) error {
 		called = true
 		captured = options
+		if ctx.Done() == nil {
+			t.Fatal("web-status CLI did not supply a signal-cancellable context")
+		}
 		_, err := io.WriteString(announce, "http://127.0.0.1:43210/\n")
 		return err
 	}

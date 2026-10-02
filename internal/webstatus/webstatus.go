@@ -18,7 +18,10 @@ import (
 	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
 )
 
-const DefaultListenAddress = "127.0.0.1:0"
+const (
+	DefaultListenAddress = "127.0.0.1:0"
+	diagnosticTimeout     = 30 * time.Second
+)
 
 var (
 	ErrInvalidOptions    = errors.New("invalid web status options")
@@ -37,6 +40,8 @@ type Options struct {
 
 type handler struct {
 	controlDir string
+	diagnostic chan struct{}
+	runDoctor  func(context.Context, string) doctor.Report
 }
 
 type pageData struct {
@@ -51,7 +56,11 @@ func NewHandler(controlDir string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	h := &handler{controlDir: layout.Dir}
+	h := &handler{
+		controlDir: layout.Dir,
+		diagnostic: make(chan struct{}, 1),
+		runDoctor:  doctor.Run,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", h.servePage)
 	mux.HandleFunc("/api/status", h.serveAPI)
@@ -198,6 +207,23 @@ func methodAllowed(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
+func (h *handler) diagnosticReport(ctx context.Context) (doctor.Report, bool) {
+	select {
+	case h.diagnostic <- struct{}{}:
+		defer func() { <-h.diagnostic }()
+	default:
+		return doctor.Report{}, false
+	}
+	diagnosticCtx, cancel := context.WithTimeout(ctx, diagnosticTimeout)
+	defer cancel()
+	return h.runDoctor(diagnosticCtx, h.controlDir), true
+}
+
+func verificationBusy(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "1")
+	http.Error(w, "status verification busy", http.StatusServiceUnavailable)
+}
+
 func reportStatusCode(report doctor.Report) int {
 	if report.Passed() {
 		return http.StatusOK
@@ -213,7 +239,11 @@ func (h *handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 	if !methodAllowed(w, r) {
 		return
 	}
-	report := doctor.Run(r.Context(), h.controlDir)
+	report, ok := h.diagnosticReport(r.Context())
+	if !ok {
+		verificationBusy(w)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(reportStatusCode(report))
 	if r.Method == http.MethodHead {
@@ -230,7 +260,11 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 	if !methodAllowed(w, r) {
 		return
 	}
-	report := doctor.Run(r.Context(), h.controlDir)
+	report, ok := h.diagnosticReport(r.Context())
+	if !ok {
+		verificationBusy(w)
+		return
+	}
 	var rendered bytes.Buffer
 	if err := statusTemplate.Execute(&rendered, pageData{Report: report}); err != nil {
 		http.Error(w, "status rendering failed", http.StatusInternalServerError)

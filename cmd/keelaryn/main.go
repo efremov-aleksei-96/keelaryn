@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
@@ -155,7 +157,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if *controlDir == "" {
 			return errors.New("web-status requires --control-dir")
 		}
-		return runWebStatus(context.Background(), webstatus.Options{
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return runWebStatus(ctx, webstatus.Options{
 			ControlDir: *controlDir,
 			Listen:     *listen,
 		}, stdout)

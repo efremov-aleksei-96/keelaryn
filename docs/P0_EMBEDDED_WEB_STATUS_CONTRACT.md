@@ -56,7 +56,7 @@ Responses use no-store and restrictive browser security headers. No client-side 
 
 ## Resource bounds
 
-The server uses standard-library `net/http` with bounded header size and read/write/idle timeouts. The UI contains only small assets embedded in the executable.
+The server uses standard-library `net/http` with bounded header size and read/write/idle timeouts. Doctor verification has a 30-second context deadline and a single in-flight slot; overlapping status requests fail fast with HTTP 503 + `Retry-After` rather than creating concurrent full search-verification scratch copies. The UI contains only small assets embedded in the executable.
 
 Doctor's existing read-only SQLite/FTS verification semantics remain authoritative; the web layer does not duplicate them.
 
@@ -69,7 +69,8 @@ The stage is qualified only after:
 3. non-local Host, cross-site/same-site browser fetches, and mutating methods fail closed;
 4. non-loopback listen addresses fail closed;
 5. a real ephemeral loopback listener starts and stops under context cancellation;
-6. CLI tests prove only `--control-dir` and loopback `--listen` are exposed;
-7. Ubuntu and Windows exact-head CI/tests/vet pass;
-8. exact-head semantic/security review is clean;
-9. stage retrospective is recorded before final P0 proof re-audit.
+6. concurrent Doctor verification is bounded to one in-flight check with a bounded context;
+7. CLI wiring supplies a signal-cancelled context and proves only `--control-dir` and loopback `--listen` are exposed;
+8. Ubuntu and Windows exact-head CI/tests/vet pass;
+9. exact-head semantic/security review is clean;
+10. stage retrospective is recorded before final P0 proof re-audit.
