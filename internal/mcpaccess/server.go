@@ -36,7 +36,7 @@ type Options struct {
 
 type SearchInput struct {
 	Query string `json:"query" jsonschema:"literal all-terms query over the existing Keelaryn search index"`
-	Limit *int   `json:"limit,omitempty" jsonschema:"optional maximum number of hits; defaults to 20 and must satisfy the qualified search limit"`
+	Limit *int   `json:"limit,omitempty" jsonschema:"optional maximum number of hits; defaults to 20 and must be between 1 and 20"`
 }
 
 type SearchOutput struct {
@@ -46,8 +46,8 @@ type SearchOutput struct {
 type ContextBundleInput struct {
 	Query    string `json:"query" jsonschema:"literal all-terms query used to select exact current revisions"`
 	Reason   string `json:"reason" jsonschema:"explicit task reason recorded on each selected ContextBundle item"`
-	Limit    *int   `json:"limit,omitempty" jsonschema:"optional maximum number of selected hits; defaults to 20"`
-	MaxBytes *int64 `json:"max_bytes,omitempty" jsonschema:"optional maximum bytes read from one selected file; defaults to 4194304"`
+	Limit    *int   `json:"limit,omitempty" jsonschema:"optional maximum number of selected hits; defaults to 20 and must be between 1 and 20"`
+	MaxBytes *int64 `json:"max_bytes,omitempty" jsonschema:"optional maximum bytes read from one selected file; defaults to and cannot exceed 4194304"`
 }
 
 type ContextBundleOutput struct {

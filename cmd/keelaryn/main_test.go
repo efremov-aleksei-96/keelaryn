@@ -158,7 +158,6 @@ func TestExecutableRejectsRawDatabasePathBypass(t *testing.T) {
 	}
 }
 
-
 func TestMCPStdioCommandPassesOnlyOperatorScopedPaths(t *testing.T) {
 	root := t.TempDir()
 	control := filepath.Join(t.TempDir(), "control")

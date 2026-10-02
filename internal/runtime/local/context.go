@@ -9,11 +9,11 @@ import (
 	"strings"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
-	"github.com/efremov-aleksei-96/keelaryn/internal/extract"
-	"github.com/efremov-aleksei-96/keelaryn/internal/ingest"
 	contextlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/contextbundle/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
+	"github.com/efremov-aleksei-96/keelaryn/internal/extract"
 	extractlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/extract/localfs"
+	"github.com/efremov-aleksei-96/keelaryn/internal/ingest"
 	providerlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"

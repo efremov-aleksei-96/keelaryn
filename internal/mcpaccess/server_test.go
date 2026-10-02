@@ -53,6 +53,7 @@ func TestMinimalMCPAccessSearchAndContextBundle(t *testing.T) {
 	}
 	for _, tool := range tools.Tools {
 		if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint ||
+			tool.Annotations.DestructiveHint == nil || *tool.Annotations.DestructiveHint ||
 			tool.Annotations.OpenWorldHint == nil || *tool.Annotations.OpenWorldHint {
 			t.Fatalf("tool %q annotations=%#v", tool.Name, tool.Annotations)
 		}
@@ -62,7 +63,8 @@ func TestMinimalMCPAccessSearchAndContextBundle(t *testing.T) {
 		}
 		lower := strings.ToLower(string(schema))
 		if strings.Contains(lower, "root") || strings.Contains(lower, "control-dir") || strings.Contains(lower, "control_dir") ||
-			strings.Contains(lower, "state-db") || strings.Contains(lower, "search-db") {
+			strings.Contains(lower, "state-db") || strings.Contains(lower, "search-db") ||
+			strings.Contains(lower, "\"path\"") {
 			t.Fatalf("tool %q exposes filesystem/database authority in input schema: %s", tool.Name, schema)
 		}
 	}

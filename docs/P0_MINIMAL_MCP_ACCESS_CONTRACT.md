@@ -70,7 +70,7 @@ Execution delegates to `runtime/local.BuildProtectedContext`, preserving the alr
 - exact current Artifact+Revision match;
 - supported extractor identity;
 - exact provenance recheck;
-- source-boundary replay before and after reads;
+- read-only source-boundary fingerprint proof before and after reads;
 - fail-closed behavior on stale/non-current state.
 
 ## MCP semantics
