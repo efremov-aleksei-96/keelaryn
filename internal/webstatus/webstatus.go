@@ -101,18 +101,23 @@ func Run(ctx context.Context, options Options, announce io.Writer) error {
 		MaxHeaderBytes:    16 << 10,
 	}
 
+	shutdownStop := make(chan struct{})
 	shutdownDone := make(chan struct{})
 	go func() {
 		defer close(shutdownDone)
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = server.Shutdown(shutdownCtx)
+		select {
+		case <-ctx.Done():
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = server.Shutdown(shutdownCtx)
+		case <-shutdownStop:
+		}
 	}()
 
 	serveErr := server.Serve(listener)
+	close(shutdownStop)
+	<-shutdownDone
 	if errors.Is(serveErr, http.ErrServerClosed) && ctx.Err() != nil {
-		<-shutdownDone
 		return nil
 	}
 	if serveErr != nil {
