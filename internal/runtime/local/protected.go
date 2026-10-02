@@ -25,6 +25,7 @@ type ProtectedIndexOptions struct {
 
 type ProtectedContextOptions struct {
 	Root          string
+	ReadRoot      string
 	ControlDir    string
 	Query         string
 	Reason        string
@@ -35,6 +36,7 @@ type ProtectedContextOptions struct {
 
 type ProtectedReadOnlyScope struct {
 	Root       string
+	ReadRoot   string
 	ControlDir string
 }
 
@@ -64,7 +66,16 @@ func ResolveProtectedReadOnlyScope(ctx context.Context, root, controlDir string)
 	if err != nil {
 		return ProtectedReadOnlyScope{}, fmt.Errorf("resolve physical corpus root: %w", err)
 	}
-	if filepath.Clean(rootPhysical) != filepath.Clean(root) {
+	rootPhysical = filepath.Clean(rootPhysical)
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		return ProtectedReadOnlyScope{}, fmt.Errorf("inspect corpus root: %w", err)
+	}
+	physicalInfo, err := os.Stat(rootPhysical)
+	if err != nil {
+		return ProtectedReadOnlyScope{}, fmt.Errorf("inspect physical corpus root: %w", err)
+	}
+	if !os.SameFile(rootInfo, physicalInfo) {
 		return ProtectedReadOnlyScope{}, ErrRuntimeRootAlias
 	}
 	layout, err = controlstorage.OpenExisting(layout.Dir)
@@ -96,7 +107,7 @@ func ResolveProtectedReadOnlyScope(ctx context.Context, root, controlDir string)
 	if err := controlstorage.Verify(layout.Dir); err != nil {
 		return ProtectedReadOnlyScope{}, err
 	}
-	return ProtectedReadOnlyScope{Root: root, ControlDir: layout.Dir}, nil
+	return ProtectedReadOnlyScope{Root: root, ReadRoot: rootPhysical, ControlDir: layout.Dir}, nil
 }
 
 func expectedSearchBoundaryReadOnly(ctx context.Context, stateDB, root string) (searchsqlite.SourceBoundary, error) {
@@ -289,7 +300,7 @@ func BuildProtectedContextReadOnly(ctx context.Context, options ProtectedContext
 	}
 
 	bundle, operationErr := BuildContextReadOnly(ctx, ContextOptions{
-		Root: root, StateDB: layout.StateDB, SearchDB: layout.SearchDB,
+		Root: root, ReadRoot: options.ReadRoot, StateDB: layout.StateDB, SearchDB: layout.SearchDB,
 		Query: options.Query, Reason: options.Reason, Limit: options.Limit, MaxBytes: options.MaxBytes,
 		MaxTotalBytes: options.MaxTotalBytes,
 	})

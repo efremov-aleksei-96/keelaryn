@@ -29,7 +29,19 @@ func Build(
 	provider *providerlocalfs.Provider,
 	selections []contextbundle.Selection,
 ) (contextbundle.Bundle, error) {
-	return build(ctx, revisions, provider, selections, nil)
+	return build(ctx, revisions, provider, selections, "", nil)
+}
+
+// BuildAtRoot is equivalent to Build, but reads selected paths below one
+// caller-pinned physical root while preserving durable locator provenance.
+func BuildAtRoot(
+	ctx context.Context,
+	revisions RevisionReader,
+	provider *providerlocalfs.Provider,
+	selections []contextbundle.Selection,
+	readRoot string,
+) (contextbundle.Bundle, error) {
+	return build(ctx, revisions, provider, selections, readRoot, nil)
 }
 
 // BuildWithTotalMaxBytes enforces a byte ceiling across all extracted text in
@@ -45,7 +57,21 @@ func BuildWithTotalMaxBytes(
 	if maxTotalBytes < 0 {
 		return contextbundle.Bundle{}, ErrInvalidSelection
 	}
-	return build(ctx, revisions, provider, selections, &maxTotalBytes)
+	return build(ctx, revisions, provider, selections, "", &maxTotalBytes)
+}
+
+func BuildWithTotalMaxBytesAtRoot(
+	ctx context.Context,
+	revisions RevisionReader,
+	provider *providerlocalfs.Provider,
+	selections []contextbundle.Selection,
+	readRoot string,
+	maxTotalBytes int64,
+) (contextbundle.Bundle, error) {
+	if maxTotalBytes < 0 {
+		return contextbundle.Bundle{}, ErrInvalidSelection
+	}
+	return build(ctx, revisions, provider, selections, readRoot, &maxTotalBytes)
 }
 
 func build(
@@ -53,6 +79,7 @@ func build(
 	revisions RevisionReader,
 	provider *providerlocalfs.Provider,
 	selections []contextbundle.Selection,
+	readRoot string,
 	totalMaxBytes *int64,
 ) (contextbundle.Bundle, error) {
 	if revisions == nil || provider == nil {
@@ -76,13 +103,13 @@ func build(
 		if totalMaxBytes != nil && maxBytes > remaining {
 			maxBytes = remaining
 		}
-		result, err := extractlocalfs.Extract(
-			ctx,
-			revisions,
-			provider,
-			selection.Entry,
-			maxBytes,
-		)
+		var result extract.Result
+		var err error
+		if strings.TrimSpace(readRoot) == "" {
+			result, err = extractlocalfs.Extract(ctx, revisions, provider, selection.Entry, maxBytes)
+		} else {
+			result, err = extractlocalfs.ExtractAtRoot(ctx, revisions, provider, selection.Entry, readRoot, maxBytes)
+		}
 		if err != nil {
 			return contextbundle.Bundle{}, fmt.Errorf("selection %d extraction: %w", i, err)
 		}

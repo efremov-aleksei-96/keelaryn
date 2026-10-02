@@ -29,6 +29,7 @@ var (
 
 type ContextOptions struct {
 	Root          string
+	ReadRoot      string
 	StateDB       string
 	SearchDB      string
 	Query         string
@@ -106,6 +107,10 @@ func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextb
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
+	readRoot, err := resolveContextReadRoot(options.ReadRoot, root)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
 
 	state, err := sqlitestate.OpenReadOnly(ctx, stateDB)
 	if err != nil {
@@ -124,7 +129,7 @@ func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextb
 
 	// Re-prove the exact immutable bootstrap/source boundary before any
 	// ContextBundle corpus reads.
-	if err := proveBootstrapReadOnly(ctx, state, provider, scan); err != nil {
+	if err := proveBootstrapReadOnlyAtRoot(ctx, state, provider, scan, readRoot); err != nil {
 		return contextbundle.Bundle{}, err
 	}
 
@@ -141,7 +146,7 @@ func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextb
 		return contextbundle.Bundle{}, err
 	}
 
-	bundle, err := buildContextBundle(ctx, state, provider, selections, options.MaxTotalBytes)
+	bundle, err := buildContextBundleAtRoot(ctx, state, provider, selections, readRoot, options.MaxTotalBytes)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
@@ -151,7 +156,7 @@ func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextb
 
 	// A change to any part of the observed root during bundle construction,
 	// including an unrelated addition/removal, invalidates the task context.
-	if err := proveBootstrapReadOnly(ctx, state, provider, scan); err != nil {
+	if err := proveBootstrapReadOnlyAtRoot(ctx, state, provider, scan, readRoot); err != nil {
 		return contextbundle.Bundle{}, err
 	}
 	return bundle, nil
@@ -194,15 +199,40 @@ func proveBootstrapReceiptReadOnly(
 	return receipt, nil
 }
 
+func buildContextBundleAtRoot(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	provider *providerlocalfs.Provider,
+	selections []contextbundle.Selection,
+	readRoot string,
+	maxTotalBytes int64,
+) (contextbundle.Bundle, error) {
+	if maxTotalBytes > 0 {
+		return contextlocalfs.BuildWithTotalMaxBytesAtRoot(ctx, state, provider, selections, readRoot, maxTotalBytes)
+	}
+	return contextlocalfs.BuildAtRoot(ctx, state, provider, selections, readRoot)
+}
+
 func proveBootstrapReadOnly(
 	ctx context.Context,
 	state *sqlitestate.Store,
 	provider *providerlocalfs.Provider,
 	expected corpus.ScanSession,
 ) error {
-	version, fingerprint, err := ingest.BootstrapLocalFSSnapshotFingerprint(
+	return proveBootstrapReadOnlyAtRoot(ctx, state, provider, expected, expected.Root)
+}
+
+func proveBootstrapReadOnlyAtRoot(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	provider *providerlocalfs.Provider,
+	expected corpus.ScanSession,
+	readRoot string,
+) error {
+	version, fingerprint, err := ingest.BootstrapLocalFSSnapshotFingerprintAtRoot(
 		ctx,
 		provider,
+		readRoot,
 		expected.Root,
 		expected.StartedAt,
 	)
@@ -297,6 +327,25 @@ func verifyBundleAgainstHits(bundle contextbundle.Bundle, hits []search.Hit) err
 		}
 	}
 	return nil
+}
+
+func resolveContextReadRoot(value, authorityRoot string) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		return authorityRoot, nil
+	}
+	readRoot, err := filepath.Abs(value)
+	if err != nil {
+		return "", fmt.Errorf("resolve corpus read root: %w", err)
+	}
+	readRoot = filepath.Clean(readRoot)
+	info, err := os.Stat(readRoot)
+	if err != nil {
+		return "", fmt.Errorf("inspect corpus read root: %w", err)
+	}
+	if !info.IsDir() {
+		return "", ErrInvalidOptions
+	}
+	return readRoot, nil
 }
 
 func validateContextOptions(options ContextOptions) (root, stateDB, searchDB string, err error) {

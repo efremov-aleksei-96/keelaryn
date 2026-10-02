@@ -69,6 +69,7 @@ func NewServer(options Options) (*mcp.Server, error) {
 		return nil, err
 	}
 	root := scope.Root
+	readRoot := scope.ReadRoot
 	controlDir := scope.ControlDir
 
 	server := mcp.NewServer(
@@ -126,6 +127,7 @@ func NewServer(options Options) (*mcp.Server, error) {
 		}
 		bundle, err := localruntime.BuildProtectedContextReadOnly(ctx, localruntime.ProtectedContextOptions{
 			Root:          root,
+			ReadRoot:      readRoot,
 			ControlDir:    controlDir,
 			Query:         input.Query,
 			Reason:        input.Reason,
