@@ -170,6 +170,30 @@ func buildContextBundle(
 	return contextlocalfs.Build(ctx, state, provider, selections)
 }
 
+func proveBootstrapReceiptReadOnly(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	expected corpus.ScanSession,
+) (sqlitestate.LocalIngestCommitReceipt, error) {
+	receipt, found, err := state.LocalIngestCommitAtBoundary(
+		ctx,
+		ProviderID,
+		expected.Root,
+		expected.StartedAt,
+		true,
+	)
+	if err != nil {
+		return sqlitestate.LocalIngestCommitReceipt{}, fmt.Errorf("read durable bootstrap receipt: %w", err)
+	}
+	if !found || receipt.Scan.ID != expected.ID {
+		return sqlitestate.LocalIngestCommitReceipt{}, fmt.Errorf(
+			"%w: expected=%s receipt_found=%t receipt=%s",
+			ErrBootstrapReplayMismatch, expected.ID, found, receipt.Scan.ID,
+		)
+	}
+	return receipt, nil
+}
+
 func proveBootstrapReadOnly(
 	ctx context.Context,
 	state *sqlitestate.Store,
@@ -185,19 +209,9 @@ func proveBootstrapReadOnly(
 	if err != nil {
 		return fmt.Errorf("reconcile durable bootstrap read-only: %w", err)
 	}
-	receipt, found, err := state.LocalIngestCommitAtBoundary(
-		ctx,
-		ProviderID,
-		expected.Root,
-		expected.StartedAt,
-		true,
-	)
+	receipt, err := proveBootstrapReceiptReadOnly(ctx, state, expected)
 	if err != nil {
-		return fmt.Errorf("read durable bootstrap receipt: %w", err)
-	}
-	if !found || receipt.Scan.ID != expected.ID {
-		return fmt.Errorf("%w: expected=%s receipt_found=%t receipt=%s",
-			ErrBootstrapReplayMismatch, expected.ID, found, receipt.Scan.ID)
+		return err
 	}
 	if receipt.FingerprintVersion != version || receipt.FingerprintSHA256 != fingerprint {
 		return fmt.Errorf("%w: bootstrap fingerprint mismatch", ErrCorpusChanged)

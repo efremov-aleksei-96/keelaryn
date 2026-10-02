@@ -11,7 +11,6 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
-	providerlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
@@ -73,20 +72,13 @@ func ValidateProtectedReadOnlyScope(ctx context.Context, root, controlDir string
 		if !found {
 			return ErrRuntimeStateUnavailable
 		}
-		provider := providerlocalfs.New(ProviderID)
-		return proveBootstrapReadOnly(ctx, state, provider, scan)
+		_, err = proveBootstrapReceiptReadOnly(ctx, state, scan)
+		return err
 	}(); err != nil {
 		return err
 	}
 
 	if err := searchsqlite.VerifyReadOnly(ctx, layout.SearchDB); err != nil {
-		return err
-	}
-	index, err := searchsqlite.OpenReadOnly(ctx, layout.SearchDB)
-	if err != nil {
-		return err
-	}
-	if err := index.Close(); err != nil {
 		return err
 	}
 	return controlstorage.Verify(layout.Dir)
