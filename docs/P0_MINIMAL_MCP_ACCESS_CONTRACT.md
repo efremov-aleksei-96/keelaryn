@@ -43,7 +43,7 @@ The MCP read path is strictly read-only at the SQLite boundary as well as at the
 
 Input:
 
-- `query` — literal all-terms query;
+- `query` — literal all-terms query, limited to 4096 UTF-8 bytes;
 - optional `limit` — defaults to 20; the MCP surface rejects values outside 1…20.
 
 Output:
@@ -56,8 +56,8 @@ Execution delegates to the MCP-only strict reader `runtime/local.QueryProtectedR
 
 Input:
 
-- `query`;
-- explicit `reason`;
+- `query` — limited to 4096 UTF-8 bytes;
+- explicit `reason` — limited to 4096 UTF-8 bytes because it is carried on every selected item;
 - optional `limit` — defaults to 20; the MCP surface rejects values outside 1…20;
 - optional `max_bytes` — defaults to 4 MiB per selected file and cannot exceed 4 MiB;
 - the server additionally enforces a fixed 4 MiB aggregate budget across extracted text in the whole ContextBundle. The remaining budget is applied before each source read; an item that cannot fit is returned as the existing bounded `LIMIT_EXCEEDED` outcome, while later smaller items may still fit.
@@ -100,7 +100,7 @@ Before this slice can be marked qualified:
 6. ContextBundle returns the same exact selected revision and source text through MCP;
 7. CLI startup accepts only operator-scoped `--root` and `--control-dir`;
 8. state/search database bytes remain unchanged across qualified read-only access and attempted writes fail closed;
-9. MCP callers cannot expand the qualified result/file-read budget beyond 20 selected hits, 4 MiB per selected file, or 4 MiB aggregate extracted text per ContextBundle;
+9. MCP callers cannot expand the qualified request/result budget beyond 4096 UTF-8 bytes for query/reason fields, 20 selected hits, 4 MiB per selected file, or 4 MiB aggregate extracted text per ContextBundle;
 10. existing full Go tests and vet pass on Ubuntu 24.04 and Windows 2025;
 11. exact PR diff contains no corpus/provider mutation surface;
 12. a stage retrospective/audit is completed before moving to embedded web status.

@@ -21,6 +21,8 @@ const (
 	defaultContextMaxBytes = int64(4 * 1024 * 1024)
 	maxContextMaxBytes     = int64(4 * 1024 * 1024)
 	maxContextTotalBytes   = int64(4 * 1024 * 1024)
+	maxQueryBytes          = 4096
+	maxReasonBytes         = 4096
 )
 
 var (
@@ -36,7 +38,7 @@ type Options struct {
 }
 
 type SearchInput struct {
-	Query string `json:"query" jsonschema:"literal all-terms query over the existing Keelaryn search index"`
+	Query string `json:"query" jsonschema:"literal all-terms query over the existing Keelaryn search index; maximum 4096 UTF-8 bytes"`
 	Limit *int   `json:"limit,omitempty" jsonschema:"optional maximum number of hits; defaults to 20 and must be between 1 and 20"`
 }
 
@@ -45,8 +47,8 @@ type SearchOutput struct {
 }
 
 type ContextBundleInput struct {
-	Query    string `json:"query" jsonschema:"literal all-terms query used to select exact current revisions"`
-	Reason   string `json:"reason" jsonschema:"explicit task reason recorded on each selected ContextBundle item"`
+	Query    string `json:"query" jsonschema:"literal all-terms query used to select exact current revisions; maximum 4096 UTF-8 bytes"`
+	Reason   string `json:"reason" jsonschema:"explicit task reason recorded on each selected ContextBundle item; maximum 4096 UTF-8 bytes"`
 	Limit    *int   `json:"limit,omitempty" jsonschema:"optional maximum number of selected hits; defaults to 20 and must be between 1 and 20"`
 	MaxBytes *int64 `json:"max_bytes,omitempty" jsonschema:"optional maximum bytes read from one selected file; defaults to and cannot exceed 4194304"`
 }
@@ -80,7 +82,9 @@ func NewServer(options Options) (*mcp.Server, error) {
 		if input.Limit != nil {
 			limit = *input.Limit
 		}
-		if strings.TrimSpace(input.Query) == "" || limit < 1 || limit > maxSearchLimit {
+		if strings.TrimSpace(input.Query) == "" ||
+			len(input.Query) > maxQueryBytes ||
+			limit < 1 || limit > maxSearchLimit {
 			return nil, SearchOutput{}, ErrInvalidRequest
 		}
 		hits, err := localruntime.QueryProtectedReadOnly(ctx, options.ControlDir, input.Query, limit)
@@ -107,7 +111,9 @@ func NewServer(options Options) (*mcp.Server, error) {
 			maxBytes = *input.MaxBytes
 		}
 		if strings.TrimSpace(input.Query) == "" ||
+			len(input.Query) > maxQueryBytes ||
 			strings.TrimSpace(input.Reason) == "" ||
+			len(input.Reason) > maxReasonBytes ||
 			limit < 1 || limit > maxContextLimit ||
 			maxBytes < 0 || maxBytes > maxContextMaxBytes {
 			return nil, ContextBundleOutput{}, ErrInvalidRequest

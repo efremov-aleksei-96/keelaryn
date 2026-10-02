@@ -162,6 +162,31 @@ func TestMCPAccessRejectsResourceAuthorityExpansion(t *testing.T) {
 		t.Fatal("MCP search unexpectedly accepted limit above qualified maximum")
 	}
 
+	oversizedQueryResult, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "keelaryn_search",
+		Arguments: map[string]any{"query": strings.Repeat("q", maxQueryBytes+1)},
+	})
+	if err != nil {
+		t.Fatalf("oversized search query transport error: %v", err)
+	}
+	if !oversizedQueryResult.IsError {
+		t.Fatal("MCP search unexpectedly accepted query above qualified byte maximum")
+	}
+
+	oversizedReasonResult, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+		Name: "keelaryn_context_bundle",
+		Arguments: map[string]any{
+			"query":  "bounded",
+			"reason": strings.Repeat("r", maxReasonBytes+1),
+		},
+	})
+	if err != nil {
+		t.Fatalf("oversized context reason transport error: %v", err)
+	}
+	if !oversizedReasonResult.IsError {
+		t.Fatal("MCP context unexpectedly accepted reason above qualified byte maximum")
+	}
+
 	contextResult, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
 		Name: "keelaryn_context_bundle",
 		Arguments: map[string]any{
