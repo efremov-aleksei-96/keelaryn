@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 227,
+  "revision": 228,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -191,12 +191,14 @@
     "P0_36C_LIVE_PROVIDER_RUNTIME_REACHED",
     "P0_36C_DOCTOR_CACHE_PROFILE_FIX_QUALIFIED",
     "P0_36C_REAL_METADATA_ONLY_RUNTIME_ACCEPTANCE_PASS_BEFORE_EVIDENCE_UPLOAD",
-    "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_QUALIFIED"
+    "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_QUALIFIED",
+    "P0_MINIMAL_MCP_ACCESS_QUALIFIED",
+    "P0_MINIMAL_MCP_ACCESS_STAGE_RETROSPECTIVE_PASS"
   ],
   "next_objective": {
-    "id": "P0_MINIMAL_MCP_ACCESS",
-    "description": "Implement and qualify a minimal read-only MCP endpoint using the official Go SDK and existing search/ContextBundle semantics; then audit the stage before moving to embedded web status.",
-    "audit_gate": "P0_36C_LIVE_METADATA_RUNTIME_QUALIFIED_AND_STAGE_RETROSPECTIVE_COMPLETE"
+    "id": "P0_EMBEDDED_MINIMAL_WEB_STATUS",
+    "description": "Implement and qualify the embedded minimal local read-only web status surface using existing diagnostic/status authority, with no default remote exposure or new mutation authority; then run the stage retrospective before the final P0 proof re-audit.",
+    "audit_gate": "P0_MINIMAL_MCP_ACCESS_EXACT_TREE_QUALIFIED_MERGED_AND_STAGE_RETROSPECTIVE_PASS"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2338,10 +2340,10 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
-      "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_36C_20261001.md",
-      "ci_run_id": 36864835408,
-      "conclusion": "PASS_P0_36C_ZERO_NEW_BLOCKER_CRITICAL_ONE_MEDIUM_CARRIED"
+      "head": "84fc28d11184adb45e8bb3a1b7a7cfb226371226",
+      "document": "docs/P0_MINIMAL_MCP_ACCESS_RETROSPECTIVE_20261002.md",
+      "ci_run_id": 37037679567,
+      "conclusion": "PASS_P0_MINIMAL_MCP_ACCESS_ZERO_OPEN_REVIEW_FINDINGS_EMBEDDED_WEB_STATUS_NEXT"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -3748,17 +3750,16 @@
     }
   },
   "p0_closure_audit": {
-    "date": "2026-10-01",
+    "date": "2026-10-02",
     "status": "P0_NOT_CLOSED",
-    "document": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_36C_20261001.md",
-    "audited_product_head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
-    "qualification_head": "18589d226de031d76a31fa1b35c5dfedebc7836f",
-    "qualification_ci_run_id": 36864835408,
-    "conclusion": "PASS_P0_36C_ZERO_NEW_BLOCKER_CRITICAL_ONE_MEDIUM_CARRIED_MINIMAL_MCP_NEXT",
-    "resolved_gap": "PRODUCTION_STORAGE_FILESYSTEM_PROTECTION_H3",
-    "earliest_remaining_autonomous_product_gap": "MINIMAL_MCP_ACCESS",
+    "document": "docs/P0_MINIMAL_MCP_ACCESS_RETROSPECTIVE_20261002.md",
+    "audited_product_head": "84fc28d11184adb45e8bb3a1b7a7cfb226371226",
+    "qualification_head": "da3e429100d9fa0ecc5dba9cfa31c35b04377d15",
+    "qualification_ci_run_id": 37037679567,
+    "conclusion": "PASS_P0_MINIMAL_MCP_ACCESS_ZERO_OPEN_REVIEW_FINDINGS_EMBEDDED_WEB_STATUS_NEXT",
+    "resolved_gap": "MINIMAL_MCP_ACCESS",
+    "earliest_remaining_autonomous_product_gap": "EMBEDDED_MINIMAL_WEB_STATUS",
     "p0_closure_gates_remaining": [
-      "MINIMAL_MCP_ACCESS",
       "EMBEDDED_MINIMAL_WEB_STATUS",
       "P0_FINAL_PROOF_REAUDIT"
     ],
@@ -3773,8 +3774,8 @@
     "mcp_prior_art": {
       "project": "modelcontextprotocol/go-sdk",
       "latest_reviewed_version": "v1.8.0",
-      "disposition": "REUSE_OFFICIAL_SDK_V1_8_0_AT_MINIMAL_READ_ONLY_MCP_GATE",
-      "dependency_added": false
+      "disposition": "REUSED_OFFICIAL_SDK_V1_8_0_QUALIFIED",
+      "dependency_added": true
     },
     "resolved_runtime_security_findings": [
       "AUDIT_SECURITY_H6_FTS_SEARCH_CACHE_RESIDUAL_TEXT",
@@ -3792,6 +3793,23 @@
         "live_acceptance_run_id": 36864835423,
         "evidence_artifact_id": 11162809590,
         "evidence_artifact_sha256": "sha256:9768843681557f46c013902532818a3508596771a26f3c32e6fb85d66d8d5448"
+      },
+      "MINIMAL_MCP_ACCESS": {
+        "status": "QUALIFIED",
+        "merged_head": "84fc28d11184adb45e8bb3a1b7a7cfb226371226",
+        "qualified_source_head": "da3e429100d9fa0ecc5dba9cfa31c35b04377d15",
+        "qualified_tree": "b105e38b81209f19bf4a7d288a9241922f914dc4",
+        "cross_platform_ci_run_id": 37037679567,
+        "review_result": "CODEX_REVIEW_CLEAN_NO_MAJOR_ISSUES",
+        "transport": "STDIO",
+        "sdk": "github.com/modelcontextprotocol/go-sdk v1.8.0",
+        "exposed_tools": [
+          "keelaryn_search",
+          "keelaryn_context_bundle"
+        ],
+        "mutation_authority_exposed": false,
+        "remote_network_listener_exposed": false,
+        "corpus_mutations": 0
       }
     }
   },
@@ -4437,10 +4455,10 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_CLOSURE_REAUDIT_AFTER_P0_36C_20261001.md",
-    "last_retrospective_result": "PASS_P0_36C_ZERO_NEW_BLOCKER_CRITICAL_ONE_MEDIUM_CARRIED",
+    "last_retrospective": "docs/P0_MINIMAL_MCP_ACCESS_RETROSPECTIVE_20261002.md",
+    "last_retrospective_result": "PASS_P0_MINIMAL_MCP_ACCESS_ZERO_OPEN_REVIEW_FINDINGS_EMBEDDED_WEB_STATUS_NEXT",
     "substantive_slice_counter": 0,
-    "current_stage": "P0_MINIMAL_MCP_ACCESS",
+    "current_stage": "P0_EMBEDDED_MINIMAL_WEB_STATUS",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -4449,7 +4467,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": "NONE",
-    "unlock_condition": "P0_36C_AUTHENTICATED_EXECUTABLE_LIVE_ACCEPTANCE_EXACT_HEAD_QUALIFIED_AND_LIVE_EVIDENCE_CHECKPOINT_PASS",
+    "unlock_condition": "P0_MINIMAL_MCP_ACCESS_EXACT_TREE_QUALIFIED_MERGED_AND_STAGE_RETROSPECTIVE_PASS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
