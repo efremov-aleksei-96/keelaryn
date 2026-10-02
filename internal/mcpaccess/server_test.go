@@ -118,6 +118,64 @@ func TestMinimalMCPAccessSearchAndContextBundle(t *testing.T) {
 	}
 }
 
+func TestMCPAccessRejectsResourceAuthorityExpansion(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("bounded mcp access"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatalf("bootstrap protected index: %v", err)
+	}
+
+	server, err := NewServer(Options{Root: root, ControlDir: control})
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "keelaryn-test", Version: "p0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		serverSession.Close()
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+	defer serverSession.Close()
+
+	searchResult, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+		Name: "keelaryn_search",
+		Arguments: map[string]any{"query": "bounded", "limit": maxSearchLimit + 1},
+	})
+	if err != nil {
+		t.Fatalf("oversized search call transport error: %v", err)
+	}
+	if !searchResult.IsError {
+		t.Fatal("MCP search unexpectedly accepted limit above qualified maximum")
+	}
+
+	contextResult, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+		Name: "keelaryn_context_bundle",
+		Arguments: map[string]any{
+			"query": "bounded",
+			"reason": "prove MCP resource bound",
+			"max_bytes": maxContextMaxBytes + 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("oversized context call transport error: %v", err)
+	}
+	if !contextResult.IsError {
+		t.Fatal("MCP context unexpectedly accepted max_bytes above qualified maximum")
+	}
+}
+
 func TestNewServerRequiresFixedOperatorScope(t *testing.T) {
 	if _, err := NewServer(Options{}); err == nil {
 		t.Fatal("empty MCP scope unexpectedly accepted")

@@ -12,14 +12,20 @@ import (
 )
 
 const (
-	serverName              = "keelaryn"
-	serverVersion           = "p0"
-	defaultSearchLimit      = 20
-	defaultContextLimit     = 20
-	defaultContextMaxBytes  = int64(4 * 1024 * 1024)
+	serverName             = "keelaryn"
+	serverVersion          = "p0"
+	defaultSearchLimit     = 20
+	maxSearchLimit         = 20
+	defaultContextLimit    = 20
+	maxContextLimit        = 20
+	defaultContextMaxBytes = int64(4 * 1024 * 1024)
+	maxContextMaxBytes     = int64(4 * 1024 * 1024)
 )
 
-var ErrInvalidOptions = errors.New("invalid MCP access options")
+var (
+	ErrInvalidOptions = errors.New("invalid MCP access options")
+	ErrInvalidRequest = errors.New("invalid MCP tool request")
+)
 
 // Options fixes the corpus and protected control directory at server startup.
 // Tool callers cannot choose filesystem paths.
@@ -73,6 +79,9 @@ func NewServer(options Options) (*mcp.Server, error) {
 		if input.Limit != nil {
 			limit = *input.Limit
 		}
+		if strings.TrimSpace(input.Query) == "" || limit < 1 || limit > maxSearchLimit {
+			return nil, SearchOutput{}, ErrInvalidRequest
+		}
 		hits, err := localruntime.QueryProtected(ctx, options.ControlDir, input.Query, limit)
 		if err != nil {
 			return nil, SearchOutput{}, err
@@ -95,6 +104,12 @@ func NewServer(options Options) (*mcp.Server, error) {
 		maxBytes := defaultContextMaxBytes
 		if input.MaxBytes != nil {
 			maxBytes = *input.MaxBytes
+		}
+		if strings.TrimSpace(input.Query) == "" ||
+			strings.TrimSpace(input.Reason) == "" ||
+			limit < 1 || limit > maxContextLimit ||
+			maxBytes < 0 || maxBytes > maxContextMaxBytes {
+			return nil, ContextBundleOutput{}, ErrInvalidRequest
 		}
 		bundle, err := localruntime.BuildProtectedContext(ctx, localruntime.ProtectedContextOptions{
 			Root:       options.Root,

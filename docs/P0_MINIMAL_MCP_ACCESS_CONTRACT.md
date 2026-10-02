@@ -44,7 +44,7 @@ The MCP read path is strictly read-only at the SQLite boundary as well as at the
 Input:
 
 - `query` — literal all-terms query;
-- optional `limit` — defaults to 20 and remains bounded by the qualified search implementation.
+- optional `limit` — defaults to 20; the MCP surface rejects values outside 1…20.
 
 Output:
 
@@ -58,8 +58,8 @@ Input:
 
 - `query`;
 - explicit `reason`;
-- optional `limit` — defaults to 20;
-- optional `max_bytes` — defaults to 4 MiB per selected file.
+- optional `limit` — defaults to 20; the MCP surface rejects values outside 1…20;
+- optional `max_bytes` — defaults to 4 MiB per selected file and cannot exceed 4 MiB.
 
 Output:
 
@@ -99,6 +99,7 @@ Before this slice can be marked qualified:
 6. ContextBundle returns the same exact selected revision and source text through MCP;
 7. CLI startup accepts only operator-scoped `--root` and `--control-dir`;
 8. state/search database bytes remain unchanged across qualified read-only access and attempted writes fail closed;
-9. existing full Go tests and vet pass on Ubuntu 24.04 and Windows 2025;
-10. exact PR diff contains no corpus/provider mutation surface;
-11. a stage retrospective/audit is completed before moving to embedded web status.
+9. MCP callers cannot expand the qualified result/file-read budget beyond 20 selected hits and 4 MiB per selected file;
+10. existing full Go tests and vet pass on Ubuntu 24.04 and Windows 2025;
+11. exact PR diff contains no corpus/provider mutation surface;
+12. a stage retrospective/audit is completed before moving to embedded web status.
