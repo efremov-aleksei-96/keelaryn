@@ -22,7 +22,14 @@ The user may start a fresh chat and say only:
 
 Treat these as commands to resume Keelaryn development from durable live state.
 
-Always determine the **actual active model**. Never claim to switch models inside a chat. If the user explicitly names Luna or Sol and the active model does not match, say so briefly and use the actual model profile only if the user asked to continue anyway.
+Resolve the execution profile fail-closed:
+
+- explicit `продолжить работу при помощи Luna` always enforces the **Luna-safe** profile, even if the active model is stronger or its identity is unclear;
+- explicit `продолжить работу при помощи Sol` enables the **Sol** profile only when the environment positively identifies the active model as Sol;
+- generic `продолжить работу` uses the positively identified active model profile;
+- if model identity is unavailable, ambiguous, or conflicts with an explicit Sol request, fall back to **Luna-safe / least-privilege** and state the mismatch or uncertainty briefly.
+
+Never claim to have switched models inside the chat. A stronger model may voluntarily operate under the Luna-safe profile; a weaker or unidentified model must never promote itself to Sol privileges.
 
 Before any write:
 
