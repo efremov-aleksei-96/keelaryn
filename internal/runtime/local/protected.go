@@ -31,6 +31,13 @@ type ProtectedContextOptions struct {
 	MaxTotalBytes int64
 }
 
+// ValidateProtectedScope resolves the same physical root/control boundary used
+// by protected runtime operations without creating or modifying anything.
+func ValidateProtectedScope(root, controlDir string) error {
+	_, _, err := resolveProtectedLayout(root, controlDir)
+	return err
+}
+
 // BootstrapProtectedIndex is the executable control-storage boundary. It
 // resolves the physical control parent and proves the control directory is
 // outside the corpus before any directory or SQLite file can be created.

@@ -64,6 +64,9 @@ func NewServer(options Options) (*mcp.Server, error) {
 	if strings.TrimSpace(options.Root) == "" || strings.TrimSpace(options.ControlDir) == "" {
 		return nil, ErrInvalidOptions
 	}
+	if err := localruntime.ValidateProtectedScope(options.Root, options.ControlDir); err != nil {
+		return nil, err
+	}
 
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: serverName, Version: serverVersion},
@@ -119,11 +122,11 @@ func NewServer(options Options) (*mcp.Server, error) {
 			return nil, ContextBundleOutput{}, ErrInvalidRequest
 		}
 		bundle, err := localruntime.BuildProtectedContextReadOnly(ctx, localruntime.ProtectedContextOptions{
-			Root:       options.Root,
-			ControlDir: options.ControlDir,
-			Query:      input.Query,
-			Reason:     input.Reason,
-			Limit:      limit,
+			Root:          options.Root,
+			ControlDir:    options.ControlDir,
+			Query:         input.Query,
+			Reason:        input.Reason,
+			Limit:         limit,
 			MaxBytes:      maxBytes,
 			MaxTotalBytes: maxContextTotalBytes,
 		})

@@ -212,6 +212,17 @@ func TestNewServerRequiresFixedOperatorScope(t *testing.T) {
 	}
 }
 
+func TestNewServerRejectsControlDirectoryInsideCorpus(t *testing.T) {
+	root := t.TempDir()
+	control := filepath.Join(root, "control")
+	if err := os.Mkdir(control, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewServer(Options{Root: root, ControlDir: control}); err == nil {
+		t.Fatal("MCP server unexpectedly accepted protected control directory inside corpus")
+	}
+}
+
 func decodeStructured(t *testing.T, value any, dst any) {
 	t.Helper()
 	data, err := json.Marshal(value)
