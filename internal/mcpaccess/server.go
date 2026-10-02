@@ -1,0 +1,135 @@
+package mcpaccess
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
+	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
+	"github.com/efremov-aleksei-96/keelaryn/internal/search"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+const (
+	serverName              = "keelaryn"
+	serverVersion           = "p0"
+	defaultSearchLimit      = 20
+	defaultContextLimit     = 20
+	defaultContextMaxBytes  = int64(4 * 1024 * 1024)
+)
+
+var ErrInvalidOptions = errors.New("invalid MCP access options")
+
+// Options fixes the corpus and protected control directory at server startup.
+// Tool callers cannot choose filesystem paths.
+type Options struct {
+	Root       string
+	ControlDir string
+}
+
+type SearchInput struct {
+	Query string `json:"query" jsonschema:"literal all-terms query over the existing Keelaryn search index"`
+	Limit *int   `json:"limit,omitempty" jsonschema:"optional maximum number of hits; defaults to 20 and must satisfy the qualified search limit"`
+}
+
+type SearchOutput struct {
+	Hits []search.Hit `json:"hits"`
+}
+
+type ContextBundleInput struct {
+	Query    string `json:"query" jsonschema:"literal all-terms query used to select exact current revisions"`
+	Reason   string `json:"reason" jsonschema:"explicit task reason recorded on each selected ContextBundle item"`
+	Limit    *int   `json:"limit,omitempty" jsonschema:"optional maximum number of selected hits; defaults to 20"`
+	MaxBytes *int64 `json:"max_bytes,omitempty" jsonschema:"optional maximum bytes read from one selected file; defaults to 4194304"`
+}
+
+type ContextBundleOutput struct {
+	Bundle contextbundle.Bundle `json:"bundle"`
+}
+
+// NewServer constructs the minimal read-only MCP surface. It intentionally
+// exposes no corpus mutation, state mutation, provider write, raw database path,
+// filesystem path, HTTP listener, prompt, resource, or sampling surface.
+func NewServer(options Options) (*mcp.Server, error) {
+	if strings.TrimSpace(options.Root) == "" || strings.TrimSpace(options.ControlDir) == "" {
+		return nil, ErrInvalidOptions
+	}
+
+	server := mcp.NewServer(
+		&mcp.Implementation{Name: serverName, Version: serverVersion},
+		&mcp.ServerOptions{
+			Instructions: "Read-only Keelaryn access scoped by the operator at process startup.",
+			Capabilities: &mcp.ServerCapabilities{},
+		},
+	)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "keelaryn_search",
+		Description: "Search the existing rebuildable Keelaryn FTS index and return exact Artifact/Revision provenance.",
+		Annotations: readOnlyAnnotations("Keelaryn search"),
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, input SearchInput) (*mcp.CallToolResult, SearchOutput, error) {
+		limit := defaultSearchLimit
+		if input.Limit != nil {
+			limit = *input.Limit
+		}
+		hits, err := localruntime.QueryProtected(ctx, options.ControlDir, input.Query, limit)
+		if err != nil {
+			return nil, SearchOutput{}, err
+		}
+		if hits == nil {
+			hits = []search.Hit{}
+		}
+		return nil, SearchOutput{Hits: hits}, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "keelaryn_context_bundle",
+		Description: "Build an ephemeral task-specific ContextBundle from exact current search hits with qualified provenance checks.",
+		Annotations: readOnlyAnnotations("Keelaryn context bundle"),
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, input ContextBundleInput) (*mcp.CallToolResult, ContextBundleOutput, error) {
+		limit := defaultContextLimit
+		if input.Limit != nil {
+			limit = *input.Limit
+		}
+		maxBytes := defaultContextMaxBytes
+		if input.MaxBytes != nil {
+			maxBytes = *input.MaxBytes
+		}
+		bundle, err := localruntime.BuildProtectedContext(ctx, localruntime.ProtectedContextOptions{
+			Root:       options.Root,
+			ControlDir: options.ControlDir,
+			Query:      input.Query,
+			Reason:     input.Reason,
+			Limit:      limit,
+			MaxBytes:   maxBytes,
+		})
+		if err != nil {
+			return nil, ContextBundleOutput{}, err
+		}
+		if bundle.Items == nil {
+			bundle.Items = []contextbundle.Item{}
+		}
+		return nil, ContextBundleOutput{Bundle: bundle}, nil
+	})
+
+	return server, nil
+}
+
+func RunStdio(ctx context.Context, options Options) error {
+	server, err := NewServer(options)
+	if err != nil {
+		return err
+	}
+	return server.Run(ctx, &mcp.StdioTransport{})
+}
+
+func readOnlyAnnotations(title string) *mcp.ToolAnnotations {
+	f := false
+	return &mcp.ToolAnnotations{
+		Title:           title,
+		ReadOnlyHint:    true,
+		DestructiveHint: &f,
+		OpenWorldHint:   &f,
+	}
+}
