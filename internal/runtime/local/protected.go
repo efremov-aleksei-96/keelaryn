@@ -22,12 +22,13 @@ type ProtectedIndexOptions struct {
 }
 
 type ProtectedContextOptions struct {
-	Root       string
-	ControlDir string
-	Query      string
-	Reason     string
-	Limit      int
-	MaxBytes   int64
+	Root          string
+	ControlDir    string
+	Query         string
+	Reason        string
+	Limit         int
+	MaxBytes      int64
+	MaxTotalBytes int64
 }
 
 // BootstrapProtectedIndex is the executable control-storage boundary. It
@@ -111,7 +112,8 @@ func BuildProtectedContext(ctx context.Context, options ProtectedContextOptions)
 	if strings.TrimSpace(options.Query) == "" ||
 		strings.TrimSpace(options.Reason) == "" ||
 		options.Limit < 1 ||
-		options.MaxBytes < 0 {
+		options.MaxBytes < 0 ||
+		options.MaxTotalBytes < 0 {
 		return contextbundle.Bundle{}, ErrInvalidOptions
 	}
 	root, layout, err := resolveProtectedLayout(options.Root, options.ControlDir)
@@ -126,6 +128,7 @@ func BuildProtectedContext(ctx context.Context, options ProtectedContextOptions)
 	bundle, operationErr := BuildContext(ctx, ContextOptions{
 		Root: root, StateDB: layout.StateDB, SearchDB: layout.SearchDB,
 		Query: options.Query, Reason: options.Reason, Limit: options.Limit, MaxBytes: options.MaxBytes,
+		MaxTotalBytes: options.MaxTotalBytes,
 	})
 	verifyErr := controlstorage.Verify(layout.Dir)
 	if operationErr != nil {
@@ -144,7 +147,8 @@ func BuildProtectedContextReadOnly(ctx context.Context, options ProtectedContext
 	if strings.TrimSpace(options.Query) == "" ||
 		strings.TrimSpace(options.Reason) == "" ||
 		options.Limit < 1 ||
-		options.MaxBytes < 0 {
+		options.MaxBytes < 0 ||
+		options.MaxTotalBytes < 0 {
 		return contextbundle.Bundle{}, ErrInvalidOptions
 	}
 	root, layout, err := resolveProtectedLayout(options.Root, options.ControlDir)
@@ -159,6 +163,7 @@ func BuildProtectedContextReadOnly(ctx context.Context, options ProtectedContext
 	bundle, operationErr := BuildContextReadOnly(ctx, ContextOptions{
 		Root: root, StateDB: layout.StateDB, SearchDB: layout.SearchDB,
 		Query: options.Query, Reason: options.Reason, Limit: options.Limit, MaxBytes: options.MaxBytes,
+		MaxTotalBytes: options.MaxTotalBytes,
 	})
 	verifyErr := controlstorage.Verify(layout.Dir)
 	if operationErr != nil {

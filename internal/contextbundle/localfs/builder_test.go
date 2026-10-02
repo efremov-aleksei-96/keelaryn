@@ -169,6 +169,40 @@ func TestBuildLimitOutcomeCarriesNoText(t *testing.T) {
 	}
 }
 
+func TestBuildWithTotalMaxBytesCapsAggregateBeforeEachRead(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	mustWriteContext(t, filepath.Join(root, "a.txt"), []byte("1234"))
+	mustWriteContext(t, filepath.Join(root, "b.txt"), []byte("5678"))
+	mustWriteContext(t, filepath.Join(root, "c.txt"), []byte("z"))
+	store, provider, entries := bootstrapContext(t, root)
+	byPath := inventoryByPath(entries)
+
+	got, err := contextlocalfs.BuildWithTotalMaxBytes(ctx, store, provider, []contextbundle.Selection{
+		{Entry: byPath["a.txt"], Reason: "aggregate budget", MaxBytes: 1024},
+		{Entry: byPath["b.txt"], Reason: "aggregate budget", MaxBytes: 1024},
+		{Entry: byPath["c.txt"], Reason: "aggregate budget", MaxBytes: 1024},
+	}, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Items) != 3 {
+		t.Fatalf("items=%#v", got.Items)
+	}
+	if got.Items[0].Status != extract.StatusExtracted || got.Items[0].Text != "1234" {
+		t.Fatalf("first item=%#v", got.Items[0])
+	}
+	if got.Items[1].Status != extract.StatusLimitExceeded || got.Items[1].Text != "" {
+		t.Fatalf("second item=%#v", got.Items[1])
+	}
+	if got.Items[2].Status != extract.StatusExtracted || got.Items[2].Text != "z" {
+		t.Fatalf("third item=%#v", got.Items[2])
+	}
+	if len(got.Items[0].Text)+len(got.Items[1].Text)+len(got.Items[2].Text) != 5 {
+		t.Fatalf("aggregate text bytes exceeded budget: %#v", got.Items)
+	}
+}
+
 func bootstrapContext(t *testing.T, root string) (*sqlitestate.Store, *providerlocalfs.Provider, []corpus.InventoryEntry) {
 	t.Helper()
 	ctx := context.Background()

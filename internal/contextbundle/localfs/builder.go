@@ -29,6 +29,32 @@ func Build(
 	provider *providerlocalfs.Provider,
 	selections []contextbundle.Selection,
 ) (contextbundle.Bundle, error) {
+	return build(ctx, revisions, provider, selections, nil)
+}
+
+// BuildWithTotalMaxBytes enforces a byte ceiling across all extracted text in
+// the bundle. The remaining budget is applied before each corpus read, so the
+// builder never accumulates more extracted text than maxTotalBytes.
+func BuildWithTotalMaxBytes(
+	ctx context.Context,
+	revisions RevisionReader,
+	provider *providerlocalfs.Provider,
+	selections []contextbundle.Selection,
+	maxTotalBytes int64,
+) (contextbundle.Bundle, error) {
+	if maxTotalBytes < 0 {
+		return contextbundle.Bundle{}, ErrInvalidSelection
+	}
+	return build(ctx, revisions, provider, selections, &maxTotalBytes)
+}
+
+func build(
+	ctx context.Context,
+	revisions RevisionReader,
+	provider *providerlocalfs.Provider,
+	selections []contextbundle.Selection,
+	totalMaxBytes *int64,
+) (contextbundle.Bundle, error) {
 	if revisions == nil || provider == nil {
 		return contextbundle.Bundle{}, ErrInvalidSelection
 	}
@@ -37,17 +63,25 @@ func Build(
 	}
 
 	items := make([]contextbundle.Item, 0, len(selections))
+	remaining := int64(0)
+	if totalMaxBytes != nil {
+		remaining = *totalMaxBytes
+	}
 	for i, selection := range selections {
 		if strings.TrimSpace(selection.Reason) == "" || selection.MaxBytes < 0 {
 			return contextbundle.Bundle{}, fmt.Errorf("%w: selection %d", ErrInvalidSelection, i)
 		}
 
+		maxBytes := selection.MaxBytes
+		if totalMaxBytes != nil && maxBytes > remaining {
+			maxBytes = remaining
+		}
 		result, err := extractlocalfs.Extract(
 			ctx,
 			revisions,
 			provider,
 			selection.Entry,
-			selection.MaxBytes,
+			maxBytes,
 		)
 		if err != nil {
 			return contextbundle.Bundle{}, fmt.Errorf("selection %d extraction: %w", i, err)
@@ -65,6 +99,9 @@ func Build(
 		}
 		if result.Status == extract.StatusExtracted {
 			item.Text = result.Text
+			if totalMaxBytes != nil {
+				remaining -= int64(len(result.Text))
+			}
 		}
 		items = append(items, item)
 	}

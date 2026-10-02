@@ -28,13 +28,14 @@ var (
 )
 
 type ContextOptions struct {
-	Root      string
-	StateDB   string
-	SearchDB  string
-	Query     string
-	Reason    string
-	Limit     int
-	MaxBytes  int64
+	Root          string
+	StateDB       string
+	SearchDB      string
+	Query         string
+	Reason        string
+	Limit         int
+	MaxBytes      int64
+	MaxTotalBytes int64
 }
 
 // BuildContext composes literal FTS hits with the current durable Inventory and
@@ -83,7 +84,7 @@ func BuildContext(ctx context.Context, options ContextOptions) (contextbundle.Bu
 		return contextbundle.Bundle{}, err
 	}
 
-	bundle, err := contextlocalfs.Build(ctx, state, provider, selections)
+	bundle, err := buildContextBundle(ctx, state, provider, selections, options.MaxTotalBytes)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
@@ -140,7 +141,7 @@ func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextb
 		return contextbundle.Bundle{}, err
 	}
 
-	bundle, err := contextlocalfs.Build(ctx, state, provider, selections)
+	bundle, err := buildContextBundle(ctx, state, provider, selections, options.MaxTotalBytes)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
@@ -154,6 +155,19 @@ func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextb
 		return contextbundle.Bundle{}, err
 	}
 	return bundle, nil
+}
+
+func buildContextBundle(
+	ctx context.Context,
+	state *sqlitestate.Store,
+	provider *providerlocalfs.Provider,
+	selections []contextbundle.Selection,
+	maxTotalBytes int64,
+) (contextbundle.Bundle, error) {
+	if maxTotalBytes > 0 {
+		return contextlocalfs.BuildWithTotalMaxBytes(ctx, state, provider, selections, maxTotalBytes)
+	}
+	return contextlocalfs.Build(ctx, state, provider, selections)
 }
 
 func proveBootstrapReadOnly(
@@ -278,7 +292,8 @@ func validateContextOptions(options ContextOptions) (root, stateDB, searchDB str
 		strings.TrimSpace(options.Query) == "" ||
 		strings.TrimSpace(options.Reason) == "" ||
 		options.Limit < 1 ||
-		options.MaxBytes < 0 {
+		options.MaxBytes < 0 ||
+		options.MaxTotalBytes < 0 {
 		return "", "", "", ErrInvalidOptions
 	}
 

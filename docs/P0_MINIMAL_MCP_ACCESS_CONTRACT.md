@@ -59,7 +59,8 @@ Input:
 - `query`;
 - explicit `reason`;
 - optional `limit` — defaults to 20; the MCP surface rejects values outside 1…20;
-- optional `max_bytes` — defaults to 4 MiB per selected file and cannot exceed 4 MiB.
+- optional `max_bytes` — defaults to 4 MiB per selected file and cannot exceed 4 MiB;
+- the server additionally enforces a fixed 4 MiB aggregate budget across extracted text in the whole ContextBundle. The remaining budget is applied before each source read; an item that cannot fit is returned as the existing bounded `LIMIT_EXCEEDED` outcome, while later smaller items may still fit.
 
 Output:
 
@@ -99,7 +100,7 @@ Before this slice can be marked qualified:
 6. ContextBundle returns the same exact selected revision and source text through MCP;
 7. CLI startup accepts only operator-scoped `--root` and `--control-dir`;
 8. state/search database bytes remain unchanged across qualified read-only access and attempted writes fail closed;
-9. MCP callers cannot expand the qualified result/file-read budget beyond 20 selected hits and 4 MiB per selected file;
+9. MCP callers cannot expand the qualified result/file-read budget beyond 20 selected hits, 4 MiB per selected file, or 4 MiB aggregate extracted text per ContextBundle;
 10. existing full Go tests and vet pass on Ubuntu 24.04 and Windows 2025;
 11. exact PR diff contains no corpus/provider mutation surface;
 12. a stage retrospective/audit is completed before moving to embedded web status.

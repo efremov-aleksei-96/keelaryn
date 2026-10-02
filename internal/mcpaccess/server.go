@@ -20,6 +20,7 @@ const (
 	maxContextLimit        = 20
 	defaultContextMaxBytes = int64(4 * 1024 * 1024)
 	maxContextMaxBytes     = int64(4 * 1024 * 1024)
+	maxContextTotalBytes   = int64(4 * 1024 * 1024)
 )
 
 var (
@@ -117,7 +118,8 @@ func NewServer(options Options) (*mcp.Server, error) {
 			Query:      input.Query,
 			Reason:     input.Reason,
 			Limit:      limit,
-			MaxBytes:   maxBytes,
+			MaxBytes:      maxBytes,
+			MaxTotalBytes: maxContextTotalBytes,
 		})
 		if err != nil {
 			return nil, ContextBundleOutput{}, err
