@@ -33,7 +33,7 @@ MCP tool arguments MUST NOT accept:
 - provider credentials or tokens;
 - arbitrary filesystem paths.
 
-Therefore an AI client cannot use the MCP tool surface to retarget Keelaryn at another local path. Server construction resolves the same physical protected-scope boundary as the runtime, verifies state integrity and historical authority, proves that the configured corpus root is bound to the exact qualified durable bootstrap receipt in the control store, verifies SQLite/foreign-key/FTS integrity for the derived search database, and fails closed before advertising tools if any of those checks fail. It intentionally does not re-hash the whole corpus at server construction; exact current source bytes are re-proved by the existing ContextBundle read boundary before and after corpus reads. Existing per-request protected runtime checks remain authoritative for control-storage and current-corpus provenance.
+Therefore an AI client cannot use the MCP tool surface to retarget Keelaryn at another local path. Server construction pins resolved absolute corpus/control paths, rejects an aliased corpus root, verifies state integrity and historical authority, proves the configured corpus root is bound to the exact durable bootstrap receipt, requires the derived search cache to carry the same source boundary, and verifies SQLite/foreign-key/FTS integrity before advertising tools. The FTS special integrity command runs only on an ephemeral on-disk scratch copy, keeping memory independent of full index size while leaving the source database read-only. Server construction intentionally does not re-hash the whole corpus; exact current source bytes are re-proved by the existing ContextBundle read boundary before and after corpus reads. MCP search rechecks the cache-to-state source boundary on every request.
 
 The MCP read path is strictly read-only at the SQLite boundary as well as at the corpus boundary. State/search databases are opened with SQLite read-only handles plus `query_only`; the MCP path never creates, migrates, repairs or vacuums them. A database that still needs a schema/security upgrade fails closed until an explicit non-MCP preparation path completes that work.
 
@@ -98,7 +98,7 @@ Before this slice can be marked qualified:
 4. tool annotations are read-only and closed-world;
 5. search returns exact Artifact/Revision provenance through MCP;
 6. ContextBundle returns the same exact selected revision and source text through MCP;
-7. CLI startup accepts only operator-scoped `--root` and `--control-dir`; server construction rejects a missing, incomplete, insecure, incompatible, corpus-contained, wrong-root-bound, bootstrap-receipt-inconsistent, or FTS-inconsistent control store before advertising tools without re-reading the whole corpus;
+7. CLI startup accepts only operator-scoped `--root` and `--control-dir`; server construction pins resolved paths and rejects missing/incomplete/insecure/incompatible/corpus-contained/aliased-root state, bootstrap-receipt mismatch, search-cache source-boundary mismatch, or FTS inconsistency before advertising tools without re-reading the whole corpus;
 8. state/search database bytes remain unchanged across qualified read-only access and attempted writes fail closed;
 9. MCP callers cannot expand the qualified request/result budget beyond 4096 UTF-8 bytes for query/reason fields, 20 selected hits, 4 MiB per selected file, or 4 MiB aggregate extracted text per ContextBundle;
 10. existing full Go tests and vet pass on Ubuntu 24.04 and Windows 2025;

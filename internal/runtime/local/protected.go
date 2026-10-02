@@ -33,6 +33,11 @@ type ProtectedContextOptions struct {
 	MaxTotalBytes int64
 }
 
+type ProtectedReadOnlyScope struct {
+	Root       string
+	ControlDir string
+}
+
 // ValidateProtectedScope resolves the same physical root/control boundary used
 // by protected runtime operations without creating or modifying anything.
 func ValidateProtectedScope(root, controlDir string) error {
@@ -46,42 +51,79 @@ func ValidateProtectedScope(root, controlDir string) error {
 // protected/read-only validation so this startup check is fail-fast rather
 // than a substitute for per-request authority checks.
 func ValidateProtectedReadOnlyScope(ctx context.Context, root, controlDir string) error {
+	_, err := ResolveProtectedReadOnlyScope(ctx, root, controlDir)
+	return err
+}
+
+func ResolveProtectedReadOnlyScope(ctx context.Context, root, controlDir string) (ProtectedReadOnlyScope, error) {
 	root, layout, err := resolveProtectedLayout(root, controlDir)
 	if err != nil {
-		return err
+		return ProtectedReadOnlyScope{}, err
+	}
+	rootPhysical, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return ProtectedReadOnlyScope{}, fmt.Errorf("resolve physical corpus root: %w", err)
+	}
+	if filepath.Clean(rootPhysical) != filepath.Clean(root) {
+		return ProtectedReadOnlyScope{}, ErrRuntimeRootAlias
 	}
 	layout, err = controlstorage.OpenExisting(layout.Dir)
 	if err != nil {
-		return err
+		return ProtectedReadOnlyScope{}, err
 	}
-
 	if err := sqlitestate.VerifyReadOnly(ctx, layout.StateDB); err != nil {
-		return err
+		return ProtectedReadOnlyScope{}, err
 	}
-	if err := func() error {
-		state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
-		if err != nil {
-			return err
-		}
-		defer state.Close()
-
-		scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
-		if err != nil {
-			return err
-		}
-		if !found {
-			return ErrRuntimeStateUnavailable
-		}
-		_, err = proveBootstrapReceiptReadOnly(ctx, state, scan)
-		return err
-	}(); err != nil {
-		return err
+	expected, err := expectedSearchBoundaryReadOnly(ctx, layout.StateDB, root)
+	if err != nil {
+		return ProtectedReadOnlyScope{}, err
 	}
-
 	if err := searchsqlite.VerifyReadOnly(ctx, layout.SearchDB); err != nil {
-		return err
+		return ProtectedReadOnlyScope{}, err
 	}
-	return controlstorage.Verify(layout.Dir)
+	index, err := searchsqlite.OpenReadOnly(ctx, layout.SearchDB)
+	if err != nil {
+		return ProtectedReadOnlyScope{}, err
+	}
+	boundaryErr := index.VerifySourceBoundary(ctx, expected)
+	closeErr := index.Close()
+	if boundaryErr != nil {
+		return ProtectedReadOnlyScope{}, boundaryErr
+	}
+	if closeErr != nil {
+		return ProtectedReadOnlyScope{}, closeErr
+	}
+	if err := controlstorage.Verify(layout.Dir); err != nil {
+		return ProtectedReadOnlyScope{}, err
+	}
+	return ProtectedReadOnlyScope{Root: root, ControlDir: layout.Dir}, nil
+}
+
+func expectedSearchBoundaryReadOnly(ctx context.Context, stateDB, root string) (searchsqlite.SourceBoundary, error) {
+	state, err := sqlitestate.OpenReadOnly(ctx, stateDB)
+	if err != nil {
+		return searchsqlite.SourceBoundary{}, err
+	}
+	defer state.Close()
+	scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
+	if err != nil {
+		return searchsqlite.SourceBoundary{}, err
+	}
+	if !found {
+		return searchsqlite.SourceBoundary{}, ErrRuntimeStateUnavailable
+	}
+	receipt, err := proveBootstrapReceiptReadOnly(ctx, state, scan)
+	if err != nil {
+		return searchsqlite.SourceBoundary{}, err
+	}
+	return searchsqlite.SourceBoundary{
+		ProviderID:         ProviderID,
+		Root:               scan.Root,
+		ScanID:             scan.ID,
+		StartedAt:          scan.StartedAt,
+		FingerprintVersion: receipt.FingerprintVersion,
+		FingerprintSHA256:  receipt.FingerprintSHA256,
+	}, nil
 }
 
 // BootstrapProtectedIndex is the executable control-storage boundary. It
@@ -157,6 +199,39 @@ func QueryProtectedReadOnly(ctx context.Context, controlDir, query string, limit
 	}
 	if verifyErr != nil {
 		return nil, verifyErr
+	}
+	return hits, nil
+}
+
+func QueryProtectedReadOnlyBound(ctx context.Context, root, controlDir, query string, limit int) ([]search.Hit, error) {
+	root, layout, err := resolveProtectedLayout(root, controlDir)
+	if err != nil {
+		return nil, err
+	}
+	layout, err = controlstorage.OpenExisting(layout.Dir)
+	if err != nil {
+		return nil, err
+	}
+	expected, err := expectedSearchBoundaryReadOnly(ctx, layout.StateDB, root)
+	if err != nil {
+		return nil, err
+	}
+	index, err := searchsqlite.OpenReadOnly(ctx, layout.SearchDB)
+	if err != nil {
+		return nil, err
+	}
+	if err := index.VerifySourceBoundary(ctx, expected); err != nil {
+		index.Close()
+		return nil, err
+	}
+	hits, operationErr := index.Search(ctx, query, limit)
+	closeErr := index.Close()
+	verifyErr := controlstorage.Verify(layout.Dir)
+	if operationErr != nil {
+		return nil, errors.Join(operationErr, closeErr, verifyErr)
+	}
+	if closeErr != nil || verifyErr != nil {
+		return nil, errors.Join(closeErr, verifyErr)
 	}
 	return hits, nil
 }

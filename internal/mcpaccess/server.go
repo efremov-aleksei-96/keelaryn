@@ -64,9 +64,12 @@ func NewServer(options Options) (*mcp.Server, error) {
 	if strings.TrimSpace(options.Root) == "" || strings.TrimSpace(options.ControlDir) == "" {
 		return nil, ErrInvalidOptions
 	}
-	if err := localruntime.ValidateProtectedReadOnlyScope(context.Background(), options.Root, options.ControlDir); err != nil {
+	scope, err := localruntime.ResolveProtectedReadOnlyScope(context.Background(), options.Root, options.ControlDir)
+	if err != nil {
 		return nil, err
 	}
+	root := scope.Root
+	controlDir := scope.ControlDir
 
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: serverName, Version: serverVersion},
@@ -90,7 +93,7 @@ func NewServer(options Options) (*mcp.Server, error) {
 			limit < 1 || limit > maxSearchLimit {
 			return nil, SearchOutput{}, ErrInvalidRequest
 		}
-		hits, err := localruntime.QueryProtectedReadOnly(ctx, options.ControlDir, input.Query, limit)
+		hits, err := localruntime.QueryProtectedReadOnlyBound(ctx, root, controlDir, input.Query, limit)
 		if err != nil {
 			return nil, SearchOutput{}, err
 		}
@@ -122,8 +125,8 @@ func NewServer(options Options) (*mcp.Server, error) {
 			return nil, ContextBundleOutput{}, ErrInvalidRequest
 		}
 		bundle, err := localruntime.BuildProtectedContextReadOnly(ctx, localruntime.ProtectedContextOptions{
-			Root:          options.Root,
-			ControlDir:    options.ControlDir,
+			Root:          root,
+			ControlDir:    controlDir,
 			Query:         input.Query,
 			Reason:        input.Reason,
 			Limit:         limit,

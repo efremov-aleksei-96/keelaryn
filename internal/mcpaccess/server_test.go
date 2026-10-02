@@ -312,6 +312,100 @@ func TestNewServerRejectsFTSDrift(t *testing.T) {
 	}
 }
 
+func TestNewServerRejectsSearchCacheFromDifferentState(t *testing.T) {
+	ctx := context.Background()
+	rootA := t.TempDir()
+	rootB := t.TempDir()
+	controlA := filepath.Join(t.TempDir(), "control-a")
+	controlB := filepath.Join(t.TempDir(), "control-b")
+	if err := os.WriteFile(filepath.Join(rootA, "a.txt"), []byte("alpha cache"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootB, "b.txt"), []byte("beta cache"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: rootA, ControlDir: controlA, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: rootB, ControlDir: controlB, ObservedAt: time.Now().UTC().Add(time.Second), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := os.ReadFile(filepath.Join(controlB, "search.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(controlA, "search.db"), foreign, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewServer(Options{Root: rootA, ControlDir: controlA}); err == nil {
+		t.Fatal("MCP server unexpectedly accepted search cache from a different state receipt")
+	}
+}
+
+func TestMCPServerPinsRelativeStartupPaths(t *testing.T) {
+	ctx := context.Background()
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	control := filepath.Join(base, "control")
+	if err := os.Mkdir(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("pinned relative path"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(base); err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewServer(Options{Root: "root", ControlDir: "control"})
+	if err != nil {
+		_ = os.Chdir(oldWD)
+		t.Fatal(err)
+	}
+	other := t.TempDir()
+	if err := os.Chdir(other); err != nil {
+		_ = os.Chdir(oldWD)
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	client := mcp.NewClient(&mcp.Implementation{Name: "keelaryn-path-test", Version: "p0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+		Name: "keelaryn_search",
+		Arguments: map[string]any{"query": "pinned"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("pinned search failed after working-directory change: %#v", result.Content)
+	}
+}
+
 func decodeStructured(t *testing.T, value any, dst any) {
 	t.Helper()
 	data, err := json.Marshal(value)
