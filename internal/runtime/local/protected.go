@@ -223,7 +223,7 @@ func QueryProtectedReadOnlyBound(ctx context.Context, root, controlDir, query st
 	if err != nil {
 		return nil, err
 	}
-	expected, err := expectedSearchBoundaryReadOnly(ctx, layout.StateDB, root)
+	expectedBefore, err := expectedSearchBoundaryReadOnly(ctx, layout.StateDB, root)
 	if err != nil {
 		return nil, err
 	}
@@ -231,18 +231,23 @@ func QueryProtectedReadOnlyBound(ctx context.Context, root, controlDir, query st
 	if err != nil {
 		return nil, err
 	}
-	if err := index.VerifySourceBoundary(ctx, expected); err != nil {
-		index.Close()
+	hits, operationErr := index.SearchBound(ctx, expectedBefore, query, limit)
+	closeErr := index.Close()
+	if operationErr != nil {
+		return nil, errors.Join(operationErr, closeErr)
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	expectedAfter, err := expectedSearchBoundaryReadOnly(ctx, layout.StateDB, root)
+	if err != nil {
 		return nil, err
 	}
-	hits, operationErr := index.Search(ctx, query, limit)
-	closeErr := index.Close()
-	verifyErr := controlstorage.Verify(layout.Dir)
-	if operationErr != nil {
-		return nil, errors.Join(operationErr, closeErr, verifyErr)
+	if !expectedBefore.Equal(expectedAfter) {
+		return nil, searchsqlite.ErrSourceBoundaryMismatch
 	}
-	if closeErr != nil || verifyErr != nil {
-		return nil, errors.Join(closeErr, verifyErr)
+	if err := controlstorage.Verify(layout.Dir); err != nil {
+		return nil, err
 	}
 	return hits, nil
 }
@@ -313,6 +318,52 @@ func BuildProtectedContextReadOnly(ctx context.Context, options ProtectedContext
 	}
 	if verifyErr != nil {
 		return contextbundle.Bundle{}, verifyErr
+	}
+	return bundle, nil
+}
+
+func BuildProtectedContextReadOnlyBound(ctx context.Context, options ProtectedContextOptions) (contextbundle.Bundle, error) {
+	if strings.TrimSpace(options.Query) == "" ||
+		strings.TrimSpace(options.Reason) == "" ||
+		options.Limit < 1 ||
+		options.MaxBytes < 0 ||
+		options.MaxTotalBytes < 0 {
+		return contextbundle.Bundle{}, ErrInvalidOptions
+	}
+	root, layout, err := resolveProtectedLayout(options.Root, options.ControlDir)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	layout, err = controlstorage.OpenExisting(layout.Dir)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	expectedBefore, err := expectedSearchBoundaryReadOnly(ctx, layout.StateDB, root)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	bundle, operationErr := BuildContextReadOnly(ctx, ContextOptions{
+		Root: root, ReadRoot: options.ReadRoot, SearchBoundary: &expectedBefore,
+		StateDB: layout.StateDB, SearchDB: layout.SearchDB,
+		Query: options.Query, Reason: options.Reason, Limit: options.Limit,
+		MaxBytes: options.MaxBytes, MaxTotalBytes: options.MaxTotalBytes,
+	})
+	if operationErr != nil {
+		verifyErr := controlstorage.Verify(layout.Dir)
+		if verifyErr != nil {
+			return contextbundle.Bundle{}, errors.Join(operationErr, verifyErr)
+		}
+		return contextbundle.Bundle{}, operationErr
+	}
+	expectedAfter, err := expectedSearchBoundaryReadOnly(ctx, layout.StateDB, root)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
+	if !expectedBefore.Equal(expectedAfter) {
+		return contextbundle.Bundle{}, searchsqlite.ErrSourceBoundaryMismatch
+	}
+	if err := controlstorage.Verify(layout.Dir); err != nil {
+		return contextbundle.Bundle{}, err
 	}
 	return bundle, nil
 }

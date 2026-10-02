@@ -125,7 +125,7 @@ func NewServer(options Options) (*mcp.Server, error) {
 			maxBytes < 0 || maxBytes > maxContextMaxBytes {
 			return nil, ContextBundleOutput{}, ErrInvalidRequest
 		}
-		bundle, err := localruntime.BuildProtectedContextReadOnly(ctx, localruntime.ProtectedContextOptions{
+		bundle, err := localruntime.BuildProtectedContextReadOnlyBound(ctx, localruntime.ProtectedContextOptions{
 			Root:          root,
 			ReadRoot:      readRoot,
 			ControlDir:    controlDir,

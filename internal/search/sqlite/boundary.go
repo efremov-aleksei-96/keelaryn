@@ -116,6 +116,10 @@ func sameSourceBoundary(a, b SourceBoundary) bool {
 		a.FingerprintSHA256 == b.FingerprintSHA256
 }
 
+func (b SourceBoundary) Equal(other SourceBoundary) bool {
+	return sameSourceBoundary(b, other)
+}
+
 func (i *Index) VerifySourceBoundary(ctx context.Context, expected SourceBoundary) error {
 	if i == nil || i.pool == nil {
 		return ErrInvalidSourceBoundary
@@ -136,4 +140,48 @@ func (i *Index) VerifySourceBoundary(ctx context.Context, expected SourceBoundar
 		return ErrSourceBoundaryMismatch
 	}
 	return nil
+}
+
+
+// SearchBound reads the cache boundary and FTS hits from one SQLite read
+// transaction, so a concurrent complete-cache replacement cannot interleave
+// between authority verification and the query result.
+func (i *Index) SearchBound(ctx context.Context, expected SourceBoundary, query string, limit int) (hits []search.Hit, err error) {
+	if i == nil || i.pool == nil {
+		return nil, ErrInvalidSourceBoundary
+	}
+	if err := validateSourceBoundary(expected); err != nil {
+		return nil, err
+	}
+	expression, err := literalQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	if limit < 1 || limit > maxSearchLimit {
+		return nil, ErrInvalidLimit
+	}
+	conn, err := i.pool.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get search connection: %w", err)
+	}
+	defer i.pool.Put(conn)
+
+	if err := sqlitex.ExecuteTransient(conn, "BEGIN DEFERRED;", nil); err != nil {
+		return nil, fmt.Errorf("begin bound search snapshot: %w", err)
+	}
+	defer func() {
+		rollbackErr := sqlitex.ExecuteTransient(conn, "ROLLBACK;", nil)
+		if err == nil && rollbackErr != nil {
+			err = fmt.Errorf("end bound search snapshot: %w", rollbackErr)
+		}
+	}()
+
+	got, found, err := sourceBoundaryConn(conn)
+	if err != nil {
+		return nil, err
+	}
+	if !found || !sameSourceBoundary(got, expected) {
+		return nil, ErrSourceBoundaryMismatch
+	}
+	return searchConn(conn, expression, limit)
 }

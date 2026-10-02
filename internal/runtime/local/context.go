@@ -16,6 +16,7 @@ import (
 	"github.com/efremov-aleksei-96/keelaryn/internal/ingest"
 	providerlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
+	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
 )
 
@@ -28,9 +29,10 @@ var (
 )
 
 type ContextOptions struct {
-	Root          string
-	ReadRoot      string
-	StateDB       string
+	Root           string
+	ReadRoot       string
+	SearchBoundary *searchsqlite.SourceBoundary
+	StateDB        string
 	SearchDB      string
 	Query         string
 	Reason        string
@@ -133,7 +135,20 @@ func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextb
 		return contextbundle.Bundle{}, err
 	}
 
-	hits, err := QueryReadOnly(ctx, searchDB, options.Query, options.Limit)
+	var hits []search.Hit
+	if options.SearchBoundary == nil {
+		hits, err = QueryReadOnly(ctx, searchDB, options.Query, options.Limit)
+	} else {
+		index, openErr := searchsqlite.OpenReadOnly(ctx, searchDB)
+		if openErr != nil {
+			return contextbundle.Bundle{}, openErr
+		}
+		hits, err = index.SearchBound(ctx, *options.SearchBoundary, options.Query, options.Limit)
+		closeErr := index.Close()
+		if err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}

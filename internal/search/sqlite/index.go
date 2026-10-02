@@ -494,9 +494,12 @@ func (i *Index) Search(ctx context.Context, query string, limit int) ([]search.H
 		return nil, fmt.Errorf("get search connection: %w", err)
 	}
 	defer i.pool.Put(conn)
+	return searchConn(conn, expression, limit)
+}
 
+func searchConn(conn *zsqlite.Conn, expression string, limit int) ([]search.Hit, error) {
 	var hits []search.Hit
-	err = sqlitex.Execute(conn,
+	err := sqlitex.Execute(conn,
 		`SELECT
 			d.artifact_id,
 			d.revision_id,
