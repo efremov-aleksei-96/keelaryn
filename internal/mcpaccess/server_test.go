@@ -406,6 +406,128 @@ func TestMCPServerPinsRelativeStartupPaths(t *testing.T) {
 	}
 }
 
+func TestMCPContextRejectsSearchCacheSwapAfterStartup(t *testing.T) {
+	ctx := context.Background()
+	rootA := t.TempDir()
+	rootB := t.TempDir()
+	controlA := filepath.Join(t.TempDir(), "control-a")
+	controlB := filepath.Join(t.TempDir(), "control-b")
+	if err := os.WriteFile(filepath.Join(rootA, "a.txt"), []byte("original context token"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootB, "b.txt"), []byte("foreign context token"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: rootA, ControlDir: controlA, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: rootB, ControlDir: controlB, ObservedAt: time.Now().UTC().Add(time.Second), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	server, err := NewServer(Options{Root: rootA, ControlDir: controlA})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := os.ReadFile(filepath.Join(controlB, "search.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(controlA, "search.db"), foreign, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	client := mcp.NewClient(&mcp.Implementation{Name: "keelaryn-swap-test", Version: "p0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+
+	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+		Name: "keelaryn_context_bundle",
+		Arguments: map[string]any{"query": "foreign", "reason": "must reject foreign cache"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Fatalf("ContextBundle unexpectedly accepted post-startup foreign search cache: %#v", result.StructuredContent)
+	}
+}
+
+func TestMCPContextKeepsPinnedPhysicalRootAfterAliasRetarget(t *testing.T) {
+	ctx := context.Background()
+	targetA := t.TempDir()
+	targetB := t.TempDir()
+	aliasParent := t.TempDir()
+	alias := filepath.Join(aliasParent, "corpus")
+	if err := os.WriteFile(filepath.Join(targetA, "note.txt"), []byte("pinned physical corpus"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(targetB, "note.txt"), []byte("retargeted foreign corpus"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(targetA, alias); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	control := filepath.Join(t.TempDir(), "control")
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: alias, ControlDir: control, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewServer(Options{Root: alias, ControlDir: control})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(alias); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(targetB, alias); err != nil {
+		t.Fatal(err)
+	}
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	client := mcp.NewClient(&mcp.Implementation{Name: "keelaryn-pin-test", Version: "p0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+
+	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+		Name: "keelaryn_context_bundle",
+		Arguments: map[string]any{"query": "pinned physical", "reason": "prove physical root pin", "max_bytes": 4096},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("pinned ContextBundle failed after alias retarget: %#v", result.Content)
+	}
+	var out ContextBundleOutput
+	decodeStructured(t, result.StructuredContent, &out)
+	if len(out.Bundle.Items) != 1 || out.Bundle.Items[0].Text != "pinned physical corpus" {
+		t.Fatalf("bundle=%#v", out.Bundle)
+	}
+}
+
 func decodeStructured(t *testing.T, value any, dst any) {
 	t.Helper()
 	data, err := json.Marshal(value)
