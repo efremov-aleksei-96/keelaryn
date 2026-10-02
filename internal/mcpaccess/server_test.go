@@ -223,6 +223,26 @@ func TestNewServerRejectsControlDirectoryInsideCorpus(t *testing.T) {
 	}
 }
 
+func TestNewServerRejectsIncompleteProtectedControlStore(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("complete MCP control"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatalf("bootstrap protected index: %v", err)
+	}
+	if err := os.Remove(filepath.Join(control, "search.db")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewServer(Options{Root: root, ControlDir: control}); err == nil {
+		t.Fatal("MCP server unexpectedly accepted protected control without search database")
+	}
+}
+
 func decodeStructured(t *testing.T, value any, dst any) {
 	t.Helper()
 	data, err := json.Marshal(value)

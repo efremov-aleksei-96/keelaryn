@@ -12,6 +12,8 @@ import (
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
+	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
+	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
 )
 
 type ProtectedIndexOptions struct {
@@ -36,6 +38,39 @@ type ProtectedContextOptions struct {
 func ValidateProtectedScope(root, controlDir string) error {
 	_, _, err := resolveProtectedLayout(root, controlDir)
 	return err
+}
+
+// ValidateProtectedReadOnlyScope validates a complete existing protected
+// runtime before a read-only server advertises tools. It performs no migration,
+// repair, cache rebuild or durable write. Ordinary tool calls repeat their own
+// protected/read-only validation so this startup check is fail-fast rather
+// than a substitute for per-request authority checks.
+func ValidateProtectedReadOnlyScope(ctx context.Context, root, controlDir string) error {
+	_, layout, err := resolveProtectedLayout(root, controlDir)
+	if err != nil {
+		return err
+	}
+	layout, err = controlstorage.OpenExisting(layout.Dir)
+	if err != nil {
+		return err
+	}
+
+	state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
+	if err != nil {
+		return err
+	}
+	if err := state.Close(); err != nil {
+		return err
+	}
+
+	index, err := searchsqlite.OpenReadOnly(ctx, layout.SearchDB)
+	if err != nil {
+		return err
+	}
+	if err := index.Close(); err != nil {
+		return err
+	}
+	return controlstorage.Verify(layout.Dir)
 }
 
 // BootstrapProtectedIndex is the executable control-storage boundary. It

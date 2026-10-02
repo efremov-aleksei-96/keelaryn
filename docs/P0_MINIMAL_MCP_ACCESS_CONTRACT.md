@@ -33,7 +33,7 @@ MCP tool arguments MUST NOT accept:
 - provider credentials or tokens;
 - arbitrary filesystem paths.
 
-Therefore an AI client cannot use the MCP tool surface to retarget Keelaryn at another local path. Server construction resolves the same physical protected-scope boundary as the runtime and fails closed if the control directory is inside the corpus. Existing protected runtime checks remain authoritative for control-storage and current-corpus provenance.
+Therefore an AI client cannot use the MCP tool surface to retarget Keelaryn at another local path. Server construction resolves the same physical protected-scope boundary as the runtime, opens the existing state/search databases through their strict read-only validators, and fails closed before advertising tools if the control store is missing, incomplete, insecure, incompatible, or inside the corpus. Existing per-request protected runtime checks remain authoritative for control-storage and current-corpus provenance.
 
 The MCP read path is strictly read-only at the SQLite boundary as well as at the corpus boundary. State/search databases are opened with SQLite read-only handles plus `query_only`; the MCP path never creates, migrates, repairs or vacuums them. A database that still needs a schema/security upgrade fails closed until an explicit non-MCP preparation path completes that work.
 
@@ -98,7 +98,7 @@ Before this slice can be marked qualified:
 4. tool annotations are read-only and closed-world;
 5. search returns exact Artifact/Revision provenance through MCP;
 6. ContextBundle returns the same exact selected revision and source text through MCP;
-7. CLI startup accepts only operator-scoped `--root` and `--control-dir`, and server construction rejects a control directory inside the corpus;
+7. CLI startup accepts only operator-scoped `--root` and `--control-dir`; server construction rejects a missing, incomplete, insecure, incompatible, or corpus-contained control store before advertising tools;
 8. state/search database bytes remain unchanged across qualified read-only access and attempted writes fail closed;
 9. MCP callers cannot expand the qualified request/result budget beyond 4096 UTF-8 bytes for query/reason fields, 20 selected hits, 4 MiB per selected file, or 4 MiB aggregate extracted text per ContextBundle;
 10. existing full Go tests and vet pass on Ubuntu 24.04 and Windows 2025;

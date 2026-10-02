@@ -64,7 +64,7 @@ func NewServer(options Options) (*mcp.Server, error) {
 	if strings.TrimSpace(options.Root) == "" || strings.TrimSpace(options.ControlDir) == "" {
 		return nil, ErrInvalidOptions
 	}
-	if err := localruntime.ValidateProtectedScope(options.Root, options.ControlDir); err != nil {
+	if err := localruntime.ValidateProtectedReadOnlyScope(context.Background(), options.Root, options.ControlDir); err != nil {
 		return nil, err
 	}
 
