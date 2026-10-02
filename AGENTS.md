@@ -14,13 +14,13 @@ Detailed continuation rules: `docs/DEVELOPMENT_CONTINUATION.md`.
 
 ## "Continue work" contract
 
-The user may start a fresh chat and say only:
+The user may start a fresh chat and say:
 
-- `продолжить работу`
-- `продолжить работу при помощи Luna`
-- `продолжить работу при помощи Sol`
+- `продолжить работу над Keelaryn`
+- `продолжить работу над Keelaryn при помощи Luna`
+- `продолжить работу над Keelaryn при помощи Sol`
 
-Treat these as commands to resume Keelaryn development from durable live state.
+Treat these as commands to resume Keelaryn development from durable live state. A bare `продолжить работу` is only a context-bound shorthand as defined below.
 
 ## Project identity gate
 

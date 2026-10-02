@@ -7,17 +7,17 @@
 
 A fresh ChatGPT development session must be able to resume Keelaryn from durable sources without needing the previous chat.
 
-The intended user interaction is deliberately minimal:
+The intended user interaction is deliberately project-scoped:
 
 ```text
-продолжить работу
+продолжить работу над Keelaryn
 ```
 
 or, when the model is explicitly selected:
 
 ```text
-продолжить работу при помощи Luna
-продолжить работу при помощи Sol
+продолжить работу над Keelaryn при помощи Luna
+продолжить работу над Keelaryn при помощи Sol
 ```
 
 The phrase is a resume command, not a request to guess from conversation memory.
