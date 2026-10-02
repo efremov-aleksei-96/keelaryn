@@ -22,6 +22,30 @@ or, when the model is explicitly selected:
 
 The phrase is a resume command, not a request to guess from conversation memory.
 
+## 1.1 Project identity and multi-project routing
+
+This continuation contract belongs only to **Keelaryn**. Its canonical project ID is `KEELARYN`.
+
+In a multi-project environment, project identity must be resolved before model profile selection and before any write. Preferred invocations are:
+
+```text
+продолжить работу над Keelaryn
+продолжить работу над Keelaryn при помощи Luna
+продолжить работу над Keelaryn при помощи Sol
+```
+
+A bare `продолжить работу` may be accepted only when the current ChatGPT project/Work workspace/repository context is already uniquely and verifiably Keelaryn.
+
+Fail-closed routing rules:
+
+1. Named project = Keelaryn → continue with this contract.
+2. Named project != Keelaryn → do not use this repository/state; route to that project's own durable authority.
+3. Project omitted in a multi-project or ambiguous context → no mutation; resolve/select the project first.
+4. Project context conflicts with repository/state identity → no mutation; reconcile the mismatch first.
+5. Never mix branches, PRs, CI runs, objectives, checkpoints, credentials, or runtime state between projects.
+
+Project identity resolution precedes the Luna/Sol profile resolution below.
+
 ## 2. Model identity
 
 The active model identity and the user's explicit invocation jointly determine the execution profile, using fail-closed resolution.

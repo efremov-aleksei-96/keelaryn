@@ -22,6 +22,18 @@ The user may start a fresh chat and say only:
 
 Treat these as commands to resume Keelaryn development from durable live state.
 
+## Project identity gate
+
+This repository's canonical project identity is **Keelaryn** (`KEELARYN`). In a multi-project environment, the preferred commands are:
+
+- `продолжить работу над Keelaryn`
+- `продолжить работу над Keelaryn при помощи Luna`
+- `продолжить работу над Keelaryn при помощи Sol`
+
+A bare `продолжить работу` is valid only when the active chat, Work workspace, or repository context is already unambiguously bound to Keelaryn.
+
+Before any write, verify that the named/active project resolves to this repository and this project's durable state. If the user names another project, or project identity is missing/ambiguous in a multi-project context, **do not write**. Resolve/select the project first. Never reuse Keelaryn branches, PRs, CI, objectives, or `DEVELOPMENT_STATE.json` as authority for another project.
+
 Resolve the execution profile fail-closed:
 
 - explicit `продолжить работу при помощи Luna` always enforces the **Luna-safe** profile, even if the active model is stronger or its identity is unclear;
