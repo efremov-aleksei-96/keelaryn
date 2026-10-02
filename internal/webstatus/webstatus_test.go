@@ -215,6 +215,71 @@ func TestValidateLoopbackListenAddress(t *testing.T) {
 	}
 }
 
+func TestRunCancellationCancelsDiagnosticAndWaitsForCleanup(t *testing.T) {
+	_, control := bootstrapStatusFixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	started := make(chan struct{})
+	cleaned := make(chan struct{})
+	runner := func(ctx context.Context, _ string) doctor.Report {
+		close(started)
+		<-ctx.Done()
+		close(cleaned)
+		return doctor.Report{Status: doctor.StatusFail}
+	}
+
+	announce := &channelWriter{ch: make(chan string, 1)}
+	done := make(chan error, 1)
+	go func() {
+		done <- run(ctx, Options{ControlDir: control, Listen: DefaultListenAddress}, announce, runner)
+	}()
+
+	var address string
+	select {
+	case address = <-announce.ch:
+		address = strings.TrimSpace(address)
+	case <-time.After(10 * time.Second):
+		t.Fatal("web status listener did not announce")
+	}
+
+	requestDone := make(chan struct{})
+	go func() {
+		defer close(requestDone)
+		client := &http.Client{Timeout: 10 * time.Second}
+		response, err := client.Get(address + "api/status")
+		if err == nil {
+			_ = response.Body.Close()
+		}
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("diagnostic request did not start")
+	}
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run after cancellation: %v", err)
+		}
+		select {
+		case <-cleaned:
+		default:
+			t.Fatal("Run returned before active diagnostic cleanup")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not wait for diagnostic cleanup")
+	}
+	select {
+	case <-requestDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("diagnostic request did not terminate")
+	}
+}
+
 func TestRunAnnouncesLoopbackAndStopsOnCancellation(t *testing.T) {
 	_, control := bootstrapStatusFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())

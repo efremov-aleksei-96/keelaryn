@@ -50,26 +50,44 @@ type pageData struct {
 }
 
 func NewHandler(controlDir string) (http.Handler, error) {
-	if strings.TrimSpace(controlDir) == "" {
-		return nil, ErrInvalidOptions
+	_, wrapped, err := newHandler(controlDir, doctor.Run)
+	return wrapped, err
+}
+
+func newHandler(
+	controlDir string,
+	runner func(context.Context, string) doctor.Report,
+) (*handler, http.Handler, error) {
+	if strings.TrimSpace(controlDir) == "" || runner == nil {
+		return nil, nil, ErrInvalidOptions
 	}
 	layout, err := controlstorage.OpenExisting(controlDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	h := &handler{
 		controlDir: layout.Dir,
 		diagnostic: make(chan struct{}, 1),
-		runDoctor:  doctor.Run,
+		runDoctor:  runner,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", h.servePage)
 	mux.HandleFunc("/api/status", h.serveAPI)
 	mux.HandleFunc("/assets/status.css", h.serveCSS)
-	return securityHeaders(fetchMetadataOnly(localHostOnly(mux))), nil
+	wrapped := securityHeaders(fetchMetadataOnly(localHostOnly(mux)))
+	return h, wrapped, nil
 }
 
 func Run(ctx context.Context, options Options, announce io.Writer) error {
+	return run(ctx, options, announce, doctor.Run)
+}
+
+func run(
+	ctx context.Context,
+	options Options,
+	announce io.Writer,
+	runner func(context.Context, string) doctor.Report,
+) error {
 	if ctx == nil {
 		return ErrInvalidOptions
 	}
@@ -83,7 +101,7 @@ func Run(ctx context.Context, options Options, announce io.Writer) error {
 	if err := validateLoopbackListenAddress(listen); err != nil {
 		return err
 	}
-	handler, err := NewHandler(options.ControlDir)
+	h, handler, err := newHandler(options.ControlDir, runner)
 	if err != nil {
 		return err
 	}
@@ -109,6 +127,9 @@ func Run(ctx context.Context, options Options, announce io.Writer) error {
 		WriteTimeout:      responseWriteTimeout,
 		IdleTimeout:       30 * time.Second,
 		MaxHeaderBytes:    16 << 10,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
 	}
 
 	shutdownStop := make(chan struct{})
@@ -119,7 +140,9 @@ func Run(ctx context.Context, options Options, announce io.Writer) error {
 		case <-ctx.Done():
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_ = server.Shutdown(shutdownCtx)
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				_ = server.Close()
+			}
 		case <-shutdownStop:
 		}
 	}()
@@ -127,6 +150,10 @@ func Run(ctx context.Context, options Options, announce io.Writer) error {
 	serveErr := server.Serve(listener)
 	close(shutdownStop)
 	<-shutdownDone
+	// Once serving has stopped, no new diagnostic can begin. Wait for any
+	// in-flight Doctor call to release its single-flight slot so protected
+	// verification scratch cleanup completes before Run returns.
+	h.waitDiagnosticIdle()
 	if errors.Is(serveErr, http.ErrServerClosed) && ctx.Err() != nil {
 		return nil
 	}
@@ -218,6 +245,11 @@ func (h *handler) diagnosticReport(ctx context.Context) (doctor.Report, bool) {
 	diagnosticCtx, cancel := context.WithTimeout(ctx, diagnosticTimeout)
 	defer cancel()
 	return h.runDoctor(diagnosticCtx, h.controlDir), true
+}
+
+func (h *handler) waitDiagnosticIdle() {
+	h.diagnostic <- struct{}{}
+	<-h.diagnostic
 }
 
 func verificationBusy(w http.ResponseWriter) {

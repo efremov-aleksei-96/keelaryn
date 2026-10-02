@@ -21,7 +21,7 @@ Default listen address: `127.0.0.1:0`.
 
 Only literal loopback IP addresses are accepted. Wildcard, LAN, hostname and other non-loopback listen values fail closed.
 
-The command announces exactly one local URL after the listener is established, then serves until its context/process ends.
+The command announces exactly one local URL after the listener is established, then serves until its context/process ends. HTTP request contexts derive from that server context; shutdown cancellation therefore propagates into active Doctor verification. After serving stops, the runtime waits for the diagnostic slot to become idle so verification scratch cleanup completes before `Run` returns.
 
 Endpoints:
 
@@ -71,6 +71,7 @@ The stage is qualified only after:
 5. a real ephemeral loopback listener starts and stops under context cancellation;
 6. concurrent Doctor verification is bounded to one in-flight check with a bounded context;
 7. CLI wiring supplies a signal-cancelled context and proves only `--control-dir` and loopback `--listen` are exposed;
-8. Ubuntu and Windows exact-head CI/tests/vet pass;
-9. exact-head semantic/security review is clean;
-10. stage retrospective is recorded before final P0 proof re-audit.
+8. shutdown cancellation reaches active request/Doctor contexts and `Run` waits for diagnostic cleanup before returning;
+9. Ubuntu and Windows exact-head CI/tests/vet pass;
+10. exact-head semantic/security review is clean;
+11. stage retrospective is recorded before final P0 proof re-audit.
