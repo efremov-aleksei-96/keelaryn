@@ -238,6 +238,46 @@ func TestProtectedRuntimeLockContentionDoesNotMutateStateOrActiveSearch(t *testi
 	}
 }
 
+func TestProtectedRuntimePromotionRefusesActiveSidecarAndKeepsStaging(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("promotion fail closed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 35, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBefore := mustReadFile(t, layout.StateDB)
+	activeBefore := mustReadFile(t, layout.SearchDB)
+	if err := os.WriteFile(layout.SearchDB+"-journal", []byte("simulate-hot-family"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = localruntime.BootstrapProtectedIndex(ctx, options)
+	if !errors.Is(err, controlstorage.ErrSearchActiveNotStandalone) {
+		t.Fatalf("error=%v want ErrSearchActiveNotStandalone", err)
+	}
+	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
+		t.Fatal("state.db changed on failed promotion")
+	}
+	if got := mustReadFile(t, layout.SearchDB); string(got) != string(activeBefore) {
+		t.Fatal("active search.db changed on failed promotion")
+	}
+	if _, err := os.Stat(layout.SearchStagingDB); err != nil {
+		t.Fatalf("verified staging was not retained: %v", err)
+	}
+}
+
 func TestProtectedRuntimeStateCorruptionDoesNotReplaceActiveSearch(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
