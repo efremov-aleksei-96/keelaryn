@@ -4,7 +4,7 @@
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
-  "phase": "POST_P0_INCREMENTAL_OBSERVATION",
+  "phase": "POST_P0_RELIABILITY",
   "status": "IN_PROGRESS",
   "product_level": "P0_CLOSED",
   "language_direction": "GO",
