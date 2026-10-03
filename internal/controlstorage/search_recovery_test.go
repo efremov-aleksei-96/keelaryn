@@ -101,9 +101,6 @@ func TestPromoteStagedSearchReplacesOnlyDerivedActiveFamily(t *testing.T) {
 	if err := os.WriteFile(layout.SearchDB, []byte("old-cache"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(layout.SearchDB+"-journal", []byte("old-journal"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.WriteFile(layout.SearchStagingDB, stagedBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -116,9 +113,32 @@ func TestPromoteStagedSearchReplacesOnlyDerivedActiveFamily(t *testing.T) {
 	if _, err := os.Lstat(layout.SearchStagingDB); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("staging still exists: %v", err)
 	}
-	if _, err := os.Lstat(layout.SearchDB + "-journal"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("old journal still exists: %v", err)
+}
+
+func TestPromoteStagedSearchRefusesActiveSQLiteSidecarWithoutMutation(t *testing.T) {
+	layout, err := controlstorage.Prepare(filepath.Join(t.TempDir(), "control"))
+	if err != nil {
+		t.Fatal(err)
 	}
+	activeBytes := []byte("active-cache")
+	stagedBytes := []byte("staged-cache")
+	if err := os.WriteFile(layout.SearchDB, activeBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(layout.SearchDB+"-journal", []byte("hot-journal"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(layout.SearchStagingDB, stagedBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err = controlstorage.PromoteStagedSearch(layout)
+	if !errors.Is(err, controlstorage.ErrSearchActiveNotStandalone) {
+		t.Fatalf("error=%v want ErrSearchActiveNotStandalone", err)
+	}
+	assertFileBytes(t, layout.SearchDB, activeBytes)
+	assertFileBytes(t, layout.SearchDB+"-journal", []byte("hot-journal"))
+	assertFileBytes(t, layout.SearchStagingDB, stagedBytes)
 }
 
 func assertFileBytes(t *testing.T, path string, want []byte) {
