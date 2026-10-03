@@ -82,6 +82,78 @@ func TestHandlerServesReadOnlyDoctorStatus(t *testing.T) {
 	}
 }
 
+func TestHandlerReturnsDoctorFailureAsServiceUnavailable(t *testing.T) {
+	_, control := bootstrapStatusFixture(t)
+	_, h, err := newHandler(control, func(context.Context, string) doctor.Report {
+		return doctor.Report{Status: doctor.StatusFail}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, path := range []string{"/api/status", "/"} {
+		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1"+path, nil)
+		req.Host = "127.0.0.1"
+		response := httptest.NewRecorder()
+		h.ServeHTTP(response, req)
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf("path=%q status=%d want %d body=%s", path, response.Code, http.StatusServiceUnavailable, response.Body.String())
+		}
+		if response.Body.Len() == 0 {
+			t.Fatalf("path=%q returned no diagnostic body", path)
+		}
+		if path == "/api/status" {
+			var report doctor.Report
+			if err := json.Unmarshal(response.Body.Bytes(), &report); err != nil {
+				t.Fatalf("decode failure report: %v", err)
+			}
+			if report.Status != doctor.StatusFail {
+				t.Fatalf("API report status=%q want %q", report.Status, doctor.StatusFail)
+			}
+		} else if !strings.Contains(response.Body.String(), "FAIL") {
+			t.Fatalf("page omitted failure status: %s", response.Body.String())
+		}
+	}
+}
+
+func TestHandlerSupportsHeadWithoutResponseBody(t *testing.T) {
+	_, control := bootstrapStatusFixture(t)
+	diagnosticCalls := 0
+	_, h, err := newHandler(control, func(context.Context, string) doctor.Report {
+		diagnosticCalls++
+		return doctor.Report{Status: doctor.StatusPass}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		path        string
+		contentType string
+	}{
+		{path: "/", contentType: "text/html; charset=utf-8"},
+		{path: "/api/status", contentType: "application/json; charset=utf-8"},
+		{path: "/assets/status.css", contentType: "text/css; charset=utf-8"},
+	} {
+		req := httptest.NewRequest(http.MethodHead, "http://127.0.0.1"+tc.path, nil)
+		req.Host = "127.0.0.1"
+		response := httptest.NewRecorder()
+		h.ServeHTTP(response, req)
+		if response.Code != http.StatusOK {
+			t.Fatalf("path=%q status=%d want %d", tc.path, response.Code, http.StatusOK)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("path=%q HEAD response has body %q", tc.path, response.Body.String())
+		}
+		if got := response.Header().Get("Content-Type"); got != tc.contentType {
+			t.Fatalf("path=%q Content-Type=%q want %q", tc.path, got, tc.contentType)
+		}
+	}
+	if diagnosticCalls != 2 {
+		t.Fatalf("Doctor called %d times for page/API HEAD requests, want 2", diagnosticCalls)
+	}
+}
+
 func TestHandlerRejectsNonLocalHostAndMutationMethods(t *testing.T) {
 	_, control := bootstrapStatusFixture(t)
 	h, err := NewHandler(control)
