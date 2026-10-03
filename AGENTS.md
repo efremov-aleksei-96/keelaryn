@@ -47,7 +47,7 @@ Before any write:
 
 1. reconcile the authoritative branch and exact HEAD;
 2. read the compact development preflight or `DEVELOPMENT_STATE.json`;
-3. reconcile open PRs, active CI and any unfinished isolated branches relevant to the current objective;
+3. reconcile open work-claim issues, open PRs, active CI and any unfinished isolated branches relevant to the current objective;
 4. read only the architecture/contracts needed for the next slice;
 5. classify the slice under the Luna/Sol rules below.
 
@@ -91,13 +91,15 @@ Keelaryn development is a concurrent producer/reviewer/integrator pipeline, not 
 
 - **Luna lane — producer/throughput.** Luna may keep implementing or proving work unit N+1 while Sol reviews immutable handoff N.
 - **Sol lane — review/architecture/integration.** Sol reviews exact Luna handoff SHAs, resolves protected decisions, and performs serialized integration/state transitions. Sol may also implement its own isolated work units.
-- Every write-capable work unit uses its own isolated exact-base branch/PR. Recommended prefixes are `luna/<work-unit>` and `sol/<work-unit>`; governance-only changes may use `governance/<work-unit>`.
-- Before writing, inspect active open PRs/branches and their declared scope. Two active writers must not own overlapping files/semantic authority. If overlap is material or uncertain, fail closed and choose another unit.
-- Each PR/handoff must declare at minimum: lane, work-unit ID, base SHA, scope, dependencies, exact handoff SHA, and state.
-- Sol review binds to the **exact handoff SHA**. Once that review starts, Luna does not append unrelated/new work to that reviewed head; it starts the next independent work unit on another branch. Any required fix that changes the handoff SHA invalidates the prior review for integration purposes.
+- Before the **first branch/file write** for a work unit, publish a GitHub issue titled `[WORK-CLAIM] <work-unit>` containing lane, work-unit ID, exact base SHA, file/semantic scope, dependencies and `State: CLAIMING`.
+- Immediately after publishing the claim, reconcile all open `[WORK-CLAIM]` issues and open PR scopes. For materially overlapping claims, the lowest GitHub claim issue number wins deterministically; every other claimant must mark/close its claim as abandoned and choose another unit **before editing files**. If claim visibility or overlap is uncertain, fail closed.
+- Only after the claim is acquired may the owner create its isolated exact-base branch and begin writes. Recommended prefixes are `luna/<work-unit>` and `sol/<work-unit>`; governance-only changes may use `governance/<work-unit>`.
+- When the first PR is opened, its body must reference the claim issue and repeat the ownership fields. After verifying the PR is remotely visible, the issue claim may be closed because ownership has transferred to the open PR.
+- Each active PR/handoff must declare at minimum: claim issue, lane, work-unit ID, base SHA, scope, dependencies, exact handoff SHA, and state.
+- Sol review binds to the **exact handoff SHA**. Once that review starts, Luna does not append unrelated/new work to that reviewed head; it starts the next independent work unit on another claim/branch. Any required fix that changes the handoff SHA invalidates the prior review for integration purposes.
 - Authoritative merges and `DEVELOPMENT_STATE.json` transitions are the serialized integration gate. Immediately before either, reconcile authoritative HEAD. If base moved, re-evaluate conflicts and re-run required proof; never assume a previously reviewed base is still merge-safe.
-- Ephemeral lane occupancy is derived from GitHub branches/PRs, not stored as mutable live state in `DEVELOPMENT_STATE.json`. That file remains authority for qualified project state only.
-- One model must not commandeer or rewrite the other lane's active branch. Review the immutable head, or create a separate remediation/integration branch.
+- Ephemeral lane occupancy is derived from open work-claim issues until claim transfer, then from open PRs. It is not stored as mutable live state in `DEVELOPMENT_STATE.json`; that file remains authority for qualified project state only.
+- One model must not commandeer or rewrite the other lane's active branch. Review the immutable head, or create a separate claimed remediation/integration unit.
 
 ## Shared safety
 
