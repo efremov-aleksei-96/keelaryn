@@ -278,6 +278,9 @@ func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions)
 	if err := controlstorage.VerifyStandaloneSearchStaging(layout); err != nil {
 		return IndexResult{}, err
 	}
+	if err := reconcileActiveSearchSQLiteFamily(ctx, layout); err != nil {
+		return IndexResult{}, err
+	}
 	if err := controlstorage.PromoteStagedSearch(layout); err != nil {
 		return IndexResult{}, err
 	}
@@ -288,6 +291,40 @@ func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions)
 		return IndexResult{}, err
 	}
 	return result, nil
+}
+
+func reconcileActiveSearchSQLiteFamily(ctx context.Context, layout controlstorage.Layout) error {
+	if _, err := os.Lstat(layout.SearchDB); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("inspect active search database: %w", err)
+	}
+	hasSidecar := false
+	for _, suffix := range []string{"-journal", "-wal", "-shm"} {
+		if _, err := os.Lstat(layout.SearchDB + suffix); err == nil {
+			hasSidecar = true
+			break
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("inspect active search sidecar: %w", err)
+		}
+	}
+	if !hasSidecar {
+		return nil
+	}
+
+	// Keep the SQLite family under its original names and let SQLite perform
+	// any legitimate hot-journal/WAL recovery itself. This is derived state
+	// only and runs after the staged replacement has already been fully built
+	// and verified. Any error fails closed and leaves staging for retry.
+	index, err := searchsqlite.Open(ctx, layout.SearchDB)
+	if err != nil {
+		return fmt.Errorf("reconcile active search SQLite family: %w", err)
+	}
+	if err := index.Close(); err != nil {
+		return fmt.Errorf("close reconciled active search SQLite family: %w", err)
+	}
+	return nil
 }
 
 func verifyProtectedSearchCandidate(
