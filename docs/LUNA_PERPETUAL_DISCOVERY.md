@@ -53,39 +53,90 @@ Read-only discovery does not require a GitHub work claim. The moment remediation
 
 ### 4.1 Durable discovery-cycle ledger
 
-Discovery-cycle progress MUST survive chat/Work interruption.
+Discovery-cycle progress MUST survive chat/Work interruption and same-baseline evidence resets.
 
-When Luna first enters discovery for an authoritative baseline SHA, it searches GitHub for an issue titled exactly:
+#### Canonical baseline issue
+
+For authoritative baseline SHA `B`, the ledger title is exactly:
 
 ```text
-[DISCOVERY-CYCLE] <full-baseline-sha>
+[DISCOVERY-CYCLE] <full-B>
 ```
 
-If none exists, create one with:
+Lookup MUST search **all issue states (open and closed)** and require an exact title match. A closed canonical issue is still the ledger for that unchanged baseline; do not create a replacement merely because it is closed.
+
+If no exact-title issue exists, create one with:
 
 ```text
 Baseline-SHA: <authoritative HEAD>
 Objective: <current DEVELOPMENT_STATE next objective>
 State: ACTIVE
 Authority: NONQUALIFIED_DISCOVERY_EVIDENCE
+Initial-Epoch: BASELINE
 ```
 
-Creating or commenting on this coordination/evidence issue does not require a work claim because it is not a branch/file mutation and grants no product write authority.
+Immediately after creation, search all states again for the exact title before doing any catalog work. GitHub titles are not unique: if concurrent creation produced multiple issues, the **lowest issue number is canonical**. Every higher-number duplicate must be marked `State: DUPLICATE`, link the canonical issue, and close before that session performs discovery work. New results and reset records are written only to the canonical issue.
 
-After every completed or intentionally skipped catalog category, append one durable result comment:
+Creating/updating/commenting on this coordination/evidence issue does not require a work claim because it is not a branch/file mutation and grants no product write authority.
+
+#### Epoch identity and same-baseline resets
+
+The initial epoch is `BASELINE`. Category results from an older epoch never satisfy completion for a newer epoch.
+
+A material event that changes the engineering risk without changing authoritative HEAD creates a reset only when it has a **durable unique Trigger-Ref**, for example:
+
+- `CI_RUN:<run-id>:<conclusion>`;
+- `PR_REVIEW:<review-id>` or `REVIEW_COMMENT:<comment-id>`;
+- `GITHUB_FINDING:<issue-or-comment-url>`;
+- `RUNTIME_EVIDENCE:<durable-github-evidence-url>`.
+
+An external dependency/platform/provider observation must first be persisted as durable GitHub evidence before it may reset the cycle.
+
+Before posting a reset, fetch all canonical-issue comments. If the exact `Trigger-Ref` already has a reset record, reuse it. Otherwise append:
+
+```text
+DISCOVERY-CYCLE-RESET-V1
+Baseline-SHA: <exact baseline>
+Trigger-Kind: <CI | REVIEW | FINDING | RUNTIME | EXTERNAL>
+Trigger-Ref: <durable unique ref>
+Reason: <why prior category results may no longer be sufficient>
+```
+
+Re-fetch comments immediately after posting. Concurrent duplicate reset comments for the same `Trigger-Ref` are possible; the **lowest GitHub comment ID for that exact Trigger-Ref is canonical** and the others are ignored for epoch selection.
+
+The epoch identity for a reset is:
+
+```text
+RESET-COMMENT:<canonical-reset-comment-id>
+```
+
+Among distinct canonical reset records, the current epoch is the one with the latest GitHub `created_at`; an exact timestamp tie is broken by the higher comment ID. Thus a later material trigger on the same HEAD invalidates completion from earlier epochs without changing the baseline issue identity.
+
+If the canonical issue was closed because the previous epoch completed, a new canonical reset record requires reopening that same issue before further discovery.
+
+Material evidence that already existed when the baseline issue was first created is part of the initial `BASELINE` epoch and should influence unit selection/Why-Now; it does not cause an immediate self-reset.
+
+#### Category results
+
+Before starting a unit, fetch the canonical issue and derive the current epoch. Before recording its result, fetch again; if the current epoch changed while the unit ran, the result may be retained as historical evidence but does **not** satisfy the new epoch.
+
+After every completed or intentionally skipped category, append:
 
 ```text
 DISCOVERY-CYCLE-RESULT-V1
 Baseline-SHA: <exact baseline>
+Epoch-Ref: BASELINE | RESET-COMMENT:<id>
 Category: <catalog category>
 Work-Unit: <discovery unit id>
 Outcome: NO_FINDING | LUNA_FIX_READY | SOL_REVIEW_REQUIRED | BLOCKED_EXTERNAL | SKIPPED_IRRELEVANT
 Evidence: <bounded summary plus durable links when applicable>
 ```
 
-A fresh session reconstructs the cycle from these comments and does not repeat a category that already has a valid result for the exact baseline. Duplicate read-only results caused by a race are harmless evidence; any later branch/file remediation still requires normal work-claim arbitration.
+A category counts as complete only when a valid result matches both the exact baseline and the **current epoch**. Fresh sessions reconstruct completion from the canonical issue and its comments instead of chat memory.
 
-When every category has a valid result, close the cycle issue as completed. A later authoritative baseline uses a new cycle issue; historical cycle issues remain read-only evidence and never become qualified development-state authority.
+When every category has a current-epoch result, close the canonical issue as completed. On unchanged HEAD, a later session searches all states, finds that closed issue, reconstructs the completed current epoch, and does not create or rerun another cycle unless a new durable reset trigger exists.
+
+A later authoritative baseline SHA gets its own exact-title issue and begins again at `BASELINE`. Historical cycle issues remain nonqualified evidence and never become project-state authority.
 
 ## 5. Evidence rules
 
@@ -114,18 +165,11 @@ Do not recursively turn every observation into more research.
 
 ## 8. Cycle and stop rule
 
-A discovery cycle is bound to one authoritative baseline SHA and one durable GitHub `[DISCOVERY-CYCLE] <full-baseline-sha>` issue. Chat history or ephemeral in-run memory is never cycle authority.
+A discovery cycle is bound to one authoritative baseline SHA, one canonical all-states GitHub `[DISCOVERY-CYCLE] <full-baseline-sha>` issue, and one current epoch. Chat history or ephemeral in-run memory is never cycle authority.
 
-Against an unchanged baseline, perform at most one bounded unit per catalog category, except the single direct follow-up allowed by §7. Completion is reconstructed from the exact-baseline `[DISCOVERY-CYCLE]` issue. Skip a category only when it is clearly irrelevant to the active objective and persist `SKIPPED_IRRELEVANT` with a short reason in that cycle issue.
+Against an unchanged baseline/epoch, perform at most one bounded unit per catalog category, except the single direct follow-up allowed by §7. Completion is reconstructed from current-epoch results in the canonical issue. Skip a category only when it is clearly irrelevant to the active objective and persist `SKIPPED_IRRELEVANT` with a short reason for the current epoch.
 
-The cycle resets when material evidence changes the engineering situation, including:
-
-- authoritative HEAD changes;
-- objective/qualified state changes;
-- new material CI/runtime evidence;
-- a new review finding;
-- dependency/platform/provider behavior materially changes;
-- a new durable blocker/finding changes priorities.
+A new authoritative HEAD creates a new baseline issue. Material CI/runtime/review/finding/external evidence on the **same** HEAD resets the cycle only through the durable `DISCOVERY-CYCLE-RESET-V1` protocol in §4.1, which creates a new epoch identity. Dependency/platform/provider observations must first have a durable GitHub evidence ref. Objective/qualified-state changes committed in the repository naturally produce a new HEAD/baseline.
 
 Luna may stop for lack of work only when both are true:
 

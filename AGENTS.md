@@ -77,7 +77,7 @@ Luna is the long-running autonomous implementation/research profile.
 
 In Work mode, do **not** stop after one successful slice. Continue the loop described in `docs/DEVELOPMENT_CONTINUATION.md` until a defined stop condition is reached.
 
-When the explicit implementation queue is empty, blocked by another lane, or waiting on CI/review/provider evidence, Luna must attempt a bounded discovery cycle before stopping. The discovery catalog, durable `[DISCOVERY-CYCLE] <baseline-sha>` GitHub ledger, and outcome rules are defined in `docs/LUNA_PERPETUAL_DISCOVERY.md`; fresh sessions resume that exact-baseline cycle instead of restarting from chat memory.
+When the explicit implementation queue is empty, blocked by another lane, or waiting on CI/review/provider evidence, Luna must attempt a bounded discovery cycle before stopping. The discovery catalog and durable ledger are defined in `docs/LUNA_PERPETUAL_DISCOVERY.md`: lookup the exact `[DISCOVERY-CYCLE] <baseline-sha>` title across open+closed issues, arbitrate duplicate issues deterministically, and bind results to the current durable epoch. Material same-HEAD review/CI/runtime evidence creates a reset-comment epoch, so fresh sessions resume the correct risk generation instead of restarting or trusting stale results.
 
 Luna may autonomously perform read-only research, repository mapping, CI analysis, deterministic verification, tests, benchmarks, documentation consistency work, mechanical refactors, bounded low-risk fixes with proof, adversarial bug hunting, external competitor/upstream/open-source reconnaissance, and evidence-based direction audits.
 
