@@ -173,19 +173,21 @@ Lease-Until: <RFC3339 UTC, no more than 30 minutes after claim creation>
 6. if visibility, scope overlap, or winner ordering is uncertain, fail closed and perform no file write;
 7. the winner acquires only a short **claim-transfer lease**. It may create an isolated exact-base branch whose name contains the claim number and write only `.keelaryn-work/<work-unit>.json`, containing the claim metadata needed to open the first draft PR. It must not edit product/code/document scope yet;
 8. before `Lease-Until`, open a draft PR that references the claim and repeats the ownership fields, then reconcile that the PR is remotely visible;
-9. only after that remote PR is visible does ownership transfer to the PR. Close the issue claim and substantive writes may begin on the PR branch.
+9. after the remote PR is visible, reconcile transfer eligibility using GitHub server timestamps. Transfer is valid only when the PR `created_at` is no later than `Lease-Until` and, if the claim was already closed as stale, the PR `created_at` is earlier than the claim `closed_at`. Invalid/late PRs are closed without substantive edits and require a new claim. For a valid transfer, close the issue claim; substantive writes may then begin on the PR branch.
 
 This publish→reconcile→winner→draft-PR-transfer sequence prevents two sessions that started from the same read-only prestate from both silently becoming writers and bounds claim-only ownership after interruption.
 
 If `Lease-Until` expires before transfer:
 
 1. a fresh session reconciles open claims **and** open PRs;
-2. if no open PR references the expired claim, the claim may be marked stale/retired and closed;
-3. any leftover claim-only branch or `.keelaryn-work/<work-unit>.json` marker from that claim is abandoned and must not be reused;
-4. recovery begins with a new claim and a new claim-numbered branch;
-5. the interrupted original session must reconcile before its next write; an expired/closed claim gives it no authority to continue.
+2. immediately before retirement, re-fetch the claim and referencing PRs;
+3. if no open PR references the expired claim, the claim may be marked stale/retired and closed;
+4. if a racing PR is observed after retirement, resolve ownership from GitHub server timestamps: a PR created no later than `Lease-Until` and before the claim `closed_at` is the valid transfer; a PR created after either boundary is invalid and must close without substantive edits;
+5. any leftover claim-only branch or `.keelaryn-work/<work-unit>.json` marker from an invalid/expired claim is abandoned and must not be reused;
+6. recovery begins with a new claim and a new claim-numbered branch;
+7. the interrupted original session must reconcile before its next write and obey the same timestamp result.
 
-If an open PR already references the claim, ownership has transferred to that PR and the issue's lease expiry is irrelevant. The marker is transport/bootstrap metadata only and must be removed before integration; it never becomes product or qualified-state authority.
+If an open PR validly references the claim under this rule, ownership has transferred to that PR and later lease expiry is irrelevant. The marker is transport/bootstrap metadata only and must be removed before integration; it never becomes product or qualified-state authority.
 
 #### Work-unit branch and handoff
 
@@ -202,7 +204,7 @@ Handoff-SHA: <exact candidate sha when ready for review>
 State: ACTIVE | HANDOFF_READY | REVIEWED | INTEGRATION_READY
 ```
 
-Recommended branch prefixes are `luna/<work-unit>` and `sol/<work-unit>`. Governance-only protocol work may use `governance/<work-unit>`.
+Recommended branch forms are `luna/<work-unit>-c<claim>` and `sol/<work-unit>-c<claim>`. Governance-only protocol work may use `governance/<work-unit>-c<claim>`.
 
 Sol review is bound to an exact `Handoff-SHA`. While Sol reviews that SHA, Luna may immediately acquire and start the next independent unit on another claim/branch.
 
