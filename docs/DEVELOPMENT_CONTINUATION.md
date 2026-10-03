@@ -97,7 +97,7 @@ Selection rules:
 
 1. Luna selects the highest-priority ready, unclaimed/non-overlapping `LUNA_READY` unit, then `EITHER_PROFILE` if no higher Luna-ready unit exists.
 2. A separate `SOL_REQUIRED` unit blocks only itself and units that actually depend on it. It does not block independent Luna-safe writes.
-3. Sol prioritizes immutable Luna handoffs awaiting review/integration, then ready architecture/authority blockers, then any other ready Sol/Either unit.
+3. Sol prioritizes immutable Luna handoffs awaiting review/integration, then ready architecture/authority blockers, then `EITHER_PROFILE`, then `LUNA_READY` when no higher-priority Sol work remains.
 4. Explicit Luna never performs a protected `SOL_REQUIRED` write. If no independent Luna-safe unit exists, it may continue read-only analysis/proof and then stop dependent writes.
 5. Explicit Sol may execute `LUNA_READY`, `EITHER_PROFILE`, or `SOL_REQUIRED` units; selecting Sol never requires needless hand-back to Luna.
 6. Generic continuation uses the resolved active profile from §2 and the same per-unit queue.
@@ -169,11 +169,12 @@ Lease-Until: <RFC3339 UTC, no more than 30 minutes after claim creation>
 
 3. immediately reconcile **again** after the issue is remotely visible;
 4. compare the requested scope with every open claim and active PR;
-5. for materially overlapping claims, the **lowest GitHub claim issue number wins**; all later claimants mark/close their claim as abandoned and choose another unit before branch creation/file edits;
-6. if visibility, scope overlap, or winner ordering is uncertain, fail closed and perform no file write;
-7. the winner acquires only a short **claim-transfer lease**. It may create an isolated exact-base branch whose name contains the claim number and write only `.keelaryn-work/<work-unit>.json`, containing the claim metadata needed to open the first draft PR. It must not edit product/code/document scope yet;
-8. before `Lease-Until`, open a draft PR that references the claim and repeats the ownership fields, then reconcile that the PR is remotely visible;
-9. after the remote PR is visible, reconcile transfer eligibility using GitHub server timestamps. Transfer is valid only when the PR `created_at` is no later than `Lease-Until` and, if the claim was already closed as stale, the PR `created_at` is earlier than the claim `closed_at`. Invalid/late PRs are closed without substantive edits and require a new claim. For a valid transfer, close the issue claim; substantive writes may then begin on the PR branch.
+5. if the requested scope materially overlaps an **active PR**, the new claim loses immediately; mark/close it as abandoned and choose another unit before branch creation/file edits;
+6. only when no active PR owns the scope, order materially overlapping claims by GitHub issue number; the lowest claim number wins and all later claimants abandon before branch creation/file edits;
+7. if visibility, scope overlap, or winner ordering is uncertain, fail closed and perform no file write;
+8. the winner acquires only a short **claim-transfer lease**. It may create an isolated exact-base branch whose name contains the claim number and write only `.keelaryn-work/<work-unit>.json`, containing the claim metadata needed to open the first draft PR. It must not edit product/code/document scope yet;
+9. before `Lease-Until`, open a draft PR that references the claim and repeats the ownership fields, then reconcile that the PR is remotely visible;
+10. after the remote PR is visible, reconcile transfer eligibility using GitHub server timestamps. Transfer is valid only when the PR `created_at` is no later than `Lease-Until` and, if the claim was already closed as stale, the PR `created_at` is earlier than the claim `closed_at`. Invalid/late PRs are closed without substantive edits and require a new claim. For a valid transfer, close the issue claim; substantive writes may then begin on the PR branch.
 
 This publish→reconcile→winner→draft-PR-transfer sequence prevents two sessions that started from the same read-only prestate from both silently becoming writers and bounds claim-only ownership after interruption.
 
