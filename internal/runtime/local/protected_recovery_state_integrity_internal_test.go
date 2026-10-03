@@ -27,7 +27,7 @@ func TestProtectedRecoveryRejectsUnrelatedStateForeignKeyDamageBeforeSearchMutat
 		t.Fatal(err)
 	}
 
-	dropRemoteHistoryParentForForeignKeyCorruption(t, layout.StateDB)
+	dropProviderOccurrenceParentForForeignKeyCorruption(t, layout.StateDB)
 	stateBefore, err := os.ReadFile(layout.StateDB)
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func TestProtectedRecoveryRejectsUnrelatedStateForeignKeyDamageBeforeSearchMutat
 	if err == nil {
 		t.Fatal("protected search recovery succeeded with unrelated state foreign-key damage")
 	}
-	if !strings.Contains(err.Error(), "remote_history_generations") {
+	if !strings.Contains(err.Error(), "provider_object_occurrences") {
 		t.Fatalf("error=%v does not identify the damaged state authority", err)
 	}
 
@@ -64,7 +64,7 @@ func TestProtectedRecoveryRejectsUnrelatedStateForeignKeyDamageBeforeSearchMutat
 	}
 }
 
-func dropRemoteHistoryParentForForeignKeyCorruption(t *testing.T, statePath string) {
+func dropProviderOccurrenceParentForForeignKeyCorruption(t *testing.T, statePath string) {
 	t.Helper()
 
 	conn, err := sqlite.OpenConn(statePath, sqlite.OpenReadWrite)
@@ -75,7 +75,7 @@ func dropRemoteHistoryParentForForeignKeyCorruption(t *testing.T, statePath stri
 		_ = conn.Close()
 		t.Fatal(err)
 	}
-	if err := sqlitex.ExecuteTransient(conn, "DROP TABLE remote_history_generations;", nil); err != nil {
+	if err := sqlitex.ExecuteTransient(conn, "DROP TABLE provider_object_occurrences;", nil); err != nil {
 		_ = conn.Close()
 		t.Fatal(err)
 	}
