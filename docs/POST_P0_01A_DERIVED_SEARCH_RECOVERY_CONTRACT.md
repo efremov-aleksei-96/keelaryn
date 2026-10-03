@@ -169,7 +169,7 @@ A promotion failure MUST NOT mutate `state.db`.
 
 Read paths continue to use **only** `search.db`.
 
-They must continue to require the expected current `SourceBoundary` derived from authoritative state.
+They must continue to require the expected current `SourceBoundary` derived from authoritative state. Rootless CLI search MAY read the stored search boundary only as candidate scope metadata, then MUST re-derive the exact expected boundary from `state.db` and execute the query through the bound read transaction. CLI ContextBundle, MCP and other root-scoped reads use the existing bound read path directly.
 
 Therefore:
 

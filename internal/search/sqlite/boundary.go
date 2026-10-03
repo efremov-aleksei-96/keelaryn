@@ -121,6 +121,28 @@ func (b SourceBoundary) Equal(other SourceBoundary) bool {
 	return sameSourceBoundary(b, other)
 }
 
+// StoredSourceBoundary returns the boundary recorded in this derived cache.
+// It is candidate scope metadata only, never identity/provenance authority.
+// Callers must revalidate it against authoritative state before using results.
+func (i *Index) StoredSourceBoundary(ctx context.Context) (SourceBoundary, error) {
+	if i == nil || i.pool == nil {
+		return SourceBoundary{}, ErrInvalidSourceBoundary
+	}
+	conn, err := i.pool.Get(ctx)
+	if err != nil {
+		return SourceBoundary{}, fmt.Errorf("get search connection: %w", err)
+	}
+	defer i.pool.Put(conn)
+	got, found, err := sourceBoundaryConn(conn)
+	if err != nil {
+		return SourceBoundary{}, err
+	}
+	if !found {
+		return SourceBoundary{}, ErrSourceBoundaryMismatch
+	}
+	return got, nil
+}
+
 func (i *Index) VerifySourceBoundary(ctx context.Context, expected SourceBoundary) error {
 	if i == nil || i.pool == nil {
 		return ErrInvalidSourceBoundary

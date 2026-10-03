@@ -413,6 +413,36 @@ func TestProtectedRuntimeRecoversOrphanStagingSidecar(t *testing.T) {
 	}
 }
 
+func TestProtectedCurrentSearchFailsClosedWithoutAuthoritativeState(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("bound current search"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 31, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits, err := localruntime.QueryProtectedReadOnlyCurrent(ctx, control, "bound current search", 10)
+	if err != nil || len(hits) != 1 {
+		t.Fatalf("initial current search hits=%#v err=%v", hits, err)
+	}
+	if err := os.Remove(layout.StateDB); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.QueryProtectedReadOnlyCurrent(ctx, control, "bound current search", 10); !errors.Is(err, localruntime.ErrStateDatabaseNotFound) {
+		t.Fatalf("error=%v want ErrStateDatabaseNotFound", err)
+	}
+}
+
 func TestProtectedRuntimeLockContentionDoesNotMutateStateOrActiveSearch(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()

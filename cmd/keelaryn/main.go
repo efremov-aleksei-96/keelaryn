@@ -95,7 +95,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if *controlDir == "" || *query == "" {
 			return errors.New("search requires --control-dir and --query")
 		}
-		hits, err := localruntime.QueryProtected(context.Background(), *controlDir, *query, *limit)
+		hits, err := localruntime.QueryProtectedReadOnlyCurrent(context.Background(), *controlDir, *query, *limit)
 		if err != nil {
 			return err
 		}
@@ -116,7 +116,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if *root == "" || *controlDir == "" || *query == "" || *reason == "" {
 			return errors.New("context-bundle requires --root, --control-dir, --query and --reason")
 		}
-		bundle, err := localruntime.BuildProtectedContext(context.Background(), localruntime.ProtectedContextOptions{
+		bundle, err := localruntime.BuildProtectedContextReadOnlyBound(context.Background(), localruntime.ProtectedContextOptions{
 			Root: *root, ControlDir: *controlDir,
 			Query: *query, Reason: *reason, Limit: *limit, MaxBytes: *maxBytes,
 		})

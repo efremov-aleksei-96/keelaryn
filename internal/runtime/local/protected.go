@@ -350,6 +350,36 @@ func QueryProtectedReadOnly(ctx context.Context, controlDir, query string, limit
 	return hits, nil
 }
 
+// QueryProtectedReadOnlyCurrent keeps the CLI search surface rootless without
+// allowing search.db to become an authority. The cache boundary supplies only
+// a candidate root; QueryProtectedReadOnlyBound re-derives the exact expected
+// boundary from state.db and performs boundary+FTS read in one SQLite snapshot.
+func QueryProtectedReadOnlyCurrent(ctx context.Context, controlDir, query string, limit int) ([]search.Hit, error) {
+	if strings.TrimSpace(controlDir) == "" {
+		return nil, ErrInvalidOptions
+	}
+	layout, err := controlstorage.OpenExisting(controlDir)
+	if err != nil {
+		return nil, err
+	}
+	index, err := searchsqlite.OpenReadOnly(ctx, layout.SearchDB)
+	if err != nil {
+		return nil, err
+	}
+	candidate, boundaryErr := index.StoredSourceBoundary(ctx)
+	closeErr := index.Close()
+	if boundaryErr != nil || closeErr != nil {
+		return nil, errors.Join(boundaryErr, closeErr)
+	}
+	if _, err := os.Lstat(layout.StateDB); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrStateDatabaseNotFound
+		}
+		return nil, fmt.Errorf("inspect authoritative state database: %w", err)
+	}
+	return QueryProtectedReadOnlyBound(ctx, candidate.Root, layout.Dir, query, limit)
+}
+
 func QueryProtectedReadOnlyBound(ctx context.Context, root, controlDir, query string, limit int) ([]search.Hit, error) {
 	root, layout, err := resolveProtectedLayout(root, controlDir)
 	if err != nil {
