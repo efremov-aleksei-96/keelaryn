@@ -151,10 +151,10 @@ Automatic/cheap carry-forward is allowed only when all of the following are prov
 1. source baseline SHA is an ancestor of the current baseline SHA;
 2. objective is unchanged;
 3. the source result belongs to the source baseline's current epoch;
-4. the source result has an explicit bounded `Read-Scope`, or a fresh bounded recheck reconstructs and verifies that scope;
-5. the Git diff from source baseline to current baseline does not intersect the source result's repository read scope or semantic assumptions;
+4. the source result already has an explicit durable bounded `Read-Scope`; legacy/no-scope results are ineligible for carry-forward and must be rerun as a new category result;
+5. the Git diff from source baseline to current baseline is proven disjoint from the source result's repository read scope **and semantic assumptions**; any intersection or uncertain overlap requires a full category rerun and a new `DISCOVERY-CYCLE-RESULT-V1`;
 6. no durable CI/runtime/review/finding trigger since the source result invalidates its evidence;
-7. the outcome-specific freshness rules below are satisfied.
+7. the outcome-specific freshness rules below are satisfied. A freshness recheck may add evidence for an otherwise diff-disjoint carry, but it never substitutes for condition 5.
 
 Persist:
 
@@ -166,7 +166,8 @@ Category: <catalog category>
 From-Baseline: <ancestor baseline sha>
 From-Result-Ref: <durable GitHub issue-comment URL/id>
 Read-Scope: <verified bounded scope>
-Verification: DIFF_DISJOINT | FRESH_RECHECK
+Verification: DIFF_DISJOINT
+Freshness-Check: NOT_REQUIRED | FRESH_PRIMARY_SOURCE_CHECK
 Evidence: <why the prior result still applies on this baseline>
 ```
 
@@ -176,9 +177,10 @@ Outcome/category rules:
 
 - `NO_FINDING`, `LUNA_FIX_READY`, and `SOL_REVIEW_REQUIRED` may be carried when their evidence/read scope is still valid; unresolved findings remain unresolved work even though rediscovery is unnecessary.
 - `SKIPPED_IRRELEVANT` may be carried only when the objective and relevance assumptions are unchanged.
-- `BLOCKED_EXTERNAL` is never blindly carried; recheck the external dependency/environment first.
-- `DEPENDENCY_PLATFORM_API` and `EXTERNAL_REUSE_COMPETITORS` require a fresh lightweight primary-source/freshness check before carry-forward, even when the repository diff is disjoint.
-- A legacy result lacking explicit `Read-Scope`, or any uncertain overlap/freshness case, fails toward rerunning that category rather than carrying it.
+- `BLOCKED_EXTERNAL` is never carried. Rerun the category against the current external dependency/environment and emit a new `DISCOVERY-CYCLE-RESULT-V1`.
+- `DEPENDENCY_PLATFORM_API` and `EXTERNAL_REUSE_COMPETITORS` may carry only when the repository/semantic diff is already proven disjoint **and** a fresh lightweight primary-source/freshness check confirms the prior evidence still applies.
+- A legacy result lacking explicit durable `Read-Scope` must be rerun as a new category result; do not reconstruct a narrower historical scope after the fact.
+- Any read-scope/semantic intersection or uncertain overlap requires a full category rerun and a new result. `FRESH_RECHECK` is not a carry-forward escape hatch for changed scope.
 
 When HEAD moves, close an incomplete old baseline issue as `SUPERSEDED_BASE_MOVED` after its durable results are preserved. The new baseline issue may then carry valid categories individually and rerun only invalidated/unknown categories.
 
