@@ -128,6 +128,8 @@ Baseline-SHA: <exact baseline>
 Epoch-Ref: BASELINE | RESET-COMMENT:<id>
 Category: <catalog category>
 Work-Unit: <discovery unit id>
+Read-Scope: <bounded repository paths/subsystem and/or external sources actually examined>
+Observed-At: <RFC3339 UTC or explicit source-observation date>
 Outcome: NO_FINDING | LUNA_FIX_READY | SOL_REVIEW_REQUIRED | BLOCKED_EXTERNAL | SKIPPED_IRRELEVANT
 Evidence: <bounded summary plus durable links when applicable>
 ```
@@ -137,6 +139,48 @@ A category counts as complete only when a valid result matches both the exact ba
 When every category has a current-epoch result, close the canonical issue as completed. On unchanged HEAD, a later session searches all states, finds that closed issue, reconstructs the completed current epoch, and does not create or rerun another cycle unless a new durable reset trigger exists.
 
 A later authoritative baseline SHA gets its own exact-title issue and begins again at `BASELINE`. Historical cycle issues remain nonqualified evidence and never become project-state authority.
+
+#### Cross-baseline carry-forward
+
+A new authoritative HEAD still gets its own exact-title baseline issue. HEAD movement is not permission to treat prior results as current, but it also does **not** require a blind full-catalog rerun.
+
+Before starting deep work for an incomplete category, Luna MAY look for the nearest earlier canonical discovery-cycle baseline whose SHA is an ancestor of the current authoritative HEAD and whose objective is unchanged. A prior category result counts on the new baseline only after Luna appends a durable carry-forward record to the **new** canonical issue.
+
+Automatic/cheap carry-forward is allowed only when all of the following are proven:
+
+1. source baseline SHA is an ancestor of the current baseline SHA;
+2. objective is unchanged;
+3. the source result belongs to the source baseline's current epoch;
+4. the source result has an explicit bounded `Read-Scope`, or a fresh bounded recheck reconstructs and verifies that scope;
+5. the Git diff from source baseline to current baseline does not intersect the source result's repository read scope or semantic assumptions;
+6. no durable CI/runtime/review/finding trigger since the source result invalidates its evidence;
+7. the outcome-specific freshness rules below are satisfied.
+
+Persist:
+
+```text
+DISCOVERY-CYCLE-CARRYFORWARD-V1
+Baseline-SHA: <current exact baseline>
+Epoch-Ref: BASELINE | RESET-COMMENT:<id>
+Category: <catalog category>
+From-Baseline: <ancestor baseline sha>
+From-Result-Ref: <durable GitHub issue-comment URL/id>
+Read-Scope: <verified bounded scope>
+Verification: DIFF_DISJOINT | FRESH_RECHECK
+Evidence: <why the prior result still applies on this baseline>
+```
+
+A valid carry-forward record counts as the category's current-baseline/current-epoch completion. It never changes the original result and never makes the old issue authoritative for the new baseline.
+
+Outcome/category rules:
+
+- `NO_FINDING`, `LUNA_FIX_READY`, and `SOL_REVIEW_REQUIRED` may be carried when their evidence/read scope is still valid; unresolved findings remain unresolved work even though rediscovery is unnecessary.
+- `SKIPPED_IRRELEVANT` may be carried only when the objective and relevance assumptions are unchanged.
+- `BLOCKED_EXTERNAL` is never blindly carried; recheck the external dependency/environment first.
+- `DEPENDENCY_PLATFORM_API` and `EXTERNAL_REUSE_COMPETITORS` require a fresh lightweight primary-source/freshness check before carry-forward, even when the repository diff is disjoint.
+- A legacy result lacking explicit `Read-Scope`, or any uncertain overlap/freshness case, fails toward rerunning that category rather than carrying it.
+
+When HEAD moves, close an incomplete old baseline issue as `SUPERSEDED_BASE_MOVED` after its durable results are preserved. The new baseline issue may then carry valid categories individually and rerun only invalidated/unknown categories.
 
 ## 5. Evidence rules
 
@@ -170,7 +214,7 @@ A discovery cycle is bound to one authoritative baseline SHA, one canonical all-
 
 Against an unchanged baseline/epoch, perform at most one bounded unit per catalog category, except the single direct follow-up allowed by §7. Completion is reconstructed from current-epoch results in the canonical issue. Skip a category only when it is clearly irrelevant to the active objective and persist `SKIPPED_IRRELEVANT` with a short reason for the current epoch.
 
-A new authoritative HEAD creates a new baseline issue. Material CI/runtime/review/finding/external evidence on the **same** HEAD resets the cycle only through the durable `DISCOVERY-CYCLE-RESET-V1` protocol in §4.1, which creates a new epoch identity. Dependency/platform/provider observations must first have a durable GitHub evidence ref. Objective/qualified-state changes committed in the repository naturally produce a new HEAD/baseline.
+A new authoritative HEAD creates a new baseline issue. Before rerunning a category, apply the cross-baseline carry-forward proof in §4.1; scope-disjoint evidence may be carried category-by-category, while unknown/intersecting/stale evidence is rerun. Material CI/runtime/review/finding/external evidence on the **same** HEAD resets the cycle only through the durable `DISCOVERY-CYCLE-RESET-V1` protocol in §4.1, which creates a new epoch identity. Dependency/platform/provider observations must first have a durable GitHub evidence ref. Objective/qualified-state changes committed in the repository naturally produce a new HEAD/baseline.
 
 Luna may stop for lack of work only when both are true:
 
