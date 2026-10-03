@@ -30,20 +30,22 @@ func TestProtectedRecoveryDiscardsValidPriorStagingInsteadOfTrustingIt(t *testin
 	if err := os.WriteFile(layout.SearchStagingDB, activeBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	priorStaging, err := os.Stat(layout.SearchStagingDB)
-	if err != nil {
-		t.Fatal(err)
+	discardCalls := 0
+	ops := defaultProtectedSearchRecoveryOps()
+	baseDiscard := ops.discardStaging
+	ops.discardStaging = func(got controlstorage.Layout) error {
+		discardCalls++
+		if _, err := os.Stat(got.SearchStagingDB); err != nil {
+			t.Fatalf("preexisting valid staging missing before discard: %v", err)
+		}
+		return baseDiscard(got)
 	}
 
-	if _, err := BootstrapProtectedIndex(ctx, options); err != nil {
+	if _, err := bootstrapProtectedIndex(ctx, options, ops); err != nil {
 		t.Fatal(err)
 	}
-	activeAfter, err := os.Stat(layout.SearchDB)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if os.SameFile(priorStaging, activeAfter) {
-		t.Fatal("preexisting valid staging was promoted instead of being discarded and rebuilt")
+	if discardCalls != 1 {
+		t.Fatalf("discard calls=%d want=1", discardCalls)
 	}
 	assertProtectedRecoveryInvariant(t, ctx, root, control, layout, authorityBefore, corpusBefore, "valid staging must be rebuilt")
 }

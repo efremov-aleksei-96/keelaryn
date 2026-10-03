@@ -216,6 +216,7 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 // resolves the physical control parent and proves the control directory is
 // outside the corpus before any directory or SQLite file can be created.
 type protectedSearchRecoveryOps struct {
+	discardStaging  func(controlstorage.Layout) error
 	verifyCandidate func(context.Context, string, searchsqlite.SourceBoundary) error
 	reconcileActive func(context.Context, controlstorage.Layout) error
 	promote         func(controlstorage.Layout) error
@@ -223,6 +224,7 @@ type protectedSearchRecoveryOps struct {
 
 func defaultProtectedSearchRecoveryOps() protectedSearchRecoveryOps {
 	return protectedSearchRecoveryOps{
+		discardStaging:  controlstorage.DiscardStagedSearchFamily,
 		verifyCandidate: verifyProtectedSearchCandidate,
 		reconcileActive: reconcileActiveSearchSQLiteFamily,
 		promote:         controlstorage.PromoteStagedSearch,
@@ -274,7 +276,7 @@ func bootstrapProtectedIndex(
 	// A prior staging family therefore means only that an earlier rebuild was
 	// interrupted. Discard it under the process-crash-safe writer lock and
 	// rebuild from freshly reconciled state/corpus evidence.
-	if err := controlstorage.DiscardStagedSearchFamily(layout); err != nil {
+	if err := ops.discardStaging(layout); err != nil {
 		return IndexResult{}, err
 	}
 
