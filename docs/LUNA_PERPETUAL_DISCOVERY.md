@@ -130,6 +130,7 @@ Category: <catalog category>
 Work-Unit: <discovery unit id>
 Read-Scope: <bounded repository paths/subsystem and/or external sources actually examined>
 Observed-At: <RFC3339 UTC or explicit source-observation date>
+Semantic-Assumptions: NONE | <bounded invariants/authority/environment assumptions the result depends on>
 Outcome: NO_FINDING | LUNA_FIX_READY | SOL_REVIEW_REQUIRED | BLOCKED_EXTERNAL | SKIPPED_IRRELEVANT
 Evidence: <bounded summary plus durable links when applicable>
 ```
@@ -144,7 +145,7 @@ A later authoritative baseline SHA gets its own exact-title issue and begins aga
 
 A new authoritative HEAD still gets its own exact-title baseline issue. HEAD movement is not permission to treat prior results as current, but it also does **not** require a blind full-catalog rerun.
 
-Before starting deep work for an incomplete category, Luna MAY search earlier canonical discovery-cycle baselines **newest to oldest** for the nearest eligible ancestor `DISCOVERY-CYCLE-RESULT-V1` whose baseline SHA is an ancestor of the current authoritative HEAD and whose objective is unchanged. A `DISCOVERY-CYCLE-CARRYFORWARD-V1` record is provenance/completion evidence for its own baseline, **not** a new source result. This avoids one-hop limits without creating transitive trust chains: each new carry-forward is re-proven directly from the original eligible native result baseline to the current baseline.
+Before starting deep work for an incomplete category, Luna MUST search earlier canonical discovery-cycle baselines **newest to oldest**, skipping only baselines that contain no native current-epoch `DISCOVERY-CYCLE-RESULT-V1` for that category. The **first native result found is the only carry candidate**. If that newest native result is ineligible (for example `BLOCKED_EXTERNAL`, legacy/no-scope/no-semantic-assumptions, stale, intersecting, or invalidated), Luna MUST rerun the category and emit a new result; it MUST NOT continue farther back to an older, more convenient native result. A `DISCOVERY-CYCLE-CARRYFORWARD-V1` record is provenance/completion evidence for its own baseline, **not** a new source result. This avoids one-hop limits without allowing newer native evidence to be bypassed: each carry is re-proven directly from the newest native source-result baseline to the current baseline.
 
 Automatic/cheap carry-forward is allowed only when all of the following are proven:
 
@@ -152,8 +153,8 @@ Automatic/cheap carry-forward is allowed only when all of the following are prov
 2. source baseline SHA is an ancestor of the current baseline SHA;
 3. objective is unchanged;
 4. the source result belongs to the source baseline's current epoch;
-5. the source result already has an explicit durable bounded `Read-Scope`; legacy/no-scope results are ineligible for carry-forward and must be rerun as a new category result;
-6. the Git diff from the **native source-result baseline directly to the current baseline** is proven disjoint from the source result's repository read scope **and semantic assumptions**; any intersection or uncertain overlap requires a full category rerun and a new `DISCOVERY-CYCLE-RESULT-V1`;
+5. the source result already has an explicit durable bounded `Read-Scope` **and** explicit `Semantic-Assumptions` (`NONE` is valid); legacy results lacking either field are ineligible for carry-forward and must be rerun as a new category result;
+6. the Git diff from the **native source-result baseline directly to the current baseline** is proven disjoint from the source result's repository read scope **and the exact persisted semantic assumptions**; any intersection or uncertain overlap requires a full category rerun and a new `DISCOVERY-CYCLE-RESULT-V1`;
 7. perform an intervening invalidation scan from the source result through the current baseline across durable CI/runtime/review/finding/external evidence refs relevant to the category; no such trigger may invalidate the source evidence;
 8. persist that scan as `Invalidation-Scan: PASS` plus the durable refs/range checked; if an invalidating trigger exists or the scan cannot be bounded safely, rerun the category and emit a new `DISCOVERY-CYCLE-RESULT-V1` instead of carrying;
 9. the outcome-specific freshness rules below are satisfied. A freshness recheck may add evidence for an otherwise diff-disjoint carry, but it never substitutes for condition 6 or the invalidation scan.
@@ -167,7 +168,8 @@ Epoch-Ref: BASELINE | RESET-COMMENT:<id>
 Category: <catalog category>
 From-Baseline: <ancestor baseline sha>
 From-Result-Ref: <durable GitHub issue-comment URL/id>
-Read-Scope: <verified bounded scope>
+Read-Scope: <verified bounded scope copied from source result>
+Semantic-Assumptions: NONE | <exact source semantic assumptions, preserved for this carry>
 Verification: DIFF_DISJOINT
 Invalidation-Scan: PASS
 Invalidation-Evidence: <durable CI/runtime/review/finding/external refs or bounded range checked; NONE_INVALIDATING>
@@ -176,7 +178,7 @@ External-Dependency: NONE | <external source/provider/upstream assumption requir
 Evidence: <why the prior result still applies on this baseline>
 ```
 
-A valid carry-forward record counts as the category's current-baseline/current-epoch completion. It never changes the original result and never makes the old issue authoritative for the new baseline. It also does **not** become source evidence for a later baseline: later baselines search backward for the nearest eligible native result and re-prove the direct source→current diff.
+A valid carry-forward record counts as the category's current-baseline/current-epoch completion. It never changes the original result and never makes the old issue authoritative for the new baseline. It also does **not** become source evidence for a later baseline: later baselines search backward, skip carry-only/no-result baselines, stop at the first newer native result, and then either carry that result or rerun. Carry records preserve the source result's exact `Semantic-Assumptions` so later sessions can audit what was assumed even though the carry itself is never a new source result.
 
 Outcome/category rules:
 
@@ -184,7 +186,8 @@ Outcome/category rules:
 - `SKIPPED_IRRELEVANT` may be carried only when the objective and relevance assumptions are unchanged.
 - `BLOCKED_EXTERNAL` is never carried. Rerun the category against the current external dependency/environment and emit a new `DISCOVERY-CYCLE-RESULT-V1`.
 - Any result whose `Read-Scope`, evidence, or semantic assumptions depend on an external source/provider/upstream state may carry only when the repository/semantic diff is already proven disjoint **and** a fresh primary-source check confirms the external evidence/assumption still applies. This rule is based on actual dependency, not the catalog category label.
-- A legacy result lacking explicit durable `Read-Scope` must be rerun as a new category result; do not reconstruct a narrower historical scope after the fact.
+- A legacy result lacking explicit durable `Read-Scope` **or** explicit `Semantic-Assumptions` must be rerun as a new category result; do not reconstruct historical scope/assumptions after the fact.
+- Once the newest ancestor native result for the category is found, do not search past it for an older eligible result. If the newest native result cannot carry, rerun the category.
 - Any read-scope/semantic intersection or uncertain overlap requires a full category rerun and a new result. `FRESH_RECHECK` is not a carry-forward escape hatch for changed scope.
 - Any durable intervening trigger that invalidates the category's evidence, or any inability to bound the required invalidation scan safely, requires a full category rerun and a new result.
 
