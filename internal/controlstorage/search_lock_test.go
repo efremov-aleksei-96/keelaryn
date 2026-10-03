@@ -2,11 +2,42 @@ package controlstorage_test
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
 )
+
+func TestSearchMutationLockRejectsSymlinkBeforeOpen(t *testing.T) {
+	layout, err := controlstorage.Prepare(filepath.Join(t.TempDir(), "control"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "outside-lock-target")
+	targetBytes := []byte("outside-must-not-be-opened-as-control-lock")
+	if err := os.WriteFile(target, targetBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, layout.SearchLock); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	lock, err := controlstorage.AcquireSearchMutationLock(layout)
+	if lock != nil {
+		_ = lock.Close()
+	}
+	if !errors.Is(err, controlstorage.ErrControlFileUnsafe) {
+		t.Fatalf("error=%v want ErrControlFileUnsafe", err)
+	}
+	got, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(targetBytes) {
+		t.Fatal("external lock target changed")
+	}
+}
 
 func TestSearchMutationLockSerializesWriters(t *testing.T) {
 	layout, err := controlstorage.Prepare(filepath.Join(t.TempDir(), "control"))
