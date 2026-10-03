@@ -51,6 +51,42 @@ A unit should cover one subsystem or one research question. Do not start an unbo
 
 Read-only discovery does not require a GitHub work claim. The moment remediation needs branch/file writes, stop, reconcile, classify the proposed mutation, and acquire a normal work claim under the parallel-lane protocol.
 
+### 4.1 Durable discovery-cycle ledger
+
+Discovery-cycle progress MUST survive chat/Work interruption.
+
+When Luna first enters discovery for an authoritative baseline SHA, it searches GitHub for an issue titled exactly:
+
+```text
+[DISCOVERY-CYCLE] <full-baseline-sha>
+```
+
+If none exists, create one with:
+
+```text
+Baseline-SHA: <authoritative HEAD>
+Objective: <current DEVELOPMENT_STATE next objective>
+State: ACTIVE
+Authority: NONQUALIFIED_DISCOVERY_EVIDENCE
+```
+
+Creating or commenting on this coordination/evidence issue does not require a work claim because it is not a branch/file mutation and grants no product write authority.
+
+After every completed or intentionally skipped catalog category, append one durable result comment:
+
+```text
+DISCOVERY-CYCLE-RESULT-V1
+Baseline-SHA: <exact baseline>
+Category: <catalog category>
+Work-Unit: <discovery unit id>
+Outcome: NO_FINDING | LUNA_FIX_READY | SOL_REVIEW_REQUIRED | BLOCKED_EXTERNAL | SKIPPED_IRRELEVANT
+Evidence: <bounded summary plus durable links when applicable>
+```
+
+A fresh session reconstructs the cycle from these comments and does not repeat a category that already has a valid result for the exact baseline. Duplicate read-only results caused by a race are harmless evidence; any later branch/file remediation still requires normal work-claim arbitration.
+
+When every category has a valid result, close the cycle issue as completed. A later authoritative baseline uses a new cycle issue; historical cycle issues remain read-only evidence and never become qualified development-state authority.
+
 ## 5. Evidence rules
 
 Internal findings should include exact file/call-site/test/CI/runtime evidence sufficient for another session to reproduce or verify the conclusion.
@@ -63,7 +99,7 @@ Competitor research is allowed when tied to a concrete Keelaryn question such as
 
 Finish each unit with exactly one outcome:
 
-- `NO_FINDING` — the stated risk/question produced no material actionable evidence within the bounded scope. No repository write is required unless the negative result closes a previously durable risk hypothesis.
+- `NO_FINDING` — the stated risk/question produced no material actionable evidence within the bounded scope. Record the result in the baseline's discovery-cycle issue; no repository file write is required unless the negative result closes a previously durable risk hypothesis.
 - `LUNA_FIX_READY` — a reproducible, bounded issue has an already-specified Luna-safe behavior. Convert it into a normal claimed work unit; prove with a failing reproduction/test first when applicable.
 - `SOL_REVIEW_REQUIRED` — evidence touches architecture, schema/migration, destructive/recovery authority, concurrency semantics, security/auth/crypto, identity/provenance, irreversible storage, provider authority, or another protected boundary. Persist a concise finding/handoff; do not decide the protected fix in Luna.
 - `BLOCKED_EXTERNAL` — the question materially depends on unavailable credentials/environment/approval/source evidence. Record what is missing and continue another independent category when possible.
@@ -78,9 +114,9 @@ Do not recursively turn every observation into more research.
 
 ## 8. Cycle and stop rule
 
-A discovery cycle is bound to one authoritative baseline SHA.
+A discovery cycle is bound to one authoritative baseline SHA and one durable GitHub `[DISCOVERY-CYCLE] <full-baseline-sha>` issue. Chat history or ephemeral in-run memory is never cycle authority.
 
-Against an unchanged baseline, perform at most one bounded unit per catalog category, except the single direct follow-up allowed by §7. Skip a category only when it is clearly irrelevant to the active objective and record that determination in the in-run reasoning.
+Against an unchanged baseline, perform at most one bounded unit per catalog category, except the single direct follow-up allowed by §7. Completion is reconstructed from the exact-baseline `[DISCOVERY-CYCLE]` issue. Skip a category only when it is clearly irrelevant to the active objective and persist `SKIPPED_IRRELEVANT` with a short reason in that cycle issue.
 
 The cycle resets when material evidence changes the engineering situation, including:
 

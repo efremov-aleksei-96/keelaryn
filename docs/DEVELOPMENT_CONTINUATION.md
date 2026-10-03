@@ -169,7 +169,7 @@ Discovery priority is evidence-driven:
 
 A discovery result is classified as `NO_FINDING`, `LUNA_FIX_READY`, `SOL_REVIEW_REQUIRED`, or `BLOCKED_EXTERNAL`. A Luna-safe reproducible defect may become a normal claimed implementation work unit. A protected architecture/security/concurrency/schema/identity/recovery decision must become a bounded Sol-ready finding instead of being decided by Luna.
 
-A discovery cycle is bounded: at most one unit from each catalog category against an unchanged authoritative baseline, except that a material finding may spawn one directly dependent bounded follow-up. Once the explicit queue and that cycle are exhausted with no new evidence, Luna may stop. A new authoritative HEAD, material CI/runtime result, review finding, dependency/platform update, or objective transition resets the cycle.
+A discovery cycle is bounded: at most one unit from each catalog category against an unchanged authoritative baseline, except that a material finding may spawn one directly dependent bounded follow-up. Cycle progress is durable in a GitHub issue titled `[DISCOVERY-CYCLE] <full-baseline-sha>`; each category appends a `DISCOVERY-CYCLE-RESULT-V1` comment, including `NO_FINDING` and `SKIPPED_IRRELEVANT`. Fresh sessions reconstruct completion from that issue instead of chat memory. Once the explicit queue and that durable cycle are exhausted with no new evidence, Luna may stop. A new authoritative HEAD, material CI/runtime result, review finding, dependency/platform update, or objective transition resets the cycle onto a new baseline issue.
 
 #### Remote scope claim before the first write
 
