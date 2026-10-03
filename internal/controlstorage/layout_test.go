@@ -19,7 +19,9 @@ func TestPrepareCreatesAndReopensProtectedLayout(t *testing.T) {
 	}
 	if layout.Dir == "" ||
 		layout.StateDB != filepath.Join(layout.Dir, controlstorage.StateDatabaseName) ||
-		layout.SearchDB != filepath.Join(layout.Dir, controlstorage.SearchDatabaseName) {
+		layout.SearchDB != filepath.Join(layout.Dir, controlstorage.SearchDatabaseName) ||
+		layout.SearchStagingDB != filepath.Join(layout.Dir, controlstorage.SearchStagingDatabaseName) ||
+		layout.SearchLock != filepath.Join(layout.Dir, controlstorage.SearchMutationLockName) {
 		t.Fatalf("layout=%#v", layout)
 	}
 	if _, err := os.Stat(layout.Dir); err != nil {
