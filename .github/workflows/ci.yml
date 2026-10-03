@@ -37,8 +37,12 @@ jobs:
           assert state["schema"] == "keelaryn.development-state.v2"
           assert state["authoritative_branch"] == "dev/corpus-first-p0"
           assert state["architecture_authority"] == "KEELARYN_CANONICAL.md"
-          assert state["phase"] == "P0_TECHNOLOGY_SPIKE"
-          assert state["product_level"] == "P0_SPIKE_STARTED"
+          phase_product = (state["phase"], state["product_level"])
+          allowed_phase_products = {
+              ("P0_CLOSURE_QUALIFICATION", "P0_PROOF_PASS_PENDING_EXACT_HEAD_CI"),
+              ("POST_P0_RELIABILITY", "P0_CLOSED"),
+          }
+          assert phase_product in allowed_phase_products
           assert "C0_CLOSED" in state["completed"]
           assert Path("KEELARYN_CANONICAL.md").is_file()
           assert Path("docs/REUSE_LEDGER.md").is_file()

@@ -1,12 +1,12 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 230,
+  "revision": 231,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
-  "phase": "P0_TECHNOLOGY_SPIKE",
+  "phase": "P0_CLOSURE_QUALIFICATION",
   "status": "IN_PROGRESS",
-  "product_level": "P0_SPIKE_STARTED",
+  "product_level": "P0_PROOF_PASS_PENDING_EXACT_HEAD_CI",
   "language_direction": "GO",
   "legacy": {
     "frozen_ref": "legacy/pre-corpus-p0-20260924",
@@ -196,12 +196,14 @@
     "P0_MINIMAL_MCP_ACCESS_STAGE_RETROSPECTIVE_PASS",
     "CONTINUATION_OBJECTIVE_PROFILE_GATE_ADOPTED",
     "P0_EMBEDDED_MINIMAL_WEB_STATUS_QUALIFIED",
-    "P0_EMBEDDED_MINIMAL_WEB_STATUS_STAGE_RETROSPECTIVE_PASS"
+    "P0_EMBEDDED_MINIMAL_WEB_STATUS_STAGE_RETROSPECTIVE_PASS",
+    "P0_FINAL_PROOF_REAUDIT_PASS",
+    "P0_FINAL_M1_CANONICAL_REMOTE_SPIKE_DRIFT_RESOLVED"
   ],
   "next_objective": {
-    "id": "P0_FINAL_PROOF_REAUDIT",
-    "description": "Run the final P0 proof re-audit from scratch against the current authoritative tree, reconcile all remaining closure findings and evidence, and close P0 only if the full audit passes without open BLOCKER or CRITICAL findings.",
-    "audit_gate": "P0_EMBEDDED_MINIMAL_WEB_STATUS_MERGED_QUALIFIED_AND_STAGE_RETROSPECTIVE_PASS"
+    "id": "P0_CLOSURE_EXACT_HEAD_CI",
+    "description": "Qualify the closure candidate on validate + Ubuntu 24.04 + Windows 2025. If every required job passes on the exact candidate head, record durable P0 closure and advance to post-P0 reliability and deterministic recovery.",
+    "audit_gate": "P0_FINAL_PROOF_REAUDIT_PASS_CANONICAL_REMOTE_SPIKE_DRIFT_RESOLVED"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -295,22 +297,18 @@
   },
   "ci": {
     "workflow": "Corpus-first development",
-    "first_run_id": 36003118232,
-    "head": "78ad81ee2fdcf6b30b4f7668be1a919bb5d20819",
-    "conclusion": "startup_failure",
-    "jobs_created": 0,
-    "rerun_failed_jobs_api": "403_THIS_WORKFLOW_RUN_CANNOT_BE_RETRIED",
-    "classification": "PRE_JOB_GITHUB_ACTIONS_STARTUP_FAILURE",
-    "code_failure_proven": false,
-    "next_action": "Let the next natural clean-branch commit trigger CI again; do not manufacture code changes solely to retrigger.",
-    "observed_runs": [
-      36003118232,
-      36007594035,
-      36007635671
+    "workflow_file": ".github/workflows/ci.yml",
+    "authority": "GitHub Actions exact-head evidence",
+    "required_jobs": [
+      "validate",
+      "go (ubuntu-24.04)",
+      "go (windows-2025)"
     ],
-    "observed_conclusion": "startup_failure",
-    "observed_jobs_created": 0,
-    "current_change": "Removed unnecessary setup-go and all Go execution from C0 workflow; C0 now validates metadata and clean-tree boundary only. Go setup returns in P0 technology spike."
+    "closure_candidate_status": "PENDING_EXACT_HEAD_CI",
+    "last_qualified_product_source_head": "187451d71f728df9ac724fd8752a078c52824b0c",
+    "last_qualified_product_source_ci_run_id": 37114259657,
+    "merged_product_head": "b7858176fe64d98b45e3118e5b1dfad44e64d9cb",
+    "note": "The merged web-status product blobs are identical to the exact source head qualified by run 37114259657. This closure candidate changes only development authority/CI validation."
   },
   "vps_legacy": {
     "drive_service": "inactive_enabled",
@@ -2343,10 +2341,10 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "84fc28d11184adb45e8bb3a1b7a7cfb226371226",
-      "document": "docs/P0_MINIMAL_MCP_ACCESS_RETROSPECTIVE_20261002.md",
-      "ci_run_id": 37037679567,
-      "conclusion": "PASS_P0_MINIMAL_MCP_ACCESS_ZERO_OPEN_REVIEW_FINDINGS_EMBEDDED_WEB_STATUS_NEXT"
+      "head": "b7858176fe64d98b45e3118e5b1dfad44e64d9cb",
+      "document": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
+      "ci_run_id": 37114259657,
+      "conclusion": "PASS_ZERO_OPEN_BLOCKER_CRITICAL"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -3754,16 +3752,16 @@
   },
   "p0_closure_audit": {
     "date": "2026-10-03",
-    "status": "P0_NOT_CLOSED",
-    "document": "docs/P0_EMBEDDED_MINIMAL_WEB_STATUS_RETROSPECTIVE_20261003.md",
+    "status": "P0_PROOF_PASS_CLOSURE_CI_PENDING",
+    "document": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
     "audited_product_head": "b7858176fe64d98b45e3118e5b1dfad44e64d9cb",
     "qualification_head": "187451d71f728df9ac724fd8752a078c52824b0c",
     "qualification_ci_run_id": 37114259657,
-    "conclusion": "PASS_P0_EMBEDDED_MINIMAL_WEB_STATUS_ZERO_OPEN_REVIEW_FINDINGS_FINAL_P0_PROOF_REAUDIT_NEXT",
-    "resolved_gap": "EMBEDDED_MINIMAL_WEB_STATUS",
-    "earliest_remaining_autonomous_product_gap": "P0_FINAL_PROOF_REAUDIT",
+    "conclusion": "PASS_ZERO_OPEN_BLOCKER_CRITICAL_CANONICAL_DRIFT_RESOLVED_CLOSURE_CI_PENDING",
+    "resolved_gap": "P0_FINAL_PROOF_REAUDIT",
+    "earliest_remaining_autonomous_product_gap": "P0_CLOSURE_EXACT_HEAD_CI",
     "p0_closure_gates_remaining": [
-      "P0_FINAL_PROOF_REAUDIT"
+      "P0_CLOSURE_EXACT_HEAD_CI"
     ],
     "carried_high_findings": [
       "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
@@ -3783,7 +3781,7 @@
       "AUDIT_SECURITY_H6_FTS_SEARCH_CACHE_RESIDUAL_TEXT",
       "AUDIT_SECURITY_H3_STATE_DB_FILESYSTEM_PROTECTION"
     ],
-    "full_audit_result": "ZERO_OPEN_BLOCKER_CRITICAL",
+    "full_audit_result": "PASS_ZERO_OPEN_BLOCKER_CRITICAL",
     "resolved_d0_finding": "AUDIT_D0_M1_RETROSPECTIVE_POINTER_DRIFT",
     "resolved_operability_finding": "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED",
     "post_audit_gate_progress": {
@@ -3825,8 +3823,33 @@
         "mutation_authority_exposed": false,
         "remote_network_listener_exposed": false,
         "corpus_mutations": 0
+      },
+      "FINAL_P0_PROOF_REAUDIT": {
+        "status": "PASS_ZERO_OPEN_BLOCKER_CRITICAL",
+        "document": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
+        "audited_product_head": "b7858176fe64d98b45e3118e5b1dfad44e64d9cb",
+        "audit_collection_control_head": "df5dadec7907de7234e9d75b0972de82800b1a50",
+        "open_blocker_critical": 0,
+        "carried_high_findings": [
+          "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+          "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT"
+        ],
+        "carried_medium_findings": [
+          "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY"
+        ],
+        "new_medium_finding": "AUDIT_P0_FINAL_M1_CANONICAL_REMOTE_SPIKE_DRIFT",
+        "new_low_finding": "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE"
+      },
+      "CANONICAL_REMOTE_SPIKE_DRIFT": {
+        "status": "RESOLVED",
+        "finding": "AUDIT_P0_FINAL_M1_CANONICAL_REMOTE_SPIKE_DRIFT",
+        "resolution_head": "61c4de4c88c70a5326090b010c27c5ce55f7e723",
+        "resolution": "Canonical P0 provider/spike wording now permits provider-native adapters when a generic substrate does not expose required correctness evidence; the first Drive path explicitly uses the official Drive API for native history/identity semantics while rclone remains reusable generic substrate."
       }
-    }
+    },
+    "carried_low_findings": [
+      "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE"
+    ]
   },
   "p0_30": {
     "status": "QUALIFIED",
@@ -4470,19 +4493,19 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_EMBEDDED_MINIMAL_WEB_STATUS_RETROSPECTIVE_20261003.md",
-    "last_retrospective_result": "PASS_P0_EMBEDDED_MINIMAL_WEB_STATUS_ZERO_OPEN_REVIEW_FINDINGS_FINAL_P0_PROOF_REAUDIT_NEXT",
+    "last_retrospective": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
+    "last_retrospective_result": "PASS_ZERO_OPEN_BLOCKER_CRITICAL",
     "substantive_slice_counter": 0,
-    "current_stage": "P0_FINAL_PROOF_REAUDIT",
+    "current_stage": "P0_CLOSURE_QUALIFICATION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
     "clean_pass_definition": "ONE_COMPLETE_POST_REMEDIATION_AUDIT_PASS_ACROSS_ALL_REQUIRED_DIMENSIONS_WITH_ZERO_OPEN_BLOCKER_OR_CRITICAL_FINDINGS",
     "on_any_new_finding": "DURING_COLLECTION_RECORD_AND_CONTINUE; DURING_REMEDIATION RECORD_AND_ADD_ANY_NEW_BLOCKER_OR_CRITICAL_TO_THE_CURRENT_REMEDIATION_SET_WITHOUT_STARTING_A_FULL_REAUDIT",
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
-    "next_stage_locked": false,
-    "blocked_next_stage": "NONE",
-    "unlock_condition": "P0_EMBEDDED_MINIMAL_WEB_STATUS_MERGED_QUALIFIED_AND_STAGE_RETROSPECTIVE_PASS",
+    "next_stage_locked": true,
+    "blocked_next_stage": "POST_P0_RELIABILITY_AND_DETERMINISTIC_RECOVERY_UNTIL_CLOSURE_CI_PASS",
+    "unlock_condition": "EXACT_HEAD_CI_VALIDATE_UBUNTU24_WINDOWS2025_PASS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -4532,6 +4555,15 @@
         "required_correction": "Before final P0 proof and any production live-provider claim, reassess the dependency and qualify a durable scope-validation source plus its timeout/failure behavior, while preserving exact least-scope enforcement.",
         "gate_scope": "REASSESS_AT_P0_FINAL_PROOF_REAUDIT_AND_BEFORE_PRODUCTION_LIVE_PROVIDER_RUNTIME",
         "external_evidence": "https://docs.cloud.google.com/docs/authentication/token-types"
+      },
+      {
+        "id": "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE",
+        "severity": "LOW",
+        "status": "OPEN",
+        "affected_head": "df5dadec7907de7234e9d75b0972de82800b1a50",
+        "issue": "GitHub repository description still describes the legacy Windows-first PowerShell release-engineering project rather than current Go corpus-first Keelaryn.",
+        "required_correction": "Update repository metadata to describe current Go corpus-first Keelaryn.",
+        "gate_scope": "HOUSEKEEPING_POST_P0_NOT_CORRECTNESS_GATE"
       }
     ],
     "resolved_findings": [
@@ -4852,6 +4884,15 @@
         "schema_version": 46,
         "qualification_ci": 36717965505,
         "resolution": "Provider-neutral Observation facts size/mode/modified_at now carry explicit availability instead of fabricated provider values. LocalFS still records all exact facts. Historical LIGHTWEIGHT_ALL:v1 and identity-mutation fingerprint v1 remain exact for fully-known facts; LIGHTWEIGHT_ALL:v2 and identity-mutation fingerprint v2 encode optional facts. SQLite schema v46 preserves historical rows as known, uses canonical compatibility sentinels only behind availability flags, and protects new availability state with structural plus connection-local application authority."
+      },
+      {
+        "id": "AUDIT_P0_FINAL_M1_CANONICAL_REMOTE_SPIKE_DRIFT",
+        "severity": "MEDIUM",
+        "status": "RESOLVED",
+        "audit_document": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
+        "issue": "Canonical P0 technology-spike wording still required an rclone-backed remote scan even though the qualified Drive architecture deliberately uses the official Drive API to obtain durable native history/cursor and provider-object identity semantics that rclone's public ChangeNotify contract does not expose.",
+        "resolution_head": "61c4de4c88c70a5326090b010c27c5ce55f7e723",
+        "resolution": "Canonical provider strategy and technology-spike wording were synchronized with the already-qualified provider-neutral adapter decision; rclone remains reusable generic substrate rather than Drive history authority."
       }
     ],
     "last_resolution_checkpoint": {
@@ -5161,19 +5202,26 @@
       "dependent_development_unlock": "SATISFIED_BY_POST_R11_FULL_AUDIT_ZERO_OPEN_BLOCKER_CRITICAL"
     },
     "latest_full_audit": {
-      "date": "2026-09-30",
-      "document": "docs/P0_FULL_A00_A13_AUDIT_20260930.md",
-      "audited_product_head": "6ade05b9595458693eea701091fd2aef54117f8b",
-      "qualification_ci_run_id": 36670536752,
+      "date": "2026-10-03",
+      "document": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
+      "audited_product_head": "b7858176fe64d98b45e3118e5b1dfad44e64d9cb",
+      "qualification_source_head": "187451d71f728df9ac724fd8752a078c52824b0c",
+      "qualification_ci_run_id": 37114259657,
       "result": "PASS_ZERO_OPEN_BLOCKER_CRITICAL",
       "open_blocker_critical": 0,
       "new_findings": [
-        "AUDIT_D0_M1_RETROSPECTIVE_POINTER_DRIFT"
+        "AUDIT_P0_FINAL_M1_CANONICAL_REMOTE_SPIKE_DRIFT",
+        "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE"
+      ],
+      "resolved_during_closure": [
+        "AUDIT_P0_FINAL_M1_CANONICAL_REMOTE_SPIKE_DRIFT"
       ],
       "carried_high_findings": [
         "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
-        "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
-        "AUDIT_OPERABILITY_H4_DOCTOR_SELFTEST_NOT_INTEGRATED"
+        "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT"
+      ],
+      "carried_medium_findings": [
+        "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY"
       ],
       "product_mutations": 0,
       "corpus_mutations": 0
