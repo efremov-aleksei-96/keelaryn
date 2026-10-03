@@ -1014,7 +1014,11 @@ At minimum prove:
 Start with:
 
 - local filesystem;
-- one real maintainer-relevant remote/provider path (likely rclone-backed Google Drive for testing).
+- one real maintainer-relevant remote/provider path.
+
+Reuse a broad provider substrate such as rclone where its public contract exposes enough correctness evidence. When a provider's identity/history guarantees require semantics that the generic substrate does not expose, a narrow provider-native adapter MAY be used behind the same provider-neutral Keelaryn contracts.
+
+For the first qualified remote path, Google Drive uses the official Drive API because Keelaryn requires durable change-cursor and provider-object identity/history evidence that rclone's public ChangeNotify surface does not expose. This is an adapter decision, not Google-specific Core architecture.
 
 Google-specific correctness is not the architecture.
 
@@ -1028,8 +1032,8 @@ Before committing to a large implementation, build a very small Go spike proving
 one Go executable
 → SQLite state
 → local read-only scan
-→ one rclone-backed remote scan
-→ provider/native identity evidence preserved
+→ one real remote/provider scan-history path
+→ provider/native identity and continuity evidence preserved
 → FTS query
 → minimal MCP endpoint
 → embedded minimal web status page
@@ -1037,7 +1041,7 @@ one Go executable
 
 The spike is discarded or promoted based on evidence.
 
-Its purpose is to validate Go/rclone/SQLite/MCP composition and binary/deployment ergonomics, not to become an excuse for another infrastructure phase.
+Its purpose is to validate Go/SQLite/provider/MCP composition, correctness boundaries and binary/deployment ergonomics, not to require one provider library by architecture or become an excuse for another infrastructure phase.
 
 ---
 
@@ -1052,7 +1056,7 @@ Only after P0 is useful:
 5. backup/export/restore hardening;
 6. semantics/assertions only where recurring value is proven;
 7. additional providers;
-8. provider-native adapters where generic substrate is insufficient;
+8. additional provider-native adapters where generic substrate is insufficient;
 9. safe mutation planning;
 10. verified physical mutations and rollback/compensation;
 11. metadata-loss reconstruction;
