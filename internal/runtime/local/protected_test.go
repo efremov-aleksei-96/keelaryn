@@ -343,6 +343,10 @@ func TestProtectedRuntimeStateCorruptionDoesNotReplaceActiveSearch(t *testing.T)
 		t.Fatal(err)
 	}
 	searchBefore := mustReadFile(t, layout.SearchDB)
+	stagingBefore := []byte("preexisting-staging-must-survive-invalid-state")
+	if err := os.WriteFile(layout.SearchStagingDB, stagingBefore, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(layout.StateDB, []byte("corrupt state authority"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -352,6 +356,9 @@ func TestProtectedRuntimeStateCorruptionDoesNotReplaceActiveSearch(t *testing.T)
 	}
 	if got := mustReadFile(t, layout.SearchDB); string(got) != string(searchBefore) {
 		t.Fatal("active search cache changed after state.db corruption")
+	}
+	if got := mustReadFile(t, layout.SearchStagingDB); string(got) != string(stagingBefore) {
+		t.Fatal("staging changed before corrupt state.db failed closed")
 	}
 }
 
@@ -377,6 +384,10 @@ func TestProtectedRuntimeCorpusDriftDoesNotReplaceActiveSearch(t *testing.T) {
 	}
 	authorityBefore := captureLocalAuthority(t, ctx, layout.StateDB, root)
 	searchBefore := mustReadFile(t, layout.SearchDB)
+	stagingBefore := []byte("preexisting-staging-must-survive-corpus-drift")
+	if err := os.WriteFile(layout.SearchStagingDB, stagingBefore, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(path, []byte("changed corpus"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -389,6 +400,9 @@ func TestProtectedRuntimeCorpusDriftDoesNotReplaceActiveSearch(t *testing.T) {
 	}
 	if got := mustReadFile(t, layout.SearchDB); string(got) != string(searchBefore) {
 		t.Fatal("active search cache changed after corpus drift")
+	}
+	if got := mustReadFile(t, layout.SearchStagingDB); string(got) != string(stagingBefore) {
+		t.Fatal("staging changed before corpus drift failed closed")
 	}
 }
 

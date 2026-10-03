@@ -11,6 +11,8 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
+	"github.com/efremov-aleksei-96/keelaryn/internal/ingest"
+	providerlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
@@ -137,6 +139,53 @@ func expectedSearchBoundaryReadOnly(ctx context.Context, stateDB, root string) (
 	}, nil
 }
 
+// preflightProtectedSearchRecovery proves that existing non-rebuildable state
+// is readable and, when a committed local bootstrap exists, that the current
+// corpus still matches its exact durable receipt. It is intentionally
+// read-only: callers use it before creating/acquiring the search mutation lock
+// and repeat it after lock acquisition before discarding any derived staging.
+func preflightProtectedSearchRecovery(ctx context.Context, root string, layout controlstorage.Layout) (err error) {
+	if _, statErr := os.Lstat(layout.StateDB); statErr != nil {
+		if errors.Is(statErr, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("inspect authoritative state database: %w", statErr)
+	}
+
+	state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = errors.Join(err, state.Close())
+	}()
+
+	scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+	receipt, err := proveBootstrapReceiptReadOnly(ctx, state, scan)
+	if err != nil {
+		return err
+	}
+	version, fingerprint, err := ingest.BootstrapLocalFSSnapshotFingerprint(
+		ctx,
+		providerlocalfs.New(ProviderID),
+		root,
+		scan.StartedAt,
+	)
+	if err != nil {
+		return err
+	}
+	if version != receipt.FingerprintVersion || fingerprint != receipt.FingerprintSHA256 {
+		return fmt.Errorf("%w: durable bootstrap receipt does not match current corpus", ErrCorpusChanged)
+	}
+	return nil
+}
+
 // BootstrapProtectedIndex is the executable control-storage boundary. It
 // resolves the physical control parent and proves the control directory is
 // outside the corpus before any directory or SQLite file can be created.
@@ -153,6 +202,12 @@ func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions)
 		return IndexResult{}, err
 	}
 
+	// Fail before any search-recovery mutation when non-rebuildable state is
+	// invalid or the already-committed corpus receipt no longer matches.
+	if err := preflightProtectedSearchRecovery(ctx, root, layout); err != nil {
+		return IndexResult{}, err
+	}
+
 	lock, err := controlstorage.AcquireSearchMutationLock(layout)
 	if err != nil {
 		return IndexResult{}, err
@@ -160,6 +215,12 @@ func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions)
 	defer func() {
 		err = errors.Join(err, lock.Close())
 	}()
+
+	// Re-prove after serialization so a state/corpus change that raced the
+	// first preflight cannot authorize deletion of prior staging.
+	if err := preflightProtectedSearchRecovery(ctx, root, layout); err != nil {
+		return IndexResult{}, err
+	}
 
 	// Staging is rebuildable derived work, never query/result authority.
 	// A prior staging family therefore means only that an earlier rebuild was
