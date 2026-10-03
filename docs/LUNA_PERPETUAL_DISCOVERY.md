@@ -144,17 +144,18 @@ A later authoritative baseline SHA gets its own exact-title issue and begins aga
 
 A new authoritative HEAD still gets its own exact-title baseline issue. HEAD movement is not permission to treat prior results as current, but it also does **not** require a blind full-catalog rerun.
 
-Before starting deep work for an incomplete category, Luna MAY look for the nearest earlier canonical discovery-cycle baseline whose SHA is an ancestor of the current authoritative HEAD and whose objective is unchanged. A prior category result counts on the new baseline only after Luna appends a durable carry-forward record to the **new** canonical issue.
+Before starting deep work for an incomplete category, Luna MAY search earlier canonical discovery-cycle baselines **newest to oldest** for the nearest eligible ancestor `DISCOVERY-CYCLE-RESULT-V1` whose baseline SHA is an ancestor of the current authoritative HEAD and whose objective is unchanged. A `DISCOVERY-CYCLE-CARRYFORWARD-V1` record is provenance/completion evidence for its own baseline, **not** a new source result. This avoids one-hop limits without creating transitive trust chains: each new carry-forward is re-proven directly from the original eligible native result baseline to the current baseline.
 
 Automatic/cheap carry-forward is allowed only when all of the following are proven:
 
-1. source baseline SHA is an ancestor of the current baseline SHA;
-2. objective is unchanged;
-3. the source result belongs to the source baseline's current epoch;
-4. the source result already has an explicit durable bounded `Read-Scope`; legacy/no-scope results are ineligible for carry-forward and must be rerun as a new category result;
-5. the Git diff from source baseline to current baseline is proven disjoint from the source result's repository read scope **and semantic assumptions**; any intersection or uncertain overlap requires a full category rerun and a new `DISCOVERY-CYCLE-RESULT-V1`;
-6. no durable CI/runtime/review/finding trigger since the source result invalidates its evidence;
-7. the outcome-specific freshness rules below are satisfied. A freshness recheck may add evidence for an otherwise diff-disjoint carry, but it never substitutes for condition 5.
+1. source evidence is a native `DISCOVERY-CYCLE-RESULT-V1`, not a prior carry-forward record;
+2. source baseline SHA is an ancestor of the current baseline SHA;
+3. objective is unchanged;
+4. the source result belongs to the source baseline's current epoch;
+5. the source result already has an explicit durable bounded `Read-Scope`; legacy/no-scope results are ineligible for carry-forward and must be rerun as a new category result;
+6. the Git diff from the **native source-result baseline directly to the current baseline** is proven disjoint from the source result's repository read scope **and semantic assumptions**; any intersection or uncertain overlap requires a full category rerun and a new `DISCOVERY-CYCLE-RESULT-V1`;
+7. no durable CI/runtime/review/finding trigger since the source result invalidates its evidence;
+8. the outcome-specific freshness rules below are satisfied. A freshness recheck may add evidence for an otherwise diff-disjoint carry, but it never substitutes for condition 6.
 
 Persist:
 
@@ -171,7 +172,7 @@ Freshness-Check: NOT_REQUIRED | FRESH_PRIMARY_SOURCE_CHECK
 Evidence: <why the prior result still applies on this baseline>
 ```
 
-A valid carry-forward record counts as the category's current-baseline/current-epoch completion. It never changes the original result and never makes the old issue authoritative for the new baseline.
+A valid carry-forward record counts as the category's current-baseline/current-epoch completion. It never changes the original result and never makes the old issue authoritative for the new baseline. It also does **not** become source evidence for a later baseline: later baselines search backward for the nearest eligible native result and re-prove the direct source→current diff.
 
 Outcome/category rules:
 
