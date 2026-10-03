@@ -80,6 +80,30 @@ Every fresh session starts read-only.
 
 No write is permitted before this reconcile.
 
+## 3.1 Objective/profile suitability gate
+
+After startup reconcile, and again after every material transition, classify the **highest-priority ready work** before choosing a write-capable slice. The classification is about the next material prerequisite/action, not a permanent label on the whole objective.
+
+Exactly one classification applies by evaluating these predicates **in order and stopping at the first match**:
+
+1. **SOL_REQUIRED** — the next material decision or write crosses a `STRONG_MODEL_REQUIRED` boundary, or correctness depends on unresolved architecture/authority judgment.
+2. **LUNA_READY** — only after `SOL_REQUIRED` is false: the next material work is within `SAFE_AUTONOMOUS` / `SAFE_WITH_VERIFY`, has no unresolved Sol-only prerequisite, **and** is predominantly mechanical, deterministic, research/test/CI, bounded-refactor, or long-running throughput work that fits Luna's autonomous profile.
+3. **EITHER_PROFILE** — only after both predicates above are false: the next material work is still Luna-safe and has no unresolved Sol-only prerequisite, but it is not specifically Luna-throughput work. Either Luna or Sol may execute it.
+
+This ordered decision rule makes the three labels mutually exclusive and reproducible across fresh sessions.
+
+Rules:
+
+1. Recompute the classification after every reconcile, PR merge, material CI/runtime result, newly discovered blocker/finding, or `DEVELOPMENT_STATE.json` transition.
+2. A mixed objective is classified by its **next material prerequisite**, while independent safe work remains eligible for Luna.
+3. Explicit Luna + `SOL_REQUIRED` is fail-closed: Luna performs no protected write. It may continue independent read-only analysis, deterministic tests/proof, impact mapping, or a bounded candidate handoff, then stops dependent writes when no safe work remains.
+4. Explicit Sol may proceed on `LUNA_READY`, `EITHER_PROFILE`, or `SOL_REQUIRED`; selecting Sol never requires needless hand-back to Luna.
+5. Generic continuation uses the resolved active profile from §2 and applies the same gate.
+6. The gate does not create a second state authority. Durable truth remains `DEVELOPMENT_STATE.json` + Git/GitHub + fresh external evidence where relevant.
+7. If classification is uncertain, use `SOL_REQUIRED` for protected writes and Luna-safe behavior for all other work until the uncertainty is resolved.
+
+The session should state the classification briefly when it materially constrains what it can do, but it should not ask the user to choose a model when the current profile can still make useful safe progress.
+
 ## 4. Shared transactional loop
 
 Every development profile uses the same loop:
