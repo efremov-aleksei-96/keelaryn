@@ -51,17 +51,21 @@ Before any write:
 4. read only the architecture/contracts needed for the next slice;
 5. classify the slice under the Luna/Sol rules below.
 
-Before selecting any write-capable slice, classify the **highest-priority ready work** (not the whole roadmap) through the objective/profile suitability gate:
+Before selecting any write-capable slice, build the ready queue from the current objective, open PRs/branches and unresolved dependencies. Classification is **per work unit**, not one global classification for the whole objective.
 
-Evaluate in this order, stopping at the first match:
+Classify each candidate work unit:
 
-1. `SOL_REQUIRED` — the next material decision or write crosses a STRONG_MODEL_REQUIRED boundary or depends on unresolved architecture/authority judgment.
-2. `LUNA_READY` — after `SOL_REQUIRED` is false, the next material work is Luna-safe **and** is predominantly mechanical, deterministic, research/test/CI, bounded refactor, or long-running throughput work suited to Luna.
-3. `EITHER_PROFILE` — after both predicates above are false, the next material work is still Luna-safe, but is not specifically Luna-throughput work; either Luna or Sol may execute it.
+1. `SOL_REQUIRED` — that work unit crosses a STRONG_MODEL_REQUIRED boundary or depends on unresolved architecture/authority judgment.
+2. `LUNA_READY` — that work unit is Luna-safe and predominantly mechanical, deterministic, research/test/CI, bounded refactor, or long-running throughput work.
+3. `EITHER_PROFILE` — that work unit is Luna-safe but not specifically throughput-oriented.
 
-Recompute this classification after every reconcile and after any material transition (merge, CI result, new blocker/finding, objective/state change).
+Selection rules:
 
-If the selected profile is Luna and the classification is `SOL_REQUIRED`, Luna must not perform the protected write. It should continue any independent safe analysis, tests, proof, mapping, or candidate handoff work, then stop dependent writes when no safe work remains. Sol may proceed on any of the three classifications while preserving the same transaction discipline.
+- Luna selects the highest-priority ready, non-overlapping `LUNA_READY` work unit, then `EITHER_PROFILE` if no higher Luna-ready unit exists.
+- The existence of a separate `SOL_REQUIRED` work unit is **not** a global stop. Luna continues any independent safe unit whose dependencies are satisfied.
+- Sol prioritizes immutable Luna handoffs awaiting review/integration, then architecture/authority blockers, then any other ready Sol/Either unit.
+- A work unit whose dependency is itself unresolved `SOL_REQUIRED` is not ready for Luna; Luna must choose another independent unit or stop dependent writes.
+- Recompute readiness and classification after every reconcile and material transition.
 
 After any uncertain write, timeout or transport error: **reconcile only; never blindly repeat the mutation**.
 
@@ -80,6 +84,20 @@ Luna must not independently decide or finalize core architecture, schema/migrati
 Sol is the strong-model development profile.
 
 Sol follows the same reconcile → one coherent mutation → verify → checkpoint discipline, but may own architecture-sensitive decisions, high-risk implementation slices, stage qualification, and authoritative development-state updates when evidence supports them.
+
+## Parallel Luna/Sol lanes
+
+Keelaryn development is a concurrent producer/reviewer/integrator pipeline, not a Luna→Sol→Luna relay.
+
+- **Luna lane — producer/throughput.** Luna may keep implementing or proving work unit N+1 while Sol reviews immutable handoff N.
+- **Sol lane — review/architecture/integration.** Sol reviews exact Luna handoff SHAs, resolves protected decisions, and performs serialized integration/state transitions. Sol may also implement its own isolated work units.
+- Every write-capable work unit uses its own isolated exact-base branch/PR. Recommended prefixes are `luna/<work-unit>` and `sol/<work-unit>`; governance-only changes may use `governance/<work-unit>`.
+- Before writing, inspect active open PRs/branches and their declared scope. Two active writers must not own overlapping files/semantic authority. If overlap is material or uncertain, fail closed and choose another unit.
+- Each PR/handoff must declare at minimum: lane, work-unit ID, base SHA, scope, dependencies, exact handoff SHA, and state.
+- Sol review binds to the **exact handoff SHA**. Once that review starts, Luna does not append unrelated/new work to that reviewed head; it starts the next independent work unit on another branch. Any required fix that changes the handoff SHA invalidates the prior review for integration purposes.
+- Authoritative merges and `DEVELOPMENT_STATE.json` transitions are the serialized integration gate. Immediately before either, reconcile authoritative HEAD. If base moved, re-evaluate conflicts and re-run required proof; never assume a previously reviewed base is still merge-safe.
+- Ephemeral lane occupancy is derived from GitHub branches/PRs, not stored as mutable live state in `DEVELOPMENT_STATE.json`. That file remains authority for qualified project state only.
+- One model must not commandeer or rewrite the other lane's active branch. Review the immutable head, or create a separate remediation/integration branch.
 
 ## Shared safety
 
