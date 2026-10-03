@@ -16,17 +16,21 @@ var (
 )
 
 const (
-	StateDatabaseName  = "state.db"
-	SearchDatabaseName = "search.db"
+	StateDatabaseName         = "state.db"
+	SearchDatabaseName        = "search.db"
+	SearchStagingDatabaseName = "search.db.next"
+	SearchMutationLockName    = "search.lock"
 )
 
 // Layout is the runtime-local control-state layout. The directory is the
 // security boundary so SQLite journal/WAL/SHM side files remain inside the
 // same protected namespace as the main databases.
 type Layout struct {
-	Dir      string
-	StateDB  string
-	SearchDB string
+	Dir             string
+	StateDB         string
+	SearchDB        string
+	SearchStagingDB string
+	SearchLock      string
 }
 
 // Resolve computes the physical control-state paths without creating or
@@ -68,9 +72,11 @@ func Resolve(dir string) (Layout, error) {
 
 	physical := filepath.Join(resolvedParent, filepath.Base(abs))
 	return Layout{
-		Dir:      physical,
-		StateDB:  filepath.Join(physical, StateDatabaseName),
-		SearchDB: filepath.Join(physical, SearchDatabaseName),
+		Dir:             physical,
+		StateDB:         filepath.Join(physical, StateDatabaseName),
+		SearchDB:        filepath.Join(physical, SearchDatabaseName),
+		SearchStagingDB: filepath.Join(physical, SearchStagingDatabaseName),
+		SearchLock:      filepath.Join(physical, SearchMutationLockName),
 	}, nil
 }
 
@@ -176,7 +182,10 @@ func verifyLayout(layout Layout) error {
 }
 
 func allowedControlFileName(name string) bool {
-	for _, base := range []string{StateDatabaseName, SearchDatabaseName} {
+	if name == SearchMutationLockName {
+		return true
+	}
+	for _, base := range []string{StateDatabaseName, SearchDatabaseName, SearchStagingDatabaseName} {
 		if name == base || name == base+"-journal" || name == base+"-wal" || name == base+"-shm" {
 			return true
 		}
