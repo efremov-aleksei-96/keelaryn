@@ -72,6 +72,7 @@ Every fresh session starts read-only.
 5. Reconcile:
    - current `DEVELOPMENT_STATE.json` revision;
    - current objective and audit gate;
+   - open `[WORK-CLAIM]` issues and their declared scopes;
    - open PRs against the authoritative branch;
    - CI runs for the authoritative HEAD and relevant open PR heads;
    - unfinished branches that clearly belong to the current objective.
@@ -82,27 +83,28 @@ No write is permitted before this reconcile.
 
 ## 3.1 Objective/profile suitability gate
 
-After startup reconcile, and again after every material transition, classify the **highest-priority ready work** before choosing a write-capable slice. The classification is about the next material prerequisite/action, not a permanent label on the whole objective.
+After startup reconcile, and again after every material transition, build the set of currently known **work units** for the qualified objective and evaluate each unit independently. An objective may simultaneously contain `SOL_REQUIRED`, `LUNA_READY`, `EITHER_PROFILE`, blocked, and already-owned units; there is no single global model classification for a mixed objective.
 
-Exactly one classification applies by evaluating these predicates **in order and stopping at the first match**:
+For each candidate unit:
 
-1. **SOL_REQUIRED** — the next material decision or write crosses a `STRONG_MODEL_REQUIRED` boundary, or correctness depends on unresolved architecture/authority judgment.
-2. **LUNA_READY** — only after `SOL_REQUIRED` is false: the next material work is within `SAFE_AUTONOMOUS` / `SAFE_WITH_VERIFY`, has no unresolved Sol-only prerequisite, **and** is predominantly mechanical, deterministic, research/test/CI, bounded-refactor, or long-running throughput work that fits Luna's autonomous profile.
-3. **EITHER_PROFILE** — only after both predicates above are false: the next material work is still Luna-safe and has no unresolved Sol-only prerequisite, but it is not specifically Luna-throughput work. Either Luna or Sol may execute it.
+1. Resolve its dependencies. A unit with an unresolved prerequisite is not ready.
+2. If the unit crosses a `STRONG_MODEL_REQUIRED` boundary, or correctness depends on unresolved architecture/authority judgment, classify that unit `SOL_REQUIRED`.
+3. Otherwise, if the unit is within `SAFE_AUTONOMOUS` / `SAFE_WITH_VERIFY` and is predominantly mechanical, deterministic, research/test/CI, bounded-refactor, or long-running throughput work, classify it `LUNA_READY`.
+4. Otherwise, if the unit remains Luna-safe, classify it `EITHER_PROFILE`.
+5. If a unit's classification is uncertain, treat **that unit** as `SOL_REQUIRED`; do not promote the uncertainty to an objective-wide stop.
 
-This ordered decision rule makes the three labels mutually exclusive and reproducible across fresh sessions.
+Selection rules:
 
-Rules:
+1. Luna selects the highest-priority ready, unclaimed/non-overlapping `LUNA_READY` unit, then `EITHER_PROFILE` if no higher Luna-ready unit exists.
+2. A separate `SOL_REQUIRED` unit blocks only itself and units that actually depend on it. It does not block independent Luna-safe writes.
+3. Sol prioritizes immutable Luna handoffs awaiting review/integration, then ready architecture/authority blockers, then any other ready Sol/Either unit.
+4. Explicit Luna never performs a protected `SOL_REQUIRED` write. If no independent Luna-safe unit exists, it may continue read-only analysis/proof and then stop dependent writes.
+5. Explicit Sol may execute `LUNA_READY`, `EITHER_PROFILE`, or `SOL_REQUIRED` units; selecting Sol never requires needless hand-back to Luna.
+6. Generic continuation uses the resolved active profile from §2 and the same per-unit queue.
+7. Recompute readiness/classification after every reconcile, PR merge, material CI/runtime result, new blocker/finding, work-claim change, or `DEVELOPMENT_STATE.json` transition.
+8. This scheduler does not create a second qualified-state authority. Durable qualified truth remains `DEVELOPMENT_STATE.json` + Git/GitHub + fresh external evidence where relevant.
 
-1. Recompute the classification after every reconcile, PR merge, material CI/runtime result, newly discovered blocker/finding, or `DEVELOPMENT_STATE.json` transition.
-2. A mixed objective is classified by its **next material prerequisite**, while independent safe work remains eligible for Luna.
-3. Explicit Luna + `SOL_REQUIRED` is fail-closed: Luna performs no protected write. It may continue independent read-only analysis, deterministic tests/proof, impact mapping, or a bounded candidate handoff, then stops dependent writes when no safe work remains.
-4. Explicit Sol may proceed on `LUNA_READY`, `EITHER_PROFILE`, or `SOL_REQUIRED`; selecting Sol never requires needless hand-back to Luna.
-5. Generic continuation uses the resolved active profile from §2 and applies the same gate.
-6. The gate does not create a second state authority. Durable truth remains `DEVELOPMENT_STATE.json` + Git/GitHub + fresh external evidence where relevant.
-7. If classification is uncertain, use `SOL_REQUIRED` for protected writes and Luna-safe behavior for all other work until the uncertainty is resolved.
-
-The session should state the classification briefly when it materially constrains what it can do, but it should not ask the user to choose a model when the current profile can still make useful safe progress.
+The session should state a classification briefly only when it materially constrains the selected work unit.
 
 ## 4. Shared transactional loop
 
@@ -132,13 +134,102 @@ UNCERTAIN RESULT
 
 Never blindly repeat the write.
 
+### 4.1 Parallel lane scheduler
+
+The shared loop is executed concurrently by independent work units. Keelaryn does **not** require Luna and Sol to alternate.
+
+A session builds its lane queue from:
+
+- the current qualified objective and durable dependencies;
+- open `[WORK-CLAIM]` issues;
+- open PRs and their declared work-unit scopes;
+- pending immutable handoffs awaiting review/integration;
+- current CI/runtime evidence.
+
+A `SOL_REQUIRED` unit blocks only itself and dependants. It does not block independent `LUNA_READY` work.
+
+#### Remote scope claim before the first write
+
+A local/read-only decision to work on a unit is not ownership. Ownership becomes durable only through a remotely visible GitHub claim.
+
+Before creating a work branch or editing any file for a write-capable unit:
+
+1. reconcile authoritative HEAD and existing open claims/PR scopes;
+2. create a GitHub issue titled `[WORK-CLAIM] <work-unit>` with:
+
+```text
+Lane: LUNA | SOL
+Work-Unit: <stable bounded id>
+Base-SHA: <authoritative sha observed for acquisition>
+Scope: <files and semantic authority requested>
+Depends-On: <none or immutable prerequisite ids/shas>
+State: CLAIMING
+Lease-Until: <RFC3339 UTC, no more than 30 minutes after claim creation>
+```
+
+3. immediately reconcile **again** after the issue is remotely visible;
+4. compare the requested scope with every open claim and active PR;
+5. for materially overlapping claims, the **lowest GitHub claim issue number wins**; all later claimants mark/close their claim as abandoned and choose another unit before branch creation/file edits;
+6. if visibility, scope overlap, or winner ordering is uncertain, fail closed and perform no file write;
+7. the winner acquires only a short **claim-transfer lease**. It may create an isolated exact-base branch whose name contains the claim number and write only `.keelaryn-work/<work-unit>.json`, containing the claim metadata needed to open the first draft PR. It must not edit product/code/document scope yet;
+8. before `Lease-Until`, open a draft PR that references the claim and repeats the ownership fields, then reconcile that the PR is remotely visible;
+9. only after that remote PR is visible does ownership transfer to the PR. Close the issue claim and substantive writes may begin on the PR branch.
+
+This publish→reconcile→winner→draft-PR-transfer sequence prevents two sessions that started from the same read-only prestate from both silently becoming writers and bounds claim-only ownership after interruption.
+
+If `Lease-Until` expires before transfer:
+
+1. a fresh session reconciles open claims **and** open PRs;
+2. if no open PR references the expired claim, the claim may be marked stale/retired and closed;
+3. any leftover claim-only branch or `.keelaryn-work/<work-unit>.json` marker from that claim is abandoned and must not be reused;
+4. recovery begins with a new claim and a new claim-numbered branch;
+5. the interrupted original session must reconcile before its next write; an expired/closed claim gives it no authority to continue.
+
+If an open PR already references the claim, ownership has transferred to that PR and the issue's lease expiry is irrelevant. The marker is transport/bootstrap metadata only and must be removed before integration; it never becomes product or qualified-state authority.
+
+#### Work-unit branch and handoff
+
+The active PR carries:
+
+```text
+Claim-Issue: #<claim>
+Lane: LUNA | SOL
+Work-Unit: <stable bounded id>
+Base-SHA: <acquired base sha>
+Scope: <files and semantic authority owned by this unit>
+Depends-On: <none or immutable prerequisite ids/shas>
+Handoff-SHA: <exact candidate sha when ready for review>
+State: ACTIVE | HANDOFF_READY | REVIEWED | INTEGRATION_READY
+```
+
+Recommended branch prefixes are `luna/<work-unit>` and `sol/<work-unit>`. Governance-only protocol work may use `governance/<work-unit>`.
+
+Sol review is bound to an exact `Handoff-SHA`. While Sol reviews that SHA, Luna may immediately acquire and start the next independent unit on another claim/branch.
+
+Luna does not append unrelated/new work to a head already under Sol review. If a requested fix changes the handoff SHA, the previous review is stale for integration and the new SHA must be reviewed/qualified as required.
+
+#### Serialized integration gate
+
+Parallel preparation does not imply parallel authority mutation. Merges into the authoritative branch and qualified `DEVELOPMENT_STATE.json` transitions are serialized.
+
+Immediately before merge/state transition:
+
+1. reconcile authoritative HEAD;
+2. confirm the work-unit claim/PR ownership and exact reviewed head are still applicable;
+3. re-evaluate overlapping merged work since the base;
+4. run any proof invalidated by base movement;
+5. perform one integration mutation;
+6. verify and checkpoint before another integration mutation.
+
+Ephemeral lane occupancy is derived from open work-claim issues before transfer and open PRs after transfer. Do not add rapidly changing lane locks to `DEVELOPMENT_STATE.json`; it remains authority for qualified project state.
+
 ## 5. Luna: continuous Work profile
 
 Luna is optimized for long autonomous runs and mechanical throughput.
 
 When Luna is started in ChatGPT Work for Keelaryn, the default behavior is **continuous development**, not “perform one task and stop”.
 
-After each successful slice Luna immediately reconciles and selects the next safe ready slice. It continues until a stop condition in §7 is reached or the Work execution itself ends.
+After each successful slice Luna immediately reconciles and selects the next safe **unclaimed/non-overlapping** ready slice. It continues until a stop condition in §7 is reached or the Work execution itself ends. A concurrent Sol review/integration lane is expected and does not by itself stop Luna.
 
 ### 5.1 Luna — SAFE_AUTONOMOUS
 
@@ -211,7 +302,9 @@ Sol uses the same transactional loop but may own the high-risk decisions listed 
 
 Sol should:
 
-- consume Luna's durable PRs, test evidence and impact maps instead of repeating discovery;
+- consume Luna's immutable handoff SHAs, durable PRs, test evidence and impact maps instead of repeating discovery;
+- review/integrate work unit N while Luna is free to produce independent work unit N+1;
+- never take over or rewrite Luna's active branch; use review or a separate Sol remediation/integration branch;
 - reconcile every candidate against current HEAD;
 - make architecture/authority decisions explicitly;
 - implement or revise protected-surface changes;
@@ -247,9 +340,9 @@ Use:
 - GitHub Actions for qualification evidence;
 - contract/retrospective documents when the stage requires them.
 
-For Luna, an open PR/branch plus its tests/CI is the durable ledger for unfinished implementation. Do not rely on uncommitted scratch or the chat transcript.
+For Luna, an open PR/branch plus its tests/CI is the durable ledger for unfinished implementation. For Sol, the exact reviewed handoff SHA plus review/integration evidence is the durable ledger. Do not rely on uncommitted scratch or the chat transcript.
 
-After interruption, a new session starts from §3 and resumes the first not-yet-qualified ready slice.
+After interruption, a new session starts from §3, reconstructs active work-unit scopes from GitHub, and resumes the highest-priority ready unit for its own lane without duplicating another lane's active work.
 
 ## 9. Work mode usage
 
@@ -267,6 +360,6 @@ or:
 
 The Work run should keep iterating under §5 until §7 applies.
 
-For architecture-sensitive continuation, select **Sol** and send the same generic command or the explicit Sol form.
+In a separate chat/window, select **Sol** and send the same generic command or the explicit Sol form. Luna and Sol are intended to run concurrently: Luna keeps the producer queue moving while Sol consumes immutable handoffs and protected decisions.
 
-The repository protocol is designed so that even if a Work run or chat ends, the next session reconstructs progress from GitHub and `DEVELOPMENT_STATE.json` instead of losing the work.
+The repository protocol is designed so that even if either Work run or chat ends, the next session reconstructs progress and lane ownership from GitHub plus `DEVELOPMENT_STATE.json` instead of losing or duplicating work.
