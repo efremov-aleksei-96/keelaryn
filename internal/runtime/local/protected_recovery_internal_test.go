@@ -85,6 +85,7 @@ func TestProtectedRecoveryDiscardsValidMismatchedStaging(t *testing.T) {
 }
 
 func TestProtectedRecoveryFailureWindowsAreRetryableAndPreserveAuthority(t *testing.T) {
+	ctx := context.Background()
 	errInjected := errors.New("injected recovery boundary failure")
 	cases := []struct {
 		name                 string
