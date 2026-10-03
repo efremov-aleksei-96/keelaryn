@@ -97,7 +97,7 @@ Before posting a reset, fetch all canonical-issue comments. If the exact `Trigge
 ```text
 DISCOVERY-CYCLE-RESET-V1
 Baseline-SHA: <exact baseline>
-Trigger-Kind: <CI | REVIEW | FINDING | RUNTIME | EXTERNAL>
+Trigger-Kind: <CI | REVIEW | FINDING | RUNTIME | EXTERNAL | DUPLICATE_RESULT>
 Trigger-Ref: <durable unique ref>
 Reason: <why prior category results may no longer be sufficient>
 ```
@@ -135,6 +135,26 @@ Outcome: NO_FINDING | LUNA_FIX_READY | SOL_REVIEW_REQUIRED | BLOCKED_EXTERNAL | 
 Evidence: <bounded summary plus durable links when applicable>
 ```
 
+Native-result cardinality is part of the durable protocol. For one `(Baseline-SHA, Epoch-Ref, Category)`:
+
+- zero native `DISCOVERY-CYCLE-RESULT-V1` comments means the category is incomplete;
+- exactly one native result is the canonical native result for that category/epoch;
+- more than one native result is **ambiguous**. There is no first/last/severity winner.
+
+If multiple native results are discovered on the **current authoritative baseline/current epoch**, do not use any of them for completion or carry. Append a reset:
+
+```text
+DISCOVERY-CYCLE-RESET-V1
+Baseline-SHA: <current exact baseline>
+Trigger-Kind: DUPLICATE_RESULT
+Trigger-Ref: DUPLICATE_RESULT:<baseline-sha>:<epoch-ref>:<category>:<ascending-native-result-comment-ids>
+Reason: multiple native results exist for one category in one epoch; no deterministic evidence winner is authorized
+```
+
+Re-fetch comments. The existing lowest-comment-ID arbitration for an exact `Trigger-Ref` chooses the canonical reset if multiple sessions post it concurrently. Rerun the category in the new reset epoch; all duplicate results from the older epoch remain historical evidence only.
+
+If multiple native results are encountered in a **historical source baseline/current epoch** during cross-baseline carry selection, that source category is ineligible. Do not mutate the historical issue, do not pick a winner, and do not search farther back for an older native result. Rerun the category on the current baseline and emit a new native result.
+
 A category counts as complete only when a valid result matches both the exact baseline and the **current epoch**. Fresh sessions reconstruct completion from the canonical issue and its comments instead of chat memory.
 
 When every category has a current-epoch result, close the canonical issue as completed. On unchanged HEAD, a later session searches all states, finds that closed issue, reconstructs the completed current epoch, and does not create or rerun another cycle unless a new durable reset trigger exists.
@@ -149,7 +169,7 @@ Before starting deep work for an incomplete category, Luna MUST search earlier c
 
 Automatic/cheap carry-forward is allowed only when all of the following are proven:
 
-1. source evidence is a native `DISCOVERY-CYCLE-RESULT-V1`, not a prior carry-forward record;
+1. the selected source baseline/current epoch contains **exactly one** native `DISCOVERY-CYCLE-RESULT-V1` for the category; zero means keep searching newer→older past baselines with no native result, while multiple native results make this selected source ambiguous/ineligible and force a current-baseline rerun with no older fallback; source evidence is that single native result, never a prior carry-forward record;
 2. source baseline SHA is an ancestor of the current baseline SHA;
 3. after the newest native result has already been selected, its objective exactly matches the current objective; objective mismatch is an eligibility failure that forces rerun and never authorizes searching for an older native result;
 4. the source result belongs to the source baseline's current epoch;
@@ -187,7 +207,7 @@ Outcome/category rules:
 - `BLOCKED_EXTERNAL` is never carried. Rerun the category against the current external dependency/environment and emit a new `DISCOVERY-CYCLE-RESULT-V1`.
 - Any result whose `Read-Scope`, evidence, or semantic assumptions depend on an external source/provider/upstream state may carry only when the repository/semantic diff is already proven disjoint **and** a fresh primary-source check confirms the external evidence/assumption still applies. This rule is based on actual dependency, not the catalog category label.
 - A legacy result lacking explicit durable `Read-Scope` **or** explicit `Semantic-Assumptions` must be rerun as a new category result; do not reconstruct historical scope/assumptions after the fact.
-- Once the newest ancestor native result for the category is found, do not search past it for an older eligible result. If the newest native result cannot carry, rerun the category.
+- Once the newest ancestor baseline containing native result(s) for the category is found, do not search past it for an older eligible result. Exactly one native result may proceed to eligibility checks; multiple native results are ambiguous and force current-baseline rerun; any other ineligibility also forces rerun.
 - Any read-scope/semantic intersection or uncertain overlap requires a full category rerun and a new result. `FRESH_RECHECK` is not a carry-forward escape hatch for changed scope.
 - Any durable intervening trigger that invalidates the category's evidence, or any inability to bound the required invalidation scan safely, requires a full category rerun and a new result.
 
