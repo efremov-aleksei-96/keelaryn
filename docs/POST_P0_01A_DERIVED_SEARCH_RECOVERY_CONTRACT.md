@@ -206,7 +206,7 @@ At minimum add regression coverage for:
 13. state DB corruption => no search recovery mutation begins;
 14. corpus fingerprint drift => no search recovery mutation begins;
 15. lock contention => zero search-family mutation;
-16. state.db hash/bytes unchanged across every recovery test;
+16. authoritative state semantics unchanged across recovery: same current COMPLETE scan, inventory assignments/locators, and Artifact/Revision history; raw SQLite file bytes are not an authority invariant because journal/checkpoint housekeeping may change physical representation without changing logical state;
 17. user corpus bytes unchanged across every recovery test;
 18. Ubuntu 24.04 + Windows 2025 CI.
 
