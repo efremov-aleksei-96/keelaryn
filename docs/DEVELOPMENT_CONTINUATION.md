@@ -132,13 +132,71 @@ UNCERTAIN RESULT
 
 Never blindly repeat the write.
 
+### 4.1 Parallel lane scheduler
+
+The shared loop is executed concurrently by independent work units. Keelaryn does **not** require Luna and Sol to alternate.
+
+A session first builds a ready queue from:
+
+- the current qualified objective and durable dependencies;
+- open PRs/branches and their declared work-unit scope;
+- pending immutable handoffs awaiting review/integration;
+- current CI/runtime evidence.
+
+Readiness and profile classification are per work unit:
+
+- `LUNA_READY`: safe producer/throughput work;
+- `SOL_REQUIRED`: protected architecture/authority work;
+- `EITHER_PROFILE`: safe work either profile may own.
+
+A `SOL_REQUIRED` unit blocks only itself and dependants. It does not block independent `LUNA_READY` work.
+
+#### Work-unit identity and ownership
+
+Every write-capable unit uses an isolated exact-base branch/PR and declares:
+
+```text
+Lane: LUNA | SOL
+Work-Unit: <stable bounded id>
+Base-SHA: <authoritative sha observed before branch creation>
+Scope: <files and semantic authority owned by this unit>
+Depends-On: <none or immutable prerequisite ids/shas>
+Handoff-SHA: <exact candidate sha when ready for review>
+State: ACTIVE | HANDOFF_READY | REVIEWED | INTEGRATION_READY
+```
+
+Recommended branch prefixes are `luna/<work-unit>` and `sol/<work-unit>`. Governance-only protocol work may use `governance/<work-unit>`.
+
+Before any write, reconcile active work-unit scopes. Parallel writes are allowed only when their file/semantic authority does not materially overlap. If overlap is material or uncertain, the later writer fails closed and chooses another independent unit.
+
+#### Immutable handoff
+
+Sol review is bound to an exact `Handoff-SHA`. While Sol reviews that SHA, Luna may immediately start the next independent unit on another branch.
+
+Luna does not append unrelated/new work to a head already under Sol review. If a requested fix changes the handoff SHA, the previous review is stale for integration and the new SHA must be reviewed/qualified as required.
+
+#### Serialized integration gate
+
+Parallel preparation does not imply parallel authority mutation. Merges into the authoritative branch and qualified `DEVELOPMENT_STATE.json` transitions are serialized.
+
+Immediately before merge/state transition:
+
+1. reconcile authoritative HEAD;
+2. confirm the work-unit base/review is still applicable;
+3. re-evaluate overlapping merged work since the base;
+4. run any proof invalidated by base movement;
+5. perform one integration mutation;
+6. verify and checkpoint before another integration mutation.
+
+Ephemeral lane occupancy is derived from GitHub branches/PRs. Do not add rapidly changing lane locks to `DEVELOPMENT_STATE.json`; it remains authority for qualified project state.
+
 ## 5. Luna: continuous Work profile
 
 Luna is optimized for long autonomous runs and mechanical throughput.
 
 When Luna is started in ChatGPT Work for Keelaryn, the default behavior is **continuous development**, not “perform one task and stop”.
 
-After each successful slice Luna immediately reconciles and selects the next safe ready slice. It continues until a stop condition in §7 is reached or the Work execution itself ends.
+After each successful slice Luna immediately reconciles and selects the next safe **unclaimed/non-overlapping** ready slice. It continues until a stop condition in §7 is reached or the Work execution itself ends. A concurrent Sol review/integration lane is expected and does not by itself stop Luna.
 
 ### 5.1 Luna — SAFE_AUTONOMOUS
 
@@ -211,7 +269,9 @@ Sol uses the same transactional loop but may own the high-risk decisions listed 
 
 Sol should:
 
-- consume Luna's durable PRs, test evidence and impact maps instead of repeating discovery;
+- consume Luna's immutable handoff SHAs, durable PRs, test evidence and impact maps instead of repeating discovery;
+- review/integrate work unit N while Luna is free to produce independent work unit N+1;
+- never take over or rewrite Luna's active branch; use review or a separate Sol remediation/integration branch;
 - reconcile every candidate against current HEAD;
 - make architecture/authority decisions explicitly;
 - implement or revise protected-surface changes;
@@ -247,9 +307,9 @@ Use:
 - GitHub Actions for qualification evidence;
 - contract/retrospective documents when the stage requires them.
 
-For Luna, an open PR/branch plus its tests/CI is the durable ledger for unfinished implementation. Do not rely on uncommitted scratch or the chat transcript.
+For Luna, an open PR/branch plus its tests/CI is the durable ledger for unfinished implementation. For Sol, the exact reviewed handoff SHA plus review/integration evidence is the durable ledger. Do not rely on uncommitted scratch or the chat transcript.
 
-After interruption, a new session starts from §3 and resumes the first not-yet-qualified ready slice.
+After interruption, a new session starts from §3, reconstructs active work-unit scopes from GitHub, and resumes the highest-priority ready unit for its own lane without duplicating another lane's active work.
 
 ## 9. Work mode usage
 
@@ -267,6 +327,6 @@ or:
 
 The Work run should keep iterating under §5 until §7 applies.
 
-For architecture-sensitive continuation, select **Sol** and send the same generic command or the explicit Sol form.
+In a separate chat/window, select **Sol** and send the same generic command or the explicit Sol form. Luna and Sol are intended to run concurrently: Luna keeps the producer queue moving while Sol consumes immutable handoffs and protected decisions.
 
-The repository protocol is designed so that even if a Work run or chat ends, the next session reconstructs progress from GitHub and `DEVELOPMENT_STATE.json` instead of losing the work.
+The repository protocol is designed so that even if either Work run or chat ends, the next session reconstructs progress and lane ownership from GitHub plus `DEVELOPMENT_STATE.json` instead of losing or duplicating work.
