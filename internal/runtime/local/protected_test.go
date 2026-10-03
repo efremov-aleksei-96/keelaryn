@@ -201,6 +201,136 @@ func TestProtectedRuntimeDiscardsInterruptedStagingAndRebuilds(t *testing.T) {
 	}
 }
 
+
+func TestProtectedReadOnlyQueryNeverUsesStagingCache(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("active cache authority"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 25, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staging := []byte("not-a-query-authority")
+	if err := os.WriteFile(layout.SearchStagingDB, staging, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	hits, err := localruntime.QueryProtectedReadOnly(ctx, control, "active cache authority", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("hits=%#v", hits)
+	}
+	if got := mustReadFile(t, layout.SearchStagingDB); string(got) != string(staging) {
+		t.Fatal("read-only query touched staging")
+	}
+}
+
+func TestProtectedRuntimeRecoversNoActiveWithInterruptedStaging(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("rename interruption retry"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 27, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	first, err := localruntime.BootstrapProtectedIndex(ctx, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorityBefore := captureLocalAuthority(t, ctx, layout.StateDB, root)
+	if err := os.Remove(layout.SearchDB); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(layout.SearchStagingDB, []byte("staged-after-active-removal"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	recovered, err := localruntime.BootstrapProtectedIndex(ctx, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !recovered.ReusedScan || recovered.ScanID != first.ScanID {
+		t.Fatalf("recovered=%#v first=%#v", recovered, first)
+	}
+	if got := captureLocalAuthority(t, ctx, layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed while recovering no-active+staging state")
+	}
+	if _, err := os.Lstat(layout.SearchStagingDB); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("staging survived deterministic retry: %v", err)
+	}
+	hits, err := localruntime.QueryProtectedReadOnly(ctx, control, "rename interruption retry", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("hits=%#v", hits)
+	}
+}
+
+func TestProtectedRuntimeRecoversOrphanStagingSidecar(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("orphan sidecar recovery"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 29, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorityBefore := captureLocalAuthority(t, ctx, layout.StateDB, root)
+	orphan := layout.SearchStagingDB + "-wal"
+	if err := os.WriteFile(orphan, []byte("orphan-wal"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	if got := captureLocalAuthority(t, ctx, layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed while cleaning orphan staging sidecar")
+	}
+	if _, err := os.Lstat(orphan); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("orphan staging sidecar survived retry: %v", err)
+	}
+	hits, err := localruntime.QueryProtectedReadOnly(ctx, control, "orphan sidecar recovery", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("hits=%#v", hits)
+	}
+}
+
 func TestProtectedRuntimeLockContentionDoesNotMutateStateOrActiveSearch(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
