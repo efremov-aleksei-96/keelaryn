@@ -77,6 +77,48 @@ func TestProtectedRuntimeRejectsPhysicalAliasIntoCorpusBeforeMutation(t *testing
 
 
 
+
+func TestProtectedRuntimeSearchLockOnlyStillAllowsFreshBootstrap(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("fresh after lock-only crash"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	control := filepath.Join(t.TempDir(), "control")
+	layout, err := controlstorage.Prepare(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, err := controlstorage.AcquireSearchMutationLock(layout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lock.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(layout.StateDB); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("state.db unexpectedly exists before fresh bootstrap: %v", err)
+	}
+
+	result, err := localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 11, 45, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ReusedScan || result.Indexed != 1 {
+		t.Fatalf("result=%#v", result)
+	}
+	if _, err := os.Stat(layout.StateDB); err != nil {
+		t.Fatalf("fresh bootstrap did not create state.db: %v", err)
+	}
+	if _, err := localruntime.QueryProtectedReadOnlyCurrent(ctx, control, "fresh after lock-only", 10); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestProtectedRuntimeMissingStateWithDerivedFootprintFailsClosed(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
