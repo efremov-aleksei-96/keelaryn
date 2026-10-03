@@ -76,13 +76,20 @@ func VerifyStandaloneSearchStaging(layout Layout) error {
 }
 
 func PromoteStagedSearch(layout Layout) error {
+	return promoteStagedSearch(layout, os.Rename)
+}
+
+func promoteStagedSearch(layout Layout, rename func(string, string) error) error {
+	if rename == nil {
+		return ErrInvalidControlDir
+	}
 	if err := VerifyStandaloneSearchStaging(layout); err != nil {
 		return err
 	}
 	if err := DiscardActiveSearchFamily(layout); err != nil {
 		return err
 	}
-	if err := os.Rename(layout.SearchStagingDB, layout.SearchDB); err != nil {
+	if err := rename(layout.SearchStagingDB, layout.SearchDB); err != nil {
 		return fmt.Errorf("promote staged search database: %w", err)
 	}
 	if err := verifyControlFile(layout.SearchDB); err != nil {

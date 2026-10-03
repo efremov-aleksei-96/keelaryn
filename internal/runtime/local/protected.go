@@ -215,7 +215,29 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 // BootstrapProtectedIndex is the executable control-storage boundary. It
 // resolves the physical control parent and proves the control directory is
 // outside the corpus before any directory or SQLite file can be created.
-func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions) (result IndexResult, err error) {
+type protectedSearchRecoveryOps struct {
+	verifyCandidate func(context.Context, string, searchsqlite.SourceBoundary) error
+	reconcileActive func(context.Context, controlstorage.Layout) error
+	promote         func(controlstorage.Layout) error
+}
+
+func defaultProtectedSearchRecoveryOps() protectedSearchRecoveryOps {
+	return protectedSearchRecoveryOps{
+		verifyCandidate: verifyProtectedSearchCandidate,
+		reconcileActive: reconcileActiveSearchSQLiteFamily,
+		promote:         controlstorage.PromoteStagedSearch,
+	}
+}
+
+func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions) (IndexResult, error) {
+	return bootstrapProtectedIndex(ctx, options, defaultProtectedSearchRecoveryOps())
+}
+
+func bootstrapProtectedIndex(
+	ctx context.Context,
+	options ProtectedIndexOptions,
+	ops protectedSearchRecoveryOps,
+) (result IndexResult, err error) {
 	if options.ObservedAt.IsZero() || options.MaxBytes < 0 {
 		return IndexResult{}, ErrInvalidOptions
 	}
@@ -272,19 +294,19 @@ func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions)
 	if err != nil {
 		return IndexResult{}, err
 	}
-	if err := verifyProtectedSearchCandidate(ctx, layout.SearchStagingDB, expected); err != nil {
+	if err := ops.verifyCandidate(ctx, layout.SearchStagingDB, expected); err != nil {
 		return IndexResult{}, err
 	}
 	if err := controlstorage.VerifyStandaloneSearchStaging(layout); err != nil {
 		return IndexResult{}, err
 	}
-	if err := reconcileActiveSearchSQLiteFamily(ctx, layout); err != nil {
+	if err := ops.reconcileActive(ctx, layout); err != nil {
 		return IndexResult{}, err
 	}
-	if err := controlstorage.PromoteStagedSearch(layout); err != nil {
+	if err := ops.promote(layout); err != nil {
 		return IndexResult{}, err
 	}
-	if err := verifyProtectedSearchCandidate(ctx, layout.SearchDB, expected); err != nil {
+	if err := ops.verifyCandidate(ctx, layout.SearchDB, expected); err != nil {
 		return IndexResult{}, err
 	}
 	if err := controlstorage.Verify(layout.Dir); err != nil {
