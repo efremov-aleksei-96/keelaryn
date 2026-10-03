@@ -2,6 +2,7 @@ package local_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
+	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
 )
 
 func TestProtectedRuntimeCreatesAndReopensVerifiedControlStorage(t *testing.T) {
@@ -94,7 +96,7 @@ func TestProtectedRuntimeRecoversCorruptDerivedSearchWithoutChangingState(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	stateBefore := mustReadFile(t, layout.StateDB)
+	authorityBefore := captureLocalAuthority(t, ctx, layout.StateDB, root)
 	if err := os.WriteFile(layout.SearchDB, []byte("not sqlite"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -106,8 +108,8 @@ func TestProtectedRuntimeRecoversCorruptDerivedSearchWithoutChangingState(t *tes
 	if !recovered.ReusedScan || recovered.ScanID != first.ScanID {
 		t.Fatalf("recovered=%#v first=%#v", recovered, first)
 	}
-	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
-		t.Fatal("state.db bytes changed while recovering derived search cache")
+	if got := captureLocalAuthority(t, ctx, layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed while recovering derived search cache")
 	}
 	hits, err := localruntime.QueryProtectedReadOnly(ctx, control, "recoverable derived", 10)
 	if err != nil {
@@ -141,7 +143,7 @@ func TestProtectedRuntimeRecoversMissingDerivedSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stateBefore := mustReadFile(t, layout.StateDB)
+	authorityBefore := captureLocalAuthority(t, ctx, layout.StateDB, root)
 	if err := os.Remove(layout.SearchDB); err != nil {
 		t.Fatal(err)
 	}
@@ -153,8 +155,8 @@ func TestProtectedRuntimeRecoversMissingDerivedSearch(t *testing.T) {
 	if !recovered.ReusedScan || recovered.ScanID != first.ScanID {
 		t.Fatalf("recovered=%#v first=%#v", recovered, first)
 	}
-	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
-		t.Fatal("state.db bytes changed while rebuilding missing derived cache")
+	if got := captureLocalAuthority(t, ctx, layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed while rebuilding missing derived cache")
 	}
 	if _, err := localruntime.QueryProtectedReadOnly(ctx, control, "missing cache", 10); err != nil {
 		t.Fatal(err)
@@ -180,7 +182,7 @@ func TestProtectedRuntimeDiscardsInterruptedStagingAndRebuilds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stateBefore := mustReadFile(t, layout.StateDB)
+	authorityBefore := captureLocalAuthority(t, ctx, layout.StateDB, root)
 	if err := os.WriteFile(layout.SearchStagingDB, []byte("interrupted-staging"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -188,8 +190,8 @@ func TestProtectedRuntimeDiscardsInterruptedStagingAndRebuilds(t *testing.T) {
 	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
 		t.Fatal(err)
 	}
-	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
-		t.Fatal("state.db bytes changed during staging retry")
+	if got := captureLocalAuthority(t, ctx, layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed during staging retry")
 	}
 	if _, err := os.Lstat(layout.SearchStagingDB); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("staging survived retry: %v", err)
@@ -218,7 +220,7 @@ func TestProtectedRuntimeLockContentionDoesNotMutateStateOrActiveSearch(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	stateBefore := mustReadFile(t, layout.StateDB)
+	authorityBefore := captureLocalAuthority(t, ctx, layout.StateDB, root)
 	searchBefore := mustReadFile(t, layout.SearchDB)
 	lock, err := controlstorage.AcquireSearchMutationLock(layout)
 	if err != nil {
@@ -230,8 +232,8 @@ func TestProtectedRuntimeLockContentionDoesNotMutateStateOrActiveSearch(t *testi
 	if !errors.Is(err, controlstorage.ErrSearchMutationLocked) {
 		t.Fatalf("error=%v want ErrSearchMutationLocked", err)
 	}
-	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
-		t.Fatal("state.db changed under lock contention")
+	if got := captureLocalAuthority(t, ctx, layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed under lock contention")
 	}
 	if got := mustReadFile(t, layout.SearchDB); string(got) != string(searchBefore) {
 		t.Fatal("search.db changed under lock contention")
@@ -257,7 +259,7 @@ func TestProtectedRuntimePromotionRefusesActiveSidecarAndKeepsStaging(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	stateBefore := mustReadFile(t, layout.StateDB)
+	authorityBefore := captureLocalAuthority(t, ctx, layout.StateDB, root)
 	activeBefore := mustReadFile(t, layout.SearchDB)
 	if err := os.WriteFile(layout.SearchDB+"-journal", []byte("simulate-hot-family"), 0o600); err != nil {
 		t.Fatal(err)
@@ -267,8 +269,8 @@ func TestProtectedRuntimePromotionRefusesActiveSidecarAndKeepsStaging(t *testing
 	if !errors.Is(err, controlstorage.ErrSearchActiveNotStandalone) {
 		t.Fatalf("error=%v want ErrSearchActiveNotStandalone", err)
 	}
-	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
-		t.Fatal("state.db changed on failed promotion")
+	if got := captureLocalAuthority(t, ctx, layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed on failed promotion")
 	}
 	if got := mustReadFile(t, layout.SearchDB); string(got) != string(activeBefore) {
 		t.Fatal("active search.db changed on failed promotion")
@@ -330,7 +332,7 @@ func TestProtectedRuntimeCorpusDriftDoesNotReplaceActiveSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stateBefore := mustReadFile(t, layout.StateDB)
+	authorityBefore := captureLocalAuthority(t, ctx, layout.StateDB, root)
 	searchBefore := mustReadFile(t, layout.SearchDB)
 	if err := os.WriteFile(path, []byte("changed corpus"), 0o600); err != nil {
 		t.Fatal(err)
@@ -339,12 +341,58 @@ func TestProtectedRuntimeCorpusDriftDoesNotReplaceActiveSearch(t *testing.T) {
 	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err == nil {
 		t.Fatal("corpus drift unexpectedly allowed derived recovery")
 	}
-	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
-		t.Fatal("state.db changed after corpus drift")
+	if got := captureLocalAuthority(t, ctx, layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed after corpus drift")
 	}
 	if got := mustReadFile(t, layout.SearchDB); string(got) != string(searchBefore) {
 		t.Fatal("active search cache changed after corpus drift")
 	}
+}
+
+func captureLocalAuthority(t *testing.T, ctx context.Context, statePath, root string) []byte {
+	t.Helper()
+	state, err := sqlitestate.OpenReadOnly(ctx, statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer state.Close()
+
+	scan, found, err := state.LatestCompleteScan(ctx, localruntime.ProviderID, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Fatal("authoritative scan missing")
+	}
+	inventory, err := state.Inventory(ctx, localruntime.ProviderID, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	histories := make([]map[string]any, 0)
+	seen := map[string]bool{}
+	for _, entry := range inventory {
+		if entry.ArtifactID == "" || seen[string(entry.ArtifactID)] {
+			continue
+		}
+		seen[string(entry.ArtifactID)] = true
+		history, err := state.RevisionHistory(ctx, entry.ArtifactID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		histories = append(histories, map[string]any{
+			"artifact_id": entry.ArtifactID,
+			"history":     history,
+		})
+	}
+	payload, err := json.Marshal(map[string]any{
+		"scan":      scan,
+		"inventory": inventory,
+		"histories": histories,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return payload
 }
 
 func mustReadFile(t *testing.T, path string) []byte {
