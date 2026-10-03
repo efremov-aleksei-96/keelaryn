@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
+	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
 	"github.com/efremov-aleksei-96/keelaryn/internal/mcpaccess"
@@ -99,6 +100,36 @@ func TestBootstrapIndexAndSearchThroughProtectedExecutableSurface(t *testing.T) 
 	}
 	if len(entries) != 1 || entries[0].Name() != "note.md" {
 		t.Fatalf("corpus mutated by runtime composition: %#v", entries)
+	}
+}
+
+func TestSearchCommandFailsClosedWhenAuthoritativeStateIsMissing(t *testing.T) {
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("cli bound search"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{
+		"bootstrap-index", "--root", root, "--control-dir", control, "--max-bytes", "4096",
+	}, &stdout, &stderr); err != nil {
+		t.Fatalf("bootstrap-index: %v; stderr=%s", err, stderr.String())
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(layout.StateDB); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	err = run([]string{"search", "--control-dir", control, "--query", "cli bound"}, &stdout, &stderr)
+	if !errors.Is(err, localruntime.ErrStateDatabaseNotFound) {
+		t.Fatalf("error=%v want ErrStateDatabaseNotFound", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("orphan search cache emitted results: %s", stdout.String())
 	}
 }
 
