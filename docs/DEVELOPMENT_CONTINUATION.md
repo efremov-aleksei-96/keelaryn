@@ -96,13 +96,14 @@ For each candidate unit:
 Selection rules:
 
 1. Luna selects the highest-priority ready, unclaimed/non-overlapping `LUNA_READY` unit, then `EITHER_PROFILE` if no higher Luna-ready unit exists.
-2. A separate `SOL_REQUIRED` unit blocks only itself and units that actually depend on it. It does not block independent Luna-safe writes.
-3. Sol prioritizes immutable Luna handoffs awaiting review/integration, then ready architecture/authority blockers, then `EITHER_PROFILE`, then `LUNA_READY` when no higher-priority Sol work remains.
-4. Explicit Luna never performs a protected `SOL_REQUIRED` write. If no independent Luna-safe unit exists, it may continue read-only analysis/proof and then stop dependent writes.
-5. Explicit Sol may execute `LUNA_READY`, `EITHER_PROFILE`, or `SOL_REQUIRED` units; selecting Sol never requires needless hand-back to Luna.
-6. Generic continuation uses the resolved active profile from §2 and the same per-unit queue.
-7. Recompute readiness/classification after every reconcile, PR merge, material CI/runtime result, new blocker/finding, work-claim change, or `DEVELOPMENT_STATE.json` transition.
-8. This scheduler does not create a second qualified-state authority. Durable qualified truth remains `DEVELOPMENT_STATE.json` + Git/GitHub + fresh external evidence where relevant.
+2. If that explicit ready queue is empty, Luna synthesizes bounded `DISCOVERY` work units from `docs/LUNA_PERPETUAL_DISCOVERY.md` and selects the highest-priority non-overlapping discovery unit before considering a stop.
+3. A separate `SOL_REQUIRED` unit blocks only itself and units that actually depend on it. It does not block independent Luna-safe writes or read-only discovery.
+4. Sol prioritizes immutable Luna handoffs awaiting review/integration, then ready architecture/authority blockers, then `EITHER_PROFILE`, then `LUNA_READY` when no higher-priority Sol work remains.
+5. Explicit Luna never performs a protected `SOL_REQUIRED` write. If no independent explicit Luna-safe unit exists, it must exhaust the current bounded discovery cycle before stopping dependent writes.
+6. Explicit Sol may execute `LUNA_READY`, `EITHER_PROFILE`, or `SOL_REQUIRED` units; selecting Sol never requires needless hand-back to Luna.
+7. Generic continuation uses the resolved active profile from §2 and the same per-unit queue.
+8. Recompute readiness/classification after every reconcile, PR merge, material CI/runtime result, new blocker/finding, work-claim change, or `DEVELOPMENT_STATE.json` transition.
+9. This scheduler does not create a second qualified-state authority. Durable qualified truth remains `DEVELOPMENT_STATE.json` + Git/GitHub + fresh external evidence where relevant.
 
 The session should state a classification briefly only when it materially constrains the selected work unit.
 
@@ -144,9 +145,31 @@ A session builds its lane queue from:
 - open `[WORK-CLAIM]` issues;
 - open PRs and their declared work-unit scopes;
 - pending immutable handoffs awaiting review/integration;
-- current CI/runtime evidence.
+- current CI/runtime evidence;
+- when explicit work is exhausted, the perpetual discovery catalog in `docs/LUNA_PERPETUAL_DISCOVERY.md`, prioritized against the current objective, recently changed code, carried findings and unproved failure boundaries.
 
-A `SOL_REQUIRED` unit blocks only itself and dependants. It does not block independent `LUNA_READY` work.
+A `SOL_REQUIRED` unit blocks only itself and dependants. It does not block independent `LUNA_READY` work or read-only discovery.
+
+#### Perpetual discovery fallback
+
+The absence of a predeclared implementation ticket is not, by itself, an empty Luna queue.
+
+After explicit ready work is exhausted, Luna MUST synthesize one bounded discovery unit at a time under `docs/LUNA_PERPETUAL_DISCOVERY.md`. Discovery starts read-only and requires no work claim until it needs a branch/file mutation. Each unit must state one bounded question, why it matters now, its read/evidence scope, and a concrete done condition.
+
+Discovery priority is evidence-driven:
+
+1. unresolved review/CI/runtime findings and adjacent failure windows;
+2. adversarial correctness/negative-test gaps near recently changed code;
+3. architecture/authority consistency and call-site maps;
+4. performance/resource/cross-platform measurements;
+5. dependency/platform/API and upstream risk/reuse research;
+6. competitor/adjacent-system research relevant to the current boundary;
+7. canonical-roadmap direction audit and user-value gap analysis;
+8. documentation/state/test-debt consistency.
+
+A discovery result is classified as `NO_FINDING`, `LUNA_FIX_READY`, `SOL_REVIEW_REQUIRED`, or `BLOCKED_EXTERNAL`. A Luna-safe reproducible defect may become a normal claimed implementation work unit. A protected architecture/security/concurrency/schema/identity/recovery decision must become a bounded Sol-ready finding instead of being decided by Luna.
+
+A discovery cycle is bounded: at most one unit from each catalog category per current discovery epoch, except that a material finding may spawn one directly dependent bounded follow-up. The baseline ledger is the canonical exact-title `[DISCOVERY-CYCLE] <full-baseline-sha>` issue found across **open and closed** issues; concurrent duplicate issues arbitrate by lowest issue number and losers close before work. Each category appends a `DISCOVERY-CYCLE-RESULT-V1` bound to the current `Epoch-Ref`, including `NO_FINDING` and `SKIPPED_IRRELEVANT`. A material CI/runtime/review/finding trigger on unchanged HEAD appends a durable `DISCOVERY-CYCLE-RESET-V1`; its canonical GitHub comment ID becomes a new epoch, so older results no longer exhaust the cycle. Fresh sessions reconstruct baseline + epoch from GitHub instead of chat memory.
 
 #### Remote scope claim before the first write
 
@@ -260,7 +283,7 @@ Luna is optimized for long autonomous runs and mechanical throughput.
 
 When Luna is started in ChatGPT Work for Keelaryn, the default behavior is **continuous development**, not “perform one task and stop”.
 
-After each successful slice Luna immediately reconciles and selects the next safe **unclaimed/non-overlapping** ready slice. It continues until a stop condition in §7 is reached or the Work execution itself ends. A concurrent Sol review/integration lane is expected and does not by itself stop Luna.
+After each successful slice Luna immediately reconciles and selects the next safe **unclaimed/non-overlapping** ready slice. If no explicit unit remains, it enters the bounded perpetual-discovery fallback before evaluating §7. It continues until a stop condition in §7 is reached or the Work execution itself ends. A concurrent Sol review/integration lane, occupied implementation scope, or ordinary CI wait is expected and does not by itself stop Luna.
 
 ### 5.1 Luna — SAFE_AUTONOMOUS
 
@@ -354,11 +377,11 @@ A long Luna Work run stops dependent writes only when at least one is true:
 3. authoritative state is inconsistent and cannot be reconciled safely;
 4. a real BLOCKER/CRITICAL finding requires architecture-level remediation;
 5. CI or runtime evidence establishes a product defect whose correct fix needs Sol-level judgment;
-6. all currently ready work for the objective is complete.
+6. all explicit ready work for the objective is complete **and** the current bounded perpetual-discovery cycle is exhausted against the unchanged authoritative baseline.
 
-A single completed slice, an ordinary CI wait, or a recoverable tool error is **not** a stop condition.
+A single completed slice, an occupied neighboring scope, an ordinary CI/review wait, or a recoverable tool error is **not** a stop condition.
 
-While waiting on CI/provider/runtime evidence, Luna should continue independent read-only work from the existing approved categories.
+While waiting on CI/provider/runtime evidence, Luna should continue independent read-only work from the discovery catalog.
 
 ## 8. Durable handoff and interruption recovery
 
