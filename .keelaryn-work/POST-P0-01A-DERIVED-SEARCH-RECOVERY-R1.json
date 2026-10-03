@@ -1,0 +1,13 @@
+{
+  "claim_issue": 81,
+  "lane": "SOL",
+  "work_unit_id": "POST-P0-01A-DERIVED-SEARCH-RECOVERY-R1",
+  "base_sha": "338467d9d8ab1bbf200532e11a9ff75e644718b3",
+  "scope": "bounded successor replay of legacy PR #79 derived-search recovery files only",
+  "depends_on": [
+    "PR #79 PRE-PROTOCOL LEGACY",
+    "dev/corpus-first-p0@338467d9d8ab1bbf200532e11a9ff75e644718b3"
+  ],
+  "handoff_sha": null,
+  "state": "CLAIM_ONLY_PENDING_PR_TRANSFER"
+}
