@@ -220,7 +220,7 @@ After exact-head review/CI is acceptable and before any authoritative integratio
 
 1. reconcile authoritative HEAD, active PR ownership, the exact reviewed `Handoff-SHA`, the work-unit/PR acquired `Base-SHA`, and verify that no `.keelaryn-work/<work-unit>.json` marker remains in the handoff diff;
 2. require authoritative HEAD = the work-unit/PR acquired `Base-SHA`. If they differ, **do not create an integration candidate from the old handoff tree**: rebuild/rebase the work unit on the new authoritative HEAD, update its `Base-SHA`, produce a new `Handoff-SHA`, and rerun review/CI/proof invalidated by the base change;
-4. only after the handoff is qualified on that exact current base, create a GitHub issue titled `[INTEGRATION-CLAIM] <work-unit>` containing:
+3. only after the handoff is qualified on that exact current base, create a GitHub issue titled `[INTEGRATION-CLAIM] <work-unit>` containing:
 
 ```text
 PR: #<pull-request>
