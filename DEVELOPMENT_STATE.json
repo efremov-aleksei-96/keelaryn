@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 233,
+  "revision": 234,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -200,7 +200,10 @@
     "P0_FINAL_PROOF_REAUDIT_PASS",
     "P0_FINAL_M1_CANONICAL_REMOTE_SPIKE_DRIFT_RESOLVED",
     "P0_CLOSURE_CANDIDATE_EXACT_HEAD_CI_PASS",
-    "P0_CLOSED"
+    "P0_CLOSED",
+    "PARALLEL_LUNA_SOL_LANES_PROTOCOL_ADOPTED",
+    "PARALLEL_LUNA_SOL_REMOTE_WORK_CLAIM_PROTOCOL_ADOPTED",
+    "PARALLEL_WORK_CLAIM_INTERRUPTION_RECOVERY_ADOPTED"
   ],
   "next_objective": {
     "id": "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY",
@@ -230,6 +233,58 @@
     "CHECKPOINT",
     "NO_BLIND_RETRY_AFTER_INTERRUPTION"
   ],
+  "parallel_model_lanes": {
+    "protocol": "PARALLEL_LUNA_SOL_LANES_V1",
+    "mode": "CONCURRENT_PRODUCER_REVIEWER_INTEGRATOR",
+    "qualified_state_authority": "DEVELOPMENT_STATE.json",
+    "ephemeral_work_authority": "GITHUB_OPEN_WORK_CLAIM_ISSUE_THEN_PR_AND_EXACT_HEAD_SHA",
+    "classification_scope": "PER_WORK_UNIT_NOT_GLOBAL_OBJECTIVE",
+    "claim_transfer_lease_minutes": 30,
+    "claim_marker_path_template": ".keelaryn-work/<work-unit>.json",
+    "pre_transfer_substantive_writes": "FORBIDDEN",
+    "work_unit_required_fields": [
+      "claim_issue",
+      "lane",
+      "work_unit_id",
+      "base_sha",
+      "scope",
+      "depends_on",
+      "handoff_sha",
+      "state"
+    ],
+    "lanes": {
+      "LUNA": {
+        "role": "PRODUCER_THROUGHPUT",
+        "may_run_while_sol_active": true,
+        "selection": "HIGHEST_PRIORITY_NON_OVERLAPPING_LUNA_READY_OR_EITHER_PROFILE"
+      },
+      "SOL": {
+        "role": "REVIEW_ARCHITECTURE_INTEGRATION",
+        "may_run_while_luna_active": true,
+        "selection": "IMMUTABLE_HANDOFF_REVIEW_THEN_SOL_REQUIRED_OR_EITHER_PROFILE"
+      }
+    },
+    "rules": [
+      "SOL_REQUIRED_WORK_DOES_NOT_BLOCK_INDEPENDENT_LUNA_SAFE_WORK",
+      "REMOTE_WORK_CLAIM_ISSUE_BEFORE_FIRST_BRANCH_OR_FILE_WRITE",
+      "PUBLISH_CLAIM_THEN_RECONCILE_BEFORE_ACQUIRE",
+      "LOWEST_OPEN_CLAIM_ISSUE_NUMBER_WINS_MATERIAL_SCOPE_OVERLAP",
+      "TRANSFER_CLAIM_TO_REMOTELY_VISIBLE_PR_BEFORE_CLOSING_CLAIM_ISSUE",
+      "CLAIM_TRANSFER_LEASE_MAX_30_MINUTES",
+      "CLAIM_MARKER_ONLY_BEFORE_VISIBLE_PR_TRANSFER",
+      "NO_SUBSTANTIVE_WRITE_BEFORE_VISIBLE_PR_TRANSFER",
+      "EXPIRED_UNTRANSFERRED_CLAIM_WITH_NO_REFERENCING_PR_MAY_BE_RETIRED",
+      "EXPIRED_CLAIM_BRANCH_AND_MARKER_ARE_ABANDONED_NOT_REUSED",
+      "INTERRUPTED_SESSION_MUST_RECONCILE_CLAIM_BEFORE_NEXT_WRITE",
+      "ONE_WRITE_BRANCH_PER_WORK_UNIT",
+      "NO_OVERLAPPING_ACTIVE_WRITE_SCOPE",
+      "SOL_REVIEW_BINDS_TO_EXACT_HANDOFF_SHA",
+      "LUNA_DOES_NOT_MUTATE_HEAD_UNDER_SOL_REVIEW",
+      "AUTHORITATIVE_MERGES_AND_QUALIFIED_STATE_TRANSITIONS_ARE_SERIALIZED",
+      "BASE_MOVEMENT_REQUIRES_RECONCILE_AND_REVERIFY",
+      "NO_EPHEMERAL_LANE_LOCKS_IN_DEVELOPMENT_STATE"
+    ]
+  },
   "forbidden": [
     "START_P0_FEATURES_BEFORE_C0_COMPLETE",
     "DELETE_GOOGLE_DRIVE_CONTENT_WITHOUT_SEPARATE_APPROVAL",
