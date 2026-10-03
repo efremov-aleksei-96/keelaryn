@@ -214,19 +214,33 @@ Luna does not append unrelated/new work to a head already under Sol review. If a
 
 #### Serialized integration gate
 
-Parallel preparation does not imply parallel authority mutation. Merges into the authoritative branch and qualified `DEVELOPMENT_STATE.json` transitions are serialized.
+Parallel preparation does not imply parallel authority mutation. The reconcile-to-merge window is serialized by a remotely visible integration claim.
 
-Immediately before merge/state transition:
+After exact-head review/CI is acceptable and before any authoritative merge or qualified `DEVELOPMENT_STATE.json` transition:
 
-1. reconcile authoritative HEAD;
-2. reconcile all materially overlapping active PRs and confirm this PR is still the unique owner under the transfer-validity / earliest-`created_at` ordering;
-3. confirm the work-unit claim/PR ownership and exact reviewed head are still applicable;
-4. re-evaluate overlapping merged work since the base;
-5. run any proof invalidated by base movement;
-6. perform one integration mutation;
-7. verify and checkpoint before another integration mutation.
+1. reconcile authoritative HEAD, materially overlapping active PRs, and exact reviewed handoff;
+2. create a GitHub issue titled `[INTEGRATION-CLAIM] <work-unit>` containing:
 
-Ephemeral lane occupancy is derived from open work-claim issues before transfer and open PRs after transfer. Do not add rapidly changing lane locks to `DEVELOPMENT_STATE.json`; it remains authority for qualified project state.
+```text
+PR: #<pull-request>
+Work-Unit: <stable bounded id>
+Handoff-SHA: <exact reviewed candidate sha>
+Base-SHA: <current authoritative head>
+State: CLAIMING
+Lease-Until: <RFC3339 UTC, no more than 10 minutes after claim creation>
+```
+
+3. immediately reconcile open `[INTEGRATION-CLAIM]` issues; among claims targeting the same current `Base-SHA`, the lowest GitHub issue number is the unique winner and all later claims must close without integrating;
+4. before integration, re-fetch the winning claim, its lease, the PR head, and authoritative HEAD; require the claim to remain open/unexpired, PR head to equal `Handoff-SHA`, and authoritative HEAD to equal `Base-SHA`;
+5. if the lease expired, the PR head moved, or authoritative HEAD differs from `Base-SHA`, close the integration claim and perform **no** merge/state transition; restart reconcile on current reality and repeat any conflict/proof/CI/review work invalidated by the change;
+6. while the claim is valid, reconcile all materially overlapping active PRs again and confirm this PR remains the unique work-scope owner;
+7. perform exactly one authoritative integration mutation;
+8. immediately verify the resulting authoritative HEAD and project state, then close the integration claim;
+9. only after that checkpoint may another integration claim win and integrate.
+
+If an integration claim expires before integration, it grants no merge authority. A fresh session may close an expired claim after reconciling that its PR is still unmerged; recovery begins with a new integration claim against the then-current authoritative HEAD.
+
+Integration claims are ephemeral GitHub coordination. Work-lane occupancy is derived from open work-claim issues before transfer and active PRs after transfer; neither kind of ephemeral lock is stored as rapidly changing state in `DEVELOPMENT_STATE.json`, which remains authority only for qualified project state.
 
 ## 5. Luna: continuous Work profile
 
