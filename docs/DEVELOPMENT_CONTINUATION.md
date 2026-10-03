@@ -84,11 +84,13 @@ No write is permitted before this reconcile.
 
 After startup reconcile, and again after every material transition, classify the **highest-priority ready work** before choosing a write-capable slice. The classification is about the next material prerequisite/action, not a permanent label on the whole objective.
 
-Exactly one of these applies:
+Exactly one classification applies by evaluating these predicates **in order and stopping at the first match**:
 
-- **LUNA_READY** — the next material work is within `SAFE_AUTONOMOUS` / `SAFE_WITH_VERIFY`, and no unresolved Sol-only decision is a prerequisite to that work.
-- **SOL_REQUIRED** — the next material decision or write crosses a `STRONG_MODEL_REQUIRED` boundary, or correctness depends on unresolved architecture/authority judgment.
-- **EITHER_PROFILE** — the next material work is Luna-safe and may also be performed by Sol; no unresolved Sol-only prerequisite blocks it.
+1. **SOL_REQUIRED** — the next material decision or write crosses a `STRONG_MODEL_REQUIRED` boundary, or correctness depends on unresolved architecture/authority judgment.
+2. **LUNA_READY** — only after `SOL_REQUIRED` is false: the next material work is within `SAFE_AUTONOMOUS` / `SAFE_WITH_VERIFY`, has no unresolved Sol-only prerequisite, **and** is predominantly mechanical, deterministic, research/test/CI, bounded-refactor, or long-running throughput work that fits Luna's autonomous profile.
+3. **EITHER_PROFILE** — only after both predicates above are false: the next material work is still Luna-safe and has no unresolved Sol-only prerequisite, but it is not specifically Luna-throughput work. Either Luna or Sol may execute it.
+
+This ordered decision rule makes the three labels mutually exclusive and reproducible across fresh sessions.
 
 Rules:
 

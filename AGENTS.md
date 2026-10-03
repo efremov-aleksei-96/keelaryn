@@ -53,9 +53,11 @@ Before any write:
 
 Before selecting any write-capable slice, classify the **highest-priority ready work** (not the whole roadmap) through the objective/profile suitability gate:
 
-- `LUNA_READY` — the next material work is within SAFE_AUTONOMOUS / SAFE_WITH_VERIFY and no unresolved Sol-only decision is a prerequisite;
-- `SOL_REQUIRED` — the next material decision or write crosses a STRONG_MODEL_REQUIRED boundary or depends on unresolved architecture/authority judgment;
-- `EITHER_PROFILE` — the next material work is Luna-safe and Sol may also execute it; no Sol-only prerequisite is unresolved.
+Evaluate in this order, stopping at the first match:
+
+1. `SOL_REQUIRED` — the next material decision or write crosses a STRONG_MODEL_REQUIRED boundary or depends on unresolved architecture/authority judgment.
+2. `LUNA_READY` — after `SOL_REQUIRED` is false, the next material work is Luna-safe **and** is predominantly mechanical, deterministic, research/test/CI, bounded refactor, or long-running throughput work suited to Luna.
+3. `EITHER_PROFILE` — after both predicates above are false, the next material work is still Luna-safe, but is not specifically Luna-throughput work; either Luna or Sol may execute it.
 
 Recompute this classification after every reconcile and after any material transition (merge, CI result, new blocker/finding, objective/state change).
 
