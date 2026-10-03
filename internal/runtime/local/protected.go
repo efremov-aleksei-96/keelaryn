@@ -228,16 +228,15 @@ func QueryProtected(ctx context.Context, controlDir, query string, limit int) ([
 	if err != nil {
 		return nil, err
 	}
+	lock, err := controlstorage.AcquireSearchMutationLock(layout)
+	if err != nil {
+		return nil, err
+	}
 	hits, operationErr := Query(ctx, layout.SearchDB, query, limit)
 	verifyErr := controlstorage.Verify(layout.Dir)
-	if operationErr != nil {
-		if verifyErr != nil {
-			return nil, errors.Join(operationErr, verifyErr)
-		}
-		return nil, operationErr
-	}
-	if verifyErr != nil {
-		return nil, verifyErr
+	lockErr := lock.Close()
+	if operationErr != nil || verifyErr != nil || lockErr != nil {
+		return nil, errors.Join(operationErr, verifyErr, lockErr)
 	}
 	return hits, nil
 }
@@ -318,6 +317,10 @@ func BuildProtectedContext(ctx context.Context, options ProtectedContextOptions)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
+	lock, err := controlstorage.AcquireSearchMutationLock(layout)
+	if err != nil {
+		return contextbundle.Bundle{}, err
+	}
 
 	bundle, operationErr := BuildContext(ctx, ContextOptions{
 		Root: root, StateDB: layout.StateDB, SearchDB: layout.SearchDB,
@@ -325,14 +328,9 @@ func BuildProtectedContext(ctx context.Context, options ProtectedContextOptions)
 		MaxTotalBytes: options.MaxTotalBytes,
 	})
 	verifyErr := controlstorage.Verify(layout.Dir)
-	if operationErr != nil {
-		if verifyErr != nil {
-			return contextbundle.Bundle{}, errors.Join(operationErr, verifyErr)
-		}
-		return contextbundle.Bundle{}, operationErr
-	}
-	if verifyErr != nil {
-		return contextbundle.Bundle{}, verifyErr
+	lockErr := lock.Close()
+	if operationErr != nil || verifyErr != nil || lockErr != nil {
+		return contextbundle.Bundle{}, errors.Join(operationErr, verifyErr, lockErr)
 	}
 	return bundle, nil
 }
