@@ -43,6 +43,15 @@ func DiscardActiveSearchFamily(layout Layout) error {
 	return discardSearchFamily(layout, layout.SearchDB, SearchDatabaseName)
 }
 
+// DiscardActiveSearchFamilyAfterReconcileFailure discards the exact validated
+// active derived SQLite family only after a caller has attempted SQLite
+// reconciliation under the search mutation lock and that reconciliation could
+// not open the family. Unlike DiscardActiveSearchFamily, sidecars are expected
+// here: all exact members are prevalidated before the first removal.
+func DiscardActiveSearchFamilyAfterReconcileFailure(layout Layout) error {
+	return discardSearchFamily(layout, layout.SearchDB, SearchDatabaseName)
+}
+
 func DiscardStagedSearchFamily(layout Layout) error {
 	return discardSearchFamily(layout, layout.SearchStagingDB, SearchStagingDatabaseName)
 }

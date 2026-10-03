@@ -178,6 +178,13 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 		return nil
 	}
 
+	// Full read-only verification is the fail-closed authority gate for recovery.
+	// Selected scan/receipt reads below are insufficient to detect localized
+	// SQLite integrity or foreign-key corruption outside the active local scope.
+	if err := sqlitestate.VerifyReadOnly(ctx, layout.StateDB); err != nil {
+		return err
+	}
+
 	state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
 	if err != nil {
 		return err
@@ -343,7 +350,19 @@ func reconcileActiveSearchSQLiteFamily(ctx context.Context, layout controlstorag
 	// and verified. Any error fails closed and leaves staging for retry.
 	index, err := searchsqlite.Open(ctx, layout.SearchDB)
 	if err != nil {
-		return fmt.Errorf("reconcile active search SQLite family: %w", err)
+		// SQLite could not reconcile the family under its original name. The
+		// entire active family is rebuildable derived state, and a complete
+		// staged replacement has already been verified under the mutation lock.
+		// Validate every exact family member before deleting any of them; on any
+		// unsafe path, keep both active and staging and fail closed.
+		discardErr := controlstorage.DiscardActiveSearchFamilyAfterReconcileFailure(layout)
+		if discardErr != nil {
+			return errors.Join(
+				fmt.Errorf("reconcile active search SQLite family: %w", err),
+				fmt.Errorf("discard unrecoverable active search SQLite family: %w", discardErr),
+			)
+		}
+		return nil
 	}
 	if err := index.Close(); err != nil {
 		return fmt.Errorf("close reconciled active search SQLite family: %w", err)

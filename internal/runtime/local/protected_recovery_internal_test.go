@@ -9,12 +9,15 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
 	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
+	zsqlite "zombiezen.com/go/sqlite"
+	"zombiezen.com/go/sqlite/sqlitex"
 )
 
 func TestProtectedRecoveryDiscardsValidPriorStagingInsteadOfTrustingIt(t *testing.T) {
@@ -300,4 +303,113 @@ func protectedRecoveryCorpus(t *testing.T, root string) map[string][sha256.Size]
 		t.Fatal(err)
 	}
 	return out
+}
+
+
+func TestProtectedRecoveryRepairsCorruptActiveFamilyWithSidecar(t *testing.T) {
+	ctx := context.Background()
+	root, control, options, layout := newProtectedRecoveryFixture(t, "corrupt family with sidecar", 41)
+	authorityBefore := protectedRecoveryAuthority(t, ctx, layout.StateDB, root)
+	corpusBefore := protectedRecoveryCorpus(t, root)
+
+	if err := os.WriteFile(layout.SearchDB, []byte("not sqlite"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(layout.SearchDB+"-journal", []byte("unrecoverable derived journal"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatalf("corrupt active SQLite family with sidecar was not recoverable: %v", err)
+	}
+	if _, err := os.Lstat(layout.SearchDB + "-journal"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unrecoverable active sidecar survived recovery: %v", err)
+	}
+	assertProtectedRecoveryInvariant(t, ctx, root, control, layout, authorityBefore, corpusBefore, "corrupt family with sidecar")
+}
+
+func TestProtectedRecoveryFullStateVerificationFailsBeforeDerivedMutation(t *testing.T) {
+	ctx := context.Background()
+	root, _, options, layout := newProtectedRecoveryFixture(t, "hidden state corruption guard", 42)
+	authorityBefore := protectedRecoveryAuthority(t, ctx, layout.StateDB, root)
+	corpusBefore := protectedRecoveryCorpus(t, root)
+	activeBefore, err := os.ReadFile(layout.SearchDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stagingBefore := []byte("prior-staging-must-survive-invalid-state")
+	if err := os.WriteFile(layout.SearchStagingDB, stagingBefore, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	injectOrphanLocatorForeignKeyViolation(t, layout.StateDB, root)
+
+	// The selected authority reads used by the old preflight still succeed and
+	// return the same local authority, proving this corruption is outside that
+	// narrow read set.
+	state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
+	if err != nil {
+		t.Fatalf("narrow read-only state open unexpectedly caught the FK violation: %v", err)
+	}
+	if err := state.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := protectedRecoveryAuthority(t, ctx, layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("injected unrelated FK violation changed selected local authority")
+	}
+	if err := sqlitestate.VerifyReadOnly(ctx, layout.StateDB); err == nil {
+		t.Fatal("full read-only verifier accepted an injected foreign-key violation")
+	}
+
+	if _, err := BootstrapProtectedIndex(ctx, options); err == nil {
+		t.Fatal("recovery unexpectedly mutated derived state with invalid authoritative state.db")
+	}
+	if got, err := os.ReadFile(layout.SearchDB); err != nil || string(got) != string(activeBefore) {
+		t.Fatalf("active search cache changed before invalid state failed closed: err=%v", err)
+	}
+	if got, err := os.ReadFile(layout.SearchStagingDB); err != nil || string(got) != string(stagingBefore) {
+		t.Fatalf("staging changed before invalid state failed closed: err=%v", err)
+	}
+	if got := protectedRecoveryCorpus(t, root); !reflect.DeepEqual(got, corpusBefore) {
+		t.Fatal("corpus bytes/topology changed while invalid state failed closed")
+	}
+}
+
+func injectOrphanLocatorForeignKeyViolation(t *testing.T, statePath, root string) {
+	t.Helper()
+	conn, err := zsqlite.OpenConn(statePath, zsqlite.OpenReadWrite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if err := sqlitex.ExecuteTransient(conn, "PRAGMA foreign_keys = OFF;", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	var triggers []string
+	if err := sqlitex.Execute(conn,
+		"SELECT name FROM sqlite_schema WHERE type='trigger' AND tbl_name='locators' ORDER BY name",
+		&sqlitex.ExecOptions{ResultFunc: func(stmt *zsqlite.Stmt) error {
+			triggers = append(triggers, stmt.ColumnText(0))
+			return nil
+		}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range triggers {
+		quoted := `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+		if err := sqlitex.ExecuteTransient(conn, "DROP TRIGGER "+quoted+";", nil); err != nil {
+			t.Fatalf("drop locator trigger %q: %v", name, err)
+		}
+	}
+	if err := sqlitex.Execute(conn,
+		"INSERT INTO locators (locator_id, observation_id, provider_id, root, path) VALUES (?1, ?2, ?3, ?4, ?5)",
+		&sqlitex.ExecOptions{Args: []any{
+			"loc_orphan_recovery_fk",
+			"obs_missing_recovery_fk",
+			string(ProviderID),
+			root,
+			"orphan-recovery-fk.txt",
+		}}); err != nil {
+		t.Fatal(err)
+	}
 }
