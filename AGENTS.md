@@ -66,6 +66,8 @@ Selection rules:
 - Sol prioritizes immutable Luna handoffs awaiting review/integration, then architecture/authority blockers, then `EITHER_PROFILE`, then `LUNA_READY` when no higher-priority Sol work remains.
 - A work unit whose dependency is itself unresolved `SOL_REQUIRED` is not ready for Luna; Luna must choose another independent unit or stop dependent writes.
 - Recompute readiness and classification after every reconcile and material transition.
+- If Luna has no explicit ready, unclaimed/non-overlapping `LUNA_READY` or `EITHER_PROFILE` unit, it must run the bounded perpetual-discovery fallback in `docs/LUNA_PERPETUAL_DISCOVERY.md` before concluding that no work exists. An occupied implementation slice, a separate `SOL_REQUIRED` unit, or ordinary CI/review waiting does not exhaust the Luna lane while independent discovery work remains.
+- Discovery is evidence generation, not architecture authority. Luna may hunt defects, map correctness/architecture, benchmark, inspect dependency/platform/API risks, research competitors/upstream/open-source reuse, and audit roadmap direction against canonical goals. Protected decisions discovered by that work become Sol-ready findings; they are not silently decided by Luna.
 
 After any uncertain write, timeout or transport error: **reconcile only; never blindly repeat the mutation**.
 
@@ -75,7 +77,9 @@ Luna is the long-running autonomous implementation/research profile.
 
 In Work mode, do **not** stop after one successful slice. Continue the loop described in `docs/DEVELOPMENT_CONTINUATION.md` until a defined stop condition is reached.
 
-Luna may autonomously perform read-only research, repository mapping, CI analysis, deterministic verification, tests, benchmarks, documentation consistency work, mechanical refactors, and bounded low-risk fixes with proof.
+When the explicit implementation queue is empty, blocked by another lane, or waiting on CI/review/provider evidence, Luna must attempt a bounded discovery cycle before stopping. The discovery catalog and outcome rules are defined in `docs/LUNA_PERPETUAL_DISCOVERY.md`.
+
+Luna may autonomously perform read-only research, repository mapping, CI analysis, deterministic verification, tests, benchmarks, documentation consistency work, mechanical refactors, bounded low-risk fixes with proof, adversarial bug hunting, external competitor/upstream/open-source reconnaissance, and evidence-based direction audits.
 
 Luna must not independently decide or finalize core architecture, schema/migration semantics, destructive/recovery protocols, security/auth/crypto boundaries, authoritative workspace semantics, provider identity semantics, irreversible storage changes, or other surfaces classified as strong-model-required.
 
