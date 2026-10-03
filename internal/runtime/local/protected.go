@@ -344,10 +344,12 @@ func reconcileActiveSearchSQLiteFamily(ctx context.Context, layout controlstorag
 		return nil
 	}
 
-	// Keep the SQLite family under its original names and let SQLite perform
-	// any legitimate hot-journal/WAL recovery itself. This is derived state
-	// only and runs after the staged replacement has already been fully built
-	// and verified. Any error fails closed and leaves staging for retry.
+	// Keep the SQLite family under its original names for the reconciliation
+	// attempt so SQLite can perform legitimate hot-journal/WAL recovery itself.
+	// This is derived state only and runs after the staged replacement has
+	// already been fully built and verified. A close failure fails closed and
+	// leaves staging for retry; an open failure permits only exact-family
+	// disposal after complete control-file prevalidation.
 	index, openErr := searchsqlite.Open(ctx, layout.SearchDB)
 	if openErr == nil {
 		if err := index.Close(); err != nil {
