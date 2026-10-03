@@ -22,6 +22,16 @@ func AcquireSearchMutationLock(layout Layout) (*SearchMutationLock, error) {
 	if err := verifyProtectedDir(layout.Dir); err != nil {
 		return nil, err
 	}
+	if info, err := os.Lstat(layout.SearchLock); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("%w: %s", ErrControlFileUnsafe, layout.SearchLock)
+		}
+		if err := verifyControlFile(layout.SearchLock); err != nil {
+			return nil, fmt.Errorf("%w: %s: %v", ErrControlFileUnsafe, layout.SearchLock, err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("inspect search mutation lock: %w", err)
+	}
 	file, err := os.OpenFile(layout.SearchLock, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open search mutation lock: %w", err)
