@@ -154,6 +154,7 @@ Finish each unit with exactly one outcome:
 - `LUNA_FIX_READY` — a reproducible, bounded issue has an already-specified Luna-safe behavior. Convert it into a normal claimed work unit; prove with a failing reproduction/test first when applicable.
 - `SOL_REVIEW_REQUIRED` — evidence touches architecture, schema/migration, destructive/recovery authority, concurrency semantics, security/auth/crypto, identity/provenance, irreversible storage, provider authority, or another protected boundary. Persist a concise finding/handoff; do not decide the protected fix in Luna.
 - `BLOCKED_EXTERNAL` — the question materially depends on unavailable credentials/environment/approval/source evidence. Record what is missing and continue another independent category when possible.
+- `SKIPPED_IRRELEVANT` — the catalog category is clearly irrelevant to the active objective/boundary for the current epoch. Persist a short reason so fresh sessions can count the category as complete without rerunning it.
 
 Material findings must become durable GitHub evidence (issue, PR handoff, review/comment, or committed test/finding) before the session relies on them later. Discovery artifacts are evidence, not qualified project-state authority.
 
