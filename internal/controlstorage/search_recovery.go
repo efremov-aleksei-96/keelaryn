@@ -7,9 +7,39 @@ import (
 	"path/filepath"
 )
 
-var ErrSearchStagingNotStandalone = errors.New("staged search database is not a standalone closed SQLite file")
+var (
+	ErrSearchStagingNotStandalone = errors.New("staged search database is not a standalone closed SQLite file")
+	ErrSearchActiveNotStandalone  = errors.New("active search database has SQLite sidecars and cannot be discarded safely")
+)
 
 func DiscardActiveSearchFamily(layout Layout) error {
+	if err := validateSearchFamilyPath(layout, layout.SearchDB, SearchDatabaseName); err != nil {
+		return err
+	}
+	mainInfo, mainErr := os.Lstat(layout.SearchDB)
+	if mainErr != nil && !errors.Is(mainErr, os.ErrNotExist) {
+		return fmt.Errorf("inspect active search database: %w", mainErr)
+	}
+	if mainErr == nil {
+		if mainInfo.Mode()&os.ModeSymlink != 0 || !mainInfo.Mode().IsRegular() {
+			return fmt.Errorf("%w: %s", ErrControlFileUnsafe, layout.SearchDB)
+		}
+		if err := verifyControlFile(layout.SearchDB); err != nil {
+			return fmt.Errorf("%w: %s: %v", ErrControlFileUnsafe, layout.SearchDB, err)
+		}
+		for _, suffix := range []string{"-journal", "-wal", "-shm"} {
+			path := layout.SearchDB + suffix
+			if _, err := os.Lstat(path); err == nil {
+				return fmt.Errorf("%w: sidecar=%s", ErrSearchActiveNotStandalone, filepath.Base(path))
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("inspect active search sidecar: %w", err)
+			}
+		}
+		return os.Remove(layout.SearchDB)
+	}
+
+	// With no active main file, exact orphan sidecars are derived leftovers and
+	// cannot participate in SQLite recovery. They may be discarded.
 	return discardSearchFamily(layout, layout.SearchDB, SearchDatabaseName)
 }
 
