@@ -1,0 +1,13 @@
+{
+  "claim_issue": 96,
+  "lane": "SOL",
+  "work_unit_id": "GOV-LUNA-DISCOVERY-OUTCOME-CONSISTENCY",
+  "base_sha": "14cb9aefa189b1ffed6148016645f8aba9c6f2a2",
+  "scope": [
+    "docs/LUNA_PERPETUAL_DISCOVERY.md"
+  ],
+  "depends_on": [
+    "DISCOVERY-CYCLE#95:5972556402"
+  ],
+  "state": "CLAIM_TRANSFER"
+}
