@@ -146,10 +146,36 @@ func expectedSearchBoundaryReadOnly(ctx context.Context, stateDB, root string) (
 // and repeat it after lock acquisition before discarding any derived staging.
 func preflightProtectedSearchRecovery(ctx context.Context, root string, layout controlstorage.Layout) (err error) {
 	if _, statErr := os.Lstat(layout.StateDB); statErr != nil {
-		if errors.Is(statErr, os.ErrNotExist) {
-			return nil
+		if !errors.Is(statErr, os.ErrNotExist) {
+			return fmt.Errorf("inspect authoritative state database: %w", statErr)
 		}
-		return fmt.Errorf("inspect authoritative state database: %w", statErr)
+		// Missing non-rebuildable state is safe only for a truly fresh control
+		// profile. Any SQLite sidecar or derived search family proves that
+		// durable runtime work may already have existed, so silently creating a
+		// new state.db could remint Artifact/Revision identity after metadata
+		// loss. search.lock alone is harmless: it can survive a crash after
+		// writer serialization but before the first state transaction.
+		for _, path := range []string{
+			layout.StateDB + "-journal",
+			layout.StateDB + "-wal",
+			layout.StateDB + "-shm",
+			layout.SearchDB,
+			layout.SearchDB + "-journal",
+			layout.SearchDB + "-wal",
+			layout.SearchDB + "-shm",
+			layout.SearchStagingDB,
+			layout.SearchStagingDB + "-journal",
+			layout.SearchStagingDB + "-wal",
+			layout.SearchStagingDB + "-shm",
+		} {
+			if _, err := os.Lstat(path); err == nil {
+				return fmt.Errorf("%w: authoritative state missing with prior control artifact %s",
+					ErrStateDatabaseNotFound, filepath.Base(path))
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("inspect control artifact %s: %w", filepath.Base(path), err)
+			}
+		}
+		return nil
 	}
 
 	state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)

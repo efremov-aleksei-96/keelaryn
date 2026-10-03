@@ -34,7 +34,10 @@ But a corrupt, incompatible, or otherwise unopenable existing `search.db` can pr
 The safe recovery rule is therefore asymmetric:
 
 - `state.db` invalid => **fail closed; no repair**;
+- `state.db` missing is a fresh bootstrap **only** when no state SQLite sidecar and no active/staged search family exists; otherwise treat it as possible authoritative metadata loss and fail closed;
 - `search.db` invalid => MAY be discarded/rebuilt, but only from revalidated authoritative state + exact current corpus evidence.
+
+A persistent `search.lock` alone does not prove prior authority: it may survive process death after writer serialization but before the first state transaction.
 
 Recovery must be deterministic after interruption and must never cause a staged/partial cache to become query authority.
 
@@ -204,11 +207,12 @@ At minimum add regression coverage for:
 11. promotion while destination is unavailable/busy => no state mutation; staged candidate retained;
 12. promoted cache fails post-open verification => command fails closed and never claims success;
 13. state DB corruption => no search recovery mutation begins;
-14. corpus fingerprint drift => no search recovery mutation begins;
-15. lock contention => zero search-family mutation;
-16. authoritative state semantics unchanged across recovery: same current COMPLETE scan, inventory assignments/locators, and Artifact/Revision history; raw SQLite file bytes are not an authority invariant because journal/checkpoint housekeeping may change physical representation without changing logical state;
-17. user corpus bytes unchanged across every recovery test;
-18. Ubuntu 24.04 + Windows 2025 CI.
+14. missing state DB with any state sidecar or active/staged search family => fail closed without reminting authority; truly fresh control remains bootstrappable;
+15. corpus fingerprint drift => no search recovery mutation begins;
+16. lock contention => zero search-family mutation;
+17. authoritative state semantics unchanged across recovery: same current COMPLETE scan, inventory assignments/locators, and Artifact/Revision history; raw SQLite file bytes are not an authority invariant because journal/checkpoint housekeeping may change physical representation without changing logical state;
+18. user corpus bytes unchanged across every recovery test;
+19. Ubuntu 24.04 + Windows 2025 CI.
 
 ## 12. Stage completion
 

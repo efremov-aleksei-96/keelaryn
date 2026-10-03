@@ -76,6 +76,88 @@ func TestProtectedRuntimeRejectsPhysicalAliasIntoCorpusBeforeMutation(t *testing
 }
 
 
+
+func TestProtectedRuntimeMissingStateWithDerivedFootprintFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("lost authority must not remint"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 11, 50, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	searchBefore := mustReadFile(t, layout.SearchDB)
+	stagingBefore := []byte("prior-derived-staging")
+	if err := os.WriteFile(layout.SearchStagingDB, stagingBefore, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(layout.StateDB); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = localruntime.BootstrapProtectedIndex(ctx, options)
+	if !errors.Is(err, localruntime.ErrStateDatabaseNotFound) {
+		t.Fatalf("error=%v want ErrStateDatabaseNotFound", err)
+	}
+	if _, err := os.Lstat(layout.StateDB); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing authoritative state was recreated: %v", err)
+	}
+	if got := mustReadFile(t, layout.SearchDB); string(got) != string(searchBefore) {
+		t.Fatal("active derived cache changed after authoritative state loss")
+	}
+	if got := mustReadFile(t, layout.SearchStagingDB); string(got) != string(stagingBefore) {
+		t.Fatal("staging changed after authoritative state loss")
+	}
+}
+
+func TestProtectedRuntimeOrphanStateSidecarWithoutMainFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("orphan state sidecar"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	control := filepath.Join(t.TempDir(), "control")
+	layout, err := controlstorage.Prepare(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sidecar := layout.StateDB + "-wal"
+	sidecarBytes := []byte("possible-authority-recovery-state")
+	if err := os.WriteFile(sidecar, sidecarBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = localruntime.BootstrapProtectedIndex(ctx, localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 11, 55, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	})
+	if !errors.Is(err, localruntime.ErrStateDatabaseNotFound) {
+		t.Fatalf("error=%v want ErrStateDatabaseNotFound", err)
+	}
+	if _, err := os.Lstat(layout.StateDB); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("state.db unexpectedly created: %v", err)
+	}
+	if got := mustReadFile(t, sidecar); string(got) != string(sidecarBytes) {
+		t.Fatal("orphan state sidecar was mutated")
+	}
+	for _, path := range []string{layout.SearchDB, layout.SearchStagingDB, layout.SearchLock} {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("search recovery mutation started before missing state failed closed: %s err=%v", path, err)
+		}
+	}
+}
+
 func TestProtectedRuntimeRecoversCorruptDerivedSearchWithoutChangingState(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
