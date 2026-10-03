@@ -164,17 +164,28 @@ Base-SHA: <authoritative sha observed for acquisition>
 Scope: <files and semantic authority requested>
 Depends-On: <none or immutable prerequisite ids/shas>
 State: CLAIMING
+Lease-Until: <RFC3339 UTC, no more than 30 minutes after claim creation>
 ```
 
 3. immediately reconcile **again** after the issue is remotely visible;
 4. compare the requested scope with every open claim and active PR;
 5. for materially overlapping claims, the **lowest GitHub claim issue number wins**; all later claimants mark/close their claim as abandoned and choose another unit before branch creation/file edits;
 6. if visibility, scope overlap, or winner ordering is uncertain, fail closed and perform no file write;
-7. the winner may then treat the claim as acquired and create its isolated exact-base branch.
+7. the winner acquires only a short **claim-transfer lease**. It may create an isolated exact-base branch whose name contains the claim number and write only `.keelaryn-work/<work-unit>.json`, containing the claim metadata needed to open the first draft PR. It must not edit product/code/document scope yet;
+8. before `Lease-Until`, open a draft PR that references the claim and repeats the ownership fields, then reconcile that the PR is remotely visible;
+9. only after that remote PR is visible does ownership transfer to the PR. Close the issue claim and substantive writes may begin on the PR branch.
 
-This publish→reconcile→winner sequence prevents two sessions that started from the same read-only prestate from both silently becoming writers.
+This publish→reconcile→winner→draft-PR-transfer sequence prevents two sessions that started from the same read-only prestate from both silently becoming writers and bounds claim-only ownership after interruption.
 
-When the first PR for the acquired unit is opened, its body must reference the claim issue and repeat the ownership fields. After the PR is verified remotely visible, ownership transfers to that PR and the temporary claim issue may be closed. Until that transfer, the open claim issue remains the occupancy record.
+If `Lease-Until` expires before transfer:
+
+1. a fresh session reconciles open claims **and** open PRs;
+2. if no open PR references the expired claim, the claim may be marked stale/retired and closed;
+3. any leftover claim-only branch or `.keelaryn-work/<work-unit>.json` marker from that claim is abandoned and must not be reused;
+4. recovery begins with a new claim and a new claim-numbered branch;
+5. the interrupted original session must reconcile before its next write; an expired/closed claim gives it no authority to continue.
+
+If an open PR already references the claim, ownership has transferred to that PR and the issue's lease expiry is irrelevant. The marker is transport/bootstrap metadata only and must be removed before integration; it never becomes product or qualified-state authority.
 
 #### Work-unit branch and handoff
 
