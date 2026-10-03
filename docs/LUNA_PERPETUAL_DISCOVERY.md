@@ -172,6 +172,7 @@ Verification: DIFF_DISJOINT
 Invalidation-Scan: PASS
 Invalidation-Evidence: <durable CI/runtime/review/finding/external refs or bounded range checked; NONE_INVALIDATING>
 Freshness-Check: NOT_REQUIRED | FRESH_PRIMARY_SOURCE_CHECK
+External-Dependency: NONE | <external source/provider/upstream assumption requiring freshness>
 Evidence: <why the prior result still applies on this baseline>
 ```
 
@@ -182,7 +183,7 @@ Outcome/category rules:
 - `NO_FINDING`, `LUNA_FIX_READY`, and `SOL_REVIEW_REQUIRED` may be carried when their evidence/read scope is still valid; unresolved findings remain unresolved work even though rediscovery is unnecessary.
 - `SKIPPED_IRRELEVANT` may be carried only when the objective and relevance assumptions are unchanged.
 - `BLOCKED_EXTERNAL` is never carried. Rerun the category against the current external dependency/environment and emit a new `DISCOVERY-CYCLE-RESULT-V1`.
-- `DEPENDENCY_PLATFORM_API` and `EXTERNAL_REUSE_COMPETITORS` may carry only when the repository/semantic diff is already proven disjoint **and** a fresh lightweight primary-source/freshness check confirms the prior evidence still applies.
+- Any result whose `Read-Scope`, evidence, or semantic assumptions depend on an external source/provider/upstream state may carry only when the repository/semantic diff is already proven disjoint **and** a fresh primary-source check confirms the external evidence/assumption still applies. This rule is based on actual dependency, not the catalog category label.
 - A legacy result lacking explicit durable `Read-Scope` must be rerun as a new category result; do not reconstruct a narrower historical scope after the fact.
 - Any read-scope/semantic intersection or uncertain overlap requires a full category rerun and a new result. `FRESH_RECHECK` is not a carry-forward escape hatch for changed scope.
 - Any durable intervening trigger that invalidates the category's evidence, or any inability to bound the required invalidation scan safely, requires a full category rerun and a new result.
