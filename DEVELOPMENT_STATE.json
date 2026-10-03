@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 232,
+  "revision": 233,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -310,11 +310,14 @@
     "last_qualified_product_source_head": "187451d71f728df9ac724fd8752a078c52824b0c",
     "last_qualified_product_source_ci_run_id": 37114259657,
     "merged_product_head": "b7858176fe64d98b45e3118e5b1dfad44e64d9cb",
-    "note": "P0 closure candidate passed validate + Ubuntu 24.04 + Windows 2025 on exact head 981145a3d756bf786ff99650643fe9854595fa8b. Final P0_CLOSED checkpoint is state-only and must also pass the normal exact-head push CI before the session declares closure verified.",
+    "note": "P0 closure candidate passed validate + Ubuntu 24.04 + Windows 2025 on exact head 981145a3d756bf786ff99650643fe9854595fa8b. The final state-only P0_CLOSED checkpoint 5603001b1e7be5a088f7c155512ffc90c50f90ff also passed the same normal exact-head push CI matrix in run 37117983419.",
     "closure_candidate_head": "981145a3d756bf786ff99650643fe9854595fa8b",
     "closure_candidate_run_id": 37117374065,
     "closure_candidate_conclusion": "SUCCESS",
-    "final_closure_head_status": "PENDING_PUSH_CI"
+    "final_closure_head_status": "PASS",
+    "final_closure_head": "5603001b1e7be5a088f7c155512ffc90c50f90ff",
+    "final_closure_run_id": 37117983419,
+    "final_closure_conclusion": "SUCCESS"
   },
   "vps_legacy": {
     "drive_service": "inactive_enabled",
@@ -3859,6 +3862,19 @@
           "go (ubuntu-24.04)": "PASS",
           "go (windows-2025)": "PASS"
         }
+      },
+      "P0_CLOSURE": {
+        "status": "CLOSED_AND_EXACT_HEAD_VERIFIED",
+        "candidate_head": "981145a3d756bf786ff99650643fe9854595fa8b",
+        "candidate_ci_run_id": 37117374065,
+        "final_closure_head": "5603001b1e7be5a088f7c155512ffc90c50f90ff",
+        "final_closure_ci_run_id": 37117983419,
+        "required_jobs": [
+          "validate",
+          "go (ubuntu-24.04)",
+          "go (windows-2025)"
+        ],
+        "result": "PASS"
       }
     },
     "carried_low_findings": [
@@ -3866,7 +3882,10 @@
     ],
     "closure_candidate_head": "981145a3d756bf786ff99650643fe9854595fa8b",
     "closure_candidate_ci_run_id": 37117374065,
-    "closure_candidate_ci_conclusion": "SUCCESS"
+    "closure_candidate_ci_conclusion": "SUCCESS",
+    "final_closure_head": "5603001b1e7be5a088f7c155512ffc90c50f90ff",
+    "final_closure_ci_run_id": 37117983419,
+    "final_closure_ci_conclusion": "SUCCESS"
   },
   "p0_30": {
     "status": "QUALIFIED",
