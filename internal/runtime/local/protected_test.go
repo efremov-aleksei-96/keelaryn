@@ -72,3 +72,246 @@ func TestProtectedRuntimeRejectsPhysicalAliasIntoCorpusBeforeMutation(t *testing
 		t.Fatalf("control directory was created through corpus alias: %v", statErr)
 	}
 }
+
+
+func TestProtectedRuntimeRecoversCorruptDerivedSearchWithoutChangingState(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("recoverable derived cache"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	first, err := localruntime.BootstrapProtectedIndex(ctx, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBefore := mustReadFile(t, layout.StateDB)
+	if err := os.WriteFile(layout.SearchDB, []byte("not sqlite"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	recovered, err := localruntime.BootstrapProtectedIndex(ctx, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !recovered.ReusedScan || recovered.ScanID != first.ScanID {
+		t.Fatalf("recovered=%#v first=%#v", recovered, first)
+	}
+	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
+		t.Fatal("state.db bytes changed while recovering derived search cache")
+	}
+	hits, err := localruntime.QueryProtectedReadOnly(ctx, control, "recoverable derived", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("hits=%#v", hits)
+	}
+	if _, err := os.Lstat(layout.SearchStagingDB); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("staging survived successful promotion: %v", err)
+	}
+}
+
+func TestProtectedRuntimeRecoversMissingDerivedSearch(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("missing cache recovery"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 10, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	first, err := localruntime.BootstrapProtectedIndex(ctx, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBefore := mustReadFile(t, layout.StateDB)
+	if err := os.Remove(layout.SearchDB); err != nil {
+		t.Fatal(err)
+	}
+
+	recovered, err := localruntime.BootstrapProtectedIndex(ctx, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !recovered.ReusedScan || recovered.ScanID != first.ScanID {
+		t.Fatalf("recovered=%#v first=%#v", recovered, first)
+	}
+	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
+		t.Fatal("state.db bytes changed while rebuilding missing derived cache")
+	}
+	if _, err := localruntime.QueryProtectedReadOnly(ctx, control, "missing cache", 10); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProtectedRuntimeDiscardsInterruptedStagingAndRebuilds(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("staging retry"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 20, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBefore := mustReadFile(t, layout.StateDB)
+	if err := os.WriteFile(layout.SearchStagingDB, []byte("interrupted-staging"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
+		t.Fatal("state.db bytes changed during staging retry")
+	}
+	if _, err := os.Lstat(layout.SearchStagingDB); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("staging survived retry: %v", err)
+	}
+	if _, err := localruntime.QueryProtectedReadOnly(ctx, control, "staging retry", 10); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProtectedRuntimeLockContentionDoesNotMutateStateOrActiveSearch(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("lock protected"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 30, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBefore := mustReadFile(t, layout.StateDB)
+	searchBefore := mustReadFile(t, layout.SearchDB)
+	lock, err := controlstorage.AcquireSearchMutationLock(layout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+
+	_, err = localruntime.BootstrapProtectedIndex(ctx, options)
+	if !errors.Is(err, controlstorage.ErrSearchMutationLocked) {
+		t.Fatalf("error=%v want ErrSearchMutationLocked", err)
+	}
+	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
+		t.Fatal("state.db changed under lock contention")
+	}
+	if got := mustReadFile(t, layout.SearchDB); string(got) != string(searchBefore) {
+		t.Fatal("search.db changed under lock contention")
+	}
+}
+
+func TestProtectedRuntimeStateCorruptionDoesNotReplaceActiveSearch(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("state authority"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 40, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	searchBefore := mustReadFile(t, layout.SearchDB)
+	if err := os.WriteFile(layout.StateDB, []byte("corrupt state authority"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err == nil {
+		t.Fatal("corrupt state.db unexpectedly allowed derived recovery")
+	}
+	if got := mustReadFile(t, layout.SearchDB); string(got) != string(searchBefore) {
+		t.Fatal("active search cache changed after state.db corruption")
+	}
+}
+
+func TestProtectedRuntimeCorpusDriftDoesNotReplaceActiveSearch(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	path := filepath.Join(root, "note.txt")
+	if err := os.WriteFile(path, []byte("original corpus"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 50, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBefore := mustReadFile(t, layout.StateDB)
+	searchBefore := mustReadFile(t, layout.SearchDB)
+	if err := os.WriteFile(path, []byte("changed corpus"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err == nil {
+		t.Fatal("corpus drift unexpectedly allowed derived recovery")
+	}
+	if got := mustReadFile(t, layout.StateDB); string(got) != string(stateBefore) {
+		t.Fatal("state.db changed after corpus drift")
+	}
+	if got := mustReadFile(t, layout.SearchDB); string(got) != string(searchBefore) {
+		t.Fatal("active search cache changed after corpus drift")
+	}
+}
+
+func mustReadFile(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
