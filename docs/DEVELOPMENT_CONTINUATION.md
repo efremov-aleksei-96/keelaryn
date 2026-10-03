@@ -168,10 +168,10 @@ Lease-Until: <RFC3339 UTC, no more than 30 minutes after claim creation>
 ```
 
 3. immediately reconcile **again** after the issue is remotely visible;
-4. compare the requested scope with every open claim and active PR;
-5. if the requested scope materially overlaps an **active PR**, the new claim loses immediately; mark/close it as abandoned and choose another unit before branch creation/file edits;
-6. only when no active PR owns the scope, order materially overlapping claims by GitHub issue number; the lowest claim number wins and all later claimants abandon before branch creation/file edits;
-7. if visibility, scope overlap, or winner ordering is uncertain, fail closed and perform no file write;
+4. compare the requested scope with every open claim and open PR, first normalizing PR occupancy: only an open, transfer-valid PR that is still the unique arbitration winner counts as an **active PR**; invalid/losing open PRs must close and do not occupy scope;
+5. if the requested scope materially overlaps an active PR, the new claim loses immediately; **close the losing claim issue** and choose another unit before branch creation/file edits;
+6. only when no active PR owns the scope, order materially overlapping claims by GitHub issue number; the lowest claim number wins and all later claimants must **close their losing claim issues** before branch creation/file edits;
+7. open `ABANDONED` claim issues are forbidden; if visibility, scope overlap, or winner ordering is uncertain, fail closed and perform no file write;
 8. the winner acquires only a short **claim-transfer lease**. It may create an isolated exact-base branch whose name contains the claim number and write only `.keelaryn-work/<work-unit>.json`, containing the claim metadata needed to open the first draft PR. It must not edit product/code/document scope yet;
 9. before `Lease-Until`, open a draft PR that references the claim and repeats the ownership fields, then reconcile that the PR is remotely visible;
 10. after the remote PR is visible, reconcile transfer eligibility using GitHub server timestamps. The PR is transfer-valid only when its `created_at` is no later than `Lease-Until` and, if the claim was already closed as stale, its `created_at` is earlier than the claim `closed_at`. Invalid/late PRs close without substantive edits and require a new claim. A transfer-valid PR must then arbitrate against every materially overlapping active transfer-valid PR: earliest GitHub `created_at` wins; equal timestamps break by lower PR number. Losing PRs immediately lose write authority, stop substantive edits, and **must close** before either side continues. There is no open `ABANDONED` PR state; a closed loser is excluded from occupancy, arbitration, and merge eligibility. A late-observed older valid PR therefore preempts any later replacement ownership. For the unique winner, close the issue claim; substantive writes may then begin on the PR branch.
