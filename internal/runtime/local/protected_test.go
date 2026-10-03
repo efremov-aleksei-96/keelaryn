@@ -240,6 +240,49 @@ func TestProtectedRuntimeLockContentionDoesNotMutateStateOrActiveSearch(t *testi
 	}
 }
 
+func TestProtectedSearchWriterLockBlocksRWPathsButNotReadOnlyQuery(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	control := filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("writer lock boundary"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control,
+		ObservedAt: time.Date(2026, 10, 3, 12, 32, 0, 0, time.UTC),
+		MaxBytes: 1024,
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := controlstorage.OpenExisting(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, err := controlstorage.AcquireSearchMutationLock(layout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+
+	if _, err := localruntime.QueryProtected(ctx, control, "writer lock", 10); !errors.Is(err, controlstorage.ErrSearchMutationLocked) {
+		t.Fatalf("RW query error=%v want ErrSearchMutationLocked", err)
+	}
+	if _, err := localruntime.BuildProtectedContext(ctx, localruntime.ProtectedContextOptions{
+		Root: root, ControlDir: control,
+		Query: "writer lock", Reason: "test writer lock", Limit: 10, MaxBytes: 1024,
+	}); !errors.Is(err, controlstorage.ErrSearchMutationLocked) {
+		t.Fatalf("RW context error=%v want ErrSearchMutationLocked", err)
+	}
+	hits, err := localruntime.QueryProtectedReadOnly(ctx, control, "writer lock", 10)
+	if err != nil {
+		t.Fatalf("read-only query under writer lock: %v", err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("read-only hits=%#v", hits)
+	}
+}
+
 func TestProtectedRuntimePromotionRefusesActiveSidecarAndKeepsStaging(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
