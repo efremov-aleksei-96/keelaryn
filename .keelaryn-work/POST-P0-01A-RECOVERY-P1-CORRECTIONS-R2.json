@@ -1,0 +1,14 @@
+{
+  "claim_issue": 87,
+  "lane": "SOL",
+  "work_unit_id": "POST-P0-01A-RECOVERY-P1-CORRECTIONS-R2",
+  "base_sha": "e5047c925f2d782d6823e4dc29cbae9b7ec6337c",
+  "scope": "protected derived-search recovery P1 corrections only",
+  "depends_on": [
+    "PR #82 integrated at e5047c925f2d782d6823e4dc29cbae9b7ec6337c",
+    "Codex review 5401904328",
+    "PR #85 qualification invalidated"
+  ],
+  "handoff_sha": null,
+  "state": "CLAIM_ONLY_PENDING_PR_TRANSFER"
+}
