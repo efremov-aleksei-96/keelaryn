@@ -70,6 +70,31 @@ func TestDiscardStagedSearchFamilyRejectsSymlink(t *testing.T) {
 	assertFileBytes(t, target, []byte("outside"))
 }
 
+func TestDiscardStagedSearchFamilyUnsafeSidecarIsZeroMutation(t *testing.T) {
+	layout, err := controlstorage.Prepare(filepath.Join(t.TempDir(), "control"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mainBytes := []byte("staged-main-must-survive")
+	if err := os.WriteFile(layout.SearchStagingDB, mainBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "outside-wal")
+	if err := os.WriteFile(target, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, layout.SearchStagingDB+"-wal"); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	err = controlstorage.DiscardStagedSearchFamily(layout)
+	if !errors.Is(err, controlstorage.ErrControlFileUnsafe) {
+		t.Fatalf("error=%v want ErrControlFileUnsafe", err)
+	}
+	assertFileBytes(t, layout.SearchStagingDB, mainBytes)
+	assertFileBytes(t, target, []byte("outside"))
+}
+
 func TestVerifyStandaloneSearchStagingRejectsSidecar(t *testing.T) {
 	layout, err := controlstorage.Prepare(filepath.Join(t.TempDir(), "control"))
 	if err != nil {

@@ -96,6 +96,10 @@ func discardSearchFamily(layout Layout, mainPath, expectedBase string) error {
 		return err
 	}
 	paths := []string{mainPath, mainPath + "-journal", mainPath + "-wal", mainPath + "-shm"}
+	existing := make([]string, 0, len(paths))
+
+	// Validate the complete exact family before deleting any member. An unsafe
+	// later sidecar must not cause a partially-discarded family.
 	for _, path := range paths {
 		info, err := os.Lstat(path)
 		if err != nil {
@@ -110,6 +114,9 @@ func discardSearchFamily(layout Layout, mainPath, expectedBase string) error {
 		if err := verifyControlFile(path); err != nil {
 			return fmt.Errorf("%w: %s: %v", ErrControlFileUnsafe, path, err)
 		}
+		existing = append(existing, path)
+	}
+	for _, path := range existing {
 		if err := os.Remove(path); err != nil {
 			return fmt.Errorf("remove derived search file %s: %w", filepath.Base(path), err)
 		}
