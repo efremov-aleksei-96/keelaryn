@@ -1,0 +1,13 @@
+{
+  "claim_issue": 92,
+  "lane": "SOL",
+  "work_unit_id": "GOV-LUNA-PERPETUAL-DISCOVERY-STATE-R235",
+  "base_sha": "cd03249d9dc96fbbb1d2605d6df3d67bb9afd437",
+  "scope": [
+    "DEVELOPMENT_STATE.json"
+  ],
+  "depends_on": [
+    "GOV-LUNA-PERPETUAL-DISCOVERY-V1@cd03249d9dc96fbbb1d2605d6df3d67bb9afd437"
+  ],
+  "state": "CLAIM_TRANSFER"
+}
