@@ -147,7 +147,7 @@ Promotion occurs only after the staged SQLite handle is closed.
 
 Before replacing the active main file:
 
-1. reconcile the active derived family;
+1. reconcile the active derived family; if active SQLite sidecars exist, open the active database under its original name after staging is fully verified so SQLite can perform legitimate hot-journal/WAL recovery, then close it before promotion;
 2. do not infer anything from active cache contents for identity/provenance;
 3. remove/replace only the exact active derived family under the search mutation lock;
 4. rename `search.db.next` to `search.db`;
