@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
+	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
 	"github.com/efremov-aleksei-96/keelaryn/internal/corpus"
 	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
 	"github.com/efremov-aleksei-96/keelaryn/internal/mcpaccess"
