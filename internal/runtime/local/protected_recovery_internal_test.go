@@ -328,6 +328,27 @@ func TestProtectedRecoveryRepairsCorruptActiveFamilyWithSidecar(t *testing.T) {
 	assertProtectedRecoveryInvariant(t, ctx, root, control, layout, authorityBefore, corpusBefore, "corrupt family with sidecar")
 }
 
+func TestProtectedRecoveryPromotesPastOrphanActiveSHM(t *testing.T) {
+	ctx := context.Background()
+	root, control, options, layout := newProtectedRecoveryFixture(t, "orphan shm recovery", 43)
+	authorityBefore := protectedRecoveryAuthority(t, ctx, layout.StateDB, root)
+	corpusBefore := protectedRecoveryCorpus(t, root)
+
+	// Model a crash residue that is not a usable WAL family. SQLite may open
+	// the valid main database successfully and leave this orphan SHM behind.
+	if err := os.WriteFile(layout.SearchDB+"-shm", make([]byte, 32*1024), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatalf("orphan active SHM blocked deterministic promotion: %v", err)
+	}
+	if _, err := os.Lstat(layout.SearchDB + "-shm"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("orphan active SHM survived recovery: %v", err)
+	}
+	assertProtectedRecoveryInvariant(t, ctx, root, control, layout, authorityBefore, corpusBefore, "orphan shm recovery")
+}
+
 func TestProtectedRecoveryFullStateVerificationFailsBeforeDerivedMutation(t *testing.T) {
 	ctx := context.Background()
 	root, _, options, layout := newProtectedRecoveryFixture(t, "hidden state corruption guard", 42)

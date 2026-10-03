@@ -57,7 +57,7 @@ func TestPromoteStagedSearchRenameFailureLeavesDeterministicRetryState(t *testin
 }
 
 
-func TestDiscardActiveSearchFamilyAfterReconcileFailureDeletesExactDerivedFamily(t *testing.T) {
+func TestDiscardActiveSearchFamilyAfterReconcileAttemptDeletesExactDerivedFamily(t *testing.T) {
 	layout, err := Prepare(filepath.Join(t.TempDir(), "control"))
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestDiscardActiveSearchFamilyAfterReconcileFailureDeletesExactDerivedFamily
 		}
 	}
 
-	if err := DiscardActiveSearchFamilyAfterReconcileFailure(layout); err != nil {
+	if err := DiscardActiveSearchFamilyAfterReconcileAttempt(layout); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{layout.SearchDB, layout.SearchDB + "-journal", layout.SearchDB + "-wal", layout.SearchDB + "-shm"} {
@@ -97,7 +97,7 @@ func TestDiscardActiveSearchFamilyAfterReconcileFailureDeletesExactDerivedFamily
 	}
 }
 
-func TestDiscardActiveSearchFamilyAfterReconcileFailureUnsafeSidecarIsZeroMutation(t *testing.T) {
+func TestDiscardActiveSearchFamilyAfterReconcileAttemptUnsafeSidecarIsZeroMutation(t *testing.T) {
 	layout, err := Prepare(filepath.Join(t.TempDir(), "control"))
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ func TestDiscardActiveSearchFamilyAfterReconcileFailureUnsafeSidecarIsZeroMutati
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
-	err = DiscardActiveSearchFamilyAfterReconcileFailure(layout)
+	err = DiscardActiveSearchFamilyAfterReconcileAttempt(layout)
 	if !errors.Is(err, ErrControlFileUnsafe) {
 		t.Fatalf("error=%v want ErrControlFileUnsafe", err)
 	}

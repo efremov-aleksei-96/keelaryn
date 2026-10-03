@@ -348,24 +348,29 @@ func reconcileActiveSearchSQLiteFamily(ctx context.Context, layout controlstorag
 	// any legitimate hot-journal/WAL recovery itself. This is derived state
 	// only and runs after the staged replacement has already been fully built
 	// and verified. Any error fails closed and leaves staging for retry.
-	index, err := searchsqlite.Open(ctx, layout.SearchDB)
-	if err != nil {
-		// SQLite could not reconcile the family under its original name. The
-		// entire active family is rebuildable derived state, and a complete
-		// staged replacement has already been verified under the mutation lock.
-		// Validate every exact family member before deleting any of them; on any
-		// unsafe path, keep both active and staging and fail closed.
-		discardErr := controlstorage.DiscardActiveSearchFamilyAfterReconcileFailure(layout)
-		if discardErr != nil {
+	index, openErr := searchsqlite.Open(ctx, layout.SearchDB)
+	if openErr == nil {
+		if err := index.Close(); err != nil {
+			return fmt.Errorf("close reconciled active search SQLite family: %w", err)
+		}
+	}
+
+	// A sidecar existed when reconciliation started. Even a successful SQLite
+	// open/close is not proof that every orphan sidecar disappeared (for
+	// example, an SHM file can survive without its WAL). The staged replacement
+	// is already fully verified, so after the reconciliation attempt discard the
+	// entire exact active derived family before promotion. Prevalidation of all
+	// family members keeps unsafe aliases/reparse points fail-closed and
+	// zero-mutation.
+	discardErr := controlstorage.DiscardActiveSearchFamilyAfterReconcileAttempt(layout)
+	if discardErr != nil {
+		if openErr != nil {
 			return errors.Join(
-				fmt.Errorf("reconcile active search SQLite family: %w", err),
-				fmt.Errorf("discard unrecoverable active search SQLite family: %w", discardErr),
+				fmt.Errorf("reconcile active search SQLite family: %w", openErr),
+				fmt.Errorf("discard active search SQLite family after reconcile attempt: %w", discardErr),
 			)
 		}
-		return nil
-	}
-	if err := index.Close(); err != nil {
-		return fmt.Errorf("close reconciled active search SQLite family: %w", err)
+		return fmt.Errorf("discard reconciled active search SQLite family: %w", discardErr)
 	}
 	return nil
 }
