@@ -51,6 +51,16 @@ Before any write:
 4. read only the architecture/contracts needed for the next slice;
 5. classify the slice under the Luna/Sol rules below.
 
+Before selecting any write-capable slice, classify the **highest-priority ready work** (not the whole roadmap) through the objective/profile suitability gate:
+
+- `LUNA_READY` — the next material work is within SAFE_AUTONOMOUS / SAFE_WITH_VERIFY and no unresolved Sol-only decision is a prerequisite;
+- `SOL_REQUIRED` — the next material decision or write crosses a STRONG_MODEL_REQUIRED boundary or depends on unresolved architecture/authority judgment;
+- `EITHER_PROFILE` — the next material work is Luna-safe and Sol may also execute it; no Sol-only prerequisite is unresolved.
+
+Recompute this classification after every reconcile and after any material transition (merge, CI result, new blocker/finding, objective/state change).
+
+If the selected profile is Luna and the classification is `SOL_REQUIRED`, Luna must not perform the protected write. It should continue any independent safe analysis, tests, proof, mapping, or candidate handoff work, then stop dependent writes when no safe work remains. Sol may proceed on any of the three classifications while preserving the same transaction discipline.
+
 After any uncertain write, timeout or transport error: **reconcile only; never blindly repeat the mutation**.
 
 ## Luna profile
