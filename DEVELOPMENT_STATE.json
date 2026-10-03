@@ -1,10 +1,10 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 234,
+  "revision": 235,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
-  "phase": "POST_P0_RELIABILITY",
+  "phase": "POST_P0_INCREMENTAL_OBSERVATION",
   "status": "IN_PROGRESS",
   "product_level": "P0_CLOSED",
   "language_direction": "GO",
@@ -203,12 +203,15 @@
     "P0_CLOSED",
     "PARALLEL_LUNA_SOL_LANES_PROTOCOL_ADOPTED",
     "PARALLEL_LUNA_SOL_REMOTE_WORK_CLAIM_PROTOCOL_ADOPTED",
-    "PARALLEL_WORK_CLAIM_INTERRUPTION_RECOVERY_ADOPTED"
+    "PARALLEL_WORK_CLAIM_INTERRUPTION_RECOVERY_ADOPTED",
+    "POST_P0_01A_DERIVED_SEARCH_RECOVERY_QUALIFIED",
+    "POST_P0_01A_BOUNDARY_RETROSPECTIVE_PASS",
+    "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY_COMPLETE"
   ],
   "next_objective": {
-    "id": "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY",
-    "description": "Begin canonical post-P0 growth-order item 1: harden reliability and deterministic recovery without weakening the closed P0 read-only identity/provenance guarantees. Reconcile carried release/portability/production-hardening findings only when their target boundary becomes current.",
-    "audit_gate": "P0_CLOSED_EXACT_HEAD_CANDIDATE_CI_PASS"
+    "id": "POST_P0_02_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
+    "description": "Begin canonical post-P0 growth-order item 2: add incremental local/provider observation without weakening existing identity/revision, provider-history cursor, managed-root membership, source-bound search, or read-only corpus guarantees. Start with a read-only provider-neutral contract/reuse audit and select the first bounded incremental observation slice.",
+    "audit_gate": "POST_P0_01A_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -5982,6 +5985,54 @@
         "resolution": "Move KEELARYN_P036C_EVIDENCE using runner.temp to the acceptance step env, where runner context is available, and resolve upload-artifact path directly from runner.temp in step with."
       }
     ]
+  },
+  "post_p0_01": {
+    "status": "QUALIFIED",
+    "objective": "RELIABILITY_AND_DETERMINISTIC_RECOVERY",
+    "current_substage": "COMPLETE",
+    "implementation_handoff": "e40a04def266cd39bf75b60662787909cc2d652b",
+    "implementation_integration_head": "e5047c925f2d782d6823e4dc29cbae9b7ec6337c",
+    "qualification_ci_run_id": 37140223778,
+    "sol_review_id": 5401888249,
+    "qualification": "validate + ubuntu-24.04 + windows-2025 PASS; dependency lock, all Go tests and Go vet PASS on the exact reviewed handoff",
+    "retrospective": "docs/POST_P0_01A_DERIVED_SEARCH_RECOVERY_RETROSPECTIVE_20261003.md",
+    "dependencies_added": 0,
+    "live_provider_used": false,
+    "corpus_mutations": 0,
+    "authority_mutations": 0,
+    "derived_control_state_only": true,
+    "invariants": [
+      "STATE_DB_REMAINS_NON_REBUILDABLE_AUTHORITY_AND_IS_NEVER_REPAIRED_BY_SEARCH_RECOVERY",
+      "SEARCH_DB_REMAINS_REBUILDABLE_DERIVED_STATE_ONLY",
+      "SEARCH_STAGING_IS_NEVER_QUERY_OR_IDENTITY_AUTHORITY",
+      "SEARCH_WRITER_SERIALIZATION_IS_OS_HELD_NOT_LOCKFILE_CONTENT_AUTHORITY",
+      "STATE_AND_CORPUS_PRESTATE_REPROVED_BEFORE_DERIVED_RECOVERY_MUTATION",
+      "ACTIVE_SQLITE_FAMILY_RECONCILED_UNDER_ORIGINAL_NAME_BEFORE_DISPOSAL",
+      "PROMOTION_IS_STAGED_VERIFIED_AND_POST_PROMOTION_REVERIFIED",
+      "FAILURE_WINDOWS_PRESERVE_DETERMINISTIC_RETRY_WITHOUT_STATE_DB_MUTATION",
+      "CLI_SEARCH_AND_CONTEXT_READS_REDERIVE_CURRENT_AUTHORITY_BOUNDARY",
+      "USER_CORPUS_BYTES_AND_TOPOLOGY_UNCHANGED"
+    ],
+    "adversarial_proof": [
+      "corrupt or missing active derived search cache rebuilds from authoritative state",
+      "valid corrupt mismatched and orphan prior staging is discarded and freshly rebuilt",
+      "missing or corrupt state authority fails closed before derived recovery mutation",
+      "corpus drift fails closed before derived recovery mutation",
+      "writer lock contention produces zero search-family mutation",
+      "active SQLite journal/WAL family is reconciled under its original name before promotion",
+      "injected failures before staged verification after staged verification before promotion during promotion and after promotion are retry-safe",
+      "remove-before-rename interruption retains staged candidate and permits deterministic retry",
+      "authoritative scan inventory and revision history remain unchanged",
+      "corpus bytes and topology remain unchanged"
+    ],
+    "retrospective_result": "PASS_ZERO_NEW_BLOCKER_CRITICAL",
+    "carried_findings": [
+      "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+      "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
+      "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY",
+      "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE"
+    ],
+    "growth_order_decision": "Canonical post-P0 item 1 is complete for current reachable runtime recovery boundaries. Release rollback/backup, Android portability and live-provider token introspection remain explicitly scoped to their later/currently separate gates. Proceed to item 2 incremental local/provider observation."
   },
   "continuation_protocol": {
     "status": "ADOPTED",
