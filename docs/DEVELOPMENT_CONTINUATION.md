@@ -219,7 +219,7 @@ Parallel preparation does not imply parallel authority mutation. Authoritative i
 After exact-head review/CI is acceptable and before any authoritative integration:
 
 1. reconcile authoritative HEAD, active PR ownership, the exact reviewed `Handoff-SHA`, the work-unit/PR acquired `Base-SHA`, and verify that no `.keelaryn-work/<work-unit>.json` marker remains in the handoff diff;
-2. require authoritative HEAD = the work-unit/PR acquired `Base-SHA`. If they differ, **do not create an integration candidate from the old handoff tree**: rebuild/rebase the work unit on the new authoritative HEAD, update its `Base-SHA`, produce a new `Handoff-SHA`, and rerun review/CI/proof invalidated by the base change;
+2. require authoritative HEAD = the work-unit/PR acquired `Base-SHA`. If they differ, **do not create an integration candidate from the old handoff tree and do not rewrite/force-push the reviewed PR**. Close the old PR as superseded, acquire a new work claim for a successor candidate, create a new exact-base claim-numbered branch/PR from the new authoritative HEAD, replay only the bounded intended diff, produce a new `Handoff-SHA`, and rerun review/CI/proof invalidated by the base change;
 3. only after the handoff is qualified on that exact current base, create a GitHub issue titled `[INTEGRATION-CLAIM] <work-unit>` containing:
 
 ```text
