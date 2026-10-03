@@ -140,7 +140,7 @@ func expectedSearchBoundaryReadOnly(ctx context.Context, stateDB, root string) (
 // BootstrapProtectedIndex is the executable control-storage boundary. It
 // resolves the physical control parent and proves the control directory is
 // outside the corpus before any directory or SQLite file can be created.
-func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions) (IndexResult, error) {
+func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions) (result IndexResult, err error) {
 	if options.ObservedAt.IsZero() || options.MaxBytes < 0 {
 		return IndexResult{}, ErrInvalidOptions
 	}
@@ -153,21 +153,71 @@ func BootstrapProtectedIndex(ctx context.Context, options ProtectedIndexOptions)
 		return IndexResult{}, err
 	}
 
+	lock, err := controlstorage.AcquireSearchMutationLock(layout)
+	if err != nil {
+		return IndexResult{}, err
+	}
+	defer func() {
+		err = errors.Join(err, lock.Close())
+	}()
+
+	// Staging is rebuildable derived work, never query/result authority.
+	// A prior staging family therefore means only that an earlier rebuild was
+	// interrupted. Discard it under the process-crash-safe writer lock and
+	// rebuild from freshly reconciled state/corpus evidence.
+	if err := controlstorage.DiscardStagedSearchFamily(layout); err != nil {
+		return IndexResult{}, err
+	}
+
 	result, operationErr := BootstrapIndex(ctx, IndexOptions{
-		Root: root, StateDB: layout.StateDB, SearchDB: layout.SearchDB,
+		Root: root, StateDB: layout.StateDB, SearchDB: layout.SearchStagingDB,
 		ObservedAt: options.ObservedAt, MaxBytes: options.MaxBytes,
 	})
-	verifyErr := controlstorage.Verify(layout.Dir)
 	if operationErr != nil {
+		verifyErr := controlstorage.Verify(layout.Dir)
 		if verifyErr != nil {
 			return IndexResult{}, errors.Join(operationErr, verifyErr)
 		}
 		return IndexResult{}, operationErr
 	}
-	if verifyErr != nil {
-		return IndexResult{}, verifyErr
+
+	expected, err := expectedSearchBoundaryReadOnly(ctx, layout.StateDB, root)
+	if err != nil {
+		return IndexResult{}, err
+	}
+	if err := verifyProtectedSearchCandidate(ctx, layout.SearchStagingDB, expected); err != nil {
+		return IndexResult{}, err
+	}
+	if err := controlstorage.VerifyStandaloneSearchStaging(layout); err != nil {
+		return IndexResult{}, err
+	}
+	if err := controlstorage.PromoteStagedSearch(layout); err != nil {
+		return IndexResult{}, err
+	}
+	if err := verifyProtectedSearchCandidate(ctx, layout.SearchDB, expected); err != nil {
+		return IndexResult{}, err
+	}
+	if err := controlstorage.Verify(layout.Dir); err != nil {
+		return IndexResult{}, err
 	}
 	return result, nil
+}
+
+func verifyProtectedSearchCandidate(
+	ctx context.Context,
+	path string,
+	expected searchsqlite.SourceBoundary,
+) error {
+	if err := searchsqlite.VerifyReadOnly(ctx, path); err != nil {
+		return err
+	}
+	index, err := searchsqlite.OpenReadOnly(ctx, path)
+	if err != nil {
+		return err
+	}
+	boundaryErr := index.VerifySourceBoundary(ctx, expected)
+	closeErr := index.Close()
+	return errors.Join(boundaryErr, closeErr)
 }
 
 func QueryProtected(ctx context.Context, controlDir, query string, limit int) ([]search.Hit, error) {
