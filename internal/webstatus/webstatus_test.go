@@ -1,0 +1,420 @@
+package webstatus
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/efremov-aleksei-96/keelaryn/internal/doctor"
+	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
+)
+
+func TestHandlerServesReadOnlyDoctorStatus(t *testing.T) {
+	root, control := bootstrapStatusFixture(t)
+	_ = root
+	statePath := filepath.Join(control, "state.db")
+	searchPath := filepath.Join(control, "search.db")
+	stateBefore, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	searchBefore, err := os.ReadFile(searchPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h, err := NewHandler(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	apiRequest := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/status", nil)
+	apiRequest.Host = "127.0.0.1"
+	apiResponse := httptest.NewRecorder()
+	h.ServeHTTP(apiResponse, apiRequest)
+	if apiResponse.Code != http.StatusOK {
+		t.Fatalf("api status=%d body=%s", apiResponse.Code, apiResponse.Body.String())
+	}
+	var report doctor.Report
+	if err := json.Unmarshal(apiResponse.Body.Bytes(), &report); err != nil {
+		t.Fatal(err)
+	}
+	if !report.Passed() || len(report.Checks) != 4 {
+		t.Fatalf("report=%#v", report)
+	}
+	if apiResponse.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal("status API unexpectedly enabled CORS")
+	}
+	if apiResponse.Header().Get("Content-Security-Policy") == "" ||
+		apiResponse.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("security headers=%v", apiResponse.Header())
+	}
+
+	pageRequest := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
+	pageRequest.Host = "127.0.0.1"
+	pageResponse := httptest.NewRecorder()
+	h.ServeHTTP(pageResponse, pageRequest)
+	if pageResponse.Code != http.StatusOK {
+		t.Fatalf("page status=%d body=%s", pageResponse.Code, pageResponse.Body.String())
+	}
+	if body := pageResponse.Body.String(); !strings.Contains(body, "Keelaryn status") || !strings.Contains(body, "PASS") {
+		t.Fatalf("unexpected page body: %s", body)
+	}
+
+	stateAfter, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	searchAfter, err := os.ReadFile(searchPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(stateBefore, stateAfter) || !bytes.Equal(searchBefore, searchAfter) {
+		t.Fatal("web status mutated protected databases")
+	}
+}
+
+func TestHandlerReturnsDoctorFailureAsServiceUnavailable(t *testing.T) {
+	_, control := bootstrapStatusFixture(t)
+	_, h, err := newHandler(control, func(context.Context, string) doctor.Report {
+		return doctor.Report{Status: doctor.StatusFail}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, path := range []string{"/api/status", "/"} {
+		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1"+path, nil)
+		req.Host = "127.0.0.1"
+		response := httptest.NewRecorder()
+		h.ServeHTTP(response, req)
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf("path=%q status=%d want %d body=%s", path, response.Code, http.StatusServiceUnavailable, response.Body.String())
+		}
+		if response.Body.Len() == 0 {
+			t.Fatalf("path=%q returned no diagnostic body", path)
+		}
+		if path == "/api/status" {
+			var report doctor.Report
+			if err := json.Unmarshal(response.Body.Bytes(), &report); err != nil {
+				t.Fatalf("decode failure report: %v", err)
+			}
+			if report.Status != doctor.StatusFail {
+				t.Fatalf("API report status=%q want %q", report.Status, doctor.StatusFail)
+			}
+		} else if !strings.Contains(response.Body.String(), "FAIL") {
+			t.Fatalf("page omitted failure status: %s", response.Body.String())
+		}
+	}
+}
+
+func TestHandlerSupportsHeadWithoutResponseBody(t *testing.T) {
+	_, control := bootstrapStatusFixture(t)
+	diagnosticCalls := 0
+	_, h, err := newHandler(control, func(context.Context, string) doctor.Report {
+		diagnosticCalls++
+		return doctor.Report{Status: doctor.StatusPass}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		path        string
+		contentType string
+	}{
+		{path: "/", contentType: "text/html; charset=utf-8"},
+		{path: "/api/status", contentType: "application/json; charset=utf-8"},
+		{path: "/assets/status.css", contentType: "text/css; charset=utf-8"},
+	} {
+		req := httptest.NewRequest(http.MethodHead, "http://127.0.0.1"+tc.path, nil)
+		req.Host = "127.0.0.1"
+		response := httptest.NewRecorder()
+		h.ServeHTTP(response, req)
+		if response.Code != http.StatusOK {
+			t.Fatalf("path=%q status=%d want %d", tc.path, response.Code, http.StatusOK)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("path=%q HEAD response has body %q", tc.path, response.Body.String())
+		}
+		if got := response.Header().Get("Content-Type"); got != tc.contentType {
+			t.Fatalf("path=%q Content-Type=%q want %q", tc.path, got, tc.contentType)
+		}
+	}
+	if diagnosticCalls != 2 {
+		t.Fatalf("Doctor called %d times for page/API HEAD requests, want 2", diagnosticCalls)
+	}
+}
+
+func TestHandlerRejectsNonLocalHostAndMutationMethods(t *testing.T) {
+	_, control := bootstrapStatusFixture(t)
+	h, err := NewHandler(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	foreign := httptest.NewRequest(http.MethodGet, "http://example.test/api/status", nil)
+	foreign.Host = "example.test"
+	foreignResponse := httptest.NewRecorder()
+	h.ServeHTTP(foreignResponse, foreign)
+	if foreignResponse.Code != http.StatusForbidden {
+		t.Fatalf("foreign Host status=%d want %d", foreignResponse.Code, http.StatusForbidden)
+	}
+
+	crossSite := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/status", nil)
+	crossSite.Host = "127.0.0.1"
+	crossSite.Header.Set("Sec-Fetch-Site", "cross-site")
+	crossSiteResponse := httptest.NewRecorder()
+	h.ServeHTTP(crossSiteResponse, crossSite)
+	if crossSiteResponse.Code != http.StatusForbidden {
+		t.Fatalf("cross-site request status=%d want %d", crossSiteResponse.Code, http.StatusForbidden)
+	}
+	if vary := crossSiteResponse.Header().Get("Vary"); !strings.Contains(vary, "Sec-Fetch-Site") {
+		t.Fatalf("cross-site response missing Vary: %q", vary)
+	}
+
+	sameSite := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/status", nil)
+	sameSite.Host = "127.0.0.1"
+	sameSite.Header.Set("Sec-Fetch-Site", "same-site")
+	sameSiteResponse := httptest.NewRecorder()
+	h.ServeHTTP(sameSiteResponse, sameSite)
+	if sameSiteResponse.Code != http.StatusForbidden {
+		t.Fatalf("same-site request status=%d want %d", sameSiteResponse.Code, http.StatusForbidden)
+	}
+	if vary := sameSiteResponse.Header().Get("Vary"); !strings.Contains(vary, "Sec-Fetch-Site") {
+		t.Fatalf("same-site response missing Vary: %q", vary)
+	}
+
+	post := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/status", strings.NewReader("{}"))
+	post.Host = "127.0.0.1"
+	postResponse := httptest.NewRecorder()
+	h.ServeHTTP(postResponse, post)
+	if postResponse.Code != http.StatusMethodNotAllowed || postResponse.Header().Get("Allow") != "GET, HEAD" {
+		t.Fatalf("POST status=%d headers=%v", postResponse.Code, postResponse.Header())
+	}
+}
+
+func TestDiagnosticVerificationIsSingleFlightAndBounded(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	h := &handler{
+		controlDir: "test-control",
+		diagnostic: make(chan struct{}, 1),
+		runDoctor: func(ctx context.Context, _ string) doctor.Report {
+			close(started)
+			select {
+			case <-release:
+				return doctor.Report{Status: doctor.StatusPass}
+			case <-ctx.Done():
+				return doctor.Report{Status: doctor.StatusFail}
+			}
+		},
+	}
+
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/status", nil)
+		resp := httptest.NewRecorder()
+		h.serveAPI(resp, req)
+	}()
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first diagnostic did not start")
+	}
+
+	second := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/status", nil)
+	secondResponse := httptest.NewRecorder()
+	h.serveAPI(secondResponse, second)
+	if secondResponse.Code != http.StatusServiceUnavailable {
+		t.Fatalf("concurrent diagnostic status=%d want %d", secondResponse.Code, http.StatusServiceUnavailable)
+	}
+	if secondResponse.Header().Get("Retry-After") != "1" {
+		t.Fatalf("Retry-After=%q", secondResponse.Header().Get("Retry-After"))
+	}
+	close(release)
+	select {
+	case <-firstDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first diagnostic did not finish")
+	}
+}
+
+func TestWebStatusWriteBudgetExceedsDiagnosticBudget(t *testing.T) {
+	if responseWriteTimeout <= diagnosticTimeout {
+		t.Fatalf("response write timeout=%s must exceed diagnostic timeout=%s", responseWriteTimeout, diagnosticTimeout)
+	}
+	if responseWriteTimeout-diagnosticTimeout < 5*time.Second {
+		t.Fatalf("response margin=%s is too small", responseWriteTimeout-diagnosticTimeout)
+	}
+}
+
+func TestDiagnosticVerificationContextHasDeadline(t *testing.T) {
+	h := &handler{
+		controlDir: "test-control",
+		diagnostic: make(chan struct{}, 1),
+		runDoctor: func(ctx context.Context, _ string) doctor.Report {
+			deadline, ok := ctx.Deadline()
+			if !ok || time.Until(deadline) > diagnosticTimeout || time.Until(deadline) <= 0 {
+				t.Fatalf("diagnostic context deadline=%v ok=%t", deadline, ok)
+			}
+			return doctor.Report{Status: doctor.StatusPass}
+		},
+	}
+	report, ok := h.diagnosticReport(context.Background())
+	if !ok || !report.Passed() {
+		t.Fatalf("diagnostic report=%#v ok=%t", report, ok)
+	}
+}
+
+func TestNewHandlerMissingControlDoesNotCreate(t *testing.T) {
+	control := filepath.Join(t.TempDir(), "missing")
+	if _, err := NewHandler(control); err == nil {
+		t.Fatal("missing control directory unexpectedly accepted")
+	}
+	if _, err := os.Stat(control); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing control directory was created: %v", err)
+	}
+}
+
+func TestValidateLoopbackListenAddress(t *testing.T) {
+	for _, address := range []string{"127.0.0.1:0", "127.0.0.1:8080", "[::1]:0"} {
+		if err := validateLoopbackListenAddress(address); err != nil {
+			t.Fatalf("address %q rejected: %v", address, err)
+		}
+	}
+	for _, address := range []string{"0.0.0.0:0", ":0", "192.168.1.5:8080", "localhost:8080", "bad"} {
+		if err := validateLoopbackListenAddress(address); err == nil {
+			t.Fatalf("address %q unexpectedly accepted", address)
+		}
+	}
+}
+
+func TestRunCancellationCancelsDiagnosticAndWaitsForCleanup(t *testing.T) {
+	_, control := bootstrapStatusFixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	started := make(chan struct{})
+	cleaned := make(chan struct{})
+	runner := func(ctx context.Context, _ string) doctor.Report {
+		close(started)
+		<-ctx.Done()
+		close(cleaned)
+		return doctor.Report{Status: doctor.StatusFail}
+	}
+
+	announce := &channelWriter{ch: make(chan string, 1)}
+	done := make(chan error, 1)
+	go func() {
+		done <- run(ctx, Options{ControlDir: control, Listen: DefaultListenAddress}, announce, runner)
+	}()
+
+	var address string
+	select {
+	case address = <-announce.ch:
+		address = strings.TrimSpace(address)
+	case <-time.After(10 * time.Second):
+		t.Fatal("web status listener did not announce")
+	}
+
+	requestDone := make(chan struct{})
+	go func() {
+		defer close(requestDone)
+		client := &http.Client{Timeout: 10 * time.Second}
+		response, err := client.Get(address + "api/status")
+		if err == nil {
+			_ = response.Body.Close()
+		}
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("diagnostic request did not start")
+	}
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run after cancellation: %v", err)
+		}
+		select {
+		case <-cleaned:
+		default:
+			t.Fatal("Run returned before active diagnostic cleanup")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not wait for diagnostic cleanup")
+	}
+	select {
+	case <-requestDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("diagnostic request did not terminate")
+	}
+}
+
+func TestRunAnnouncesLoopbackAndStopsOnCancellation(t *testing.T) {
+	_, control := bootstrapStatusFixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	announce := &channelWriter{ch: make(chan string, 1)}
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Options{ControlDir: control, Listen: DefaultListenAddress}, announce)
+	}()
+
+	select {
+	case address := <-announce.ch:
+		if !strings.HasPrefix(address, "http://127.0.0.1:") || !strings.HasSuffix(address, "/\n") {
+			t.Fatalf("announcement=%q", address)
+		}
+		cancel()
+	case <-time.After(10 * time.Second):
+		t.Fatal("web status listener did not announce")
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run after cancellation: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("web status listener did not stop after cancellation")
+	}
+}
+
+type channelWriter struct {
+	ch chan string
+}
+
+func (w *channelWriter) Write(p []byte) (int, error) {
+	w.ch <- string(p)
+	return len(p), nil
+}
+
+func bootstrapStatusFixture(t *testing.T) (root, control string) {
+	t.Helper()
+	root = t.TempDir()
+	control = filepath.Join(t.TempDir(), "control")
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("web status fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := localruntime.BootstrapProtectedIndex(context.Background(), localruntime.ProtectedIndexOptions{
+		Root: root, ControlDir: control, ObservedAt: time.Now().UTC(), MaxBytes: 4096,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return root, control
+}

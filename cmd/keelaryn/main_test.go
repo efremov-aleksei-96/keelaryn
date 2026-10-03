@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	localruntime "github.com/efremov-aleksei-96/keelaryn/internal/runtime/local"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 	"github.com/efremov-aleksei-96/keelaryn/internal/selftest"
+	"github.com/efremov-aleksei-96/keelaryn/internal/webstatus"
 )
 
 func TestScanOutputsObservationsWithoutInventingIdentity(t *testing.T) {
@@ -376,5 +378,60 @@ func TestSelfTestRejectsUserArguments(t *testing.T) {
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("self-test emitted a report after invalid arguments: %q", stdout.String())
+	}
+}
+
+func TestWebStatusCommandUsesLoopbackDefault(t *testing.T) {
+	control := filepath.Join(t.TempDir(), "control")
+
+	original := runWebStatus
+	t.Cleanup(func() { runWebStatus = original })
+	called := false
+	var captured webstatus.Options
+	runWebStatus = func(ctx context.Context, options webstatus.Options, announce io.Writer) error {
+		called = true
+		captured = options
+		if ctx.Done() == nil {
+			t.Fatal("web-status CLI did not supply a signal-cancellable context")
+		}
+		_, err := io.WriteString(announce, "http://127.0.0.1:43210/\n")
+		return err
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"web-status", "--control-dir", control}, &stdout, &stderr); err != nil {
+		t.Fatalf("web-status: %v; stderr=%s", err, stderr.String())
+	}
+	if !called {
+		t.Fatal("web-status runtime was not called")
+	}
+	if captured.ControlDir != control || captured.Listen != webstatus.DefaultListenAddress {
+		t.Fatalf("captured=%#v", captured)
+	}
+	if stdout.String() != "http://127.0.0.1:43210/\n" || stderr.Len() != 0 {
+		t.Fatalf("unexpected output stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestWebStatusCommandRequiresControlAndRejectsPositionalArguments(t *testing.T) {
+	original := runWebStatus
+	t.Cleanup(func() { runWebStatus = original })
+	called := false
+	runWebStatus = func(context.Context, webstatus.Options, io.Writer) error {
+		called = true
+		return nil
+	}
+
+	for _, args := range [][]string{
+		{"web-status"},
+		{"web-status", "--control-dir", filepath.Join(t.TempDir(), "control"), "extra"},
+	} {
+		var stdout, stderr bytes.Buffer
+		if err := run(args, &stdout, &stderr); err == nil {
+			t.Fatalf("args=%q unexpectedly accepted", args)
+		}
+	}
+	if called {
+		t.Fatal("web-status runtime called for invalid CLI arguments")
 	}
 }

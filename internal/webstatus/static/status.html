@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keelaryn status</title>
+  <link rel="stylesheet" href="/assets/status.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Local read-only diagnostics</p>
+      <h1>Keelaryn status</h1>
+      <p class="summary">Overall status: <strong>{{.Report.Status}}</strong></p>
+    </header>
+    <table>
+      <thead>
+        <tr><th>Check</th><th>Status</th><th>Detail</th></tr>
+      </thead>
+      <tbody>
+        {{range .Report.Checks}}
+        <tr>
+          <td><code>{{.ID}}</code></td>
+          <td><strong>{{.Status}}</strong></td>
+          <td>{{if .Error}}{{.Error}}{{else}}—{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    <footer>
+      <p>This page is served only from a loopback listener and exposes no mutation controls.</p>
+    </footer>
+  </main>
+</body>
+</html>
