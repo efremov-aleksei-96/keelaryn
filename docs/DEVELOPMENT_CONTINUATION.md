@@ -214,11 +214,11 @@ Luna does not append unrelated/new work to a head already under Sol review. If a
 
 #### Serialized integration gate
 
-Parallel preparation does not imply parallel authority mutation. The reconcile-to-merge window is serialized by a remotely visible integration claim.
+Parallel preparation does not imply parallel authority mutation. Authoritative integration is a compare-and-swap-like **conditional fast-forward**, not GitHub's ordinary PR merge endpoint.
 
-After exact-head review/CI is acceptable and before any authoritative merge or qualified `DEVELOPMENT_STATE.json` transition:
+After exact-head review/CI is acceptable and before any authoritative integration:
 
-1. reconcile authoritative HEAD, materially overlapping active PRs, and exact reviewed handoff;
+1. reconcile authoritative HEAD, active PR ownership, the exact reviewed `Handoff-SHA`, and verify that no `.keelaryn-work/<work-unit>.json` marker remains in the handoff diff;
 2. create a GitHub issue titled `[INTEGRATION-CLAIM] <work-unit>` containing:
 
 ```text
@@ -230,15 +230,26 @@ State: CLAIMING
 Lease-Until: <RFC3339 UTC, no more than 10 minutes after claim creation>
 ```
 
-3. immediately reconcile open `[INTEGRATION-CLAIM]` issues; among claims targeting the same current `Base-SHA`, the lowest GitHub issue number is the unique winner and all later claims must close without integrating;
-4. before integration, re-fetch the winning claim, its lease, the PR head, and authoritative HEAD; require the claim to remain open/unexpired, PR head to equal `Handoff-SHA`, and authoritative HEAD to equal `Base-SHA`;
-5. if the lease expired, the PR head moved, or authoritative HEAD differs from `Base-SHA`, close the integration claim and perform **no** merge/state transition; restart reconcile on current reality and repeat any conflict/proof/CI/review work invalidated by the change;
-6. while the claim is valid, reconcile all materially overlapping active PRs again and confirm this PR remains the unique work-scope owner;
-7. perform exactly one authoritative integration mutation;
-8. immediately verify the resulting authoritative HEAD and project state, then close the integration claim;
-9. only after that checkpoint may another integration claim win and integrate.
+3. immediately reconcile open `[INTEGRATION-CLAIM]` issues; among claims targeting the same current `Base-SHA`, the lowest GitHub issue number wins and every later claim closes without integrating;
+4. re-fetch the winning claim, PR head and authoritative ref; require the claim to be open/unexpired, PR head = `Handoff-SHA`, authoritative HEAD = `Base-SHA`, and work-scope ownership still unique;
+5. fetch the exact Git tree referenced by `Handoff-SHA`;
+6. create a new **integration commit** with:
+   - tree = exact `Handoff-SHA` tree;
+   - **only parent = `Base-SHA`**;
+   - a message identifying PR, work-unit, handoff SHA and integration claim;
+7. update the authoritative branch ref to that integration commit with a **non-force ref update** (`force=false`). Force updates and the ordinary PR merge endpoint are forbidden for this integration path;
+8. interpret the ref update atomically:
+   - if authoritative HEAD was still `Base-SHA`, the candidate is a fast-forward and may succeed;
+   - if any other integration moved authoritative HEAD first, this single-parent candidate is a sibling/non-fast-forward and GitHub must reject the update;
+9. on timeout or uncertain write result, do not repeat the ref update. Read authoritative HEAD and the candidate commit:
+   - if HEAD = candidate integration commit, integration succeeded;
+   - otherwise reconcile current HEAD and restart the integration gate from observed reality;
+10. after success, verify authoritative tree/state, record the integration commit SHA in the PR/claim, close the PR, close the integration claim, and checkpoint;
+11. only after that checkpoint may another integration claim integrate.
 
-If an integration claim expires before integration, it grants no merge authority. A fresh session may close an expired claim after reconciling that its PR is still unmerged; recovery begins with a new integration claim against the then-current authoritative HEAD.
+The integration-claim lease coordinates intent, but correctness does **not** depend on lease timing. If an older update is still in flight when a replacement claim is acquired, both candidates share `Base-SHA` as their only parent and are siblings; the remote non-force ref update can accept at most one. Therefore an expired claim may be retired/replaced after reconcile without creating a double-integration window.
+
+The authoritative development ref is monotonic under this protocol. `force=true`, reset/rewrite integration, and merge operations that do not atomically fail on base movement are forbidden.
 
 Integration claims are ephemeral GitHub coordination. Work-lane occupancy is derived from open work-claim issues before transfer and active PRs after transfer; neither kind of ephemeral lock is stored as rapidly changing state in `DEVELOPMENT_STATE.json`, which remains authority only for qualified project state.
 
@@ -301,15 +312,15 @@ Luna must not independently finalize or qualify:
 
 For these, Luna may continue read-only analysis, build tests, produce an impact map and prepare a candidate branch/PR, but the final decision/qualification belongs to Sol.
 
-### 5.4 Luna merge rule
+### 5.4 Luna integration rule
 
-Luna may merge its own PR only when **all** of the following are true:
+Luna may integrate its own PR through the serialized conditional-fast-forward gate only when **all** of the following are true:
 
 - the change is classified SAFE_AUTONOMOUS or SAFE_WITH_VERIFY;
 - authoritative HEAD/base has been freshly reconciled;
 - exact diff is bounded and contains no protected surface;
 - required tests and full relevant CI are green;
-- the merge does not itself declare a stage/audit/architecture qualification;
+- the integration does not itself declare a stage/audit/architecture qualification;
 - `DEVELOPMENT_STATE.json` is not being changed to claim completion of a product stage;
 - no competing write has invalidated the base.
 
@@ -329,7 +340,7 @@ Sol should:
 - implement or revise protected-surface changes;
 - qualify stages and audits;
 - update `DEVELOPMENT_STATE.json` after material qualified transitions;
-- merge only after exact-base/diff/CI reconciliation.
+- integrate only through the conditional-fast-forward gate after exact-base/diff/CI reconciliation.
 
 Sol may also perform ordinary low-risk work; it is not restricted to review.
 
