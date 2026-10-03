@@ -218,34 +218,35 @@ Parallel preparation does not imply parallel authority mutation. Authoritative i
 
 After exact-head review/CI is acceptable and before any authoritative integration:
 
-1. reconcile authoritative HEAD, active PR ownership, the exact reviewed `Handoff-SHA`, and verify that no `.keelaryn-work/<work-unit>.json` marker remains in the handoff diff;
-2. create a GitHub issue titled `[INTEGRATION-CLAIM] <work-unit>` containing:
+1. reconcile authoritative HEAD, active PR ownership, the exact reviewed `Handoff-SHA`, the work-unit/PR acquired `Base-SHA`, and verify that no `.keelaryn-work/<work-unit>.json` marker remains in the handoff diff;
+2. require authoritative HEAD = the work-unit/PR acquired `Base-SHA`. If they differ, **do not create an integration candidate from the old handoff tree**: rebuild/rebase the work unit on the new authoritative HEAD, update its `Base-SHA`, produce a new `Handoff-SHA`, and rerun review/CI/proof invalidated by the base change;
+4. only after the handoff is qualified on that exact current base, create a GitHub issue titled `[INTEGRATION-CLAIM] <work-unit>` containing:
 
 ```text
 PR: #<pull-request>
 Work-Unit: <stable bounded id>
 Handoff-SHA: <exact reviewed candidate sha>
-Base-SHA: <current authoritative head>
+Base-SHA: <exact work-unit acquired base; must equal current authoritative head>
 State: CLAIMING
 Lease-Until: <RFC3339 UTC, no more than 10 minutes after claim creation>
 ```
 
-3. immediately reconcile open `[INTEGRATION-CLAIM]` issues; among claims targeting the same current `Base-SHA`, the lowest GitHub issue number wins and every later claim closes without integrating;
-4. re-fetch the winning claim, PR head and authoritative ref; require the claim to be open/unexpired, PR head = `Handoff-SHA`, authoritative HEAD = `Base-SHA`, and work-scope ownership still unique;
-5. fetch the exact Git tree referenced by `Handoff-SHA`;
-6. create a new **integration commit** with:
+4. immediately reconcile open `[INTEGRATION-CLAIM]` issues; among claims targeting the same current `Base-SHA`, the lowest GitHub issue number wins and every later claim closes without integrating;
+5. re-fetch the winning claim, PR head and authoritative ref; require the claim to be open/unexpired, PR head = `Handoff-SHA`, authoritative HEAD = `Base-SHA`, and work-scope ownership still unique;
+6. fetch the exact Git tree referenced by `Handoff-SHA`;
+7. create a new **integration commit** with:
    - tree = exact `Handoff-SHA` tree;
-   - **only parent = `Base-SHA`**;
+   - **only parent = the exact reviewed work-unit `Base-SHA`**;
    - a message identifying PR, work-unit, handoff SHA and integration claim;
-7. update the authoritative branch ref to that integration commit with a **non-force ref update** (`force=false`). Force updates and the ordinary PR merge endpoint are forbidden for this integration path;
-8. interpret the ref update atomically:
+8. update the authoritative branch ref to that integration commit with a **non-force ref update** (`force=false`). Force updates and the ordinary PR merge endpoint are forbidden for this integration path;
+9. interpret the ref update atomically:
    - if authoritative HEAD was still `Base-SHA`, the candidate is a fast-forward and may succeed;
    - if any other integration moved authoritative HEAD first, this single-parent candidate is a sibling/non-fast-forward and GitHub must reject the update;
-9. on timeout or uncertain write result, do not repeat the ref update. Read authoritative HEAD and the candidate commit:
+10. on timeout or uncertain write result, do not repeat the ref update. Read authoritative HEAD and the candidate commit:
    - if HEAD = candidate integration commit, integration succeeded;
    - otherwise reconcile current HEAD and restart the integration gate from observed reality;
-10. after success, verify authoritative tree/state, record the integration commit SHA in the PR/claim, close the PR, close the integration claim, and checkpoint;
-11. only after that checkpoint may another integration claim integrate.
+11. after success, verify authoritative tree/state, record the integration commit SHA in the PR/claim, close the PR, close the integration claim, and checkpoint;
+12. only after that checkpoint may another integration claim integrate.
 
 The integration-claim lease coordinates intent, but correctness does **not** depend on lease timing. If an older update is still in flight when a replacement claim is acquired, both candidates share `Base-SHA` as their only parent and are siblings; the remote non-force ref update can accept at most one. Therefore an expired claim may be retired/replaced after reconcile without creating a double-integration window.
 
