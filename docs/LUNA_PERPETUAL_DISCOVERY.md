@@ -154,8 +154,9 @@ Automatic/cheap carry-forward is allowed only when all of the following are prov
 4. the source result belongs to the source baseline's current epoch;
 5. the source result already has an explicit durable bounded `Read-Scope`; legacy/no-scope results are ineligible for carry-forward and must be rerun as a new category result;
 6. the Git diff from the **native source-result baseline directly to the current baseline** is proven disjoint from the source result's repository read scope **and semantic assumptions**; any intersection or uncertain overlap requires a full category rerun and a new `DISCOVERY-CYCLE-RESULT-V1`;
-7. no durable CI/runtime/review/finding trigger since the source result invalidates its evidence;
-8. the outcome-specific freshness rules below are satisfied. A freshness recheck may add evidence for an otherwise diff-disjoint carry, but it never substitutes for condition 6.
+7. perform an intervening invalidation scan from the source result through the current baseline across durable CI/runtime/review/finding/external evidence refs relevant to the category; no such trigger may invalidate the source evidence;
+8. persist that scan as `Invalidation-Scan: PASS` plus the durable refs/range checked; if an invalidating trigger exists or the scan cannot be bounded safely, rerun the category and emit a new `DISCOVERY-CYCLE-RESULT-V1` instead of carrying;
+9. the outcome-specific freshness rules below are satisfied. A freshness recheck may add evidence for an otherwise diff-disjoint carry, but it never substitutes for condition 6 or the invalidation scan.
 
 Persist:
 
@@ -168,6 +169,8 @@ From-Baseline: <ancestor baseline sha>
 From-Result-Ref: <durable GitHub issue-comment URL/id>
 Read-Scope: <verified bounded scope>
 Verification: DIFF_DISJOINT
+Invalidation-Scan: PASS
+Invalidation-Evidence: <durable CI/runtime/review/finding/external refs or bounded range checked; NONE_INVALIDATING>
 Freshness-Check: NOT_REQUIRED | FRESH_PRIMARY_SOURCE_CHECK
 Evidence: <why the prior result still applies on this baseline>
 ```
@@ -182,6 +185,7 @@ Outcome/category rules:
 - `DEPENDENCY_PLATFORM_API` and `EXTERNAL_REUSE_COMPETITORS` may carry only when the repository/semantic diff is already proven disjoint **and** a fresh lightweight primary-source/freshness check confirms the prior evidence still applies.
 - A legacy result lacking explicit durable `Read-Scope` must be rerun as a new category result; do not reconstruct a narrower historical scope after the fact.
 - Any read-scope/semantic intersection or uncertain overlap requires a full category rerun and a new result. `FRESH_RECHECK` is not a carry-forward escape hatch for changed scope.
+- Any durable intervening trigger that invalidates the category's evidence, or any inability to bound the required invalidation scan safely, requires a full category rerun and a new result.
 
 When HEAD moves, close an incomplete old baseline issue as `SUPERSEDED_BASE_MOVED` after its durable results are preserved. The new baseline issue may then carry valid categories individually and rerun only invalidated/unknown categories.
 
