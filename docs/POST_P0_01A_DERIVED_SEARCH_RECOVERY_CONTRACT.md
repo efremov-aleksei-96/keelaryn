@@ -124,23 +124,17 @@ At the start of a locked rebuild:
 
 Build a new staged cache.
 
-### 7.2 Staging main exists and is valid
+### 7.2 Any prior staging family exists
 
-If `search.db.next`:
+The first implementation deliberately does **not** make staging a second durable result authority.
 
-- opens read-only;
-- passes search integrity/security verification;
-- carries the exact expected SourceBoundary;
+After fresh state/corpus proof and after acquiring the exclusive search lock, any prior `search.db.next` family is treated as interrupted derived work, discarded by exact fixed filenames, and rebuilt from the fresh proof boundary.
 
-then it MAY be promoted directly without rebuilding its contents.
-
-### 7.3 Staging is invalid or source-boundary-mismatched
-
-Because staging is derived and never query authority, the complete staging family MAY be discarded and rebuilt.
+This avoids inventing a second recovery receipt for extraction outcome counters and ensures a retry never trusts an old staged cache merely because its SQLite bytes are internally valid.
 
 Deleting a staging family MUST target only the exact known staging main/sidecar names. Symlinks/reparse points/non-regular files fail closed.
 
-### 7.4 Orphan staging sidecar without staging main
+### 7.3 Orphan staging sidecar without staging main
 
 Treat as interrupted derived staging. Under the exclusive search lock and protected-path checks, discard only the exact staging sidecar set, then rebuild.
 
@@ -200,7 +194,7 @@ At minimum add regression coverage for:
 1. corrupt active search DB + valid state/corpus => fresh staged rebuild and verified promotion;
 2. missing active search DB => rebuild succeeds;
 3. valid active cache does not become queryable from staging path;
-4. valid staged cache matching expected boundary => promote without rebuilding;
+4. valid prior staged cache => discard/rebuild after fresh proof (staging is not result authority);
 5. mismatched staged SourceBoundary => discard/rebuild;
 6. corrupt staged cache => discard/rebuild;
 7. orphan staging sidecar => cleanup/rebuild;
