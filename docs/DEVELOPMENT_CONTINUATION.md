@@ -174,7 +174,7 @@ Lease-Until: <RFC3339 UTC, no more than 30 minutes after claim creation>
 7. if visibility, scope overlap, or winner ordering is uncertain, fail closed and perform no file write;
 8. the winner acquires only a short **claim-transfer lease**. It may create an isolated exact-base branch whose name contains the claim number and write only `.keelaryn-work/<work-unit>.json`, containing the claim metadata needed to open the first draft PR. It must not edit product/code/document scope yet;
 9. before `Lease-Until`, open a draft PR that references the claim and repeats the ownership fields, then reconcile that the PR is remotely visible;
-10. after the remote PR is visible, reconcile transfer eligibility using GitHub server timestamps. Transfer is valid only when the PR `created_at` is no later than `Lease-Until` and, if the claim was already closed as stale, the PR `created_at` is earlier than the claim `closed_at`. Invalid/late PRs are closed without substantive edits and require a new claim. For a valid transfer, close the issue claim; substantive writes may then begin on the PR branch.
+10. after the remote PR is visible, reconcile transfer eligibility using GitHub server timestamps. The PR is transfer-valid only when its `created_at` is no later than `Lease-Until` and, if the claim was already closed as stale, its `created_at` is earlier than the claim `closed_at`. Invalid/late PRs close without substantive edits and require a new claim. A transfer-valid PR must then arbitrate against every materially overlapping active transfer-valid PR: earliest GitHub `created_at` wins; equal timestamps break by lower PR number. Losing PRs immediately lose write authority, stop substantive edits, and close or become explicitly abandoned before either side continues. A late-observed older valid PR therefore preempts any later replacement ownership. For the unique winner, close the issue claim; substantive writes may then begin on the PR branch.
 
 This publish→reconcile→winner→draft-PR-transfer sequence prevents two sessions that started from the same read-only prestate from both silently becoming writers and bounds claim-only ownership after interruption.
 
@@ -183,12 +183,13 @@ If `Lease-Until` expires before transfer:
 1. a fresh session reconciles open claims **and** open PRs;
 2. immediately before retirement, re-fetch the claim and referencing PRs;
 3. if no open PR references the expired claim, the claim may be marked stale/retired and closed;
-4. if a racing PR is observed after retirement, resolve ownership from GitHub server timestamps: a PR created no later than `Lease-Until` and before the claim `closed_at` is the valid transfer; a PR created after either boundary is invalid and must close without substantive edits;
-5. any leftover claim-only branch or `.keelaryn-work/<work-unit>.json` marker from an invalid/expired claim is abandoned and must not be reused;
-6. recovery begins with a new claim and a new claim-numbered branch;
-7. the interrupted original session must reconcile before its next write and obey the same timestamp result.
+4. if a racing PR is observed after retirement, decide transfer-validity from GitHub server timestamps: a PR created no later than `Lease-Until` and before the claim `closed_at` is transfer-valid; a PR created after either boundary is invalid and must close without substantive edits;
+5. if that transfer-valid PR materially overlaps any later active transfer-valid replacement PR, arbitrate all overlapping PRs before any further write: earliest GitHub `created_at` wins, with lower PR number as the deterministic tie-break; every loser immediately loses write authority and closes or is explicitly abandoned;
+6. any leftover claim-only branch or `.keelaryn-work/<work-unit>.json` marker from an invalid/expired/losing claim or PR is abandoned and must not be reused;
+7. recovery begins with a new claim and a new claim-numbered branch only when no active winning PR already owns the scope;
+8. every interrupted session must reconcile and repeat this arbitration before its next substantive write.
 
-If an open PR validly references the claim under this rule, ownership has transferred to that PR and later lease expiry is irrelevant. The marker is transport/bootstrap metadata only and must be removed before integration; it never becomes product or qualified-state authority.
+If an open PR uniquely owns the scope under this rule, later lease expiry is irrelevant. The marker is transport/bootstrap metadata only and must be removed before integration; it never becomes product or qualified-state authority.
 
 #### Work-unit branch and handoff
 
@@ -218,11 +219,12 @@ Parallel preparation does not imply parallel authority mutation. Merges into the
 Immediately before merge/state transition:
 
 1. reconcile authoritative HEAD;
-2. confirm the work-unit claim/PR ownership and exact reviewed head are still applicable;
-3. re-evaluate overlapping merged work since the base;
-4. run any proof invalidated by base movement;
-5. perform one integration mutation;
-6. verify and checkpoint before another integration mutation.
+2. reconcile all materially overlapping active PRs and confirm this PR is still the unique owner under the transfer-validity / earliest-`created_at` ordering;
+3. confirm the work-unit claim/PR ownership and exact reviewed head are still applicable;
+4. re-evaluate overlapping merged work since the base;
+5. run any proof invalidated by base movement;
+6. perform one integration mutation;
+7. verify and checkpoint before another integration mutation.
 
 Ephemeral lane occupancy is derived from open work-claim issues before transfer and open PRs after transfer. Do not add rapidly changing lane locks to `DEVELOPMENT_STATE.json`; it remains authority for qualified project state.
 
