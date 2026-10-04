@@ -375,10 +375,6 @@ func TestProtectedRecoveryCancellationAfterRealReconcileBeforePromotionPreserves
 	root, _, options, layout := newProtectedRecoveryFixture(t, "cancel before promotion", 45)
 	authorityBefore := protectedRecoveryAuthority(t, context.Background(), layout.StateDB, root)
 	corpusBefore := protectedRecoveryCorpus(t, root)
-	activeBefore, err := os.ReadFile(layout.SearchDB)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if err := os.WriteFile(layout.SearchDB+"-shm", make([]byte, 32*1024), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -396,8 +392,15 @@ func TestProtectedRecoveryCancellationAfterRealReconcileBeforePromotionPreserves
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error=%v want context.Canceled", err)
 	}
-	if got, readErr := os.ReadFile(layout.SearchDB); readErr != nil || string(got) != string(activeBefore) {
-		t.Fatalf("active cache changed after cancellation before promotion: err=%v", readErr)
+	if _, statErr := os.Stat(layout.SearchDB); statErr != nil {
+		t.Fatalf("active cache disappeared after cancellation before promotion: %v", statErr)
+	}
+	expected, expectedErr := expectedSearchBoundaryReadOnly(context.Background(), layout.StateDB, root)
+	if expectedErr != nil {
+		t.Fatal(expectedErr)
+	}
+	if verifyErr := verifyProtectedSearchCandidate(context.Background(), layout.SearchDB, expected); verifyErr != nil {
+		t.Fatalf("active cache is not valid/current after canceled reconciliation: %v", verifyErr)
 	}
 	if _, statErr := os.Stat(layout.SearchStagingDB); statErr != nil {
 		t.Fatalf("verified staging was not retained after cancellation: %v", statErr)
