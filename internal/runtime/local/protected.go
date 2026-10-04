@@ -315,10 +315,16 @@ func bootstrapProtectedIndex(
 	if err := ctx.Err(); err != nil {
 		return IndexResult{}, err
 	}
+	// Promotion is the commit boundary for derived search recovery. Once this
+	// final cancellation gate has passed, caller cancellation must not turn a
+	// completed promotion into a reported cancellation with staging already
+	// consumed. Preserve context values but detach cancellation/deadline for
+	// the bounded local commit verification phase.
+	commitCtx := context.WithoutCancel(ctx)
 	if err := ops.promote(layout); err != nil {
 		return IndexResult{}, err
 	}
-	if err := ops.verifyCandidate(ctx, layout.SearchDB, expected); err != nil {
+	if err := ops.verifyCandidate(commitCtx, layout.SearchDB, expected); err != nil {
 		return IndexResult{}, err
 	}
 	if err := controlstorage.Verify(layout.Dir); err != nil {

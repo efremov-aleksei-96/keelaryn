@@ -412,3 +412,46 @@ func TestProtectedRecoveryCancellationAfterRealReconcileBeforePromotionPreserves
 		t.Fatal("corpus bytes/topology changed after cancellation before promotion")
 	}
 }
+
+
+func TestProtectedRecoveryCancellationDuringPromotionDoesNotOverrideCommittedResult(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	root, control, options, layout := newProtectedRecoveryFixture(t, "cancel during committed promotion", 46)
+	authorityBefore := protectedRecoveryAuthority(t, context.Background(), layout.StateDB, root)
+	corpusBefore := protectedRecoveryCorpus(t, root)
+
+	ops := defaultProtectedSearchRecoveryOps()
+	basePromote := ops.promote
+	ops.promote = func(got controlstorage.Layout) error {
+		if err := basePromote(got); err != nil {
+			return err
+		}
+		// Cancellation after the commit boundary must not make the caller observe
+		// a cancellation after active replacement and staging consumption.
+		cancel()
+		return nil
+	}
+
+	if _, err := bootstrapProtectedIndex(ctx, options, ops); err != nil {
+		t.Fatalf("committed promotion was incorrectly overridden by cancellation: %v", err)
+	}
+	if ctx.Err() != context.Canceled {
+		t.Fatalf("test did not cancel caller context: %v", ctx.Err())
+	}
+	if _, err := os.Lstat(layout.SearchStagingDB); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("staging survived committed promotion: %v", err)
+	}
+	if got := protectedRecoveryAuthority(t, context.Background(), layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed during committed derived promotion")
+	}
+	if got := protectedRecoveryCorpus(t, root); !reflect.DeepEqual(got, corpusBefore) {
+		t.Fatal("corpus bytes/topology changed during committed derived promotion")
+	}
+	hits, err := QueryProtectedReadOnlyCurrent(context.Background(), control, "cancel during committed promotion", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("committed active search is not queryable: %#v", hits)
+	}
+}
