@@ -60,25 +60,32 @@ func BuildContext(ctx context.Context, options ContextOptions) (contextbundle.Bu
 	defer state.Close()
 
 	provider := providerlocalfs.New(ProviderID)
-	scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
+	source, found, err := latestAcceptedLocalSource(ctx, state, root)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
 	if !found {
 		return contextbundle.Bundle{}, ErrRuntimeStateUnavailable
 	}
-
-	// Re-prove the exact immutable bootstrap/source boundary before any
-	// ContextBundle corpus reads.
-	if _, err := replayBootstrap(ctx, state, provider, scan); err != nil {
+	if err := proveAcceptedLocalSource(ctx, state, provider, source); err != nil {
 		return contextbundle.Bundle{}, err
 	}
+	expected := source.boundary()
+	if options.SearchBoundary != nil && !options.SearchBoundary.Equal(expected) {
+		return contextbundle.Bundle{}, searchsqlite.ErrSourceBoundaryMismatch
+	}
 
-	hits, err := Query(ctx, searchDB, options.Query, options.Limit)
+	index, err := searchsqlite.Open(ctx, searchDB)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
-	inventory, err := state.Inventory(ctx, ProviderID, scan.Root)
+	hits, searchErr := index.SearchBound(ctx, expected, options.Query, options.Limit)
+	closeErr := index.Close()
+	if searchErr != nil || closeErr != nil {
+		return contextbundle.Bundle{}, errors.Join(searchErr, closeErr)
+	}
+
+	inventory, err := state.InventoryAtScan(ctx, source.receipt.Scan.ID)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
@@ -94,15 +101,11 @@ func BuildContext(ctx context.Context, options ContextOptions) (contextbundle.Bu
 	if err := verifyBundleAgainstHits(bundle, hits); err != nil {
 		return contextbundle.Bundle{}, err
 	}
-
-	// A change to any part of the observed root during bundle construction,
-	// including an unrelated addition/removal, invalidates the task context.
-	if _, err := replayBootstrap(ctx, state, provider, scan); err != nil {
+	if err := proveAcceptedLocalSource(ctx, state, provider, source); err != nil {
 		return contextbundle.Bundle{}, err
 	}
 	return bundle, nil
 }
-
 
 func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextbundle.Bundle, error) {
 	root, stateDB, searchDB, err := validateContextOptions(options)
@@ -121,38 +124,32 @@ func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextb
 	defer state.Close()
 
 	provider := providerlocalfs.New(ProviderID)
-	scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
+	source, found, err := latestAcceptedLocalSource(ctx, state, root)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
 	if !found {
 		return contextbundle.Bundle{}, ErrRuntimeStateUnavailable
 	}
-
-	// Re-prove the exact immutable bootstrap/source boundary before any
-	// ContextBundle corpus reads.
-	if err := proveBootstrapReadOnlyAtRoot(ctx, state, provider, scan, readRoot); err != nil {
+	if err := proveAcceptedLocalSourceAtRoot(ctx, state, provider, source, readRoot); err != nil {
 		return contextbundle.Bundle{}, err
 	}
-
-	var hits []search.Hit
-	if options.SearchBoundary == nil {
-		hits, err = QueryReadOnly(ctx, searchDB, options.Query, options.Limit)
-	} else {
-		index, openErr := searchsqlite.OpenReadOnly(ctx, searchDB)
-		if openErr != nil {
-			return contextbundle.Bundle{}, openErr
-		}
-		hits, err = index.SearchBound(ctx, *options.SearchBoundary, options.Query, options.Limit)
-		closeErr := index.Close()
-		if err == nil && closeErr != nil {
-			err = closeErr
-		}
+	expected := source.boundary()
+	if options.SearchBoundary != nil && !options.SearchBoundary.Equal(expected) {
+		return contextbundle.Bundle{}, searchsqlite.ErrSourceBoundaryMismatch
 	}
+
+	index, err := searchsqlite.OpenReadOnly(ctx, searchDB)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
-	inventory, err := state.Inventory(ctx, ProviderID, scan.Root)
+	hits, searchErr := index.SearchBound(ctx, expected, options.Query, options.Limit)
+	closeErr := index.Close()
+	if searchErr != nil || closeErr != nil {
+		return contextbundle.Bundle{}, errors.Join(searchErr, closeErr)
+	}
+
+	inventory, err := state.InventoryAtScan(ctx, source.receipt.Scan.ID)
 	if err != nil {
 		return contextbundle.Bundle{}, err
 	}
@@ -168,10 +165,7 @@ func BuildContextReadOnly(ctx context.Context, options ContextOptions) (contextb
 	if err := verifyBundleAgainstHits(bundle, hits); err != nil {
 		return contextbundle.Bundle{}, err
 	}
-
-	// A change to any part of the observed root during bundle construction,
-	// including an unrelated addition/removal, invalidates the task context.
-	if err := proveBootstrapReadOnlyAtRoot(ctx, state, provider, scan, readRoot); err != nil {
+	if err := proveAcceptedLocalSourceAtRoot(ctx, state, provider, source, readRoot); err != nil {
 		return contextbundle.Bundle{}, err
 	}
 	return bundle, nil

@@ -71,24 +71,32 @@ func BootstrapIndex(ctx context.Context, options IndexOptions) (IndexResult, err
 	defer state.Close()
 
 	provider := providerlocalfs.New(ProviderID)
-	scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
+	source, found, err := latestAcceptedLocalSource(ctx, state, root)
 	if err != nil {
 		return IndexResult{}, err
 	}
 	reused := found
 	if found {
-		scan, err = replayBootstrap(ctx, state, provider, scan)
-		if err != nil {
+		if err := proveAcceptedLocalSource(ctx, state, provider, source); err != nil {
 			return IndexResult{}, err
 		}
 	} else {
-		scan, err = ingest.BootstrapLocalFS(ctx, state, provider, root, options.ObservedAt.UTC())
+		scan, err := ingest.BootstrapLocalFS(ctx, state, provider, root, options.ObservedAt.UTC())
 		if err != nil {
 			return IndexResult{}, err
 		}
+		source, found, err = latestAcceptedLocalSource(ctx, state, root)
+		if err != nil {
+			return IndexResult{}, err
+		}
+		if !found || source.receipt.Scan.ID != scan.ID {
+			return IndexResult{}, fmt.Errorf("%w: bootstrap=%s accepted=%s found=%t",
+				ErrBootstrapReplayMismatch, scan.ID, source.receipt.Scan.ID, found)
+		}
 	}
 
-	inventory, err := state.Inventory(ctx, ProviderID, scan.Root)
+	scan := source.receipt.Scan
+	inventory, err := state.InventoryAtScan(ctx, scan.ID)
 	if err != nil {
 		return IndexResult{}, err
 	}
@@ -128,24 +136,8 @@ func BootstrapIndex(ctx context.Context, options IndexOptions) (IndexResult, err
 		}
 	}
 
-	// Re-prove the exact bootstrap receipt after all source reads so additions,
-	// removals, locator/metadata drift or content changes during extraction
-	// fail before the derived cache is replaced.
-	if _, err := replayBootstrap(ctx, state, provider, scan); err != nil {
+	if err := proveAcceptedLocalSource(ctx, state, provider, source); err != nil {
 		return IndexResult{}, err
-	}
-
-	receipt, err := proveBootstrapReceiptReadOnly(ctx, state, scan)
-	if err != nil {
-		return IndexResult{}, err
-	}
-	boundary := searchsqlite.SourceBoundary{
-		ProviderID:         ProviderID,
-		Root:               scan.Root,
-		ScanID:             scan.ID,
-		StartedAt:          scan.StartedAt,
-		FingerprintVersion: receipt.FingerprintVersion,
-		FingerprintSHA256:  receipt.FingerprintSHA256,
 	}
 
 	index, err := searchsqlite.Open(ctx, searchDB)
@@ -153,7 +145,7 @@ func BootstrapIndex(ctx context.Context, options IndexOptions) (IndexResult, err
 		return IndexResult{}, err
 	}
 	defer index.Close()
-	if err := index.ReplaceAllBound(ctx, state, extractions, boundary); err != nil {
+	if err := index.ReplaceAllBound(ctx, state, extractions, source.boundary()); err != nil {
 		return IndexResult{}, err
 	}
 	if err := index.Verify(ctx); err != nil {

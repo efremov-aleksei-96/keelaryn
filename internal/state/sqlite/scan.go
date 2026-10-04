@@ -16,6 +16,7 @@ var (
 	ErrInvalidScan            = errors.New("invalid scan session")
 	ErrScanNotFound           = errors.New("scan session not found")
 	ErrScanNotOpen            = errors.New("scan session is not open")
+	ErrScanNotComplete        = errors.New("scan session is not complete")
 	ErrScanScopeMismatch      = errors.New("observation does not match scan scope")
 	ErrAmbiguousScanAuthority = errors.New("ambiguous current COMPLETE scan authority")
 )
@@ -301,9 +302,34 @@ func (s *Store) Inventory(ctx context.Context, providerID corpus.ProviderID, roo
 	if !found {
 		return nil, nil
 	}
+	return inventoryAtScanConn(conn, scanID)
+}
 
+// InventoryAtScan reads inventory from one exact COMPLETE scan without
+// interpreting that scan as the current provider/root authority.
+func (s *Store) InventoryAtScan(ctx context.Context, scanID corpus.ScanSessionID) ([]corpus.InventoryEntry, error) {
+	if scanID == "" {
+		return nil, ErrInvalidScan
+	}
+	conn, err := s.pool.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get state connection: %w", err)
+	}
+	defer s.pool.Put(conn)
+
+	scan, err := scanSessionConn(conn, scanID)
+	if err != nil {
+		return nil, err
+	}
+	if scan.Status != corpus.ScanComplete {
+		return nil, fmt.Errorf("%w: %s status=%s", ErrScanNotComplete, scanID, scan.Status)
+	}
+	return inventoryAtScanConn(conn, scanID)
+}
+
+func inventoryAtScanConn(conn *sqlite.Conn, scanID corpus.ScanSessionID) ([]corpus.InventoryEntry, error) {
 	var entries []corpus.InventoryEntry
-	err = sqlitex.Execute(conn,
+	err := sqlitex.Execute(conn,
 		"SELECT o.observation_id, COALESCE(o.artifact_id, ''), COALESCE(o.revision_id, ''), o.assignment_state, l.provider_id, l.root, l.path, o.kind, o.size, o.size_known, o.mode, o.mode_known, o.modified_at, o.modified_at_known FROM observations o JOIN locators l ON l.observation_id = o.observation_id WHERE o.scan_id = ?1 ORDER BY l.path, o.observation_id",
 		&sqlitex.ExecOptions{
 			Args: []any{string(scanID)},
@@ -344,7 +370,7 @@ func (s *Store) Inventory(ctx context.Context, providerID corpus.ProviderID, roo
 			},
 		})
 	if err != nil {
-		return nil, fmt.Errorf("query inventory: %w", err)
+		return nil, fmt.Errorf("query inventory for scan %s: %w", scanID, err)
 	}
 	return entries, nil
 }

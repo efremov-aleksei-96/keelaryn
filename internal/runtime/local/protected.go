@@ -11,7 +11,6 @@ import (
 
 	"github.com/efremov-aleksei-96/keelaryn/internal/contextbundle"
 	"github.com/efremov-aleksei-96/keelaryn/internal/controlstorage"
-	"github.com/efremov-aleksei-96/keelaryn/internal/ingest"
 	providerlocalfs "github.com/efremov-aleksei-96/keelaryn/internal/provider/localfs"
 	"github.com/efremov-aleksei-96/keelaryn/internal/search"
 	searchsqlite "github.com/efremov-aleksei-96/keelaryn/internal/search/sqlite"
@@ -120,25 +119,14 @@ func expectedSearchBoundaryReadOnly(ctx context.Context, stateDB, root string) (
 		return searchsqlite.SourceBoundary{}, err
 	}
 	defer state.Close()
-	scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
+	source, found, err := latestAcceptedLocalSource(ctx, state, root)
 	if err != nil {
 		return searchsqlite.SourceBoundary{}, err
 	}
 	if !found {
 		return searchsqlite.SourceBoundary{}, ErrRuntimeStateUnavailable
 	}
-	receipt, err := proveBootstrapReceiptReadOnly(ctx, state, scan)
-	if err != nil {
-		return searchsqlite.SourceBoundary{}, err
-	}
-	return searchsqlite.SourceBoundary{
-		ProviderID:         ProviderID,
-		Root:               scan.Root,
-		ScanID:             scan.ID,
-		StartedAt:          scan.StartedAt,
-		FingerprintVersion: receipt.FingerprintVersion,
-		FingerprintSHA256:  receipt.FingerprintSHA256,
-	}, nil
+	return source.boundary(), nil
 }
 
 // preflightProtectedSearchRecovery proves that existing non-rebuildable state
@@ -186,7 +174,6 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 	if err := sqlitestate.VerifyReadOnly(ctx, layout.StateDB); err != nil {
 		return err
 	}
-
 	state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
 	if err != nil {
 		return err
@@ -195,30 +182,14 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 		err = errors.Join(err, state.Close())
 	}()
 
-	scan, found, err := state.LatestCompleteScan(ctx, ProviderID, root)
+	source, found, err := latestAcceptedLocalSource(ctx, state, root)
 	if err != nil {
 		return err
 	}
 	if !found {
 		return nil
 	}
-	receipt, err := proveBootstrapReceiptReadOnly(ctx, state, scan)
-	if err != nil {
-		return err
-	}
-	version, fingerprint, err := ingest.BootstrapLocalFSSnapshotFingerprint(
-		ctx,
-		providerlocalfs.New(ProviderID),
-		root,
-		scan.StartedAt,
-	)
-	if err != nil {
-		return err
-	}
-	if version != receipt.FingerprintVersion || fingerprint != receipt.FingerprintSHA256 {
-		return fmt.Errorf("%w: durable bootstrap receipt does not match current corpus", ErrCorpusChanged)
-	}
-	return nil
+	return proveAcceptedLocalSource(ctx, state, providerlocalfs.New(ProviderID), source)
 }
 
 // BootstrapProtectedIndex is the executable control-storage boundary. It

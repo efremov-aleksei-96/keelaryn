@@ -19,7 +19,8 @@ var (
 	ErrLocalFSSnapshotChanged = errors.New("local filesystem snapshot changed before durable commit")
 )
 
-const localFSSnapshotFingerprintVersion = "localfs-snapshot:v1"
+// LocalFSSnapshotFingerprintVersion identifies the qualified v1 LocalFS snapshot receipt contract.
+const LocalFSSnapshotFingerprintVersion = "localfs-snapshot:v1"
 
 // BootstrapLocalFSSnapshotFingerprint computes the exact deterministic
 // fingerprint used by bootstrap receipts without writing durable state.
@@ -71,7 +72,7 @@ func BootstrapLocalFSSnapshotFingerprintAtRoot(
 	if err != nil {
 		return "", "", err
 	}
-	return localFSSnapshotFingerprintVersion, fingerprint, nil
+	return LocalFSSnapshotFingerprintVersion, fingerprint, nil
 }
 
 // ScanStore is the minimal durable-state contract required by local ingestion.
@@ -120,7 +121,7 @@ func LocalFS(ctx context.Context, store ScanStore, provider *localfs.Provider, r
 		initial.ProviderID(),
 		initial.Root(),
 		observedAt,
-		localFSSnapshotFingerprintVersion,
+		LocalFSSnapshotFingerprintVersion,
 		fingerprint,
 		inputs,
 		func(validateCtx context.Context) error {
@@ -243,7 +244,7 @@ func BootstrapLocalFS(ctx context.Context, store BootstrapStore, provider *local
 		initial.ProviderID(),
 		initial.Root(),
 		observedAt,
-		localFSSnapshotFingerprintVersion,
+		LocalFSSnapshotFingerprintVersion,
 		fingerprint,
 		occurrences,
 		func(validateCtx context.Context) error {
@@ -312,7 +313,7 @@ func localSnapshotFingerprint(mode string, providerID corpus.ProviderID, root st
 		ObservedAt time.Time         `json:"observed_at"`
 		Payload    any               `json:"payload"`
 	}{
-		Version:    localFSSnapshotFingerprintVersion,
+		Version:    LocalFSSnapshotFingerprintVersion,
 		Mode:       mode,
 		ProviderID: providerID,
 		Root:       root,
