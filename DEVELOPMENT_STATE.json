@@ -6122,7 +6122,7 @@
     "initial_integration_head": "e5047c925f2d782d6823e4dc29cbae9b7ec6337c",
     "corrective_handoff": "e6d7bca917bcbb07f450db5dbfc89d37c9470cb5",
     "corrective_integration_head": "78e0a7dd4e2382e51561ddf2569e100ad5b6d0dd",
-    "qualified_authoritative_head": "df97c5aade9fc901f033550419a983108a5f4957",
+    "qualification_base_head": "df97c5aade9fc901f033550419a983108a5f4957",
     "corrective_ci_run_id": 37185732213,
     "current_head_ci_run_id": 37190663978,
     "codex_review": "PR #107 exact handoff e6d7bca917bcbb07f450db5dbfc89d37c9470cb5: clean after cancellation/timeout corrections",
