@@ -17,20 +17,39 @@ If none is ready and non-overlapping, Luna MUST attempt a discovery unit before 
 
 A separate `SOL_REQUIRED` unit blocks only itself and actual dependants.
 
-## 3. Discovery catalog and priority
+## 3. Discovery lenses and rolling frontier
 
-Choose the first high-value category that has not already been examined in the current cycle against the same authoritative baseline:
+The eight catalog entries are **research lenses, not eight one-shot tasks**. A single lens may produce many independent bounded units against different subsystems, questions, competitors, failure classes, platforms, or lifecycle stages.
+
+Luna first drains durable ready backlog items. When the backlog is empty, it runs a lightweight frontier sweep and synthesizes new bounded items from the first high-value unexplored intersections it finds.
+
+Discovery lenses:
 
 1. **DEFECT_ADVERSARIAL** — failure injection, negative paths, crash windows, stale-state behavior, malformed/corrupt inputs, race/concurrency observations, retry/idempotency boundaries.
 2. **CORRECTNESS_ARCHITECTURE_MAP** — call graphs, authority boundaries, duplicated mechanisms, implicit invariants, unreachable or weakly enforced contracts, code↔canonical drift.
 3. **PERFORMANCE_RESOURCE** — reproducible latency, throughput, memory, disk amplification, startup/index/recovery cost, large-corpus behavior, Windows/Linux differences.
 4. **DEPENDENCY_PLATFORM_API** — dependency changes, upstream defects, licenses, filesystem/SQLite/runtime behavior, provider/API semantic changes, portability constraints.
-5. **EXTERNAL_REUSE_COMPETITORS** — current competitor/adjacent-system implementations, upstream repositories/issues/docs, reusable libraries and patterns relevant to the active boundary.
+5. **EXTERNAL_REUSE_COMPETITORS** — competitor/adjacent-system implementations, upstream repositories/issues/docs, reusable libraries and patterns relevant to **implemented Keelaryn capabilities and canonical/planned capability gaps**, not only the active objective.
 6. **DIRECTION_VALUE_AUDIT** — compare canonical roadmap and current implementation emphasis against reachable user-value gaps; detect infrastructure overinvestment or missing product capability. Luna supplies evidence and options, not the final roadmap decision.
 7. **TEST_OPERABILITY_DEBT** — missing negative tests, weak assertions, untested error classes, Doctor/SelfTest blind spots, observability gaps, deterministic-fixture opportunities.
 8. **DOC_STATE_CONSISTENCY** — stale docs, state/contract/code disagreement, carried findings whose target boundary has become current, misleading comments or examples.
 
-Prefer categories closest to the current objective and most recently changed code before broad repository exploration.
+Frontier synthesis MUST consider more than the current objective. At minimum, scan these durable sources for novel questions:
+
+- active objective, recent diffs, open PR/CI/runtime/review evidence;
+- implemented subsystem inventory from canonical architecture + repository structure;
+- canonical/planned capabilities that are absent, partial, provisional, or explicitly deferred;
+- unresolved findings, known limitations, TODO/proof gaps and weakly exercised invariants;
+- platform/dependency/test/performance matrices;
+- external competitor/upstream/open-source landscape mapped to concrete Keelaryn capabilities.
+
+Prefer recently changed and high-risk boundaries first, but do not treat current-objective completion as exhaustion of the research frontier.
+
+A candidate is novel when its stable `Discovery-Key` has no terminal result/carry in the current epoch and no active owner. The key represents the concrete question, not merely the lens, for example:
+
+`EXTERNAL_REUSE_COMPETITORS/search/derived-index-recovery-patterns`
+`EXTERNAL_REUSE_COMPETITORS/identity/persistent-local-file-identity`
+`PERFORMANCE_RESOURCE/corpus/startup-fingerprint-amplification`
 
 ## 4. Bounded-unit contract
 
@@ -38,180 +57,152 @@ Every discovery unit MUST be small enough to finish, classify, and hand off inde
 
 ```text
 Work-Unit: DISCOVERY-<CATEGORY>-<AREA>-<NN>
+Discovery-Key: <CATEGORY>/<stable-area>/<stable-question>
 Baseline-SHA: <authoritative HEAD>
-Category: <catalog category>
+Epoch-Ref: BASELINE | RESET-COMMENT:<id>
+Category: <catalog lens>
 Question: <one concrete question or falsifiable risk>
-Why-Now: <current objective/change/finding that makes it relevant>
+Why-Now: <current change, canonical capability, gap, external lead, or finding that makes it relevant>
 Read-Scope: <bounded files/subsystem/external sources>
 Write-Scope: NONE initially
 Done-When: <specific evidence threshold>
 ```
 
-A unit should cover one subsystem or one research question. Do not start an unbounded “audit the whole project” task.
+A unit covers one subsystem/question. Multiple units from the same category are allowed when their `Discovery-Key` values are distinct. Do not start an unbounded “audit the whole project” or generic “survey all competitors” task.
 
 Read-only discovery does not require a GitHub work claim. The moment remediation needs branch/file writes, stop, reconcile, classify the proposed mutation, and acquire a normal work claim under the parallel-lane protocol.
 
-### 4.1 Durable discovery-cycle ledger
+### 4.1 Durable rolling discovery ledger
 
-Discovery-cycle progress MUST survive chat/Work interruption and same-baseline evidence resets.
+Discovery progress MUST survive chat/Work interruption and same-baseline evidence resets.
 
 #### Canonical baseline issue
 
-For authoritative baseline SHA `B`, the ledger title is exactly:
+For authoritative baseline SHA `B`, the ledger title remains exactly:
 
 ```text
 [DISCOVERY-CYCLE] <full-B>
 ```
 
-Lookup MUST search **all issue states (open and closed)** and require an exact title match. A closed canonical issue is still the ledger for that unchanged baseline; do not create a replacement merely because it is closed.
+Lookup searches **all issue states (open and closed)** and requires an exact title match. If no exact issue exists, create one with the current baseline/objective and `Authority: NONQUALIFIED_DISCOVERY_EVIDENCE`. After creation, search again; concurrent duplicates arbitrate by lowest issue number and higher-number duplicates close before work.
 
-If no exact-title issue exists, create one with:
+The issue is a rolling backlog ledger, not an eight-cell checklist.
 
-```text
-Baseline-SHA: <authoritative HEAD>
-Objective: <current DEVELOPMENT_STATE next objective>
-State: ACTIVE
-Authority: NONQUALIFIED_DISCOVERY_EVIDENCE
-Initial-Epoch: BASELINE
-```
+#### Epoch identity and resets
 
-Immediately after creation, search all states again for the exact title before doing any catalog work. GitHub titles are not unique: if concurrent creation produced multiple issues, the **lowest issue number is canonical**. Every higher-number duplicate must be marked `State: DUPLICATE`, link the canonical issue, and close before that session performs discovery work. New results and reset records are written only to the canonical issue.
-
-Creating/updating/commenting on this coordination/evidence issue does not require a work claim because it is not a branch/file mutation and grants no product write authority.
-
-#### Epoch identity and same-baseline resets
-
-The initial epoch is `BASELINE`. Category results from an older epoch never satisfy completion for a newer epoch.
-
-A material event that changes the engineering risk without changing authoritative HEAD creates a reset only when it has a **durable unique Trigger-Ref**, for example:
-
-- `CI_RUN:<run-id>:<conclusion>`;
-- `PR_REVIEW:<review-id>` or `REVIEW_COMMENT:<comment-id>`;
-- `GITHUB_FINDING:<issue-or-comment-url>`;
-- `RUNTIME_EVIDENCE:<durable-github-evidence-url>`.
-
-An external dependency/platform/provider observation must first be persisted as durable GitHub evidence before it may reset the cycle.
-
-Before posting a reset, fetch all canonical-issue comments. If the exact `Trigger-Ref` already has a reset record, reuse it. Otherwise append:
+The initial epoch is `BASELINE`. Material same-HEAD CI/review/finding/runtime/external evidence may create a reset only through a durable unique trigger:
 
 ```text
 DISCOVERY-CYCLE-RESET-V1
 Baseline-SHA: <exact baseline>
 Trigger-Kind: <CI | REVIEW | FINDING | RUNTIME | EXTERNAL | DUPLICATE_RESULT>
 Trigger-Ref: <durable unique ref>
-Reason: <why prior category results may no longer be sufficient>
+Reason: <why earlier evidence may be stale>
 ```
 
-Re-fetch comments immediately after posting. Concurrent duplicate reset comments for the same `Trigger-Ref` are possible; the **lowest GitHub comment ID for that exact Trigger-Ref is canonical** and the others are ignored for epoch selection.
+For duplicate reset records with the same Trigger-Ref, the lowest GitHub comment ID is canonical. The newest distinct canonical reset by GitHub `created_at` (tie: higher comment ID) defines the current epoch `RESET-COMMENT:<id>`. Older-epoch backlog/results never satisfy the new epoch.
 
-The epoch identity for a reset is:
+#### Backlog items
 
-```text
-RESET-COMMENT:<canonical-reset-comment-id>
-```
-
-Among distinct canonical reset records, the current epoch is the one with the latest GitHub `created_at`; an exact timestamp tie is broken by the higher comment ID. Thus a later material trigger on the same HEAD invalidates completion from earlier epochs without changing the baseline issue identity.
-
-If the canonical issue was closed because the previous epoch completed, a new canonical reset record requires reopening that same issue before further discovery.
-
-Material evidence that already existed when the baseline issue was first created is part of the initial `BASELINE` epoch and should influence unit selection/Why-Now; it does not cause an immediate self-reset.
-
-#### Category results
-
-Before starting a unit, fetch the canonical issue and derive the current epoch. Before recording its result, fetch again; if the current epoch changed while the unit ran, the result may be retained as historical evidence but does **not** satisfy the new epoch.
-
-After every completed or intentionally skipped category, append:
+A frontier sweep persists each selected candidate before deep work:
 
 ```text
-DISCOVERY-CYCLE-RESULT-V1
+DISCOVERY-BACKLOG-ITEM-V1
 Baseline-SHA: <exact baseline>
-Epoch-Ref: BASELINE | RESET-COMMENT:<id>
-Category: <catalog category>
-Work-Unit: <discovery unit id>
-Read-Scope: <bounded repository paths/subsystem and/or external sources actually examined>
-Observed-At: <RFC3339 UTC or explicit source-observation date>
-Semantic-Assumptions: NONE | <bounded invariants/authority/environment assumptions the result depends on>
-Outcome: NO_FINDING | LUNA_FIX_READY | SOL_REVIEW_REQUIRED | BLOCKED_EXTERNAL | SKIPPED_IRRELEVANT
-Evidence: <bounded summary plus durable links when applicable>
+Epoch-Ref: <current epoch>
+Discovery-Key: <stable category/area/question key>
+Category: <catalog lens>
+Question: <bounded question>
+Why-Now: <evidence source>
+Read-Scope-Hint: <bounded expected scope>
+Priority: <P0 | P1 | P2 | P3>
+State: READY
 ```
 
-Native-result cardinality is part of the durable protocol. For one `(Baseline-SHA, Epoch-Ref, Category)`:
+For one `(Baseline-SHA, Epoch-Ref, Discovery-Key)`, the earliest identical backlog record is canonical. If same-key records materially disagree on question/scope, do not pick one silently: use a more specific new key or persist a conflict finding.
 
-- zero native `DISCOVERY-CYCLE-RESULT-V1` comments means the category is incomplete;
-- exactly one native result is the canonical native result for that category/epoch;
-- more than one native result is **ambiguous**. There is no first/last/severity winner.
+Fresh sessions reconstruct pending work from canonical backlog items minus terminal current-epoch results/carries. A category may therefore contain any number of pending/completed keys.
 
-If multiple native results are discovered on the **current authoritative baseline/current epoch**, do not use any of them for completion or carry. Append a reset:
+#### Unit results
+
+After every completed item append:
 
 ```text
-DISCOVERY-CYCLE-RESET-V1
-Baseline-SHA: <current exact baseline>
-Trigger-Kind: DUPLICATE_RESULT
-Trigger-Ref: DUPLICATE_RESULT:<baseline-sha>:<epoch-ref>:<category>:<ascending-native-result-comment-ids>
-Reason: multiple native results exist for one category in one epoch; no deterministic evidence winner is authorized
+DISCOVERY-UNIT-RESULT-V2
+Baseline-SHA: <exact baseline>
+Epoch-Ref: <current epoch>
+Discovery-Key: <exact backlog key>
+Category: <catalog lens>
+Work-Unit: <discovery unit id>
+Read-Scope: <actual bounded repository paths/subsystem/external sources>
+Observed-At: <RFC3339 UTC or explicit source-observation date>
+Semantic-Assumptions: NONE | <bounded assumptions>
+Outcome: NO_FINDING | LUNA_FIX_READY | SOL_REVIEW_REQUIRED | BLOCKED_EXTERNAL | SKIPPED_IRRELEVANT
+Evidence: <bounded summary plus durable links>
+Follow-Up-Keys: NONE | <new distinct discovery keys suggested by this result>
 ```
 
-Re-fetch comments. The existing lowest-comment-ID arbitration for an exact `Trigger-Ref` chooses the canonical reset if multiple sessions post it concurrently. Rerun the category in the new reset epoch; all duplicate results from the older epoch remain historical evidence only.
+Native-result cardinality is keyed by `(Baseline-SHA, Epoch-Ref, Discovery-Key)`, **not Category**:
 
-If the selected **historical source baseline** has zero native results for the category in its current epoch because a later reset superseded older results, or has multiple current-epoch native results, that source category is ineligible. Do not mutate the historical issue, do not pick a winner, and do not search farther back for an older native result. Rerun the category on the current baseline and emit a new native result.
+- zero results => item pending;
+- exactly one result => terminal for that key/epoch;
+- more than one native result => ambiguous. Persist a `DUPLICATE_RESULT` reset keyed by the sorted result comment IDs, then rerun that key in the new epoch.
 
-A category counts as complete only when a valid result matches both the exact baseline and the **current epoch**. Fresh sessions reconstruct completion from the canonical issue and its comments instead of chat memory.
+Historical `DISCOVERY-CYCLE-RESULT-V1` records that lack `Discovery-Key` are legacy category-sweep evidence only. Treat them as historical context (conceptually `LEGACY_CATEGORY_SWEEP/<CATEGORY>`); they do **not** exhaust a category, do not close the rolling frontier, and are not silently mapped onto a new V2 key.
 
-When every category has a current-epoch result, close the canonical issue as completed. On unchanged HEAD, a later session searches all states, finds that closed issue, reconstructs the completed current epoch, and does not create or rerun another cycle unless a new durable reset trigger exists.
+#### Frontier sweeps
 
-A later authoritative baseline SHA gets its own exact-title issue and begins again at `BASELINE`. Historical cycle issues remain nonqualified evidence and never become project-state authority.
+When no current backlog item is ready, run a lightweight synthesis pass over the frontier sources in §3. Persist:
+
+```text
+DISCOVERY-FRONTIER-SWEEP-V1
+Baseline-SHA: <exact baseline>
+Epoch-Ref: <current epoch>
+Observed-At: <time>
+Sources-Scanned: <objective/diff/subsystems/planned-gaps/findings/platform/external/etc>
+New-Keys: NONE | <distinct keys persisted as backlog items>
+Blocked-Sources: NONE | <concrete unavailable source>
+Evidence: <bounded explanation>
+```
+
+A sweep discovers candidates; it does not perform all deep research itself. If it finds new keys, Luna continues with the highest-priority ready item. Results may themselves add distinct follow-up keys, so backlog drain and frontier synthesis alternate.
+
+A zero-new-key sweep is valid for stopping only when it is **fresh after the latest terminal result/material transition**, scans every currently known frontier source class that is available, and there are no pending ready backlog items. Closing the baseline issue is allowed only at that point. “8/8 categories have results” is never a closure condition.
 
 #### Cross-baseline carry-forward
 
-A new authoritative HEAD still gets its own exact-title baseline issue. HEAD movement is not permission to treat prior results as current, but it also does **not** require a blind full-catalog rerun.
+Carry-forward is per exact `Discovery-Key`, never per category.
 
-Before starting deep work for an incomplete category, Luna MUST search earlier canonical discovery-cycle baselines **newest to oldest**, skipping only baselines that contain no native `DISCOVERY-CYCLE-RESULT-V1` for that category in **any epoch**. The **first baseline containing any native result(s) is the only source baseline candidate**, regardless of objective or whether those results belong to an older epoch. After selecting that baseline, derive its current epoch and require exactly one native result for the category in that current epoch. Zero current-epoch results (for example because the baseline reset after older results) or multiple current-epoch results make the selected source ineligible and force a current-baseline rerun; Luna MUST NOT search farther back. If that newest native result is ineligible (including objective mismatch, `BLOCKED_EXTERNAL`, legacy/no-scope/no-semantic-assumptions, stale, intersecting, or invalidated), Luna MUST rerun the category and emit a new result; it MUST NOT continue farther back to an older, more convenient native result. A `DISCOVERY-CYCLE-CARRYFORWARD-V1` record is provenance/completion evidence for its own baseline, **not** a new source result. This avoids one-hop limits without allowing newer native evidence to be bypassed: each carry is re-proven directly from the newest native source-result baseline to the current baseline.
+For an incomplete key on a new baseline, the newest ancestor native V2 result for that exact key may be carried only when:
 
-Automatic/cheap carry-forward is allowed only when all of the following are proven:
-
-1. the selected source baseline is the newest ancestor baseline containing any native `DISCOVERY-CYCLE-RESULT-V1` for the category in any epoch; after selection, its **current epoch contains exactly one** native result for the category. Zero current-epoch results after a reset and multiple current-epoch results are both ineligible and force a current-baseline rerun with no older fallback; source evidence is that single native result, never a prior carry-forward record;
-2. source baseline SHA is an ancestor of the current baseline SHA;
-3. after the newest native result has already been selected, its objective exactly matches the current objective; objective mismatch is an eligibility failure that forces rerun and never authorizes searching for an older native result;
-4. the source result belongs to the source baseline's current epoch;
-5. the source result already has an explicit durable bounded `Read-Scope` **and** explicit `Semantic-Assumptions` (`NONE` is valid); legacy results lacking either field are ineligible for carry-forward and must be rerun as a new category result;
-6. the Git diff from the **native source-result baseline directly to the current baseline** is proven disjoint from the source result's repository read scope **and the exact persisted semantic assumptions**; any intersection or uncertain overlap requires a full category rerun and a new `DISCOVERY-CYCLE-RESULT-V1`;
-7. perform an intervening invalidation scan from the source result through the current baseline across durable CI/runtime/review/finding/external evidence refs **and discovery reset refs including `DUPLICATE_RESULT`** relevant to the category; no such trigger may invalidate the source evidence;
-8. persist that scan as `Invalidation-Scan: PASS` plus the durable refs/range checked; if an invalidating trigger exists or the scan cannot be bounded safely, rerun the category and emit a new `DISCOVERY-CYCLE-RESULT-V1` instead of carrying;
-9. the outcome-specific freshness rules below are satisfied. A freshness recheck may add evidence for an otherwise diff-disjoint carry, but it never substitutes for condition 6 or the invalidation scan.
+1. the source baseline is an ancestor of current baseline;
+2. source result belongs to the source baseline's current epoch and is unique for that key;
+3. `Question`, `Read-Scope`, and `Semantic-Assumptions` are explicit;
+4. direct source-baseline → current-baseline diff is proven disjoint from repository scope and semantic assumptions;
+5. a bounded intervening CI/runtime/review/finding/external/reset scan finds no invalidating trigger;
+6. external/provider/upstream-dependent evidence receives a fresh primary-source check;
+7. `BLOCKED_EXTERNAL` is never carried.
 
 Persist:
 
 ```text
-DISCOVERY-CYCLE-CARRYFORWARD-V1
-Baseline-SHA: <current exact baseline>
-Epoch-Ref: BASELINE | RESET-COMMENT:<id>
-Category: <catalog category>
-From-Baseline: <ancestor baseline sha>
-From-Result-Ref: <durable GitHub issue-comment URL/id>
-Read-Scope: <verified bounded scope copied from source result>
-Semantic-Assumptions: NONE | <exact source semantic assumptions, preserved for this carry>
+DISCOVERY-CYCLE-CARRYFORWARD-V2
+Baseline-SHA: <current baseline>
+Epoch-Ref: <current epoch>
+Discovery-Key: <exact key>
+Category: <catalog lens>
+From-Baseline: <ancestor>
+From-Result-Ref: <durable result ref>
+Read-Scope: <source scope>
+Semantic-Assumptions: <source assumptions>
 Verification: DIFF_DISJOINT
 Invalidation-Scan: PASS
-Invalidation-Evidence: <durable CI/runtime/review/finding/external refs or bounded range checked; NONE_INVALIDATING>
+Invalidation-Evidence: <refs/range>
 Freshness-Check: NOT_REQUIRED | FRESH_PRIMARY_SOURCE_CHECK
-External-Dependency: NONE | <external source/provider/upstream assumption requiring freshness>
-Evidence: <why the prior result still applies on this baseline>
+Evidence: <why exact question remains answered>
 ```
 
-A valid carry-forward record counts as the category's current-baseline/current-epoch completion. It never changes the original result and never makes the old issue authoritative for the new baseline. It also does **not** become source evidence for a later baseline: later baselines search backward, skip carry-only/no-result baselines, stop at the first newer native result, and then either carry that result or rerun. Carry records preserve the source result's exact `Semantic-Assumptions` so later sessions can audit what was assumed even though the carry itself is never a new source result.
-
-Outcome/category rules:
-
-- `NO_FINDING`, `LUNA_FIX_READY`, and `SOL_REVIEW_REQUIRED` may be carried when their evidence/read scope is still valid; unresolved findings remain unresolved work even though rediscovery is unnecessary.
-- `SKIPPED_IRRELEVANT` may be carried only when the objective and relevance assumptions are unchanged.
-- `BLOCKED_EXTERNAL` is never carried. Rerun the category against the current external dependency/environment and emit a new `DISCOVERY-CYCLE-RESULT-V1`.
-- Any result whose `Read-Scope`, evidence, or semantic assumptions depend on an external source/provider/upstream state may carry only when the repository/semantic diff is already proven disjoint **and** a fresh primary-source check confirms the external evidence/assumption still applies. This rule is based on actual dependency, not the catalog category label.
-- A legacy result lacking explicit durable `Read-Scope` **or** explicit `Semantic-Assumptions` must be rerun as a new category result; do not reconstruct historical scope/assumptions after the fact.
-- Once the newest ancestor baseline containing native result(s) for the category is found, do not search past it for an older eligible result. Exactly one native result may proceed to eligibility checks; multiple native results are ambiguous and force current-baseline rerun; any other ineligibility also forces rerun.
-- Any read-scope/semantic intersection or uncertain overlap requires a full category rerun and a new result. `FRESH_RECHECK` is not a carry-forward escape hatch for changed scope.
-- Any durable intervening trigger that invalidates the category's evidence, or any inability to bound the required invalidation scan safely, requires a full category rerun and a new result.
-
-When HEAD moves, close an incomplete old baseline issue as `SUPERSEDED_BASE_MOVED` after its durable results are preserved. The new baseline issue may then carry valid categories individually and rerun only invalidated/unknown categories.
+A carry is completion evidence for this key/epoch only and is never source evidence for a later carry. If proof is uncertain, rerun the key.
 
 ## 5. Evidence rules
 
@@ -219,7 +210,7 @@ Internal findings should include exact file/call-site/test/CI/runtime evidence s
 
 External research should prefer current primary sources: upstream repositories, release notes, official docs, issue trackers, specifications, and measured benchmarks. Record source links and observation dates for material claims. Marketing copy or community opinion may identify a lead but is not enough by itself for an architecture decision.
 
-Competitor research is allowed when tied to a concrete Keelaryn question such as identity continuity, derived-index recovery, corpus observation, local-first storage, search, sync, backup, or deployment. Avoid generic feature-list surveys with no decision relevance.
+Competitor research is allowed when tied to a concrete Keelaryn capability/question such as identity continuity, derived-index recovery, corpus observation, local-first storage, search, sync, backup, deployment, portability, ingestion, provenance, agent/runtime orchestration, or another canonical/planned capability. It may investigate both already-implemented mechanisms and capabilities not yet implemented. Avoid generic feature-list surveys with no Keelaryn decision/reuse relevance; convert broad landscapes into multiple bounded `Discovery-Key` questions instead.
 
 ## 6. Outcomes
 
@@ -235,22 +226,33 @@ Material findings must become durable GitHub evidence (issue, PR handoff, review
 
 ## 7. Follow-up and anti-sprawl rule
 
-A material finding may spawn at most one immediate directly dependent discovery follow-up before returning to the catalog. Further expansion requires either a normal work unit, a Sol decision, or a later discovery cycle.
+A material finding may trigger at most one **immediate depth-first** dependent follow-up. Additional distinct follow-ups are not discarded: persist them as separate `Discovery-Key` backlog items and return to normal priority selection.
 
-Do not recursively turn every observation into more research.
+This prevents recursive rabbit holes without artificially erasing a large research backlog. A Sol-required finding blocks only the protected decision and true dependants; unrelated queued discovery continues.
 
-## 8. Cycle and stop rule
+## 8. Rolling backlog and stop rule
 
-A discovery cycle is bound to one authoritative baseline SHA, one canonical all-states GitHub `[DISCOVERY-CYCLE] <full-baseline-sha>` issue, and one current epoch. Chat history or ephemeral in-run memory is never cycle authority.
+Discovery is bound to one authoritative baseline SHA, one canonical all-states `[DISCOVERY-CYCLE] <full-baseline-sha>` ledger, and one current epoch. Chat history is never authority.
 
-Against an unchanged baseline/epoch, perform at most one bounded unit per catalog category, except the single direct follow-up allowed by §7. Completion is reconstructed from current-epoch results in the canonical issue. Skip a category only when it is clearly irrelevant to the active objective and persist `SKIPPED_IRRELEVANT` with a short reason for the current epoch.
+The catalog lenses are reusable. **There is no “one unit per category” cap.** Against an unchanged baseline/epoch Luna repeatedly:
 
-A new authoritative HEAD creates a new baseline issue. Before rerunning a category, apply the cross-baseline carry-forward proof in §4.1; scope-disjoint evidence may be carried category-by-category, while unknown/intersecting/stale evidence is rerun. Material CI/runtime/review/finding/external evidence on the **same** HEAD resets the cycle only through the durable `DISCOVERY-CYCLE-RESET-V1` protocol in §4.1, which creates a new epoch identity. Dependency/platform/provider observations must first have a durable GitHub evidence ref. Objective/qualified-state changes committed in the repository naturally produce a new HEAD/baseline.
+1. drains explicit ready Luna-safe work;
+2. drains durable ready discovery backlog items;
+3. persists any distinct follow-up keys produced by results;
+4. when backlog is empty, performs a fresh bounded frontier sweep across §3 sources;
+5. if new keys appear, repeats from step 2.
 
-Luna may stop for lack of work only when both are true:
+A new authoritative HEAD creates a new baseline ledger. Existing V2 keys may be carried only by the exact-key proof in §4.1; legacy V1 category results are historical context and never whole-category completion.
 
-1. no explicit ready non-overlapping Luna-safe unit exists; and
-2. the current bounded discovery cycle is exhausted or every remaining category is concretely blocked/irrelevant.
+Luna may stop for lack of work only when **all** are true:
+
+1. no explicit ready non-overlapping Luna-safe unit exists;
+2. no current-epoch ready discovery backlog item exists;
+3. all current-epoch backlog items are terminal or concretely blocked;
+4. a fresh post-result frontier sweep on the unchanged binding scanned all available frontier source classes and produced `New-Keys: NONE`;
+5. there is no unconsumed material finding or external lead that can be converted into a distinct bounded key.
+
+Thus `8/8 categories`, one direct follow-up, a Sol-only implementation blocker, or a completed competitor survey of one subsystem is **not** evidence that Luna has no work.
 
 ## 9. Relationship to Sol
 
