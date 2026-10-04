@@ -43,11 +43,11 @@ func DiscardActiveSearchFamily(layout Layout) error {
 	return discardSearchFamily(layout, layout.SearchDB, SearchDatabaseName)
 }
 
-// DiscardActiveSearchFamilyAfterReconcileAttempt discards the exact validated
-// active derived SQLite family only after the protected runtime has attempted
-// SQLite reconciliation under the search mutation lock. Sidecars are expected
-// here; every existing exact family member is validated before the first
-// removal so an unsafe alias/reparse point fails with zero deletion.
+// PromoteStagedSearchAfterReconcile replaces the active derived search family
+// only after the protected runtime has attempted SQLite reconciliation under
+// the search mutation lock and passed its final cancellation gate. Exact active
+// family members are prevalidated before any deletion; staging is already a
+// verified standalone candidate.
 func PromoteStagedSearchAfterReconcile(layout Layout) error {
 	return promoteStagedSearchAfterReconcile(layout, os.Rename)
 }
