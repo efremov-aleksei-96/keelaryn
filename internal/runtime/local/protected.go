@@ -127,7 +127,9 @@ func expectedSearchBoundaryReadOnly(ctx context.Context, stateDB, root string) (
 		return searchsqlite.SourceBoundary{}, ErrRuntimeStateUnavailable
 	}
 	return source.boundary(), nil
-}\n\n// preflightProtectedSearchRecovery
+}
+
+// preflightProtectedSearchRecovery
 
 // preflightProtectedSearchRecovery proves that existing non-rebuildable state
 // is readable and, when a committed local bootstrap exists, that the current
@@ -181,7 +183,9 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 		return nil
 	}
 	return proveAcceptedLocalSource(ctx, state, providerlocalfs.New(ProviderID), source)
-}\n\n// BootstrapProtectedIndex
+}
+
+// BootstrapProtectedIndex
 
 // BootstrapProtectedIndex is the executable control-storage boundary. It
 // resolves the physical control parent and proves the control directory is
