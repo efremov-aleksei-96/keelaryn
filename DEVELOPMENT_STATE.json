@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 241,
+  "revision": 242,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -216,12 +216,13 @@
     "POST_P0_02_PHASE_TRANSITION_TO_INCREMENTAL_OBSERVATION",
     "POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT_FROZEN",
     "POST_P0_02B_ACCEPTED_LOCAL_SOURCE_BOUNDARY_QUALIFIED",
-    "POST_P0_02B_FULL_ENGINEERING_RETROSPECTIVE_PASS"
+    "POST_P0_02B_FULL_ENGINEERING_RETROSPECTIVE_PASS",
+    "POST_P0_02C_SOURCE_BOUND_LOCAL_ATTEMPT_CONTRACT_FROZEN"
   ],
   "next_objective": {
-    "id": "POST_P0_02C_SOURCE_BOUND_LOCAL_OBSERVATION_ATTEMPT",
-    "description": "Add the first durable post-bootstrap LocalFS observation/publication lifecycle. Bind an OPEN attempt to its exact source before any identity mutation; reuse existing SAME/NEW identity-acceptance transactions; preserve unresolved ambiguity without replacing the prior accepted current inventory; revalidate the full source before guarded COMPLETE; publish only under a distinct qualified accepted-SCAN fingerprint contract; and make replay after interruption deterministic rather than blind.",
-    "audit_gate": "POST_P0_02B_FULL_RETROSPECTIVE_AND_EXACT_HEAD_QUALIFICATION_PASS"
+    "id": "POST_P0_02C1_LOCAL_ATTEMPT_PROVENANCE",
+    "description": "Implement only the durable LocalFS source-bound OPEN-attempt provenance and guarded lifecycle foundation. Atomically bind one OPEN scan to an exact predecessor accepted source and exact content-aware current-source fingerprint; make exact replay deterministic; reject conflicting replay; prevent generic COMPLETE from bypassing the source-bound lifecycle; and add recovery/adversarial tests. Do not create LocalFS identity authority, do not call SAME/NEW, do not publish an accepted SCAN, and do not add a watcher in this slice.",
+    "audit_gate": "POST_P0_02C_CONTRACT_EXACT_HEAD_CI_AND_REVIEW_PASS"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4061,7 +4062,7 @@
     "qualification_ci_run_id": 37114259657,
     "conclusion": "P0_CLOSED_PASS_ZERO_OPEN_BLOCKER_CRITICAL",
     "resolved_gap": "P0_FINAL_PROOF_REAUDIT_AND_CLOSURE_QUALIFICATION",
-    "earliest_remaining_autonomous_product_gap": "POST_P0_02C_SOURCE_BOUND_LOCAL_OBSERVATION_ATTEMPT",
+    "earliest_remaining_autonomous_product_gap": "POST_P0_02C1_LOCAL_ATTEMPT_PROVENANCE",
     "p0_closure_gates_remaining": [],
     "carried_high_findings": [
       "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
@@ -6449,7 +6450,7 @@
       "watchman": "Potential optional desktop/server hint source with clock/fresh-instance semantics; not a required default because it is a separate daemon and does not establish Keelaryn Artifact identity.",
       "decision": "First item-2 substage must define safe repeated-observation publication/acceptance semantics before any watcher is allowed to drive current inventory."
     },
-    "current_substage": "POST_P0_02B_ACCEPTED_LOCAL_SOURCE_BOUNDARY_QUALIFIED",
+    "current_substage": "POST_P0_02C_SOURCE_BOUND_LOCAL_ATTEMPT_CONTRACT_FROZEN",
     "contract": "docs/POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT.md",
     "substage_02a": {
       "status": "CONTRACT_FROZEN",
@@ -6563,6 +6564,61 @@
       "prerequisite": "POST_P0_02B qualified",
       "intent": "Add a durable LocalFS source-bound OPEN attempt and guarded accepted publication lifecycle, reusing identity-acceptance transactions and final source revalidation. Define source-specific local continuity authority separately; unresolved ambiguity must never silently publish over prior accepted current inventory.",
       "qualification_boundary": "Revision 241 must itself pass exact-head validate + Ubuntu 24.04 + Windows 2025 CI and exact-head review, then integrate by conditional fast-forward before 02C product writes."
+    },
+    "substage_02c_contract": {
+      "status": "CONTRACT_FROZEN_PENDING_EXACT_HEAD_QUALIFICATION",
+      "contract": "docs/POST_P0_02C_SOURCE_BOUND_LOCAL_ATTEMPT_CONTRACT.md",
+      "base_head": "4786faa3aaef52a7592a52921ebab53760b11f47",
+      "revision": 242,
+      "product_runtime_mutation": false,
+      "schema_change": false,
+      "dependency_change": false,
+      "core_problem": [
+        "LOCAL_INGEST_COMMITS_IS_A_POST_COMPLETE_RECEIPT_AND_CANNOT_PROVE_OPEN_ATTEMPT_PRESTATE_BEFORE_IDENTITY_MUTATION",
+        "GENERIC_START_SCAN_HAS_NO_SOURCE_PROVENANCE",
+        "LOCALFS_PROVIDER_EXPOSES_NO_DURABLE_PROVIDER_OBJECT_ID",
+        "IDENTITY_MUTATION_REQUESTS_REQUIRE_AN_OBSERVED_PROVIDER_OBJECT_ID",
+        "CURRENT_LOCALFS_LOCATOR_CONTENT_AND_OS_SAMEFILE_SIGNALS_ARE_SUPPORTING_ONLY_AND_CANNOT_BE_PROMOTED_TO_CONCLUSIVE_BY_CALLER_ASSERTION"
+      ],
+      "decisions": [
+        "SPLIT_02C_INTO_PROVENANCE_FIRST_THEN_IDENTITY_AUTHORITY_THEN_ACCEPTED_PUBLICATION",
+        "02C1_ADDS_DURABLE_OPEN_ATTEMPT_SOURCE_BINDING_ONLY",
+        "02C1_MUST_NOT_ENABLE_SAME_NEW_OR_ACCEPTED_SCAN_PUBLICATION",
+        "OPEN_ATTEMPT_SOURCE_FINGERPRINT_MUST_BE_CONTENT_AWARE_NOT_THE_EXISTING_METADATA_ONLY_SCAN_V1_MEANING",
+        "PREDECESSOR_ACCEPTED_SOURCE_MUST_BE_BOUND_EXACTLY_AT_ATTEMPT_CREATION",
+        "GENERIC_COMPLETE_MUST_NOT_CLOSE_A_SOURCE_BOUND_LOCAL_ATTEMPT",
+        "CURRENT_SUPPORTING_LOCALFS_EVIDENCE_REMAINS_NON_AUTHORITY",
+        "A_SEPARATE_SOL_GATE_MUST_DEFINE_ANY_LOCALFS_PROVIDER_OBJECT_LIFETIME_OR_OTHER_CONCLUSIVE_IDENTITY_AUTHORITY_BEFORE_SAME_NEW_IS_REACHABLE",
+        "UNRESOLVED_OR_AMBIGUOUS_ATTEMPTS_NEVER_REPLACE_THE_PRIOR_ACCEPTED_SOURCE",
+        "ACCEPTED_SCAN_PUBLICATION_REQUIRES_A_DISTINCT_QUALIFIED_CONTRACT_AND_FINAL_FULL_SOURCE_REVALIDATION"
+      ],
+      "first_implementation": {
+        "id": "POST_P0_02C1_LOCAL_ATTEMPT_PROVENANCE",
+        "likely_schema_direction": "new immutable LocalFS OPEN-attempt source sidecar analogous to remote_scan_sources; exact final table/API names may be chosen by the bounded implementation if they preserve this contract",
+        "required": [
+          "atomic OPEN scan plus source provenance creation",
+          "exact predecessor accepted-source binding",
+          "content-aware current source fingerprint binding",
+          "exact replay of the same OPEN attempt",
+          "conflicting replay rejection",
+          "generic COMPLETE bypass rejection",
+          "safe no-identity-mutation abort/retry semantics",
+          "read APIs sufficient for recovery and later identity-authority binding"
+        ],
+        "explicitly_forbidden": [
+          "LocalFS SAME or NEW acceptance",
+          "durable LocalFS ProviderObject identity invention",
+          "conversion of SUPPORTING evidence to CONCLUSIVE",
+          "accepted SCAN publication",
+          "watcher or journal dependency",
+          "change to RemoteHistory semantics"
+        ]
+      },
+      "follow_up": [
+        "POST_P0_02C2_LOCAL_IDENTITY_AUTHORITY",
+        "POST_P0_02C3_ACCEPTED_LOCAL_SCAN_PUBLICATION"
+      ],
+      "qualification_rule": "Integrate revision 242 only after exact-head validate + Ubuntu 24.04 + Windows 2025 PASS and exact-head review. Then 02C1 may begin; no 02C identity/publication write is authorized by the contract alone."
     }
   }
 }
