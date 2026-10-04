@@ -406,6 +406,20 @@ func localAttemptSourceAtBoundaryConn(
 }
 
 func localAttemptSourceExistsConn(conn *sqlite.Conn, scanID corpus.ScanSessionID) (bool, error) {
+	// Current code is intentionally exercised against historical schema snapshots
+	// by migration regressions. Before v47, the absence of this table means that
+	// no source-bound LocalFS attempt can exist; it is not an authority failure.
+	var tableExists bool
+	if err := sqlitex.Execute(conn,
+		"SELECT 1 FROM sqlite_master WHERE type='table' AND name='local_attempt_sources' LIMIT 1",
+		&sqlitex.ExecOptions{ResultFunc: func(*sqlite.Stmt) error { tableExists = true; return nil }},
+	); err != nil {
+		return false, fmt.Errorf("query local attempt source table: %w", err)
+	}
+	if !tableExists {
+		return false, nil
+	}
+
 	var found bool
 	if err := sqlitex.Execute(conn,
 		"SELECT 1 FROM local_attempt_sources WHERE scan_id=?1 LIMIT 1",
