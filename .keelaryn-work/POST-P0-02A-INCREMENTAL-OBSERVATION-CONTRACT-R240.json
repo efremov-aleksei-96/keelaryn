@@ -1,8 +1,0 @@
-{
-  "claim_issue": 129,
-  "lane": "SOL",
-  "work_unit_id": "POST-P0-02A-INCREMENTAL-OBSERVATION-CONTRACT-R240",
-  "base_sha": "53aae26000fad9da759c94e88a4cecb3a06a8cc1",
-  "scope": "DEVELOPMENT_STATE.json; docs/POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT.md",
-  "state": "CLAIM_ONLY_PENDING_PR_TRANSFER"
-}
