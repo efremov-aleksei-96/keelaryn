@@ -4057,7 +4057,7 @@
     "qualification_ci_run_id": 37114259657,
     "conclusion": "P0_CLOSED_PASS_ZERO_OPEN_BLOCKER_CRITICAL",
     "resolved_gap": "P0_FINAL_PROOF_REAUDIT_AND_CLOSURE_QUALIFICATION",
-    "earliest_remaining_autonomous_product_gap": "POST_P0_02_PHASE_TRANSITION_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
+    "earliest_remaining_autonomous_product_gap": "POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT_AND_BASELINE",
     "p0_closure_gates_remaining": [],
     "carried_high_findings": [
       "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
@@ -6124,7 +6124,7 @@
     ]
   },
   "post_p0_01": {
-    "status": "COMPLETE_QUALIFIED_PENDING_PHASE_TRANSITION",
+    "status": "COMPLETE_QUALIFIED",
     "objective": "RELIABILITY_AND_DETERMINISTIC_RECOVERY",
     "current_substage": "POST_P0_01B_PROTECTED_RECOVERY_SINGLE_PREFLIGHT_QUALIFIED",
     "initial_implementation_handoff": "e40a04def266cd39bf75b60662787909cc2d652b",
@@ -6427,7 +6427,7 @@
       "scope": "DEVELOPMENT_STATE.json + .github/workflows/ci.yml only",
       "product_runtime_mutation": false,
       "prerequisite": "POST_P0_01_FULL_ENGINEERING_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL",
-      "qualification": "PENDING_EXACT_HEAD_CI_AND_REVIEW"
+      "qualification_rule": "Integrate this state/CI transition only after exact-head validate + Ubuntu 24.04 + Windows 2025 PASS and exact-head review; the authoritative ref itself is the durable proof that this rule was satisfied."
     },
     "first_substage": "POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT_AND_BASELINE",
     "initial_constraints": [
