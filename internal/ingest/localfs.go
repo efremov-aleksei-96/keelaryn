@@ -22,6 +22,11 @@ var (
 // LocalFSSnapshotFingerprintVersion identifies the qualified v1 LocalFS snapshot receipt contract.
 const LocalFSSnapshotFingerprintVersion = "localfs-snapshot:v1"
 
+// LocalFSAttemptSourceFingerprintVersion identifies the content-aware physical-source
+// prestate bound to a POST-P0-02C LocalFS OPEN attempt. It is deliberately distinct
+// from the metadata-only ordinary SCAN receipt contract.
+const LocalFSAttemptSourceFingerprintVersion = "localfs-attempt-source:v1"
+
 // BootstrapLocalFSSnapshotFingerprint computes the exact deterministic
 // fingerprint used by bootstrap receipts without writing durable state.
 // Callers can compare it with an existing durable receipt to prove that the
@@ -73,6 +78,43 @@ func BootstrapLocalFSSnapshotFingerprintAtRoot(
 		return "", "", err
 	}
 	return LocalFSSnapshotFingerprintVersion, fingerprint, nil
+}
+
+
+
+// LocalFSAttemptSourceFingerprint computes the content-aware exact source
+// fingerprint used to bind a source-bound LocalFS OPEN attempt before any
+// identity decision becomes reachable. It writes no durable state.
+func LocalFSAttemptSourceFingerprint(
+	ctx context.Context,
+	provider *localfs.Provider,
+	root string,
+	observedAt time.Time,
+) (version string, fingerprint string, err error) {
+	if provider == nil || root == "" || observedAt.IsZero() {
+		return "", "", ErrInvalidLocalFSIngest
+	}
+	observedAt = observedAt.UTC()
+	snapshot, err := provider.Snapshot(ctx, root)
+	if err != nil {
+		return "", "", fmt.Errorf("snapshot local corpus: %w", err)
+	}
+	occurrences, err := bootstrapOccurrences(ctx, snapshot, observedAt)
+	if err != nil {
+		return "", "", err
+	}
+	fingerprint, err = localSnapshotFingerprintVersion(
+		LocalFSAttemptSourceFingerprintVersion,
+		"ATTEMPT",
+		snapshot.ProviderID(),
+		snapshot.Root(),
+		observedAt,
+		occurrences,
+	)
+	if err != nil {
+		return "", "", err
+	}
+	return LocalFSAttemptSourceFingerprintVersion, fingerprint, nil
 }
 
 // ScanStore is the minimal durable-state contract required by local ingestion.
@@ -305,6 +347,10 @@ func bootstrapOccurrences(ctx context.Context, snapshot *localfs.Snapshot, obser
 }
 
 func localSnapshotFingerprint(mode string, providerID corpus.ProviderID, root string, observedAt time.Time, payload any) (string, error) {
+	return localSnapshotFingerprintVersion(LocalFSSnapshotFingerprintVersion, mode, providerID, root, observedAt, payload)
+}
+
+func localSnapshotFingerprintVersion(version string, mode string, providerID corpus.ProviderID, root string, observedAt time.Time, payload any) (string, error) {
 	encoded, err := json.Marshal(struct {
 		Version    string            `json:"version"`
 		Mode       string            `json:"mode"`
@@ -313,7 +359,7 @@ func localSnapshotFingerprint(mode string, providerID corpus.ProviderID, root st
 		ObservedAt time.Time         `json:"observed_at"`
 		Payload    any               `json:"payload"`
 	}{
-		Version:    LocalFSSnapshotFingerprintVersion,
+		Version:    version,
 		Mode:       mode,
 		ProviderID: providerID,
 		Root:       root,
