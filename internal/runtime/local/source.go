@@ -25,7 +25,9 @@ func latestAcceptedLocalSource(
 	if state == nil {
 		return acceptedLocalSource{}, false, ErrRuntimeStateUnavailable
 	}
-	receipt, found, err := state.LatestBootstrapLocalIngestCommit(ctx, ProviderID, root)
+	receipt, found, err := state.LatestBootstrapLocalIngestCommit(
+		ctx, ProviderID, root, ingest.LocalFSSnapshotFingerprintVersion,
+	)
 	if err != nil {
 		return acceptedLocalSource{}, false, err
 	}
