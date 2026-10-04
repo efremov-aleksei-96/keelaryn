@@ -178,6 +178,13 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 		return nil
 	}
 
+	// Full read-only verification is the fail-closed authority gate for recovery.
+	// Selected scan/receipt reads below are insufficient to detect localized
+	// SQLite integrity or foreign-key corruption outside the active local scope.
+	if err := sqlitestate.VerifyReadOnly(ctx, layout.StateDB); err != nil {
+		return err
+	}
+
 	state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
 	if err != nil {
 		return err
@@ -305,6 +312,9 @@ func bootstrapProtectedIndex(
 	if err := ops.reconcileActive(ctx, layout); err != nil {
 		return IndexResult{}, err
 	}
+	if err := ctx.Err(); err != nil {
+		return IndexResult{}, err
+	}
 	if err := ops.promote(layout); err != nil {
 		return IndexResult{}, err
 	}
@@ -337,16 +347,50 @@ func reconcileActiveSearchSQLiteFamily(ctx context.Context, layout controlstorag
 		return nil
 	}
 
-	// Keep the SQLite family under its original names and let SQLite perform
-	// any legitimate hot-journal/WAL recovery itself. This is derived state
-	// only and runs after the staged replacement has already been fully built
-	// and verified. Any error fails closed and leaves staging for retry.
-	index, err := searchsqlite.Open(ctx, layout.SearchDB)
-	if err != nil {
-		return fmt.Errorf("reconcile active search SQLite family: %w", err)
+	// Keep the SQLite family under its original names and first let SQLite
+	// perform legitimate hot-journal/WAL recovery. The staged replacement is
+	// already complete and verified, but context cancellation is control flow,
+	// not evidence that the active family is corrupt or disposable.
+	index, openErr := searchsqlite.Open(ctx, layout.SearchDB)
+	if openErr != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return errors.Join(
+				fmt.Errorf("reconcile active search SQLite family: %w", openErr),
+				ctxErr,
+			)
+		}
+		if errors.Is(openErr, context.Canceled) || errors.Is(openErr, context.DeadlineExceeded) {
+			return fmt.Errorf("reconcile active search SQLite family: %w", openErr)
+		}
+		if err := controlstorage.DiscardActiveSearchFamilyAfterReconcileAttempt(layout); err != nil {
+			return errors.Join(
+				fmt.Errorf("reconcile active search SQLite family: %w", openErr),
+				fmt.Errorf("discard unrecoverable active search SQLite family: %w", err),
+			)
+		}
+		return nil
 	}
 	if err := index.Close(); err != nil {
 		return fmt.Errorf("close reconciled active search SQLite family: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	// SQLite may legitimately open/close a valid main file while leaving an
+	// orphan sidecar (for example SHM without WAL). Re-inspect after close. If
+	// any exact sidecar remains, discard the complete derived active family
+	// through the prevalidating helper; otherwise promotion will remove the now
+	// standalone active main through the ordinary path.
+	for _, suffix := range []string{"-journal", "-wal", "-shm"} {
+		if _, err := os.Lstat(layout.SearchDB + suffix); err == nil {
+			if err := controlstorage.DiscardActiveSearchFamilyAfterReconcileAttempt(layout); err != nil {
+				return fmt.Errorf("discard reconciled active search SQLite family with leftover sidecar: %w", err)
+			}
+			return nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("reinspect active search sidecar after reconciliation: %w", err)
+		}
 	}
 	return nil
 }

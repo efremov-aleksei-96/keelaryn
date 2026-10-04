@@ -301,3 +301,104 @@ func protectedRecoveryCorpus(t *testing.T, root string) map[string][sha256.Size]
 	}
 	return out
 }
+
+func TestProtectedRecoveryRepairsCorruptActiveFamilyWithSidecar(t *testing.T) {
+	ctx := context.Background()
+	root, control, options, layout := newProtectedRecoveryFixture(t, "corrupt family with sidecar", 41)
+	authorityBefore := protectedRecoveryAuthority(t, ctx, layout.StateDB, root)
+	corpusBefore := protectedRecoveryCorpus(t, root)
+
+	if err := os.WriteFile(layout.SearchDB, []byte("not sqlite"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(layout.SearchDB+"-journal", []byte("unrecoverable derived journal"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatalf("corrupt active SQLite family with sidecar was not recoverable: %v", err)
+	}
+	if _, err := os.Lstat(layout.SearchDB + "-journal"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unrecoverable active sidecar survived recovery: %v", err)
+	}
+	assertProtectedRecoveryInvariant(t, ctx, root, control, layout, authorityBefore, corpusBefore, "corrupt family with sidecar")
+}
+
+func TestProtectedRecoveryPromotesPastOrphanActiveSHM(t *testing.T) {
+	ctx := context.Background()
+	root, control, options, layout := newProtectedRecoveryFixture(t, "orphan shm recovery", 43)
+	authorityBefore := protectedRecoveryAuthority(t, ctx, layout.StateDB, root)
+	corpusBefore := protectedRecoveryCorpus(t, root)
+
+	// Model a crash residue that is not a usable WAL family. SQLite may open
+	// the valid main database successfully and leave this orphan SHM behind.
+	if err := os.WriteFile(layout.SearchDB+"-shm", make([]byte, 32*1024), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := BootstrapProtectedIndex(ctx, options); err != nil {
+		t.Fatalf("orphan active SHM blocked deterministic promotion: %v", err)
+	}
+	if _, err := os.Lstat(layout.SearchDB + "-shm"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("orphan active SHM survived recovery: %v", err)
+	}
+	assertProtectedRecoveryInvariant(t, ctx, root, control, layout, authorityBefore, corpusBefore, "orphan shm recovery")
+}
+
+func TestReconcileActiveSearchFamilyCancellationPreservesActiveFamily(t *testing.T) {
+	_, _, _, layout := newProtectedRecoveryFixture(t, "canceled reconcile preserves active", 44)
+	activeBefore, err := os.ReadFile(layout.SearchDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shmBefore := make([]byte, 32*1024)
+	if err := os.WriteFile(layout.SearchDB+"-shm", shmBefore, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err = reconcileActiveSearchSQLiteFamily(ctx, layout)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error=%v want context.Canceled", err)
+	}
+	if got, readErr := os.ReadFile(layout.SearchDB); readErr != nil || string(got) != string(activeBefore) {
+		t.Fatalf("active cache changed after canceled reconciliation: err=%v", readErr)
+	}
+	if got, readErr := os.ReadFile(layout.SearchDB+"-shm"); readErr != nil || string(got) != string(shmBefore) {
+		t.Fatalf("active sidecar changed after canceled reconciliation: err=%v", readErr)
+	}
+}
+
+func TestProtectedRecoveryCancellationAfterReconcileBeforePromotionPreservesActiveAndStaging(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	root, _, options, layout := newProtectedRecoveryFixture(t, "cancel before promotion", 45)
+	authorityBefore := protectedRecoveryAuthority(t, context.Background(), layout.StateDB, root)
+	corpusBefore := protectedRecoveryCorpus(t, root)
+	activeBefore, err := os.ReadFile(layout.SearchDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ops := defaultProtectedSearchRecoveryOps()
+	ops.reconcileActive = func(context.Context, controlstorage.Layout) error {
+		cancel()
+		return nil
+	}
+	_, err = bootstrapProtectedIndex(ctx, options, ops)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error=%v want context.Canceled", err)
+	}
+	if got, readErr := os.ReadFile(layout.SearchDB); readErr != nil || string(got) != string(activeBefore) {
+		t.Fatalf("active cache changed after cancellation before promotion: err=%v", readErr)
+	}
+	if _, statErr := os.Stat(layout.SearchStagingDB); statErr != nil {
+		t.Fatalf("verified staging was not retained after cancellation: %v", statErr)
+	}
+	if got := protectedRecoveryAuthority(t, context.Background(), layout.StateDB, root); string(got) != string(authorityBefore) {
+		t.Fatal("authoritative state changed after cancellation before promotion")
+	}
+	if got := protectedRecoveryCorpus(t, root); !reflect.DeepEqual(got, corpusBefore) {
+		t.Fatal("corpus bytes/topology changed after cancellation before promotion")
+	}
+}
