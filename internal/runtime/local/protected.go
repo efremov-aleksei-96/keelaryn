@@ -129,8 +129,6 @@ func expectedSearchBoundaryReadOnly(ctx context.Context, stateDB, root string) (
 	return source.boundary(), nil
 }
 
-// preflightProtectedSearchRecovery
-
 // preflightProtectedSearchRecovery proves that existing non-rebuildable state
 // is readable and, when a committed local bootstrap exists, that the current
 // corpus still matches its exact durable receipt. It is intentionally read-only
@@ -141,6 +139,12 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 		if !errors.Is(statErr, os.ErrNotExist) {
 			return fmt.Errorf("inspect authoritative state database: %w", statErr)
 		}
+		// Missing non-rebuildable state is safe only for a truly fresh control
+		// profile. Any SQLite sidecar or derived search family proves that
+		// durable runtime work may already have existed, so silently creating a
+		// new state.db could remint Artifact/Revision identity after metadata
+		// loss. search.lock alone is harmless: it can survive a crash after
+		// writer serialization but before the first state transaction.
 		for _, path := range []string{
 			layout.StateDB + "-journal",
 			layout.StateDB + "-wal",
@@ -164,6 +168,9 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 		return nil
 	}
 
+	// Full read-only verification is the fail-closed authority gate for recovery.
+	// Selected scan/receipt reads below are insufficient to detect localized
+	// SQLite integrity or foreign-key corruption outside the active local scope.
 	if err := sqlitestate.VerifyReadOnly(ctx, layout.StateDB); err != nil {
 		return err
 	}
@@ -184,8 +191,6 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 	}
 	return proveAcceptedLocalSource(ctx, state, providerlocalfs.New(ProviderID), source)
 }
-
-// BootstrapProtectedIndex
 
 // BootstrapProtectedIndex is the executable control-storage boundary. It
 // resolves the physical control parent and proves the control directory is
