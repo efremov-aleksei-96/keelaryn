@@ -1,0 +1,14 @@
+{
+  "claim_issue": 106,
+  "lane": "SOL",
+  "work_unit_id": "POST-P0-01A-RECOVERY-CORRECTIVE-R236",
+  "base_sha": "c138504bcfcbb256e073a00f1e445f39e70e2087",
+  "scope": "protected search recovery corrective implementation + consumed Luna state-integrity regression",
+  "depends_on": [
+    "PR #88 provenance",
+    "PR #105 consumed failing regression",
+    "Codex P1/P2 findings"
+  ],
+  "handoff_sha": null,
+  "state": "CLAIM_ONLY_PENDING_PR_TRANSFER"
+}
