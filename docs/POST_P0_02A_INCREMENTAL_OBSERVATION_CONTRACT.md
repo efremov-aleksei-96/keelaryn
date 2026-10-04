@@ -1,6 +1,8 @@
 # POST-P0-02A incremental observation contract
 
-Status: **SOL DECISION — CONTRACT CANDIDATE**
+Status: **SOL DECISION — CONTRACT FROZEN**
+
+Qualification rule: this frozen contract becomes authoritative only by exact-head validate + Ubuntu 24.04 + Windows 2025 PASS, exact-head review, and conditional fast-forward integration of revision 240. The document uses durable post-integration terminology so a later session never sees a stale “candidate” label.
 
 Date: 2026-10-04
 
