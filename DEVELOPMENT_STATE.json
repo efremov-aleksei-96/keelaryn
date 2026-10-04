@@ -2630,10 +2630,10 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "b7858176fe64d98b45e3118e5b1dfad44e64d9cb",
-      "document": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
-      "ci_run_id": 37114259657,
-      "conclusion": "PASS_ZERO_OPEN_BLOCKER_CRITICAL"
+      "head": "df97c5aade9fc901f033550419a983108a5f4957",
+      "document": "docs/POST_P0_01A_DERIVED_SEARCH_RECOVERY_RETROSPECTIVE_20261004.md",
+      "ci_run_id": 37190663978,
+      "conclusion": "PASS_ZERO_NEW_BLOCKER_CRITICAL"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -4809,10 +4809,10 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
-    "last_retrospective_result": "PASS_ZERO_OPEN_BLOCKER_CRITICAL_P0_CLOSED",
+    "last_retrospective": "docs/POST_P0_01A_DERIVED_SEARCH_RECOVERY_RETROSPECTIVE_20261004.md",
+    "last_retrospective_result": "PASS_ZERO_NEW_BLOCKER_CRITICAL",
     "substantive_slice_counter": 0,
-    "current_stage": "POST_P0_RELIABILITY",
+    "current_stage": "POST_P0_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -4821,7 +4821,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": "NONE",
-    "unlock_condition": "P0_CLOSED_EXACT_HEAD_CANDIDATE_CI_PASS",
+    "unlock_condition": "POST_P0_01A_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -6124,7 +6124,6 @@
     "corrective_integration_head": "78e0a7dd4e2382e51561ddf2569e100ad5b6d0dd",
     "qualification_base_head": "df97c5aade9fc901f033550419a983108a5f4957",
     "corrective_ci_run_id": 37185732213,
-    "current_head_ci_run_id": 37190663978,
     "codex_review": "PR #107 exact handoff e6d7bca917bcbb07f450db5dbfc89d37c9470cb5: clean after cancellation/timeout corrections",
     "sol_review": "Integration claim #110 records exact-head Sol diff review PASS; integration claim #113 is disjoint governance-only and preserves product bytes",
     "qualification": "Recovery exact handoff: validate + Ubuntu 24.04 + Windows 2025 PASS, dependency lock, all Go tests and Go vet PASS. Current authoritative tree also passed the same matrix through governance handoff CI 37190663978.",
@@ -6176,7 +6175,8 @@
       "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY",
       "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE"
     ],
-    "growth_order_decision": "Canonical post-P0 item 1 is complete for the currently reachable reliability/recovery boundary. Release rollback/backup is explicitly deferred to canonical item 5/release gating, Android remains a portability gate, tokeninfo availability remains live-provider hardening, and repository description remains housekeeping. Proceed to item 2 incremental local/provider observation."
+    "growth_order_decision": "Canonical post-P0 item 1 is complete for the currently reachable reliability/recovery boundary. Release rollback/backup is explicitly deferred to canonical item 5/release gating, Android remains a portability gate, tokeninfo availability remains live-provider hardening, and repository description remains housekeeping. Proceed to item 2 incremental local/provider observation.",
+    "qualification_base_ci_run_id": 37190663978
   },
   "continuation_protocol": {
     "status": "ADOPTED",
