@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 236,
+  "revision": 237,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -205,12 +205,15 @@
     "PARALLEL_LUNA_SOL_REMOTE_WORK_CLAIM_PROTOCOL_ADOPTED",
     "PARALLEL_WORK_CLAIM_INTERRUPTION_RECOVERY_ADOPTED",
     "LUNA_PERPETUAL_DISCOVERY_PROTOCOL_ADOPTED",
-    "LUNA_DISCOVERY_CROSS_BASELINE_CARRY_FORWARD_ADOPTED"
+    "LUNA_DISCOVERY_CROSS_BASELINE_CARRY_FORWARD_ADOPTED",
+    "LUNA_ROLLING_DISCOVERY_BACKLOG_V2_ADOPTED",
+    "POST_P0_01A_DERIVED_SEARCH_RECOVERY_QUALIFIED",
+    "POST_P0_01A_BOUNDARY_RETROSPECTIVE_PASS"
   ],
   "next_objective": {
     "id": "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY",
-    "description": "Begin canonical post-P0 growth-order item 1: harden reliability and deterministic recovery without weakening the closed P0 read-only identity/provenance guarantees. Reconcile carried release/portability/production-hardening findings only when their target boundary becomes current.",
-    "audit_gate": "P0_CLOSED_EXACT_HEAD_CANDIDATE_CI_PASS"
+    "description": "POST-P0-01A derived-search recovery is qualified. Before advancing canonical growth order to item 2, run a bounded item-1 closure audit over currently reachable reliability/recovery surfaces and carried findings. Either select the next bounded POST-P0-01 reliability substage or prove item 1 complete; begin read-only and reuse existing authority/recovery primitives.",
+    "audit_gate": "POST_P0_01A_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2615,7 +2618,7 @@
     "additional_findings": [
       "RemoteHistory is identity/membership evidence, not a full metadata Observation",
       "RESOLVED_NEW wording should mean first accepted Artifact identity under policy, not first physical/known occurrence",
-      "bootstrap multi-occurrence crash/resume remains a later reliability gap"
+      "HISTORICAL_AT_P0_28: bootstrap multi-occurrence crash/resume was a later reliability gap; later RESOLVED by AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY at schema v44 / qualification head a5e3cbd8ac0fc6efb787020358b2b9d8d181a143"
     ],
     "corpus_mutations": 0,
     "live_oauth_used": false
@@ -2626,10 +2629,10 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "b7858176fe64d98b45e3118e5b1dfad44e64d9cb",
-      "document": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
-      "ci_run_id": 37114259657,
-      "conclusion": "PASS_ZERO_OPEN_BLOCKER_CRITICAL"
+      "head": "df97c5aade9fc901f033550419a983108a5f4957",
+      "document": "docs/POST_P0_01A_DERIVED_SEARCH_RECOVERY_RETROSPECTIVE_20261004.md",
+      "ci_run_id": 37190663978,
+      "conclusion": "PASS_ZERO_NEW_BLOCKER_CRITICAL"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -4805,8 +4808,8 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/P0_FINAL_PROOF_REAUDIT_20261003.md",
-    "last_retrospective_result": "PASS_ZERO_OPEN_BLOCKER_CRITICAL_P0_CLOSED",
+    "last_retrospective": "docs/POST_P0_01A_DERIVED_SEARCH_RECOVERY_RETROSPECTIVE_20261004.md",
+    "last_retrospective_result": "PASS_ZERO_NEW_BLOCKER_CRITICAL",
     "substantive_slice_counter": 0,
     "current_stage": "POST_P0_RELIABILITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
@@ -4817,7 +4820,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": "NONE",
-    "unlock_condition": "P0_CLOSED_EXACT_HEAD_CANDIDATE_CI_PASS",
+    "unlock_condition": "POST_P0_01A_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -6110,6 +6113,86 @@
       }
     ]
   },
+  "post_p0_01": {
+    "status": "IN_PROGRESS",
+    "objective": "RELIABILITY_AND_DETERMINISTIC_RECOVERY",
+    "current_substage": "POST_P0_01A_DERIVED_SEARCH_RECOVERY_QUALIFIED",
+    "initial_implementation_handoff": "e40a04def266cd39bf75b60662787909cc2d652b",
+    "initial_integration_head": "e5047c925f2d782d6823e4dc29cbae9b7ec6337c",
+    "corrective_handoff": "e6d7bca917bcbb07f450db5dbfc89d37c9470cb5",
+    "corrective_integration_head": "78e0a7dd4e2382e51561ddf2569e100ad5b6d0dd",
+    "qualification_base_head": "df97c5aade9fc901f033550419a983108a5f4957",
+    "corrective_ci_run_id": 37185732213,
+    "codex_review": "PR #107 exact handoff e6d7bca917bcbb07f450db5dbfc89d37c9470cb5: clean after cancellation/timeout corrections",
+    "sol_review": "Integration claim #110 records exact-head Sol diff review PASS; integration claim #113 is disjoint governance-only and preserves product bytes",
+    "qualification": "Recovery exact handoff: validate + Ubuntu 24.04 + Windows 2025 PASS, dependency lock, all Go tests and Go vet PASS. Current authoritative tree also passed the same matrix through governance handoff CI 37190663978.",
+    "retrospective": "docs/POST_P0_01A_DERIVED_SEARCH_RECOVERY_RETROSPECTIVE_20261004.md",
+    "dependencies_added": 0,
+    "live_provider_used": false,
+    "corpus_mutations": 0,
+    "authority_mutations": 0,
+    "derived_control_state_only": true,
+    "invalidated_prior_qualification": "PR #85 / revision-235 candidate is provenance only; it was closed before integration after post-review P1 findings against the initially integrated recovery implementation",
+    "consumed_luna_evidence": "PR #105 exact-base failing regression proved unrelated state foreign-key damage was not rejected before derived search mutation on the then-authoritative implementation",
+    "invariants": [
+      "STATE_DB_REMAINS_NON_REBUILDABLE_AUTHORITY_AND_IS_NEVER_REPAIRED_BY_SEARCH_RECOVERY",
+      "FULL_STATE_DB_READ_ONLY_INTEGRITY_AND_FOREIGN_KEY_VERIFICATION_PRECEDES_ANY_DERIVED_SEARCH_RECOVERY_MUTATION",
+      "SEARCH_DB_REMAINS_REBUILDABLE_DERIVED_STATE_ONLY",
+      "SEARCH_STAGING_IS_NEVER_QUERY_IDENTITY_OR_PROVENANCE_AUTHORITY",
+      "SEARCH_WRITER_SERIALIZATION_IS_OS_HELD_NOT_LOCKFILE_CONTENT_AUTHORITY",
+      "STATE_AND_CORPUS_PRESTATE_ARE_REPROVED_AFTER_SEARCH_MUTATION_LOCK_ACQUISITION",
+      "ACTIVE_SQLITE_FAMILY_IS_RECONCILED_UNDER_ITS_ORIGINAL_NAME_BEFORE_PROMOTION",
+      "RECONCILIATION_NEVER_DELETES_ACTIVE_DERIVED_STATE_AND_CONTEXT_CANCELLATION_IS_NOT_CLASSIFIED_AS_CORRUPTION",
+      "PROMOTION_IS_THE_DERIVED_COMMIT_BOUNDARY_AND_RUNS_ONLY_AFTER_THE_FINAL_CALLER_CANCELLATION_GATE",
+      "ACTIVE_DERIVED_FAMILY_MEMBERS_ARE_EXACT_PATH_PREVALIDATED_BEFORE_PROMOTION_DISPOSAL",
+      "POST_PROMOTION_VERIFICATION_IS_DETACHED_FROM_CALLER_CANCELLATION_BUT_BOUNDED_BY_A_FIVE_MINUTE_LOCAL_TIMEOUT",
+      "CLI_SEARCH_AND_CONTEXT_READS_REDERIVE_CURRENT_AUTHORITY_BOUNDARY",
+      "USER_CORPUS_BYTES_AND_TOPOLOGY_REMAIN_UNCHANGED"
+    ],
+    "adversarial_proof": [
+      "corrupt or missing active derived search cache rebuilds from authoritative state",
+      "valid mismatched corrupt and orphan prior staging is discarded and freshly rebuilt",
+      "unrelated state foreign-key/schema damage fails before active or staged search mutation",
+      "missing or corrupt state authority fails closed before derived recovery mutation",
+      "corpus receipt/fingerprint drift fails closed before derived recovery mutation",
+      "writer lock contention produces zero derived-family mutation",
+      "corrupt active SQLite family with sidecars is replaceable only after the final cancellation gate",
+      "orphan active SHM cannot permanently block verified staged promotion",
+      "unsafe symlink/reparse family members fail prevalidation with zero deletion",
+      "cancellation before active SQLite reconciliation does not authorize disposal",
+      "cancellation after real reconciliation but before promotion preserves the active cache and verified staging",
+      "cancellation during or immediately after committed promotion is not reported as an uncommitted cancellation result",
+      "post-promotion verification is cancellation-detached yet bounded by a five-minute deadline",
+      "injected failure windows before verification before promotion during promotion and after promotion remain deterministic and retryable",
+      "remove-before-rename interruption retains staged recovery material for deterministic retry",
+      "authoritative scan inventory revision history and corpus bytes/topology remain unchanged"
+    ],
+    "retrospective_result": "PASS_ZERO_NEW_BLOCKER_CRITICAL",
+    "carried_findings": [
+      "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+      "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
+      "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY",
+      "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE"
+    ],
+    "growth_order_decision": "POST-P0-01A derived-search recovery is qualified, but this retrospective does not by itself close canonical item 1. Keep POST_P0_RELIABILITY current and run a bounded item-1 closure audit before advancing to incremental local/provider observation. Release rollback/backup, Android portability, tokeninfo availability and repository metadata remain scoped by their existing gates.",
+    "qualification_base_ci_run_id": 37190663978,
+    "resolved_prerequisites": [
+      {
+        "id": "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
+        "qualification_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+        "schema_version": 44,
+        "qualification_ci": 36405348001,
+        "resolution": "Atomic LocalFS/bootstrap batch transactions prevent partial durable progress; immutable boundary receipts permit exact post-timeout replay/reconcile, and visible legacy OPEN scans remain explicitly queryable instead of guessed."
+      },
+      {
+        "id": "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
+        "qualification_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+        "schema_version": 44,
+        "qualification_ci": 36405348001,
+        "resolution": "LocalFS completion performs final provider revalidation inside the same durable transaction before COMPLETE; bootstrap re-snapshots and re-hashes regular-file content so membership/metadata/content drift rolls back the whole batch."
+      }
+    ]
+  },
   "continuation_protocol": {
     "status": "ADOPTED",
     "authority": "docs/DEVELOPMENT_CONTINUATION.md",
@@ -6121,7 +6204,7 @@
       "bare_context_bound": "продолжить работу"
     },
     "active_model_rule": "EXPLICIT_LUNA_ENFORCES_LUNA_SAFE; EXPLICIT_SOL_REQUIRES_POSITIVE_SOL_IDENTITY; GENERIC_USES_POSITIVE_ACTIVE_IDENTITY; ANY_UNKNOWN_OR_MISMATCH_FALLS_BACK_TO_LUNA_SAFE_LEAST_PRIVILEGE",
-    "luna_work_mode": "CONTINUE_SAFE_AUTONOMOUS_SLICES; WHEN_EXPLICIT_LUNA_SAFE_WORK_IS_EMPTY_OR_OCCUPIED_OR_WAITING, RECONSTRUCT CURRENT DISCOVERY LEDGER, CARRY FORWARD ONLY PROVEN VALID CATEGORY EVIDENCE, THEN RUN REMAINING BOUNDED DISCOVERY; STOP ONLY AT DEFINED STOP CONDITION; USE GITHUB_LEDGER_PR_CI_AS_DURABLE_STATE",
+    "luna_work_mode": "CONTINUE_SAFE_AUTONOMOUS_SLICES; WHEN_EXPLICIT_LUNA_SAFE_WORK_IS_EMPTY_OR_OCCUPIED_OR_WAITING, RECONSTRUCT_THE_CURRENT_DURABLE_ROLLING_DISCOVERY_LEDGER_AND_READY_DISCOVERY_KEY_BACKLOG; DRAIN_READY_BOUNDED_KEYS_THEN_RUN_A_FRESH_FRONTIER_SWEEP_TO_SYNTHESIZE_NOVEL_KEYS; CATEGORIES_ARE_REUSABLE_RESEARCH_LENSES_NOT_A_FINITE_CHECKLIST; USE_GITHUB_LEDGER_PR_CI_AS_DURABLE_STATE; STOP_ONLY_AT_THE_DEFINED_STOP_CONDITION_AFTER_NO_EXPLICIT_SAFE_WORK_NO_READY_KEYS_AND_A_FRESH_FRONTIER_SWEEP_PRODUCES_NONE",
     "sol_mode": "OWN_STRONG_MODEL_DECISIONS_AND_HIGH_RISK_SURFACES_WHILE_PRESERVING_THE_SAME_TRANSACTION_DISCIPLINE",
     "durable_resume_rule": "RECONCILE_GITHUB_AND_DEVELOPMENT_STATE; CHAT_HISTORY_IS_NEVER_REQUIRED_AUTHORITY",
     "profile_resolution": {
