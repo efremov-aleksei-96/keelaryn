@@ -1,9 +1,0 @@
-{
-  "claim_issue": 115,
-  "lane": "SOL",
-  "work_unit_id": "POST-P0-01A-QUALIFICATION-R237",
-  "base_sha": "df97c5aade9fc901f033550419a983108a5f4957",
-  "scope": "DEVELOPMENT_STATE.json + POST-P0-01A retrospective only",
-  "handoff_sha": null,
-  "state": "CLAIM_ONLY_PENDING_PR_TRANSFER"
-}
