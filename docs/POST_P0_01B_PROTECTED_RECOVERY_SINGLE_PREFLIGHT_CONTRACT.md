@@ -13,14 +13,11 @@ POST-P0-01A correctly added full read-only verification of non-rebuildable `stat
 1. before acquiring `search.lock`;
 2. again immediately after acquiring `search.lock`.
 
-Each preflight performs:
+For an existing `state.db`, each old preflight performs full `sqlitestate.VerifyReadOnly` and current COMPLETE-scan lookup. When a COMPLETE local bootstrap exists, it additionally proves the exact bootstrap receipt and traverses the local corpus to recompute the snapshot fingerprint.
 
-- full `sqlitestate.VerifyReadOnly`, including SQLite integrity, foreign-key and historical-authority checks;
-- current COMPLETE-scan lookup;
-- exact local bootstrap receipt proof;
-- a fresh local corpus snapshot fingerprint traversal.
+A truly fresh profile with no `state.db` takes the lighter missing-state artifact check and does not run full verification or corpus traversal. An existing state database with no COMPLETE scan runs full state verification but stops before receipt/corpus proof.
 
-The first pass does not authorize a mutation by itself. The second pass is the proof that actually sits next to the mutation boundary.
+The first old pass does not authorize a mutation by itself. The second pass is the proof that actually sits next to the mutation boundary.
 
 ## 2. Decision
 
@@ -94,4 +91,4 @@ At minimum the exact candidate must prove:
 4. all POST-P0-01A recovery/cancellation/failure-window regressions remain PASS;
 5. validate + Ubuntu 24.04 + Windows 2025 CI pass on the exact candidate.
 
-No representative large-state benchmark is claimed by this optimization. The bounded correctness fact is removal of one known full verification/corpus traversal from each contended-or-successful protected rebuild path.
+No representative large-state benchmark is claimed by this optimization. On the common completed-scan recovery path, it removes one duplicate full state verification plus one duplicate corpus-fingerprint traversal. With an existing state database but no COMPLETE scan, it removes one duplicate full state verification. Fresh missing-state profiles never performed those expensive checks, so no such saving is claimed there.

@@ -143,9 +143,9 @@ func expectedSearchBoundaryReadOnly(ctx context.Context, stateDB, root string) (
 
 // preflightProtectedSearchRecovery proves that existing non-rebuildable state
 // is readable and, when a committed local bootstrap exists, that the current
-// corpus still matches its exact durable receipt. It is intentionally
-// read-only: callers use it before creating/acquiring the search mutation lock
-// and repeat it after lock acquisition before discarding any derived staging.
+// corpus still matches its exact durable receipt. It is intentionally read-only
+// and runs once after acquiring the search mutation lock, immediately before
+// discarding any derived staging.
 func preflightProtectedSearchRecovery(ctx context.Context, root string, layout controlstorage.Layout) (err error) {
 	if _, statErr := os.Lstat(layout.StateDB); statErr != nil {
 		if !errors.Is(statErr, os.ErrNotExist) {
