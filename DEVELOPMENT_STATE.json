@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 240,
+  "revision": 241,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -214,12 +214,14 @@
     "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY_COMPLETE",
     "POST_P0_01_FULL_ENGINEERING_RETROSPECTIVE_PASS",
     "POST_P0_02_PHASE_TRANSITION_TO_INCREMENTAL_OBSERVATION",
-    "POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT_FROZEN"
+    "POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT_FROZEN",
+    "POST_P0_02B_ACCEPTED_LOCAL_SOURCE_BOUNDARY_QUALIFIED",
+    "POST_P0_02B_FULL_ENGINEERING_RETROSPECTIVE_PASS"
   ],
   "next_objective": {
-    "id": "POST_P0_02B_ACCEPTED_LOCAL_SOURCE_BOUNDARY",
-    "description": "Generalize the protected LocalFS search/context source boundary from bootstrap-only to a provider-neutral-in-Core accepted-local-source contract before enabling any post-bootstrap LocalFS publication. Select current local runtime inventory only from a qualified accepted local source receipt; keep existing unresolved SCAN receipts non-current for protected search/context; add no watcher and no new incremental mutation path in this slice.",
-    "audit_gate": "POST_P0_02A_CONTRACT_EXACT_HEAD_CI_AND_REVIEW_PASS"
+    "id": "POST_P0_02C_SOURCE_BOUND_LOCAL_OBSERVATION_ATTEMPT",
+    "description": "Add the first durable post-bootstrap LocalFS observation/publication lifecycle. Bind an OPEN attempt to its exact source before any identity mutation; reuse existing SAME/NEW identity-acceptance transactions; preserve unresolved ambiguity without replacing the prior accepted current inventory; revalidate the full source before guarded COMPLETE; publish only under a distinct qualified accepted-SCAN fingerprint contract; and make replay after interruption deterministic rather than blind.",
+    "audit_gate": "POST_P0_02B_FULL_RETROSPECTIVE_AND_EXACT_HEAD_QUALIFICATION_PASS"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2635,15 +2637,16 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "73966add49b16c56d47b5a2f2d55e20737e7cd52",
-      "document": "docs/POST_P0_01B_PROTECTED_RECOVERY_RETROSPECTIVE_20261004.md",
-      "conclusion": "PASS_FULL_AUDIT_ZERO_NEW_BLOCKER_CRITICAL_ITEM1_COMPLETE",
-      "audited_product_head": "73966add49b16c56d47b5a2f2d55e20737e7cd52",
-      "qualified_handoff_head": "7066fc327c188cd3fd90d4b44e61e52068230e93",
-      "qualified_tree_sha": "f1d67cb1aa242b77c336faf134b619ac4c98c55b",
-      "ci_head": "7066fc327c188cd3fd90d4b44e61e52068230e93",
-      "ci_run_id": 37194324271,
-      "authoritative_integration_head": "73966add49b16c56d47b5a2f2d55e20737e7cd52"
+      "head": "7b678af4523f0edb9fa83d8794274b71f0f57cf2",
+      "document": "docs/POST_P0_02B_ACCEPTED_LOCAL_SOURCE_RETROSPECTIVE_20261004.md",
+      "conclusion": "PASS_FULL_AUDIT_ZERO_NEW_FINDINGS_02B_COMPLETE",
+      "audited_product_head": "7b678af4523f0edb9fa83d8794274b71f0f57cf2",
+      "qualified_handoff_head": "bcb8554728623c1a4d7b2305fd6870d10184bc36",
+      "qualified_tree_sha": "c5339239a9aaf5f74501814cf6d636a1a1ab0ac8",
+      "ci_head": "bcb8554728623c1a4d7b2305fd6870d10184bc36",
+      "ci_run_id": 37204610224,
+      "authoritative_integration_head": "7b678af4523f0edb9fa83d8794274b71f0f57cf2",
+      "integration_push_ci_run_id": 37205431103
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -4058,7 +4061,7 @@
     "qualification_ci_run_id": 37114259657,
     "conclusion": "P0_CLOSED_PASS_ZERO_OPEN_BLOCKER_CRITICAL",
     "resolved_gap": "P0_FINAL_PROOF_REAUDIT_AND_CLOSURE_QUALIFICATION",
-    "earliest_remaining_autonomous_product_gap": "POST_P0_02B_ACCEPTED_LOCAL_SOURCE_BOUNDARY",
+    "earliest_remaining_autonomous_product_gap": "POST_P0_02C_SOURCE_BOUND_LOCAL_OBSERVATION_ATTEMPT",
     "p0_closure_gates_remaining": [],
     "carried_high_findings": [
       "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
@@ -4819,8 +4822,8 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/POST_P0_01B_PROTECTED_RECOVERY_RETROSPECTIVE_20261004.md",
-    "last_retrospective_result": "PASS_FULL_AUDIT_ZERO_NEW_BLOCKER_CRITICAL_ITEM1_COMPLETE",
+    "last_retrospective": "docs/POST_P0_02B_ACCEPTED_LOCAL_SOURCE_RETROSPECTIVE_20261004.md",
+    "last_retrospective_result": "PASS_FULL_AUDIT_ZERO_NEW_FINDINGS_02B_COMPLETE",
     "substantive_slice_counter": 0,
     "current_stage": "POST_P0_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
@@ -4831,7 +4834,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": "NONE",
-    "unlock_condition": "POST_P0_02A_CONTRACT_INTEGRATED_AFTER_EXACT_HEAD_CI_AND_REVIEW_PASS",
+    "unlock_condition": "POST_P0_02B_QUALIFICATION_INTEGRATED_AFTER_EXACT_HEAD_CI_AND_REVIEW_PASS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -6446,7 +6449,7 @@
       "watchman": "Potential optional desktop/server hint source with clock/fresh-instance semantics; not a required default because it is a separate daemon and does not establish Keelaryn Artifact identity.",
       "decision": "First item-2 substage must define safe repeated-observation publication/acceptance semantics before any watcher is allowed to drive current inventory."
     },
-    "current_substage": "POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT_FROZEN",
+    "current_substage": "POST_P0_02B_ACCEPTED_LOCAL_SOURCE_BOUNDARY_QUALIFIED",
     "contract": "docs/POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT.md",
     "substage_02a": {
       "status": "CONTRACT_FROZEN",
@@ -6505,6 +6508,61 @@
         "Android SAF belongs in a provider-specific adapter with provider document IDs; POSIX path/inode semantics must not leak into Android identity"
       ],
       "qualification_rule": "Integrate revision 240 only after exact-head validate + Ubuntu 24.04 + Windows 2025 PASS and exact-head review; authoritative integration is the durable qualification boundary."
+    },
+    "substage_02b": {
+      "status": "QUALIFIED",
+      "scope": "READ_SIDE_ACCEPTED_LOCAL_SOURCE_BOUNDARY",
+      "contract": "docs/POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT.md",
+      "implementation_base": "587fc1d756346af5777c91e499e6a1ffca9cfc11",
+      "handoff_head": "bcb8554728623c1a4d7b2305fd6870d10184bc36",
+      "integration_head": "7b678af4523f0edb9fa83d8794274b71f0f57cf2",
+      "integration_claim": 136,
+      "pr": 135,
+      "verified_tree_sha": "c5339239a9aaf5f74501814cf6d636a1a1ab0ac8",
+      "implementation_ci_run_id": 37204610224,
+      "integration_push_ci_run_id": 37205431103,
+      "codex_review": "exact-head clean on bcb8554728",
+      "sol_review": "exact-head semantic review PASS",
+      "retrospective": "docs/POST_P0_02B_ACCEPTED_LOCAL_SOURCE_RETROSPECTIVE_20261004.md",
+      "product_runtime_mutation": true,
+      "schema_change": false,
+      "dependency_change": false,
+      "durable_write_path_added": false,
+      "result": "QUALIFIED",
+      "qualified_behavior": [
+        "GENERIC_COMPLETE_SCAN_CHRONOLOGY_REMAINS_SEPARATE_FROM_ACCEPTED_LOCAL_RUNTIME_AUTHORITY",
+        "LATER_UNRESOLVED_METADATA_ONLY_SCAN_RECEIPTS_CANNOT_DISPLACE_THE_ACCEPTED_SOURCE",
+        "NEWER_UNSUPPORTED_BOOTSTRAP_FINGERPRINTS_CANNOT_ECLIPSE_THE_NEWEST_QUALIFIED_BOOTSTRAP",
+        "SEARCH_INDEX_AND_CONTEXT_USE_INVENTORY_FROM_THE_EXACT_ACCEPTED_SCAN",
+        "ACCEPTED_SOURCE_IS_REPROVEN_AROUND_CORPUS_READS_AND_DRIFT_FAILS_CLOSED",
+        "SEARCH_SOURCE_BOUNDARY_SHAPE_IS_REUSED_NOT_DUPLICATED",
+        "NO_WATCHER_OR_NEW_LOCALFS_PUBLICATION_PATH_OR_SCHEMA_MIGRATION_IS_ENABLED"
+      ],
+      "audit": {
+        "audited_product_head": "7b678af4523f0edb9fa83d8794274b71f0f57cf2",
+        "dimensions": "A01-A12 COMPLETE",
+        "synthesis": "A13 PASS",
+        "new_critical": 0,
+        "new_blocker": 0,
+        "new_high": 0,
+        "new_medium": 0,
+        "new_low": 0,
+        "critical_gate": "CLEAR",
+        "remediation_cycle_required": false
+      },
+      "carried_findings": [
+        "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+        "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
+        "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY",
+        "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE"
+      ],
+      "follow_up": "POST_P0_02C_SOURCE_BOUND_LOCAL_OBSERVATION_ATTEMPT"
+    },
+    "planned_follow_up": {
+      "id": "POST_P0_02C_SOURCE_BOUND_LOCAL_OBSERVATION_ATTEMPT",
+      "prerequisite": "POST_P0_02B qualified",
+      "intent": "Add a durable LocalFS source-bound OPEN attempt and guarded accepted publication lifecycle, reusing identity-acceptance transactions and final source revalidation. Define source-specific local continuity authority separately; unresolved ambiguity must never silently publish over prior accepted current inventory.",
+      "qualification_boundary": "Revision 241 must itself pass exact-head validate + Ubuntu 24.04 + Windows 2025 CI and exact-head review, then integrate by conditional fast-forward before 02C product writes."
     }
   }
 }
