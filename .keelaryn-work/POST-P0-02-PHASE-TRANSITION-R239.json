@@ -1,0 +1,8 @@
+{
+  "claim_issue": 126,
+  "lane": "SOL",
+  "work_unit_id": "POST-P0-02-PHASE-TRANSITION-R239",
+  "base_sha": "01faa6023b57b0731da1f032bc87afcac7e98421",
+  "scope": "DEVELOPMENT_STATE.json; .github/workflows/ci.yml",
+  "state": "CLAIM_ONLY_PENDING_PR_TRANSFER"
+}
