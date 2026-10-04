@@ -358,6 +358,129 @@ func (s *Store) LocalIngestCommitAtBoundary(
 	return localIngestCommitReceiptConn(conn, providerID, root, observedAt, mode)
 }
 
+// LatestBootstrapLocalIngestCommit returns the newest durable BOOTSTRAP receipt
+// for one provider/root scope. Later ordinary SCAN receipts are intentionally
+// excluded: they are observation evidence, not accepted runtime source authority.
+func (s *Store) LatestBootstrapLocalIngestCommit(
+	ctx context.Context,
+	providerID corpus.ProviderID,
+	root string,
+) (LocalIngestCommitReceipt, bool, error) {
+	if providerID == "" || root == "" {
+		return LocalIngestCommitReceipt{}, false, ErrInvalidLocalIngestCommit
+	}
+	conn, err := s.pool.Get(ctx)
+	if err != nil {
+		return LocalIngestCommitReceipt{}, false, fmt.Errorf("get state connection: %w", err)
+	}
+	defer s.pool.Put(conn)
+	return latestBootstrapLocalIngestCommitConn(conn, providerID, root)
+}
+
+func latestBootstrapLocalIngestCommitConn(
+	conn *sqlite.Conn,
+	providerID corpus.ProviderID,
+	root string,
+) (LocalIngestCommitReceipt, bool, error) {
+	type candidate struct {
+		receipt  LocalIngestCommitReceipt
+		finished time.Time
+		order    int64
+		ordered  bool
+	}
+	var latestFinished time.Time
+	var latest []candidate
+	err := sqlitex.Execute(conn, `
+SELECT
+	c.scan_id,
+	s.started_at,
+	s.finished_at,
+	c.snapshot_fingerprint_version,
+	c.snapshot_fingerprint_sha256,
+	a.completion_order
+FROM local_ingest_commits c
+JOIN scan_sessions s
+  ON s.scan_id=c.scan_id
+ AND s.provider_id=c.provider_id
+ AND s.root=c.root
+ AND s.started_at=c.started_at
+JOIN bootstrap_scan_authorities b
+  ON b.scan_id=c.scan_id
+ AND b.proof_kind=?3
+ AND b.proven_at=s.started_at
+LEFT JOIN scan_completion_authorities a ON a.scan_id=c.scan_id
+WHERE c.provider_id=?1
+  AND c.root=?2
+  AND c.ingest_mode='BOOTSTRAP'
+  AND s.status='COMPLETE'
+  AND s.finished_at IS NOT NULL
+`, &sqlitex.ExecOptions{
+		Args: []any{string(providerID), root, bootstrapNoPriorObservationHistoryProof},
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			scanID := corpus.ScanSessionID(stmt.ColumnText(0))
+			started, err := time.Parse(time.RFC3339Nano, stmt.ColumnText(1))
+			if err != nil {
+				return fmt.Errorf("parse bootstrap receipt scan start %s: %w", scanID, err)
+			}
+			finished, err := time.Parse(time.RFC3339Nano, stmt.ColumnText(2))
+			if err != nil {
+				return fmt.Errorf("parse bootstrap receipt scan finish %s: %w", scanID, err)
+			}
+			current := candidate{
+				receipt: LocalIngestCommitReceipt{
+					Scan: corpus.ScanSession{
+						ID: scanID, ProviderID: providerID, Root: root,
+						Status: corpus.ScanComplete, StartedAt: started.UTC(), FinishedAt: finished.UTC(),
+					},
+					Bootstrap: true,
+					FingerprintVersion: stmt.ColumnText(3),
+					FingerprintSHA256: stmt.ColumnText(4),
+				},
+				finished: finished.UTC(),
+			}
+			if !stmt.ColumnIsNull(5) {
+				current.order = stmt.ColumnInt64(5)
+				current.ordered = true
+			}
+			if len(latest) == 0 || current.finished.After(latestFinished) {
+				latestFinished = current.finished
+				latest = []candidate{current}
+			} else if current.finished.Equal(latestFinished) {
+				latest = append(latest, current)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		return LocalIngestCommitReceipt{}, false, fmt.Errorf("query latest bootstrap local ingest receipt: %w", err)
+	}
+	if len(latest) == 0 {
+		return LocalIngestCommitReceipt{}, false, nil
+	}
+	if len(latest) == 1 {
+		return latest[0].receipt, true, nil
+	}
+	var selected candidate
+	var hasOrdered bool
+	for _, current := range latest {
+		if current.ordered && (!hasOrdered || current.order > selected.order) {
+			selected = current
+			hasOrdered = true
+		}
+	}
+	if hasOrdered {
+		return selected.receipt, true, nil
+	}
+	return LocalIngestCommitReceipt{}, false, fmt.Errorf(
+		"%w: bootstrap receipt provider=%s root=%s finished_at=%s candidates=%d",
+		ErrAmbiguousScanAuthority,
+		providerID,
+		root,
+		latestFinished.Format(time.RFC3339Nano),
+		len(latest),
+	)
+}
+
 func openScanForScopeConn(conn *sqlite.Conn, providerID corpus.ProviderID, root string) (corpus.ScanSession, bool, error) {
 	var scanID corpus.ScanSessionID
 	if err := sqlitex.Execute(conn,

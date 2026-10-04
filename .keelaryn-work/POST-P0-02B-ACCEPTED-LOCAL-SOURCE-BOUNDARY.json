@@ -1,9 +1,0 @@
-{
-  "claim_issue": 134,
-  "lane": "SOL",
-  "work_unit_id": "POST-P0-02B-ACCEPTED-LOCAL-SOURCE-BOUNDARY",
-  "base_sha": "587fc1d756346af5777c91e499e6a1ffca9cfc11",
-  "scope": "state local-ingest/scan read APIs; ingest fingerprint contract; local runtime accepted-source/search/context read-side; targeted tests",
-  "lease_until": "2026-10-04T12:59:00Z",
-  "state": "CLAIM_ONLY_PENDING_PR_TRANSFER"
-}
