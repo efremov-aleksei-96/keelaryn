@@ -99,7 +99,7 @@ Selection rules:
 2. If that explicit ready queue is empty, Luna synthesizes bounded `DISCOVERY` work units from `docs/LUNA_PERPETUAL_DISCOVERY.md` and selects the highest-priority non-overlapping discovery unit before considering a stop.
 3. A separate `SOL_REQUIRED` unit blocks only itself and units that actually depend on it. It does not block independent Luna-safe writes or read-only discovery.
 4. Sol prioritizes immutable Luna handoffs awaiting review/integration, then ready architecture/authority blockers, then `EITHER_PROFILE`, then `LUNA_READY` when no higher-priority Sol work remains.
-5. Explicit Luna never performs a protected `SOL_REQUIRED` write. If no independent explicit Luna-safe unit exists, it must exhaust the current bounded discovery cycle before stopping dependent writes.
+5. Explicit Luna never performs a protected `SOL_REQUIRED` write. If no independent explicit Luna-safe unit exists, it must drain the current keyed discovery backlog and perform a fresh frontier sweep before considering a lack-of-work stop.
 6. Explicit Sol may execute `LUNA_READY`, `EITHER_PROFILE`, or `SOL_REQUIRED` units; selecting Sol never requires needless hand-back to Luna.
 7. Generic continuation uses the resolved active profile from §2 and the same per-unit queue.
 8. Recompute readiness/classification after every reconcile, PR merge, material CI/runtime result, new blocker/finding, work-claim change, or `DEVELOPMENT_STATE.json` transition.
@@ -146,7 +146,7 @@ A session builds its lane queue from:
 - open PRs and their declared work-unit scopes;
 - pending immutable handoffs awaiting review/integration;
 - current CI/runtime evidence;
-- when explicit work is exhausted, the perpetual discovery catalog in `docs/LUNA_PERPETUAL_DISCOVERY.md`, prioritized against the current objective, recently changed code, carried findings and unproved failure boundaries.
+- when explicit work is exhausted, the rolling discovery backlog/frontier in `docs/LUNA_PERPETUAL_DISCOVERY.md`, seeded from the current objective, recently changed code, implemented subsystem map, canonical/planned gaps, carried findings, external technology landscape and unproved failure boundaries.
 
 A `SOL_REQUIRED` unit blocks only itself and dependants. It does not block independent `LUNA_READY` work or read-only discovery.
 
@@ -163,13 +163,21 @@ Discovery priority is evidence-driven:
 3. architecture/authority consistency and call-site maps;
 4. performance/resource/cross-platform measurements;
 5. dependency/platform/API and upstream risk/reuse research;
-6. competitor/adjacent-system research relevant to the current boundary;
+6. competitor/adjacent-system research relevant to an implemented Keelaryn capability or canonical/planned capability gap;
 7. canonical-roadmap direction audit and user-value gap analysis;
 8. documentation/state/test-debt consistency.
 
 A discovery result is classified as `NO_FINDING`, `LUNA_FIX_READY`, `SOL_REVIEW_REQUIRED`, `BLOCKED_EXTERNAL`, or `SKIPPED_IRRELEVANT` for a deliberately skipped category whose irrelevance is durably justified. A Luna-safe reproducible defect may become a normal claimed implementation work unit. A protected architecture/security/concurrency/schema/identity/recovery decision must become a bounded Sol-ready finding instead of being decided by Luna.
 
-A discovery cycle is bounded: at most one unit from each catalog category per current discovery epoch, except that a material finding may spawn one directly dependent bounded follow-up. The baseline ledger is the canonical exact-title `[DISCOVERY-CYCLE] <full-baseline-sha>` issue found across **open and closed** issues; concurrent duplicate issues arbitrate by lowest issue number and losers close before work. Each category appends a `DISCOVERY-CYCLE-RESULT-V1` bound to the current `Epoch-Ref`, including `NO_FINDING` and `SKIPPED_IRRELEVANT`. A material CI/runtime/review/finding trigger on unchanged HEAD appends a durable `DISCOVERY-CYCLE-RESET-V1`; its canonical GitHub comment ID becomes a new epoch, so older results no longer exhaust the cycle. Fresh sessions reconstruct baseline + epoch from GitHub instead of chat memory. When HEAD changes, the new exact-SHA ledger remains distinct, but before deep rerun Luna must search ancestor ledgers newest-to-oldest, skipping only baselines with **no native result for the category in any epoch**, and stop at the first baseline containing any native result(s) before checking objective equality. Then derive that baseline's current epoch: exactly one native result may proceed; zero current-epoch results after a reset or multiple results force a current-baseline rerun with no older fallback. At that selected baseline, require exactly one native category result: multiple results are ambiguous and force a current-baseline rerun with no older fallback. For a single result, apply objective equality and the remaining eligibility checks. If it has a different objective or is otherwise ineligible, rerun the category rather than falling back to an older result. Prior carry-forward records are completion/provenance for their own baseline only, never source evidence for another carry. Carry-forward requires an explicit durable source `Read-Scope`, explicit durable `Semantic-Assumptions` (`NONE` allowed), and a proven **direct diff from that native source-result baseline to the current baseline** that is disjoint from both the repository read scope and the persisted semantic assumptions. Carry-forward additionally requires a durable intervening-trigger scan from the native source result through the current baseline, including discovery reset refs such as `DUPLICATE_RESULT`; any category-invalidating CI/runtime/review/finding/external trigger, or an unbounded/uncertain scan, forces a fresh result. A fresh primary-source check is an additional freshness condition for **any** result whose read scope/evidence/semantic assumptions depend on external state; category labels do not exempt or trigger this by themselves; it never replaces diff-disjointness or the invalidation scan. Legacy/no-scope, intersecting, uncertain, or `BLOCKED_EXTERNAL` evidence is rerun as a new result. Blind whole-cycle inheritance is forbidden.
+Discovery is bounded **per work unit**, not per category. The eight categories are reusable lenses over a durable rolling backlog. Every new unit has a stable `Discovery-Key` (`<CATEGORY>/<area>/<question>`), and multiple distinct keys from the same category may be executed in one baseline/epoch.
+
+The canonical exact-title `[DISCOVERY-CYCLE] <full-baseline-sha>` issue remains the ledger across open and closed states. New candidate questions are persisted as `DISCOVERY-BACKLOG-ITEM-V1`; terminal keyed results use `DISCOVERY-UNIT-RESULT-V2`. Historical `DISCOVERY-CYCLE-RESULT-V1` comments without a key are legacy category-sweep evidence only and do not exhaust a category.
+
+When ready backlog items are empty, Luna performs a lightweight `DISCOVERY-FRONTIER-SWEEP-V1` over all available frontier source classes: objective/diff, implemented subsystems, canonical/planned gaps, unresolved findings, platform/test/performance matrices, and external competitor/upstream/open-source evidence. New distinct keys are enqueued and executed by priority. Results may enqueue further distinct keys; only one immediate depth-first follow-up is allowed, while additional follow-ups stay in the backlog.
+
+Same-HEAD material CI/runtime/review/finding/external evidence still creates a durable reset epoch. Cross-baseline reuse is per exact `Discovery-Key`, never whole-category: carry requires unique source evidence, explicit scope/assumptions, direct source→current diff-disjointness, a bounded invalidation scan, and fresh primary-source checking for external dependencies. `BLOCKED_EXTERNAL` never carries.
+
+The lane is exhausted only when there is no explicit safe work, no ready keyed backlog item, every existing item is terminal/blocked, and a **fresh post-result frontier sweep** on the unchanged binding reports no new keys. Blind whole-cycle inheritance and “8/8 categories = done” are forbidden.
 
 #### Remote scope claim before the first write
 
@@ -283,7 +291,7 @@ Luna is optimized for long autonomous runs and mechanical throughput.
 
 When Luna is started in ChatGPT Work for Keelaryn, the default behavior is **continuous development**, not “perform one task and stop”.
 
-After each successful slice Luna immediately reconciles and selects the next safe **unclaimed/non-overlapping** ready slice. If no explicit unit remains, it enters the bounded perpetual-discovery fallback before evaluating §7. It continues until a stop condition in §7 is reached or the Work execution itself ends. A concurrent Sol review/integration lane, occupied implementation scope, or ordinary CI wait is expected and does not by itself stop Luna.
+After each successful slice Luna immediately reconciles and selects the next safe **unclaimed/non-overlapping** ready slice. If no explicit unit remains, it drains the rolling keyed discovery backlog and replenishes it through frontier sweeps before evaluating §7. It continues until a stop condition in §7 is reached or the Work execution itself ends. A concurrent Sol review/integration lane, occupied implementation scope, or ordinary CI wait is expected and does not by itself stop Luna.
 
 ### 5.1 Luna — SAFE_AUTONOMOUS
 
@@ -377,7 +385,7 @@ A long Luna Work run stops dependent writes only when at least one is true:
 3. authoritative state is inconsistent and cannot be reconciled safely;
 4. a real BLOCKER/CRITICAL finding requires architecture-level remediation;
 5. CI or runtime evidence establishes a product defect whose correct fix needs Sol-level judgment;
-6. all explicit ready work for the objective is complete **and** the current bounded perpetual-discovery cycle is exhausted against the unchanged authoritative baseline.
+6. all explicit ready work is complete **and** the current keyed discovery backlog has no ready item **and** a fresh post-result frontier sweep on the unchanged authoritative binding produced no novel bounded `Discovery-Key`.
 
 A single completed slice, an occupied neighboring scope, an ordinary CI/review wait, or a recoverable tool error is **not** a stop condition.
 
