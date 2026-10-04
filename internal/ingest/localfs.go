@@ -19,7 +19,8 @@ var (
 	ErrLocalFSSnapshotChanged = errors.New("local filesystem snapshot changed before durable commit")
 )
 
-// LocalFSSnapshotFingerprintVersion identifies the qualified v1 LocalFS snapshot receipt contract.\nconst LocalFSSnapshotFingerprintVersion = "localfs-snapshot:v1"
+// LocalFSSnapshotFingerprintVersion identifies the qualified v1 LocalFS snapshot receipt contract.
+const LocalFSSnapshotFingerprintVersion = "localfs-snapshot:v1"
 
 // BootstrapLocalFSSnapshotFingerprint computes the exact deterministic
 // fingerprint used by bootstrap receipts without writing durable state.
