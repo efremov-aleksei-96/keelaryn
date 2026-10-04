@@ -31,19 +31,25 @@ func TestLatestBootstrapLocalIngestCommitIgnoresLaterScanAndOrdersEmptyBootstrap
 	if first.ID == second.ID {
 		t.Fatal("empty bootstrap replay unexpectedly reused a different boundary")
 	}
+	unsupported, err := store.CommitBootstrapLocalSnapshot(
+		ctx, "localfs", "/root", base.Add(2*time.Minute), "localfs-snapshot:future", strings.Repeat("c", 64), nil, validate,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ordinary, err := store.CommitLocalSnapshot(
-		ctx, "localfs", "/root", base.Add(2*time.Minute), "localfs-snapshot:v1", strings.Repeat("c", 64), nil, validate,
+		ctx, "localfs", "/root", base.Add(3*time.Minute), "localfs-snapshot:v1", strings.Repeat("d", 64), nil, validate,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	receipt, found, err := store.LatestBootstrapLocalIngestCommit(ctx, "localfs", "/root")
+	receipt, found, err := store.LatestBootstrapLocalIngestCommit(ctx, "localfs", "/root", "localfs-snapshot:v1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !found || !receipt.Bootstrap || receipt.Scan.ID != second.ID {
-		t.Fatalf("accepted bootstrap receipt=%#v found=%v want second=%s", receipt, found, second.ID)
+		t.Fatalf("qualified bootstrap receipt=%#v found=%v want second=%s unsupported=%s", receipt, found, second.ID, unsupported.ID)
 	}
 	latest, found, err := store.LatestCompleteScan(ctx, "localfs", "/root")
 	if err != nil {
