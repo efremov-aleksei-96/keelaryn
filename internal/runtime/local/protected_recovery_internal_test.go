@@ -477,3 +477,59 @@ func TestProtectedRecoveryCancellationDuringPromotionDoesNotOverrideCommittedRes
 		t.Fatalf("committed active search is not queryable: %#v", hits)
 	}
 }
+
+func TestProtectedRecoveryLockContentionPrecedesFullStateVerification(t *testing.T) {
+	ctx := context.Background()
+	_, _, options, layout := newProtectedRecoveryFixture(t, "lock before full preflight", 47)
+
+	activeBefore, err := os.ReadFile(layout.SearchDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(layout.SearchStagingDB, activeBefore, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stagingBefore, err := os.ReadFile(layout.SearchStagingDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dropProviderOccurrenceParentForForeignKeyCorruption(t, layout.StateDB)
+
+	held, err := controlstorage.AcquireSearchMutationLock(layout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = bootstrapProtectedIndex(ctx, options, defaultProtectedSearchRecoveryOps())
+	if !errors.Is(err, controlstorage.ErrSearchMutationLocked) {
+		_ = held.Close()
+		t.Fatalf("error=%v want ErrSearchMutationLocked before full state verification", err)
+	}
+	if got, readErr := os.ReadFile(layout.SearchDB); readErr != nil || string(got) != string(activeBefore) {
+		_ = held.Close()
+		t.Fatalf("active search changed while lock was contended: err=%v", readErr)
+	}
+	if got, readErr := os.ReadFile(layout.SearchStagingDB); readErr != nil || string(got) != string(stagingBefore) {
+		_ = held.Close()
+		t.Fatalf("staging changed while lock was contended: err=%v", readErr)
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Once serialization is available, the same corrupt authority must still
+	// fail closed at the single post-lock preflight before staging is discarded.
+	_, err = bootstrapProtectedIndex(ctx, options, defaultProtectedSearchRecoveryOps())
+	if err == nil {
+		t.Fatal("protected recovery succeeded with corrupt state after acquiring the mutation lock")
+	}
+	if errors.Is(err, controlstorage.ErrSearchMutationLocked) {
+		t.Fatalf("unexpected lock error after releasing held writer: %v", err)
+	}
+	if got, readErr := os.ReadFile(layout.SearchDB); readErr != nil || string(got) != string(activeBefore) {
+		t.Fatalf("active search changed before corrupt state was rejected: err=%v", readErr)
+	}
+	if got, readErr := os.ReadFile(layout.SearchStagingDB); readErr != nil || string(got) != string(stagingBefore) {
+		t.Fatalf("staging changed before corrupt state was rejected: err=%v", readErr)
+	}
+}

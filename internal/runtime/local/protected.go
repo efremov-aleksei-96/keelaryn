@@ -261,12 +261,10 @@ func bootstrapProtectedIndex(
 		return IndexResult{}, err
 	}
 
-	// Fail before any search-recovery mutation when non-rebuildable state is
-	// invalid or the already-committed corpus receipt no longer matches.
-	if err := preflightProtectedSearchRecovery(ctx, root, layout); err != nil {
-		return IndexResult{}, err
-	}
-
+	// search.lock is coordination-only and may be created before state authority
+	// exists. Acquire serialization first so a contending writer fails without
+	// paying for full state/corpus verification. No active or staged search-family
+	// mutation occurs before the post-lock preflight below.
 	lock, err := controlstorage.AcquireSearchMutationLock(layout)
 	if err != nil {
 		return IndexResult{}, err
@@ -275,8 +273,10 @@ func bootstrapProtectedIndex(
 		err = errors.Join(err, lock.Close())
 	}()
 
-	// Re-prove after serialization so a state/corpus change that raced the
-	// first preflight cannot authorize deletion of prior staging.
+	// Perform the single full authority/corpus recovery proof after writer
+	// serialization and immediately before the first derived-family mutation.
+	// This preserves fail-closed state semantics while avoiding a redundant
+	// integrity/FK verification and corpus fingerprint traversal before the lock.
 	if err := preflightProtectedSearchRecovery(ctx, root, layout); err != nil {
 		return IndexResult{}, err
 	}

@@ -1,9 +1,0 @@
-{
-  "claim_issue": 120,
-  "lane": "SOL",
-  "work_unit_id": "POST-P0-01B-PROTECTED-RECOVERY-SINGLE-PREFLIGHT",
-  "base_sha": "35c8882a244bd0b992a3c5197afad800e1d41f60",
-  "scope": "protected recovery single-preflight optimization + exact regressions",
-  "handoff_sha": null,
-  "state": "CLAIM_ONLY_PENDING_PR_TRANSFER"
-}
