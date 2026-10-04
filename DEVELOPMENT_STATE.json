@@ -4051,7 +4051,7 @@
     "qualification_ci_run_id": 37114259657,
     "conclusion": "P0_CLOSED_PASS_ZERO_OPEN_BLOCKER_CRITICAL",
     "resolved_gap": "P0_FINAL_PROOF_REAUDIT_AND_CLOSURE_QUALIFICATION",
-    "earliest_remaining_autonomous_product_gap": "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY",
+    "earliest_remaining_autonomous_product_gap": "POST_P0_02_PHASE_TRANSITION_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
     "p0_closure_gates_remaining": [],
     "carried_high_findings": [
       "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
