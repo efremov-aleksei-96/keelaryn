@@ -149,7 +149,7 @@ func TestProtectedRecoveryFailureWindowsAreRetryableAndPreserveAuthority(t *test
 
 			ops := defaultProtectedSearchRecoveryOps()
 			tc.configure(&ops, layout)
-			_, err = bootstrapProtectedIndex(ctx, options, ops)
+			_, err := bootstrapProtectedIndex(ctx, options, ops)
 			if !errors.Is(err, errInjected) {
 				t.Fatalf("error=%v want injected failure", err)
 			}
