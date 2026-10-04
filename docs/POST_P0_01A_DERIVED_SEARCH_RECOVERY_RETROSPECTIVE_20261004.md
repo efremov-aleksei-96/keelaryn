@@ -2,11 +2,11 @@
 
 ## Result
 
-**PASS — zero new BLOCKER/CRITICAL findings.**
+**PASS — POST-P0-01A derived-search recovery qualified; zero new BLOCKER/CRITICAL findings in this substage.**
 
-Canonical post-P0 growth-order item 1, **reliability and deterministic recovery**, is qualified for the currently reachable runtime recovery boundary.
+This retrospective qualifies the bounded **POST-P0-01A derived-search recovery** surface. It does **not** by itself declare the entire canonical post-P0 item 1, reliability and deterministic recovery, complete.
 
-This qualification supersedes the abandoned revision-235 candidate from PR #85. That earlier candidate was correctly invalidated after post-integration review found correctness gaps in the first recovery implementation.
+The earlier revision-235 candidate from PR #85 remains invalid provenance only: it was correctly closed before integration after post-integration review found correctness gaps in the first recovery implementation.
 
 ## Qualified boundary and provenance
 
@@ -26,11 +26,19 @@ Final corrective recovery handoff:
 - Sol exact-head diff review: PASS, recorded by integration claim #110
 - integrated through the repository conditional-fast-forward protocol as `78e0a7dd4e2382e51561ddf2569e100ad5b6d0dd`
 
-Current authoritative head at qualification preparation:
+Qualification base:
 
 - `df97c5aade9fc901f033550419a983108a5f4957`
-- the only later integration was governance-only rolling-discovery work
-- its handoff CI run `37190663978` passed the complete validate + Ubuntu + Windows matrix on top of the integrated recovery product bytes
+- later movement after recovery integration is governance-only rolling-discovery work
+- governance handoff CI run `37190663978` passed validate + Ubuntu 24.04 + Windows 2025 on the unchanged recovery product bytes
+
+The corrective handoff tree and recovery integration tree are identical. The only delta from recovery integration `78e0a7d…` to qualification base `df97c5a…` is:
+
+- `AGENTS.md`
+- `docs/DEVELOPMENT_CONTINUATION.md`
+- `docs/LUNA_PERPETUAL_DISCOVERY.md`
+
+No later runtime/product mutation invalidates the recovery evidence.
 
 ## Authority boundary
 
@@ -40,9 +48,26 @@ Current authoritative head at qualification preparation:
 
 Search recovery does not repair, reconstruct, replace, downgrade, or silently discard `state.db`.
 
-Before any derived search mutation, the runtime now runs full read-only state verification, including SQLite integrity and foreign-key checks. The same authority/corpus preflight is repeated after acquiring the search mutation lock.
+Before any derived search mutation, the runtime runs full read-only state verification, including SQLite integrity and foreign-key checks. The authority/corpus preflight is repeated after acquiring the search mutation lock.
 
 The Luna test-only handoff in PR #105 was intentionally consumed as evidence: it proved on the then-authoritative base that unrelated state foreign-key damage could pass the narrower preflight and allow search recovery to proceed. The final corrective implementation makes that regression pass by failing closed before active/staged search mutation.
+
+## Historical LocalFS interruption finding reconciliation
+
+The old P0-28 state record says that multi-occurrence bootstrap crash/resume was a later reliability gap. That line is historical, not a current open finding.
+
+The gap was subsequently formalized as:
+
+- `AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY` — **RESOLVED**
+- `AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION` — **RESOLVED**
+
+Both were qualified at:
+
+- product head `a5e3cbd8ac0fc6efb787020358b2b9d8d181a143`
+- schema v44
+- CI `36405348001`: validate + Ubuntu 24.04 + Windows 2025 PASS
+
+The qualified LocalFS/bootstrap path now uses atomic batch transactions and immutable commit receipts. A handled error cannot leave partial Artifact/Revision/Observation adoption, and exact post-timeout replay/reconcile returns the prior durable COMPLETE result or fails on conflicting fingerprint. Final provider revalidation runs inside the same durable transaction immediately before COMPLETE; bootstrap also re-snapshots and re-hashes regular-file content. The old P0-28 statement therefore must not be interpreted as an unresolved blocker for POST-P0-01A.
 
 ## Deterministic derived recovery
 
@@ -92,7 +117,7 @@ Before promotion:
 
 - pre-canceled reconciliation returns cancellation without touching the active family;
 - cancellation after actual SQLite reconciliation but before promotion preserves the active cache and verified staging;
-- any staging or promotion-preparation failure leaves deterministic retry state.
+- staging/promotion-preparation failures leave deterministic retry state.
 
 After the final cancellation gate:
 
@@ -136,13 +161,13 @@ The qualified suite covers at least:
 
 All active/staged search-family operations remain within the protected control directory.
 
-Existing ownership/ACL, symlink/reparse, regular-file and exact-path checks remain authoritative for filesystem safety. The new promotion path broadens only the set of **derived exact SQLite family members** that may be discarded after reconciliation; it does not broaden control-directory path authority.
+Existing ownership/ACL, symlink/reparse, regular-file and exact-path checks remain authoritative for filesystem safety. The promotion path broadens only the set of **derived exact SQLite family members** that may be discarded after reconciliation; it does not broaden control-directory path authority.
 
 No public fault-injection switch or recovery bypass was added.
 
 ## Reuse and simplification
 
-The stage reuses existing mechanisms:
+The substage reuses existing mechanisms:
 
 - protected `controlstorage` layout and filesystem verification;
 - authoritative COMPLETE scan/bootstrap receipt;
@@ -159,14 +184,14 @@ No second recovery database, durable staging authority, external lock service, q
 
 ## Carried findings
 
-These existing findings remain open but do **not** invalidate this recovery qualification:
+These existing findings remain open but do **not** invalidate the bounded POST-P0-01A recovery qualification:
 
-- `AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED` — release/update rollback and backup compatibility; this belongs to release gating / later backup-export-restore work.
+- `AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED` — release/update rollback and backup compatibility.
 - `AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT` — Android durable-state substrate and qualification remain a portability gate.
-- `AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY` — live-provider availability hardening, independent of local derived recovery correctness.
+- `AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY` — live-provider availability hardening.
 - `AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE` — repository metadata housekeeping.
 
-No open BLOCKER/CRITICAL finding remains for the qualified POST-P0-01 recovery boundary.
+No open BLOCKER/CRITICAL finding remains **inside the qualified POST-P0-01A derived-search recovery boundary**.
 
 ## Rolling discovery governance synchronization
 
@@ -176,16 +201,13 @@ That governance change is already authoritative at `df97c5aade9fc901f033550419a9
 
 ## Growth-order decision
 
-Canonical post-P0 item 1 is complete for current reachable reliability/recovery boundaries.
+POST-P0-01A is complete and qualified.
 
-The next objective is item 2: **incremental local/provider observation**.
+**Do not advance to canonical item 2 yet.** Keep top-level phase `POST_P0_RELIABILITY` and run a bounded item-1 closure audit over the currently reachable reliability/recovery surfaces and carried findings.
 
-The first write for item 2 must be preceded by a bounded provider-neutral contract/reuse audit. Incremental observation must preserve:
+The closure audit must begin read-only and answer one question: after accounting for already resolved historical gaps and correctly scoped later-gate findings, is there another bounded reliability/recovery substage that is current and user-relevant?
 
-- Artifact/Revision authority;
-- provider-history cursor semantics;
-- managed-root membership semantics;
-- exact source-bound search behavior;
-- read-only corpus guarantees.
+- If yes, select that bounded POST-P0-01 substage.
+- If no, record exact evidence that canonical item 1 is complete, then perform the separate state/phase transition to item 2.
 
-Watchers or change feeds may provide hints/evidence, but must not become a second identity authority.
+This avoids inferring whole-objective completion from one successful recovery substage.

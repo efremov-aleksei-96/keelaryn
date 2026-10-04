@@ -208,12 +208,11 @@
     "LUNA_DISCOVERY_CROSS_BASELINE_CARRY_FORWARD_ADOPTED",
     "LUNA_ROLLING_DISCOVERY_BACKLOG_V2_ADOPTED",
     "POST_P0_01A_DERIVED_SEARCH_RECOVERY_QUALIFIED",
-    "POST_P0_01A_BOUNDARY_RETROSPECTIVE_PASS",
-    "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY_COMPLETE"
+    "POST_P0_01A_BOUNDARY_RETROSPECTIVE_PASS"
   ],
   "next_objective": {
-    "id": "POST_P0_02_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
-    "description": "Begin canonical post-P0 growth-order item 2: add incremental local/provider observation without weakening existing Artifact/Revision authority, provider-history cursor semantics, managed-root membership, source-bound search behavior, or read-only corpus guarantees. Start with a bounded provider-neutral contract/reuse audit and select the first incremental observation slice.",
+    "id": "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY",
+    "description": "POST-P0-01A derived-search recovery is qualified. Before advancing canonical growth order to item 2, run a bounded item-1 closure audit over currently reachable reliability/recovery surfaces and carried findings. Either select the next bounded POST-P0-01 reliability substage or prove item 1 complete; begin read-only and reuse existing authority/recovery primitives.",
     "audit_gate": "POST_P0_01A_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL"
   },
   "approved_drive_plan": {
@@ -2619,7 +2618,7 @@
     "additional_findings": [
       "RemoteHistory is identity/membership evidence, not a full metadata Observation",
       "RESOLVED_NEW wording should mean first accepted Artifact identity under policy, not first physical/known occurrence",
-      "bootstrap multi-occurrence crash/resume remains a later reliability gap"
+      "HISTORICAL_AT_P0_28: bootstrap multi-occurrence crash/resume was a later reliability gap; later RESOLVED by AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY at schema v44 / qualification head a5e3cbd8ac0fc6efb787020358b2b9d8d181a143"
     ],
     "corpus_mutations": 0,
     "live_oauth_used": false
@@ -4812,7 +4811,7 @@
     "last_retrospective": "docs/POST_P0_01A_DERIVED_SEARCH_RECOVERY_RETROSPECTIVE_20261004.md",
     "last_retrospective_result": "PASS_ZERO_NEW_BLOCKER_CRITICAL",
     "substantive_slice_counter": 0,
-    "current_stage": "POST_P0_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
+    "current_stage": "POST_P0_RELIABILITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
@@ -6115,9 +6114,9 @@
     ]
   },
   "post_p0_01": {
-    "status": "QUALIFIED",
+    "status": "IN_PROGRESS",
     "objective": "RELIABILITY_AND_DETERMINISTIC_RECOVERY",
-    "current_substage": "COMPLETE",
+    "current_substage": "POST_P0_01A_DERIVED_SEARCH_RECOVERY_QUALIFIED",
     "initial_implementation_handoff": "e40a04def266cd39bf75b60662787909cc2d652b",
     "initial_integration_head": "e5047c925f2d782d6823e4dc29cbae9b7ec6337c",
     "corrective_handoff": "e6d7bca917bcbb07f450db5dbfc89d37c9470cb5",
@@ -6175,8 +6174,24 @@
       "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY",
       "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE"
     ],
-    "growth_order_decision": "Canonical post-P0 item 1 is complete for the currently reachable reliability/recovery boundary. Release rollback/backup is explicitly deferred to canonical item 5/release gating, Android remains a portability gate, tokeninfo availability remains live-provider hardening, and repository description remains housekeeping. Proceed to item 2 incremental local/provider observation.",
-    "qualification_base_ci_run_id": 37190663978
+    "growth_order_decision": "POST-P0-01A derived-search recovery is qualified, but this retrospective does not by itself close canonical item 1. Keep POST_P0_RELIABILITY current and run a bounded item-1 closure audit before advancing to incremental local/provider observation. Release rollback/backup, Android portability, tokeninfo availability and repository metadata remain scoped by their existing gates.",
+    "qualification_base_ci_run_id": 37190663978,
+    "resolved_prerequisites": [
+      {
+        "id": "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
+        "qualification_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+        "schema_version": 44,
+        "qualification_ci": 36405348001,
+        "resolution": "Atomic LocalFS/bootstrap batch transactions prevent partial durable progress; immutable boundary receipts permit exact post-timeout replay/reconcile, and visible legacy OPEN scans remain explicitly queryable instead of guessed."
+      },
+      {
+        "id": "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION",
+        "qualification_head": "a5e3cbd8ac0fc6efb787020358b2b9d8d181a143",
+        "schema_version": 44,
+        "qualification_ci": 36405348001,
+        "resolution": "LocalFS completion performs final provider revalidation inside the same durable transaction before COMPLETE; bootstrap re-snapshots and re-hashes regular-file content so membership/metadata/content drift rolls back the whole batch."
+      }
+    ]
   },
   "continuation_protocol": {
     "status": "ADOPTED",
