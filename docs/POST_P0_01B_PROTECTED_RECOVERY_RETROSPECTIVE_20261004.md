@@ -179,6 +179,154 @@ MarkItDown/Docling/Tika and optional Android extraction-worker packaging researc
 
 These findings are useful future evidence, but they are not reasons to keep canonical item 1 artificially open.
 
+## Mandatory full engineering retrospective
+
+This stage was audited read-only on authoritative product head `73966add49b16c56d47b5a2f2d55e20737e7cd52` under `docs/ENGINEERING_AUDIT_POLICY.md` before item-1 completion was accepted.
+
+The audit used a durable work ledger in PR #124 and completed every required dimension before finding synthesis. PR #124 itself changes only development state and this retrospective, so the audited product bytes remained immutable throughout the pass.
+
+### A01 — canonical invariants versus implementation
+
+**PASS.**
+
+The exact POST-P0-01B product delta is limited to protected derived-search recovery ordering, adversarial tests, and its contract. It does not change Artifact, Revision, Observation, ProviderObject, Locator or provider-history identity semantics.
+
+`state.db` remains non-rebuildable authority. `search.db`, `search.db.next` and `search.lock` remain derived/coordination state.
+
+### A02 — durable-authority boundaries
+
+**PASS.**
+
+The recovery gate uses `sqlitestate.VerifyReadOnly` with exact application/schema checks, SQLite integrity, foreign-key validation and historical authority verification.
+
+Search `SourceBoundary` remains derived candidate scope metadata. Read paths re-derive the expected boundary from authoritative state; staging is never query authority.
+
+### A03 — replay, idempotency and interruption
+
+**PASS.**
+
+`BootstrapIndex` retains bootstrap receipt replay/revalidation around source reads. POST-P0-01B changes no durable replay token or ingest receipt.
+
+Existing recovery coverage retains deterministic retry behavior for prior staging, corrupt/missing active cache, cancellation around reconciliation/promotion and injected failure windows.
+
+### A04 — transaction atomicity and mutation-boundary revalidation
+
+**PASS.**
+
+The single full state/corpus recovery preflight runs after search writer serialization and immediately before the first derived-family mutation.
+
+`ReplaceAllBound` continues to replace the complete derived document set and its SourceBoundary in one SQLite IMMEDIATE transaction. Promotion remains the derived commit boundary after staged verification, active-family reconciliation and the final caller-cancellation gate.
+
+### A05 — schema migration and rollback implications
+
+**PASS WITH CARRIED HIGH.**
+
+POST-P0-01B adds no state or search schema migration.
+
+Because `search.db` is rebuildable derived state, this slice adds no authority rollback requirement. Existing `AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED` remains a HIGH release/update gate for non-rebuildable state and is not claimed resolved.
+
+### A06 — negative and adversarial cases
+
+**PASS.**
+
+Exact handoff `7066fc327c188cd3fd90d4b44e61e52068230e93` passed CI `37194324271` on Ubuntu 24.04 and Windows 2025, including dependency lock, all Go tests and Go vet.
+
+The qualified suite covers corrupt/missing active cache, valid/mismatched/orphan staging, unrelated state corruption, missing authority plus sidecars, corpus drift, lock contention, unsafe aliases, cancellation around reconcile/promotion, active SQLite sidecars and injected failure windows.
+
+### A07 — runtime call-site reachability
+
+**PASS — REACHABLE PRODUCT PATH.**
+
+`cmd/keelaryn` exposes `bootstrap-index`, which directly invokes `localruntime.BootstrapProtectedIndex`.
+
+POST-P0-01B therefore changes reachable product behavior rather than an isolated mechanism spike. This is why exact-head CI was treated only as input to this retrospective, not as stage completion.
+
+### A08 — cross-platform assumptions
+
+**PASS WITH CARRIED ANDROID GATE.**
+
+The exact handoff is qualified on Ubuntu 24.04 and Windows 2025.
+
+Search locking uses non-blocking `flock` on Unix-family builds and `LockFileEx(...LOCKFILE_FAIL_IMMEDIATELY)` on Windows.
+
+Direct Android durable-state execution remains unqualified. `AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT` remains HIGH and no Android support is inferred from the Unix lock adapter.
+
+### A09 — security and credential boundaries
+
+**PASS WITH CARRIED LIVE-PROVIDER GATE.**
+
+Protected control storage retains owner-only Unix directory protection and protected Windows ACL validation. Unsafe symlink/reparse/control-family aliases fail closed.
+
+Derived search retains SQLite/FTS secure-delete policy. POST-P0-01B changes no credential handling.
+
+`AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY` remains a MEDIUM production live-provider credential/availability gate. Current raw-token mode must not replace authenticated scope introspection with caller-supplied scope metadata.
+
+### A10 — lost local state and provider-history gaps
+
+**PASS.**
+
+Missing `state.db` with any state SQLite sidecar or active/staged search family fails closed rather than reminting authority. A persistent `search.lock` alone is explicitly non-authoritative and may survive a pre-state crash.
+
+Corrupt derived search remains recoverable without repairing state. LocalFS interruption/completeness findings B16/B17 were already qualified at schema v44.
+
+RemoteHistory behavior remains unchanged: bootstrap uses fence/enumerate/catch-up semantics, terminal committed cursors advance only with durable publications, interrupted cycles retain the previous cursor, and explicit history-gap states close the generation without pretending continuity.
+
+Metadata-loss reconstruction remains a later canonical capability.
+
+### A11 — stale documentation and state claims
+
+**PASS.**
+
+The POST-P0-01A contract and retrospective remain historical exact-head provenance for the earlier two-proof ordering. The POST-P0-01B contract explicitly states that it refines that ordering.
+
+The revision-238 qualification checkpoint synchronizes the next objective, preflight-visible earliest remaining product gap, audit lock and retrospective selectors. No current runtime claim still requires two recovery preflights.
+
+### A12 — dependency/reuse and nearest analogs
+
+**PASS — NO NEW DEPENDENCY.**
+
+The nearest recovery mechanism is SQLite itself, and Keelaryn reuses it rather than reimplementing journal recovery:
+
+- official SQLite recovery semantics require a hot rollback journal/WAL to remain paired with the original main database; Keelaryn attempts active-family reconciliation under the original name before derived disposal/promotion;
+- SQLite `integrity_check` does not validate foreign keys, so the qualified state verifier intentionally retains a separate `foreign_key_check`;
+- `quick_check` omits UNIQUE and index-content checks and is therefore not an equivalent replacement for the full authority gate.
+
+Current upstream `zombiezen.com/go/sqlite` tagged release remains v1.4.2, which is already pinned.
+
+For search locking, Keelaryn already depends on `golang.org/x/sys` and uses its direct `flock` / `LockFileEx` primitives. Mature wrapper libraries use the same OS mechanisms; adding one here would duplicate a small existing adapter, add dependency surface, and would not replace Keelaryn-specific protected-path/ACL validation.
+
+Watchman/fsnotify research is deliberately carried into canonical item 2 rather than being made search-recovery authority.
+
+External sources checked during the reuse audit:
+
+- https://www.sqlite.org/atomiccommit.html
+- https://www.sqlite.org/howtocorrupt.html
+- https://sqlite.org/pragma.html
+- https://github.com/zombiezen/go-sqlite/releases
+- https://pkg.go.dev/golang.org/x/sys/unix
+- https://pkg.go.dev/github.com/dolthub/file-locks
+
+### A13 — synthesis and finding freeze
+
+The complete collection pass reached the end of all mandatory dimensions.
+
+- new CRITICAL: **0**
+- new BLOCKER: **0**
+- new HIGH: **0**
+- new MEDIUM: **0**
+- new LOW: **0**
+- critical development gate: **CLEAR**
+- remediation cycle required: **no**
+
+Existing carried findings remain exactly scoped:
+
+- HIGH `AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED` — release/update gate;
+- HIGH `AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT` — portability gate;
+- MEDIUM `AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY` — production live-provider credential/availability gate;
+- LOW `AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE` — housekeeping.
+
+No current reliability/recovery finding remains that requires another substantive item-1 slice before canonical item 2.
+
 ## Closure decision
 
 No current bounded reliability/recovery work unit remains that should precede canonical item 2.
