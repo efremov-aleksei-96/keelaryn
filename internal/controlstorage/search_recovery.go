@@ -43,6 +43,15 @@ func DiscardActiveSearchFamily(layout Layout) error {
 	return discardSearchFamily(layout, layout.SearchDB, SearchDatabaseName)
 }
 
+// PromoteStagedSearchAfterReconcile replaces the active derived search family
+// only after the protected runtime has attempted SQLite reconciliation under
+// the search mutation lock and passed its final cancellation gate. Exact active
+// family members are prevalidated before any deletion; staging is already a
+// verified standalone candidate.
+func PromoteStagedSearchAfterReconcile(layout Layout) error {
+	return promoteStagedSearchAfterReconcile(layout, os.Rename)
+}
+
 func DiscardStagedSearchFamily(layout Layout) error {
 	return discardSearchFamily(layout, layout.SearchStagingDB, SearchStagingDatabaseName)
 }
@@ -91,6 +100,30 @@ func promoteStagedSearch(layout Layout, rename func(string, string) error) error
 	}
 	if err := rename(layout.SearchStagingDB, layout.SearchDB); err != nil {
 		return fmt.Errorf("promote staged search database: %w", err)
+	}
+	if err := verifyControlFile(layout.SearchDB); err != nil {
+		return fmt.Errorf("%w: %s: %v", ErrControlFileUnsafe, layout.SearchDB, err)
+	}
+	return nil
+}
+
+func promoteStagedSearchAfterReconcile(layout Layout, rename func(string, string) error) error {
+	if rename == nil {
+		return ErrInvalidControlDir
+	}
+	if err := VerifyStandaloneSearchStaging(layout); err != nil {
+		return err
+	}
+	// Reconciliation already ran under the search mutation lock. Active search
+	// state is derived/disposable here whether SQLite removed all sidecars, left
+	// an orphan sidecar, or could not open a corrupt family. Validate every exact
+	// family member before the first removal, then complete the staged rename
+	// without another cancellation-sensitive return point.
+	if err := discardSearchFamily(layout, layout.SearchDB, SearchDatabaseName); err != nil {
+		return err
+	}
+	if err := rename(layout.SearchStagingDB, layout.SearchDB); err != nil {
+		return fmt.Errorf("promote staged search database after reconciliation: %w", err)
 	}
 	if err := verifyControlFile(layout.SearchDB); err != nil {
 		return fmt.Errorf("%w: %s: %v", ErrControlFileUnsafe, layout.SearchDB, err)

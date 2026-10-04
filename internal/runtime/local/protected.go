@@ -18,6 +18,8 @@ import (
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
 )
 
+const protectedSearchCommitVerifyTimeout = 5 * time.Minute
+
 type ProtectedIndexOptions struct {
 	Root       string
 	ControlDir string
@@ -178,6 +180,13 @@ func preflightProtectedSearchRecovery(ctx context.Context, root string, layout c
 		return nil
 	}
 
+	// Full read-only verification is the fail-closed authority gate for recovery.
+	// Selected scan/receipt reads below are insufficient to detect localized
+	// SQLite integrity or foreign-key corruption outside the active local scope.
+	if err := sqlitestate.VerifyReadOnly(ctx, layout.StateDB); err != nil {
+		return err
+	}
+
 	state, err := sqlitestate.OpenReadOnly(ctx, layout.StateDB)
 	if err != nil {
 		return err
@@ -227,7 +236,7 @@ func defaultProtectedSearchRecoveryOps() protectedSearchRecoveryOps {
 		discardStaging:  controlstorage.DiscardStagedSearchFamily,
 		verifyCandidate: verifyProtectedSearchCandidate,
 		reconcileActive: reconcileActiveSearchSQLiteFamily,
-		promote:         controlstorage.PromoteStagedSearch,
+		promote:         controlstorage.PromoteStagedSearchAfterReconcile,
 	}
 }
 
@@ -305,10 +314,23 @@ func bootstrapProtectedIndex(
 	if err := ops.reconcileActive(ctx, layout); err != nil {
 		return IndexResult{}, err
 	}
+	if err := ctx.Err(); err != nil {
+		return IndexResult{}, err
+	}
+	// Promotion is the commit boundary for derived search recovery. Once this
+	// final cancellation gate has passed, caller cancellation must not turn a
+	// completed promotion into a reported cancellation with staging already
+	// consumed. Preserve context values but detach cancellation/deadline for
+	// the bounded local commit verification phase.
+	commitCtx, cancelCommitVerify := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		protectedSearchCommitVerifyTimeout,
+	)
+	defer cancelCommitVerify()
 	if err := ops.promote(layout); err != nil {
 		return IndexResult{}, err
 	}
-	if err := ops.verifyCandidate(ctx, layout.SearchDB, expected); err != nil {
+	if err := ops.verifyCandidate(commitCtx, layout.SearchDB, expected); err != nil {
 		return IndexResult{}, err
 	}
 	if err := controlstorage.Verify(layout.Dir); err != nil {
@@ -337,16 +359,34 @@ func reconcileActiveSearchSQLiteFamily(ctx context.Context, layout controlstorag
 		return nil
 	}
 
-	// Keep the SQLite family under its original names and let SQLite perform
-	// any legitimate hot-journal/WAL recovery itself. This is derived state
-	// only and runs after the staged replacement has already been fully built
-	// and verified. Any error fails closed and leaves staging for retry.
-	index, err := searchsqlite.Open(ctx, layout.SearchDB)
-	if err != nil {
-		return fmt.Errorf("reconcile active search SQLite family: %w", err)
+	// Keep the SQLite family under its original names and let SQLite attempt
+	// legitimate hot-journal/WAL recovery. Reconciliation never removes the
+	// active family: all deletion is part of the subsequent promotion step,
+	// after the caller's final cancellation gate.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	index, openErr := searchsqlite.Open(ctx, layout.SearchDB)
+	if openErr != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return errors.Join(
+				fmt.Errorf("reconcile active search SQLite family: %w", openErr),
+				ctxErr,
+			)
+		}
+		if errors.Is(openErr, context.Canceled) || errors.Is(openErr, context.DeadlineExceeded) {
+			return fmt.Errorf("reconcile active search SQLite family: %w", openErr)
+		}
+		// Non-cancellation failure classifies only this rebuildable derived
+		// family as unreconciled. Do not delete it here: promotion owns exact
+		// family disposal after the final cancellation gate.
+		return nil
 	}
 	if err := index.Close(); err != nil {
 		return fmt.Errorf("close reconciled active search SQLite family: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return nil
 }

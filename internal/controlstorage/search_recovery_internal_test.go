@@ -55,3 +55,83 @@ func TestPromoteStagedSearchRenameFailureLeavesDeterministicRetryState(t *testin
 		t.Fatalf("staging survived successful retry: %v", err)
 	}
 }
+
+func TestPromoteStagedSearchAfterReconcileDeletesExactDerivedFamily(t *testing.T) {
+	layout, err := Prepare(filepath.Join(t.TempDir(), "control"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBytes := []byte("state-authority-unchanged")
+	stagingBytes := []byte("verified-staging")
+	if err := os.WriteFile(layout.StateDB, stateBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(layout.SearchStagingDB, stagingBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for path, data := range map[string][]byte{
+		layout.SearchDB:              []byte("corrupt-derived-main"),
+		layout.SearchDB + "-journal": []byte("derived-journal"),
+		layout.SearchDB + "-wal":     []byte("derived-wal"),
+		layout.SearchDB + "-shm":     []byte("derived-shm"),
+	} {
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := PromoteStagedSearchAfterReconcile(layout); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{layout.SearchDB + "-journal", layout.SearchDB + "-wal", layout.SearchDB + "-shm"} {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("active derived sidecar survived promotion: %s err=%v", path, err)
+		}
+	}
+	if got, err := os.ReadFile(layout.SearchDB); err != nil || string(got) != string(stagingBytes) {
+		t.Fatalf("promoted search bytes=%q err=%v", got, err)
+	}
+	if _, err := os.Lstat(layout.SearchStagingDB); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("staging survived promotion: %v", err)
+	}
+	if got, err := os.ReadFile(layout.StateDB); err != nil || string(got) != string(stateBytes) {
+		t.Fatalf("state authority changed: bytes=%q err=%v", got, err)
+	}
+}
+
+func TestPromoteStagedSearchAfterReconcileUnsafeSidecarIsZeroMutation(t *testing.T) {
+	layout, err := Prepare(filepath.Join(t.TempDir(), "control"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mainBytes := []byte("derived-main-must-survive")
+	stagingBytes := []byte("staging-must-survive")
+	if err := os.WriteFile(layout.SearchDB, mainBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(layout.SearchStagingDB, stagingBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "outside-target")
+	targetBytes := []byte("outside-must-not-change")
+	if err := os.WriteFile(target, targetBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, layout.SearchDB+"-wal"); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	err = PromoteStagedSearchAfterReconcile(layout)
+	if !errors.Is(err, ErrControlFileUnsafe) {
+		t.Fatalf("error=%v want ErrControlFileUnsafe", err)
+	}
+	if got, err := os.ReadFile(layout.SearchDB); err != nil || string(got) != string(mainBytes) {
+		t.Fatalf("active main changed despite unsafe sidecar: bytes=%q err=%v", got, err)
+	}
+	if got, err := os.ReadFile(layout.SearchStagingDB); err != nil || string(got) != string(stagingBytes) {
+		t.Fatalf("staging changed despite unsafe sidecar: bytes=%q err=%v", got, err)
+	}
+	if got, err := os.ReadFile(target); err != nil || string(got) != string(targetBytes) {
+		t.Fatalf("external target changed: bytes=%q err=%v", got, err)
+	}
+}
