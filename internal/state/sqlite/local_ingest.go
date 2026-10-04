@@ -365,8 +365,9 @@ func (s *Store) LatestBootstrapLocalIngestCommit(
 	ctx context.Context,
 	providerID corpus.ProviderID,
 	root string,
+	fingerprintVersion string,
 ) (LocalIngestCommitReceipt, bool, error) {
-	if providerID == "" || root == "" {
+	if providerID == "" || root == "" || fingerprintVersion == "" {
 		return LocalIngestCommitReceipt{}, false, ErrInvalidLocalIngestCommit
 	}
 	conn, err := s.pool.Get(ctx)
@@ -374,13 +375,14 @@ func (s *Store) LatestBootstrapLocalIngestCommit(
 		return LocalIngestCommitReceipt{}, false, fmt.Errorf("get state connection: %w", err)
 	}
 	defer s.pool.Put(conn)
-	return latestBootstrapLocalIngestCommitConn(conn, providerID, root)
+	return latestBootstrapLocalIngestCommitConn(conn, providerID, root, fingerprintVersion)
 }
 
 func latestBootstrapLocalIngestCommitConn(
 	conn *sqlite.Conn,
 	providerID corpus.ProviderID,
 	root string,
+	fingerprintVersion string,
 ) (LocalIngestCommitReceipt, bool, error) {
 	type candidate struct {
 		receipt  LocalIngestCommitReceipt
@@ -412,10 +414,11 @@ LEFT JOIN scan_completion_authorities a ON a.scan_id=c.scan_id
 WHERE c.provider_id=?1
   AND c.root=?2
   AND c.ingest_mode='BOOTSTRAP'
+  AND c.snapshot_fingerprint_version=?4
   AND s.status='COMPLETE'
   AND s.finished_at IS NOT NULL
 `, &sqlitex.ExecOptions{
-		Args: []any{string(providerID), root, bootstrapNoPriorObservationHistoryProof},
+		Args: []any{string(providerID), root, bootstrapNoPriorObservationHistoryProof, fingerprintVersion},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			scanID := corpus.ScanSessionID(stmt.ColumnText(0))
 			started, err := time.Parse(time.RFC3339Nano, stmt.ColumnText(1))
@@ -472,10 +475,11 @@ WHERE c.provider_id=?1
 		return selected.receipt, true, nil
 	}
 	return LocalIngestCommitReceipt{}, false, fmt.Errorf(
-		"%w: bootstrap receipt provider=%s root=%s finished_at=%s candidates=%d",
+		"%w: bootstrap receipt provider=%s root=%s fingerprint_version=%s finished_at=%s candidates=%d",
 		ErrAmbiguousScanAuthority,
 		providerID,
 		root,
+		fingerprintVersion,
 		latestFinished.Format(time.RFC3339Nano),
 		len(latest),
 	)
