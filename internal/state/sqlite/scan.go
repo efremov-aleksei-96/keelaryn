@@ -15,7 +15,8 @@ import (
 var (
 	ErrInvalidScan            = errors.New("invalid scan session")
 	ErrScanNotFound           = errors.New("scan session not found")
-	ErrScanNotOpen            = errors.New("scan session is not open")\n\tErrScanNotComplete        = errors.New("scan session is not complete")
+	ErrScanNotOpen            = errors.New("scan session is not open")
+\tErrScanNotComplete        = errors.New("scan session is not complete")
 	ErrScanScopeMismatch      = errors.New("observation does not match scan scope")
 	ErrAmbiguousScanAuthority = errors.New("ambiguous current COMPLETE scan authority")
 )
