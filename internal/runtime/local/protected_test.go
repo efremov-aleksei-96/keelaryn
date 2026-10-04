@@ -193,10 +193,17 @@ func TestProtectedRuntimeOrphanStateSidecarWithoutMainFailsClosed(t *testing.T) 
 	if got := mustReadFile(t, sidecar); string(got) != string(sidecarBytes) {
 		t.Fatal("orphan state sidecar was mutated")
 	}
-	for _, path := range []string{layout.SearchDB, layout.SearchStagingDB, layout.SearchLock} {
+	for _, path := range []string{layout.SearchDB, layout.SearchStagingDB} {
 		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("search recovery mutation started before missing state failed closed: %s err=%v", path, err)
+			t.Fatalf("derived search mutation started before missing state failed closed: %s err=%v", path, err)
 		}
+	}
+	lockInfo, err := os.Lstat(layout.SearchLock)
+	if err != nil {
+		t.Fatalf("coordination-only search lock was not created before post-lock authority preflight: %v", err)
+	}
+	if !lockInfo.Mode().IsRegular() || lockInfo.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("search lock is not a safe regular coordination file: mode=%v", lockInfo.Mode())
 	}
 }
 
