@@ -4831,7 +4831,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": "NONE",
-    "unlock_condition": "POST_P0_02A_CONTRACT_EXACT_HEAD_CI_AND_REVIEW_PASS",
+    "unlock_condition": "POST_P0_02A_CONTRACT_INTEGRATED_AFTER_EXACT_HEAD_CI_AND_REVIEW_PASS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -6449,7 +6449,7 @@
     "current_substage": "POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT_FROZEN",
     "contract": "docs/POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT.md",
     "substage_02a": {
-      "status": "CONTRACT_FROZEN_PENDING_EXACT_HEAD_QUALIFICATION",
+      "status": "CONTRACT_FROZEN",
       "audited_head": "53aae26000fad9da759c94e88a4cecb3a06a8cc1",
       "product_runtime_mutation": false,
       "schema_change": false,
@@ -6503,7 +6503,8 @@
         "Watchman clocks/fresh-instance/recrawl semantics are useful optional desktop/server hints but a daemon is not required for the ordinary-user baseline",
         "Windows USN journal is a possible qualified Windows accelerator with journal-id/USN gap detection, but privilege/filesystem constraints prohibit it as the portable default",
         "Android SAF belongs in a provider-specific adapter with provider document IDs; POSIX path/inode semantics must not leak into Android identity"
-      ]
+      ],
+      "qualification_rule": "Integrate revision 240 only after exact-head validate + Ubuntu 24.04 + Windows 2025 PASS and exact-head review; authoritative integration is the durable qualification boundary."
     }
   }
 }
