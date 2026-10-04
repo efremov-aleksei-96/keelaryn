@@ -1,0 +1,21 @@
+{
+  "schema": "keelaryn.work-claim-marker.v1",
+  "claim_issue": 143,
+  "lane": "SOL",
+  "work_unit": "POST-P0-02C1-LOCAL-ATTEMPT-PROVENANCE",
+  "base_sha": "c2ca5fbdf5eb8b913a35c235fa4071f07ab0d094",
+  "scope": [
+    "internal/state/sqlite/store.go",
+    "internal/state/sqlite/scan.go",
+    "internal/state/sqlite/local_attempt.go",
+    "internal/state/sqlite/local_attempt_test.go",
+    "internal/state/sqlite/local_attempt_migration_test.go",
+    "internal/ingest/localfs.go",
+    "targeted LocalFS attempt fingerprint/tests if required"
+  ],
+  "depends_on": [
+    "revision 242 integration c2ca5fbdf5eb8b913a35c235fa4071f07ab0d094",
+    "docs/POST_P0_02C_SOURCE_BOUND_LOCAL_ATTEMPT_CONTRACT.md"
+  ],
+  "lease_until": "2026-10-04T15:25:00Z"
+}
