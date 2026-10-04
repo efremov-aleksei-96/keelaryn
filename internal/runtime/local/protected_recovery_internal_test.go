@@ -422,6 +422,8 @@ func TestProtectedRecoveryCancellationDuringPromotionDoesNotOverrideCommittedRes
 
 	ops := defaultProtectedSearchRecoveryOps()
 	basePromote := ops.promote
+	baseVerify := ops.verifyCandidate
+	commitVerificationObserved := false
 	ops.promote = func(got controlstorage.Layout) error {
 		if err := basePromote(got); err != nil {
 			return err
@@ -431,12 +433,32 @@ func TestProtectedRecoveryCancellationDuringPromotionDoesNotOverrideCommittedRes
 		cancel()
 		return nil
 	}
+	ops.verifyCandidate = func(callCtx context.Context, path string, expected searchsqlite.SourceBoundary) error {
+		if filepath.Clean(path) == filepath.Clean(layout.SearchDB) {
+			commitVerificationObserved = true
+			if callCtx.Err() != nil {
+				t.Fatalf("commit verification inherited caller cancellation: %v", callCtx.Err())
+			}
+			deadline, ok := callCtx.Deadline()
+			if !ok {
+				t.Fatal("commit verification has no independent deadline")
+			}
+			remaining := time.Until(deadline)
+			if remaining <= 0 || remaining > protectedSearchCommitVerifyTimeout {
+				t.Fatalf("commit verification deadline remaining=%v bound=%v", remaining, protectedSearchCommitVerifyTimeout)
+			}
+		}
+		return baseVerify(callCtx, path, expected)
+	}
 
 	if _, err := bootstrapProtectedIndex(ctx, options, ops); err != nil {
 		t.Fatalf("committed promotion was incorrectly overridden by cancellation: %v", err)
 	}
 	if ctx.Err() != context.Canceled {
 		t.Fatalf("test did not cancel caller context: %v", ctx.Err())
+	}
+	if !commitVerificationObserved {
+		t.Fatal("bounded post-promotion verification was not observed")
 	}
 	if _, err := os.Lstat(layout.SearchStagingDB); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("staging survived committed promotion: %v", err)

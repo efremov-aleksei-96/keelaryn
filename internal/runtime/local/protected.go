@@ -18,6 +18,8 @@ import (
 	sqlitestate "github.com/efremov-aleksei-96/keelaryn/internal/state/sqlite"
 )
 
+const protectedSearchCommitVerifyTimeout = 5 * time.Minute
+
 type ProtectedIndexOptions struct {
 	Root       string
 	ControlDir string
@@ -320,7 +322,11 @@ func bootstrapProtectedIndex(
 	// completed promotion into a reported cancellation with staging already
 	// consumed. Preserve context values but detach cancellation/deadline for
 	// the bounded local commit verification phase.
-	commitCtx := context.WithoutCancel(ctx)
+	commitCtx, cancelCommitVerify := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		protectedSearchCommitVerifyTimeout,
+	)
+	defer cancelCommitVerify()
 	if err := ops.promote(layout); err != nil {
 		return IndexResult{}, err
 	}
