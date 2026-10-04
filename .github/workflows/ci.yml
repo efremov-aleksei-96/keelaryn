@@ -41,6 +41,7 @@ jobs:
           allowed_phase_products = {
               ("P0_CLOSURE_QUALIFICATION", "P0_PROOF_PASS_PENDING_EXACT_HEAD_CI"),
               ("POST_P0_RELIABILITY", "P0_CLOSED"),
+              ("POST_P0_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION", "P0_CLOSED"),
           }
           assert phase_product in allowed_phase_products
           assert "C0_CLOSED" in state["completed"]

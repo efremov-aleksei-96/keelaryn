@@ -1,10 +1,10 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 238,
+  "revision": 239,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
-  "phase": "POST_P0_RELIABILITY",
+  "phase": "POST_P0_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
   "status": "IN_PROGRESS",
   "product_level": "P0_CLOSED",
   "language_direction": "GO",
@@ -212,12 +212,13 @@
     "POST_P0_01B_PROTECTED_RECOVERY_SINGLE_PREFLIGHT_QUALIFIED",
     "POST_P0_01_ITEM1_CLOSURE_AUDIT_PASS",
     "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY_COMPLETE",
-    "POST_P0_01_FULL_ENGINEERING_RETROSPECTIVE_PASS"
+    "POST_P0_01_FULL_ENGINEERING_RETROSPECTIVE_PASS",
+    "POST_P0_02_PHASE_TRANSITION_TO_INCREMENTAL_OBSERVATION"
   ],
   "next_objective": {
-    "id": "POST_P0_02_PHASE_TRANSITION_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
-    "description": "Canonical post-P0 item 1 (reliability and deterministic recovery) is complete and qualified. The next mutation is a separate state/CI phase transition to item 2, incremental local/provider observation. Do not begin item-2 product implementation until that transition updates the top-level phase and validation allowlist and qualifies on its exact head.",
-    "audit_gate": "POST_P0_01_FULL_ENGINEERING_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL"
+    "id": "POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT_AND_BASELINE",
+    "description": "Begin canonical post-P0 item 2 with a bounded provider-neutral contract/reuse audit before product mutation. Preserve complete-scan inventory as the correctness baseline; treat watcher/change-feed events as hints unless they carry durable gap-aware cursor semantics; and prove repeated LocalFS observation cannot silently replace accepted Artifact/Revision assignments or invalidate source-bound search.",
+    "audit_gate": "POST_P0_02_PHASE_TRANSITION_EXACT_HEAD_CI_PASS"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -4820,15 +4821,15 @@
     "last_retrospective": "docs/POST_P0_01B_PROTECTED_RECOVERY_RETROSPECTIVE_20261004.md",
     "last_retrospective_result": "PASS_FULL_AUDIT_ZERO_NEW_BLOCKER_CRITICAL_ITEM1_COMPLETE",
     "substantive_slice_counter": 0,
-    "current_stage": "POST_P0_RELIABILITY",
+    "current_stage": "POST_P0_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
     "audit_loop_mode": "FULL_COLLECTION_THEN_COMPLETE_CRITICAL_REMEDIATION_SET_THEN_FULL_REAUDIT",
     "clean_pass_required": false,
     "clean_pass_definition": "ONE_COMPLETE_POST_REMEDIATION_AUDIT_PASS_ACROSS_ALL_REQUIRED_DIMENSIONS_WITH_ZERO_OPEN_BLOCKER_OR_CRITICAL_FINDINGS",
     "on_any_new_finding": "DURING_COLLECTION_RECORD_AND_CONTINUE; DURING_REMEDIATION RECORD_AND_ADD_ANY_NEW_BLOCKER_OR_CRITICAL_TO_THE_CURRENT_REMEDIATION_SET_WITHOUT_STARTING_A_FULL_REAUDIT",
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
-    "next_stage_locked": true,
-    "blocked_next_stage": "POST_P0_02_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION_PRODUCT_IMPLEMENTATION",
+    "next_stage_locked": false,
+    "blocked_next_stage": "NONE",
     "unlock_condition": "POST_P0_02_PHASE_TRANSITION_EXACT_HEAD_CI_PASS",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
@@ -6413,6 +6414,36 @@
         "LUNA_READY",
         "EITHER_PROFILE"
       ]
+    }
+  },
+  "post_p0_02": {
+    "status": "IN_PROGRESS",
+    "objective": "INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
+    "phase_transition": {
+      "from": "POST_P0_RELIABILITY",
+      "to": "POST_P0_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
+      "base_head": "01faa6023b57b0731da1f032bc87afcac7e98421",
+      "revision": 239,
+      "scope": "DEVELOPMENT_STATE.json + .github/workflows/ci.yml only",
+      "product_runtime_mutation": false,
+      "prerequisite": "POST_P0_01_FULL_ENGINEERING_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL",
+      "qualification": "PENDING_EXACT_HEAD_CI_AND_REVIEW"
+    },
+    "first_substage": "POST_P0_02A_INCREMENTAL_OBSERVATION_CONTRACT_AND_BASELINE",
+    "initial_constraints": [
+      "FULL_COMPLETE_SCAN_REMAINS_CORRECTNESS_BASELINE",
+      "WATCHER_OR_CHANGE_EVENT_IS_HINT_NOT_IDENTITY_OR_COMPLETENESS_AUTHORITY_WITHOUT_DURABLE_GAP_AWARE_CURSOR_CONTRACT",
+      "LOCALFS_SUPPORTING_CONTINUITY_EVIDENCE_MUST_NOT_AUTO_MUTATE_ARTIFACT_IDENTITY",
+      "REMOTE_HISTORY_DURABLE_CURSOR_AUTHORITY_REMAINS_PROVIDER_HISTORY_SPECIFIC",
+      "REPEATED_LOCAL_OBSERVATION_MUST_NOT_SILENTLY_REPLACE_ACCEPTED_CURRENT_INVENTORY_WITH_UNRESOLVED_ASSIGNMENTS",
+      "SOURCE_BOUND_SEARCH_MUST_REMAIN_BOUND_TO_AN_ACCEPTED_AUTHORITATIVE_SCAN_BOUNDARY"
+    ],
+    "read_only_design_evidence": {
+      "project_observation_policy": "Full scans are the correctness baseline; incremental provider history/watchers are the optimization path.",
+      "current_localfs": "ingest.LocalFS can atomically commit a complete repeated snapshot, but its observations are unresolved; Inventory selects the latest COMPLETE scan.",
+      "continuity_model": "LocalFS locator/content/os.SameFile reconciliation emits SUPPORTING evidence only and cannot itself authorize Artifact identity mutation.",
+      "watchman": "Potential optional desktop/server hint source with clock/fresh-instance semantics; not a required default because it is a separate daemon and does not establish Keelaryn Artifact identity.",
+      "decision": "First item-2 substage must define safe repeated-observation publication/acceptance semantics before any watcher is allowed to drive current inventory."
     }
   }
 }
