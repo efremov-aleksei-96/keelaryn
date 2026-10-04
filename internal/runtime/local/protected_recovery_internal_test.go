@@ -370,7 +370,7 @@ func TestReconcileActiveSearchFamilyCancellationPreservesActiveFamily(t *testing
 	}
 }
 
-func TestProtectedRecoveryCancellationAfterReconcileBeforePromotionPreservesActiveAndStaging(t *testing.T) {
+func TestProtectedRecoveryCancellationAfterRealReconcileBeforePromotionPreservesActiveAndStaging(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	root, _, options, layout := newProtectedRecoveryFixture(t, "cancel before promotion", 45)
 	authorityBefore := protectedRecoveryAuthority(t, context.Background(), layout.StateDB, root)
@@ -379,9 +379,16 @@ func TestProtectedRecoveryCancellationAfterReconcileBeforePromotionPreservesActi
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(layout.SearchDB+"-shm", make([]byte, 32*1024), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	ops := defaultProtectedSearchRecoveryOps()
-	ops.reconcileActive = func(context.Context, controlstorage.Layout) error {
+	baseReconcile := ops.reconcileActive
+	ops.reconcileActive = func(callCtx context.Context, got controlstorage.Layout) error {
+		if err := baseReconcile(callCtx, got); err != nil {
+			return err
+		}
 		cancel()
 		return nil
 	}
