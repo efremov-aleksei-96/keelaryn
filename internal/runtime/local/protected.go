@@ -351,6 +351,9 @@ func reconcileActiveSearchSQLiteFamily(ctx context.Context, layout controlstorag
 	// perform legitimate hot-journal/WAL recovery. The staged replacement is
 	// already complete and verified, but context cancellation is control flow,
 	// not evidence that the active family is corrupt or disposable.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	index, openErr := searchsqlite.Open(ctx, layout.SearchDB)
 	if openErr != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
