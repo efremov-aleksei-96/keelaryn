@@ -3607,7 +3607,8 @@ CREATE INDEX local_attempt_sources_predecessor_v47
 
 CREATE TRIGGER local_attempt_sources_scope_guard_v47
 BEFORE INSERT ON local_attempt_sources
-WHEN NEW.predecessor_fingerprint_version<>'localfs-snapshot:v1'
+WHEN NEW.provider_id<>'localfs'
+  OR NEW.predecessor_fingerprint_version<>'localfs-snapshot:v1'
   OR NEW.snapshot_fingerprint_version<>'localfs-attempt-source:v1'
   OR NOT EXISTS (
 	SELECT 1

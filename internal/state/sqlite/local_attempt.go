@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	LocalAttemptSourceFingerprintVersion      = "localfs-attempt-source:v1"
+	LocalAttemptSourceFingerprintVersion       = "localfs-attempt-source:v1"
 	qualifiedLocalBootstrapFingerprintVersion = "localfs-snapshot:v1"
+	qualifiedLocalAttemptProviderID            = corpus.ProviderID("localfs")
 
 	localAttemptSourceAuthorizationFunction = "keelaryn_local_attempt_source_authorized_v47"
 	localAttemptAbortAuthorizationFunction  = "keelaryn_local_attempt_abort_authorized_v47"
@@ -243,7 +244,7 @@ func validLocalAttemptRequest(
 ) bool {
 	return predecessor.Bootstrap &&
 		predecessor.Scan.ID != "" &&
-		predecessor.Scan.ProviderID != "" &&
+		predecessor.Scan.ProviderID == qualifiedLocalAttemptProviderID &&
 		predecessor.Scan.Root != "" &&
 		predecessor.Scan.Status == corpus.ScanComplete &&
 		!predecessor.Scan.StartedAt.IsZero() &&
@@ -507,7 +508,8 @@ LEFT JOIN bootstrap_scan_authorities b
   ON b.scan_id=a.predecessor_scan_id
  AND b.proof_kind='NO_PRIOR_OBSERVATION_HISTORY:v1'
  AND b.proven_at=a.predecessor_started_at
-WHERE s.scan_id IS NULL
+WHERE a.provider_id<>'localfs'
+   OR s.scan_id IS NULL
    OR s.provider_id<>a.provider_id
    OR s.root<>a.root
    OR s.started_at<>a.started_at

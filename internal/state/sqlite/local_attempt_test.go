@@ -84,6 +84,34 @@ func TestLocalAttemptStartReplayConflictAndGuardedAbort(t *testing.T) {
 	}
 }
 
+
+func TestLocalAttemptRejectsNonLocalProviderReceipt(t *testing.T) {
+	ctx := context.Background()
+	store := openLocalAttemptStore(t)
+	at := time.Date(2026, 10, 4, 10, 0, 0, 0, time.UTC)
+	scan, err := store.CommitBootstrapLocalSnapshot(
+		ctx, "other-provider", "/corpus", at,
+		qualifiedLocalBootstrapFingerprintVersion, strings.Repeat("a", 64), nil,
+		func(context.Context) error { return nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt, found, err := store.LocalIngestCommitAtBoundary(ctx, "other-provider", scan.Root, at, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Fatal("other-provider bootstrap receipt not found")
+	}
+	if _, _, err := store.StartLocalAttempt(
+		ctx, receipt, at.Add(time.Minute),
+		LocalAttemptSourceFingerprintVersion, strings.Repeat("b", 64),
+	); !errors.Is(err, ErrInvalidLocalAttemptSource) {
+		t.Fatalf("non-LocalFS attempt error=%v, want ErrInvalidLocalAttemptSource", err)
+	}
+}
+
 func TestLocalAttemptRejectsNonCurrentPredecessorAndRawSQLProvenance(t *testing.T) {
 	ctx := context.Background()
 	store := openLocalAttemptStore(t)
