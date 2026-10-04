@@ -1,6 +1,6 @@
 {
   "schema": "keelaryn.development-state.v2",
-  "revision": 237,
+  "revision": 238,
   "repository": "efremov-aleksei-96/keelaryn",
   "authoritative_branch": "dev/corpus-first-p0",
   "architecture_authority": "KEELARYN_CANONICAL.md",
@@ -208,12 +208,15 @@
     "LUNA_DISCOVERY_CROSS_BASELINE_CARRY_FORWARD_ADOPTED",
     "LUNA_ROLLING_DISCOVERY_BACKLOG_V2_ADOPTED",
     "POST_P0_01A_DERIVED_SEARCH_RECOVERY_QUALIFIED",
-    "POST_P0_01A_BOUNDARY_RETROSPECTIVE_PASS"
+    "POST_P0_01A_BOUNDARY_RETROSPECTIVE_PASS",
+    "POST_P0_01B_PROTECTED_RECOVERY_SINGLE_PREFLIGHT_QUALIFIED",
+    "POST_P0_01_ITEM1_CLOSURE_AUDIT_PASS",
+    "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY_COMPLETE"
   ],
   "next_objective": {
-    "id": "POST_P0_01_RELIABILITY_AND_DETERMINISTIC_RECOVERY",
-    "description": "POST-P0-01A derived-search recovery is qualified. Before advancing canonical growth order to item 2, run a bounded item-1 closure audit over currently reachable reliability/recovery surfaces and carried findings. Either select the next bounded POST-P0-01 reliability substage or prove item 1 complete; begin read-only and reuse existing authority/recovery primitives.",
-    "audit_gate": "POST_P0_01A_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL"
+    "id": "POST_P0_02_PHASE_TRANSITION_INCREMENTAL_LOCAL_PROVIDER_OBSERVATION",
+    "description": "Canonical post-P0 item 1 (reliability and deterministic recovery) is complete and qualified. The next mutation is a separate state/CI phase transition to item 2, incremental local/provider observation. Do not begin item-2 product implementation until that transition updates the top-level phase and validation allowlist and qualifies on its exact head.",
+    "audit_gate": "POST_P0_01_ITEM1_CLOSURE_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL"
   },
   "approved_drive_plan": {
     "archive_root_id": "1W442cn02FSO-Y87itsmjhwOcdkF95N1k",
@@ -2629,10 +2632,10 @@
     "mode": "PER_SUBSTANTIVE_STAGE_PLUS_EVENT_TRIGGERS",
     "maximum_qualified_substantive_slices_between_retrospectives": 1,
     "last_retrospective": {
-      "head": "df97c5aade9fc901f033550419a983108a5f4957",
-      "document": "docs/POST_P0_01A_DERIVED_SEARCH_RECOVERY_RETROSPECTIVE_20261004.md",
-      "ci_run_id": 37190663978,
-      "conclusion": "PASS_ZERO_NEW_BLOCKER_CRITICAL"
+      "head": "73966add49b16c56d47b5a2f2d55e20737e7cd52",
+      "document": "docs/POST_P0_01B_PROTECTED_RECOVERY_RETROSPECTIVE_20261004.md",
+      "ci_run_id": 37194324271,
+      "conclusion": "PASS_ZERO_NEW_BLOCKER_CRITICAL_ITEM1_COMPLETE"
     },
     "substantive_slices_since_last_retrospective": 0,
     "mandatory_triggers": [
@@ -4808,8 +4811,8 @@
     }
   },
   "audit": {
-    "last_retrospective": "docs/POST_P0_01A_DERIVED_SEARCH_RECOVERY_RETROSPECTIVE_20261004.md",
-    "last_retrospective_result": "PASS_ZERO_NEW_BLOCKER_CRITICAL",
+    "last_retrospective": "docs/POST_P0_01B_PROTECTED_RECOVERY_RETROSPECTIVE_20261004.md",
+    "last_retrospective_result": "PASS_ZERO_NEW_BLOCKER_CRITICAL_ITEM1_COMPLETE",
     "substantive_slice_counter": 0,
     "current_stage": "POST_P0_RELIABILITY",
     "rule_after_failed_closure": "ANY_FAILED_CLOSURE_OR_NEW_DEFECT_REQUIRES_FIX_THEN_FULL_AUDIT_FROM_SCRATCH",
@@ -4820,7 +4823,7 @@
     "on_failed_closure": "DO_NOT_START_DEPENDENT_DEVELOPMENT; REMEDIATE_THE_COMPLETE_CURRENT_BLOCKER_CRITICAL_SET_THEN_RUN_ONE_FULL_AUDIT_FROM_SCRATCH",
     "next_stage_locked": false,
     "blocked_next_stage": "NONE",
-    "unlock_condition": "POST_P0_01A_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL",
+    "unlock_condition": "POST_P0_01_ITEM1_CLOSURE_RETROSPECTIVE_PASS_ZERO_BLOCKER_CRITICAL",
     "last_audit_harness_failure": {
       "head": "c08767705f6662729cf39ab91fc4842b4b844e5a",
       "kind": "READ_ONLY_AUDIT_COMMAND_SHELL_BACKTICK_PARSE_FAILURE",
@@ -6114,9 +6117,9 @@
     ]
   },
   "post_p0_01": {
-    "status": "IN_PROGRESS",
+    "status": "COMPLETE_QUALIFIED_PENDING_PHASE_TRANSITION",
     "objective": "RELIABILITY_AND_DETERMINISTIC_RECOVERY",
-    "current_substage": "POST_P0_01A_DERIVED_SEARCH_RECOVERY_QUALIFIED",
+    "current_substage": "POST_P0_01B_PROTECTED_RECOVERY_SINGLE_PREFLIGHT_QUALIFIED",
     "initial_implementation_handoff": "e40a04def266cd39bf75b60662787909cc2d652b",
     "initial_integration_head": "e5047c925f2d782d6823e4dc29cbae9b7ec6337c",
     "corrective_handoff": "e6d7bca917bcbb07f450db5dbfc89d37c9470cb5",
@@ -6174,7 +6177,7 @@
       "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY",
       "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE"
     ],
-    "growth_order_decision": "POST-P0-01A derived-search recovery is qualified, but this retrospective does not by itself close canonical item 1. Keep POST_P0_RELIABILITY current and run a bounded item-1 closure audit before advancing to incremental local/provider observation. Release rollback/backup, Android portability, tokeninfo availability and repository metadata remain scoped by their existing gates.",
+    "growth_order_decision": "Canonical post-P0 item 1 is complete and qualified after POST-P0-01A deterministic derived-search recovery plus POST-P0-01B single-preflight hardening. Keep phase POST_P0_RELIABILITY only until a separate state/CI transition mutation qualifies; then advance to item 2 incremental local/provider observation. Later release rollback, Android portability, production live-provider credential availability, and repository metadata remain explicitly carried gates.",
     "qualification_base_ci_run_id": 37190663978,
     "resolved_prerequisites": [
       {
@@ -6191,7 +6194,82 @@
         "qualification_ci": 36405348001,
         "resolution": "LocalFS completion performs final provider revalidation inside the same durable transaction before COMPLETE; bootstrap re-snapshots and re-hashes regular-file content so membership/metadata/content drift rolls back the whole batch."
       }
-    ]
+    ],
+    "substage_01b": {
+      "objective": "PROTECTED_RECOVERY_SINGLE_FULL_PREFLIGHT",
+      "contract": "docs/POST_P0_01B_PROTECTED_RECOVERY_SINGLE_PREFLIGHT_CONTRACT.md",
+      "handoff_head": "7066fc327c188cd3fd90d4b44e61e52068230e93",
+      "integration_head": "73966add49b16c56d47b5a2f2d55e20737e7cd52",
+      "integration_claim": 122,
+      "pr": 121,
+      "ci_run_id": 37194324271,
+      "ci": "validate + Ubuntu 24.04 + Windows 2025 PASS; dependency lock, all Go tests and Go vet PASS",
+      "codex_review": "exact-head clean on 7066fc327c188cd3fd90d4b44e61e52068230e93",
+      "sol_review": "exact-head semantic review PASS; frozen candidate integrated by conditional fast-forward with identical tree",
+      "retrospective": "docs/POST_P0_01B_PROTECTED_RECOVERY_RETROSPECTIVE_20261004.md",
+      "dependencies_added": 0,
+      "schema_change": false,
+      "public_api_change": false,
+      "corpus_mutations": 0,
+      "authority_mutations": 0,
+      "result": "QUALIFIED",
+      "performance_claim": "On completed-scan recovery, removes one duplicate full state verification and one duplicate corpus-fingerprint traversal; with existing state but no COMPLETE scan, removes one duplicate full state verification. No benchmarked wall-time claim.",
+      "invariants": [
+        "SEARCH_LOCK_REMAINS_COORDINATION_ONLY_NOT_AUTHORITY",
+        "ONE_FULL_STATE_AND_CORPUS_PREFLIGHT_RUNS_AFTER_SEARCH_LOCK_AND_BEFORE_FIRST_DERIVED_SEARCH_FAMILY_MUTATION",
+        "FULL_STATE_DB_INTEGRITY_AND_FOREIGN_KEY_VERIFICATION_IS_NOT_WEAKENED",
+        "BOOTSTRAP_INDEX_REPLAY_REVALIDATION_AROUND_SOURCE_READS_REMAINS_UNCHANGED",
+        "PROMOTION_REMAINS_THE_DERIVED_SEARCH_COMMIT_BOUNDARY",
+        "STATE_DB_AND_USER_CORPUS_ARE_NOT_MUTATED_BY_SEARCH_RECOVERY"
+      ],
+      "regression_proof": [
+        "lock contention returns before corrupt-state full preflight and changes no active/staged search family",
+        "the same corrupt state fails closed after lock acquisition before staging disposal",
+        "orphan authoritative state sidecar still blocks derived DB creation while coordination-only search.lock is permitted",
+        "all POST-P0-01A recovery/cancellation/failure-window regressions remain green on Ubuntu and Windows"
+      ]
+    },
+    "closure_audit": {
+      "result": "PASS_ZERO_CURRENT_ITEM1_BLOCKER_CRITICAL",
+      "audited_authoritative_head": "73966add49b16c56d47b5a2f2d55e20737e7cd52",
+      "qualified_substages": [
+        "POST_P0_01A_DERIVED_SEARCH_RECOVERY",
+        "POST_P0_01B_PROTECTED_RECOVERY_SINGLE_PREFLIGHT"
+      ],
+      "already_resolved_prerequisites": [
+        "AUDIT_C1_B16_LOCALFS_INGEST_INTERRUPTION_BOOTSTRAP_RECOVERY",
+        "AUDIT_C1_B17_LOCALFS_COMPLETE_SNAPSHOT_REVALIDATION"
+      ],
+      "resolved_current_finding": "PERFORMANCE_RESOURCE/search/state-db-verification-double-scan",
+      "carried_later_gate_findings": [
+        {
+          "id": "AUDIT_RELEASE_H1_STATE_DB_ROLLBACK_NOT_IMPLEMENTED",
+          "disposition": "CARRIED_RELEASE_GATE",
+          "reason": "Release/update rollback requires an explicit future release/update capability and is not required to keep the current P0-closed runtime reliable."
+        },
+        {
+          "id": "AUDIT_RELEASE_H2_ANDROID_QUALIFICATION_ABSENT",
+          "disposition": "CARRIED_PORTABILITY_GATE",
+          "reason": "Android durable-state/backend qualification remains mandatory before Android support is claimed; current qualified runtime remains Ubuntu/Windows."
+        },
+        {
+          "id": "AUDIT_P0_36C_TOKENINFO_SCOPE_PREFLIGHT_AVAILABILITY",
+          "disposition": "CARRIED_PRODUCTION_LIVE_PROVIDER_CREDENTIAL_GATE",
+          "reason": "Current CLI accepts an externally supplied opaque raw access token. Replacing diagnostic tokeninfo safely requires a future OAuth credential lifecycle that binds authenticated granted-scope evidence; do not weaken exact least-scope enforcement."
+        },
+        {
+          "id": "AUDIT_P0_FINAL_L1_REPOSITORY_DESCRIPTION_STALE",
+          "disposition": "CARRIED_HOUSEKEEPING",
+          "reason": "Repository metadata does not affect runtime correctness."
+        }
+      ],
+      "future_growth_order_evidence": [
+        "Watchman/local change-clock/cursor research belongs to canonical item 2 incremental local/provider observation.",
+        "MarkItDown/Docling/Tika and Android extraction-worker research belongs to canonical item 3 broader extraction/platform qualification."
+      ],
+      "conclusion": "No current reliability/recovery work unit remains that should precede canonical item 2. Item 1 is complete for growth-order purposes; this does not erase later scoped reliability, release, portability or provider-credential gates.",
+      "next_action": "Separate state/CI phase transition only; no item-2 product implementation before that transition qualifies."
+    }
   },
   "continuation_protocol": {
     "status": "ADOPTED",
