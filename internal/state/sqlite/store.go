@@ -3573,6 +3573,149 @@ BEGIN
 	SELECT RAISE(ABORT, 'Observation fact availability requires validated application authority');
 END;
 `,
+		`
+CREATE TABLE local_attempt_sources (
+	scan_id TEXT PRIMARY KEY NOT NULL
+		REFERENCES scan_sessions(scan_id) ON DELETE RESTRICT,
+	provider_id TEXT NOT NULL,
+	root TEXT NOT NULL CHECK (root <> ''),
+	started_at TEXT NOT NULL
+		CHECK (keelaryn_is_canonical_utc_rfc3339nano(started_at)=1),
+	predecessor_scan_id TEXT NOT NULL
+		REFERENCES scan_sessions(scan_id) ON DELETE RESTRICT,
+	predecessor_started_at TEXT NOT NULL
+		CHECK (keelaryn_is_canonical_utc_rfc3339nano(predecessor_started_at)=1),
+	predecessor_fingerprint_version TEXT NOT NULL
+		CHECK (predecessor_fingerprint_version <> ''),
+	predecessor_fingerprint_sha256 TEXT NOT NULL
+		CHECK (
+			length(predecessor_fingerprint_sha256)=64
+			AND predecessor_fingerprint_sha256 NOT GLOB '*[^0-9a-f]*'
+		),
+	snapshot_fingerprint_version TEXT NOT NULL
+		CHECK (snapshot_fingerprint_version <> ''),
+	snapshot_fingerprint_sha256 TEXT NOT NULL
+		CHECK (
+			length(snapshot_fingerprint_sha256)=64
+			AND snapshot_fingerprint_sha256 NOT GLOB '*[^0-9a-f]*'
+		),
+	UNIQUE (provider_id, root, started_at)
+) STRICT;
+
+CREATE INDEX local_attempt_sources_predecessor_v47
+	ON local_attempt_sources (predecessor_scan_id);
+
+CREATE TRIGGER local_attempt_sources_scope_guard_v47
+BEFORE INSERT ON local_attempt_sources
+WHEN NEW.provider_id<>'localfs'
+  OR NEW.predecessor_fingerprint_version<>'localfs-snapshot:v1'
+  OR NEW.snapshot_fingerprint_version<>'localfs-attempt-source:v1'
+  OR NOT EXISTS (
+	SELECT 1
+	FROM scan_sessions s
+	WHERE s.scan_id=NEW.scan_id
+	  AND s.provider_id=NEW.provider_id
+	  AND s.root=NEW.root
+	  AND s.started_at=NEW.started_at
+	  AND s.status='OPEN'
+	  AND s.finished_at IS NULL
+  )
+  OR NOT EXISTS (
+	SELECT 1
+	FROM local_ingest_commits c
+	JOIN scan_sessions p
+	  ON p.scan_id=c.scan_id
+	 AND p.provider_id=c.provider_id
+	 AND p.root=c.root
+	 AND p.started_at=c.started_at
+	JOIN bootstrap_scan_authorities b
+	  ON b.scan_id=p.scan_id
+	 AND b.proof_kind='NO_PRIOR_OBSERVATION_HISTORY:v1'
+	 AND b.proven_at=p.started_at
+	WHERE c.scan_id=NEW.predecessor_scan_id
+	  AND c.provider_id=NEW.provider_id
+	  AND c.root=NEW.root
+	  AND c.ingest_mode='BOOTSTRAP'
+	  AND c.snapshot_fingerprint_version=NEW.predecessor_fingerprint_version
+	  AND c.snapshot_fingerprint_sha256=NEW.predecessor_fingerprint_sha256
+	  AND p.started_at=NEW.predecessor_started_at
+	  AND p.status='COMPLETE'
+	  AND p.finished_at IS NOT NULL
+	  AND keelaryn_utc_rfc3339nano_after(NEW.started_at,p.finished_at)=1
+  )
+BEGIN
+	SELECT RAISE(ABORT, 'local attempt source does not match OPEN scan/qualified predecessor');
+END;
+
+CREATE TRIGGER local_attempt_sources_application_guard_v47
+BEFORE INSERT ON local_attempt_sources
+WHEN keelaryn_local_attempt_source_authorized_v47(
+	NEW.scan_id,
+	NEW.provider_id,
+	NEW.root,
+	NEW.started_at,
+	NEW.predecessor_scan_id,
+	NEW.predecessor_started_at,
+	NEW.predecessor_fingerprint_version,
+	NEW.predecessor_fingerprint_sha256,
+	NEW.snapshot_fingerprint_version,
+	NEW.snapshot_fingerprint_sha256
+)<>1
+BEGIN
+	SELECT RAISE(ABORT, 'local attempt source creation requires validated application authority');
+END;
+
+CREATE TRIGGER local_attempt_sources_no_update_v47
+BEFORE UPDATE ON local_attempt_sources
+BEGIN
+	SELECT RAISE(ABORT, 'local attempt source provenance is immutable');
+END;
+
+CREATE TRIGGER local_attempt_sources_no_delete_v47
+BEFORE DELETE ON local_attempt_sources
+BEGIN
+	SELECT RAISE(ABORT, 'local attempt source provenance is immutable');
+END;
+
+CREATE TRIGGER local_attempt_scan_complete_guard_v47
+BEFORE UPDATE ON scan_sessions
+WHEN OLD.status='OPEN'
+ AND NEW.status='COMPLETE'
+ AND EXISTS (SELECT 1 FROM local_attempt_sources a WHERE a.scan_id=OLD.scan_id)
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound local attempt requires guarded accepted publication');
+END;
+
+CREATE TRIGGER local_attempt_scan_abort_guard_v47
+BEFORE UPDATE ON scan_sessions
+WHEN OLD.status='OPEN'
+ AND NEW.status='ABORTED'
+ AND EXISTS (SELECT 1 FROM local_attempt_sources a WHERE a.scan_id=OLD.scan_id)
+ AND keelaryn_local_attempt_abort_authorized_v47(OLD.scan_id,COALESCE(NEW.finished_at,''))<>1
+BEGIN
+	SELECT RAISE(ABORT, 'source-bound local attempt requires guarded abort');
+END;
+
+CREATE TRIGGER local_attempt_observation_forbidden_v47
+BEFORE INSERT ON observations
+WHEN NEW.scan_id IS NOT NULL
+ AND EXISTS (SELECT 1 FROM local_attempt_sources a WHERE a.scan_id=NEW.scan_id)
+BEGIN
+	SELECT RAISE(ABORT, 'POST-P0-02C1 local attempt is provenance-only');
+END;
+
+CREATE TRIGGER local_attempt_identity_mutation_forbidden_v47
+BEFORE INSERT ON identity_mutation_requests
+WHEN EXISTS (
+	SELECT 1
+	FROM observations o
+	JOIN local_attempt_sources a ON a.scan_id=o.scan_id
+	WHERE o.observation_id=NEW.observation_id
+)
+BEGIN
+	SELECT RAISE(ABORT, 'POST-P0-02C1 local attempt identity mutation is not qualified');
+END;
+`,
 	},
 }
 
@@ -3741,6 +3884,8 @@ type Store struct {
 	remoteHistoryWriteAuthorizations            sync.Map
 	gdriveTopologyWriteAuthorizations           sync.Map
 	localIngestCommitAuthorizations             sync.Map
+	localAttemptSourceAuthorizations              sync.Map
+	localAttemptAbortAuthorizations               sync.Map
 }
 
 func (s *Store) prepareConn(conn *sqlite.Conn) error {
@@ -4211,6 +4356,9 @@ func (s *Store) prepareConn(conn *sqlite.Conn) error {
 	if err := s.registerLocalIngestCommitAuthorizationConn(conn); err != nil {
 		return err
 	}
+	if err := s.registerLocalAttemptAuthorizationsConn(conn); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -4599,6 +4747,11 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
 	}
+	if err := verifyLocalAttemptHistoricalAuthorityConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store: %w", err)
+	}
 	pool.Put(conn)
 
 	return store, nil
@@ -4657,6 +4810,11 @@ func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
 		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
 	}
 	if err := verifyHistoricalCoreIdentityAuthorityConn(conn); err != nil {
+		pool.Put(conn)
+		_ = pool.Close()
+		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)
+	}
+	if err := verifyLocalAttemptHistoricalAuthorityConn(conn); err != nil {
 		pool.Put(conn)
 		_ = pool.Close()
 		return nil, fmt.Errorf("open Keelaryn state store read-only: %w", err)

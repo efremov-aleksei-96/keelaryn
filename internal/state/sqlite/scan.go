@@ -163,6 +163,21 @@ func (s *Store) finishScanConn(
 	if scan.Status != corpus.ScanOpen {
 		return fmt.Errorf("%w: %s", ErrScanNotOpen, scanID)
 	}
+	localAttempt, err := localAttemptSourceExistsConn(conn, scanID)
+	if err != nil {
+		return err
+	}
+	if localAttempt {
+		finishedText := finishedAt.UTC().Format(time.RFC3339Nano)
+		switch status {
+		case corpus.ScanComplete:
+			return ErrLocalAttemptRequiresGuardedCompletion
+		case corpus.ScanAborted:
+			if !s.localAttemptAbortAuthorizedConn(conn, scanID, finishedText) {
+				return ErrLocalAttemptRequiresGuardedAbort
+			}
+		}
+	}
 	if status == corpus.ScanComplete && !allowRemoteCompletion {
 		remote, err := remoteScanSourceExistsConn(conn, scanID)
 		if err != nil {

@@ -58,6 +58,9 @@ func VerifyReadOnly(ctx context.Context, path string) error {
 	if err := verifyHistoricalCoreIdentityAuthorityConn(conn); err != nil {
 		return fmt.Errorf("verify core identity authority: %w", err)
 	}
+	if err := verifyLocalAttemptHistoricalAuthorityConn(conn); err != nil {
+		return fmt.Errorf("verify LocalFS attempt authority: %w", err)
+	}
 	return nil
 }
 
