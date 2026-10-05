@@ -51,3 +51,47 @@ func TestLocalFSAttemptSourceFingerprintIsDistinctAndContentAware(t *testing.T) 
 		t.Fatal("same-size content change with restored mtime did not change attempt fingerprint")
 	}
 }
+
+
+func TestLocalFSAttemptSourceFingerprintAtRootPreservesAuthorityRoot(t *testing.T) {
+	ctx := context.Background()
+	readRoot := t.TempDir()
+	mustWrite(t, filepath.Join(readRoot, "file.bin"), []byte("stable"))
+	at := fixedTime()
+
+	_, wrapper, err := ingest.LocalFSAttemptSourceFingerprint(ctx, localfs.New("localfs"), readRoot, at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, sameRoot, err := ingest.LocalFSAttemptSourceFingerprintAtRoot(
+		ctx, localfs.New("localfs"), readRoot, readRoot, at,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wrapper != sameRoot {
+		t.Fatal("same-root wrapper does not preserve the canonical attempt fingerprint")
+	}
+
+	authorityRoot := filepath.Join(t.TempDir(), "durable-authority-root")
+	_, pinned, err := ingest.LocalFSAttemptSourceFingerprintAtRoot(
+		ctx, localfs.New("localfs"), readRoot, authorityRoot, at,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pinned == wrapper {
+		t.Fatal("authority-root pinning did not participate in the attempt fingerprint")
+	}
+
+	otherAuthorityRoot := authorityRoot + "-other"
+	_, otherPinned, err := ingest.LocalFSAttemptSourceFingerprintAtRoot(
+		ctx, localfs.New("localfs"), readRoot, otherAuthorityRoot, at,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if otherPinned == pinned {
+		t.Fatal("distinct authority roots produced the same attempt fingerprint")
+	}
+}

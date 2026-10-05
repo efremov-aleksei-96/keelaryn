@@ -91,11 +91,26 @@ func LocalFSAttemptSourceFingerprint(
 	root string,
 	observedAt time.Time,
 ) (version string, fingerprint string, err error) {
-	if provider == nil || root == "" || observedAt.IsZero() {
+	return LocalFSAttemptSourceFingerprintAtRoot(ctx, provider, root, root, observedAt)
+}
+
+// LocalFSAttemptSourceFingerprintAtRoot reads from readRoot while preserving
+// authorityRoot in the durable fingerprint contract. This mirrors bootstrap
+// pinning semantics: the physical path may be runtime-local, but every locator
+// and the top-level root field are canonicalized to the accepted authority
+// root before hashing.
+func LocalFSAttemptSourceFingerprintAtRoot(
+	ctx context.Context,
+	provider *localfs.Provider,
+	readRoot string,
+	authorityRoot string,
+	observedAt time.Time,
+) (version string, fingerprint string, err error) {
+	if provider == nil || readRoot == "" || authorityRoot == "" || observedAt.IsZero() {
 		return "", "", ErrInvalidLocalFSIngest
 	}
 	observedAt = observedAt.UTC()
-	snapshot, err := provider.Snapshot(ctx, root)
+	snapshot, err := provider.Snapshot(ctx, readRoot)
 	if err != nil {
 		return "", "", fmt.Errorf("snapshot local corpus: %w", err)
 	}
@@ -103,11 +118,16 @@ func LocalFSAttemptSourceFingerprint(
 	if err != nil {
 		return "", "", err
 	}
+	for i := range occurrences {
+		for j := range occurrences[i].Observation.Locators {
+			occurrences[i].Observation.Locators[j].Root = authorityRoot
+		}
+	}
 	fingerprint, err = localSnapshotFingerprintVersion(
 		LocalFSAttemptSourceFingerprintVersion,
 		"ATTEMPT",
 		snapshot.ProviderID(),
-		snapshot.Root(),
+		authorityRoot,
 		observedAt,
 		occurrences,
 	)
