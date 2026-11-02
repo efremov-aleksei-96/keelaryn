@@ -6,8 +6,8 @@ This is the clean Corpus-first development line. The pre-P0 Manager/Hub/D0 imple
 
 - Product architecture: `KEELARYN_CANONICAL.md`
 - Current development state: `DEVELOPMENT_STATE.json`
-- Current phase: P0 technology spike
-- Product P0: technology spike started
+- Current phase, completion status and next objective: read `DEVELOPMENT_STATE.json` from its authoritative development branch; this README is not a continuation cursor.
+- Development recovery and write safety: `AGENTS.md` and `docs/DEVELOPMENT_CONTINUATION.md`.
 - Language direction: Go
 - License: MIT
 
