@@ -334,11 +334,31 @@ The earlier second hash check did **not** provide atomic compare-and-swap. These
 
 **Boundary and limitations:** `flock` is **cooperative, Linux-specific advisory locking**; a different same-UID process writing directly to files while ignoring the lock, mount manipulation, and malicious directory replacement are **not proven safe**. This is not a filesystem transaction or kernel-enforced conditional replacement. A batch of multiple edits/deletions remains **per-file**, not atomic as a group: later failure may leave earlier files changed. All `local-ro`, credential and Drive project scopes remain read-only. Independent host qualification remains deferred; no new deployment was tested.
 
+## Synthetic partial-batch error transparency (2026-11-12)
+
+**Owner/scope:** `mcp/src/fs_tools.py` and the existing `mcp/tests/test_local.py` on `dev/mcp-portability`. Only synthetic `edit_files`/`delete_files` error reporting changed. No multi-file transaction, rollback, new storage, daemon, dependency or real project write permission was added.
+
+**Confirmed defect before change:** in a disposable unprivileged workspace, force `PermissionError` on the second path (`two.md`) of a file batch *after* `one.md` had committed successfully. For `edit_files`, `one.md` contained new bytes, `two.md` kept its old bytes; for `delete_files`, `one.md` was absent and `two.md` was unchanged. Yet the MCP `tools/call` result was only `isError: true` with plain `PermissionError: synthetic injected second-file failure`. It omitted the already-confirmed change. Both outcomes were checked against actual temporary files (`PARTIAL_BATCH_UNREPORTED_SIDE_EFFECT_REPRODUCED`).
+
+**Minimal implemented behavior:** per-item commit and readback remain unchanged, under the existing cooperative directory lock. After a later error, `PartialBatchError` carries the prior *confirmed-at-operation-time* result objects. The existing `file_tool` returns `isError: true` and one UTF-8 JSON text payload:
+
+- `status: "partial_error"` and `operation` (`edit_files` or `delete_files`);
+- `error` (original exception type and bounded message);
+- `confirmed_count` and `confirmed_before_failure` (confirmed file results, SHA-256 and action where available);
+- `failed_path` and `failed_path_status: "unverified"` (never promise that the failed item was not altered: the error may occur after mutation but before readback);
+- `not_attempted_paths` and `atomic_scope: "per-file; not a multi-file transaction"`.
+
+The successful response format and non-partial error format remain unchanged. This JSON-in-text choice uses standard MCP `content` and requires no particular client extension. Consumers must **not** automatically retry an entire failed batch: first verify the affected current files. `confirmed_before_failure` records an earlier result, not a permanent guarantee against later external modifications.
+
+**Verified tests:** source/test commit `57bf053623a201edc5c00388cd451abf59298bc9` cloned to disposable `/tmp` on the existing VPS and run as unprivileged `nobody`. Deterministic injected failure on item two of three in *both* operations checked the MCP `tools/call` response against file bytes, presence/absence and SHA-256; item three was not processed. `SYNTHETIC_PARTIAL_BATCH_ERROR_TRANSPARENCY_PASS` and all prior synthetic benchmarks, local-ro, security, traversal, schema and concurrency tests passed; Python AST parsing and the original live service PID were checked. Temporary source and fixtures removed.
+
+**Unverified:** no general transactional atomicity; `failed_path_status` intentionally remains unknown if publication succeeds but later verification fails. Same-UID writers that ignore advisory locking can still race. No real project data, production service, secrets or independent Linux acceptance were used.
+
 ## NEXT — exact next task
 
-1. Read this README and reconcile `dev/mcp-portability` head before further work. No new Linux required.
-2. **If asked to continue:** address the remaining narrow **partial-batch error transparency** concern in synthetic `edit_files`/`delete_files`: inject a failure after the first item of a two-file batch, check exactly what caller is told about already committed files, and only correct a demonstrated ambiguity. Do not attempt an unsolicited multi-file transactional redesign.
-3. Keep the working VPS service and installed sources, `main`, Windows Manager, Drive, secrets and real canonical files unchanged. Any real-data access, independent-host qualification, release or merge requires separate authorization.
-4. Record verified evidence and precise NEXT only in this README; reread every substantial write. No additional STATE, WORKLOG or report.
+1. Resume from the current `mcp/README.md` on `dev/mcp-portability`; reconcile branch head before any edit.
+2. **Only if asked to continue:** target one remaining uncertainty—synthetically fail a *single-file* edit/delete **after** its publication/removal but before post-operation verification, when no earlier item was confirmed. Check whether the caller gets an insufficiently explicit error; improve only the proven ambiguity. Do **not** redesign batches as transactions or introduce new state files.
+3. Keep `main`, Windows Manager, working VPS sources/service, Drive, credentials and real user/canonical data unchanged. Separate-host testing remains deferred by user choice; deployment, real data and merge/release require separate authorization.
+4. Preserve this single README as verified checkpoint and exact NEXT; repeat-read each significant GitHub change.
 
 No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
