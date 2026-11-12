@@ -8,7 +8,7 @@
 
 KeelarynOS owns common architecture and information standards. Domain OS/projects own their factual data and canonical sources. This **Keelaryn MCP** component implements bounded file access, not a competing canonical data store or a LifeOS coordinator. The existing Windows-first `manager/` and its `INSTALLATION.json`, Gate Framework, release identities and qualification remain separate and unchanged.
 
-Core interface: five generic MCP tools — `list_files`, `read_files`, `search_files`, `edit_files`, `delete_files`. The current source additionally exposes seven synthetic benchmark/testing tools. The operating model is **standard JSON-RPC MCP over stdio**; a particular AI, Google Drive, VPS provider or tunnel is not mandatory for the protocol itself.
+Core interface: five generic MCP tools — `list_files`, `read_files`, `search_files`, `edit_files`, `delete_files`. Seven synthetic/benchmark tools are **opt-in for local mode** and **remain enabled by default for legacy system mode**; both visibility and direct invocation are gated. The operating model is **standard JSON-RPC MCP over stdio**; a particular AI, Google Drive, VPS provider or tunnel is not mandatory for the protocol itself.
 
 The original VPS source was preserved exactly in the first five commits on this branch. Subsequent commits added configurable paths and a **read-only local directory backend** with operator-controlled roots and allowlists. This backend is verified only against synthetic fixtures on the existing VPS OS; no real project data or clean independent Linux host has been tested. Do not infer production readiness from those checks.
 
@@ -267,11 +267,34 @@ Both cases were reproduced and cleaned up solely under `/tmp` with an unprivileg
 
 **Limits:** these are targeted unprivileged Linux synthetic checks, not a complete concurrent-writer/mount-namespace threat model. Directory identity checks are not atomic compare-and-swap against another process with the same credentials. The **system** branch's compatibility was reviewed for the original trusted systemd symlink semantics but **not deployed or retested live**. Local/remote real project writes remain disallowed; independent-host acceptance remains deferred by operator choice.
 
+## Tool surface: five generic tools by default locally, seven test tools opt-in (2026-11-12)
+
+**Owner/source:** `src/synthetic_stdio.py` on `dev/mcp-portability`. This is a tool-visibility/authorization policy, not a new project scope or service.
+
+**Confirmed consumers and limits of evidence:**
+
+- The enabled **`MCP → Google Drive backup`** scheduled automation explicitly calls only the existing `mcp__KeelarynOS_MCP_Benchmark__list_files/read_files` generic tools against the synthetic workspace. Its recorded run exists, but task configuration alone does **not** prove which calls actually succeeded on that run. Its prompt does **not** depend on the seven extra benchmark tool names.
+- Within the current Git branch, exact references to the seven extras occur in `src/synthetic_stdio.py` and `tests/test_local.py`; the latter needs the five disk-backed benchmark operations for synthetic security regression testing. A bounded code search found no other in-repository consumers.
+- The current production VPS systemd unit starts the legacy `tunnel-client` and `synthetic_stdio.py`, whose original source advertises all twelve tools. **Other remote/manual callers cannot be ruled out** from a source scan; runtime invocation logs were not inspected and no behavior was changed there.
+
+**Decision and compatibility:** a normal local read-only MCP does not need benchmark filesystem creation/edit/delete or in-memory echo/batch tests. Hiding their names alone is insufficient: direct requests must also fail. Introduced `KEELARYN_MCP_BENCHMARK_TOOLS` in the **development branch only**, accepting exactly `0` or `1`; any other value is a startup error.
+
+| Mode | Flag unset | Flag `0` | Flag `1` |
+| --- | --- | --- | --- |
+| `KEELARYN_MCP_MODE=local` | **5 generic tools** | 5 generic tools | 5 generic + 7 benchmark tools |
+| `KEELARYN_MCP_MODE=system` | **12 tools** (legacy compatibility) | 5 generic tools | 12 tools |
+
+The seven opt-in tools are `read_synthetic_batch`, `benchmark_echo`, `benchmark_create_files`, `benchmark_read_files`, `benchmark_edit_files`, `benchmark_verify_files`, `benchmark_cleanup_files`. The source uses the same flag for `tools/list` and `tools/call`; disallowed direct calls return an error. The five generic MCP file tools and their existing scope authorization are untouched. This feature flag does **not** permit writes to `local-ro`; benchmark disk operations still touch only their fixed synthetic test directory.
+
+**Verified synthetic-only evidence:** source/test commit `10928b3d2337aa514bd6aa67fa2895b0092f65b2` was cloned into a disposable `/tmp` directory on the existing VPS and run as an unprivileged `nobody`. Outputs included `BENCHMARK_DEFAULT_HIDDEN_AND_DENIED_PASS` (exact five-tool default, denied direct calls and no benchmark file side effect), `BENCHMARK_EXPLICIT_OPT_IN_PASS` (12-tool discovery, in-memory batch and echo), `BENCHMARK_DIRECT_PATH_SECURITY_PASS`, `BENCHMARK_DIRECT_LIFECYCLE_PASS`, `LOCAL_STDIO_SYNTHETIC_SMOKE_PASS`, `LOCAL_RO_ADVERSARIAL_LIMITS_PASS`, `LOCAL_RO_MCP_INTEGRATION_PASS`. An invalid flag failed at startup. A separate **system-mode compatibility** fixture, using only a root-owned *synthetic metadata registry* (no actual credentials or Drive reads), verified 12 tools for the unset/`1` flag and five for `0`: `SYSTEM_LEGACY_BENCHMARK_COMPAT_PASS`. Temporary fixtures and cloned source were removed.
+
+**Not verified:** no live tunnel/runtime switch, no remote consumer end-to-end test, no independent Linux installation, and no guaranteed compatibility with unknown external tools. The *currently running* VPS service retains its original system-mode behavior, binary and settings. The code change is present **only in the development branch**.
+
 ## NEXT — exact next task
 
-1. Continue only from this `mcp/README.md` and `dev/mcp-portability`; compare the current branch tip before editing.
-2. **If development continues**, perform one limited review of whether the seven synthetic/benchmark tools must be *advertised by default* in a portable MCP intended for local read-only projects. Prefer a minimal, backward-compatible **benchmark opt-in**, if a confirmed access-minimization need exists; first check the interface's actual consumers and preserve the existing benchmark behavior where required. No production exposure or new service is authorized.
-3. Keep all real project data read-only, do not change the working VPS, `main`, Windows Manager, secrets or Drive. No separate Linux is required for development; independent-host qualification and rollout are **deferred**.
-4. Record only confirmed changes, test results, limitations and precise NEXT in this **same README** with readback. No second active canon or extra report.
+1. Continue from this README and `dev/mcp-portability` only; inspect current branch tip before any edit. **No extra Linux or paid service is required.**
+2. **Next useful addressable review, only if requested:** inspect the five generic MCP tool input schemas against their runtime validators in `src/fs_tools.py` using synthetic requests, to identify and fix any actual authorization/argument mismatch. Avoid a broad audit and do not change the active service.
+3. Keep real project data read-only; do not enable Drive writes, replace the VPS unit, change `main` or Windows Manager, or infer that local/offline or unknown remote consumers are fully qualified. A real-data pilot, merge/release and independent-host deployment require a separate decision. Independent Linux testing remains **deferred by user choice**.
+4. Preserve this **single README** as the source of verified decisions, limitations and precise NEXT; repeat-read every significant GitHub change. No duplicate STATE/WORKLOG needed.
 
 No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
