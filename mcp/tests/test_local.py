@@ -214,6 +214,7 @@ print("MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS")
 '''
     response = run(["-c", code], dict(env, PYTHONPATH=str(SRC)))
     assert "MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS" in response.stdout
+    print("MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS")
 
 
 def main():
