@@ -29,6 +29,19 @@ DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
+class PartialBatchError(ValueError):
+    """Some synthetic writes completed; the failing path must be rechecked."""
+
+    def __init__(self, operation, confirmed, failed_path, not_attempted, cause):
+        super().__init__(str(cause))
+        self.operation = operation
+        self.confirmed = confirmed
+        self.failed_path = failed_path
+        self.not_attempted = not_attempted
+        self.cause = cause
+
+
+
 def _parts(raw, directory=False):
     if not isinstance(raw, str) or len(raw) > 320:
         raise ValueError("Invalid relative path")
@@ -273,41 +286,49 @@ def _edit_files_locked(args):
                 os.close(fd)
                 raise
         results = []
-        for fd, path, name, raw, expected in checked:
-            # A second precondition check catches changes during preflight.
+        for index, (fd, path, name, raw, expected) in enumerate(checked):
             try:
-                current = _read_file(fd, name)
-            except FileNotFoundError:
-                current = None
-            if (current is None) != (expected is None):
-                raise ValueError("File changed while preparing edit")
-            if current is not None and _sha(current) != expected:
-                raise ValueError("SHA-256 precondition changed")
-            # Publish fully-written content atomically. Never overwrite on create.
-            temp = "." + name + "." + secrets.token_hex(12) + ".tmp"
-            newfd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
-                            0o600, dir_fd=fd)
-            try:
-                with os.fdopen(newfd, "wb") as out:
-                    out.write(raw)
-                    out.flush()
-                    os.fsync(out.fileno())
-                if current is None:
-                    os.link(temp, name, src_dir_fd=fd, dst_dir_fd=fd, follow_symlinks=False)
-                else:
-                    os.replace(temp, name, src_dir_fd=fd, dst_dir_fd=fd)
-            finally:
+                # A second precondition check catches changes during preflight.
                 try:
-                    os.unlink(temp, dir_fd=fd)
+                    current = _read_file(fd, name)
                 except FileNotFoundError:
-                    pass
-            os.fsync(fd)
-            confirmed = _read_file(fd, name)
-            if confirmed != raw:
-                raise ValueError("Readback mismatch after edit")
-            results.append({"path": path,
-                            "sha256": _sha(confirmed), "bytes": len(confirmed),
-                            "action": "created" if expected is None else "replaced"})
+                    current = None
+                if (current is None) != (expected is None):
+                    raise ValueError("File changed while preparing edit")
+                if current is not None and _sha(current) != expected:
+                    raise ValueError("SHA-256 precondition changed")
+                # Publish fully-written content atomically. Never overwrite on create.
+                temp = "." + name + "." + secrets.token_hex(12) + ".tmp"
+                newfd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                0o600, dir_fd=fd)
+                try:
+                    with os.fdopen(newfd, "wb") as out:
+                        out.write(raw)
+                        out.flush()
+                        os.fsync(out.fileno())
+                    if current is None:
+                        os.link(temp, name, src_dir_fd=fd, dst_dir_fd=fd, follow_symlinks=False)
+                    else:
+                        os.replace(temp, name, src_dir_fd=fd, dst_dir_fd=fd)
+                finally:
+                    try:
+                        os.unlink(temp, dir_fd=fd)
+                    except FileNotFoundError:
+                        pass
+                os.fsync(fd)
+                confirmed = _read_file(fd, name)
+                if confirmed != raw:
+                    raise ValueError("Readback mismatch after edit")
+                results.append({"path": path,
+                                "sha256": _sha(confirmed), "bytes": len(confirmed),
+                                "action": "created" if expected is None else "replaced"})
+            except (ValueError, OSError, UnicodeError) as cause:
+                if results:
+                    raise PartialBatchError(
+                        "edit_files", results, path,
+                        [item[1] for item in checked[index + 1:]], cause
+                    ) from cause
+                raise
         return {"files": results, "count": len(results), "bytes": total,
                 "atomic_scope": "per-file; not a multi-file transaction"}
     finally:
@@ -353,19 +374,27 @@ def _delete_files_locked(args):
                 os.close(fd)
                 raise
         removed = []
-        for fd, path, name, expected in checked:
-            content = _read_file(fd, name)
-            if _sha(content) != expected:
-                raise ValueError("SHA-256 precondition changed")
-            os.unlink(name, dir_fd=fd)
-            os.fsync(fd)
+        for index, (fd, path, name, expected) in enumerate(checked):
             try:
-                os.stat(name, dir_fd=fd, follow_symlinks=False)
-            except FileNotFoundError:
-                pass
-            else:
-                raise ValueError("Deletion verification failed")
-            removed.append({"path": path, "sha256": expected})
+                content = _read_file(fd, name)
+                if _sha(content) != expected:
+                    raise ValueError("SHA-256 precondition changed")
+                os.unlink(name, dir_fd=fd)
+                os.fsync(fd)
+                try:
+                    os.stat(name, dir_fd=fd, follow_symlinks=False)
+                except FileNotFoundError:
+                    pass
+                else:
+                    raise ValueError("Deletion verification failed")
+                removed.append({"path": path, "sha256": expected})
+            except (ValueError, OSError, UnicodeError) as cause:
+                if removed:
+                    raise PartialBatchError(
+                        "delete_files", removed, path,
+                        [item[1] for item in checked[index + 1:]], cause
+                    ) from cause
+                raise
         return {"removed": removed, "count": len(removed),
                 "atomic_scope": "per-file; no multi-file transaction"}
     finally:
@@ -540,6 +569,21 @@ def file_tool(name, args):
         value = _route_file_tool(name, args)
         import json
         return {"content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False)}]}
+    except PartialBatchError as e:
+        import json
+        details = {
+            "status": "partial_error",
+            "operation": e.operation,
+            "error": type(e.cause).__name__ + ": " + str(e.cause)[:180],
+            "confirmed_count": len(e.confirmed),
+            "confirmed_before_failure": e.confirmed,
+            "failed_path": e.failed_path,
+            "failed_path_status": "unverified",
+            "not_attempted_paths": e.not_attempted,
+            "atomic_scope": "per-file; not a multi-file transaction",
+        }
+        return {"isError": True, "content": [
+            {"type": "text", "text": json.dumps(details, ensure_ascii=False)}]}
     except (ValueError, OSError, UnicodeError) as e:
         return {"isError": True, "content": [
             {"type": "text", "text": type(e).__name__ + ": " + str(e)[:180]}]}
