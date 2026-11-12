@@ -119,11 +119,120 @@ Tunnel config includes an OpenAI control-plane runtime credential and tunnel ID,
 
 A fresh Linux installation is accepted only when: stdio initialize/discovery and all five tools work; invalid paths and permissions fail closed; read/write concurrency controls are proven in the allowed scope; source/config/state separation survives restart; systemd privilege restrictions and recovery work; no personal/canonical data are used in mutable tests; Windows Manager identity and behavior are unchanged.
 
+## Local Linux installation, direct stdio and recovery (documented 2026-11-12)
+
+This is an **operator runbook**, not a deployment order. **No additional Linux, Docker, daemon, API key, tunnel, Google Drive, or sudo** is needed for direct local `stdio`. Run as an **unprivileged** user with Python 3.12 and Git; the initial Git clone requires internet, but the copied source and synthetic stdio require none thereafter. Do not run these commands inside the working VPS installation or against real project data.
+
+### 1. Obtain a known source revision
+
+```sh
+# Run as your ordinary Linux account; the destination must not already exist.
+git clone --single-branch --branch dev/mcp-portability \
+  https://github.com/efremov-aleksei-96/keelaryn.git "$HOME/keelaryn"
+cd "$HOME/keelaryn"
+git rev-parse HEAD                # Record this exact commit for recovery.
+python3 --version                 # Target: Python 3.12.
+```
+
+Cloning the existing Git repository (not a ZIP or a second repository) retains the development branch's history locally, including prior audited commits. The original audited safety code revision is `d23ef959597ba688c5a79b8ac7ac8b08b626566f` (the README was revised subsequently). For a fixed audit-source baseline, use `git switch --detach d23ef959597ba688c5a79b8ac7ac8b08b626566f` after cloning; verify `git status --porcelain` is empty before switching. **Do not overwrite an existing checkout or user edits.**
+
+### 2. Set up one private, synthetic-only scope
+
+```sh
+umask 077
+CONF="$HOME/.config/keelaryn-mcp"
+STATE="$HOME/.local/share/keelaryn-mcp"
+install -d -m 700 "$CONF" "$STATE"
+cat > "$CONF/file-scopes.json" <<'JSON'
+{
+  "schema": "keelarynos_mcp_file_scopes_v1",
+  "scopes": {
+    "synthetic": {
+      "backend": "workspace",
+      "access": "read-write",
+      "description": "Ephemeral synthetic-only benchmark files"
+    }
+  }
+}
+JSON
+chmod 600 "$CONF/file-scopes.json"
+export KEELARYN_MCP_MODE=local
+export KEELARYN_MCP_CONFIG="$CONF/file-scopes.json"
+export KEELARYN_MCP_STATE_DIR="$STATE"
+python3 -B mcp/src/preflight.py
+```
+
+Expected preflight line: `SYNTHETIC_MCP_SANDBOX_PREFLIGHT_PASS`. `CONF` and `STATE` must remain user-owned; no group/other access is permitted to state, and the registry is mode 0600. The `synthetic` scope is deliberately writable **only inside the isolated state workspace**. No live `local-ro` root or canonical project is enabled.
+
+### 3. Test and invoke stdio
+
+```sh
+python3 -B mcp/tests/test_local.py
+python3 -B mcp/tests/test_local_ro.py
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"manual-probe","version":"1"}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_files","arguments":{"project":"synthetic","path":""}}}' \
+  | python3 -B mcp/src/synthetic_stdio.py
+```
+
+There should be two JSON-RPC replies, including protocol `2025-06-18` and a synthetic file listing. These tests create and remove **only temporary synthetic fixtures**; do not run as root.
+
+For actual local use, configure an MCP-capable client to **start** `/usr/bin/python3` with arguments `-B /ABSOLUTE/PATH/TO/keelaryn/mcp/src/synthetic_stdio.py`, passing `KEELARYN_MCP_MODE=local`, the absolute `KEELARYN_MCP_CONFIG` path and absolute `KEELARYN_MCP_STATE_DIR` path in its child environment. Use the actual Python path if different. The client owns stdin/stdout: **do not** launch a standalone stdio daemon or expose an HTTP port. The `preflight.py` command runs **before** client startup, not inside the MCP stdio stream.
+
+### 4. Recovery without a new service
+
+Stop/close the MCP client first. Read `git status --porcelain` and `git rev-parse HEAD` in the source directory; do not delete, discard or overwrite unknown changes. Restore a prior known-good checked-out revision only if its commit is locally available and the working tree is clean:
+
+```sh
+cd "$HOME/keelaryn"
+git status --porcelain
+git switch --detach d23ef959597ba688c5a79b8ac7ac8b08b626566f
+python3 -B mcp/tests/test_local.py
+python3 -B mcp/tests/test_local_ro.py
+```
+
+The previously prepared private config and state remain **outside Git** and are not reset or erased by a source checkout. If preflight rejects the registry, check its actual owner/permissions and compare it against the exact synthetic-only JSON above; do not relax permissions or silently replace unknown data. Never `git reset --hard` or `rm -rf` a user state directory as a generic recovery step. Reopen the client only after tests and preflight pass. If a configuration has been expanded to include real read-only project files, reassess the full allowlist before use.
+
+### Optional systemd **user** service for a future outbound tunnel — not local-only stdio
+
+**Not installed or started. Not needed for standalone MCP.** Below is a *template*, not a drop-in active unit. It presupposes a separately installed verified OpenAI `tunnel-client` binary, a configured `main` stdio channel running the same Python entrypoint, a Tunnel ID, and a revocable **runtime** API key in a private file **outside Git**. The tunnel profile uses official `control_plane.api_key: file:/ABSOLUTE/PRIVATE/PATH/runtime.key`, never a literal key or admin credential. Its `mcp.commands` must contain `channel: main` and an **absolute** command such as `/usr/bin/python3 -B /ABSOLUTE/PATH/TO/keelaryn/mcp/src/synthetic_stdio.py`. The profile needs `config_version: 1` and the operator's actual tunnel ID and endpoint. Official reference: https://github.com/openai/tunnel-client/blob/v0.0.20/docs/configuration.md.
+
+Illustrative `~/.config/systemd/user/keelaryn-mcp-tunnel.service` contents (do **not** create/enable on the working VPS):
+
+```ini
+[Unit]
+Description=Keelaryn MCP optional outbound tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=KEELARYN_MCP_MODE=local
+Environment=KEELARYN_MCP_CONFIG=%h/.config/keelaryn-mcp/file-scopes.json
+Environment=KEELARYN_MCP_STATE_DIR=%h/.local/share/keelaryn-mcp
+ExecStart=%h/.local/bin/tunnel-client run --profile-file %h/.config/keelaryn-mcp/tunnel-profile.yaml
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target
+```
+
+Substitute actual secure binary/profile locations and validate the profile with the pinned tunnel client's `doctor --profile-file ... --explain` **before** any first activation. This user-unit illustration is different from the existing hardened system-level VPS unit (which uses `DynamicUser` and `LoadCredential`); do not switch that service to this template. User-unit runtime secret reference, service permissions, actual startup and health were **not** tested here. For a future system-level service, retain `DynamicUser`, `StateDirectory`, `LoadCredential` and existing hardened permissions; coordinate the current `synthetic_stdio.py` systemd state-root symlink assumption before changing unit/path names.
+
+**Rollback if later enabled:** stop the optional tunnel unit, make sure there is no second tunnel process using its Tunnel ID, restore the last verified source/profile independently, validate preflight, then start only one instance. Never overlap stdio tunnel clients for one Tunnel ID. Network connectivity to the OpenAI control plane is the optional provider dependency; the core stdio mode stays provider-independent.
+
+### Read-only validation scope
+
+On **2026-11-12**, the operator commands were exercised with a temporary Git checkout of `dev/mcp-portability` at `d23ef959597ba688c5a79b8ac7ac8b08b626566f` and unprivileged `nobody` in a disposable `/tmp` home: `test_local.py` and `test_local_ro.py` passed, `preflight.py` passed, and a piped JSON-RPC initialize + synthetic list returned `RUNBOOK_MANUAL_STDIO_PASS`. A full single-branch clone also confirmed the earlier audited revision is available for offline source rollback. Test directories were removed. The systemd unit was syntax-parsed by `systemd-analyze verify`, which reported the expected missing illustrative tunnel-client executable; it was **not installed, started or authenticated**. The running VPS service kept MainPID `2636967`. No independent Linux deployment, real-data access or production qualification is claimed.
+
 ## NEXT — exact next task
 
-1. On **`dev/mcp-portability` only**, write a minimal **documentation-only** Linux operator setup and recovery procedure using the existing code and synthetic scope: Python 3.12, `KEELARYN_MCP_MODE=local`, restricted paths/permissions, and optional single-service systemd+tunnel recipe. Do **not** deploy or restart the running VPS.
-2. Check that the guide requires no additional service, credentials, canonical files, special AI account or new Linux. Verify the described commands only on synthetic disposable files on the **existing host**, if appropriate.
-3. Keep all real project data `local-ro` read-only; do not enable real writes, add a remote service, or claim perfect concurrency safety. Revisit stronger consistency only if a real use case warrants it.
-4. An installation test on an **independent Linux** is **DEFERRED by user choice**, not an action prerequisite for design work. The safety boundary must be reassessed before any real data access, production deployment, merge or release. Preserve the current README as the sole resume point, and reread each changed file after writes.
+1. **No second Linux required.** Continue only from this `mcp/README.md` and `dev/mcp-portability`. Reconcile the current source revision before any changes.
+2. If further work is requested, perform **a narrowly scoped, synthetic-only review of install/restore ergonomics and source/config permission assumptions**, fixing only demonstrated defects on the development branch. Prefer existing VPS disposable test directories; do not create a daemon or activate a tunnel merely to test the runbook.
+3. Keep real canonical project scopes read-only, with no Drive writes or added services. A real-data pilot, production unit rollout, merge/release and independent-Linux acceptance require separate risk assessment and authorization; the independent-host check remains **deferred by user choice**.
+4. Preserve this README as the single canonical continuation point, record verified changes and exact NEXT here, and reread all significant GitHub writes.
 
 No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
