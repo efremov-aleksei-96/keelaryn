@@ -217,6 +217,97 @@ print("MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS")
     print("MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS")
 
 
+def bounded_synthetic_walk_cases(state):
+    """Confirm directory/search budgets on disposable synthetic workspace data."""
+    sys.path.insert(0, str(SRC))
+    import fs_tools
+
+    root = state / "workspace"
+    assert not list(root.iterdir()), "Expected empty synthetic test workspace"
+
+    # Truncation means more *visible* entries, not merely ignored filenames.
+    hidden = root / ".ignored"
+    hidden.write_text("ignored", encoding="utf-8")
+    empty = fs_tools.list_files({"limit": 1})
+    assert empty["returned"] == 0 and empty["truncated"] is False, empty
+    first, second = root / "first.md", root / "second.md"
+    first.write_text("needle in a synthetic document\n", encoding="utf-8")
+    second.write_text("no match here\n", encoding="utf-8")
+    one = fs_tools.list_files({"limit": 1})
+    assert one["returned"] == 1 and one["truncated"] is True, one
+    both = fs_tools.list_files({"limit": 2})
+    assert both["returned"] == 2 and both["truncated"] is False, both
+    found = fs_tools.search_files({"query": "needle", "limit": 20})
+    assert len(found["matches"]) == 1 and found["scanned"] == 2 and not found["truncated"], found
+    first.unlink()
+    second.unlink()
+    hidden.unlink()
+
+    # A directory with 1,000 names is bounded; 1,001 fails closed.
+    overflow = [root / ("wide%04d.md" % i) for i in range(1001)]
+    for path in overflow:
+        path.touch()
+    try:
+        bad_list = fs_tools.file_tool("list_files", {"project": "synthetic", "limit": 1})
+        bad_search = fs_tools.file_tool("search_files", {"project": "synthetic", "query": "needle"})
+        assert bad_list.get("isError") is True
+        assert bad_search.get("isError") is True
+        overflow[-1].unlink()
+        accepted = fs_tools.list_files({"limit": 1})
+        assert accepted["returned"] == 1 and accepted["truncated"] is True
+    finally:
+        for path in overflow:
+            path.unlink(missing_ok=True)
+
+    # The old search opened every empty directory while scanned stayed zero.
+    directories = [root / ("empty%03d" % i) for i in range(125)]
+    for path in directories:
+        path.mkdir(mode=0o700)
+    original = fs_tools._open_dir
+    opened = []
+    def observed(parts):
+        opened.append("/".join(parts))
+        return original(parts)
+    fs_tools._open_dir = observed
+    try:
+        result = fs_tools.search_files({"query": "unmatched", "limit": 1})
+        assert result["scanned"] == 0 and result["truncated"] is True, result
+        assert len(opened) == fs_tools.MAX_SEARCH_DIRECTORIES, len(opened)
+    finally:
+        fs_tools._open_dir = original
+        for path in directories:
+            path.rmdir()
+
+    # Global entry budget applies even when filenames are unsearchable.
+    groups = [root / ("bucket%02d" % i) for i in range(12)]
+    for path in groups:
+        path.mkdir(mode=0o700)
+        for n in range(95):
+            (path / (".ignored%03d" % n)).touch()
+    try:
+        result = fs_tools.search_files({"query": "unmatched", "limit": 1})
+        assert result["scanned"] == 0 and result["truncated"] is True, result
+    finally:
+        for path in groups:
+            for item in path.iterdir():
+                item.unlink()
+            path.rmdir()
+
+    # Keep the existing 200-document scan limit and exact matches.
+    documents = [root / ("doc%03d.md" % i) for i in range(205)]
+    for path in documents:
+        path.write_text("synthetic ordinary text\n", encoding="utf-8")
+    try:
+        result = fs_tools.search_files({"query": "not-found", "limit": 1})
+        assert result["scanned"] == fs_tools.MAX_SEARCH_FILES and result["truncated"], result
+    finally:
+        for path in documents:
+            path.unlink()
+    assert not list(root.iterdir())
+    print("SYNTHETIC_DIRECTORY_ENUMERATION_BOUNDS_PASS")
+    print("SYNTHETIC_SEARCH_TRAVERSAL_BOUNDS_PASS")
+
+
 def main():
     if os.geteuid() == 0:
         raise RuntimeError("Local-mode smoke test must run as an unprivileged user")
@@ -245,6 +336,7 @@ def main():
         preflight = run([str(SRC / "preflight.py")], env)
         assert "SYNTHETIC_MCP_SANDBOX_PREFLIGHT_PASS" in preflight.stdout
         schema_runtime_cases(env)
+        bounded_synthetic_walk_cases(state)
         payload = "Hello from disposable synthetic workspace.\n"
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         actions = [
