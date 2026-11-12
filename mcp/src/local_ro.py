@@ -18,7 +18,7 @@ MAX_FILE = 65536
 # Never use the changing DynamicUser UID as the owner of system-mode sources.
 # The system service may read only root-owned source trees, and only when the
 # already-enforced server-wide read-only mode is explicitly enabled.
-DATA_OWNER = (0 if os.environ.get("KEELARYN_MCP_MODE") == "system"
+DATA_OWNER = (0 if os.environ.get("KEELARYN_MCP_MODE", "system") == "system"
               and os.environ.get("KEELARYN_MCP_ACCESS_MODE") == "read-only"
               else os.geteuid())
 MAX_TOTAL = 262144
