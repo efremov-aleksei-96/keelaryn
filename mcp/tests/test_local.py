@@ -32,13 +32,14 @@ def benchmark_direct_cases(root, config, env):
     parent.mkdir(mode=0o700)
     state = parent / "state"
     state.mkdir(mode=0o700)
-    actual_env = dict(env, KEELARYN_MCP_STATE_DIR=str(state))
+    benchmark_env = dict(env, KEELARYN_MCP_BENCHMARK_TOOLS="1")
+    actual_env = dict(benchmark_env, KEELARYN_MCP_STATE_DIR=str(state))
     alias = root / "benchmark-parent-alias"
     alias.symlink_to(parent, target_is_directory=True)
-    alias_env = dict(env, KEELARYN_MCP_STATE_DIR=str(alias / "state"))
+    alias_env = dict(benchmark_env, KEELARYN_MCP_STATE_DIR=str(alias / "state"))
     root_alias = root / "benchmark-root-alias"
     root_alias.symlink_to(state, target_is_directory=True)
-    root_alias_env = dict(env, KEELARYN_MCP_STATE_DIR=str(root_alias))
+    root_alias_env = dict(benchmark_env, KEELARYN_MCP_STATE_DIR=str(root_alias))
     work = state / "filesystem-benchmark-20261111"
 
     def invoke(which, environment):
@@ -59,6 +60,26 @@ def benchmark_direct_cases(root, config, env):
     def denied(which, environment):
         result = invoke(which, environment)
         assert result.get("isError") is True, (which, result)
+
+    # Opt-in must restore all seven historical tools and their handlers.
+    inputs = [
+        ("tools/list", {}),
+        ("tools/call", {"name": "benchmark_echo", "arguments": {"text": "synthetic-ok"}}),
+        ("tools/call", {"name": "read_synthetic_batch", "arguments": {}}),
+    ]
+    request = "".join(json.dumps({"jsonrpc": "2.0", "id": i, "method": m, "params": p}) + "\n"
+                      for i, (m, p) in enumerate(inputs, 1))
+    outputs = run([str(SRC / "synthetic_stdio.py")], actual_env, request)
+    replies = [json.loads(line) for line in outputs.stdout.splitlines()]
+    assert len(replies) == 3, outputs.stderr
+    names = {t["name"] for t in replies[0]["result"]["tools"]}
+    extras = {"benchmark_create_files", "benchmark_read_files", "benchmark_edit_files",
+              "benchmark_verify_files", "benchmark_cleanup_files",
+              "benchmark_echo", "read_synthetic_batch"}
+    assert len(names) == 12 and extras <= names, names
+    assert replies[1]["result"]["content"][0]["text"] == "synthetic-ok"
+    assert len(json.loads(replies[2]["result"]["content"][0]["text"])) == 10
+    print("BENCHMARK_EXPLICIT_OPT_IN_PASS")
 
     operations = (
         "benchmark_create_files",
@@ -108,7 +129,7 @@ def benchmark_direct_cases(root, config, env):
 
     # No state directory may be created implicitly by benchmark_create.
     missing = root / "missing-benchmark-state"
-    denied(operations[0], dict(env, KEELARYN_MCP_STATE_DIR=str(missing)))
+    denied(operations[0], dict(benchmark_env, KEELARYN_MCP_STATE_DIR=str(missing)))
     assert not missing.exists()
 
     # A named benchmark directory symlink cannot redirect any tool.
@@ -168,6 +189,9 @@ def main():
             ("tools/call", {"name": "read_files", "arguments": {"project": "not-authorized", "paths": ["sample.md"]}}),
             ("tools/call", {"name": "read_files", "arguments": {"project": "synthetic", "paths": ["../escape.md"]}}),
             ("tools/call", {"name": "delete_files", "arguments": {"project": "synthetic", "files": [{"path": "sample.md", "expected_sha256": digest}]}}),
+            ("tools/call", {"name": "benchmark_create_files", "arguments": {}}),
+            ("tools/call", {"name": "benchmark_echo", "arguments": {"text": "disabled"}}),
+            ("tools/call", {"name": "read_synthetic_batch", "arguments": {}}),
         ]
         request = "".join(json.dumps({"jsonrpc": "2.0", "id": i, "method": m, "params": p}) + "\n" for i, (m, p) in enumerate(actions, 1))
         output = run([str(SRC / "synthetic_stdio.py")], env, request)
@@ -175,13 +199,19 @@ def main():
         assert len(messages) == len(actions), (len(messages), output.stderr)
         assert messages[0]["result"]["protocolVersion"] == "2025-06-18"
         tools = {t["name"] for t in messages[1]["result"]["tools"]}
-        assert {"list_files", "read_files", "search_files", "edit_files", "delete_files"} <= tools
+        assert tools == {"list_files", "read_files", "search_files", "edit_files", "delete_files"}, tools
         assert tool_result(messages[2])["returned"] == 0
         assert tool_result(messages[3])["count"] == 1
         assert tool_result(messages[4])["files"][0]["sha256"] == digest
-        for idx in (5, 6, 7):
+        for idx in (5, 6, 7, 9, 10, 11):
             assert messages[idx]["result"]["isError"] is True, messages[idx]
         assert tool_result(messages[8])["count"] == 1
+        assert not (state / "filesystem-benchmark-20261111").exists()
+        print("BENCHMARK_DEFAULT_HIDDEN_AND_DENIED_PASS")
+        invalid = dict(env, KEELARYN_MCP_BENCHMARK_TOOLS="invalid")
+        rejected = subprocess.run([sys.executable, "-B", str(SRC / "synthetic_stdio.py")],
+                                  input="", capture_output=True, text=True, env=invalid, timeout=15)
+        assert rejected.returncode != 0, "Invalid benchmark opt-in accepted"
         assert not (state / "workspace" / "sample.md").exists()
         assert not (root / "escape.md").exists()
 
