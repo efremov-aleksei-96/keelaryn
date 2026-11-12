@@ -17,6 +17,10 @@ from local_ro import validate_allow as validate_local_allow, open_root as open_l
 MODE = os.environ.get("KEELARYN_MCP_MODE", "system")
 if MODE not in ("system", "local") or (MODE == "local" and os.geteuid() == 0):
     raise ValueError("Invalid MCP operating mode")
+# Explicit opt-in. The legacy tool surface stays unchanged unless configured.
+ACCESS_MODE = os.environ.get("KEELARYN_MCP_ACCESS_MODE", "default")
+if ACCESS_MODE not in ("default", "read-only"):
+    raise ValueError("Invalid MCP access mode")
 CONFIG = Path(os.environ.get("KEELARYN_MCP_CONFIG", "/etc/keelarynos-mcp-benchmark/file-scopes.json"))
 MAX_CONFIG = 32768
 MAX_DOC = 65536
