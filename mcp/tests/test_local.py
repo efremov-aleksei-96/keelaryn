@@ -68,7 +68,11 @@ def benchmark_direct_cases(root, config, env):
         "benchmark_cleanup_files",
     )
     # No preflight is called: the benchmark handlers independently
-    # enforce the same local state-root path constraints.
+    # enforce the same local state-root path constraints. The historical
+    # root-link bug created a directory *before* returning an error.
+    denied(operations[0], alias_env)
+    denied(operations[0], root_alias_env)
+    assert not work.exists(), "Rejected create left a benchmark directory"
     assert accepted(operations[0], actual_env)["state"] == "created"
     assert accepted(operations[0], actual_env)["state"] == "already_created"
     assert accepted(operations[1], actual_env)["state"] == "read"
