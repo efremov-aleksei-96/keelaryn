@@ -1,7 +1,7 @@
 # Keelaryn MCP — portable component (development only)
 
 **Owner:** Keelaryn Engine, `efremov-aleksei-96/keelaryn`, directory `mcp/`.
-**Status (2026-11-12):** local `stdio`, read-only `local-ro`, file-race/resource caps and **symlink-free configuration/state ancestry** are implemented in `dev/mcp-portability`, verified on disposable synthetic fixtures. Local source rollback and restore were also exercised. This is **unqualified development code**, not a production installation or replacement for the running VPS service.
+**Status (2026-11-12):** local `stdio`, read-only `local-ro`, bounded directory traversal and symlink-free config/state ancestry are implemented in `dev/mcp-portability`. Direct `benchmark_*` operations now use checked state directory descriptors, with the prior unsafe-create side effect fixed and synthetic tests passed. Source rollback/restore were tested previously. This remains **unqualified development code**, not a production installation or replacement for the running VPS service.
 **Canonical component entrypoint:** this README and the source files under `mcp/src/`. No separate STATE/WORKLOG is required.
 
 ## Boundaries and purpose
@@ -245,11 +245,33 @@ On **2026-11-12**, the operator commands were exercised with a temporary Git che
 
 The live VPS systemd service remained `active` with MainPID `2636967`. Temporary source and test directories were removed. No changes were made to installed VPS Python, running config, real files, credentials or service state. A different Linux host, filesystem/mount namespaces, trusted checkout protections against other local writers, and actual user data remain **untested**. Symlink-free ancestry is enforced only for the checked local-path operations and does not establish a transactional filesystem snapshot.
 
+## Direct benchmark handlers — verified safety repair (2026-11-12)
+
+**Scope:** only the five `benchmark_*` filesystem handlers in `src/synthetic_stdio.py` when invoked directly over JSON-RPC without `preflight`. `read_synthetic_batch` and `benchmark_echo` are in-memory operations, not state-directory access. No actual project or credential file was used.
+
+**Confirmed before the fix** with the existing development source in a disposable unprivileged fixture:
+
+- `KEELARYN_MCP_STATE_DIR=/.../parent-alias/state`, with `parent-alias` a symlink to another synthetic directory, allowed **all five** benchmark handlers to create, read, edit, verify and remove synthetic files through that link. The local registry itself was private and valid; the bypass came from benchmark path checks, not the generic file handlers.
+- A symlink **at the state root** caused `benchmark_create_files` to return an error but nevertheless create the named benchmark directory first (`SYMLINK_ROOT_SIDE_EFFECT=True`), because `WORK.mkdir()` preceded validation.
+
+Both cases were reproduced and cleaned up solely under `/tmp` with an unprivileged test account. These are verified defects, not inferred vulnerabilities of the running systemd service.
+
+**Minimal fix in `src/synthetic_stdio.py`:**
+
+- Added `state_dirfd()`, which validates the entire local state path using the existing `local_ro.open_root` descriptor walker and checks local owner/private permissions **before any filesystem action**. System mode preserves the pre-existing explicitly recognized `DynamicUser` StateDirectory link behavior.
+- Added `benchmark_dirfd(parent_fd)` to open only `filesystem-benchmark-20261111` with `O_DIRECTORY|O_NOFOLLOW` and verify directory ownership/private permissions.
+- `create()` now checks and creates the benchmark directory **relative to the validated, open parent FD**, then verifies file contents through the same opened directory. A rejected root has **no create side effect**.
+- `cleanup()` similarly checks and removes the fixed directory using the pinned parent FD; it checks directory identity before removing the name. All other disk-backed handlers use the guarded `dirfd()`. Existing synthetic file names, deterministic expected contents, public five generic MCP file tools and other project scopes are unchanged.
+
+**Verified regression evidence:** cloned the exact development commit `3220435c750eb3cd57dca20cf95937b1752b718d` to a new, self-cleaning `/tmp` location on the **existing VPS**. The revised `mcp/tests/test_local.py` directly invoked all five benchmark handlers **without running preflight** and verified: legitimate synthetic create/read/edit/verify/cleanup and idempotent operations; all five denied through a symlinked *ancestor*; root-symlink create denied *before* any directory appeared; unsafe root permissions, missing state root, and symlinked benchmark directory denied; exact known synthetic content unchanged on rejected calls. It returned `BENCHMARK_DIRECT_PATH_SECURITY_PASS` and `BENCHMARK_DIRECT_LIFECYCLE_PASS`. Earlier `LOCAL_CONFIG_AND_STATE_PATH_SECURITY_PASS`, `LOCAL_STDIO_SYNTHETIC_SMOKE_PASS`, `LOCAL_RO_ADVERSARIAL_LIMITS_PASS` and `LOCAL_RO_MCP_INTEGRATION_PASS` also passed. Python AST syntax checks passed on edited source and tests, and GitHub writes were individually re-read.
+
+**Limits:** these are targeted unprivileged Linux synthetic checks, not a complete concurrent-writer/mount-namespace threat model. Directory identity checks are not atomic compare-and-swap against another process with the same credentials. The **system** branch's compatibility was reviewed for the original trusted systemd symlink semantics but **not deployed or retested live**. Local/remote real project writes remain disallowed; independent-host acceptance remains deferred by operator choice.
+
 ## NEXT — exact next task
 
-1. **No extra Linux needed.** Continue only in `dev/mcp-portability` from this README, first reconcile the GitHub branch tip and the requested file.
-2. Address one residual security boundary **if requested**: inspect the direct synthetic `benchmark_*` handlers in `synthetic_stdio.py` for path-based state access that might bypass the new local preflight when a client is launched directly. First reproduce with disposable synthetic directories, then patch only if confirmed; add regression tests and reread code writes.
-3. Do not deploy or restart the working VPS, create services/tunnels, enable real project writes/Drive write, merge to `main` or alter Windows Manager. An independent Linux acceptance test stays **deferred by user choice**.
-4. Preserve this README as the sole resume document, recording verified evidence, constraints, any unresolved risk and precise NEXT; verify significant writes by reading them back.
+1. Continue only from this `mcp/README.md` and `dev/mcp-portability`; compare the current branch tip before editing.
+2. **If development continues**, perform one limited review of whether the seven synthetic/benchmark tools must be *advertised by default* in a portable MCP intended for local read-only projects. Prefer a minimal, backward-compatible **benchmark opt-in**, if a confirmed access-minimization need exists; first check the interface's actual consumers and preserve the existing benchmark behavior where required. No production exposure or new service is authorized.
+3. Keep all real project data read-only, do not change the working VPS, `main`, Windows Manager, secrets or Drive. No separate Linux is required for development; independent-host qualification and rollout are **deferred**.
+4. Record only confirmed changes, test results, limitations and precise NEXT in this **same README** with readback. No second active canon or extra report.
 
 No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
