@@ -20,6 +20,10 @@ VALID_SHA = re.compile(r"^[0-9a-f]{64}$")
 MAX_FILE = 65536
 MAX_BATCH = 10
 MAX_TOTAL = 262144
+MAX_DIR_ENTRIES = 1000
+MAX_SEARCH_DIRECTORIES = 100
+MAX_SEARCH_ENTRIES = 1000
+MAX_SEARCH_FILES = 200
 DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 
@@ -86,6 +90,17 @@ def _sha(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+def _bounded_names(fd):
+    """Enumerate at most 1,001 names; reject oversized directories before sorting."""
+    names = []
+    with os.scandir(fd) as entries:
+        for entry in entries:
+            if len(names) >= MAX_DIR_ENTRIES:
+                raise ValueError("Directory exceeds 1000-entry safety bound")
+            names.append(entry.name)
+    return sorted(names)
+
+
 def list_files(args):
     path = args.get("path", "")
     parts = _parts(path, directory=True)
@@ -94,9 +109,8 @@ def list_files(args):
         raise ValueError("limit must be 1 to 100")
     fd = _open_dir(parts)
     try:
-        entries = []
-        names = sorted(os.listdir(fd))
-        for name in names:
+        visible = []
+        for name in _bounded_names(fd):
             if not VALID_SEGMENT.fullmatch(name):
                 continue
             st = os.stat(name, dir_fd=fd, follow_symlinks=False)
@@ -106,12 +120,11 @@ def list_files(args):
                 kind = "file"
             else:
                 continue
-            entries.append({"path": "/".join(parts + [name]), "type": kind,
+            visible.append({"path": "/".join(parts + [name]), "type": kind,
                             "bytes": st.st_size if kind == "file" else None})
-            if len(entries) >= limit:
-                break
+        entries = visible[:limit]
         return {"entries": entries, "returned": len(entries),
-                "truncated": len(names) > len(entries), "root": "isolated-workspace"}
+                "truncated": len(visible) > limit, "root": "isolated-workspace"}
     finally:
         os.close(fd)
 
@@ -145,21 +158,30 @@ def search_files(args):
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 20:
         raise ValueError("limit must be 1 to 20")
     matches, scanned, truncated = [], 0, False
+    visited_directories, visited_entries = 0, 0
     needle = query.casefold()
 
     def walk(parts):
-        nonlocal scanned, truncated
+        nonlocal scanned, truncated, visited_directories, visited_entries
+        if visited_directories >= MAX_SEARCH_DIRECTORIES:
+            truncated = True
+            return
+        visited_directories += 1
         fd = _open_dir(parts)
         try:
-            for name in sorted(os.listdir(fd)):
-                if scanned >= 200 or len(matches) >= limit:
+            for name in _bounded_names(fd):
+                if (scanned >= MAX_SEARCH_FILES or visited_entries >= MAX_SEARCH_ENTRIES
+                        or len(matches) >= limit):
                     truncated = True
                     return
+                visited_entries += 1
                 if not VALID_SEGMENT.fullmatch(name):
                     continue
                 st = os.stat(name, dir_fd=fd, follow_symlinks=False)
                 if stat.S_ISDIR(st.st_mode) and len(parts) < 3:
                     walk(parts + [name])
+                    if truncated:
+                        return
                 elif stat.S_ISREG(st.st_mode) and st.st_nlink == 1 and name.endswith(TYPES):
                     scanned += 1
                     if st.st_size > MAX_FILE:
