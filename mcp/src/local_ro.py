@@ -1,7 +1,8 @@
-"""Allowlisted, read-only local filesystem MCP backend (unprivileged Linux).
+"""Allowlisted read-only local filesystem MCP backend (Linux).
 
-Only operator-configured roots are accepted. Directory FDs plus O_NOFOLLOW
-prevent path traversal/symlink resolution; remote clients cannot change roots.
+Local mode reads user-owned roots; system mode supports root-owned roots only
+when explicit read-only access is enabled. Every path remains allowlisted.
+Directory FDs and O_NOFOLLOW prevent traversal and symlink resolution.
 """
 import hashlib
 import os
@@ -14,6 +15,12 @@ EXTENSIONS = (".md", ".csv", ".json")
 DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | getattr(os, "O_NONBLOCK", 0)
 MAX_FILE = 65536
+# Never use the changing DynamicUser UID as the owner of system-mode sources.
+# The system service may read only root-owned source trees, and only when the
+# already-enforced server-wide read-only mode is explicitly enabled.
+DATA_OWNER = (0 if os.environ.get("KEELARYN_MCP_MODE") == "system"
+              and os.environ.get("KEELARYN_MCP_ACCESS_MODE") == "read-only"
+              else os.geteuid())
 MAX_TOTAL = 262144
 MAX_ENTRIES = 1000
 MAX_SEARCH_FILES = 100
@@ -52,7 +59,7 @@ def _check_directory(fd, is_root=False):
     s = os.fstat(fd)
     if not stat.S_ISDIR(s.st_mode):
         raise ValueError("Not a directory")
-    if is_root and (s.st_uid != os.geteuid() or s.st_mode & 0o022):
+    if is_root and (s.st_uid != DATA_OWNER or s.st_mode & 0o022):
         raise ValueError("Local root ownership or permissions are unsafe")
     if not is_root:
         safe_owner = s.st_uid in (0, os.geteuid())
@@ -91,7 +98,7 @@ def _open_child_directory(parent_fd, name):
     fd = os.open(name, DIR_FLAGS, dir_fd=parent_fd)
     try:
         s = os.fstat(fd)
-        if not stat.S_ISDIR(s.st_mode) or s.st_uid != os.geteuid() or s.st_mode & 0o022:
+        if not stat.S_ISDIR(s.st_mode) or s.st_uid != DATA_OWNER or s.st_mode & 0o022:
             raise ValueError("Unsafe project subdirectory")
         return fd
     except BaseException:
@@ -135,7 +142,7 @@ def _read(fd, name):
     try:
         before = os.fstat(opened)
         if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
-                or before.st_uid != os.geteuid() or before.st_mode & 0o022
+                or before.st_uid != DATA_OWNER or before.st_mode & 0o022
                 or before.st_size > MAX_FILE):
             raise ValueError("Unsafe document ownership, type or size")
         data = b""
@@ -180,11 +187,11 @@ def _list(scope, path, limit):
                 _parts(full, directory=True)
                 s = os.stat(name, dir_fd=fd, follow_symlinks=False)
                 if stat.S_ISDIR(s.st_mode) and _is_allowed(scope, full, directory=True):
-                    if s.st_uid == os.geteuid() and not s.st_mode & 0o022:
+                    if s.st_uid == DATA_OWNER and not s.st_mode & 0o022:
                         visible.append({"path": full, "type": "directory", "bytes": None})
                 elif stat.S_ISREG(s.st_mode) and _is_allowed(scope, full):
                     _parts(full)
-                    if s.st_uid == os.geteuid() and s.st_nlink == 1 and not s.st_mode & 0o022 and s.st_size <= MAX_FILE:
+                    if s.st_uid == DATA_OWNER and s.st_nlink == 1 and not s.st_mode & 0o022 and s.st_size <= MAX_FILE:
                         visible.append({"path": full, "type": "file", "bytes": s.st_size})
             except (ValueError, OSError):
                 continue
@@ -254,7 +261,7 @@ def _search(scope, query, limit):
                 _parts(full, directory=True)
                 s = os.stat(name, dir_fd=fd, follow_symlinks=False)
                 if stat.S_ISDIR(s.st_mode) and len(parts) < 3 and _is_allowed(scope, full, directory=True):
-                    if s.st_uid == os.geteuid() and not s.st_mode & 0o022:
+                    if s.st_uid == DATA_OWNER and not s.st_mode & 0o022:
                         child = _open_child_directory(fd, name)
                         try:
                             walk(child, parts + [name])
