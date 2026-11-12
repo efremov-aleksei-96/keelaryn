@@ -120,6 +120,22 @@ def main():
         assert sample.read_text(encoding="utf-8") == original
         print("SYSTEM_ROOT_OWNED_LOCAL_RO_READ_AND_DENIAL_PASS")
 
+        # The deployed systemd unit does not explicitly set KEELARYN_MCP_MODE.
+        # All components must agree that its missing value means "system".
+        mode_unset = {"KEELARYN_MCP_MODE": None}
+        default_pf = invoke("file_scopes.py", "--preflight", override=mode_unset)
+        assert default_pf.returncode == 0, default_pf.stderr[-500:]
+        default_read = invoke("synthetic_stdio.py", override=mode_unset, params={
+            "method": "tools/call",
+            "params": {"name": "read_files", "arguments": {
+                "project": "PublicTest", "paths": ["example.md"],
+            }},
+        })
+        assert default_read.returncode == 0, default_read.stderr[-500:]
+        default_value = json.loads(default_read.stdout)["result"]
+        assert data({"result": default_value})["files"][0]["content"] == original
+        print("SYSTEM_READ_ONLY_MODE_ENV_UNSET_ROOT_OWNER_PASS")
+
         # A DynamicUser-owned document must not be accepted as a root-owned source.
         os.chown(sample, nobody.pw_uid, nobody.pw_gid)
         try:
