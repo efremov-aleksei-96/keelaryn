@@ -1,7 +1,7 @@
 # Keelaryn MCP — portable component (development only)
 
 **Owner:** Keelaryn Engine, `efremov-aleksei-96/keelaryn`, directory `mcp/`.
-**Status (2026-11-12):** source-preservation stage in `dev/mcp-portability`; not a release, not a replacement for the active VPS service, and not a qualified local deployment.
+**Status (2026-11-12):** portable path overrides and synthetic-only local stdio smoke are implemented in `dev/mcp-portability`; still unqualified development code, not an installed product or replacement for the active VPS service.
 **Canonical component entrypoint:** this README and the source files under `mcp/src/`. No separate STATE/WORKLOG is required.
 
 ## Boundaries and purpose
@@ -10,13 +10,13 @@ KeelarynOS owns common architecture and information standards. Domain OS/project
 
 Core interface: five generic MCP tools — `list_files`, `read_files`, `search_files`, `edit_files`, `delete_files`. The current source additionally exposes seven synthetic benchmark/testing tools. The operating model is **standard JSON-RPC MCP over stdio**; a particular AI, Google Drive, VPS provider or tunnel is not mandatory for the protocol itself.
 
-The exact source copied from the running isolated VPS service is intentionally **not yet portable by configuration**: absolute paths, scope ownership and systemd StateDirectory expectations are hardcoded. Never mistake this source snapshot for an independently installable product.
+The original source was preserved exactly in the first five commits on this development branch; subsequent commits implement configurable paths and limited local mode. The current local profile is **synthetic only**; real local project scopes and a clean independent-host installation remain unimplemented. Do not mistake an isolated smoke test for general portability.
 
 ## Evidence and source identity (2026-11-12)
 
-Source originals were read from `/usr/local/lib/keelarynos-mcp-benchmark/` on the existing VPS, syntax-checked with Python's AST parser, screened for obvious embedded secrets, and copied byte-for-byte to this branch with individual readback verification.
+Source originals were read from `/usr/local/lib/keelarynos-mcp-benchmark/` on the existing VPS, syntax-checked with Python's AST parser, screened for obvious embedded secrets, and copied byte-for-byte to this branch with individual readback verification **before the later portability edits**. The hashes below identify that baseline, not the revised development code.
 
-| File in `src/` | Source SHA-256 |
+| File in `src/` | Original VPS SHA-256 (baseline) |
 | --- | --- |
 | `synthetic_stdio.py` | `e17ccde486be7e2d6a7d11f5bfbcbaadd7375d3eba16d6ff6e022d659d100f9a` |
 | `fs_tools.py` | `c2a7c9aefd57db012e556c2d642532a5910b904108d3abc7ef23cdd1889cf26e` |
@@ -30,10 +30,18 @@ A direct stdio probe on the **existing VPS**, with no tunnel and no server file 
 
 The running VPS service used `/etc/keelarynos-mcp-benchmark/file-scopes.json` (three scopes: synthetic read/write, MusicLibrary and ArmenianLearning noncanonical pinned read-only snapshots) and `/var/lib/keelarynos-mcp-benchmark/`. An optional Drive live read-only adapter is present in code but no live OAuth/Drive scope is enabled. Production Drive writes are disabled.
 
-## Minimal target contract (PROPOSED, not yet implemented)
+## Verified development checkpoint (2026-11-12)
 
-- **Operator-defined paths:** `KEELARYN_MCP_CONFIG` selects the scope registry and `KEELARYN_MCP_STATE_DIR` selects the state root. Preserve existing VPS absolute paths as defaults for a controlled upgrade. A user-supplied MCP request must not select its own filesystem root.
-- **Two safe ownership profiles:** system installation requires protected root-owned configuration and systemd sandboxing; local unprivileged installation requires a protected configuration owned by the effective user. Neither permits group/other writes or link/path escapes. The same scope contract governs both profiles.
+Four modules (`file_scopes.py`, `fs_tools.py`, `preflight.py`, `synthetic_stdio.py`) now support `KEELARYN_MCP_STATE_DIR` and/or `KEELARYN_MCP_CONFIG` with the previous VPS paths as defaults. `KEELARYN_MCP_MODE=system` (default) keeps root-owned scope configuration and existing systemd isolation expectations. `KEELARYN_MCP_MODE=local` requires an unprivileged user, a user-owned configuration without group/other permissions, and a private state root; a one-scope synthetic-only registry is permitted for that mode.
+
+The new `mcp/tests/test_local.py` was run as the unprivileged `nobody` user inside a disposable temporary directory, using the **exact pinned development commit** `fe89365450ab2eac1c5b950575609f6b09d6de23` downloaded from GitHub. It returned `LOCAL_STDIO_SYNTHETIC_SMOKE_PASS`: initialize, tool discovery, synthetic create/read/delete, rejection of stale SHA-256, denied project and traversal path. All six source/test modules passed AST parsing. Temporary test files were removed. The running systemd service and its configuration were not changed. This test was performed on the **existing VPS OS in an isolated directory**, not on another Linux host, and it does not prove race-free concurrent writes or production data safety.
+
+To repeat under any **unprivileged Linux account** with Python 3.12: `python3 -B mcp/tests/test_local.py`. This test creates and cleans only synthetic temporary files. Do not run it as root.
+
+## Minimal target contract (PARTIALLY IMPLEMENTED)
+
+- **Operator-defined paths (implemented for current entrypoints):** `KEELARYN_MCP_CONFIG` selects the scope registry and `KEELARYN_MCP_STATE_DIR` selects the state root, preserving previous VPS absolute paths as defaults. A user-supplied MCP request cannot select its own filesystem root.
+- **Two safe ownership profiles (limited implementation):** system installation retains root-owned configuration and systemd sandboxing; local mode requires an unprivileged caller and a private user-owned configuration/state root. Local mode is currently verified for synthetic scopes only. Neither permits group/other writes or link/path escapes at the validated boundaries; a general audit of filesystem adversarial cases is still required.
 - **Explicit scopes:** unlisted projects are inaccessible; real sources default to read-only; exact allowed roots and relative paths, file types, maximum read sizes and operation limits are enforced by the server. Do not expose arbitrary command execution or a shell tool.
 - **Transport:** direct `stdio` is the baseline. Optional OpenAI Secure MCP Tunnel launches the same Python server as a child process. No public inbound port, database, Docker, web dashboard or second long-lived MCP daemon is required.
 - **VPS supervision:** one systemd service, with `DynamicUser`, `StateDirectory`, `ProtectSystem=strict`, `ProtectHome`, `NoNewPrivileges`, `UMask=0077`, and secrets passed via systemd `LoadCredential`. For a stdio tunnel binding, **never run two tunnel-client instances against the same tunnel ID concurrently**.
@@ -51,7 +59,7 @@ Tunnel config includes an OpenAI control-plane runtime credential and tunnel ID,
 ## Minimal deployment design
 
 1. Clone or obtain a fixed source revision; use Python 3.12 and stdlib for the file core. No PyPI dependency is needed by the copied Python modules.
-2. For local use, pass a user-owned restricted config and state location, and start the MCP stdio process from the client. The configuration-path overrides and portable ownership mode must be implemented before claiming this path works.
+2. For local use, pass a user-owned restricted config and state location, and start the MCP stdio process from the client. This is tested only in synthetic-only local mode; real local canonical scopes are not yet implemented.
 3. For VPS/ChatGPT, install the verified Python source and a root-owned scope registry, then configure a **single** protected systemd service that supervises the pinned OpenAI tunnel (when required) and its Python child. Provide secrets separately; do not check them into source control.
 4. Verify with synthetic data before enabling any real source; do not alter or switch the production VPS until a separate install and rollback have passed.
 
@@ -59,9 +67,9 @@ A fresh Linux installation is accepted only when: stdio initialize/discovery and
 
 ## NEXT — exact next task
 
-1. On this **development branch only**, parameterize file-scopes and state paths with safe, backward-compatible defaults; make a separately constrained unprivileged local mode and retain existing VPS system mode.
-2. Add minimal synthetic-only tests for both modes, including path escape, scope boundaries and rejection of conflicting writes. Do **not** use real domain data or activate Drive live writes.
-3. Demonstrate a clean stdio run from a separate local/disposable Linux workspace. After that, prepare an operator-readable systemd install/rollback recipe, but **do not switch the existing VPS**.
-4. Read back each changed file after writing, preserve source evidence, and report what was actually verified versus not tested.
+1. On this **development branch only**, add a safely allowlisted **local read-only directory backend**: no caller-selected roots, no writes to canonical projects, protected configuration and no symlink escapes.
+2. Extend synthetic tests to verify local read-only scope boundaries and negative cases; address multi-writer atomicity **before** permitting real writable scopes.
+3. Verify a fresh checkout on an **independent Linux host**; then prepare a small systemd install/rollback recipe. Do **not** switch the existing VPS or include its credentials.
+4. Read back each changed file, preserve source provenance, and keep actual verified scope distinct from open work.
 
 No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
