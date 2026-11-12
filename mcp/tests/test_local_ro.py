@@ -33,6 +33,186 @@ def fail(reply):
     assert reply["result"].get("isError") is True, reply
 
 
+def security_cases(top, docs, scope, env):
+    """Targeted synthetic directory-replacement races and resource limits."""
+    import shutil
+    sys.path.insert(0, str(SRC))
+    import local_ro
+
+    notes = docs / "notes"
+    outside = docs / "elsewhere.md"
+
+    # Deterministically swap the named file for a symlink at the actual open().
+    # The open file descriptor must never dereference the symlink.
+    original_open = local_ro.os.open
+    before_file = notes / "public.md"
+    saved = notes / "saved.md"
+    swapped = False
+
+    def swap_file(name, flags, *args, **kwargs):
+        nonlocal swapped
+        if name == "public.md" and "dir_fd" in kwargs and not swapped:
+            swapped = True
+            before_file.rename(saved)
+            before_file.symlink_to(outside)
+        return original_open(name, flags, *args, **kwargs)
+
+    local_ro.os.open = swap_file
+    try:
+        try:
+            local_ro._read_files(scope, ["notes/public.md"])
+            raise AssertionError("Symlink substitution was followed")
+        except OSError:
+            pass
+        assert swapped
+    finally:
+        local_ro.os.open = original_open
+        before_file.unlink()
+        saved.rename(before_file)
+
+    # Directory substitution must also fail with O_DIRECTORY|O_NOFOLLOW.
+    original_open = local_ro.os.open
+    moved = docs / "savednotes"
+    swapped = False
+
+    def swap_directory(name, flags, *args, **kwargs):
+        nonlocal swapped
+        if name == "notes" and "dir_fd" in kwargs and not swapped:
+            swapped = True
+            notes.rename(moved)
+            notes.symlink_to(moved, target_is_directory=True)
+        return original_open(name, flags, *args, **kwargs)
+
+    local_ro.os.open = swap_directory
+    try:
+        try:
+            local_ro._read_files(scope, ["notes/public.md"])
+            raise AssertionError("Directory substitution was followed")
+        except OSError:
+            pass
+        assert swapped
+    finally:
+        local_ro.os.open = original_open
+        notes.unlink()
+        moved.rename(notes)
+
+    # Search must use the same pinned root FD even if its pathname is
+    # replaced by another user-owned directory after the root is enumerated.
+    original_entries = local_ro._directory_entries
+    previous_root = top / "renamed-source"
+    swapped = False
+
+    def swap_root(fd):
+        nonlocal swapped
+        names = original_entries(fd)
+        if not swapped:
+            swapped = True
+            docs.rename(previous_root)
+            docs.mkdir(mode=0o700)
+            (docs / "notes").mkdir(mode=0o700)
+            (docs / "notes" / "injected.md").write_text("injected data", encoding="utf-8")
+        return names
+
+    local_ro._directory_entries = swap_root
+    try:
+        result = local_ro._search(scope, "injected", 20)
+        assert not result["matches"], result
+        assert swapped
+    finally:
+        local_ro._directory_entries = original_entries
+        shutil.rmtree(docs)
+        previous_root.rename(docs)
+
+    # File size and aggregate read budget: reject before returning contents.
+    oversize = notes / "oversize.md"
+    oversize.write_bytes(b"x" * (local_ro.MAX_FILE + 1))
+    try:
+        try:
+            local_ro._read_files(scope, ["notes/oversize.md"])
+            raise AssertionError("Oversize document accepted")
+        except ValueError:
+            pass
+        assert "oversize.md" not in {x["path"].split("/")[-1]
+                                     for x in local_ro._list(scope, "notes", 100)["entries"]}
+    finally:
+        oversize.unlink()
+
+    batch = [notes / ("batch%02d.md" % i) for i in range(5)]
+    for file in batch:
+        file.write_bytes(b"x" * 62000)
+    try:
+        try:
+            local_ro._read_files(scope, ["notes/" + f.name for f in batch])
+            raise AssertionError("Aggregate read size exceeded")
+        except ValueError:
+            pass
+    finally:
+        for file in batch:
+            file.unlink()
+
+    # Search file budget stays at 100; no silent full-tree scan.
+    many_files = [notes / ("scan%03d.md" % i) for i in range(110)]
+    for file in many_files:
+        file.write_text("no-match\n", encoding="utf-8")
+    try:
+        r = local_ro._search(scope, "absent-value", 20)
+        assert r["truncated"] and r["scanned"] == local_ro.MAX_SEARCH_FILES, r
+    finally:
+        for file in many_files:
+            file.unlink()
+
+    # New global directory budget: trees of empty directories cannot
+    # consume unbounded CPU when no documents are present.
+    many_dirs = [notes / ("d%03d" % i) for i in range(120)]
+    for d in many_dirs:
+        d.mkdir()
+    try:
+        r = local_ro._search(scope, "absent-value", 20)
+        assert r["truncated"] and r["visited_directories"] == local_ro.MAX_SEARCH_DIRECTORIES, r
+    finally:
+        for d in many_dirs:
+            d.rmdir()
+
+    # New global entry budget also limits trees with few readable documents.
+    groups = [notes / "alpha", notes / "beta"]
+    for d in groups:
+        d.mkdir()
+    try:
+        for d in groups:
+            for i in range(550):
+                (d / (".ignored%04d" % i)).touch()
+        r = local_ro._search(scope, "absent-value", 20)
+        assert r["truncated"] and r["visited_entries"] == local_ro.MAX_SEARCH_ENTRIES, r
+    finally:
+        for d in groups:
+            shutil.rmtree(d)
+
+    # Per-directory 1,000-entry cap must fail closed on a larger directory.
+    excessive = [notes / ("item%04d.md" % i) for i in range(1001)]
+    for file in excessive:
+        file.touch()
+    try:
+        try:
+            local_ro._list(scope, "notes", 100)
+            raise AssertionError("Large directory was accepted")
+        except ValueError:
+            pass
+    finally:
+        for file in excessive:
+            file.unlink()
+
+    # No writes, even if the caller supplies a valid path or synthetic hash.
+    for operation in ("edit_files", "delete_files"):
+        try:
+            local_ro.operate(operation, {}, scope)
+            raise AssertionError("Write operation allowed")
+        except ValueError:
+            pass
+    assert outside.read_text(encoding="utf-8") == "outside scope"
+    assert (notes / "public.md").read_text(encoding="utf-8") == "needle first\nsecond line\n"
+    print("LOCAL_RO_ADVERSARIAL_LIMITS_PASS")
+
+
 def main():
     if os.geteuid() == 0:
         raise RuntimeError("Run as unprivileged user")
@@ -111,6 +291,8 @@ def main():
                            env=env, input="", capture_output=True, text=True, timeout=10)
         assert p.returncode != 0
         assert (docs / "notes" / "public.md").read_text() == "needle first\nsecond line\n"
+        cfg.chmod(0o600)
+        security_cases(top, docs, scopes["scopes"]["LocalDemo"], env)
     print("LOCAL_RO_MCP_INTEGRATION_PASS")
 
 
