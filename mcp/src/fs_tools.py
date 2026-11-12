@@ -11,7 +11,7 @@ import stat
 from pathlib import Path
 from file_scopes import SCOPES, get_scope, read_snapshot, list_snapshot
 from drive_live import operate as live_drive_operation
-from local_ro import operate as local_readonly_operation
+from local_ro import operate as local_readonly_operation, open_root as open_local_root
 
 FS_ROOT = Path(os.environ.get("KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark")) / "workspace"
 TYPES = (".md", ".csv", ".json")
@@ -41,7 +41,12 @@ def _parts(raw, directory=False):
 
 
 def _open_dir(parts):
-    fd = os.open(FS_ROOT, DIR_FLAGS)
+    # Protect the synthetic workspace against symlinked state ancestors
+    # in unprivileged local mode. Preserve the original systemd path handling.
+    if os.environ.get("KEELARYN_MCP_MODE", "system") == "local":
+        fd = open_local_root({"root": str(FS_ROOT)})
+    else:
+        fd = os.open(FS_ROOT, DIR_FLAGS)
     try:
         for part in parts:
             nxt = os.open(part, DIR_FLAGS, dir_fd=fd)
