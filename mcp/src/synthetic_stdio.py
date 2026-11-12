@@ -9,7 +9,8 @@ from pathlib import Path
 from fs_tools import FILE_TOOLS, FILE_HANDLERS, file_tool
 
 PROTOCOL = "2025-06-18"
-ROOT = Path("/var/lib/keelarynos-mcp-benchmark")
+MODE = os.environ.get("KEELARYN_MCP_MODE", "system")
+ROOT = Path(os.environ.get("KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark"))
 WORK = ROOT / "filesystem-benchmark-20261111"
 NAMES = tuple(f"sample-{i:02d}.md" for i in range(1, 11))
 FILES = {
@@ -31,7 +32,7 @@ def digest(b):
 def dirfd():
     root_link = os.lstat(ROOT)
     if stat.S_ISLNK(root_link.st_mode):
-        if os.path.realpath(ROOT) != "/var/lib/private/keelarynos-mcp-benchmark":
+        if MODE != "system" or os.path.realpath(ROOT) != "/var/lib/private/keelarynos-mcp-benchmark":
             raise ValueError("Unexpected systemd StateDirectory link")
     elif not stat.S_ISDIR(root_link.st_mode):
         raise ValueError("Unsafe StateDirectory type")
