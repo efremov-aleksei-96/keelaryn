@@ -44,7 +44,16 @@ def _read_bytes(fd, limit):
 
 
 def load_scopes():
-    fd = os.open(CONFIG, O_FILE)
+    if MODE == "local":
+        # Anchor the registry to a private, non-symlinked parent directory.
+        # A leaf-only O_NOFOLLOW would still follow symlinked ancestors.
+        parent_fd = open_local_root({"root": str(CONFIG.parent)})
+        try:
+            fd = os.open(CONFIG.name, O_FILE, dir_fd=parent_fd)
+        finally:
+            os.close(parent_fd)
+    else:
+        fd = os.open(CONFIG, O_FILE)
     try:
         st = os.fstat(fd)
         expected_owner = os.geteuid() if MODE == "local" else 0
