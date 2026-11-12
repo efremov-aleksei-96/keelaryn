@@ -319,11 +319,26 @@ The seven opt-in tools are `read_synthetic_batch`, `benchmark_echo`, `benchmark_
 
 **Limits:** these are bounded-memory/traversal tests under one unprivileged Linux account, not a proof against all filesystem races, hostile concurrent writers, mount changes, or independent Linux deployment. A directory with over 1,000 entries is intentionally **unsupported** for generic synthetic listing/search. Production VPS source and configuration remain unchanged.
 
+## Concurrent synthetic edit/delete — cross-process precondition repair (2026-11-12)
+
+**Scope:** only `mcp/src/fs_tools.py` synthetic workspace `edit_files`/`delete_files` and regression cases in the existing `mcp/tests/test_local.py`; no real project writes, no service installation or configuration change.
+
+**Confirmed before fixing:** using a temporary `nobody`-owned synthetic workspace on the existing VPS, two separate Python processes targeted `race.md` with the **same original SHA-256**. A deterministic pause immediately before the first process's final syscall allowed the second to act:
+- **edit/edit:** both clients returned success, but the first overwrite silently discarded the second's completed content (`OLD_EDIT_RACE`, final `first-write`).
+- **delete/edit:** another client replaced the file successfully after the first client had rechecked the old hash, yet the first client then unlinked the replacement (`OLD_DELETE_RACE`, final `ABSENT`).
+The earlier second hash check did **not** provide atomic compare-and-swap. These are proven cooperative-client lost-update/deletion races, not confirmed damage to real projects.
+
+**Minimal fix:** `edit_files` and `delete_files` acquire Linux `flock(LOCK_EX)` on an already-validated, descriptor-open **synthetic workspace directory** for the entire SHA precondition/read/commit/verification operation, then release the lock and close the FD in `finally`. The existing `_edit_files_locked` and `_delete_files_locked` bodies keep their content/size/path/SHA validation and per-file publication semantics. **No persistent lock file, new directory, daemon or dependency outside the Linux standard library** is needed. The new lock is shared across independent MCP processes opening the same workspace inode.
+
+**Verified after fixing:** cloned development source at commit `523f6fa04ffa6b6ec49cbd8dec585c32dcf223a2` into disposable `/tmp` and ran both existing test scripts as unprivileged `nobody`. The new forked-process barrier test `SYNTHETIC_CONCURRENT_EDIT_DELETE_PRECONDITIONS_PASS` paused one client immediately before replace/unlink while another tried to edit from the same original hash. In both interleavings the contender waited for the directory lock, then failed its stale-SHA check; exactly one operation succeeded, with the expected final content/absence and no leftover temporary files. Also passed `PYTHON_AST_PASS 8`, `MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS`, `SYNTHETIC_DIRECTORY_ENUMERATION_BOUNDS_PASS`, `SYNTHETIC_SEARCH_TRAVERSAL_BOUNDS_PASS`, `BENCHMARK_DEFAULT_HIDDEN_AND_DENIED_PASS`, `BENCHMARK_EXPLICIT_OPT_IN_PASS`, `BENCHMARK_DIRECT_PATH_SECURITY_PASS`, `BENCHMARK_DIRECT_LIFECYCLE_PASS`, `LOCAL_STDIO_SYNTHETIC_SMOKE_PASS`, `LOCAL_RO_ADVERSARIAL_LIMITS_PASS` and `LOCAL_RO_MCP_INTEGRATION_PASS`. Temporary cloned sources and fixtures were removed; the running service remained active at MainPID `2636967`.
+
+**Boundary and limitations:** `flock` is **cooperative, Linux-specific advisory locking**; a different same-UID process writing directly to files while ignoring the lock, mount manipulation, and malicious directory replacement are **not proven safe**. This is not a filesystem transaction or kernel-enforced conditional replacement. A batch of multiple edits/deletions remains **per-file**, not atomic as a group: later failure may leave earlier files changed. All `local-ro`, credential and Drive project scopes remain read-only. Independent host qualification remains deferred; no new deployment was tested.
+
 ## NEXT — exact next task
 
-1. Resume only from this README and the current `dev/mcp-portability` tip; do not depend on prior conversations. No additional Linux is required.
-2. **Only if continuing development:** address the remaining specifically known risk of synthetic `edit_files`/`delete_files` under concurrent same-owner writers. First demonstrate an actual race in disposable synthetic data; patch narrowly only if confirmed, and maintain the rule that no real project scope is writable. Avoid broad reviews and additional state files.
-3. Keep `main`, Windows Manager, the running VPS service and source, secrets, user files and Google Drive untouched. Independent-host acceptance and any real project pilot, merge or release require separate authorization; the separate-host test remains deferred by user choice.
-4. Save only material verified outcomes and the exact next action in this single README, and read back every significant GitHub change.
+1. Read this README and reconcile `dev/mcp-portability` head before further work. No new Linux required.
+2. **If asked to continue:** address the remaining narrow **partial-batch error transparency** concern in synthetic `edit_files`/`delete_files`: inject a failure after the first item of a two-file batch, check exactly what caller is told about already committed files, and only correct a demonstrated ambiguity. Do not attempt an unsolicited multi-file transactional redesign.
+3. Keep the working VPS service and installed sources, `main`, Windows Manager, Drive, secrets and real canonical files unchanged. Any real-data access, independent-host qualification, release or merge requires separate authorization.
+4. Record verified evidence and precise NEXT only in this README; reread every substantial write. No additional STATE, WORKLOG or report.
 
 No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
