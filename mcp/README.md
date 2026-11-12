@@ -143,6 +143,7 @@ umask 077
 CONF="$HOME/.config/keelaryn-mcp"
 STATE="$HOME/.local/share/keelaryn-mcp"
 install -d -m 700 "$CONF" "$STATE"
+set -C                            # Noclobber: refuse overwriting an existing registry.
 cat > "$CONF/file-scopes.json" <<'JSON'
 {
   "schema": "keelarynos_mcp_file_scopes_v1",
