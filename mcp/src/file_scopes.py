@@ -13,7 +13,10 @@ import stat
 import sys
 from pathlib import Path
 
-CONFIG = Path("/etc/keelarynos-mcp-benchmark/file-scopes.json")
+MODE = os.environ.get("KEELARYN_MCP_MODE", "system")
+if MODE not in ("system", "local") or (MODE == "local" and os.geteuid() == 0):
+    raise ValueError("Invalid MCP operating mode")
+CONFIG = Path(os.environ.get("KEELARYN_MCP_CONFIG", "/etc/keelarynos-mcp-benchmark/file-scopes.json"))
 MAX_CONFIG = 32768
 MAX_DOC = 65536
 O_DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -43,8 +46,10 @@ def load_scopes():
     fd = os.open(CONFIG, O_FILE)
     try:
         st = os.fstat(fd)
-        if st.st_uid != 0 or (st.st_mode & 0o022):
-            raise ValueError("Registry must be root-owned and not writable by group/others")
+        expected_owner = os.geteuid() if MODE == "local" else 0
+        forbidden_permissions = 0o077 if MODE == "local" else 0o022
+        if st.st_uid != expected_owner or (st.st_mode & forbidden_permissions):
+            raise ValueError("Registry has unsafe ownership or permissions")
         raw = _read_bytes(fd, MAX_CONFIG)
     finally:
         os.close(fd)
@@ -52,7 +57,7 @@ def load_scopes():
     if not isinstance(data, dict) or set(data) != {"schema", "scopes"} or data["schema"] != "keelarynos_mcp_file_scopes_v1":
         raise ValueError("Unsupported or malformed scope registry")
     scopes = data["scopes"]
-    if not isinstance(scopes, dict) or not (2 <= len(scopes) <= 20):
+    if not isinstance(scopes, dict) or not ((1 if MODE == "local" else 2) <= len(scopes) <= 20):
         raise ValueError("Invalid scope count")
     if scopes.get("synthetic") != {
         "backend": "workspace",
