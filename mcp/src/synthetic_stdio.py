@@ -11,6 +11,14 @@ from local_ro import open_root as open_local_root
 
 PROTOCOL = "2025-06-18"
 MODE = os.environ.get("KEELARYN_MCP_MODE", "system")
+# Keep existing system-mode benchmark clients compatible. Local file access
+# advertises only the five generic tools unless benchmarking is opted into.
+BENCHMARK_SETTING = os.environ.get(
+    "KEELARYN_MCP_BENCHMARK_TOOLS", "1" if MODE == "system" else "0"
+)
+if BENCHMARK_SETTING not in ("0", "1"):
+    raise ValueError("KEELARYN_MCP_BENCHMARK_TOOLS must be 0 or 1")
+BENCHMARK_TOOLS_ENABLED = BENCHMARK_SETTING == "1"
 ROOT = Path(os.environ.get("KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark"))
 WORK = ROOT / "filesystem-benchmark-20261111"
 BENCH_NAME = WORK.name
@@ -231,7 +239,7 @@ FUNCTIONS = {
     "benchmark_cleanup_files": (cleanup, "Remove only the 10 known synthetic files and their dedicated temporary directory.")
 }
 
-TOOLS = [
+BENCHMARK_TOOLS = [
     {"name": "read_synthetic_batch", "description": "Return 10 in-memory synthetic Markdown samples; no filesystem access.", "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "benchmark_echo", "description": "Echo a short non-sensitive test string (at most 80 characters).", "inputSchema": {"type": "object", "properties": {"text": {"type": "string", "maxLength": 80}}, "required": ["text"], "additionalProperties": False}}
 ] + [
@@ -239,7 +247,7 @@ TOOLS = [
     for name, (func, description) in FUNCTIONS.items()
 ]
 
-TOOLS.extend(FILE_TOOLS)
+TOOLS = (BENCHMARK_TOOLS if BENCHMARK_TOOLS_ENABLED else []) + FILE_TOOLS
 
 def handle(msg):
     method = msg.get("method")
@@ -253,13 +261,13 @@ def handle(msg):
     if method == "tools/call":
         name = params.get("name")
         args = params.get("arguments") or {}
-        if name == "read_synthetic_batch" and not args:
+        if BENCHMARK_TOOLS_ENABLED and name == "read_synthetic_batch" and not args:
             return {"content": [{"type": "text", "text": json.dumps(FILES, ensure_ascii=False)}]}
-        if name == "benchmark_echo" and isinstance(args.get("text"), str) and len(args["text"]) <= 80 and len(args) == 1:
+        if BENCHMARK_TOOLS_ENABLED and name == "benchmark_echo" and isinstance(args.get("text"), str) and len(args["text"]) <= 80 and len(args) == 1:
             return {"content": [{"type": "text", "text": args["text"]}]}
         if name in FILE_HANDLERS:
             return file_tool(name, args)
-        if name in FUNCTIONS and not args:
+        if BENCHMARK_TOOLS_ENABLED and name in FUNCTIONS and not args:
             try:
                 outcome = FUNCTIONS[name][0]()
                 return {"content": [{"type": "text", "text": json.dumps(outcome)}]}
