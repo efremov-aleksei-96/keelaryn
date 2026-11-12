@@ -212,7 +212,7 @@ assert fs_tools.file_tool("edit_files", {"project": "Unknown", "edits": []})["is
 assert fs_tools.file_tool("delete_files", {"project": "Unknown", "files": []})["isError"]
 print("MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS")
 '''
-    response = run(["-c", code], env)
+    response = run(["-c", code], dict(env, PYTHONPATH=str(SRC)))
     assert "MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS" in response.stdout
 
 
