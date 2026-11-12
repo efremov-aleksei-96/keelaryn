@@ -217,8 +217,11 @@ print("MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS")
     print("MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS")
 
 
-def bounded_synthetic_walk_cases(state):
+def bounded_synthetic_walk_cases(state, env):
     """Confirm directory/search budgets on disposable synthetic workspace data."""
+    # Direct module calls need the same explicit local environment as stdio.
+    for key in ("KEELARYN_MCP_MODE", "KEELARYN_MCP_CONFIG", "KEELARYN_MCP_STATE_DIR"):
+        os.environ[key] = env[key]
     sys.path.insert(0, str(SRC))
     import fs_tools
 
@@ -336,7 +339,7 @@ def main():
         preflight = run([str(SRC / "preflight.py")], env)
         assert "SYNTHETIC_MCP_SANDBOX_PREFLIGHT_PASS" in preflight.stdout
         schema_runtime_cases(env)
-        bounded_synthetic_walk_cases(state)
+        bounded_synthetic_walk_cases(state, env)
         payload = "Hello from disposable synthetic workspace.\n"
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         actions = [
