@@ -2,6 +2,7 @@
 """Synthetic-only smoke test for Keelaryn MCP local stdio; no real project access."""
 import hashlib
 import json
+import multiprocessing
 import os
 import subprocess
 import sys
@@ -311,6 +312,105 @@ def bounded_synthetic_walk_cases(state, env):
     print("SYNTHETIC_SEARCH_TRAVERSAL_BOUNDS_PASS")
 
 
+def synthetic_concurrency_cases(state, env):
+    """Two independent MCP-like processes must not both pass stale SHA checks."""
+    for key in ("KEELARYN_MCP_MODE", "KEELARYN_MCP_CONFIG", "KEELARYN_MCP_STATE_DIR"):
+        os.environ[key] = env[key]
+    sys.path.insert(0, str(SRC))
+    import fs_tools
+
+    ctx = multiprocessing.get_context("fork")  # Linux: no service or real files.
+    root = state / "workspace"
+    target = root / "race.md"
+    before_sha = hashlib.sha256(b"baseline").hexdigest()
+
+    def paused_client(kind, ready, release, reports):
+        # Intercept only this worker's final write/remove syscall.
+        # Another process tries to update the same original SHA in between.
+        original = fs_tools.os.replace if kind == "edit" else fs_tools.os.unlink
+        def intercept(*args, **kwargs):
+            if kind == "edit" or args[0] == "race.md":
+                if not ready.is_set():
+                    ready.set()
+                    if not release.wait(8):
+                        raise RuntimeError("Synthetic race barrier timeout")
+            return original(*args, **kwargs)
+        if kind == "edit":
+            fs_tools.os.replace = intercept
+        else:
+            fs_tools.os.unlink = intercept
+        try:
+            if kind == "edit":
+                fs_tools.edit_files({"edits": [{
+                    "path": "race.md", "content": "first-write",
+                    "expected_sha256": before_sha,
+                }]})
+            else:
+                fs_tools.delete_files({"files": [{
+                    "path": "race.md", "expected_sha256": before_sha,
+                }]})
+            reports.put(("paused", True, ""))
+        except Exception as exc:
+            reports.put(("paused", False, str(exc)[:120]))
+
+    def competing_client(started, completed, reports):
+        started.set()
+        try:
+            fs_tools.edit_files({"edits": [{
+                "path": "race.md", "content": "second-write",
+                "expected_sha256": before_sha,
+            }]})
+            reports.put(("competing", True, ""))
+        except Exception as exc:
+            reports.put(("competing", False, str(exc)[:120]))
+        finally:
+            completed.set()
+
+    for kind in ("edit", "delete"):
+        target.write_bytes(b"baseline")
+        ready, release = ctx.Event(), ctx.Event()
+        started, completed = ctx.Event(), ctx.Event()
+        reports = ctx.Queue()
+        first = ctx.Process(target=paused_client, args=(kind, ready, release, reports))
+        second = ctx.Process(target=competing_client, args=(started, completed, reports))
+        try:
+            first.start()
+            assert ready.wait(7), "First worker never reached mutation barrier"
+            second.start()
+            assert started.wait(7), "Second worker did not start"
+            assert not completed.wait(0.35), (
+                "Competing writer bypassed the shared synthetic workspace lock"
+            )
+        finally:
+            release.set()  # Ensure no paused test child remains behind.
+            if first.pid:
+                first.join(8)
+                if first.is_alive():
+                    first.terminate()
+                    first.join(3)
+            if second.pid:
+                second.join(8)
+                if second.is_alive():
+                    second.terminate()
+                    second.join(3)
+        assert first.exitcode == 0 and second.exitcode == 0, (
+            first.exitcode, second.exitcode
+        )
+        result = dict((who, (ok, message)) for who, ok, message in (
+            reports.get(timeout=3), reports.get(timeout=3)
+        ))
+        assert result["paused"][0] is True, result
+        assert result["competing"][0] is False, result
+        assert (not target.exists()) if kind == "delete" else (
+            target.read_text(encoding="utf-8") == "first-write"
+        ), (kind, result)
+        assert not any(p.name.endswith(".tmp") for p in root.iterdir())
+        target.unlink(missing_ok=True)
+        reports.close()
+        reports.join_thread()
+    print("SYNTHETIC_CONCURRENT_EDIT_DELETE_PRECONDITIONS_PASS")
+
+
 def main():
     if os.geteuid() == 0:
         raise RuntimeError("Local-mode smoke test must run as an unprivileged user")
@@ -340,6 +440,7 @@ def main():
         assert "SYNTHETIC_MCP_SANDBOX_PREFLIGHT_PASS" in preflight.stdout
         schema_runtime_cases(env)
         bounded_synthetic_walk_cases(state, env)
+        synthetic_concurrency_cases(state, env)
         payload = "Hello from disposable synthetic workspace.\n"
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         actions = [
