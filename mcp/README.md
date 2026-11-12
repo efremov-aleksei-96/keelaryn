@@ -302,11 +302,28 @@ The seven opt-in tools are `read_synthetic_batch`, `benchmark_echo`, `benchmark_
 
 **Limits:** JSON Schema metadata does not itself authorize access. Runtime continues to enforce project scopes, byte-size limits (not identical to schema character limits), relative path depth, file types, SHA checks and read-only boundaries. Tests used Python validators and synthetic fixtures; a separate JSON Schema engine, live Drive and independent-host installation were not qualified.
 
+## Synthetic workspace list/search traversal limits — verified 2026-11-12
+
+**Scope and owner:** `mcp/src/fs_tools.py` (`list_files`, `search_files`) and the **existing** `mcp/tests/test_local.py`; synthetic `workspace` only. No local-ro, credential scope, live Drive adapter, MCP tool names or production unit was modified.
+
+**Reproduced defects before the change:** with 1,300 disposable synthetic Markdown file names, `list_files(limit=1)` returned one result but `os.listdir` read **all 1,300 names** before sorting. With 125 empty synthetic subdirectories, `search_files(query="unmatched", limit=1)` opened **126 directories** while reporting `scanned=0`. The old 200-readable-file limit did not limit directories or other encountered names; a large tree could cause disproportionate CPU/memory/time. Separately, `list_files` previously reported `truncated=true` when its directory merely contained ignored names (no additional visible result). These were resource/metadata defects, **not** observed authorization bypasses.
+
+**Minimal fixes on `dev/mcp-portability`:**
+
+- Shared `_bounded_names(fd)` enumerates at most **1,001 candidate names** using a directory iterator and rejects a directory with **more than 1,000 entries** before sorting or returning a partial result. At most 1,000 names are retained at once per directory. Both generic operations use it. This is fail-closed on a wide directory, not silent omission.
+- `list_files` computes valid visible entries within that bounded directory, then applies the existing client `limit` (1–100). `truncated` now indicates **additional visible** results rather than unsupported/hidden names. Its established result keys remain unchanged.
+- `search_files` additionally limits a query to **100 visited directories** and **1,000 encountered entries in total**, including non-file/ignored entries. Hitting either global budget sets `truncated=true` and stops traversal. The existing **200 eligible files**, **20 matching-line result maximum**, depth restriction and allowlisted synthetic root remain unchanged.
+- No remote calls, changes to real project permissions, destructive production operation or new service were introduced.
+
+**Verification:** read the exact development source at `1bc44446a060a67282eedb5175d2972ec7ae1480` into a self-cleaning temporary checkout on the existing VPS. Python AST parse passed for **eight** source/test files. As unprivileged `nobody`, `test_local.py` and `test_local_ro.py` passed, including new `SYNTHETIC_DIRECTORY_ENUMERATION_BOUNDS_PASS` and `SYNTHETIC_SEARCH_TRAVERSAL_BOUNDS_PASS`. Fixtures covered a 1,001-entry directory (both operations rejected it), exactly 1,000 names (accepted), 125 empty directories (search stopped after at most 100), 12 synthetic folders containing ignored filenames (global entry cap), 205 eligible files (retained 200-file search cap), visibility-aware truncation and a normal matching search. Existing schema, benchmark opt-in, path safety and `local-ro` regressions also passed. Fixtures were removed; running VPS service stayed active at original PID `2636967`.
+
+**Limits:** these are bounded-memory/traversal tests under one unprivileged Linux account, not a proof against all filesystem races, hostile concurrent writers, mount changes, or independent Linux deployment. A directory with over 1,000 entries is intentionally **unsupported** for generic synthetic listing/search. Production VPS source and configuration remain unchanged.
+
 ## NEXT — exact next task
 
-1. Start only from this README and the current `dev/mcp-portability` head. No separate Linux is needed.
-2. **If requested**, address the specific resource-bound question in `src/fs_tools.py`: generic synthetic `list_files` and `search_files` enumerate a directory before output caps and search counts readable files rather than all encountered entries. Reproduce only real unbounded traversal on temporary synthetic trees before changing code, as already done for `local-ro`.
-3. Keep real canonical sources read-only; no `main` merge, Windows Manager change, running VPS modification, Drive write or new service. Independent Linux qualification remains deferred by the user.
-4. Preserve this one README as the sole checkpoint; verify substantial writes by rereading the complete file. No second STATE/WORKLOG.
+1. Resume only from this README and the current `dev/mcp-portability` tip; do not depend on prior conversations. No additional Linux is required.
+2. **Only if continuing development:** address the remaining specifically known risk of synthetic `edit_files`/`delete_files` under concurrent same-owner writers. First demonstrate an actual race in disposable synthetic data; patch narrowly only if confirmed, and maintain the rule that no real project scope is writable. Avoid broad reviews and additional state files.
+3. Keep `main`, Windows Manager, the running VPS service and source, secrets, user files and Google Drive untouched. Independent-host acceptance and any real project pilot, merge or release require separate authorization; the separate-host test remains deferred by user choice.
+4. Save only material verified outcomes and the exact next action in this single README, and read back every significant GitHub change.
 
 No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
