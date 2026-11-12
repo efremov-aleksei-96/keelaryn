@@ -17,6 +17,8 @@ MAX_FILE = 65536
 MAX_TOTAL = 262144
 MAX_ENTRIES = 1000
 MAX_SEARCH_FILES = 100
+MAX_SEARCH_DIRECTORIES = 100
+MAX_SEARCH_ENTRIES = 1000
 
 
 def _parts(value, directory=False):
@@ -84,16 +86,27 @@ def open_root(scope):
         raise
 
 
-def _open_dir(scope, parts):
-    fd = open_root(scope)
+def _open_child_directory(parent_fd, name):
+    """Open a direct child by descriptor; never follow a replaced symlink."""
+    fd = os.open(name, DIR_FLAGS, dir_fd=parent_fd)
+    try:
+        s = os.fstat(fd)
+        if not stat.S_ISDIR(s.st_mode) or s.st_uid != os.geteuid() or s.st_mode & 0o022:
+            raise ValueError("Unsafe project subdirectory")
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _open_dir(scope, parts, root_fd=None):
+    """Keep a caller-pinned root when traversing multiple paths."""
+    fd = open_root(scope) if root_fd is None else os.dup(root_fd)
     try:
         for part in parts:
-            nxt = os.open(part, DIR_FLAGS, dir_fd=fd)
+            nxt = _open_child_directory(fd, part)
             os.close(fd)
             fd = nxt
-            s = os.fstat(fd)
-            if not stat.S_ISDIR(s.st_mode) or s.st_uid != os.geteuid() or s.st_mode & 0o022:
-                raise ValueError("Unsafe project subdirectory")
         return fd
     except BaseException:
         os.close(fd)
@@ -134,7 +147,8 @@ def _read(fd, name):
         after = os.fstat(opened)
         if (len(data) != before.st_size or len(data) > MAX_FILE
                 or before.st_size != after.st_size or before.st_mtime_ns != after.st_mtime_ns
-                or before.st_ctime_ns != after.st_ctime_ns):
+                or before.st_ctime_ns != after.st_ctime_ns or before.st_mode != after.st_mode
+                or before.st_uid != after.st_uid or before.st_nlink != after.st_nlink):
             raise ValueError("Unstable or oversized document")
         return data
     finally:
@@ -187,21 +201,25 @@ def _read_files(scope, paths):
         raise ValueError("Invalid read paths")
     result = []
     total = 0
-    for path in paths:
-        parts = _parts(path)
-        if not _is_allowed(scope, path):
-            raise ValueError("Document is not allowlisted")
-        fd = _open_dir(scope, parts[:-1])
-        try:
-            raw = _read(fd, parts[-1])
-        finally:
-            os.close(fd)
-        total += len(raw)
-        if total > MAX_TOTAL:
-            raise ValueError("Read batch exceeds 256 KiB")
-        result.append({"path": path, "sha256": hashlib.sha256(raw).hexdigest(),
-                       "content": raw.decode("utf-8"), "source": "local-ro",
-                       "canonical": scope["canonical"]})
+    root_fd = open_root(scope)
+    try:
+        for path in paths:
+            parts = _parts(path)
+            if not _is_allowed(scope, path):
+                raise ValueError("Document is not allowlisted")
+            fd = _open_dir(scope, parts[:-1], root_fd=root_fd)
+            try:
+                raw = _read(fd, parts[-1])
+            finally:
+                os.close(fd)
+            total += len(raw)
+            if total > MAX_TOTAL:
+                raise ValueError("Read batch exceeds 256 KiB")
+            result.append({"path": path, "sha256": hashlib.sha256(raw).hexdigest(),
+                           "content": raw.decode("utf-8"), "source": "local-ro",
+                           "canonical": scope["canonical"]})
+    finally:
+        os.close(root_fd)
     return {"files": result, "count": len(result), "bytes": total,
             "source": "local-ro", "canonical": scope["canonical"]}
 
@@ -214,41 +232,57 @@ def _search(scope, query, limit):
     hits = []
     scanned = 0
     truncated = False
+    visited_directories = 0
+    visited_entries = 0
+    needle = query.casefold()
 
-    def walk(parts):
-        nonlocal scanned, truncated
-        fd = _open_dir(scope, parts)
-        try:
-            for name in _directory_entries(fd):
-                if truncated:
-                    return
-                full = "/".join(parts + [name])
-                try:
-                    _parts(full, directory=True)
-                    s = os.stat(name, dir_fd=fd, follow_symlinks=False)
-                    if stat.S_ISDIR(s.st_mode) and len(parts) < 3 and _is_allowed(scope, full, directory=True):
-                        if s.st_uid == os.geteuid() and not s.st_mode & 0o022:
-                            walk(parts + [name])
-                    elif stat.S_ISREG(s.st_mode) and _is_allowed(scope, full):
-                        _parts(full)
-                        if scanned >= MAX_SEARCH_FILES:
-                            truncated = True
-                            return
-                        raw = _read(fd, name)
-                        scanned += 1
-                        for n, line in enumerate(raw.decode("utf-8").splitlines(), 1):
-                            if query.casefold() in line.casefold():
-                                hits.append({"path": full, "line": n, "snippet": line[:256]})
-                                if len(hits) >= limit:
-                                    truncated = True
-                                    return
-                except (ValueError, OSError, UnicodeError):
-                    continue
-        finally:
-            os.close(fd)
+    def walk(fd, parts):
+        nonlocal scanned, truncated, visited_directories, visited_entries
+        if visited_directories >= MAX_SEARCH_DIRECTORIES:
+            truncated = True
+            return
+        visited_directories += 1
+        for name in _directory_entries(fd):
+            if truncated:
+                return
+            if visited_entries >= MAX_SEARCH_ENTRIES:
+                truncated = True
+                return
+            visited_entries += 1
+            full = "/".join(parts + [name])
+            try:
+                _parts(full, directory=True)
+                s = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                if stat.S_ISDIR(s.st_mode) and len(parts) < 3 and _is_allowed(scope, full, directory=True):
+                    if s.st_uid == os.geteuid() and not s.st_mode & 0o022:
+                        child = _open_child_directory(fd, name)
+                        try:
+                            walk(child, parts + [name])
+                        finally:
+                            os.close(child)
+                elif stat.S_ISREG(s.st_mode) and _is_allowed(scope, full):
+                    _parts(full)
+                    if scanned >= MAX_SEARCH_FILES:
+                        truncated = True
+                        return
+                    raw = _read(fd, name)
+                    scanned += 1
+                    for n, line in enumerate(raw.decode("utf-8").splitlines(), 1):
+                        if needle in line.casefold():
+                            hits.append({"path": full, "line": n, "snippet": line[:256]})
+                            if len(hits) >= limit:
+                                truncated = True
+                                return
+            except (ValueError, OSError, UnicodeError):
+                continue
 
-    walk([])
+    root_fd = open_root(scope)
+    try:
+        walk(root_fd, [])
+    finally:
+        os.close(root_fd)
     return {"matches": hits, "scanned": scanned, "truncated": truncated,
+            "visited_directories": visited_directories, "visited_entries": visited_entries,
             "source": "local-ro", "canonical": scope["canonical"]}
 
 
