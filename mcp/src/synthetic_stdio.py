@@ -7,11 +7,14 @@ import stat
 import sys
 from pathlib import Path
 from fs_tools import FILE_TOOLS, FILE_HANDLERS, file_tool
+from local_ro import open_root as open_local_root
 
 PROTOCOL = "2025-06-18"
 MODE = os.environ.get("KEELARYN_MCP_MODE", "system")
 ROOT = Path(os.environ.get("KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark"))
 WORK = ROOT / "filesystem-benchmark-20261111"
+BENCH_NAME = WORK.name
+DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 NAMES = tuple(f"sample-{i:02d}.md" for i in range(1, 11))
 FILES = {
     f"synthetic_{i:02d}.md": f"# Temporary sample {i:02d}\n" + ("Synthetic test line.\n" * 30)
@@ -29,20 +32,56 @@ def expected(stage):
 def digest(b):
     return hashlib.sha256(b).hexdigest()
 
+def state_dirfd():
+    """Validate the state root *before* any benchmark create/read/write.
+
+    Local mode rejects symlinks in every ancestor via open_local_root.
+    System mode preserves the existing, explicitly trusted DynamicUser link.
+    """
+    if MODE == "local":
+        fd = open_local_root({"root": str(ROOT)})
+    elif MODE == "system":
+        root_link = os.lstat(ROOT)
+        if stat.S_ISLNK(root_link.st_mode):
+            if os.path.realpath(ROOT) != "/var/lib/private/keelarynos-mcp-benchmark":
+                raise ValueError("Unexpected systemd StateDirectory link")
+            fd = os.open(ROOT, DIR_FLAGS & ~os.O_NOFOLLOW)
+        elif stat.S_ISDIR(root_link.st_mode):
+            fd = os.open(ROOT, DIR_FLAGS)
+        else:
+            raise ValueError("Unsafe StateDirectory type")
+    else:
+        raise ValueError("Invalid MCP operating mode")
+    try:
+        st = os.fstat(fd)
+        if (not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid()
+                or (MODE == "local" and st.st_mode & 0o077)):
+            raise ValueError("Unsafe benchmark state root")
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def benchmark_dirfd(state_fd):
+    fd = os.open(BENCH_NAME, DIR_FLAGS, dir_fd=state_fd)
+    try:
+        st = os.fstat(fd)
+        if (not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid()
+                or (MODE == "local" and st.st_mode & 0o077)):
+            raise ValueError("Unsafe benchmark directory")
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
 def dirfd():
-    root_link = os.lstat(ROOT)
-    if stat.S_ISLNK(root_link.st_mode):
-        if MODE != "system" or os.path.realpath(ROOT) != "/var/lib/private/keelarynos-mcp-benchmark":
-            raise ValueError("Unexpected systemd StateDirectory link")
-    elif not stat.S_ISDIR(root_link.st_mode):
-        raise ValueError("Unsafe StateDirectory type")
-    root_stat = os.stat(ROOT)
-    if not stat.S_ISDIR(root_stat.st_mode) or root_stat.st_uid != os.getuid():
-        raise ValueError("Unsafe root directory")
-    st = os.lstat(WORK)
-    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
-        raise ValueError("Unsafe benchmark directory")
-    return os.open(WORK, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    parent_fd = state_dirfd()
+    try:
+        return benchmark_dirfd(parent_fd)
+    finally:
+        os.close(parent_fd)
 
 def verify_names(fd):
     if set(os.listdir(fd)) != set(NAMES):
@@ -62,11 +101,15 @@ def read_bytes(fd, name):
     finally:
         os.close(f)
 
+def snapshot_from_fd(fd):
+    verify_names(fd)
+    return {name: read_bytes(fd, name) for name in NAMES}
+
+
 def snapshot():
     fd = dirfd()
     try:
-        verify_names(fd)
-        return {name: read_bytes(fd, name) for name in NAMES}
+        return snapshot_from_fd(fd)
     finally:
         os.close(fd)
 
@@ -75,28 +118,40 @@ def brief(files, stage):
             "sha256": {name: digest(b) for name, b in files.items()}, "stage": stage}
 
 def create():
-    if WORK.exists() or WORK.is_symlink():
-        got = snapshot()
-        if got == expected("BEFORE"):
-            return {"state": "already_created", **brief(got, "BEFORE")}
-        raise ValueError("Directory already exists with different contents")
-    WORK.mkdir(mode=0o700)
-    fd = dirfd()
+    # Validate the complete state path before checking or creating the child.
+    # Hold the same parent FD throughout to prevent path-based side effects.
+    parent_fd = state_dirfd()
     try:
-        for name, b in expected("BEFORE").items():
-            f = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                        0o600, dir_fd=fd)
-            with os.fdopen(f, "wb") as out:
-                out.write(b)
-                out.flush()
-                os.fsync(out.fileno())
-        os.fsync(fd)
+        try:
+            fd = benchmark_dirfd(parent_fd)
+        except FileNotFoundError:
+            os.mkdir(BENCH_NAME, mode=0o700, dir_fd=parent_fd)
+            fd = benchmark_dirfd(parent_fd)
+            created = True
+        else:
+            created = False
+        try:
+            if not created:
+                got = snapshot_from_fd(fd)
+                if got == expected("BEFORE"):
+                    return {"state": "already_created", **brief(got, "BEFORE")}
+                raise ValueError("Directory already exists with different contents")
+            for name, b in expected("BEFORE").items():
+                f = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                            0o600, dir_fd=fd)
+                with os.fdopen(f, "wb") as out:
+                    out.write(b)
+                    out.flush()
+                    os.fsync(out.fileno())
+            os.fsync(fd)
+            got = snapshot_from_fd(fd)
+            if got != expected("BEFORE"):
+                raise ValueError("Creation verification failed")
+            return {"state": "created", **brief(got, "BEFORE")}
+        finally:
+            os.close(fd)
     finally:
-        os.close(fd)
-    got = snapshot()
-    if got != expected("BEFORE"):
-        raise ValueError("Creation verification failed")
-    return {"state": "created", **brief(got, "BEFORE")}
+        os.close(parent_fd)
 
 def read():
     got = snapshot()
@@ -140,22 +195,33 @@ def verify():
     return {"state": "verified", "matches_expected": got == after, **brief(got, "AFTER" if got == after else "MISMATCH")}
 
 def cleanup():
-    if not WORK.exists() and not WORK.is_symlink():
-        return {"state": "already_removed", "remaining": 0}
-    fd = dirfd()
+    parent_fd = state_dirfd()
     try:
-        verify_names(fd)
-        got = {name: read_bytes(fd, name) for name in NAMES}
-        before, after = expected("BEFORE"), expected("AFTER")
-        if any(got[name] not in (before[name], after[name]) for name in NAMES):
-            raise ValueError("Unexpected data; refusing removal")
-        for name in NAMES:
-            os.unlink(name, dir_fd=fd)
-        os.fsync(fd)
+        try:
+            fd = benchmark_dirfd(parent_fd)
+        except FileNotFoundError:
+            return {"state": "already_removed", "remaining": 0}
+        try:
+            verify_names(fd)
+            got = {name: read_bytes(fd, name) for name in NAMES}
+            before, after = expected("BEFORE"), expected("AFTER")
+            if any(got[name] not in (before[name], after[name]) for name in NAMES):
+                raise ValueError("Unexpected data; refusing removal")
+            identity = os.fstat(fd)
+            for name in NAMES:
+                os.unlink(name, dir_fd=fd)
+            os.fsync(fd)
+            current = os.stat(BENCH_NAME, dir_fd=parent_fd, follow_symlinks=False)
+            if (not stat.S_ISDIR(current.st_mode) or current.st_ino != identity.st_ino
+                    or current.st_dev != identity.st_dev):
+                raise ValueError("Benchmark directory changed during cleanup")
+            os.rmdir(BENCH_NAME, dir_fd=parent_fd)
+            os.fsync(parent_fd)
+            return {"state": "removed", "removed": 10, "remaining": 0}
+        finally:
+            os.close(fd)
     finally:
-        os.close(fd)
-    WORK.rmdir()
-    return {"state": "removed", "removed": 10, "remaining": 0}
+        os.close(parent_fd)
 
 FUNCTIONS = {
     "benchmark_create_files": (create, "Create exactly 10 synthetic Markdown files inside a fixed temporary directory."),
