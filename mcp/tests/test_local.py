@@ -411,6 +411,80 @@ def synthetic_concurrency_cases(state, env):
     print("SYNTHETIC_CONCURRENT_EDIT_DELETE_PRECONDITIONS_PASS")
 
 
+def partial_batch_reporting_cases(state, env):
+    """Compare MCP error details with committed synthetic files after item two fails."""
+    for key in ("KEELARYN_MCP_MODE", "KEELARYN_MCP_CONFIG", "KEELARYN_MCP_STATE_DIR"):
+        os.environ[key] = env[key]
+    sys.path.insert(0, str(SRC))
+    import fs_tools
+    import synthetic_stdio
+
+    root = state / "workspace"
+    paths = ("one.md", "two.md", "three.md")
+    original_bytes = b"synthetic-baseline"
+    expected = hashlib.sha256(original_bytes).hexdigest()
+
+    for action in ("edit_files", "delete_files"):
+        assert not any((root / path).exists() for path in paths)
+        for path in paths:
+            (root / path).write_bytes(original_bytes)
+        method = "replace" if action == "edit_files" else "unlink"
+        real = getattr(fs_tools.os, method)
+        injections = []
+
+        def fail_second(*args, **kwargs):
+            target = args[1] if action == "edit_files" else args[0]
+            if target == "two.md":
+                injections.append(target)
+                raise PermissionError("synthetic second-file failure")
+            return real(*args, **kwargs)
+
+        setattr(fs_tools.os, method, fail_second)
+        try:
+            if action == "edit_files":
+                kwargs = {"edits": [
+                    {"path": p, "content": "updated-" + p, "expected_sha256": expected}
+                    for p in paths
+                ]}
+            else:
+                kwargs = {"files": [{"path": p, "expected_sha256": expected} for p in paths]}
+            result = synthetic_stdio.handle({
+                "method": "tools/call",
+                "params": {"name": action, "arguments": {"project": "synthetic", **kwargs}},
+            })
+        finally:
+            setattr(fs_tools.os, method, real)
+
+        assert injections == ["two.md"], injections
+        assert result.get("isError") is True, result
+        details = json.loads(result["content"][0]["text"])
+        assert details["status"] == "partial_error", details
+        assert details["operation"] == action
+        assert details["error"].startswith("PermissionError:")
+        assert details["confirmed_count"] == 1
+        assert details["failed_path"] == "two.md"
+        assert details["failed_path_status"] == "unverified"
+        assert details["not_attempted_paths"] == ["three.md"]
+        assert details["atomic_scope"] == "per-file; not a multi-file transaction"
+        completed = details["confirmed_before_failure"]
+        assert len(completed) == 1 and completed[0]["path"] == "one.md"
+        assert (root / "two.md").read_bytes() == original_bytes
+        assert (root / "three.md").read_bytes() == original_bytes
+        if action == "edit_files":
+            written = (root / "one.md").read_bytes()
+            assert written == b"updated-one.md"
+            assert completed[0]["sha256"] == hashlib.sha256(written).hexdigest()
+            assert completed[0]["action"] == "replaced"
+        else:
+            assert not (root / "one.md").exists()
+            assert completed[0]["sha256"] == expected
+        assert not any(p.name.endswith(".tmp") for p in root.iterdir())
+        for path in paths:
+            (root / path).unlink(missing_ok=True)
+
+    print("SYNTHETIC_PARTIAL_BATCH_ERROR_TRANSPARENCY_PASS")
+
+
 def main():
     if os.geteuid() == 0:
         raise RuntimeError("Local-mode smoke test must run as an unprivileged user")
@@ -441,6 +515,7 @@ def main():
         schema_runtime_cases(env)
         bounded_synthetic_walk_cases(state, env)
         synthetic_concurrency_cases(state, env)
+        partial_batch_reporting_cases(state, env)
         payload = "Hello from disposable synthetic workspace.\n"
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         actions = [
