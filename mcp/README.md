@@ -1,7 +1,7 @@
 # Keelaryn MCP — portable component (development only)
 
 **Owner:** Keelaryn Engine, `efremov-aleksei-96/keelaryn`, directory `mcp/`.
-**Status (2026-11-12):** configurable paths and a constrained `local-ro` directory backend have been implemented on `dev/mcp-portability` and tested with disposable synthetic data over stdio. This is unqualified development code, not a production deployment or replacement for the running VPS service.
+**Status (2026-11-12):** the `local-ro` read-only directory backend and targeted file-race/resource-bound hardening have been implemented in `dev/mcp-portability` and verified with disposable synthetic stdio and adversarial fixtures. The branch remains **unqualified development code**, not a production installation or replacement for the running VPS service.
 **Canonical component entrypoint:** this README and the source files under `mcp/src/`. No separate STATE/WORKLOG is required.
 
 ## Boundaries and purpose
@@ -67,7 +67,9 @@ The `synthetic` entry is **still mandatory** under the inherited registry schema
 
 The MCP caller can select only the preconfigured project and relative paths. A `local-ro` root must be a canonical absolute path owned by the effective unprivileged user, without group/other write access. Config must be owned by that user and private. Ancestors and nested directories are checked; root and child symlinks are rejected using directory descriptors and `O_NOFOLLOW`. Files must be ordinary, single-link, user-owned, non-group/world-writable UTF-8 `.md`, `.csv`, or `.json`. Relative segments use the existing conservative ASCII naming restrictions and additionally reject hidden/sensitive names. Exact files or directory prefixes may be allowlisted; blanket root access is not accepted.
 
-The backend supports `list_files`, `read_files` (including existing character paging) and `search_files`. `edit_files` and `delete_files` are denied regardless of arguments. A single document is capped at 64 KiB, reads at 256 KiB total, a directory at 1000 entries, and search at 100 documents. A broader compatibility/security review, independently controlled writers and host-specific permission cases are **not** covered by synthetic testing. The `canonical` flag is operator-declared metadata; it does not itself establish that a local copy is current.
+The backend supports `list_files`, `read_files` (including existing character paging) and `search_files`. `edit_files` and `delete_files` are denied regardless of arguments. A single document is capped at 64 KiB, reads at 256 KiB total, and each directory listing at 1000 entries. Search now also has **global** caps of 100 read documents, 100 visited directories and 1000 visited directory entries. When a global search cap is reached, it reports `truncated`; directories exceeding the per-directory limit fail closed. Search traverses open descriptor-relative child directories under a single pinned root descriptor; a multi-file read likewise pins the root. The file reader now compares permissions, owner and link count before/after reading, in addition to size and timestamps.
+
+This protects the tested path boundaries, but **does not create a transactional snapshot** or defend against every in-place rewrite by another process sharing the same user identity. Concurrent writes, mount/bind-mount manipulation, broader adversarial environments, and host-specific permission cases are **not fully qualified**. The `canonical` flag is operator-declared metadata; it does not prove a local copy is current.
 
 ### Latest verified test
 
@@ -77,6 +79,18 @@ GitHub development commit `6bb2b4ca3ca2a92d565f81b016bf870fc45e016f` was read as
 - `LOCAL_RO_MCP_INTEGRATION_PASS`: actual MCP initialize/discovery, local allowlisted list/read/page/search, and rejection of out-of-scope paths, symlinks, sensitive names, writes, deletions, unsafe file/directory permissions, symlinked roots and a writable registry.
 
 Only synthetic files were involved. Temporary source/test directories were removed. The production systemd service remained active with its prior MainPID `2636967`; no running service, installed Python file, production configuration, user data or credential was changed. This is **not** a clean deployment on an independent machine, exhaustive adversarial testing or proof of conflict-safe writes.
+
+### Targeted safety audit — verified 2026-11-12
+
+**Confirmed findings and fixes:**
+
+1. The previous search only limited *read files*; arbitrarily many empty directories or name entries could still be visited. Fixed with global directory/entry budgets in `src/local_ro.py`.
+2. The previous search reopened the configured root by pathname for each recursive directory, potentially mixing two distinct same-owner roots if the pathname was replaced while a search ran. Fixed with a root FD pinned for the whole search and parent-FD-relative directory traversal; batched reads now pin their root too.
+3. The previous file reader did not compare mode/owner/link-count metadata *after* reading. Now compares them with the initial `fstat` (in addition to length, mtime and ctime). This detects observed changes but is not proof of immutable content under all concurrent writers.
+
+**Adversarial tests** in existing `tests/test_local_ro.py` deterministically replace a file or directory with a symlink at the moment of `open`, and swap the root pathname after initial enumeration. The symlinks fail to open; the pinned-root search ignores the replacement tree. Tests also check read size 64 KiB, batch size 256 KiB, 100-file search cap, 100-directory global cap, 1000-entry global cap, 1000-entry per-directory rejection, allowlist denial, unsafe file/directory/config permissions, no edit/delete, and no changes to the synthetic originals.
+
+**Executed test evidence:** read pinned GitHub commit `61173689e80d22d2ef3782fa88be6743b9646216` into a temporary directory on the **existing VPS**, checked AST parsing of 8 Python files, and ran as unprivileged `nobody`. Both `test_local.py` and `test_local_ro.py` exited 0. Output included `LOCAL_STDIO_SYNTHETIC_SMOKE_PASS`, `LOCAL_RO_ADVERSARIAL_LIMITS_PASS`, `LOCAL_RO_MCP_INTEGRATION_PASS`. Temporary copies were removed. Running service was still `active` at MainPID `2636967`. No installed server files or real user data were modified. **Only these tests are verified**; an independent-host install remains untested and is deferred by operator choice (no additional Linux).
 
 ## Minimal target contract (PARTIALLY IMPLEMENTED)
 
@@ -107,9 +121,9 @@ A fresh Linux installation is accepted only when: stdio initialize/discovery and
 
 ## NEXT — exact next task
 
-1. On **`dev/mcp-portability` only**, verify a fresh checkout of the pinned source on a **separate clean Linux environment** under an unprivileged account, running both synthetic test files without secrets or real project data. Prefer an isolated GitHub-hosted Ubuntu runner after checking repository workflow governance; do not require a local PC.
-2. Address security gaps found there without enlarging scope: source/config ownership, symlink/path failures, and fail-closed behavior. Keep real project write and delete operations denied until an atomic concurrency mechanism is independently proven.
-3. Once the independent test passes, document a minimal systemd install and rollback procedure for an optional tunnel, with a single active tunnel instance per ID. Do **not** deploy, restart or modify the running VPS before an explicit authorized migration.
-4. Preserve the single canonical `mcp/README.md` checkpoint and verify every substantive GitHub write by rereading it.
+1. On **`dev/mcp-portability` only**, write a minimal **documentation-only** Linux operator setup and recovery procedure using the existing code and synthetic scope: Python 3.12, `KEELARYN_MCP_MODE=local`, restricted paths/permissions, and optional single-service systemd+tunnel recipe. Do **not** deploy or restart the running VPS.
+2. Check that the guide requires no additional service, credentials, canonical files, special AI account or new Linux. Verify the described commands only on synthetic disposable files on the **existing host**, if appropriate.
+3. Keep all real project data `local-ro` read-only; do not enable real writes, add a remote service, or claim perfect concurrency safety. Revisit stronger consistency only if a real use case warrants it.
+4. An installation test on an **independent Linux** is **DEFERRED by user choice**, not an action prerequisite for design work. The safety boundary must be reassessed before any real data access, production deployment, merge or release. Preserve the current README as the sole resume point, and reread each changed file after writes.
 
 No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
