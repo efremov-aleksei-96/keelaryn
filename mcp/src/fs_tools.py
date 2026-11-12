@@ -10,7 +10,7 @@ import re
 import secrets
 import stat
 from pathlib import Path
-from file_scopes import SCOPES, get_scope, read_snapshot, list_snapshot
+from file_scopes import ACCESS_MODE, SCOPES, get_scope, read_snapshot, list_snapshot
 from drive_live import operate as live_drive_operation
 from local_ro import operate as local_readonly_operation, open_root as open_local_root
 
@@ -533,6 +533,12 @@ def _apply_pagination(result, off, cap):
 
 
 def _route_file_tool(name, args):
+    # Independent of the stdio tools/list surface: block cached direct
+    # write calls before dispatching to *any* scope, including synthetic.
+    if ACCESS_MODE == "read-only" and name not in (
+        "list_files", "read_files", "search_files"
+    ):
+        raise ValueError("Read-only MCP mode forbids this operation")
     if not isinstance(args, dict):
         raise ValueError("Tool arguments must be an object")
     allowed = {
