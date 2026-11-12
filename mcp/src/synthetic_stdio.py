@@ -7,6 +7,7 @@ import stat
 import sys
 from pathlib import Path
 from fs_tools import FILE_TOOLS, FILE_HANDLERS, file_tool
+from file_scopes import ACCESS_MODE
 from local_ro import open_root as open_local_root
 
 PROTOCOL = "2025-06-18"
@@ -247,7 +248,12 @@ BENCHMARK_TOOLS = [
     for name, (func, description) in FUNCTIONS.items()
 ]
 
-TOOLS = (BENCHMARK_TOOLS if BENCHMARK_TOOLS_ENABLED else []) + FILE_TOOLS
+READ_ONLY = ACCESS_MODE == "read-only"
+READ_TOOL_NAMES = frozenset(("list_files", "read_files", "search_files"))
+# The read-only tool surface is enforced independently of benchmark opt-in.
+TOOLS = ([tool for tool in FILE_TOOLS if tool["name"] in READ_TOOL_NAMES]
+         if READ_ONLY else
+         (BENCHMARK_TOOLS if BENCHMARK_TOOLS_ENABLED else []) + FILE_TOOLS)
 
 def handle(msg):
     method = msg.get("method")
@@ -261,6 +267,10 @@ def handle(msg):
     if method == "tools/call":
         name = params.get("name")
         args = params.get("arguments") or {}
+        # Reject stale/published write or benchmark names before any handler.
+        if READ_ONLY and name not in READ_TOOL_NAMES:
+            return {"isError": True, "content": [
+                {"type": "text", "text": "Read-only MCP mode forbids this tool"}]}
         if BENCHMARK_TOOLS_ENABLED and name == "read_synthetic_batch" and not args:
             return {"content": [{"type": "text", "text": json.dumps(FILES, ensure_ascii=False)}]}
         if BENCHMARK_TOOLS_ENABLED and name == "benchmark_echo" and isinstance(args.get("text"), str) and len(args["text"]) <= 80 and len(args) == 1:
