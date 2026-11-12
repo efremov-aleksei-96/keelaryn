@@ -26,6 +26,105 @@ def tool_result(msg):
     return json.loads(result["content"][0]["text"])
 
 
+def benchmark_direct_cases(root, config, env):
+    """All benchmark_* calls, without preflight, use only synthetic fixtures."""
+    parent = root / "benchmark-actual-parent"
+    parent.mkdir(mode=0o700)
+    state = parent / "state"
+    state.mkdir(mode=0o700)
+    actual_env = dict(env, KEELARYN_MCP_STATE_DIR=str(state))
+    alias = root / "benchmark-parent-alias"
+    alias.symlink_to(parent, target_is_directory=True)
+    alias_env = dict(env, KEELARYN_MCP_STATE_DIR=str(alias / "state"))
+    root_alias = root / "benchmark-root-alias"
+    root_alias.symlink_to(state, target_is_directory=True)
+    root_alias_env = dict(env, KEELARYN_MCP_STATE_DIR=str(root_alias))
+    work = state / "filesystem-benchmark-20261111"
+
+    def invoke(which, environment):
+        request = json.dumps({
+            "jsonrpc": "2.0", "id": 55, "method": "tools/call",
+            "params": {"name": which, "arguments": {}},
+        }) + "\n"
+        response = run([str(SRC / "synthetic_stdio.py")], environment, request)
+        messages = [json.loads(line) for line in response.stdout.splitlines()]
+        assert len(messages) == 1, response.stderr
+        return messages[0]["result"]
+
+    def accepted(which, environment):
+        result = invoke(which, environment)
+        assert not result.get("isError"), (which, result)
+        return json.loads(result["content"][0]["text"])
+
+    def denied(which, environment):
+        result = invoke(which, environment)
+        assert result.get("isError") is True, (which, result)
+
+    operations = (
+        "benchmark_create_files",
+        "benchmark_read_files",
+        "benchmark_edit_files",
+        "benchmark_verify_files",
+        "benchmark_cleanup_files",
+    )
+    # No preflight is called: the benchmark handlers independently
+    # enforce the same local state-root path constraints.
+    assert accepted(operations[0], actual_env)["state"] == "created"
+    assert accepted(operations[0], actual_env)["state"] == "already_created"
+    assert accepted(operations[1], actual_env)["state"] == "read"
+    assert accepted(operations[2], actual_env)["state"] == "edited"
+    assert accepted(operations[2], actual_env)["state"] == "already_edited"
+    assert accepted(operations[3], actual_env)["matches_expected"] is True
+    preserved = {p.name: p.read_bytes() for p in work.iterdir()}
+    assert len(preserved) == 10
+
+    # The vulnerable version accepted all these calls via a symlinked
+    # parent. No operation may now read or modify the target directory.
+    for which in operations:
+        denied(which, alias_env)
+    assert {p.name: p.read_bytes() for p in work.iterdir()} == preserved
+
+    # Previously 'create' reported error but still created this directory
+    # through a symlink at the state root before calling dirfd().
+    denied(operations[0], root_alias_env)
+    assert {p.name: p.read_bytes() for p in work.iterdir()} == preserved
+
+    # An unsafe state mode is rejected even without preflight.
+    state.chmod(0o777)
+    try:
+        for which in operations:
+            denied(which, actual_env)
+        assert {p.name: p.read_bytes() for p in work.iterdir()} == preserved
+    finally:
+        state.chmod(0o700)
+
+    assert accepted(operations[4], actual_env)["state"] == "removed"
+    assert accepted(operations[4], actual_env)["state"] == "already_removed"
+    assert not work.exists()
+
+    # No state directory may be created implicitly by benchmark_create.
+    missing = root / "missing-benchmark-state"
+    denied(operations[0], dict(env, KEELARYN_MCP_STATE_DIR=str(missing)))
+    assert not missing.exists()
+
+    # A named benchmark directory symlink cannot redirect any tool.
+    external = root / "benchmark-external-synthetic"
+    external.mkdir(mode=0o700)
+    sentinel = external / "sentinel.md"
+    sentinel.write_text("synthetic sentinel\n", encoding="utf-8")
+    work.symlink_to(external, target_is_directory=True)
+    try:
+        for which in operations:
+            denied(which, actual_env)
+        assert sentinel.read_text(encoding="utf-8") == "synthetic sentinel\n"
+        assert work.is_symlink()
+    finally:
+        work.unlink()
+
+    print("BENCHMARK_DIRECT_PATH_SECURITY_PASS")
+    print("BENCHMARK_DIRECT_LIFECYCLE_PASS")
+
+
 def main():
     if os.geteuid() == 0:
         raise RuntimeError("Local-mode smoke test must run as an unprivileged user")
@@ -143,6 +242,7 @@ def main():
         replies = [json.loads(line) for line in response.stdout.splitlines()]
         assert len(replies) == 1 and replies[0]["result"].get("isError") is True
         print("LOCAL_CONFIG_AND_STATE_PATH_SECURITY_PASS")
+        benchmark_direct_cases(root, config, env)
     print("LOCAL_STDIO_SYNTHETIC_SMOKE_PASS")
 
 
