@@ -3,6 +3,7 @@
 No caller-supplied absolute paths, command execution, symlink traversal,
 directory creation, removal, or writes outside the fixed workspace.
 """
+import fcntl
 import hashlib
 import os
 import re
@@ -204,7 +205,32 @@ def search_files(args):
     return {"matches": matches, "scanned": scanned, "truncated": truncated}
 
 
+def _synthetic_write_lock():
+    """Acquire a cooperative cross-process lock on the existing workspace inode.
+
+    Linux flock(2) on a directory FD requires no sidecar files. Every MCP
+    edit/delete holds it from the first SHA check through commit/readback.
+    Other processes sharing the UID but not using this lock are not covered.
+    """
+    fd = _open_dir([])
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
 def edit_files(args):
+    lock_fd = _synthetic_write_lock()
+    try:
+        return _edit_files_locked(args)
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+
+
+def _edit_files_locked(args):
     edits = args.get("edits")
     if not isinstance(edits, list) or not (1 <= len(edits) <= MAX_BATCH):
         raise ValueError("edits must contain 1 to 10 entries")
@@ -290,6 +316,16 @@ def edit_files(args):
 
 
 def delete_files(args):
+    """Serialize cooperative synthetic writes and deletes across MCP processes."""
+    lock_fd = _synthetic_write_lock()
+    try:
+        return _delete_files_locked(args)
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+
+
+def _delete_files_locked(args):
     """Delete only explicit workspace files matching the caller's SHA-256."""
     entries = args.get("files")
     if not isinstance(entries, list) or not (1 <= len(entries) <= MAX_BATCH):
