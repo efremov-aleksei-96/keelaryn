@@ -12,6 +12,7 @@ import re
 import stat
 import sys
 from pathlib import Path
+from local_ro import validate_allow as validate_local_allow, open_root as open_local_root
 
 MODE = os.environ.get("KEELARYN_MCP_MODE", "system")
 if MODE not in ("system", "local") or (MODE == "local" and os.geteuid() == 0):
@@ -69,6 +70,16 @@ def load_scopes():
         if not IDENTIFIER.fullmatch(project) or not isinstance(info, dict):
             raise ValueError("Invalid scope name or entry")
         if project == "synthetic":
+            continue
+        if info.get("backend") == "local-ro":
+            if MODE != "local" or set(info) != {"backend", "access", "snapshot_only", "canonical", "root", "allow"}:
+                raise ValueError("Local scope requires unprivileged local mode and exact fields")
+            if (info["access"] != "read-only" or info["snapshot_only"] is not False
+                    or type(info["canonical"]) is not bool):
+                raise ValueError("Local scopes must be explicitly read-only")
+            validate_local_allow(info["allow"])
+            fd = open_local_root(info)
+            os.close(fd)
             continue
         if info.get("backend") == "drive-live":
             required = {"backend", "access", "snapshot_only", "canonical", "root_id", "credential", "allow"}
@@ -174,6 +185,9 @@ def list_snapshot(project, limit):
 def preflight():
     checks = 0
     for project, scope in SCOPES.items():
+        if scope["backend"] == "local-ro":
+            fd = open_local_root(scope)
+            os.close(fd)
         if scope["backend"] == "credentials":
             for name in sorted(scope["documents"]):
                 raw, meta = read_snapshot(project, name)
