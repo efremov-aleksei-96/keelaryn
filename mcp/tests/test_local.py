@@ -81,6 +81,68 @@ def main():
         assert tool_result(messages[8])["count"] == 1
         assert not (state / "workspace" / "sample.md").exists()
         assert not (root / "escape.md").exists()
+
+        # A private final registry file is insufficient when an ancestor is
+        # a symlink or writable by other users.
+        secure_dir = root / "secure-config"
+        secure_dir.mkdir(mode=0o700)
+        registry = secure_dir / "file-scopes.json"
+        registry.write_bytes(config.read_bytes())
+        registry.chmod(0o600)
+        config_link = root / "config-link"
+        config_link.symlink_to(secure_dir, target_is_directory=True)
+        bad_config_env = dict(env, KEELARYN_MCP_CONFIG=str(config_link / registry.name))
+        proc = subprocess.run(
+            [sys.executable, "-B", str(SRC / "file_scopes.py"), "--preflight"],
+            env=bad_config_env, capture_output=True, text=True, timeout=15)
+        assert proc.returncode != 0, "Symlinked config ancestor accepted"
+
+        secure_dir.chmod(0o777)
+        try:
+            bad_config_env = dict(env, KEELARYN_MCP_CONFIG=str(registry))
+            proc = subprocess.run(
+                [sys.executable, "-B", str(SRC / "file_scopes.py"), "--preflight"],
+                env=bad_config_env, capture_output=True, text=True, timeout=15)
+            assert proc.returncode != 0, "Writable config parent accepted"
+        finally:
+            secure_dir.chmod(0o700)
+
+        # Local preflight must not create a state directory through a parent
+        # symlink, even if the eventual directory would be privately owned.
+        real_parent = root / "real-state-parent"
+        real_parent.mkdir(mode=0o700)
+        state_link = root / "state-parent-link"
+        state_link.symlink_to(real_parent, target_is_directory=True)
+        bad_state_env = dict(env, KEELARYN_MCP_STATE_DIR=str(state_link / "new-state"))
+        proc = subprocess.run(
+            [sys.executable, "-B", str(SRC / "preflight.py")],
+            env=bad_state_env, capture_output=True, text=True, timeout=15)
+        assert proc.returncode != 0, "Symlinked state ancestor accepted"
+        assert not (real_parent / "new-state").exists()
+
+        # A symlink in the workspace location must never be accepted.
+        alternate = root / "alternate-state"
+        alternate.mkdir(mode=0o700)
+        (alternate / "workspace").symlink_to(state / "workspace", target_is_directory=True)
+        bad_workspace_env = dict(env, KEELARYN_MCP_STATE_DIR=str(alternate))
+        proc = subprocess.run(
+            [sys.executable, "-B", str(SRC / "preflight.py")],
+            env=bad_workspace_env, capture_output=True, text=True, timeout=15)
+        assert proc.returncode != 0, "Symlinked workspace accepted"
+
+        # The server-side synthetic file tools must independently reject
+        # a symlinked state ancestor, even if a client skipped preflight.
+        alias = root / "runtime-state-link"
+        alias.symlink_to(state, target_is_directory=True)
+        runtime_env = dict(env, KEELARYN_MCP_STATE_DIR=str(alias))
+        request = json.dumps({
+            "jsonrpc": "2.0", "id": 20, "method": "tools/call",
+            "params": {"name": "list_files", "arguments": {"project": "synthetic", "path": ""}},
+        }) + "\n"
+        response = run([str(SRC / "synthetic_stdio.py")], runtime_env, request)
+        replies = [json.loads(line) for line in response.stdout.splitlines()]
+        assert len(replies) == 1 and replies[0]["result"].get("isError") is True
+        print("LOCAL_CONFIG_AND_STATE_PATH_SECURITY_PASS")
     print("LOCAL_STDIO_SYNTHETIC_SMOKE_PASS")
 
 
