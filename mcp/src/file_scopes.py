@@ -85,8 +85,12 @@ def load_scopes():
         if project == "synthetic":
             continue
         if info.get("backend") == "local-ro":
-            if MODE != "local" or set(info) != {"backend", "access", "snapshot_only", "canonical", "root", "allow"}:
-                raise ValueError("Local scope requires unprivileged local mode and exact fields")
+            # The systemd DynamicUser service may use only root-owned local
+            # sources, with the global server-wide read-only gate enabled.
+            # Local mode continues to require the invoking unprivileged UID.
+            if ((MODE != "local" and not (MODE == "system" and ACCESS_MODE == "read-only"))
+                    or set(info) != {"backend", "access", "snapshot_only", "canonical", "root", "allow"}):
+                raise ValueError("Local scope requires local mode or system read-only mode and exact fields")
             if (info["access"] != "read-only" or info["snapshot_only"] is not False
                     or type(info["canonical"]) is not bool):
                 raise ValueError("Local scopes must be explicitly read-only")
