@@ -318,27 +318,27 @@ def delete_files(args):
 FILE_TOOLS = [
     {"name": "list_files", "description": "List files in a permitted project scope. Project-scoped synthetic files, historical snapshots or configured live Drive read-only files.",
      "inputSchema": {"type": "object", "properties": {"project": {"type": "string", "minLength": 1, "maxLength": 64, "default": "synthetic", "description": "Project name from server-side allowlist; omitted selects synthetic workspace"}, 
-         "path": {"type": "string", "description": "Relative directory path; blank for root", "default": ""},
+         "path": {"type": "string", "maxLength": 320, "description": "Relative directory path; blank for root", "default": ""},
          "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 100}},
          "additionalProperties": False}},
     {"name": "read_files", "description": "Read UTF-8 documents in a permitted project scope, with SHA-256. Existing snapshots are noncanonical; configured live Drive scopes read the source directly.",
      "inputSchema": {"type": "object", "properties": {"project": {"type": "string", "minLength": 1, "maxLength": 64, "default": "synthetic", "description": "Project name from server-side allowlist; omitted selects synthetic workspace"}, "paths": {
-         "type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 20},
-         "offset_chars": {"type": "integer", "minimum": 0, "default": 0,
+         "type": "array", "items": {"type": "string", "maxLength": 320}, "minItems": 1, "maxItems": 20},
+         "offset_chars": {"type": "integer", "minimum": 0, "maximum": 4194304, "default": 0,
                           "description": "Character offset for paged UTF-8 text reads"},
          "max_chars": {"type": "integer", "minimum": 1, "maximum": 16384,
                        "default": 16000, "description": "Maximum characters returned per file"}},
          "required": ["paths"], "additionalProperties": False}},
     {"name": "search_files", "description": "Search text in a permitted project scope; Search within an authorized project scope only.",
      "inputSchema": {"type": "object", "properties": {"project": {"type": "string", "minLength": 1, "maxLength": 64, "default": "synthetic", "description": "Project name from server-side allowlist; omitted selects synthetic workspace"}, 
-         "query": {"type": "string", "minLength": 1, "maxLength": 80},
+         "query": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": r"^[^\x00]+$"},
          "limit": {"type": "integer", "minimum": 1, "maximum": 20, "default": 20}},
          "required": ["query"], "additionalProperties": False}},
     {"name": "delete_files", "description": "Delete synthetic workspace files only, requiring exact current SHA-256. Always denied for snapshot and live Drive scopes.",
      "inputSchema": {"type": "object", "properties": {"project": {"type": "string", "minLength": 1, "maxLength": 64, "default": "synthetic", "description": "Project name from server-side allowlist; omitted selects synthetic workspace"}, 
          "files": {"type": "array", "minItems": 1, "maxItems": 10,
            "items": {"type": "object", "properties": {
-             "path": {"type": "string"},
+             "path": {"type": "string", "maxLength": 320},
              "expected_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
              "required": ["path", "expected_sha256"], "additionalProperties": False}}},
          "required": ["files"], "additionalProperties": False}},
@@ -346,9 +346,9 @@ FILE_TOOLS = [
      "inputSchema": {"type": "object", "properties": {"project": {"type": "string", "minLength": 1, "maxLength": 64, "default": "synthetic", "description": "Project name from server-side allowlist; omitted selects synthetic workspace"}, 
          "edits": {"type": "array", "minItems": 1, "maxItems": 10,
           "items": {"type": "object", "properties": {
-            "path": {"type": "string"},
+            "path": {"type": "string", "maxLength": 320},
             "content": {"type": "string", "maxLength": 65536},
-            "expected_sha256": {"type": ["string", "null"]}},
+            "expected_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}},
             "required": ["path", "content", "expected_sha256"],
             "additionalProperties": False}}},
          "required": ["edits"], "additionalProperties": False}}
@@ -423,6 +423,28 @@ def _snapshot_operation(name, args, project):
     raise ValueError("Unsupported operation")
 
 
+def _read_pagination(args):
+    """Reject invalid offsets *before* opening any file or remote backend."""
+    if "offset_chars" not in args and "max_chars" not in args:
+        return None
+    off, cap = args.get("offset_chars", 0), args.get("max_chars", 16000)
+    if (type(off) is not int or not 0 <= off <= 4 * 1024 * 1024
+            or type(cap) is not int or not 1 <= cap <= 16384):
+        raise ValueError("Invalid read offset or length")
+    return off, cap
+
+
+def _apply_pagination(result, off, cap):
+    for item in result["files"]:
+        full = item["content"]
+        item["content"] = full[off:off + cap]
+        item["offset_chars"] = off
+        item["next_offset_chars"] = min(len(full), off + cap)
+        item["total_chars"] = len(full)
+        item["end_of_file"] = off + cap >= len(full)
+    return result
+
+
 def _route_file_tool(name, args):
     if not isinstance(args, dict):
         raise ValueError("Tool arguments must be an object")
@@ -435,6 +457,7 @@ def _route_file_tool(name, args):
     }[name] | {"project"}
     if not set(args) <= allowed:
         raise ValueError("Unsupported arguments")
+    paging = _read_pagination(args) if name == "read_files" else None
     project = args.get("project", "synthetic")
     scope = get_scope(project)
     if scope["backend"] == "drive-live":
@@ -443,36 +466,14 @@ def _route_file_tool(name, args):
         if name in ("edit_files", "delete_files"):
             raise ValueError("Local project scope is read-only")
         result = local_readonly_operation(name, args, scope)
-        if name == "read_files" and ("offset_chars" in args or "max_chars" in args):
-            off, cap = args.get("offset_chars", 0), args.get("max_chars", 16000)
-            if type(off) is not int or not 0 <= off <= 4 * 1024 * 1024 or type(cap) is not int or not 1 <= cap <= 16384:
-                raise ValueError("Invalid read offset or length")
-            for item in result["files"]:
-                full = item["content"]
-                item["content"] = full[off:off + cap]
-                item["offset_chars"] = off
-                item["next_offset_chars"] = min(len(full), off + cap)
-                item["total_chars"] = len(full)
-                item["end_of_file"] = off + cap >= len(full)
-        return result
+        return _apply_pagination(result, *paging) if paging is not None else result
     if scope["backend"] == "workspace":
         result = FILE_HANDLERS[name]({k: v for k, v in args.items() if k != "project"})
     elif scope["backend"] == "credentials":
         result = _snapshot_operation(name, args, project)
     else:
         raise ValueError("Unknown project backend")
-    if name == "read_files" and ("offset_chars" in args or "max_chars" in args):
-        off, cap = args.get("offset_chars", 0), args.get("max_chars", 16000)
-        if type(off) is not int or not 0 <= off <= 4 * 1024 * 1024 or type(cap) is not int or not 1 <= cap <= 16384:
-            raise ValueError("Invalid read offset or length")
-        for item in result["files"]:
-            full = item["content"]
-            item["content"] = full[off:off + cap]
-            item["offset_chars"] = off
-            item["next_offset_chars"] = min(len(full), off + cap)
-            item["total_chars"] = len(full)
-            item["end_of_file"] = off + cap >= len(full)
-    return result
+    return _apply_pagination(result, *paging) if paging is not None else result
 
 
 
