@@ -354,11 +354,16 @@ The successful response format and non-partial error format remain unchanged. Th
 
 **Unverified:** no general transactional atomicity; `failed_path_status` intentionally remains unknown if publication succeeds but later verification fails. Same-UID writers that ignore advisory locking can still race. No real project data, production service, secrets or independent Linux acceptance were used.
 
+## First actual-public-document local-ro pilot — VERIFIED (2026-11-12)
+
+One-shot, isolated **read-only** pilot was explicitly authorized. Existing VPS, unprivileged `nobody`, standalone `stdio` process; pinned dev source `6b7d9e61c1ebbc7b61811667070c2f7b84e0efbe`. Source document from **main** `b577fa0cc1d760816066ecf3af8afad136564988`: `docs/GITHUB_FIRST_DEVELOPMENT.md`, Git blob `e392c31b13d97af4e34ba903be3a3ba3dab496bc`, **4307 bytes**, SHA-256 `f856bf37cf5a771a3f017d7d622bddc2820df748c8044c6949daa6c923fd592c`.
+
+Created only temporary source checkout, exact-blob-verified public document copy, private local config and synthetic state under one disposable `/tmp/keelaryn-mcp-real-pilot.*` root. `EnginePublicPilot` was `local-ro`, `canonical=false`, `allow=["docs/GITHUB_FIRST_DEVELOPMENT.md"]`; no live source or persistent scope was changed. Both preflights passed. Real JSON-RPC `initialize`/`tools/list` (five generic tools), root/subdirectory listing, full byte-exact `read_files`, character paging and `search_files` (**16 matches**) passed. Unknown scope, excluded paths, traversal, absolute path, edit, delete and excluded listing returned errors. The document remained SHA-identical; separate MCP process exited normally. **Cleanup verified:** no pilot directory remained. Installed service still `active`, PID `2636967`, five original source checksums unchanged. No changes to `main`, working VPS config/service, Windows Manager, Drive or private/canonical data.
+
+**Qualification boundary:** proves one pinned public Markdown file via a temporary local copy, not fresh GitHub syncing, direct access to real canonical user data, remote ChatGPT/tunnel operation, independent-host deployment or general production safety.
+
 ## NEXT — exact next task
 
-1. Resume from the current `mcp/README.md` on `dev/mcp-portability`; reconcile branch head before any edit.
-2. **Only if asked to continue:** target one remaining uncertainty—synthetically fail a *single-file* edit/delete **after** its publication/removal but before post-operation verification, when no earlier item was confirmed. Check whether the caller gets an insufficiently explicit error; improve only the proven ambiguity. Do **not** redesign batches as transactions or introduce new state files.
-3. Keep `main`, Windows Manager, working VPS sources/service, Drive, credentials and real user/canonical data unchanged. Separate-host testing remains deferred by user choice; deployment, real data and merge/release require separate authorization.
-4. Preserve this single README as verified checkpoint and exact NEXT; repeat-read each significant GitHub change.
-
-No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
+1. Choose **one actual intended read-only consumer/source pair** (local stdio vs remote ChatGPT; public GitHub vs authorized private canonical file). Obtain specific approval before accessing any private data or changing a service.
+2. Test that exact pair end-to-end in isolation with the same allowlist/bytes/denial/readback checks. If remote, design an authorized separate tunnel/client session first; do not switch the working tunnel.
+3. Keep real writes disabled; no merge, release, service change, Windows Manager operation or new canon. Independent-host tests remain deferred. Record outcome and NEXT in this README with readback.
