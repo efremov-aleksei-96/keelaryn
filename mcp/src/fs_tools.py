@@ -12,7 +12,7 @@ from pathlib import Path
 from file_scopes import SCOPES, get_scope, read_snapshot, list_snapshot
 from drive_live import operate as live_drive_operation
 
-FS_ROOT = Path("/var/lib/keelarynos-mcp-benchmark/workspace")
+FS_ROOT = Path(os.environ.get("KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark")) / "workspace"
 TYPES = (".md", ".csv", ".json")
 VALID_SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 VALID_SHA = re.compile(r"^[0-9a-f]{64}$")
