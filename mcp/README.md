@@ -1,7 +1,7 @@
 # Keelaryn MCP — portable component (development only)
 
 **Owner:** Keelaryn Engine, `efremov-aleksei-96/keelaryn`, directory `mcp/`.
-**Status (2026-11-12):** the `local-ro` read-only directory backend and targeted file-race/resource-bound hardening have been implemented in `dev/mcp-portability` and verified with disposable synthetic stdio and adversarial fixtures. The branch remains **unqualified development code**, not a production installation or replacement for the running VPS service.
+**Status (2026-11-12):** local `stdio`, read-only `local-ro`, file-race/resource caps and **symlink-free configuration/state ancestry** are implemented in `dev/mcp-portability`, verified on disposable synthetic fixtures. Local source rollback and restore were also exercised. This is **unqualified development code**, not a production installation or replacement for the running VPS service.
 **Canonical component entrypoint:** this README and the source files under `mcp/src/`. No separate STATE/WORKLOG is required.
 
 ## Boundaries and purpose
@@ -134,7 +134,7 @@ git rev-parse HEAD                # Record this exact commit for recovery.
 python3 --version                 # Target: Python 3.12.
 ```
 
-Cloning the existing Git repository (not a ZIP or a second repository) retains the development branch's history locally, including prior audited commits. The original audited safety code revision is `d23ef959597ba688c5a79b8ac7ac8b08b626566f` (the README was revised subsequently). For a fixed audit-source baseline, use `git switch --detach d23ef959597ba688c5a79b8ac7ac8b08b626566f` after cloning; verify `git status --porcelain` is empty before switching. **Do not overwrite an existing checkout or user edits.**
+Cloning the existing Git repository (not a ZIP or a second repository) retains the development branch's history locally, including prior audited commits. The previous historical audit revision `d23ef959597ba688c5a79b8ac7ac8b08b626566f` **predates the 2026-11-12 symlink-ancestor fix and must not be recommended for active local-mode rollback**. The confirmed hardened **source** checkpoint is `6452bf4412e722e19e0d752cf445b45b5c0aa398` (code and regression tests). If recovery to that exact checkpoint is needed, check `git status --porcelain` is empty and then use `git switch --detach 6452bf4412e722e19e0d752cf445b45b5c0aa398`. **Do not overwrite an existing checkout or user edits.**
 
 ### 2. Set up one private, synthetic-only scope
 
@@ -163,7 +163,7 @@ export KEELARYN_MCP_STATE_DIR="$STATE"
 python3 -B mcp/src/preflight.py
 ```
 
-Expected preflight line: `SYNTHETIC_MCP_SANDBOX_PREFLIGHT_PASS`. `CONF` and `STATE` must remain user-owned; no group/other access is permitted to state, and the registry is mode 0600. The `synthetic` scope is deliberately writable **only inside the isolated state workspace**. No live `local-ro` root or canonical project is enabled.
+Expected preflight line: `SYNTHETIC_MCP_SANDBOX_PREFLIGHT_PASS`. `CONF` and `STATE` must remain user-owned; no group/other access is permitted to state, and the registry is mode 0600. **All parent components of the local config and state paths must be actual directories, not symlinks; config/state parents must be operator-owned and not writable by group/others.** The setup command creates the necessary parent directories before preflight. A noncanonical, symlinked or untrusted parent must produce an error rather than be bypassed with relaxed permissions. `set -C` intentionally refuses to overwrite a registry from a previous interrupted setup: inspect an existing registry before retrying. The `synthetic` scope is deliberately writable **only inside the isolated state workspace**. No live `local-ro` root or canonical project is enabled.
 
 ### 3. Test and invoke stdio
 
@@ -187,12 +187,13 @@ Stop/close the MCP client first. Read `git status --porcelain` and `git rev-pars
 ```sh
 cd "$HOME/keelaryn"
 git status --porcelain
-git switch --detach d23ef959597ba688c5a79b8ac7ac8b08b626566f
+git switch --detach 6452bf4412e722e19e0d752cf445b45b5c0aa398
+python3 -B mcp/src/preflight.py
 python3 -B mcp/tests/test_local.py
 python3 -B mcp/tests/test_local_ro.py
 ```
 
-The previously prepared private config and state remain **outside Git** and are not reset or erased by a source checkout. If preflight rejects the registry, check its actual owner/permissions and compare it against the exact synthetic-only JSON above; do not relax permissions or silently replace unknown data. Never `git reset --hard` or `rm -rf` a user state directory as a generic recovery step. Reopen the client only after tests and preflight pass. If a configuration has been expanded to include real read-only project files, reassess the full allowlist before use.
+The previously prepared private config and state remain **outside Git** and are not reset or erased by a source checkout. If preflight rejects the registry, check its actual owner, permissions and **entire ancestor path** against the synthetic-only JSON and mode requirements above; do not relax permissions or silently replace unknown data. An old revision may be retained for historical comparison but is **not automatically safe for running a newly hardened local deployment**. Never `git reset --hard` or `rm -rf` a user state directory as a generic recovery step. Reopen the client only after tests and preflight pass. If a configuration has been expanded to include real read-only project files, reassess the full allowlist before use.
 
 ### Optional systemd **user** service for a future outbound tunnel — not local-only stdio
 
@@ -229,11 +230,26 @@ Substitute actual secure binary/profile locations and validate the profile with 
 
 On **2026-11-12**, the operator commands were exercised with a temporary Git checkout of `dev/mcp-portability` at `d23ef959597ba688c5a79b8ac7ac8b08b626566f` and unprivileged `nobody` in a disposable `/tmp` home: `test_local.py` and `test_local_ro.py` passed, `preflight.py` passed, and a piped JSON-RPC initialize + synthetic list returned `RUNBOOK_MANUAL_STDIO_PASS`. A full single-branch clone also confirmed the earlier audited revision is available for offline source rollback. Test directories were removed. The systemd unit was syntax-parsed by `systemd-analyze verify`, which reported the expected missing illustrative tunnel-client executable; it was **not installed, started or authenticated**. The running VPS service kept MainPID `2636967`. No independent Linux deployment, real-data access or production qualification is claimed.
 
+## Configuration ancestry and recovery — targeted verification (2026-11-12)
+
+**Reproduced defect before the fix:** under a disposable unprivileged test account, the original local mode accepted `file-scopes.json` reached through a symlinked parent directory and accepted a state directory created through a symlinked parent (`SYMLINK_CONFIG_PARENT_ACCEPTED=True`, `SYMLINK_STATE_PARENT_ACCEPTED=True`). This contradicted the stated no-symlink boundary. No real source or system service was involved.
+
+**Addressed in development branch only:**
+
+- `src/file_scopes.py` now opens the local registry under a checked operator-owned **directory descriptor**, so symlinks and unsafe permissions in its parent/ancestor path are rejected. The system-mode root-owned registry semantics were left unchanged.
+- `src/preflight.py` now creates and verifies the local state root and `workspace` using `O_DIRECTORY|O_NOFOLLOW` and `dir_fd`, rather than recursively creating paths through unchecked parents. The immediate parent must exist and be safe. The system-mode preflight path remains unchanged.
+- `src/fs_tools.py` now independently validates the local synthetic workspace's complete ancestor chain before using its file handlers, including if a caller omitted preflight.
+- `tests/test_local.py` exercises symlinked registry parent, group/world-writable registry parent, symlinked state parent, symlinked `workspace` and direct MCP calls through a symlinked state parent; expects rejection. The existing `test_local_ro.py` regression suite is retained.
+
+**Tests actually executed:** using a disposable Git checkout at commit `6452bf4412e722e19e0d752cf445b45b5c0aa398` on the **existing VPS** as unprivileged `nobody`, `LOCAL_CONFIG_AND_STATE_PATH_SECURITY_PASS`, `LOCAL_STDIO_SYNTHETIC_SMOKE_PASS`, `LOCAL_RO_ADVERSARIAL_LIMITS_PASS` and `LOCAL_RO_MCP_INTEGRATION_PASS` all completed with zero exit code. A separate disposable **full clone**, switched to historical commit `d23ef959...` and back to `6452bf441...`, ran both historical and hardened synthetic tests, preserved the SHA-256 of its external configuration and left the state workspace intact (`LOCAL_SOURCE_ROLLBACK_AND_RESTORE_PASS`). The historical commit switch was a controlled test **only**, not a recommendation to deploy the older unsafe revision.
+
+The live VPS systemd service remained `active` with MainPID `2636967`. Temporary source and test directories were removed. No changes were made to installed VPS Python, running config, real files, credentials or service state. A different Linux host, filesystem/mount namespaces, trusted checkout protections against other local writers, and actual user data remain **untested**. Symlink-free ancestry is enforced only for the checked local-path operations and does not establish a transactional filesystem snapshot.
+
 ## NEXT — exact next task
 
-1. **No second Linux required.** Continue only from this `mcp/README.md` and `dev/mcp-portability`. Reconcile the current source revision before any changes.
-2. If further work is requested, perform **a narrowly scoped, synthetic-only review of install/restore ergonomics and source/config permission assumptions**, fixing only demonstrated defects on the development branch. Prefer existing VPS disposable test directories; do not create a daemon or activate a tunnel merely to test the runbook.
-3. Keep real canonical project scopes read-only, with no Drive writes or added services. A real-data pilot, production unit rollout, merge/release and independent-Linux acceptance require separate risk assessment and authorization; the independent-host check remains **deferred by user choice**.
-4. Preserve this README as the single canonical continuation point, record verified changes and exact NEXT here, and reread all significant GitHub writes.
+1. **No extra Linux needed.** Continue only in `dev/mcp-portability` from this README, first reconcile the GitHub branch tip and the requested file.
+2. Address one residual security boundary **if requested**: inspect the direct synthetic `benchmark_*` handlers in `synthetic_stdio.py` for path-based state access that might bypass the new local preflight when a client is launched directly. First reproduce with disposable synthetic directories, then patch only if confirmed; add regression tests and reread code writes.
+3. Do not deploy or restart the working VPS, create services/tunnels, enable real project writes/Drive write, merge to `main` or alter Windows Manager. An independent Linux acceptance test stays **deferred by user choice**.
+4. Preserve this README as the sole resume document, recording verified evidence, constraints, any unresolved risk and precise NEXT; verify significant writes by reading them back.
 
 No changes to `main`, `manager/`, `hub/`, real Google Drive files, credentials, running VPS configuration or services are authorized by this development checkpoint.
