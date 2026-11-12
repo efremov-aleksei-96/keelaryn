@@ -150,6 +150,72 @@ def benchmark_direct_cases(root, config, env):
     print("BENCHMARK_DIRECT_LIFECYCLE_PASS")
 
 
+def schema_runtime_cases(env):
+    """Check all five public schemas and validate paging before backend I/O."""
+    code = '''
+import fs_tools
+tools = {item["name"]: item["inputSchema"] for item in fs_tools.FILE_TOOLS}
+names = {"list_files", "read_files", "search_files", "edit_files", "delete_files"}
+assert set(tools) == names
+assert all(schema["additionalProperties"] is False for schema in tools.values())
+assert tools["list_files"]["properties"]["path"]["maxLength"] == 320
+assert tools["list_files"]["properties"]["limit"]["maximum"] == 100
+rp = tools["read_files"]["properties"]
+assert tools["read_files"]["required"] == ["paths"]
+assert rp["paths"]["maxItems"] == 20 and rp["paths"]["items"]["maxLength"] == 320
+assert rp["offset_chars"]["maximum"] == 4194304
+assert rp["max_chars"]["maximum"] == 16384
+sp = tools["search_files"]["properties"]
+assert tools["search_files"]["required"] == ["query"]
+assert sp["limit"]["maximum"] == 20 and "pattern" in sp["query"]
+ep = tools["edit_files"]["properties"]["edits"]["items"]
+dp = tools["delete_files"]["properties"]["files"]["items"]
+assert tools["edit_files"]["required"] == ["edits"]
+assert tools["delete_files"]["required"] == ["files"]
+assert ep["properties"]["path"]["maxLength"] == 320
+assert dp["properties"]["path"]["maxLength"] == 320
+assert ep["properties"]["expected_sha256"]["pattern"] == "^[0-9a-f]{64}$"
+assert dp["properties"]["expected_sha256"]["pattern"] == "^[0-9a-f]{64}$"
+assert ep["additionalProperties"] is False and dp["additionalProperties"] is False
+for required in ("path", "content", "expected_sha256"):
+    assert required in ep["required"]
+for required in ("path", "expected_sha256"):
+    assert required in dp["required"]
+
+calls = []
+def dummy_handler(args):
+    calls.append(args)
+    return {"files": [{"path": "sample.md", "content": "synthetic text", "sha256": "0" * 64}]}
+fs_tools.FILE_HANDLERS["read_files"] = dummy_handler
+bad = [
+    {"offset_chars": -1}, {"offset_chars": 4194305},
+    {"offset_chars": True}, {"offset_chars": "0"},
+    {"max_chars": 0}, {"max_chars": 16385},
+    {"max_chars": False}, {"max_chars": "5"},
+]
+for invalid in bad:
+    try:
+        fs_tools._route_file_tool("read_files", {"paths": ["sample.md"], **invalid})
+        raise AssertionError("Malformed paging was accepted")
+    except ValueError:
+        pass
+assert not calls, "Invalid paging reached backend despite rejection"
+valid = fs_tools._route_file_tool(
+    "read_files", {"paths": ["sample.md"], "offset_chars": 2, "max_chars": 5}
+)
+assert len(calls) == 1
+doc = valid["files"][0]
+assert doc["content"] == "nthet" and doc["next_offset_chars"] == 7
+assert doc["total_chars"] == len("synthetic text")
+assert fs_tools.file_tool("read_files", {"project": "Unknown", "paths": ["sample.md"]})["isError"]
+assert fs_tools.file_tool("edit_files", {"project": "Unknown", "edits": []})["isError"]
+assert fs_tools.file_tool("delete_files", {"project": "Unknown", "files": []})["isError"]
+print("MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS")
+'''
+    response = run(["-c", code], env)
+    assert "MCP_FIVE_TOOL_SCHEMA_RUNTIME_ALIGNMENT_PASS" in response.stdout
+
+
 def main():
     if os.geteuid() == 0:
         raise RuntimeError("Local-mode smoke test must run as an unprivileged user")
@@ -177,6 +243,7 @@ def main():
         })
         preflight = run([str(SRC / "preflight.py")], env)
         assert "SYNTHETIC_MCP_SANDBOX_PREFLIGHT_PASS" in preflight.stdout
+        schema_runtime_cases(env)
         payload = "Hello from disposable synthetic workspace.\n"
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         actions = [
