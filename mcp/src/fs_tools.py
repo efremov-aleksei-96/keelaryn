@@ -11,6 +11,7 @@ import stat
 from pathlib import Path
 from file_scopes import SCOPES, get_scope, read_snapshot, list_snapshot
 from drive_live import operate as live_drive_operation
+from local_ro import operate as local_readonly_operation
 
 FS_ROOT = Path(os.environ.get("KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark")) / "workspace"
 TYPES = (".md", ".csv", ".json")
@@ -433,6 +434,22 @@ def _route_file_tool(name, args):
     scope = get_scope(project)
     if scope["backend"] == "drive-live":
         return live_drive_operation(name, args, scope)
+    if scope["backend"] == "local-ro":
+        if name in ("edit_files", "delete_files"):
+            raise ValueError("Local project scope is read-only")
+        result = local_readonly_operation(name, args, scope)
+        if name == "read_files" and ("offset_chars" in args or "max_chars" in args):
+            off, cap = args.get("offset_chars", 0), args.get("max_chars", 16000)
+            if type(off) is not int or not 0 <= off <= 4 * 1024 * 1024 or type(cap) is not int or not 1 <= cap <= 16384:
+                raise ValueError("Invalid read offset or length")
+            for item in result["files"]:
+                full = item["content"]
+                item["content"] = full[off:off + cap]
+                item["offset_chars"] = off
+                item["next_offset_chars"] = min(len(full), off + cap)
+                item["total_chars"] = len(full)
+                item["end_of_file"] = off + cap >= len(full)
+        return result
     if scope["backend"] == "workspace":
         result = FILE_HANDLERS[name]({k: v for k, v in args.items() if k != "project"})
     elif scope["backend"] == "credentials":
