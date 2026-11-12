@@ -485,6 +485,88 @@ def partial_batch_reporting_cases(state, env):
     print("SYNTHETIC_PARTIAL_BATCH_ERROR_TRANSPARENCY_PASS")
 
 
+def read_only_access_mode_cases(state, env):
+    """Read-only is opt-in; cached write/benchmark calls must fail in either mode."""
+    root = state / "workspace"
+    sample = root / "readonly.md"
+    payload = "synthetic read-only automation fixture\n"
+    sample.write_text(payload, encoding="utf-8")
+    expected_sha = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    read_names = {"list_files", "read_files", "search_files"}
+
+    def req(i, method, params):
+        return json.dumps({"jsonrpc": "2.0", "id": i, "method": method,
+                           "params": params}) + "\n"
+
+    for benchmark_flag in ("0", "1"):
+        ro_env = dict(env, KEELARYN_MCP_ACCESS_MODE="read-only",
+                      KEELARYN_MCP_BENCHMARK_TOOLS=benchmark_flag)
+        calls = [
+            ("initialize", {"protocolVersion": "2025-06-18",
+                            "clientInfo": {"name": "read-only-regression", "version": "1"},
+                            "capabilities": {}}),
+            ("tools/list", {}),
+            ("tools/call", {"name": "list_files", "arguments":
+                            {"project": "synthetic", "path": ""}}),
+            ("tools/call", {"name": "read_files", "arguments":
+                            {"project": "synthetic", "paths": ["readonly.md"]}}),
+            ("tools/call", {"name": "search_files", "arguments":
+                            {"project": "synthetic", "query": "automation"}}),
+            ("tools/call", {"name": "edit_files", "arguments": {"project": "synthetic",
+                            "edits": [{"path": "readonly.md", "content": "UNAUTHORIZED",
+                                       "expected_sha256": expected_sha}]}}),
+            ("tools/call", {"name": "delete_files", "arguments": {"project": "synthetic",
+                            "files": [{"path": "readonly.md",
+                                       "expected_sha256": expected_sha}]}}),
+            ("tools/call", {"name": "benchmark_echo", "arguments": {"text": "cached"}}),
+            ("tools/call", {"name": "benchmark_create_files", "arguments": {}}),
+            ("tools/call", {"name": "read_synthetic_batch", "arguments": {}}),
+            ("tools/call", {"name": "read_files", "arguments":
+                            {"project": "unknown", "paths": ["readonly.md"]}}),
+            ("tools/call", {"name": "read_files", "arguments":
+                            {"project": "synthetic", "paths": ["../readonly.md"]}}),
+        ]
+        incoming = "".join(req(i, method, params) for i, (method, params)
+                           in enumerate(calls, 1))
+        result = run([str(SRC / "synthetic_stdio.py")], ro_env, incoming)
+        answers = [json.loads(line) for line in result.stdout.splitlines()]
+        assert len(answers) == len(calls), (answers, result.stderr)
+        assert answers[0]["result"]["protocolVersion"] == "2025-06-18"
+        names = {t["name"] for t in answers[1]["result"]["tools"]}
+        assert names == read_names, (benchmark_flag, names)
+        listing = tool_result(answers[2])
+        assert listing["returned"] == 1 and listing["entries"][0]["path"] == "readonly.md"
+        read = tool_result(answers[3])["files"][0]
+        assert read["content"] == payload and read["sha256"] == expected_sha
+        found = tool_result(answers[4])
+        assert found["scanned"] == 1 and len(found["matches"]) == 1
+        for denied in answers[5:]:
+            assert denied["result"]["isError"] is True, denied
+        assert sample.read_text(encoding="utf-8") == payload
+        assert not (state / "filesystem-benchmark-20261111").exists()
+
+        # File router is also guarded independently of stdio discovery.
+        direct = run(["-c", (
+            "import fs_tools; "
+            "r=fs_tools.file_tool('edit_files', "
+            "{'project':'synthetic','edits':[{'path':'readonly.md',"
+            "'content':'UNAUTHORIZED','expected_sha256':None}]}); "
+            "assert r.get('isError') is True"
+        )], dict(ro_env, PYTHONPATH=str(SRC)))
+        assert direct.returncode == 0
+        assert sample.read_text(encoding="utf-8") == payload
+
+    bad_env = dict(env, KEELARYN_MCP_ACCESS_MODE="unknown")
+    bad = subprocess.run([sys.executable, "-B", str(SRC / "synthetic_stdio.py")],
+                         input="", text=True, capture_output=True, env=bad_env, timeout=12)
+    assert bad.returncode != 0 and "Invalid MCP access mode" in bad.stderr
+    sample.unlink()
+    print("READ_ONLY_THREE_TOOL_DISCOVERY_PASS")
+    print("READ_ONLY_SYNTHETIC_AUTOMATION_READ_PASS")
+    print("READ_ONLY_CACHED_WRITE_AND_BENCHMARK_DENIAL_PASS")
+    print("READ_ONLY_INVALID_MODE_FAIL_CLOSED_PASS")
+
+
 def main():
     if os.geteuid() == 0:
         raise RuntimeError("Local-mode smoke test must run as an unprivileged user")
@@ -516,6 +598,7 @@ def main():
         bounded_synthetic_walk_cases(state, env)
         synthetic_concurrency_cases(state, env)
         partial_batch_reporting_cases(state, env)
+        read_only_access_mode_cases(state, env)
         payload = "Hello from disposable synthetic workspace.\n"
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         actions = [
