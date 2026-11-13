@@ -133,7 +133,7 @@ def main():
         })
         assert default_read.returncode == 0, default_read.stderr[-500:]
         default_value = json.loads(default_read.stdout)["result"]
-        assert data({"result": default_value})["files"][0]["content"] == original
+        assert json.loads(default_value["content"][0]["text"])["files"][0]["content"] == original
         print("SYSTEM_READ_ONLY_MODE_ENV_UNSET_ROOT_OWNER_PASS")
 
         # A DynamicUser-owned document must not be accepted as a root-owned source.
