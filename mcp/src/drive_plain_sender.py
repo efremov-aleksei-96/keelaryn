@@ -226,7 +226,9 @@ class Drive:
         for obj in files:
             if (not isinstance(obj, dict) or not isinstance(obj.get("name"), str)
                     or obj.get("name") in out or not isinstance(obj.get("parents"), list)
-                    or obj.get("parents") != [parent] or obj.get("trashed") is not False):
+                    or (parent != "root" and obj.get("parents") != [parent])
+                    or (parent == "root" and len(obj.get("parents")) != 1)
+                    or obj.get("trashed") is not False):
                 raise BackupError("Unexpected or duplicate remote child")
             self._id(obj.get("id"))
             out[obj["name"]] = obj
@@ -246,8 +248,11 @@ class Drive:
 
     def _created(self, obj, parent, name, mime):
         self._id(obj.get("id"))
+        parents = obj.get("parents")
         if (obj.get("name") != name or obj.get("mimeType") != mime
-                or obj.get("parents") != [parent]):
+                or not isinstance(parents, list)
+                or (parent != "root" and parents != [parent])
+                or (parent == "root" and len(parents) != 1)):
             raise BackupError("Created Drive metadata mismatch")
 
     def media(self, file_id):
