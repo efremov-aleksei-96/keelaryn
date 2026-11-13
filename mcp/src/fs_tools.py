@@ -14,6 +14,7 @@ from file_scopes import ACCESS_MODE, SCOPES, get_scope, read_snapshot, list_snap
 from drive_live import operate as live_drive_operation
 from drive_file_ro import operate as exact_drive_file_operation
 from local_ro import operate as local_readonly_operation, open_root as open_local_root
+from owner_fs import mutate as owner_mutation_operation
 
 FS_ROOT = Path(os.environ.get("KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark")) / "workspace"
 TYPES = (".md", ".csv", ".json")
@@ -441,6 +442,28 @@ FILE_TOOLS = [
             "additionalProperties": False}}},
          "required": ["edits"], "additionalProperties": False}}
 ]
+# Advertised ONLY for explicit local synthetic owner scopes; not in the live
+# read-only three-tool interface and not a replacement for a confirmation UI.
+OWNER_MUTATION_TOOL = {
+    "name": "owner_mutate",
+    "description": "G1 synthetic owner only: idempotent create/replace/rename/delete of one exact allowlisted file with SHA-256 CAS. Never enabled in system mode.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "project": {"type": "string", "minLength": 1, "maxLength": 64},
+            "request_id": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+            "action": {"type": "string", "enum": ["create", "replace", "rename", "delete"]},
+            "path": {"type": "string", "maxLength": 320},
+            "new_path": {"type": "string", "maxLength": 320},
+            "content": {"type": "string", "maxLength": 65536},
+            "expected_sha256": {"type": ["string", "null"],
+                                "pattern": "^[0-9a-f]{64}$"},
+        },
+        "required": ["project", "request_id", "action", "path"],
+        "additionalProperties": False,
+    },
+}
+
 FILE_HANDLERS = {
     "list_files": list_files,
     "read_files": read_files,
@@ -542,6 +565,14 @@ def _route_file_tool(name, args):
         raise ValueError("Read-only MCP mode forbids this operation")
     if not isinstance(args, dict):
         raise ValueError("Tool arguments must be an object")
+    if name == "owner_mutate":
+        if not isinstance(args, dict):
+            raise ValueError("Owner mutation must be an object")
+        project = args.get("project")
+        scope = get_scope(project)
+        if scope["backend"] != "owner-fs":
+            raise ValueError("Only the explicitly opted-in owner can mutate")
+        return owner_mutation_operation(args, scope)
     allowed = {
         "list_files": {"path", "limit"},
         "read_files": {"paths", "offset_chars", "max_chars"},
@@ -558,6 +589,11 @@ def _route_file_tool(name, args):
         return live_drive_operation(name, args, scope)
     if scope["backend"] == "drive-file-ro":
         return exact_drive_file_operation(name, args, scope)
+    if scope["backend"] == "owner-fs":
+        if name in ("edit_files", "delete_files"):
+            raise ValueError("Owner writes require request_id and owner_mutate")
+        result = local_readonly_operation(name, args, scope)
+        return _apply_pagination(result, *paging) if paging is not None else result
     if scope["backend"] == "local-ro":
         if name in ("edit_files", "delete_files"):
             raise ValueError("Local project scope is read-only")
