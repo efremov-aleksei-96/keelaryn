@@ -124,6 +124,32 @@ def load_scopes():
                 if not item.endswith("/") and not item.endswith((".md", ".csv", ".json")):
                     raise ValueError("Drive allowlist file must be Markdown, CSV or JSON")
             continue
+        if info.get("backend") == "drive-file-ro":
+            # Default-off, single exact Drive object with a Viewer-only service
+            # account. Never use the old folder-listing backend for this scope.
+            if MODE != "system" or ACCESS_MODE != "read-only":
+                raise ValueError("Single-file Drive requires system read-only mode")
+            required = {"backend", "access", "snapshot_only", "canonical",
+                        "file_id", "filename", "credential", "owner_email"}
+            if set(info) != required:
+                raise ValueError("Invalid one-file Drive scope fields")
+            if (info["access"], info["snapshot_only"], info["canonical"]) != (
+                    "read-only", False, True):
+                raise ValueError("One-file Drive scope must be read-only canonical")
+            if (not isinstance(info["file_id"], str) or
+                    not re.fullmatch(r"[A-Za-z0-9_-]{10,160}", info["file_id"])):
+                raise ValueError("Invalid exact Drive file ID")
+            if not isinstance(info["filename"], str) or not FILE_NAME.fullmatch(info["filename"]):
+                raise ValueError("Invalid exact Drive filename")
+            if (not isinstance(info["credential"], str) or
+                    not CRED_NAME.fullmatch(info["credential"])):
+                raise ValueError("Invalid one-file credential alias")
+            if (not isinstance(info["owner_email"], str)
+                    or len(info["owner_email"]) > 254
+                    or not re.fullmatch(r"[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+",
+                                        info["owner_email"])):
+                raise ValueError("Invalid pinned Drive owner")
+            continue
         if set(info) != {"backend", "access", "snapshot_only", "canonical", "documents"}:
             raise ValueError("Invalid read-only scope fields")
         if (info["backend"], info["access"], info["snapshot_only"], info["canonical"]) != ("credentials", "read-only", True, False):
