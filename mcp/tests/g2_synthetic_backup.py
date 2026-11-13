@@ -34,7 +34,7 @@ VERSION = re.compile(r"v[0-9]{4}\Z")
 OWNER = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}\Z")
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 D = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
-F = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+F = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | getattr(os, "O_NONBLOCK", 0)
 
 
 def _sha(b):
