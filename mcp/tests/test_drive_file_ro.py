@@ -227,6 +227,35 @@ def main():
             capture_output=True, text=True, env=env, timeout=35)
         assert result.returncode == 0, result.stderr[-1000:]
         print(result.stdout, end="")
+        # The real key alias must never be world- or group-readable.
+        cred.chmod(0o644)
+        try:
+            permission_test = subprocess.run(
+                ["runuser", "-u", "nobody", "--", sys.executable, "-B", "-c",
+                 "import sys;sys.path.insert(0,sys.argv[1]);"
+                 "import drive_file_ro;"
+                 "drive_file_ro._credentials('synthetic-sa.json')",
+                 str(SRC)],
+                capture_output=True, text=True, env=env, timeout=15)
+            assert permission_test.returncode != 0
+            assert "Unsafe service account credential file" in permission_test.stderr
+        finally:
+            cred.chmod(0o600)
+        # Even an otherwise valid alias may not follow a symlink to a key.
+        linked = creds / "synthetic-link.json"
+        linked.symlink_to(cred)
+        try:
+            link_test = subprocess.run(
+                ["runuser", "-u", "nobody", "--", sys.executable, "-B", "-c",
+                 "import sys;sys.path.insert(0,sys.argv[1]);"
+                 "import drive_file_ro;"
+                 "drive_file_ro._credentials('synthetic-link.json')",
+                 str(SRC)],
+                capture_output=True, text=True, env=env, timeout=15)
+            assert link_test.returncode != 0
+        finally:
+            linked.unlink()
+        print("OFFLINE_CREDENTIAL_PERMISSIONS_AND_SYMLINK_DENIAL_PASS")
         legacy = dict(env, KEELARYN_MCP_ACCESS_MODE="default")
         test = subprocess.run(
             ["runuser", "-u", "nobody", "--", sys.executable, "-B", "-c",
