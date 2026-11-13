@@ -257,8 +257,12 @@ def main():
         assert sentinel.read_text() == "Never write to other owner\n"
         owner.chmod(0o777)
         try:
-            call("owner_mutate", mutate("create", 18, "alpha.md",
-                 content="bad", expected_sha256=None), expect_error=True)
+            rejected = execute("tools/call", {"name": "owner_mutate",
+                                "arguments": mutate("create", 18, "alpha.md",
+                                content="bad", expected_sha256=None)})
+            # Unsafe root is denied at registry startup, before any tool call.
+            assert rejected.returncode != 0
+            assert "Local root ownership or permissions are unsafe" in rejected.stderr
         finally:
             owner.chmod(0o700)
         print("G1_SYMLINK_HARDLINK_OWNER_AND_MODE_REFUSAL_PASS")
