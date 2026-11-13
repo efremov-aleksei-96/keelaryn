@@ -105,6 +105,110 @@ def snapshot(root, version, scope):
     return target
 
 
+
+def mock_drive_transfer(source, destination, version, *, stop_after=None, corrupt=False):
+    """Test-only one-way, resumable plain-file transfer. No Google API.
+
+    A partial copy stays under .incoming-<version>, never under a published
+    version name. Bad/unknown staged files fail closed; the test operator must
+    inspect and remove them rather than replacing them silently.
+    """
+    import json
+    import re
+    if version not in ("v0001", "v0002", "v0003"):
+        raise ValueError("Invalid mock backup version")
+    if source.is_symlink() or not source.is_dir():
+        raise ValueError("Invalid source directory")
+    if {p.name for p in source.iterdir()} != set(ALLOW) | {".keelaryn-g1"}:
+        raise ValueError("Incomplete or unexpected source")
+    journal = source / ".keelaryn-g1"
+    if journal.is_symlink() or not journal.is_dir():
+        raise ValueError("Missing or unsafe journal")
+    receipts = sorted(x.name for x in journal.iterdir() if x.name != ".lock")
+    if not (1 <= len(receipts) <= 128) or any(
+        re.fullmatch(r"[0-9a-f]{32}\.json", x) is None for x in receipts
+    ):
+        raise ValueError("Unexpected G1 journal")
+    if not (journal / ".lock").is_file():
+        raise ValueError("Missing journal lock")
+    relative = [Path(x) for x in ALLOW]
+    relative += [Path(".keelaryn-g1") / x for x in [".lock", *receipts]]
+    expected = {}
+    for path in relative:
+        item = source / path
+        metadata = item.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise ValueError("Unsafe source object")
+        content = item.read_bytes()
+        if path.suffix == ".json" and path.parts[0] == ".keelaryn-g1":
+            receipt = json.loads(content)
+            if receipt.get("status") != "committed":
+                raise ValueError("Unresolved source journal")
+        expected[path.as_posix()] = hashlib.sha256(content).hexdigest()
+    if b"NEXT: " not in (source / "PROJECT.md").read_bytes():
+        raise ValueError("Missing readable NEXT")
+
+    destination.mkdir(mode=0o700, exist_ok=True)
+    published = destination / version
+    staged = destination / (".incoming-" + version)
+    if published.exists() or published.is_symlink():
+        raise ValueError("Published backup is immutable")
+    if staged.is_symlink():
+        raise ValueError("Unsafe incoming path")
+    staged.mkdir(mode=0o700, exist_ok=True)
+    # Existing partial files must match exactly; never repair changed bytes.
+    actual = {}
+    for path in staged.rglob("*"):
+        if path.is_symlink():
+            raise ValueError("Symlink in incoming copy")
+        if path.is_file():
+            relative_name = path.relative_to(staged).as_posix()
+            if relative_name not in expected:
+                raise ValueError("Unknown incoming file")
+            actual[relative_name] = hashlib.sha256(path.read_bytes()).hexdigest()
+            if actual[relative_name] != expected[relative_name]:
+                raise ValueError("Corrupt incoming file")
+        elif not path.is_dir() or path.relative_to(staged).as_posix() != ".keelaryn-g1":
+            raise ValueError("Unknown incoming directory")
+    count = 0
+    for relative_name, checksum in sorted(expected.items()):
+        if relative_name in actual:
+            continue
+        target = staged / relative_name
+        target.parent.mkdir(mode=0o700, exist_ok=True)
+        with target.open("xb") as out:
+            out.write((source / relative_name).read_bytes())
+            out.flush()
+            os.fsync(out.fileno())
+        target.chmod(0o600)
+        count += 1
+        if corrupt and count == 1:
+            with target.open("r+b") as out:
+                out.write(b"X")
+                out.flush()
+                os.fsync(out.fileno())
+        if stop_after is not None and count == stop_after:
+            raise InterruptedError("Simulated upload interrupted before publication")
+    for relative_name, checksum in expected.items():
+        if hashlib.sha256((staged / relative_name).read_bytes()).hexdigest() != checksum:
+            raise ValueError("Mock upload SHA-256 mismatch")
+    for path in (staged / ".keelaryn-g1", staged):
+        with os.fdopen(os.open(path, os.O_RDONLY | os.O_DIRECTORY), "rb") as directory_fd:
+            os.fsync(directory_fd.fileno())
+    if published.exists():
+        raise ValueError("Refusing to replace published backup")
+    # Test fixture has a single writer. Atomic no-replace publication against
+    # independent concurrent writers is NOT established by this mock.
+    staged.rename(published)
+    with os.fdopen(os.open(destination, os.O_RDONLY | os.O_DIRECTORY), "rb") as directory_fd:
+        os.fsync(directory_fd.fileno())
+    assert all(
+        hashlib.sha256((published / path).read_bytes()).hexdigest() == sha
+        for path, sha in expected.items()
+    )
+    return published
+
+
 def files(directory):
     result = {}
     for p in directory.rglob("*"):
@@ -218,6 +322,65 @@ else:
     raise AssertionError("Inconsistent G1 intent exported")
 intent_path.unlink()
 assert not (root.parent / "plain-versions/v0003").exists()
+# Mock-drive transfer: a deliberately local destination, never a real Drive API.
+mock = root.parent / "mock-drive"
+remote_v1 = mock_drive_transfer(v1, mock, "v0001")
+assert files(remote_v1) == old
+try:
+    mock_drive_transfer(v2, mock, "v0002", corrupt=True)
+except ValueError:
+    pass
+else:
+    raise AssertionError("Corrupted transfer was published")
+assert not (mock / "v0002").exists()
+try:
+    mock_drive_transfer(v2, mock, "v0002")
+except ValueError:
+    pass
+else:
+    raise AssertionError("Corrupted partial upload was silently repaired")
+# Explicit operator cleanup is safe only for this disposable synthetic target.
+shutil.rmtree(mock / ".incoming-v0002")
+try:
+    mock_drive_transfer(v2, mock, "v0002", stop_after=2)
+except InterruptedError:
+    pass
+else:
+    raise AssertionError("Simulated interruption did not fire")
+assert not (mock / "v0002").exists()
+assert (mock / ".incoming-v0002").is_dir()
+remote_v2 = mock_drive_transfer(v2, mock, "v0002")  # idempotent resume
+assert files(remote_v2) == files(v2)
+assert files(remote_v1) == old  # previous valid version is retained
+assert "NEXT: LESSON-01" in (remote_v1 / "PROJECT.md").read_text()
+assert "NEXT: LESSON-02" in (remote_v2 / "PROJECT.md").read_text()
+try:
+    mock_drive_transfer(v1, mock, "v0001")
+except ValueError:
+    pass
+else:
+    raise AssertionError("Published version was overwritten")
+incomplete = root.parent / "incomplete-test-source"
+shutil.copytree(v2, incomplete)
+(incomplete / "CURSOR.json").unlink()
+try:
+    mock_drive_transfer(incomplete, mock, "v0003")
+except ValueError:
+    pass
+else:
+    raise AssertionError("Missing source file was accepted")
+assert not (mock / "v0003").exists()
+recovered_from_mock = root.parent / "restored-from-mock"
+shutil.copytree(remote_v2, recovered_from_mock)
+assert files(recovered_from_mock) == files(v2)
+replay_mock = owner_fs.mutate(
+    dict(project=OWNER, request_id=f"{5:032x}", action="replace",
+         path="CURSOR.json", content='{"lesson":2}',
+         expected_sha256=H('{"lesson":1}')),
+    dict(scope, root=str(recovered_from_mock)))
+assert replay_mock["status"] == "already_committed" and replay_mock["current_matches"]
+print("G3_MOCK_DRIVE_INTEGRITY_INTERRUPTION_RESUME_RESTORE_PASS", flush=True)
+
 print("SYNTHETIC_PLAIN_DIRECTORY_READABLE_AND_RESTORED", flush=True)
 '''
 
