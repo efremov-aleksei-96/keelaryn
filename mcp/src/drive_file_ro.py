@@ -49,7 +49,7 @@ def _credentials(alias):
         try:
             st = os.fstat(f)
             if (not stat.S_ISREG(st.st_mode) or st.st_size < 1
-                    or st.st_size > MAX_CREDENTIAL_BYTES or st.st_mode & 0o022):
+                    or st.st_size > MAX_CREDENTIAL_BYTES or st.st_mode & 0o077):
                 raise ValueError("Unsafe service account credential file")
             raw = os.read(f, MAX_CREDENTIAL_BYTES + 1)
         finally:
