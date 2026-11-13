@@ -12,6 +12,7 @@ import stat
 from pathlib import Path
 from file_scopes import ACCESS_MODE, SCOPES, get_scope, read_snapshot, list_snapshot
 from drive_live import operate as live_drive_operation
+from drive_file_ro import operate as exact_drive_file_operation
 from local_ro import operate as local_readonly_operation, open_root as open_local_root
 
 FS_ROOT = Path(os.environ.get("KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark")) / "workspace"
@@ -555,6 +556,8 @@ def _route_file_tool(name, args):
     scope = get_scope(project)
     if scope["backend"] == "drive-live":
         return live_drive_operation(name, args, scope)
+    if scope["backend"] == "drive-file-ro":
+        return exact_drive_file_operation(name, args, scope)
     if scope["backend"] == "local-ro":
         if name in ("edit_files", "delete_files"):
             raise ValueError("Local project scope is read-only")
