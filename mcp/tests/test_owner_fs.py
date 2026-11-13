@@ -300,6 +300,52 @@ def main():
         assert all(not item.is_symlink() for item in owner.iterdir())
         assert sentinel.read_text() == "Never write to other owner\n"
         print("G1_DISPOSABLE_OWNER_DATA_PERSISTENCE_PASS")
+
+        # An interrupted journal temp entry cannot be mistaken for a durable
+        # receipt; refuse to proceed until manual reconciliation.
+        orphan = owner / ".keelaryn-g1" / ".tmp-interrupted"
+        orphan.write_text("unresolved synthetic")
+        os.chown(orphan, UID, GID)
+        orphan.chmod(0o600)
+        try:
+            call("owner_mutate", mutate("create", 21, "beta.md",
+                 content="blocked\n", expected_sha256=None), expect_error=True)
+        finally:
+            orphan.unlink()
+        assert not (owner / "beta.md").exists()
+        print("G1_ORPHAN_JOURNAL_FAIL_CLOSED_PASS")
+
+        # No project may reuse, be nested in, or overlap this owner root.
+        original_registry = registry.read_text()
+        try:
+            data = json.loads(original_registry)
+            other = dict(scope(owner), owner="OtherOwner")
+            data["scopes"]["OtherOwner"] = other
+            registry.write_text(json.dumps(data))
+            denied = execute("tools/list", {})
+            assert denied.returncode != 0
+            assert "Write owner root overlaps another project scope" in denied.stderr
+            inner = owner / "nested"
+            inner.mkdir(mode=0o700)
+            os.chown(inner, UID, GID)
+            data["scopes"]["OtherOwner"]["root"] = str(inner)
+            registry.write_text(json.dumps(data))
+            denied = execute("tools/list", {})
+            assert denied.returncode != 0
+            assert "Write owner root overlaps another project scope" in denied.stderr
+            inner.rmdir()
+            data["scopes"]["OtherOwner"] = {
+                "backend": "local-ro", "access": "read-only",
+                "snapshot_only": False, "canonical": False,
+                "root": str(owner), "allow": ["state.json"],
+            }
+            registry.write_text(json.dumps(data))
+            denied = execute("tools/list", {})
+            assert denied.returncode != 0
+            assert "Write owner root overlaps another project scope" in denied.stderr
+        finally:
+            registry.write_text(original_registry)
+        print("G1_OVERLAPPING_OWNER_AND_READONLY_SCOPE_DENIAL_PASS")
         print("G1_LIMITS: one-file atomicity only; no real systemd, real project, "
               "restore, power-cut or noncooperative same-UID writer test")
 
