@@ -340,6 +340,24 @@ def publish_synthetic(api, source, parent_id):
         return {"status": "already_complete", "version": version, "count": len(files)}
     if not set(previous) <= set(TOP) | {".keelaryn-g1"}:
         raise BackupError("Unknown remote partial content")
+    # Validate *all* pre-existing objects before any new upload. A failed or
+    # corrupted prior attempt must not be silently repaired or added to.
+    for name, obj in previous.items():
+        if name == ".keelaryn-g1":
+            if obj.get("mimeType") != FOLDER:
+                raise BackupError("Conflicting journal directory")
+            nested = api.list(obj["id"])
+            expected_names = {p.split("/", 1)[1] for p in files
+                              if p.startswith(".keelaryn-g1/")}
+            if not set(nested) <= expected_names:
+                raise BackupError("Unexpected partial journal entry")
+            for rec, item in nested.items():
+                path = ".keelaryn-g1/" + rec
+                mime = "application/json" if rec.endswith(".json") else "application/octet-stream"
+                if item.get("mimeType") != mime or api.media(item["id"]) != files[path]:
+                    raise BackupError("Previously uploaded G1 receipt changed")
+        elif obj.get("mimeType") != TOP[name] or api.media(obj["id"]) != files[name]:
+            raise BackupError("Previously uploaded owner file changed")
     for name in TOP:
         api.ensure_file(version_id, name, TOP[name], files[name])
     journal_id = api.folder(version_id, ".keelaryn-g1")
@@ -373,8 +391,15 @@ def restore_synthetic(api, version_folder_id, target_dir):
     except (UnicodeError, ValueError):
         raise BackupError("Invalid completion marker") from None
     if (not isinstance(man, dict) or man.get("schema") != SCHEMA
-            or not VERSION.fullmatch(man.get("version", ""))):
+            or not isinstance(man.get("version"), str)
+            or not VERSION.fullmatch(man["version"])):
         raise BackupError("Unrecognized completion marker")
+    version_info = api.get(version_folder_id)
+    if (version_info.get("name") != man["version"]
+            or version_info.get("mimeType") != FOLDER
+            or version_info.get("trashed") is not False
+            or version_info.get("shared") is not False):
+        raise BackupError("Restored version folder identity or privacy mismatch")
     mfiles = man.get("files")
     if not isinstance(mfiles, dict) or not 4 <= len(mfiles) <= MAX_ITEMS:
         raise BackupError("Invalid marker file listing")
@@ -391,6 +416,10 @@ def restore_synthetic(api, version_folder_id, target_dir):
             entry = nested[name.split("/", 1)[1]]
         else:
             raise BackupError("Unexpected restored path")
+        mime = (TOP[name] if name in TOP else
+                "application/json" if name.endswith(".json") else "application/octet-stream")
+        if entry.get("mimeType") != mime:
+            raise BackupError("Unexpected restored file type")
         data = api.media(entry["id"])
         if (not isinstance(recorded, dict) or recorded.get("size") != len(data)
                 or recorded.get("sha256") != hashlib.sha256(data).hexdigest()):
