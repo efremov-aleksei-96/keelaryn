@@ -192,6 +192,22 @@ def load_scopes():
                 raise ValueError("Source metadata must identify a Drive file")
             if not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z", details["source_modified_utc"]):
                 raise ValueError("Invalid source modified date")
+    # A write-enabled owner's root must not be shared with or nested inside
+    # another file-based project scope, even if the other one is read-only.
+    # Path checks also reject ordinary bind aliases of the same directory inode.
+    roots = [(project, scope["root"], scope["backend"])
+             for project, scope in scopes.items()
+             if scope["backend"] in ("owner-fs", "local-ro")]
+    for idx, (name, root, kind) in enumerate(roots):
+        for other, target, other_kind in roots[:idx]:
+            if "owner-fs" not in (kind, other_kind):
+                continue
+            common = os.path.commonpath((root, target))
+            if common in (root, target):
+                raise ValueError("Write owner root overlaps another project scope")
+            left, right = os.stat(root), os.stat(target)
+            if (left.st_dev, left.st_ino) == (right.st_dev, right.st_ino):
+                raise ValueError("Two scopes alias the same write owner directory")
     return scopes
 
 
