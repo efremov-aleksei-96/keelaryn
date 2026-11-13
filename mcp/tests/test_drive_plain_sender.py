@@ -213,6 +213,31 @@ def main():
              sender.BackupError, "duplicate remote filename")
         assert not any(method in ("PATCH", "DELETE", "PUT") for method, _ in remote.requests)
 
+        # A corrupt *incomplete* remote version is rejected before creating any
+        # additional objects (not merely rejected after more uploads).
+        v3 = base / "plain-versions" / "v0003"
+        shutil.copytree(v2, v3)
+        partial = remote.add("v0003", sender.FOLDER, remote.parent)
+        remote.add("MASTERY.csv", "text/csv", partial["id"], b"wrong bytes")
+        previous_upload_count = remote.uploads
+        fail(lambda: sender.publish_synthetic(api, v3, remote.parent),
+             sender.BackupError, "tampered interrupted version")
+        assert remote.uploads == previous_upload_count
+        assert sender.MARKER not in [obj["name"] for obj in remote.objects.values()
+                                     if obj["parents"] == [partial["id"]]]
+
+        # Explicit 403 from the mock identity is a hard failure; no fallback
+        # to broader credentials or automatic permission changes.
+        other = FakeDrive()
+        def denied(method, url, headers, body):
+            if method == "POST":
+                return 403, b'{"error":"permission denied"}'
+            return other.handle(method, url, headers, body)
+        fail(lambda: sender.publish_synthetic(
+            sender.Drive("SYNTHETIC_FAKE_TOKEN", denied), v1, other.parent),
+            sender.BackupError, "Drive write permission denied")
+        assert not any(obj["name"] == "v0001" for obj in other.objects.values())
+
         # Local symlink / unresolved G1 journal / unknown extra file refused.
         badroot = base / "bad"
         badroot.mkdir(mode=0o700)
