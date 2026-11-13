@@ -136,7 +136,11 @@ def main():
         if p == 0:
             os.setgid(GID)
             os.setuid(UID)
-            exec(compile(CHILD, "<synthetic-plain-copy-test>", "exec"))
+            os.environ.update(env)
+            import importlib
+            globals()["owner_fs"] = importlib.import_module("owner_fs")
+            exec(compile(CHILD, "<synthetic-plain-copy-test>", "exec"),
+                 globals(), globals())
             os._exit(0)
         _, status = os.waitpid(p, 0)
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
