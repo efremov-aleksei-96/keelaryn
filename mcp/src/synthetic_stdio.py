@@ -6,8 +6,8 @@ import os
 import stat
 import sys
 from pathlib import Path
-from fs_tools import FILE_TOOLS, FILE_HANDLERS, file_tool
-from file_scopes import ACCESS_MODE
+from fs_tools import FILE_TOOLS, FILE_HANDLERS, OWNER_MUTATION_TOOL, file_tool
+from file_scopes import ACCESS_MODE, SCOPES
 from local_ro import open_root as open_local_root
 
 PROTOCOL = "2025-06-18"
@@ -249,11 +249,15 @@ BENCHMARK_TOOLS = [
 ]
 
 READ_ONLY = ACCESS_MODE == "read-only"
+G1_OWNER_ENABLED = (MODE == "local" and not READ_ONLY
+    and os.environ.get("KEELARYN_MCP_OWNER_FS_TEST") == "1"
+    and any(scope["backend"] == "owner-fs" for scope in SCOPES.values()))
 READ_TOOL_NAMES = frozenset(("list_files", "read_files", "search_files"))
 # The read-only tool surface is enforced independently of benchmark opt-in.
 TOOLS = ([tool for tool in FILE_TOOLS if tool["name"] in READ_TOOL_NAMES]
          if READ_ONLY else
-         (BENCHMARK_TOOLS if BENCHMARK_TOOLS_ENABLED else []) + FILE_TOOLS)
+         (BENCHMARK_TOOLS if BENCHMARK_TOOLS_ENABLED else []) + FILE_TOOLS
+         + ([OWNER_MUTATION_TOOL] if G1_OWNER_ENABLED else []))
 
 def handle(msg):
     method = msg.get("method")
@@ -275,7 +279,7 @@ def handle(msg):
             return {"content": [{"type": "text", "text": json.dumps(FILES, ensure_ascii=False)}]}
         if BENCHMARK_TOOLS_ENABLED and name == "benchmark_echo" and isinstance(args.get("text"), str) and len(args["text"]) <= 80 and len(args) == 1:
             return {"content": [{"type": "text", "text": args["text"]}]}
-        if name in FILE_HANDLERS:
+        if name in FILE_HANDLERS or (name == "owner_mutate" and G1_OWNER_ENABLED):
             return file_tool(name, args)
         if BENCHMARK_TOOLS_ENABLED and name in FUNCTIONS and not args:
             try:
