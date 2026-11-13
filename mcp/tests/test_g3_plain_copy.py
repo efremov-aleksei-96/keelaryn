@@ -192,7 +192,7 @@ assert len(files(v2)) == 8
 assert "NEXT: LESSON-01" in (v1 / "PROJECT.md").read_text()
 assert "NEXT: LESSON-02" in (v2 / "PROJECT.md").read_text()
 # Plain files open directly with stdlib tools, not the MCP or a decryptor.
-restored = root.parent / "restored"
+restored = root.parent / "plain-versions" / "restored"
 shutil.copytree(v2, restored)
 new_scope = dict(scope, root=str(restored))
 replay = owner_fs.mutate(
