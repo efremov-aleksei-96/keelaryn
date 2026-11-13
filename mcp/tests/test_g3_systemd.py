@@ -33,7 +33,12 @@ def main():
     if not state_value or ":" in state_value:
         raise RuntimeError("One systemd StateDirectory required")
     state = pathlib.Path(state_value)
-    root = state / "owner"
+    # systemd DynamicUser StateDirectory is exposed through a managed symlink;
+    # pin its resolved, verified private target rather than relaxing G1 O_NOFOLLOW.
+    resolved_state = state.resolve(strict=True)
+    if not resolved_state.is_dir() or resolved_state.stat().st_uid != os.geteuid():
+        raise RuntimeError("StateDirectory resolved owner mismatch")
+    root = resolved_state / "owner"
     if not root.exists():
         if sys.argv[1] != "init":
             raise RuntimeError("Lost owner root between phases")
