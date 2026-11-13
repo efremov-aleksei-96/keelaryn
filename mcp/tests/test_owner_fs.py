@@ -275,9 +275,13 @@ def main():
         patch = ("import json,os,sys,errno;"
                  "sys.path.insert(0,os.environ['TEST_SRC']);"
                  "import owner_fs;"
-                 "\n"
-                 "def fail(*a,**kw): raise OSError(errno.ENOSPC,'synthetic ENOSPC')\n"
-                 "owner_fs._apply=fail\n"
+                 "real_fsync=os.fsync\n"
+                 "def fail(fd):\n"
+                 "  target=os.readlink('/proc/self/fd/'+str(fd))\n"
+                 "  if '/.g1-' in target and '/.keelaryn-g1/' not in target:\n"
+                 "    raise OSError(errno.ENOSPC,'synthetic ENOSPC')\n"
+                 "  return real_fsync(fd)\n"
+                 "os.fsync=fail\n"
                  "print(json.dumps(owner_fs.mutate(json.loads(sys.stdin.read()),"
                  "json.loads(os.environ['TEST_SCOPE']))))")
         patched_env = dict(base_env, TEST_SRC=str(SRC),
@@ -288,6 +292,7 @@ def main():
                            env=patched_env, timeout=15)
         assert p.returncode != 0 and "synthetic ENOSPC" in p.stderr, p.stderr[-700:]
         assert (owner / "state.json").read_text() == '{"G1":3}\n'
+        assert not any(x.name.startswith(".g1-") for x in owner.iterdir())
         call("owner_mutate", mutate("create", 20, "beta.md",
              content="not yet\n", expected_sha256=None), expect_error=True)
         assert call("owner_mutate", blocked)["status"] == "committed"
