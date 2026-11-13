@@ -275,7 +275,7 @@ def main():
         patch = ("import json,os,sys,errno;"
                  "sys.path.insert(0,os.environ['TEST_SRC']);"
                  "import owner_fs;"
-                 "definitely_unused=0;"
+                 "\n"
                  "def fail(*a,**kw): raise OSError(errno.ENOSPC,'synthetic ENOSPC')\n"
                  "owner_fs._apply=fail\n"
                  "print(json.dumps(owner_fs.mutate(json.loads(sys.stdin.read()),"
@@ -286,7 +286,7 @@ def main():
                             sys.executable, "-B", "-c", patch],
                            input=json.dumps(blocked), text=True, capture_output=True,
                            env=patched_env, timeout=15)
-        assert p.returncode != 0, p.stdout
+        assert p.returncode != 0 and "synthetic ENOSPC" in p.stderr, p.stderr[-700:]
         assert (owner / "state.json").read_text() == '{"G1":3}\n'
         call("owner_mutate", mutate("create", 20, "beta.md",
              content="not yet\n", expected_sha256=None), expect_error=True)
