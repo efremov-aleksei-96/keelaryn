@@ -134,13 +134,24 @@ def main():
                    G3_PLAIN_OWNER_DIR=str(owner))
         p = os.fork()
         if p == 0:
-            os.setgid(GID)
-            os.setuid(UID)
-            os.environ.update(env)
-            import importlib
-            globals()["owner_fs"] = importlib.import_module("owner_fs")
-            exec(compile(CHILD, "<synthetic-plain-copy-test>", "exec"),
-                 globals(), globals())
+            try:
+                os.setgid(GID)
+                os.setuid(UID)
+                os.environ.update(env)
+                import importlib
+                globals()["owner_fs"] = importlib.import_module("owner_fs")
+                import local_ro
+                st = owner.stat()
+                assert (st.st_uid == os.geteuid() == local_ro.DATA_OWNER
+                        and (st.st_mode & 0o777) == 0o700), (
+                            "G3 fixture mismatch", st.st_uid, os.geteuid(),
+                            local_ro.DATA_OWNER, oct(st.st_mode & 0o777))
+                exec(compile(CHILD, "<synthetic-plain-copy-test>", "exec"),
+                     globals(), globals())
+            except BaseException:
+                import traceback
+                traceback.print_exc()
+                os._exit(1)
             os._exit(0)
         _, status = os.waitpid(p, 0)
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
