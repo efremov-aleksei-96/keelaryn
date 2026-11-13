@@ -29,10 +29,10 @@ TOP = {"PROJECT.md": "text/markdown", "CURSOR.json": "application/json",
        "MASTERY.csv": "text/csv"}
 MARKER = ".keelaryn-export-complete.json"
 SCHEMA = "keelaryn-synthetic-plain-drive-v1"
-MAX_FILE = 65536
+MAX_FILE = 1000000
 MAX_TOTAL = 600000
 MAX_ITEMS = 135
-MAX_REPLY = 750000
+MAX_REPLY = 1100000
 
 
 class BackupError(ValueError):
@@ -49,7 +49,7 @@ def https_exchange(method, url, headers, body):
     if not (url.startswith(API + "/") or url.startswith(UPLOAD + "/")):
         raise BackupError("Disallowed HTTP endpoint")
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
-    opener = urllib.request.build_opener(_NoRedirect)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
     try:
         with opener.open(req, timeout=20) as response:
             data = response.read(MAX_REPLY + 1)
@@ -211,7 +211,8 @@ class Drive:
         return value
 
     def list(self, parent):
-        self._id(parent)
+        if parent != "root":
+            self._id(parent)
         query = urllib.parse.urlencode({
             "q": "'" + parent + "' in parents and trashed = false",
             "fields": "nextPageToken,files(id,name,mimeType,parents,trashed,size)",
