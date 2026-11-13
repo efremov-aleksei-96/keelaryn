@@ -84,6 +84,28 @@ def load_scopes():
             raise ValueError("Invalid scope name or entry")
         if project == "synthetic":
             continue
+        if info.get("backend") == "owner-fs":
+            # G1 synthetic only: no production system-mode writes. Must be
+            # explicitly opted into by a non-root local test process.
+            if (MODE != "local" or ACCESS_MODE != "default"
+                    or os.environ.get("KEELARYN_MCP_OWNER_FS_TEST") != "1"
+                    or set(info) != {"backend", "owner", "root", "allow",
+                                    "access", "canonical", "snapshot_only"}
+                    or info["owner"] != project
+                    or info["access"] != "read-write"
+                    or info["canonical"] is not False
+                    or info["snapshot_only"] is not False):
+                raise ValueError("Owner-fs is opt-in local synthetic only")
+            validate_local_allow(info["allow"])
+            if any(x.endswith("/") or "/" in x for x in info["allow"]):
+                raise ValueError("G1 owner scope permits exact one-level files")
+            fd = open_local_root(info)
+            try:
+                if os.fstat(fd).st_mode & 0o077:
+                    raise ValueError("G1 owner root must have mode 0700")
+            finally:
+                os.close(fd)
+            continue
         if info.get("backend") == "local-ro":
             # The systemd DynamicUser service may use only root-owned local
             # sources, with the global server-wide read-only gate enabled.
