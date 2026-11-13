@@ -118,6 +118,38 @@ finally:
     orphan.unlink()
 print("G2_INCOMPLETE_G1_INTENT_AND_ORPHAN_JOURNAL_DENIED_PASS")
 
+# Reject symlinks and multiply linked files before any encrypted artifact
+# is published. Use only synthetic fixture paths and restore exact bytes.
+data_file = owner / "DATA.csv"
+held = restore_parent / "held-synthetic.csv"
+original_csv = data_file.read_bytes()
+data_file.rename(held)
+try:
+    data_file.symlink_to(other / "SENTINEL.md")
+    try:
+        backup.make_snapshot(owner, repo, OWNER, "v0003", ALLOW, passphrase)
+    except (ValueError, OSError):
+        pass
+    else:
+        raise AssertionError("G2 followed symlinked owner data")
+    data_file.unlink()
+    os.link(other / "SENTINEL.md", data_file)
+    try:
+        backup.make_snapshot(owner, repo, OWNER, "v0003", ALLOW, passphrase)
+    except (ValueError, OSError):
+        pass
+    else:
+        raise AssertionError("G2 accepted hardlinked owner data")
+    data_file.unlink()
+finally:
+    if data_file.is_symlink():
+        data_file.unlink()
+    if held.exists():
+        held.rename(data_file)
+assert data_file.read_bytes() == original_csv
+assert not (repo / "v0003.kg2").exists()
+print("G2_SYMLINK_AND_HARDLINK_OWNER_SOURCE_DENIAL_PASS")
+
 # Restore with a fresh standalone Python interpreter. -I isolates the module
 # search path; the script imports NO owner_fs/file_scopes/MCP, Google or ChatGPT.
 def offline(version, path, phrase=passphrase, expected_owner=OWNER, success=True):
