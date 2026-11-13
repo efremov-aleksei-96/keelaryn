@@ -16,7 +16,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-import owner_fs
+# Load owner_fs only after dropping privileges in the disposable child.
 
 UID = pwd.getpwnam("nobody").pw_uid
 GID = pwd.getpwnam("nobody").pw_gid
