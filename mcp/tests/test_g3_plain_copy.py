@@ -193,15 +193,21 @@ def mock_drive_transfer(source, destination, version, *, stop_after=None, corrup
         if hashlib.sha256((staged / relative_name).read_bytes()).hexdigest() != checksum:
             raise ValueError("Mock upload SHA-256 mismatch")
     for path in (staged / ".keelaryn-g1", staged):
-        with os.fdopen(os.open(path, os.O_RDONLY | os.O_DIRECTORY), "rb") as directory_fd:
-            os.fsync(directory_fd.fileno())
+        directory_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     if published.exists():
         raise ValueError("Refusing to replace published backup")
     # Test fixture has a single writer. Atomic no-replace publication against
     # independent concurrent writers is NOT established by this mock.
     staged.rename(published)
-    with os.fdopen(os.open(destination, os.O_RDONLY | os.O_DIRECTORY), "rb") as directory_fd:
-        os.fsync(directory_fd.fileno())
+    directory_fd = os.open(destination, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
     assert all(
         hashlib.sha256((published / path).read_bytes()).hexdigest() == sha
         for path, sha in expected.items()
@@ -323,7 +329,7 @@ else:
 intent_path.unlink()
 assert not (root.parent / "plain-versions/v0003").exists()
 # Mock-drive transfer: a deliberately local destination, never a real Drive API.
-mock = root.parent / "mock-drive"
+mock = root.parent / "plain-versions" / "mock-drive"
 remote_v1 = mock_drive_transfer(v1, mock, "v0001")
 assert files(remote_v1) == old
 try:
@@ -360,7 +366,7 @@ except ValueError:
     pass
 else:
     raise AssertionError("Published version was overwritten")
-incomplete = root.parent / "incomplete-test-source"
+incomplete = root.parent / "plain-versions" / "incomplete-test-source"
 shutil.copytree(v2, incomplete)
 (incomplete / "CURSOR.json").unlink()
 try:
@@ -370,7 +376,7 @@ except ValueError:
 else:
     raise AssertionError("Missing source file was accepted")
 assert not (mock / "v0003").exists()
-recovered_from_mock = root.parent / "restored-from-mock"
+recovered_from_mock = root.parent / "plain-versions" / "restored-from-mock"
 shutil.copytree(remote_v2, recovered_from_mock)
 assert files(recovered_from_mock) == files(v2)
 replay_mock = owner_fs.mutate(
