@@ -1,0 +1,14 @@
+# Inert until explicitly enabled by owner. Daily is a proposed default.
+# Calls the MCP-owned deterministic backup worker, not a ChatGPT task.
+[Unit]
+Description=Keelaryn MCP ArmenianLearning daily backup (NOT enabled)
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=10min
+AccuracySec=5min
+Unit=keelarynos-mcp-armenianlearning-backup.service
+
+[Install]
+WantedBy=timers.target
