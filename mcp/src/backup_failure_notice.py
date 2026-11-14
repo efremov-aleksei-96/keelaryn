@@ -18,6 +18,7 @@ import re
 import stat
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 
 CONFIG = Path("/etc/keelaryn-drive-backup/telegram-notifier.json")
@@ -59,9 +60,9 @@ def _secret_token(path=TOKEN_FILE):
     try:
         token = raw.decode("ascii").strip()
     except UnicodeDecodeError:
-        raise NotifyError("Invalid bot token format") from None
+        raise NotifyError("token_format_invalid") from None
     if not TOKEN_PATTERN.fullmatch(token):
-        raise NotifyError("Invalid bot token format")
+        raise NotifyError("token_format_invalid")
     return token
 
 
@@ -111,8 +112,14 @@ def _telegram_read(token, method, *, opener=None):
         if not isinstance(obj, dict) or obj.get("ok") is not True:
             raise NotifyError("Telegram response not confirmed")
         return obj.get("result")
+    except urllib.error.HTTPError as error:
+        if error.code in (401, 404):
+            raise NotifyError("telegram_token_rejected") from None
+        if error.code == 409:
+            raise NotifyError("telegram_updates_conflict") from None
+        raise NotifyError("telegram_api_http_error") from None
     except Exception:
-        raise NotifyError("Telegram response unavailable or uncertain") from None
+        raise NotifyError("telegram_api_unavailable") from None
 
 
 def _private_start_chat(updates):
@@ -135,8 +142,10 @@ def _private_start_chat(updates):
                 and isinstance(txt, str) and
                 (txt == "/start" or txt.startswith("/start "))):
             candidates.add(cid)
-    if len(candidates) != 1:
-        raise NotifyError("A unique private start message is required")
+    if len(candidates) == 0:
+        raise NotifyError("no_private_start_message")
+    if len(candidates) > 1:
+        raise NotifyError("multiple_private_starts")
     return candidates.pop()
 
 
@@ -176,7 +185,7 @@ def _setup():
     bot = _telegram_read(token, "getMe")
     if not (isinstance(bot, dict) and bot.get("is_bot") is True
             and isinstance(bot.get("username"), str)):
-        raise NotifyError("Bot token was not verified by Telegram")
+        raise NotifyError("telegram_bot_identity_unverified")
     cid = _private_start_chat(_telegram_read(token, "getUpdates"))
     state = _write_config(cid)
     return {"status": state, "telegram_bot": "verified",
@@ -289,8 +298,17 @@ def main(argv):
         print(json.dumps({"status":"sent","delivery":"telegram_api_acknowledged",
                           "kind":"test" if argv == ["test"] else "failure"}))
         return 0
-    except NotifyError:
-        print('{"status":"failed","delivery":"unconfirmed","channel":"telegram"}')
+    except NotifyError as error:
+        safe_setup_codes = {
+            "token_format_invalid", "telegram_token_rejected",
+            "telegram_updates_conflict", "telegram_api_http_error",
+            "telegram_api_unavailable", "no_private_start_message",
+            "multiple_private_starts", "telegram_bot_identity_unverified"
+        }
+        if argv == ["setup"] and str(error) in safe_setup_codes:
+            print(json.dumps({"status":"setup_failed", "reason":str(error)}))
+        else:
+            print('{"status":"failed","delivery":"unconfirmed","channel":"telegram"}')
         return 1
     except Exception:
         print('{"status":"failed","delivery":"unconfirmed","channel":"telegram"}')
