@@ -36,7 +36,7 @@ BASE_VERSION = "v20261113-01"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 READ_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 META_FIELDS = "id,name,mimeType,parents,trashed,size,modifiedTime,version,md5Checksum"
-MAX_FILE = 1_000_000
+MAX_FILE = backup.REAL_FILE_LIMIT
 
 
 def require(ok, msg):
@@ -147,7 +147,7 @@ def _read_all(api, refs):
 def run(capture=False):
     require(os.geteuid() == 0, "Root-only source ingress")
     old_version, old_data, previous = _latest_local()
-    api = Drive(_bearer())
+    api = Drive(_bearer(), max_file=MAX_FILE)
     files, attrs = _read_all(api, previous)
     changed = [name for name in backup.EXPECTED if files[name] != old_data[name]]
     if not changed or not capture:
