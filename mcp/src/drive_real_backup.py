@@ -16,7 +16,7 @@ import sys
 import tempfile
 
 import drive_device_auth as oauth
-from drive_plain_sender import Drive, BackupError, _read, FOLDER
+from drive_plain_sender import Drive, BackupError, _read, FOLDER, REAL_FILE_LIMIT
 
 OWNER = "ArmenianLearning"
 ROOT_NAME = "KeelarynOS - real raw backups (drive.file)"
@@ -34,7 +34,7 @@ EXPECTED = {
     "ArmenianLearning — Курс с абсолютного нуля - текущая методика и старт (2026-10-25).md": "text/markdown",
 }
 VERS_RE = re.compile(r"v[0-9]{8}-[0-9]{2}\Z")
-MAX_ALL = 1_500_000
+MAX_ALL = 5_000_000
 
 
 def deny(condition, message):
@@ -43,7 +43,7 @@ def deny(condition, message):
 
 
 def new_api():
-    return Drive(oauth.fresh_access_token())
+    return Drive(oauth.fresh_access_token(), max_file=REAL_FILE_LIMIT)
 
 
 def _json_file(path):
@@ -107,9 +107,9 @@ def _source(dirpath):
         record = refs["files"][name]
         deny(isinstance(record, dict), "Invalid provenance entry")
         Drive._id(record.get("source_drive_id"))
-        content = _read(root / name)
+        content = _read(root / name, max_bytes=REAL_FILE_LIMIT)
         deny(record.get("sha256") == hashlib.sha256(content).hexdigest()
-             and record.get("size") == len(content) and len(content) <= 1_000_000,
+             and record.get("size") == len(content) and len(content) <= REAL_FILE_LIMIT,
              "Staged file differs from captured source")
         total += len(content)
         files[name] = content
