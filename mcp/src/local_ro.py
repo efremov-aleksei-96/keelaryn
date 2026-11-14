@@ -21,6 +21,12 @@ MAX_FILE = 65536
 DATA_OWNER = (0 if os.environ.get("KEELARYN_MCP_MODE", "system") == "system"
               and os.environ.get("KEELARYN_MCP_ACCESS_MODE") == "read-only"
               else os.geteuid())
+def _data_owner(scope):
+    # Keep root-owned read-only system scopes unchanged; owner-fs uses its
+    # explicitly configured effective service user in the isolated pilot.
+    return os.geteuid() if scope.get("backend") == "owner-fs" else DATA_OWNER
+
+
 MAX_TOTAL = 262144
 MAX_ENTRIES = 1000
 MAX_SEARCH_FILES = 100
@@ -55,11 +61,11 @@ def validate_allow(value):
             raise ValueError("Root-wide allowance is prohibited")
 
 
-def _check_directory(fd, is_root=False):
+def _check_directory(fd, is_root=False, owner=DATA_OWNER):
     s = os.fstat(fd)
     if not stat.S_ISDIR(s.st_mode):
         raise ValueError("Not a directory")
-    if is_root and (s.st_uid != DATA_OWNER or s.st_mode & 0o022):
+    if is_root and (s.st_uid != owner or s.st_mode & 0o022):
         raise ValueError("Local root ownership or permissions are unsafe")
     if not is_root:
         safe_owner = s.st_uid in (0, os.geteuid())
@@ -79,6 +85,7 @@ def open_root(scope):
     components = root[1:].split("/")
     if any(p in ("", ".", "..") for p in components):
         raise ValueError("Invalid root component")
+    owner = _data_owner(scope)
     fd = os.open("/", DIR_FLAGS)
     try:
         for part in components:
@@ -86,19 +93,19 @@ def open_root(scope):
             nxt = os.open(part, DIR_FLAGS, dir_fd=fd)
             os.close(fd)
             fd = nxt
-        _check_directory(fd, is_root=True)
+        _check_directory(fd, is_root=True, owner=owner)
         return fd
     except BaseException:
         os.close(fd)
         raise
 
 
-def _open_child_directory(parent_fd, name):
+def _open_child_directory(parent_fd, name, owner=DATA_OWNER):
     """Open a direct child by descriptor; never follow a replaced symlink."""
     fd = os.open(name, DIR_FLAGS, dir_fd=parent_fd)
     try:
         s = os.fstat(fd)
-        if not stat.S_ISDIR(s.st_mode) or s.st_uid != DATA_OWNER or s.st_mode & 0o022:
+        if not stat.S_ISDIR(s.st_mode) or s.st_uid != owner or s.st_mode & 0o022:
             raise ValueError("Unsafe project subdirectory")
         return fd
     except BaseException:
@@ -111,7 +118,7 @@ def _open_dir(scope, parts, root_fd=None):
     fd = open_root(scope) if root_fd is None else os.dup(root_fd)
     try:
         for part in parts:
-            nxt = _open_child_directory(fd, part)
+            nxt = _open_child_directory(fd, part, owner=_data_owner(scope))
             os.close(fd)
             fd = nxt
         return fd
@@ -137,12 +144,12 @@ def _is_allowed(scope, path, directory=False):
     return directory and path == ""
 
 
-def _read(fd, name):
+def _read(fd, name, owner=DATA_OWNER):
     opened = os.open(name, FILE_FLAGS, dir_fd=fd)
     try:
         before = os.fstat(opened)
         if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
-                or before.st_uid != DATA_OWNER or before.st_mode & 0o022
+                or before.st_uid != owner or before.st_mode & 0o022
                 or before.st_size > MAX_FILE):
             raise ValueError("Unsafe document ownership, type or size")
         data = b""
@@ -187,11 +194,11 @@ def _list(scope, path, limit):
                 _parts(full, directory=True)
                 s = os.stat(name, dir_fd=fd, follow_symlinks=False)
                 if stat.S_ISDIR(s.st_mode) and _is_allowed(scope, full, directory=True):
-                    if s.st_uid == DATA_OWNER and not s.st_mode & 0o022:
+                    if s.st_uid == _data_owner(scope) and not s.st_mode & 0o022:
                         visible.append({"path": full, "type": "directory", "bytes": None})
                 elif stat.S_ISREG(s.st_mode) and _is_allowed(scope, full):
                     _parts(full)
-                    if s.st_uid == DATA_OWNER and s.st_nlink == 1 and not s.st_mode & 0o022 and s.st_size <= MAX_FILE:
+                    if s.st_uid == _data_owner(scope) and s.st_nlink == 1 and not s.st_mode & 0o022 and s.st_size <= MAX_FILE:
                         visible.append({"path": full, "type": "file", "bytes": s.st_size})
             except (ValueError, OSError):
                 continue
@@ -216,7 +223,7 @@ def _read_files(scope, paths):
                 raise ValueError("Document is not allowlisted")
             fd = _open_dir(scope, parts[:-1], root_fd=root_fd)
             try:
-                raw = _read(fd, parts[-1])
+                raw = _read(fd, parts[-1], owner=_data_owner(scope))
             finally:
                 os.close(fd)
             total += len(raw)
@@ -261,8 +268,8 @@ def _search(scope, query, limit):
                 _parts(full, directory=True)
                 s = os.stat(name, dir_fd=fd, follow_symlinks=False)
                 if stat.S_ISDIR(s.st_mode) and len(parts) < 3 and _is_allowed(scope, full, directory=True):
-                    if s.st_uid == DATA_OWNER and not s.st_mode & 0o022:
-                        child = _open_child_directory(fd, name)
+                    if s.st_uid == _data_owner(scope) and not s.st_mode & 0o022:
+                        child = _open_child_directory(fd, name, owner=_data_owner(scope))
                         try:
                             walk(child, parts + [name])
                         finally:
@@ -272,7 +279,7 @@ def _search(scope, query, limit):
                     if scanned >= MAX_SEARCH_FILES:
                         truncated = True
                         return
-                    raw = _read(fd, name)
+                    raw = _read(fd, name, owner=_data_owner(scope))
                     scanned += 1
                     for n, line in enumerate(raw.decode("utf-8").splitlines(), 1):
                         if needle in line.casefold():
