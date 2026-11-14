@@ -1,7 +1,7 @@
-# Inert until explicitly enabled by owner. Daily is a proposed default.
+# Operator-approved native timer; install/enable only with explicit authorization.
 # Calls the MCP-owned deterministic backup worker, not a ChatGPT task.
 [Unit]
-Description=Keelaryn MCP ArmenianLearning daily backup (NOT enabled)
+Description=Keelaryn MCP ArmenianLearning daily backup (AI-independent)
 
 [Timer]
 OnCalendar=daily
