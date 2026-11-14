@@ -30,6 +30,8 @@ TOP = {"PROJECT.md": "text/markdown", "CURSOR.json": "application/json",
 MARKER = ".keelaryn-export-complete.json"
 SCHEMA = "keelaryn-synthetic-plain-drive-v1"
 MAX_FILE = 1000000
+# Real ArmenianLearning backups opt in to a larger bound; synthetic defaults stay 1 MB.
+REAL_FILE_LIMIT = 4_000_000
 MAX_TOTAL = 600000
 MAX_ITEMS = 135
 MAX_REPLY = 1100000
@@ -44,16 +46,18 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         raise BackupError("Drive API redirects are not permitted")
 
 
-def https_exchange(method, url, headers, body):
-    """Production transport: fixed official HTTPS endpoints, no redirects."""
+def https_exchange(method, url, headers, body, *, response_cap=MAX_REPLY):
+    """Production transport: fixed official HTTPS endpoints, bounded responses."""
+    if response_cap not in (MAX_REPLY, REAL_FILE_LIMIT + 100_000):
+        raise BackupError("Unsupported transport response cap")
     if not (url.startswith(API + "/") or url.startswith(UPLOAD + "/")):
         raise BackupError("Disallowed HTTP endpoint")
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
     try:
         with opener.open(req, timeout=20) as response:
-            data = response.read(MAX_REPLY + 1)
-            if len(data) > MAX_REPLY:
+            data = response.read(response_cap + 1)
+            if len(data) > response_cap:
                 raise BackupError("Oversized Drive response")
             return response.status, data
     except urllib.error.HTTPError as e:
@@ -74,18 +78,20 @@ def _safe_object(path, *, directory=False):
     return st
 
 
-def _read(path):
+def _read(path, *, max_bytes=MAX_FILE):
+    if max_bytes not in (MAX_FILE, REAL_FILE_LIMIT):
+        raise BackupError("Unsupported local file size cap")
     _safe_object(path)
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     try:
         st = os.fstat(fd)
         if (not stat.S_ISREG(st.st_mode) or st.st_nlink != 1
                 or st.st_uid != os.geteuid() or st.st_mode & 0o077
-                or st.st_size > MAX_FILE):
+                or st.st_size > max_bytes):
             raise BackupError("Unsafe or oversized local file")
-        data = os.read(fd, MAX_FILE + 1)
+        data = os.read(fd, max_bytes + 1)
         after = os.fstat(fd)
-        if (len(data) != st.st_size or len(data) > MAX_FILE or
+        if (len(data) != st.st_size or len(data) > max_bytes or
                 (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
                 != (after.st_dev, after.st_ino, after.st_size,
                     after.st_mtime_ns, after.st_ctime_ns)):
@@ -155,14 +161,20 @@ def _marker_bytes(man):
 
 class Drive:
     """Tiny REST client with injectable transport. No token acquisition."""
-    def __init__(self, bearer, exchange=None):
+    def __init__(self, bearer, exchange=None, *, max_file=MAX_FILE):
+        if max_file not in (MAX_FILE, REAL_FILE_LIMIT):
+            raise BackupError("Unsupported Drive file size cap")
         if not isinstance(bearer, str) or not 8 <= len(bearer) <= 4096 or any(
                 x.isspace() for x in bearer):
             raise BackupError("Missing or invalid short-lived bearer")
         if exchange is None and os.environ.get("KEELARYN_DRIVE_PLAIN_LIVE") != "1":
             raise BackupError("Direct network disabled pending separate consent")
         self.__bearer = bearer
-        self.exchange = exchange or https_exchange
+        self.max_file = max_file
+        self.exchange = exchange or (https_exchange if max_file == MAX_FILE else
+                                     lambda method, url, headers, body: https_exchange(
+                                         method, url, headers, body,
+                                         response_cap=REAL_FILE_LIMIT + 100_000))
 
     def request(self, method, path, *, upload=False, body=None, mime=None,
                 response_limit=MAX_REPLY):
@@ -258,10 +270,10 @@ class Drive:
     def media(self, file_id):
         self._id(file_id)
         return self.request("GET", "/files/" + file_id + "?alt=media",
-                            response_limit=MAX_FILE)
+                            response_limit=self.max_file)
 
     def upload(self, parent, name, mime, data):
-        if len(data) > MAX_FILE:
+        if len(data) > self.max_file:
             raise BackupError("Oversized upload")
         metadata = json.dumps({"name": name, "mimeType": mime,
                                "parents": [parent]}, separators=(",", ":")).encode()
