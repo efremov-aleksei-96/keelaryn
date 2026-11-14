@@ -5,6 +5,7 @@
 Description=Keelaryn MCP ArmenianLearning canonical-source backup (AI-independent)
 Wants=network-online.target
 After=network-online.target
+OnFailure=keelarynos-mcp-armenianlearning-backup-failure.service
 AssertPathExists=/opt/keelaryn-drive-backup/drive_backup_iteration.py
 AssertPathExists=/etc/keelaryn-drive-backup/canvas-reader-sa.json
 
