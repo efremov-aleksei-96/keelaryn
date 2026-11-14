@@ -1,0 +1,39 @@
+# Keelaryn MCP backend-owned backup worker; NO model, ChatGPT or MCP tunnel.
+# Source-of-truth: mcp/README.md + mcp/src/drive_backup_iteration.py
+# Not installed/enabled until owner separately approves unattended scheduling.
+[Unit]
+Description=Keelaryn MCP ArmenianLearning canonical-source backup (AI-independent)
+Wants=network-online.target
+After=network-online.target
+AssertPathExists=/opt/keelaryn-drive-backup/drive_backup_iteration.py
+AssertPathExists=/etc/keelaryn-drive-backup/canvas-reader-sa.json
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/opt/keelaryn-drive-backup
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=KEELARYN_DRIVE_PLAIN_LIVE=1
+ExecStart=/usr/bin/python3 -B /opt/keelaryn-drive-backup/drive_backup_iteration.py run
+TimeoutStartSec=15min
+Restart=no
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/keelaryn-drive-backup /run
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
