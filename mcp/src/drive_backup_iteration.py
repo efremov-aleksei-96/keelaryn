@@ -154,8 +154,7 @@ def _check():
     return {"status": "checked_no_changes_written", "latest_local_version": latest,
             "latest_remote": remote, "source_status": result["status"],
             "changed_names": result.get("changed_names", []),
-            "bytes_read": result.get("bytes_read"),
-            "schedule_enabled": False}
+            "bytes_read": result.get("bytes_read")}
 
 
 def _selftest():
