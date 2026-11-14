@@ -148,6 +148,8 @@ def _remote_check(version):
 def _check():
     latest = _latest()
     remote = _remote_check(latest)
+    require(remote == "complete_manifest_verified",
+            "Latest remote backup has no verified completion marker")
     result = source.run(False)
     require(result.get("status") in ("unchanged", "changed_not_captured")
             and result.get("files_read") == 7, "Unexpected source probe")
@@ -212,10 +214,37 @@ def _selftest():
                 pass
         with locked(lock_root / "mutex"):
             pass
+    # Check-only must not report green when the latest staged version is
+    # unpublished. The next run may recover it, but a health check must fail.
+    from unittest.mock import patch
+    module = sys.modules[__name__]
+    for remote_status in ("pending_remote_owner", "pending_remote_version",
+                          "pending_remote_marker"):
+        with patch.object(module, "_latest", return_value=name), \
+             patch.object(module, "_remote_check", return_value=remote_status), \
+             patch.object(source, "run",
+                          side_effect=AssertionError("Incomplete backup probed source")):
+            try:
+                _check()
+            except BackupError:
+                pass
+            else:
+                raise AssertionError("Incomplete latest backup falsely healthy")
+    with patch.object(module, "_latest", return_value=name), \
+         patch.object(module, "_remote_check",
+                      return_value="complete_manifest_verified"), \
+         patch.object(source, "run", return_value={
+             "status": "unchanged", "files_read": 7,
+             "changed_names": [], "bytes_read": 500}):
+        result = _check()
+        assert result["status"] == "checked_no_changes_written"
+        assert result["latest_remote"] == "complete_manifest_verified"
     return {"status": "selftest_passed",
             "cases": ["unchanged", "changed", "pending_resume",
                       "upload_failure", "prior_reconcile_failure",
-                      "lock_collision", "lock_release"]}
+                      "lock_collision", "lock_release",
+                      "missing_owner_fails_check", "missing_version_fails_check",
+                      "missing_marker_fails_check", "completed_marker_passes_check"]}
 
 
 def main(argv):
