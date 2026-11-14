@@ -268,11 +268,22 @@ def _apply(root_fd, action, path, expected, raw, destination):
 
 
 def mutate(args, scope):
-    if (os.environ.get("KEELARYN_MCP_MODE") != "local"
-            or os.environ.get("KEELARYN_MCP_ACCESS_MODE", "default") != "default"
-            or os.environ.get("KEELARYN_MCP_OWNER_FS_TEST") != "1"
-            or scope.get("backend") != "owner-fs"):
-        raise ValueError("Owner mutation backend is development-only and disabled")
+    mode = os.environ.get("KEELARYN_MCP_MODE", "system")
+    access = os.environ.get("KEELARYN_MCP_ACCESS_MODE", "default")
+    local_test = (mode == "local" and access == "default"
+                  and os.environ.get("KEELARYN_MCP_OWNER_FS_TEST") == "1")
+    system_pilot = (
+        mode == "system" and access == "read-only"
+        and os.environ.get("KEELARYN_MCP_SYSTEM_PILOT") == "1"
+        and scope.get("owner") == "KeelarynEnginePilot"
+        and scope.get("root") == (
+            os.path.realpath(os.environ.get(
+                "KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark"))
+            + "/engine-pilot")
+        and scope.get("allow") == ["PILOT.md"]
+        and scope.get("canonical") is False)
+    if not (local_test or system_pilot) or scope.get("backend") != "owner-fs":
+        raise ValueError("Owner mutation backend is not enabled for this scope")
     action, path, expected, raw, fingerprint = _validate(args, scope)
     destination = args.get("new_path")
     new_sha = digest(raw) if raw is not None else (
