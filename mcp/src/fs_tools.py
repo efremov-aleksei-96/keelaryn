@@ -446,7 +446,7 @@ FILE_TOOLS = [
 # read-only three-tool interface and not a replacement for a confirmation UI.
 OWNER_MUTATION_TOOL = {
     "name": "owner_mutate",
-    "description": "G1 synthetic owner only: idempotent create/replace/rename/delete of one exact allowlisted file with SHA-256 CAS. Never enabled in system mode.",
+    "description": "Idempotent exact-file owner mutation with SHA-256 CAS; local synthetic qualification or the separately gated noncanonical system pilot only.",
     "inputSchema": {
         "type": "object",
         "properties": {
@@ -559,9 +559,12 @@ def _apply_pagination(result, off, cap):
 def _route_file_tool(name, args):
     # Independent of the stdio tools/list surface: block cached direct
     # write calls before dispatching to *any* scope, including synthetic.
+    pilot_mutation = (name == "owner_mutate"
+                      and os.environ.get("KEELARYN_MCP_MODE", "system") == "system"
+                      and os.environ.get("KEELARYN_MCP_SYSTEM_PILOT") == "1")
     if ACCESS_MODE == "read-only" and name not in (
         "list_files", "read_files", "search_files"
-    ):
+    ) and not pilot_mutation:
         raise ValueError("Read-only MCP mode forbids this operation")
     if not isinstance(args, dict):
         raise ValueError("Tool arguments must be an object")
