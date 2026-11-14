@@ -1,0 +1,33 @@
+# Native failure hook only; no ChatGPT/LLM or scheduled polling.
+# This unit is triggered when keelarynos-mcp-armenianlearning-backup.service
+# reaches failed state. Telegram credentials are optional until provisioned.
+[Unit]
+Description=Keelaryn MCP ArmenianLearning failed-backup notifier (Telegram if configured)
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/opt/keelaryn-drive-backup
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 -B /opt/keelaryn-drive-backup/backup_failure_notice.py send
+TimeoutStartSec=35s
+Restart=no
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
