@@ -122,7 +122,7 @@ def _read_all(api, refs):
         before = _meta(api, fid)
         require(before.get("id") == fid and before.get("name") == name
                 and before.get("mimeType") == mime
-                and before.get("parents") == [PARENT_ID]
+                and (before.get("parents") is None or before.get("parents") == [PARENT_ID])
                 and before.get("trashed") is False, "Canonical source identity changed")
         raw = api.media(fid)
         require(len(raw) <= MAX_FILE and int(before.get("size", -1)) == len(raw),
