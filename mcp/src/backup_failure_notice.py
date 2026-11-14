@@ -25,6 +25,7 @@ MESSAGE = (
     "KeelarynOS backup FAILED. "
     "Check VPS journal: keelarynos-mcp-armenianlearning-backup.service"
 )
+TEST_MESSAGE = "KeelarynOS backup alert TEST. No backup failed."
 TOKEN_PATTERN = re.compile(r"[0-9]{5,20}:[A-Za-z0-9_-]{30,100}\Z")
 
 
@@ -66,11 +67,11 @@ def _secure_config(path=CONFIG):
     return {"token": token, "chat_id": chat_id}
 
 
-def _send(token, chat_id, *, opener=None):
+def _send(token, chat_id, *, opener=None, message=MESSAGE):
     """One bounded HTTPS attempt. No sensitive data in logs or exceptions."""
     url = "https://api.telegram.org/bot" + token + "/sendMessage"
     payload = json.dumps(
-        {"chat_id": chat_id, "text": MESSAGE, "disable_notification": False},
+        {"chat_id": chat_id, "text": message, "disable_notification": False},
         separators=(",", ":")
     ).encode("utf-8")
     req = urllib.request.Request(
@@ -104,9 +105,11 @@ def _selftest():
             assert request.get_method() == "POST"
             assert request.full_url.startswith("https://api.telegram.org/bot")
             assert "chat_id" in json.loads(request.data)
-            assert "KeelarynOS backup FAILED" in json.loads(request.data)["text"]
+            assert json.loads(request.data)["text"] in (MESSAGE, TEST_MESSAGE)
             return FakeReply()
     _send("123456:abcdefghijklmnopqrstuvwxyzABCDEF012345", 123, opener=FakeOpener())
+    _send("123456:abcdefghijklmnopqrstuvwxyzABCDEF012345", 123,
+          opener=FakeOpener(), message=TEST_MESSAGE)
     with tempfile.TemporaryDirectory(prefix="keelaryn-notify-mock-") as folder:
         os.chmod(folder, 0o700)
         path = Path(folder) / "config.json"
@@ -123,7 +126,8 @@ def _selftest():
         except NotifyError: pass
         else: raise AssertionError("Unsafe credentials accepted")
     return {"status":"selftest_passed",
-            "tests":["telegram_post_mocked","missing_config_no_network",
+            "tests":["telegram_post_mocked","test_message_distinct",
+                     "missing_config_no_network",
                      "private_config_accepted","unsafe_config_rejected"]}
 
 
@@ -135,7 +139,7 @@ def main(argv):
         except Exception:
             print('{"status":"selftest_failed"}')
             return 1
-    if argv != ["send"]:
+    if argv not in (["send"], ["test"]):
         print('{"status":"invalid_usage"}')
         return 2
     if os.geteuid() != 0:
@@ -146,8 +150,10 @@ def main(argv):
         if conf is None:
             print('{"status":"not_configured","delivery":"none","channel":"telegram"}')
             return 3
-        _send(conf["token"], conf["chat_id"])
-        print('{"status":"sent","delivery":"telegram_api_acknowledged"}')
+        _send(conf["token"], conf["chat_id"],
+              message=TEST_MESSAGE if argv == ["test"] else MESSAGE)
+        print(json.dumps({"status":"sent","delivery":"telegram_api_acknowledged",
+                          "kind":"test" if argv == ["test"] else "failure"}))
         return 0
     except NotifyError:
         print('{"status":"failed","delivery":"unconfirmed","channel":"telegram"}')
