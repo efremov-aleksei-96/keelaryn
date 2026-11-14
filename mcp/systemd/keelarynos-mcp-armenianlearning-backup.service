@@ -1,6 +1,6 @@
 # Keelaryn MCP backend-owned backup worker; NO model, ChatGPT or MCP tunnel.
 # Source-of-truth: mcp/README.md + mcp/src/drive_backup_iteration.py
-# Not installed/enabled until owner separately approves unattended scheduling.
+# Install/activate only after owner authorization; deployment state in mcp/README.md.
 [Unit]
 Description=Keelaryn MCP ArmenianLearning canonical-source backup (AI-independent)
 Wants=network-online.target
