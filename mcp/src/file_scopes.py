@@ -85,17 +85,29 @@ def load_scopes():
         if project == "synthetic":
             continue
         if info.get("backend") == "owner-fs":
-            # G1 synthetic only: no production system-mode writes. Must be
-            # explicitly opted into by a non-root local test process.
-            if (MODE != "local" or ACCESS_MODE != "default"
-                    or os.environ.get("KEELARYN_MCP_OWNER_FS_TEST") != "1"
+            # Never enable general owner writes through a system-mode gate.
+            # The one system pilot is noncanonical, exact-path and explicitly
+            # opted in; original local synthetic qualification remains intact.
+            local_test = (MODE == "local" and ACCESS_MODE == "default"
+                          and os.environ.get("KEELARYN_MCP_OWNER_FS_TEST") == "1")
+            system_pilot = (
+                MODE == "system" and ACCESS_MODE == "read-only"
+                and os.environ.get("KEELARYN_MCP_SYSTEM_PILOT") == "1"
+                and project == "KeelarynEnginePilot"
+                and info.get("root") == (
+                    os.path.realpath(os.environ.get(
+                        "KEELARYN_MCP_STATE_DIR",
+                        "/var/lib/keelarynos-mcp-benchmark"))
+                    + "/engine-pilot")
+                and info.get("allow") == ["PILOT.md"])
+            if (not (local_test or system_pilot)
                     or set(info) != {"backend", "owner", "root", "allow",
                                     "access", "canonical", "snapshot_only"}
                     or info["owner"] != project
                     or info["access"] != "read-write"
                     or info["canonical"] is not False
                     or info["snapshot_only"] is not False):
-                raise ValueError("Owner-fs is opt-in local synthetic only")
+                raise ValueError("Owner-fs not authorized for this scope")
             validate_local_allow(info["allow"])
             if any(x.endswith("/") or "/" in x for x in info["allow"]):
                 raise ValueError("G1 owner scope permits exact one-level files")
