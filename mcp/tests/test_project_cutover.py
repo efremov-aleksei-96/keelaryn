@@ -63,6 +63,25 @@ def main():
         assert "MASTERY.csv" in contents["PROJECT.md"]
         assert "JOURNAL.md" in contents["PROJECT.md"]
         print("ENTIRE_PROJECT_INVENTORY_AND_STAGE_HASH_PASS",flush=True)
+        # A user may continue to work on the original while staging runs.
+        # Detect the stale snapshot and re-stage the changed source BEFORE
+        # any publication or active-owner switch. Never silently overwrite
+        # the latest source with an older staged copy.
+        changed = contents["STATE.md"] + "SYNTHETIC_LATE_SOURCE_EVENT: new evidence\n"
+        (source / "STATE.md").write_text(changed, encoding="utf-8")
+        assert SHA((source / "STATE.md").read_bytes()) != manifest["STATE.md"]
+        assert not target.exists()
+        stale = [name for name in ALLOW
+                 if SHA((source / name).read_bytes()) != manifest[name]]
+        assert stale == ["STATE.md"], stale
+        (stage / "STATE.md").write_text(changed, encoding="utf-8")
+        os.chown(stage / "STATE.md", USER.pw_uid, USER.pw_gid)
+        (stage / "STATE.md").chmod(0o600)
+        contents["STATE.md"] = changed
+        manifest["STATE.md"] = SHA(changed.encode("utf-8"))
+        assert {name: SHA((stage / name).read_bytes()) for name in ALLOW} == manifest
+        assert {name: SHA((source / name).read_bytes()) for name in ALLOW} == manifest
+        print("CHANGED_SOURCE_REJECTS_STALE_STAGE_AND_RESTAGE_PASS",flush=True)
 
         config = base / "scopes.json"
         old_scopes = {
@@ -114,6 +133,9 @@ else:raise AssertionError('Stage became a canon prematurely')
         assert p.returncode==91 and not stage.exists() and target.is_dir()
         assert "MigrationSynthetic" not in json.loads(config.read_text())["scopes"]
         assert {name:SHA((target/name).read_bytes()) for name in ALLOW}==manifest
+        # Repeat source reconciliation at the final switch boundary. A real
+        # Google writer freeze remains a separate provider-specific gate.
+        assert {name:SHA((source/name).read_bytes()) for name in ALLOW}==manifest
         print("POST_DIRECTORY_RENAME_PRE_REGISTRY_CRASH_RECONCILED_PASS",flush=True)
 
         new_scopes = dict(old_scopes)
