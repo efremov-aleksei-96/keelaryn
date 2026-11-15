@@ -563,7 +563,8 @@ def _route_file_tool(name, args):
         name == "owner_mutate"
         and os.environ.get("KEELARYN_MCP_MODE", "system") == "system"
         and (os.environ.get("KEELARYN_MCP_SYSTEM_PILOT") == "1"
-             or os.environ.get("KEELARYN_MCP_MUSICLIBRARY") == "1"))
+             or os.environ.get("KEELARYN_MCP_MUSICLIBRARY") == "1"
+             or os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1"))
     if ACCESS_MODE == "read-only" and name not in (
         "list_files", "read_files", "search_files"
     ) and not pilot_mutation:
