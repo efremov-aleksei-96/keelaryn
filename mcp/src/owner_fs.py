@@ -292,14 +292,28 @@ def mutate(args, scope):
             + "/musiclibrary")
         and scope.get("allow") == ["PROJECT.md", "STATE.md"]
         and scope.get("canonical") is True)
-    if not (local_test or system_pilot or system_music) or scope.get("backend") != "owner-fs":
+    system_generic = (
+        mode == "system" and access == "read-only"
+        and os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1"
+        and scope.get("owner") not in
+            ("MusicLibrary", "KeelarynEnginePilot", "synthetic", None)
+        and scope.get("root") == (
+            os.path.realpath(os.environ.get(
+                "KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark"))
+            + "/" + scope["owner"].lower())
+        and isinstance(scope.get("allow"), list)
+        and 1 <= len(scope["allow"]) <= 40
+        and scope.get("access") == "read-write"
+        and scope.get("snapshot_only") is False
+        and scope.get("canonical") is True)
+    if not (local_test or system_pilot or system_music or system_generic) or scope.get("backend") != "owner-fs":
         raise ValueError("Owner mutation backend is not enabled for this scope")
     action, path, expected, raw, fingerprint = _validate(args, scope)
-    # MusicLibrary is a two-existing-file canonical pilot. No create/rename/
-    # delete, even if a caller knows an exact SHA-256 and sends owner_mutate
-    # directly. The noncanonical synthetic qualification remains unchanged.
-    if system_music and action != "replace":
-        raise ValueError("MusicLibrary canonical pilot permits replace only")
+    # Canonical system-mode owners may replace only existing allowlisted
+    # files. No create/rename/delete, regardless of supplied SHA or caller.
+    # This leaves noncanonical synthetic qualification unchanged.
+    if (system_music or system_generic) and action != "replace":
+        raise ValueError("Canonical owner scope permits replace only")
     destination = args.get("new_path")
     new_sha = digest(raw) if raw is not None else (
         expected if action == "rename" else None)
