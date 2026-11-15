@@ -38,8 +38,8 @@ PROJECT = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}\Z")
 DOC = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.(md|csv|json)\Z")
 RECEIPT = re.compile(r"[0-9a-f]{32}\.json\Z")
 MAX_FILES = 400
-MAX_BYTES = 16_000_000
-MAX_SINGLE = 65536
+MAX_BYTES = 64 * 1024 * 1024
+MAX_SINGLE = 2 * 1024 * 1024
 O_FILE = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 O_DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
@@ -229,6 +229,16 @@ def _remote(api, version_id, version):
          and 1 <= len(man["files"]) <= MAX_FILES
          and marker_data == _json(man),
          "Invalid remote manifest")
+    # Validate the complete marker inventory before any project media reads.
+    # Total and per-file bounds apply to offsite restores as well as upload.
+    need(all(isinstance(n, str) and isinstance(v, dict)
+             and set(v) == {"bytes", "sha256"}
+             and type(v["bytes"]) is int and 0 <= v["bytes"] <= MAX_SINGLE
+             and isinstance(v["sha256"], str)
+             and re.fullmatch(r"[0-9a-f]{64}", v["sha256"])
+             for n, v in man["files"].items())
+         and sum(v["bytes"] for v in man["files"].values()) <= MAX_BYTES,
+         "Unbounded or invalid remote file inventory")
     paths = set(man["files"])
     projects = {p.split("/")[0] for p in paths}
     need(all(PROJECT.fullmatch(p) for p in projects)
