@@ -1,6 +1,6 @@
-"""Optional Telegram failure notification for the MCP-owned ArmenianLearning backup.
+"""Optional Telegram failure notification for MCP-owned scheduled backups.
 
-Triggered ONLY by systemd OnFailure of the backup oneshot. No neural network,
+Triggered ONLY by systemd OnFailure of a backup oneshot. No neural network,
 ChatGPT or extra Python libraries. No success messages, canonical data, paths,
 Drive IDs, host IPs, bearer URLs or secrets are sent. Without verified root-only
 configuration, journal reports UNCONFIGURED and no remote request is made.
@@ -27,6 +27,10 @@ SCHEMA = "keelaryn-telegram-failure-v1"
 MESSAGE = (
     "KeelarynOS backup FAILED. "
     "Check VPS journal: keelarynos-mcp-armenianlearning-backup.service"
+)
+TREE_MESSAGE = (
+    "KeelarynOS VPS project-tree backup FAILED. "
+    "Check VPS journal: keelarynos-mcp-vps-tree-backup.service"
 )
 TEST_MESSAGE = "KeelarynOS backup alert TEST. No backup failed."
 TOKEN_PATTERN = re.compile(r"[0-9]{5,20}:[A-Za-z0-9_-]{30,100}\Z")
@@ -233,11 +237,13 @@ def _selftest():
             assert request.get_method() == "POST"
             assert request.full_url.startswith("https://api.telegram.org/bot")
             assert "chat_id" in json.loads(request.data)
-            assert json.loads(request.data)["text"] in (MESSAGE, TEST_MESSAGE)
+            assert json.loads(request.data)["text"] in (MESSAGE, TREE_MESSAGE, TEST_MESSAGE)
             return FakeReply(b'{"ok":true}')
     _send("123456:abcdefghijklmnopqrstuvwxyzABCDEF012345", 123, opener=FakeOpener())
     _send("123456:abcdefghijklmnopqrstuvwxyzABCDEF012345", 123,
           opener=FakeOpener(), message=TEST_MESSAGE)
+    _send("123456:abcdefghijklmnopqrstuvwxyzABCDEF012345", 123,
+          opener=FakeOpener(), message=TREE_MESSAGE)
     starts = [{"message":{"chat":{"id":123,"type":"private"},"text":"/start"}}]
     assert _private_start_chat(starts) == 123
     try:
@@ -279,7 +285,7 @@ def main(argv):
         except Exception:
             print('{"status":"selftest_failed"}')
             return 1
-    if argv not in (["send"], ["test"], ["setup"]):
+    if argv not in (["send"], ["send-tree"], ["test"], ["setup"]):
         print('{"status":"invalid_usage"}')
         return 2
     if os.geteuid() != 0:
@@ -294,9 +300,12 @@ def main(argv):
             print('{"status":"not_configured","delivery":"none","channel":"telegram"}')
             return 3
         _send(conf["token"], conf["chat_id"],
-              message=TEST_MESSAGE if argv == ["test"] else MESSAGE)
+              message=(TEST_MESSAGE if argv == ["test"] else
+                       TREE_MESSAGE if argv == ["send-tree"] else MESSAGE))
         print(json.dumps({"status":"sent","delivery":"telegram_api_acknowledged",
-                          "kind":"test" if argv == ["test"] else "failure"}))
+                          "kind":("test" if argv == ["test"] else
+                                  "failure_tree" if argv == ["send-tree"]
+                                  else "failure")}))
         return 0
     except NotifyError as error:
         safe_setup_codes = {
