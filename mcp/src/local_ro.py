@@ -32,6 +32,14 @@ MAX_ENTRIES = 1000
 MAX_SEARCH_FILES = 100
 MAX_SEARCH_DIRECTORIES = 100
 MAX_SEARCH_ENTRIES = 1000
+MAX_LARGE_OWNER = 2 * 1024 * 1024
+MAX_LARGE_SEARCH_TOTAL = 4 * 1024 * 1024
+
+
+def _large_owner(scope):
+    return (scope.get("backend") == "owner-fs"
+            and os.environ.get("KEELARYN_MCP_LARGE_OWNER_PILOT") == "1")
+
 
 
 def _parts(value, directory=False):
@@ -203,7 +211,8 @@ def _list(scope, path, limit):
                         visible.append({"path": full, "type": "directory", "bytes": None})
                 elif stat.S_ISREG(s.st_mode) and _is_allowed(scope, full):
                     _parts(full)
-                    if s.st_uid == _data_owner(scope) and s.st_nlink == 1 and not s.st_mode & 0o022 and s.st_size <= MAX_FILE:
+                    if s.st_uid == _data_owner(scope) and s.st_nlink == 1 and not s.st_mode & 0o022 and s.st_size <= (MAX_LARGE_OWNER if _large_owner(scope) else MAX_FILE)
+                            and (not _large_owner(scope) or not s.st_mode & 0o077):
                         visible.append({"path": full, "type": "file", "bytes": s.st_size})
             except (ValueError, OSError):
                 continue
@@ -231,12 +240,18 @@ def _read_files(scope, paths):
                 raise ValueError("Document is not allowlisted")
             fd = _open_dir(scope, parts[:-1], root_fd=root_fd)
             try:
-                raw = _read(fd, parts[-1], owner=_data_owner(scope))
+                if _large_owner(scope):
+                    # Import locally: owner_large itself imports path primitives.
+                    from owner_large import _read_all
+                    raw = _read_all(fd, parts[-1])
+                else:
+                    raw = _read(fd, parts[-1], owner=_data_owner(scope))
             finally:
                 os.close(fd)
             total += len(raw)
-            if total > MAX_TOTAL:
-                raise ValueError("Read batch exceeds 256 KiB")
+            max_total = MAX_LARGE_OWNER if _large_owner(scope) else MAX_TOTAL
+            if total > max_total:
+                raise ValueError("Read batch exceeds allowed total bytes")
             result.append({"path": path, "sha256": hashlib.sha256(raw).hexdigest(),
                            "content": raw.decode("utf-8"), "source": _source_label(scope),
                            "canonical": scope["canonical"]})
@@ -256,10 +271,11 @@ def _search(scope, query, limit):
     truncated = False
     visited_directories = 0
     visited_entries = 0
+    large_scanned_bytes = 0
     needle = query.casefold()
 
     def walk(fd, parts):
-        nonlocal scanned, truncated, visited_directories, visited_entries
+        nonlocal scanned, truncated, visited_directories, visited_entries, large_scanned_bytes
         if visited_directories >= MAX_SEARCH_DIRECTORIES:
             truncated = True
             return
@@ -287,7 +303,15 @@ def _search(scope, query, limit):
                     if scanned >= MAX_SEARCH_FILES:
                         truncated = True
                         return
-                    raw = _read(fd, name, owner=_data_owner(scope))
+                    if _large_owner(scope):
+                        if large_scanned_bytes + s.st_size > MAX_LARGE_SEARCH_TOTAL:
+                            truncated = True
+                            return
+                        from owner_large import _read_all
+                        raw = _read_all(fd, name)
+                        large_scanned_bytes += len(raw)
+                    else:
+                        raw = _read(fd, name, owner=_data_owner(scope))
                     scanned += 1
                     for n, line in enumerate(raw.decode("utf-8").splitlines(), 1):
                         if needle in line.casefold():
