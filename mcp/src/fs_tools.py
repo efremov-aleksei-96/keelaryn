@@ -642,6 +642,11 @@ def _route_file_tool(name, args):
     if scope["backend"] == "owner-fs":
         if name in ("edit_files", "delete_files"):
             raise ValueError("Owner writes require request_id and owner_mutate")
+        # Never expose a >64-KiB owner document as an unpaged JSON-RPC result.
+        if (name == "read_files"
+                and os.environ.get("KEELARYN_MCP_LARGE_OWNER_PILOT") == "1"
+                and paging is None):
+            paging = (0, 16000)
         result = local_readonly_operation(name, args, scope)
         return _apply_pagination(result, *paging) if paging is not None else result
     if scope["backend"] == "local-ro":
