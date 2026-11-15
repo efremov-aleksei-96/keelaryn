@@ -282,7 +282,17 @@ def mutate(args, scope):
             + "/engine-pilot")
         and scope.get("allow") == ["PILOT.md"]
         and scope.get("canonical") is False)
-    if not (local_test or system_pilot) or scope.get("backend") != "owner-fs":
+    system_music = (
+        mode == "system" and access == "read-only"
+        and os.environ.get("KEELARYN_MCP_MUSICLIBRARY") == "1"
+        and scope.get("owner") == "MusicLibrary"
+        and scope.get("root") == (
+            os.path.realpath(os.environ.get(
+                "KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark"))
+            + "/musiclibrary")
+        and scope.get("allow") == ["PROJECT.md", "STATE.md"]
+        and scope.get("canonical") is True)
+    if not (local_test or system_pilot or system_music) or scope.get("backend") != "owner-fs":
         raise ValueError("Owner mutation backend is not enabled for this scope")
     action, path, expected, raw, fingerprint = _validate(args, scope)
     destination = args.get("new_path")
