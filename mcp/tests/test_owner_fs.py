@@ -355,5 +355,115 @@ def main():
               "restore, power-cut or noncooperative same-UID writer test")
 
 
+
+def test_multi_canonical_system_fixture():
+    """Two fictional canonical owners; no production scopes or Drive writes."""
+    with tempfile.TemporaryDirectory(prefix="keelaryn-multi-owner-") as d:
+        root = Path(d)
+        root.chmod(0o755)
+        state = root / "state"
+        state.mkdir(mode=0o700)
+        os.chown(state, UID, GID)
+        files = {
+            "ArmenianLearning": {"PROJECT_RULES.md": "# lesson rules\n",
+                                 "STATE.md": "# current\n"},
+            "EnglishOS": {"RULES.md": "# English rules\n",
+                          "NEXT.md": "# study next\n"},
+        }
+        scopes = {"synthetic": {
+            "backend": "workspace", "access": "read-write",
+            "description": "Ephemeral synthetic-only benchmark files"}}
+        for owner, items in files.items():
+            directory = state / owner.lower()
+            directory.mkdir(mode=0o700)
+            os.chown(directory, UID, GID)
+            for name, body in items.items():
+                f = directory / name
+                f.write_text(body, encoding="utf-8")
+                f.chmod(0o600)
+                os.chown(f, UID, GID)
+            scopes[owner] = {
+                "backend": "owner-fs", "owner": owner,
+                "root": str(directory), "allow": list(items),
+                "access": "read-write", "canonical": True,
+                "snapshot_only": False}
+        config = root / "root-owned-scope.json"
+        config.write_text(json.dumps({
+            "schema": "keelarynos_mcp_file_scopes_v1", "scopes": scopes}))
+        config.chmod(0o644)
+        env = dict(os.environ,
+                   KEELARYN_MCP_MODE="system",
+                   KEELARYN_MCP_ACCESS_MODE="read-only",
+                   KEELARYN_MCP_MULTI_CANONICAL="1",
+                   KEELARYN_MCP_CONFIG=str(config),
+                   KEELARYN_MCP_STATE_DIR=str(state),
+                   PYTHONDONTWRITEBYTECODE="1",
+                   KEELARYN_MCP_BENCHMARK_TOOLS="0")
+
+        def call(name, args=None, *, env_override=None):
+            msg = {"jsonrpc": "2.0", "id": 1, "method":
+                   "tools/list" if name is None else "tools/call",
+                   "params": {} if name is None else
+                   {"name": name, "arguments": args}}
+            p = subprocess.run(
+                ["runuser", "-u", "nobody", "--", sys.executable, "-B",
+                 str(SRC / "synthetic_stdio.py")],
+                text=True, input=json.dumps(msg) + "\n", capture_output=True,
+                env=env_override or env, timeout=20)
+            if p.returncode:
+                return {"startup_failed": p.stderr[-300:]}
+            out = json.loads(p.stdout)["result"]
+            if out.get("isError"):
+                return {"error": out["content"][0]["text"]}
+            return out if name is None else json.loads(out["content"][0]["text"])
+
+        discovered = call(None)
+        assert [x["name"] for x in discovered["tools"]] == [
+            "list_files", "read_files", "search_files", "owner_mutate"]
+        for owner, items in files.items():
+            entry = call("list_files", {"project": owner})
+            assert entry["canonical"] is True and entry["access"] == "read-write"
+            assert entry["source"] == "owner-fs"
+            assert {x["path"] for x in entry["entries"]} == set(items)
+
+        for i, (owner, path) in enumerate((
+                ("ArmenianLearning", "STATE.md"),
+                ("EnglishOS", "NEXT.md")), 1):
+            old = files[owner][path]
+            request = {
+                "project": owner, "request_id": ID(900+i),
+                "action": "replace", "path": path,
+                "expected_sha256": SHA(old), "content": old + "updated\n"}
+            done = call("owner_mutate", request)
+            assert done["status"] == "committed" and done["verified_readback"]
+            assert call("owner_mutate", request)["status"] == "already_committed"
+            fresh = call("read_files", {"project": owner, "paths": [path]})
+            assert fresh["files"][0]["sha256"] == done["sha256"]
+            for n, action in enumerate(("create", "rename", "delete"), 1):
+                blocked = {"project": owner, "request_id": ID(920+i*10+n),
+                           "action": action, "path": path}
+                if action == "create":
+                    blocked.update(content="invalid\n", expected_sha256=None)
+                elif action == "rename":
+                    blocked.update(expected_sha256=done["sha256"],
+                                   new_path=next(x for x in files[owner] if x != path))
+                else:
+                    blocked["expected_sha256"] = done["sha256"]
+                response = call("owner_mutate", blocked)
+                assert "replace only" in response.get("error", ""), response
+            wrong_path = call("read_files", {
+                "project": owner, "paths": ["OTHER_OWNER.md"]})
+            assert "error" in wrong_path
+        for owner, items in files.items():
+            for path, body in items.items():
+                assert (state / owner.lower() / path).read_text() == (
+                    body + "updated\n" if path in ("STATE.md", "NEXT.md") else body)
+        no_gate = dict(env)
+        no_gate.pop("KEELARYN_MCP_MULTI_CANONICAL")
+        assert "startup_failed" in call(None, env_override=no_gate)
+        print("MULTI_CANONICAL_TWO_OWNERS_REPLACE_ONLY_AND_NO_GATE_DENIAL_PASS")
+
+
 if __name__ == "__main__":
     main()
+    test_multi_canonical_system_fixture()
