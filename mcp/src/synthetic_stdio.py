@@ -253,7 +253,8 @@ G1_OWNER_ENABLED = (
     ((MODE == "local" and not READ_ONLY
       and os.environ.get("KEELARYN_MCP_OWNER_FS_TEST") == "1")
      or (MODE == "system" and READ_ONLY
-         and os.environ.get("KEELARYN_MCP_SYSTEM_PILOT") == "1"))
+         and (os.environ.get("KEELARYN_MCP_SYSTEM_PILOT") == "1"
+              or os.environ.get("KEELARYN_MCP_MUSICLIBRARY") == "1")))
     and any(scope["backend"] == "owner-fs" for scope in SCOPES.values()))
 READ_TOOL_NAMES = frozenset(("list_files", "read_files", "search_files"))
 # The read-only tool surface is enforced independently of benchmark opt-in.
