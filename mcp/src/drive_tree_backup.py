@@ -37,6 +37,7 @@ VERSION = re.compile(r"tree-[0-9a-f]{24}\Z")
 PROJECT = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}\Z")
 DOC = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.(md|csv|json)\Z")
 RECEIPT = re.compile(r"[0-9a-f]{32}\.json\Z")
+ARCHIVE = re.compile(r"history-[0-9]{6}\.json\Z")
 MAX_FILES = 400
 MAX_BYTES = 64 * 1024 * 1024
 MAX_SINGLE = 2 * 1024 * 1024
@@ -142,7 +143,8 @@ def _snapshot():
                 entries = set(os.listdir(journal))
                 need(".lock" in entries
                      and all(x == ".lock" or RECEIPT.fullmatch(x)
-                             for x in entries), "Unsafe MCP receipt names")
+                             or ARCHIVE.fullmatch(x)
+                             for x in entries), "Unsafe MCP receipt/history names")
                 lock_fd = os.open(journal / ".lock", O_FILE)
                 s = os.fstat(lock_fd)
                 need(stat.S_ISREG(s.st_mode) and s.st_uid == uid
@@ -159,10 +161,24 @@ def _snapshot():
                         receipt = json.loads(data)
                     except (UnicodeError, ValueError):
                         raise BackupError("Invalid MCP receipt") from None
-                    need(isinstance(receipt, dict)
-                         and receipt.get("status") == "committed"
-                         and receipt.get("request_id") == name[:-5],
-                         "Incomplete MCP intent: reconcile before backup")
+                    if ARCHIVE.fullmatch(name):
+                        need(isinstance(receipt, dict)
+                             and set(receipt) == {"schema", "receipts"}
+                             and receipt.get("schema") == "keelaryn-g1-history-v1"
+                             and isinstance(receipt.get("receipts"), dict)
+                             and receipt["receipts"]
+                             and all(
+                                 re.fullmatch(r"[0-9a-f]{32}", req)
+                                 and isinstance(item, dict)
+                                 and item.get("status") == "committed"
+                                 and item.get("request_id") == req
+                                 for req, item in receipt["receipts"].items()),
+                             "Invalid compacted owner receipt history")
+                    else:
+                        need(isinstance(receipt, dict)
+                             and receipt.get("status") == "committed"
+                             and receipt.get("request_id") == name[:-5],
+                             "Incomplete MCP intent: reconcile before backup")
                     files[sub + "/.keelaryn-g1/" + name] = data
             for name in sorted(allowed):
                 data = _file(root / name, uid)
@@ -268,7 +284,8 @@ def _remote(api, version_id, version):
             need(set(j) == names and ".lock" in names,
                  "Remote journal inventory mismatch")
             for name in sorted(names):
-                need(name == ".lock" or RECEIPT.fullmatch(name),
+                need(name == ".lock" or RECEIPT.fullmatch(name)
+                     or ARCHIVE.fullmatch(name),
                      "Remote journal object invalid")
                 files[project + "/.keelaryn-g1/" + name] = api.media(j[name]["id"])
     need(_manifest(files)["files"] == man["files"]
