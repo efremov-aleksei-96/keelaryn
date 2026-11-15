@@ -295,6 +295,11 @@ def mutate(args, scope):
     if not (local_test or system_pilot or system_music) or scope.get("backend") != "owner-fs":
         raise ValueError("Owner mutation backend is not enabled for this scope")
     action, path, expected, raw, fingerprint = _validate(args, scope)
+    # MusicLibrary is a two-existing-file canonical pilot. No create/rename/
+    # delete, even if a caller knows an exact SHA-256 and sends owner_mutate
+    # directly. The noncanonical synthetic qualification remains unchanged.
+    if system_music and action != "replace":
+        raise ValueError("MusicLibrary canonical pilot permits replace only")
     destination = args.get("new_path")
     new_sha = digest(raw) if raw is not None else (
         expected if action == "rename" else None)
