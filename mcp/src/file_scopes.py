@@ -100,12 +100,22 @@ def load_scopes():
                         "/var/lib/keelarynos-mcp-benchmark"))
                     + "/engine-pilot")
                 and info.get("allow") == ["PILOT.md"])
-            if (not (local_test or system_pilot)
+            system_music = (
+                MODE == "system" and ACCESS_MODE == "read-only"
+                and os.environ.get("KEELARYN_MCP_MUSICLIBRARY") == "1"
+                and project == "MusicLibrary"
+                and info.get("root") == (
+                    os.path.realpath(os.environ.get(
+                        "KEELARYN_MCP_STATE_DIR",
+                        "/var/lib/keelarynos-mcp-benchmark"))
+                    + "/musiclibrary")
+                and info.get("allow") == ["PROJECT.md", "STATE.md"])
+            if (not (local_test or system_pilot or system_music)
                     or set(info) != {"backend", "owner", "root", "allow",
                                     "access", "canonical", "snapshot_only"}
                     or info["owner"] != project
                     or info["access"] != "read-write"
-                    or info["canonical"] is not False
+                    or info["canonical"] is not system_music
                     or info["snapshot_only"] is not False):
                 raise ValueError("Owner-fs not authorized for this scope")
             validate_local_allow(info["allow"])
