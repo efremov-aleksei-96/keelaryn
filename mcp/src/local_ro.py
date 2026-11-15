@@ -179,6 +179,11 @@ def _directory_entries(fd):
     return sorted(entries)
 
 
+def _source_label(scope):
+    """Owner-fs uses this safe read implementation without being read-only."""
+    return "owner-fs" if scope.get("backend") == "owner-fs" else "local-ro"
+
+
 def _list(scope, path, limit):
     if type(limit) is not int or not 1 <= limit <= 100:
         raise ValueError("limit must be 1..100")
@@ -203,8 +208,11 @@ def _list(scope, path, limit):
             except (ValueError, OSError):
                 continue
         return {"entries": visible[:limit], "returned": min(len(visible), limit),
-                "truncated": len(visible) > limit, "root": "configured-local-readonly",
-                "source": "local-ro", "canonical": scope["canonical"], "access": "read-only"}
+                "truncated": len(visible) > limit,
+                "root": ("configured-owner-fs" if scope.get("backend") == "owner-fs"
+                         else "configured-local-readonly"),
+                "source": _source_label(scope), "canonical": scope["canonical"],
+                "access": scope["access"]}
     finally:
         os.close(fd)
 
@@ -230,12 +238,12 @@ def _read_files(scope, paths):
             if total > MAX_TOTAL:
                 raise ValueError("Read batch exceeds 256 KiB")
             result.append({"path": path, "sha256": hashlib.sha256(raw).hexdigest(),
-                           "content": raw.decode("utf-8"), "source": "local-ro",
+                           "content": raw.decode("utf-8"), "source": _source_label(scope),
                            "canonical": scope["canonical"]})
     finally:
         os.close(root_fd)
     return {"files": result, "count": len(result), "bytes": total,
-            "source": "local-ro", "canonical": scope["canonical"]}
+            "source": _source_label(scope), "canonical": scope["canonical"]}
 
 
 def _search(scope, query, limit):
@@ -297,7 +305,7 @@ def _search(scope, query, limit):
         os.close(root_fd)
     return {"matches": hits, "scanned": scanned, "truncated": truncated,
             "visited_directories": visited_directories, "visited_entries": visited_entries,
-            "source": "local-ro", "canonical": scope["canonical"]}
+            "source": _source_label(scope), "canonical": scope["canonical"]}
 
 
 def operate(name, args, scope):
