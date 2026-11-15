@@ -138,6 +138,65 @@ else:raise AssertionError('Stage became a canon prematurely')
         assert {name:SHA((source/name).read_bytes()) for name in ALLOW}==manifest
         print("POST_DIRECTORY_RENAME_PRE_REGISTRY_CRASH_RECONCILED_PASS",flush=True)
 
+        # A FULL PROJECT SWITCH IS FORBIDDEN WHILE A COOPERATING SOURCE
+        # WRITER STILL ACCEPTS EDITS, even if the staged checksums match.
+        # This local fixture models the upstream writer fence; Google Drive
+        # itself has no lock from this synthetic test.
+        control = source / ".source-writer-status.json"
+        def durable_status(enabled):
+            tmp_status = source / ".new-source-writer-status"
+            with open(tmp_status, "w", encoding="utf-8") as stream:
+                json.dump({"writer_enabled": enabled}, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(tmp_status, control)
+            fd = os.open(source, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+        def source_writer(extra):
+            if not json.loads(control.read_text())["writer_enabled"]:
+                raise PermissionError("Source writer is fenced")
+            f = source / "STATE.md"
+            with open(f, "a", encoding="utf-8") as stream:
+                stream.write(extra)
+                stream.flush()
+                os.fsync(stream.fileno())
+        durable_status(True)
+        assert json.loads(control.read_text())["writer_enabled"]
+        # Source changes AFTER previous hash check, so the staged project
+        # cannot be published by any safe owner-switch function.
+        source_writer("LATE_CHANGE_AFTER_PUBLISH: old writer is active\n")
+        late = {name: SHA((source / name).read_bytes()) for name in ALLOW}
+        assert late != manifest and late["STATE.md"] != manifest["STATE.md"]
+        assert OWNER not in json.loads(config.read_text())["scopes"]
+        assert json.loads(control.read_text())["writer_enabled"]
+        print("LATE_SOURCE_WRITE_BLOCKS_CANONICAL_SWITCH_PASS", flush=True)
+
+        # The source writer is deliberately stopped BEFORE the final
+        # import-and-cutover boundary. Merely observing stable hashes or
+        # changing a local permissions bit is not a valid source fence.
+        durable_status(False)
+        try:
+            source_writer("MUST NOT APPEAR\n")
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("Old cooperative writer ignored fence")
+        assert "MUST NOT APPEAR" not in (source / "STATE.md").read_text()
+        assert not json.loads(control.read_text())["writer_enabled"]
+        latest = (source / "STATE.md").read_bytes()
+        (target / "STATE.md").write_bytes(latest)
+        (target / "STATE.md").chmod(0o600)
+        os.chown(target / "STATE.md", USER.pw_uid, USER.pw_gid)
+        contents["STATE.md"] = latest.decode("utf-8")
+        manifest["STATE.md"] = SHA(latest)
+        assert {name: SHA((source / name).read_bytes()) for name in ALLOW} == manifest
+        assert {name: SHA((target / name).read_bytes()) for name in ALLOW} == manifest
+        assert not json.loads(control.read_text())["writer_enabled"]
+        print("FENCED_OLD_WRITER_AND_FINAL_FULL_RECONCILE_PASS", flush=True)
+
         new_scopes = dict(old_scopes)
         new_scopes[OWNER] = {
             "backend": "owner-fs", "owner": OWNER, "root": str(target),
@@ -198,6 +257,13 @@ print("ONE_COMPLETE_PROJECT_VPS_ONLY_CAS_READ_AND_WRITE_PASS")
         # The original read-only source is untouched and cannot be mistaken
         # for the mutable VPS owner after activation.
         assert {name:SHA((source/name).read_bytes()) for name in ALLOW}==manifest
+        assert json.loads(control.read_text())["writer_enabled"] is False
+        try:
+            source_writer("POST_CUTOVER_OLD_WRITER_MUST_BE_STOPPED\n")
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("Old source writer still accepted writes after cutover")
         assert (target/"STATE.md").read_text()!=contents["STATE.md"]
         assert (target/"MASTERY.csv").read_text()!=contents["MASTERY.csv"]
         assert len(list(target.iterdir()))==5  # four files and G1 journal
