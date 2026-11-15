@@ -110,6 +110,19 @@ def load_scopes():
                         "/var/lib/keelarynos-mcp-benchmark"))
                     + "/musiclibrary")
                 and info.get("allow") == ["PROJECT.md", "STATE.md"])
+            # An entirely synthetic, explicitly enabled full-workflow pilot.
+            # It is NEVER a second canonical copy of any real domain.
+            system_fullpilot = (
+                MODE == "system" and ACCESS_MODE == "read-only"
+                and os.environ.get("KEELARYN_MCP_FULL_PILOT") == "1"
+                and project == "KeelarynFullPilot"
+                and info.get("root") == (
+                    os.path.realpath(os.environ.get(
+                        "KEELARYN_MCP_STATE_DIR",
+                        "/var/lib/keelarynos-mcp-benchmark"))
+                    + "/full-pilot")
+                and info.get("allow") == [
+                    "PROJECT.md", "STATE.md", "MASTERY.csv", "JOURNAL.md"])
             # Future multi-owner admission is a SECOND independent explicit
             # gate. The root-owned scope registry is the sole filename/owner
             # allowlist; neither the caller nor ChatGPT can supply roots.
@@ -125,7 +138,7 @@ def load_scopes():
                     + "/" + project.lower())
                 and isinstance(info.get("allow"), list)
                 and 1 <= len(info["allow"]) <= 40)
-            if (not (local_test or system_pilot or system_music or system_generic)
+            if (not (local_test or system_pilot or system_music or system_fullpilot or system_generic)
                     or set(info) != {"backend", "owner", "root", "allow",
                                     "access", "canonical", "snapshot_only"}
                     or info["owner"] != project
