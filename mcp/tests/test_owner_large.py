@@ -98,6 +98,17 @@ def main():
             capture_output=True, text=True, env=env, timeout=25)
         assert preflight.returncode == 0, preflight.stderr
         print("LARGE_PILOT_PREFLIGHT_PASS", flush=True)
+        listing = call("list_files", {"project": "LargePilot"})
+        assert {x["path"] for x in listing["entries"]} == set(files), listing
+        search = call("search_files", {"project": "LargePilot",
+                                      "query": "TEST-1077", "limit": 2})
+        assert search["matches"][0]["path"] == "MASTERY.csv" and search["matches"][0]["line"] == 1079, search
+        large_page = call("read_files", {"project": "LargePilot",
+                                        "paths": ["JOURNAL.md"]})
+        assert large_page["files"][0]["total_chars"] > 100000
+        assert len(large_page["files"][0]["content"]) == 16000
+        assert large_page["files"][0]["end_of_file"] is False
+        print("LARGE_OWNER_LIST_SEARCH_DEFAULT_READ_PAGE_PASS", flush=True)
 
         # The feature must fail closed without its separate opt-in.
         noflag = dict(env)
