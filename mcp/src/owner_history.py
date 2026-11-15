@@ -40,8 +40,11 @@ def _valid_record(req, record):
                                              "append", "replace_once")
             or not isinstance(record.get("fingerprint"), str)
             or not SHA.fullmatch(record["fingerprint"])
-            or not isinstance(record.get("new_sha256"), str)
-            or not SHA.fullmatch(record["new_sha256"])
+            or (record["action"] == "delete"
+                and record.get("new_sha256") is not None)
+            or (record["action"] != "delete"
+                and (not isinstance(record.get("new_sha256"), str)
+                     or not SHA.fullmatch(record["new_sha256"])))
             or (record.get("expected_sha256") is not None
                 and (not isinstance(record["expected_sha256"], str)
                      or not SHA.fullmatch(record["expected_sha256"])))):
