@@ -15,6 +15,7 @@ import secrets
 import stat
 
 from local_ro import open_root, _parts as local_parts, _read as local_read
+import owner_history
 
 MAX_BYTES = 65536
 MAX_RECEIPTS = 128
@@ -150,7 +151,8 @@ def _read_record(jfd, request_id):
     try:
         fd = os.open(request_id + ".json", FILE_FLAGS, dir_fd=jfd)
     except FileNotFoundError:
-        return None
+        archive, _ = owner_history.load(jfd)
+        return archive.get(request_id)
     try:
         st = os.fstat(fd)
         if (not stat.S_ISREG(st.st_mode) or st.st_nlink != 1
@@ -190,22 +192,25 @@ def _persist_record(jfd, record):
 
 
 def _scan_journal(jfd, request_id):
-    receipts = []
+    # Preserve the existing G1 single-writer flock across the complete scan,
+    # potential crash-safe rotation, and the eventual owner mutation.
+    active = {}
     with os.scandir(jfd) as entries:
         for entry in entries:
             name = entry.name
-            if name == LOCK:
+            if name == LOCK or owner_history.ARCHIVE.fullmatch(name):
                 continue
             if (not name.endswith(".json") or
                     not REQUEST_ID.fullmatch(name[:-5])):
                 raise ValueError("Unresolved temporary or unknown owner journal entry")
-            receipts.append(name[:-5])
-            if len(receipts) > MAX_RECEIPTS:
+            active[name[:-5]] = _read_record(jfd, name[:-5])
+            if len(active) > MAX_RECEIPTS:
                 raise ValueError("Owner receipt bound exceeded; maintenance required")
-    for other in receipts:
-        if other != request_id and _read_record(jfd, other)["status"] == "intent":
+    for other, record in active.items():
+        if record["status"] == "intent" and other != request_id:
             raise ValueError("Another owner request has unresolved intent")
-    return receipts
+    owner_history.reconcile_and_rotate(jfd, active, request_id)
+    return sorted(active)
 
 
 def _state(root_fd, action, path, expected, new_sha, destination):
