@@ -251,8 +251,9 @@ def edit_delta(scope, args):
         try:
             lockfd = g1._lock(journal)
             try:
-                g1._scan_journal(journal, args["request_id"])
-                prior = g1._read_record(journal, args["request_id"])
+                use_history = g1._history_enabled(scope)
+                g1._scan_journal(journal, args["request_id"], use_history)
+                prior = g1._read_record(journal, args["request_id"], use_history)
                 current_data, current_sha = _read_info(rootfd, path)
                 if prior is not None:
                     if prior.get("fingerprint") != fingerprint or prior.get("action") != action:
