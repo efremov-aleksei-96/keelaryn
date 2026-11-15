@@ -129,7 +129,6 @@ def read_chunk(scope, args):
             # Armenian (or any other) multibyte UTF-8 character. Move the
             # trailing boundary backward, never skipping bytes or splitting
             # a character across responses.
-            raw[offset:offset+1].decode("utf-8") if offset < len(raw) and raw[offset] < 128 else None
             try:
                 content = block.decode("utf-8")
             except UnicodeDecodeError as e:
