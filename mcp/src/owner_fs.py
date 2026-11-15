@@ -147,10 +147,27 @@ def _lock(jfd):
     return fd
 
 
-def _read_record(jfd, request_id):
+def _history_enabled(scope):
+    # A history archive changes replay semantics. Enable it only for the
+    # synthetic full system pilot or an explicitly opted-in local fixture.
+    if os.environ.get("KEELARYN_MCP_HISTORY_PILOT") != "1":
+        return False
+    mode = os.environ.get("KEELARYN_MCP_MODE", "system")
+    return ((mode == "system"
+             and os.environ.get("KEELARYN_MCP_FULL_PILOT") == "1"
+             and scope.get("owner") == "KeelarynFullPilot"
+             and scope.get("canonical") is False)
+            or (mode == "local"
+                and os.environ.get("KEELARYN_MCP_OWNER_FS_TEST") == "1"
+                and scope.get("canonical") is False))
+
+
+def _read_record(jfd, request_id, use_history=False):
     try:
         fd = os.open(request_id + ".json", FILE_FLAGS, dir_fd=jfd)
     except FileNotFoundError:
+        if not use_history:
+            return None
         archive, _ = owner_history.load(jfd)
         return archive.get(request_id)
     try:
@@ -191,25 +208,28 @@ def _persist_record(jfd, record):
             pass
 
 
-def _scan_journal(jfd, request_id):
+def _scan_journal(jfd, request_id, use_history=False):
     # Preserve the existing G1 single-writer flock across the complete scan,
     # potential crash-safe rotation, and the eventual owner mutation.
     active = {}
     with os.scandir(jfd) as entries:
         for entry in entries:
             name = entry.name
-            if name == LOCK or owner_history.ARCHIVE.fullmatch(name):
+            if name == LOCK:
+                continue
+            if use_history and owner_history.ARCHIVE.fullmatch(name):
                 continue
             if (not name.endswith(".json") or
                     not REQUEST_ID.fullmatch(name[:-5])):
                 raise ValueError("Unresolved temporary or unknown owner journal entry")
-            active[name[:-5]] = _read_record(jfd, name[:-5])
+            active[name[:-5]] = _read_record(jfd, name[:-5], use_history)
             if len(active) > MAX_RECEIPTS:
                 raise ValueError("Owner receipt bound exceeded; maintenance required")
     for other, record in active.items():
         if record["status"] == "intent" and other != request_id:
             raise ValueError("Another owner request has unresolved intent")
-    owner_history.reconcile_and_rotate(jfd, active, request_id)
+    if use_history:
+        owner_history.reconcile_and_rotate(jfd, active, request_id)
     return sorted(active)
 
 
@@ -340,8 +360,9 @@ def mutate(args, scope):
         try:
             lfd = _lock(jfd)
             try:
-                _scan_journal(jfd, args["request_id"])
-                record = _read_record(jfd, args["request_id"])
+                use_history = _history_enabled(scope)
+                _scan_journal(jfd, args["request_id"], use_history)
+                record = _read_record(jfd, args["request_id"], use_history)
                 if record is not None:
                     if record["fingerprint"] != fingerprint:
                         raise ValueError("Idempotency ID reused with different payload")
