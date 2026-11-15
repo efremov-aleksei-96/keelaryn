@@ -143,7 +143,7 @@ def _snapshot():
                 need(".lock" in entries
                      and all(x == ".lock" or RECEIPT.fullmatch(x)
                              for x in entries), "Unsafe MCP receipt names")
-                lock_fd = os.open(journal / ".lock", O_FILE | os.O_RDWR)
+                lock_fd = os.open(journal / ".lock", O_FILE)
                 s = os.fstat(lock_fd)
                 need(stat.S_ISREG(s.st_mode) and s.st_uid == uid
                      and s.st_nlink == 1 and not s.st_mode & 0o077
