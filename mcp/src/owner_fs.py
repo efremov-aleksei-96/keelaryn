@@ -292,6 +292,18 @@ def mutate(args, scope):
             + "/musiclibrary")
         and scope.get("allow") == ["PROJECT.md", "STATE.md"]
         and scope.get("canonical") is True)
+    system_fullpilot = (
+        mode == "system" and access == "read-only"
+        and os.environ.get("KEELARYN_MCP_FULL_PILOT") == "1"
+        and scope.get("owner") == "KeelarynFullPilot"
+        and scope.get("root") == (
+            os.path.realpath(os.environ.get(
+                "KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark"))
+            + "/full-pilot")
+        and scope.get("allow") == [
+            "PROJECT.md", "STATE.md", "MASTERY.csv", "JOURNAL.md"]
+        and scope.get("canonical") is False
+        and scope.get("snapshot_only") is False)
     system_generic = (
         mode == "system" and access == "read-only"
         and os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1"
@@ -306,7 +318,7 @@ def mutate(args, scope):
         and scope.get("access") == "read-write"
         and scope.get("snapshot_only") is False
         and scope.get("canonical") is True)
-    if not (local_test or system_pilot or system_music or system_generic) or scope.get("backend") != "owner-fs":
+    if not (local_test or system_pilot or system_music or system_fullpilot or system_generic) or scope.get("backend") != "owner-fs":
         raise ValueError("Owner mutation backend is not enabled for this scope")
     action, path, expected, raw, fingerprint = _validate(args, scope)
     # Canonical system-mode owners may replace only existing allowlisted
