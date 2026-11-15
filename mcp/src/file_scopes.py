@@ -110,12 +110,27 @@ def load_scopes():
                         "/var/lib/keelarynos-mcp-benchmark"))
                     + "/musiclibrary")
                 and info.get("allow") == ["PROJECT.md", "STATE.md"])
-            if (not (local_test or system_pilot or system_music)
+            # Future multi-owner admission is a SECOND independent explicit
+            # gate. The root-owned scope registry is the sole filename/owner
+            # allowlist; neither the caller nor ChatGPT can supply roots.
+            # Current MusicLibrary and noncanonical pilot remain unchanged.
+            system_generic = (
+                MODE == "system" and ACCESS_MODE == "read-only"
+                and os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1"
+                and project not in ("MusicLibrary", "KeelarynEnginePilot", "synthetic")
+                and info.get("root") == (
+                    os.path.realpath(os.environ.get(
+                        "KEELARYN_MCP_STATE_DIR",
+                        "/var/lib/keelarynos-mcp-benchmark"))
+                    + "/" + project.lower())
+                and isinstance(info.get("allow"), list)
+                and 1 <= len(info["allow"]) <= 40)
+            if (not (local_test or system_pilot or system_music or system_generic)
                     or set(info) != {"backend", "owner", "root", "allow",
                                     "access", "canonical", "snapshot_only"}
                     or info["owner"] != project
                     or info["access"] != "read-write"
-                    or info["canonical"] is not system_music
+                    or info["canonical"] is not (system_music or system_generic)
                     or info["snapshot_only"] is not False):
                 raise ValueError("Owner-fs not authorized for this scope")
             validate_local_allow(info["allow"])
