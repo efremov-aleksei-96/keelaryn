@@ -40,14 +40,25 @@ def _allow_owner(scope, *, writing):
             and os.environ.get("KEELARYN_MCP_OWNER_FS_TEST") == "1"
             and os.environ.get("KEELARYN_MCP_ACCESS_MODE", "default") == "default")
     else:
-        authorized = (
+        generic = (
             os.environ.get("KEELARYN_MCP_ACCESS_MODE") == "read-only"
             and os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1"
-            and owner not in ("MusicLibrary", "KeelarynEnginePilot", "synthetic")
+            and owner not in (
+                "MusicLibrary", "KeelarynEnginePilot", "KeelarynFullPilot", "synthetic")
             and scope.get("canonical") is True
             and scope.get("snapshot_only") is False
             and scope.get("root") == state + "/" + owner.lower())
-    if not authorized or scope.get("access") != "read-write" or not writing and mode == "system" and scope.get("canonical") is not True:
+        fullpilot = (
+            os.environ.get("KEELARYN_MCP_ACCESS_MODE") == "read-only"
+            and os.environ.get("KEELARYN_MCP_FULL_PILOT") == "1"
+            and owner == "KeelarynFullPilot"
+            and scope.get("root") == state + "/full-pilot"
+            and scope.get("allow") == [
+                "PROJECT.md", "STATE.md", "MASTERY.csv", "JOURNAL.md"]
+            and scope.get("canonical") is False
+            and scope.get("snapshot_only") is False)
+        authorized = generic or fullpilot
+    if not authorized or scope.get("access") != "read-write":
         raise ValueError("Large owner scope not authorized")
     return owner
 
