@@ -263,7 +263,8 @@ LARGE_OWNER_ENABLED = (
     and G1_OWNER_ENABLED
     and ((MODE == "local" and not READ_ONLY)
          or (MODE == "system" and READ_ONLY
-             and os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1")))
+             and (os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1"
+                  or os.environ.get("KEELARYN_MCP_FULL_PILOT") == "1"))))
 READ_TOOL_NAMES = frozenset(("list_files", "read_files", "search_files"))
 # The read-only tool surface is enforced independently of benchmark opt-in.
 TOOLS = (([tool for tool in FILE_TOOLS if tool["name"] in READ_TOOL_NAMES]
