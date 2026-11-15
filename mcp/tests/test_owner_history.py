@@ -81,6 +81,16 @@ elif cmd == "different":
   assert "Idempotency ID reused" in str(e),str(e)
  else:raise AssertionError("Old request ID reused with changed payload")
  print("OLD_ID_DIFFERENT_PAYLOAD_DENIED")
+elif cmd == "delete_recreate":
+ old=open(os.path.join(root,"STATE.md")).read()
+ delete_args={"project":owner,"request_id":id(326),"action":"delete",
+              "path":"STATE.md","expected_sha256":sha(old)}
+ deleted=owner_fs.mutate(delete_args,scope)
+ assert deleted["status"]=="committed" and not os.path.exists(os.path.join(root,"STATE.md"))
+ created=owner_fs.mutate({"project":owner,"request_id":id(327),"action":"create",
+                         "path":"STATE.md","expected_sha256":None,"content":"v=327\n"},scope)
+ assert created["status"]=="committed"
+ print("DELETE_AND_RECREATE_RECEIPTS_PASS")
 elif cmd == "large":
  old=open(os.path.join(root,"STATE.md")).read()
  args={"project":owner,"request_id":id(999),"action":"append",
@@ -151,6 +161,12 @@ else:raise RuntimeError(cmd)
         assert p.returncode == 0, p.stderr[-1000:]
         assert state.read_text().endswith("legacy G1 history works with large delta\n")
         print("G1_325_WRITES_AND_LARGE_DELTA_PASS", flush=True)
+        p = run("delete_recreate")
+        assert p.returncode == 0, p.stderr[-1000:]
+        p = run("batch", 328, 520)
+        assert p.returncode == 0, p.stderr[-1000:]
+        assert state.read_text() == "v=520\n"
+        print("G1_520_WRITES_WITH_DELETE_AND_RECREATE_PASS", flush=True)
 
         archives = sorted(journal.glob("history-*.json"))
         assert archives
@@ -162,6 +178,9 @@ else:raise RuntimeError(cmd)
                 assert req not in all_archived
                 all_archived[req] = item
         assert len(all_archived) > 128
+        assert all_archived[ID(326)]["action"] == "delete"
+        assert all_archived[ID(326)]["new_sha256"] is None
+        assert all_archived[ID(327)]["action"] == "create"
         assert len(list(journal.glob("[0-9]*.json"))) <= 128
         print("G1_ARCHIVE_BOUNDED_ACTIVE_RECEIPTS_PASS",
               len(all_archived), len(archives), flush=True)
