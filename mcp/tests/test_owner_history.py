@@ -34,6 +34,7 @@ def main():
         env = dict(os.environ, KEELARYN_MCP_MODE="local",
                    KEELARYN_MCP_ACCESS_MODE="default",
                    KEELARYN_MCP_OWNER_FS_TEST="1",
+                   KEELARYN_MCP_LARGE_OWNER_PILOT="1",
                    PYTHONDONTWRITEBYTECODE="1")
         code = r'''
 import hashlib,json,os,sys
