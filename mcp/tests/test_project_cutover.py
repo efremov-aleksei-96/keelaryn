@@ -42,7 +42,7 @@ def main():
             "STATE.md": "# Stage: source\nNEXT: verify whole project cutover\n",
             "MASTERY.csv": "item_id,score\n" + "".join(
                 f"SYN-{i:05d},{i%4}\n" for i in range(8500)),
-            "JOURNAL.md": "# Synthetic Armenian event: սա փորձ է\n" * 14000,
+            "JOURNAL.md": "# Synthetic Armenian event: սա փորձ է\n" * 17000,
         }
         assert len(contents["MASTERY.csv"].encode()) > 90000
         assert len(contents["JOURNAL.md"].encode()) > 680000
