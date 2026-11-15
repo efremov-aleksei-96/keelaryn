@@ -6,7 +6,7 @@ import os
 import stat
 import sys
 from pathlib import Path
-from fs_tools import FILE_TOOLS, FILE_HANDLERS, OWNER_MUTATION_TOOL, file_tool
+from fs_tools import FILE_TOOLS, FILE_HANDLERS, OWNER_MUTATION_TOOL, LARGE_READ_TOOL, LARGE_DELTA_TOOL, file_tool
 from file_scopes import ACCESS_MODE, SCOPES
 from local_ro import open_root as open_local_root
 
@@ -257,13 +257,21 @@ G1_OWNER_ENABLED = (
               or os.environ.get("KEELARYN_MCP_MUSICLIBRARY") == "1"
               or os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1")))
     and any(scope["backend"] == "owner-fs" for scope in SCOPES.values()))
+LARGE_OWNER_ENABLED = (
+    os.environ.get("KEELARYN_MCP_LARGE_OWNER_PILOT") == "1"
+    and G1_OWNER_ENABLED
+    and ((MODE == "local" and not READ_ONLY)
+         or (MODE == "system" and READ_ONLY
+             and os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1")))
 READ_TOOL_NAMES = frozenset(("list_files", "read_files", "search_files"))
 # The read-only tool surface is enforced independently of benchmark opt-in.
 TOOLS = (([tool for tool in FILE_TOOLS if tool["name"] in READ_TOOL_NAMES]
-          + ([OWNER_MUTATION_TOOL] if G1_OWNER_ENABLED else []))
+          + ([OWNER_MUTATION_TOOL] if G1_OWNER_ENABLED else [])
+          + ([LARGE_READ_TOOL, LARGE_DELTA_TOOL] if LARGE_OWNER_ENABLED else []))
          if READ_ONLY else
          (BENCHMARK_TOOLS if BENCHMARK_TOOLS_ENABLED else []) + FILE_TOOLS
-         + ([OWNER_MUTATION_TOOL] if G1_OWNER_ENABLED else []))
+         + ([OWNER_MUTATION_TOOL] if G1_OWNER_ENABLED else [])
+         + ([LARGE_READ_TOOL, LARGE_DELTA_TOOL] if LARGE_OWNER_ENABLED else []))
 
 def handle(msg):
     method = msg.get("method")
@@ -279,7 +287,9 @@ def handle(msg):
         args = params.get("arguments") or {}
         # Reject stale/published write or benchmark names before any handler.
         if READ_ONLY and name not in READ_TOOL_NAMES and not (
-            name == "owner_mutate" and G1_OWNER_ENABLED
+            (name == "owner_mutate" and G1_OWNER_ENABLED)
+            or (name in ("owner_read_chunk", "owner_edit_delta")
+                and LARGE_OWNER_ENABLED)
         ):
             return {"isError": True, "content": [
                 {"type": "text", "text": "Read-only MCP mode forbids this tool"}]}
@@ -287,7 +297,10 @@ def handle(msg):
             return {"content": [{"type": "text", "text": json.dumps(FILES, ensure_ascii=False)}]}
         if BENCHMARK_TOOLS_ENABLED and name == "benchmark_echo" and isinstance(args.get("text"), str) and len(args["text"]) <= 80 and len(args) == 1:
             return {"content": [{"type": "text", "text": args["text"]}]}
-        if name in FILE_HANDLERS or (name == "owner_mutate" and G1_OWNER_ENABLED):
+        if (name in FILE_HANDLERS
+                or (name == "owner_mutate" and G1_OWNER_ENABLED)
+                or (name in ("owner_read_chunk", "owner_edit_delta")
+                    and LARGE_OWNER_ENABLED)):
             return file_tool(name, args)
         if BENCHMARK_TOOLS_ENABLED and name in FUNCTIONS and not args:
             try:
