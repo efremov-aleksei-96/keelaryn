@@ -601,7 +601,8 @@ def _route_file_tool(name, args):
         and os.environ.get("KEELARYN_MCP_MODE", "system") == "system"
         and (os.environ.get("KEELARYN_MCP_SYSTEM_PILOT") == "1"
              or os.environ.get("KEELARYN_MCP_MUSICLIBRARY") == "1"
-             or os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1"))
+             or os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1"
+             or os.environ.get("KEELARYN_MCP_FULL_PILOT") == "1"))
     large_owner_op = (
         name in ("owner_read_chunk", "owner_edit_delta")
         and os.environ.get("KEELARYN_MCP_LARGE_OWNER_PILOT") == "1")
