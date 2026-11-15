@@ -211,8 +211,10 @@ def _list(scope, path, limit):
                         visible.append({"path": full, "type": "directory", "bytes": None})
                 elif stat.S_ISREG(s.st_mode) and _is_allowed(scope, full):
                     _parts(full)
-                    if s.st_uid == _data_owner(scope) and s.st_nlink == 1 and not s.st_mode & 0o022 and s.st_size <= (MAX_LARGE_OWNER if _large_owner(scope) else MAX_FILE)
-                            and (not _large_owner(scope) or not s.st_mode & 0o077):
+                    if (s.st_uid == _data_owner(scope) and s.st_nlink == 1
+                            and not s.st_mode & 0o022
+                            and s.st_size <= (MAX_LARGE_OWNER if _large_owner(scope) else MAX_FILE)
+                            and (not _large_owner(scope) or not s.st_mode & 0o077)):
                         visible.append({"path": full, "type": "file", "bytes": s.st_size})
             except (ValueError, OSError):
                 continue
