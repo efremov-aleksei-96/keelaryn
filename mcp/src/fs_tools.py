@@ -15,6 +15,7 @@ from drive_live import operate as live_drive_operation
 from drive_file_ro import operate as exact_drive_file_operation
 from local_ro import operate as local_readonly_operation, open_root as open_local_root
 from owner_fs import mutate as owner_mutation_operation
+from owner_large import read_chunk as large_read_chunk, edit_delta as large_edit_delta
 
 FS_ROOT = Path(os.environ.get("KEELARYN_MCP_STATE_DIR", "/var/lib/keelarynos-mcp-benchmark")) / "workspace"
 TYPES = (".md", ".csv", ".json")
@@ -464,6 +465,42 @@ OWNER_MUTATION_TOOL = {
     },
 }
 
+LARGE_READ_TOOL = {
+    "name": "owner_read_chunk",
+    "description": "Read a bounded UTF-8 slice of a large exact-allowlisted owner file, returning SHA-256 and byte cursor.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "project": {"type": "string", "minLength": 1, "maxLength": 64},
+            "path": {"type": "string", "maxLength": 320},
+            "offset_bytes": {"type": "integer", "minimum": 0, "maximum": 2097152, "default": 0},
+            "max_bytes": {"type": "integer", "minimum": 1, "maximum": 12288, "default": 12288},
+            "expected_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        },
+        "required": ["project", "path"],
+        "additionalProperties": False,
+    },
+}
+LARGE_DELTA_TOOL = {
+    "name": "owner_edit_delta",
+    "description": "Idempotent one-file bounded append or unique-text replacement with whole-file SHA-256 CAS.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "project": {"type": "string", "minLength": 1, "maxLength": 64},
+            "path": {"type": "string", "maxLength": 320},
+            "request_id": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+            "expected_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "action": {"type": "string", "enum": ["append", "replace_once"]},
+            "content": {"type": "string", "maxLength": 12288},
+            "old_text": {"type": "string", "maxLength": 12288},
+            "new_text": {"type": "string", "maxLength": 12288},
+        },
+        "required": ["project", "path", "request_id", "expected_sha256", "action"],
+        "additionalProperties": False,
+    },
+}
+
 FILE_HANDLERS = {
     "list_files": list_files,
     "read_files": read_files,
@@ -565,12 +602,19 @@ def _route_file_tool(name, args):
         and (os.environ.get("KEELARYN_MCP_SYSTEM_PILOT") == "1"
              or os.environ.get("KEELARYN_MCP_MUSICLIBRARY") == "1"
              or os.environ.get("KEELARYN_MCP_MULTI_CANONICAL") == "1"))
+    large_owner_op = (
+        name in ("owner_read_chunk", "owner_edit_delta")
+        and os.environ.get("KEELARYN_MCP_LARGE_OWNER_PILOT") == "1")
     if ACCESS_MODE == "read-only" and name not in (
         "list_files", "read_files", "search_files"
-    ) and not pilot_mutation:
+    ) and not (pilot_mutation or large_owner_op):
         raise ValueError("Read-only MCP mode forbids this operation")
     if not isinstance(args, dict):
         raise ValueError("Tool arguments must be an object")
+    if name in ("owner_read_chunk", "owner_edit_delta"):
+        scope = get_scope(args.get("project"))
+        return (large_read_chunk(scope, args) if name == "owner_read_chunk"
+                else large_edit_delta(scope, args))
     if name == "owner_mutate":
         if not isinstance(args, dict):
             raise ValueError("Owner mutation must be an object")
