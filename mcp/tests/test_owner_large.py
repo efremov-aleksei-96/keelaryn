@@ -123,9 +123,11 @@ def main():
         assert b"".join(chunks) == expected
         assert data["eof"]
         print("LARGE_UTF8_PAGED_COMPLETE_READ_PASS", len(expected), "bytes", flush=True)
+        middle_of_armenian_letter = expected.index("ս".encode("utf-8")) + 1
         bad = call("owner_read_chunk", request("read", "JOURNAL.md",
-                         offset_bytes=1, max_bytes=12288))
-        assert bad.get("error"), bad
+                         offset_bytes=middle_of_armenian_letter,
+                         max_bytes=12288))
+        assert bad.get("error"), str(bad)[:200]
         stale = call("owner_read_chunk", request("read", "JOURNAL.md",
                          expected_sha256="0"*64))
         assert stale.get("error"), stale
