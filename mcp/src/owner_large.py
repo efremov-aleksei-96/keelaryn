@@ -125,9 +125,22 @@ def read_chunk(scope, args):
             raise ValueError("Offset beyond EOF")
         block = raw[offset:offset+limit]
         try:
-            content = block.decode("utf-8")
+            # The caller controls a byte offset, but the budget may cut an
+            # Armenian (or any other) multibyte UTF-8 character. Move the
+            # trailing boundary backward, never skipping bytes or splitting
+            # a character across responses.
+            raw[offset:offset+1].decode("utf-8") if offset < len(raw) and raw[offset] < 128 else None
+            try:
+                content = block.decode("utf-8")
+            except UnicodeDecodeError as e:
+                if e.reason != "unexpected end of data" or e.start == 0:
+                    raise
+                block = block[:e.start]
+                content = block.decode("utf-8")
+            if not block and offset < len(raw):
+                raise ValueError("Chunk budget too small for next UTF-8 codepoint")
         except UnicodeDecodeError:
-            raise ValueError("Chunk crosses UTF-8 boundary; adjust byte budget") from None
+            raise ValueError("Offset is not a UTF-8 boundary") from None
         return {"path": path, "sha256": sha, "total_bytes": len(raw),
                 "offset_bytes": offset, "returned_bytes": len(block),
                 "next_offset_bytes": offset + len(block),
