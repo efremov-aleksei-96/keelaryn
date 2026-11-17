@@ -127,6 +127,24 @@ def main():
             run("verify", restored, marker_path, success=False)
         run("verify", restored, marker_path)
         print("PORTABLE_ACTIVE_G1_WRITER_DENIED_PASS", flush=True)
+
+        receipt = restored / "testproject" / ".keelaryn-g1" / ("a" * 32 + ".json")
+        original_receipt = receipt.read_bytes()
+        obj = json.loads(original_receipt)
+        obj["status"] = "pending"
+        receipt.write_text(json.dumps(obj))
+        run("manifest", restored, success=False)
+        receipt.write_bytes(original_receipt)
+        run("verify", restored, marker_path)
+        print("PORTABLE_PENDING_RECEIPT_DENIED_PASS", flush=True)
+
+        archive = restored / "testproject" / ".keelaryn-g1" / "history-000001.json"
+        broken_seq = archive.with_name("history-000002.json")
+        archive.rename(broken_seq)
+        run("manifest", restored, success=False)
+        broken_seq.rename(archive)
+        run("verify", restored, marker_path)
+        print("PORTABLE_NONCONTIGUOUS_HISTORY_DENIED_PASS", flush=True)
         print("ALL_PORTABLE_VERIFY_TESTS_PASS", flush=True)
 
 
