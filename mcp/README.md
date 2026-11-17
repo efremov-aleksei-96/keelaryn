@@ -18,6 +18,22 @@
 
 **Authority:** only the single [VPS_MIGRATION_PLAN.md](./VPS_MIGRATION_PLAN.md) is the active engineering cursor; this section is the human-run recovery procedure and current limits. Nothing here authorizes a cutover, cancellation or deletion. No VPS purchase is currently planned.
 
+**MCP is an adapter, not an execution dependency.** The existing `mcp/src/owner_cli.py` now supports bounded `list`, `search`, `read`, `mutate` and `delta` against the **same authorized owner scope, SHA-256 CAS logic and G1 receipt journal** as the MCP-facing handlers. Tests of a fresh GitHub-source copy passed under both system-pilot and local-pilot modes on the existing VPS (commit `19ac8fded374c0443ef52eb007390d2f91f1cce2`); an ordinary CLI action was also replayed via the MCP handler exactly once. No production module was deployed or existing project edited. The CLI is not a new store, new API service or a bypass: execute it only as the authorized owner UID with the matching scoped environment and deny-by-default registry.
+
+```sh
+# Examples for an ALREADY configured and authorized non-root owner UID.
+# Do not run as root or use a different project owner's credentials.
+python3 -B mcp/src/owner_cli.py list OWNER
+python3 -B mcp/src/owner_cli.py search OWNER 'exact text' 10
+python3 -B mcp/src/owner_cli.py read OWNER STATE.md 0 12288
+
+# One bounded JSON request with project/request_id/path/expected_sha256:
+python3 -B mcp/src/owner_cli.py mutate < authorized-replace.json
+python3 -B mcp/src/owner_cli.py delta < authorized-delta.json
+```
+
+For fresh-machine qualification, the existing synthetic tests `mcp/tests/test_owner_full_pilot.py` and `test_owner_large.py` now assert CLI↔MCP parity, access denial and idempotent replay. Both are disposable fixtures; **they do not prove a re-created systemd DynamicUser can directly access restored canonical owner files**. No REST adapter is needed until a concrete client requires one.
+
 **Three distinct layers, never substitute one for another:**
 
 1. **Code:** `mcp/src/*.py` in the pinned GitHub branch, Python 3.12 tested on the existing Ubuntu host; a separate synthetic-only local stdio smoke test passed from an independently fetched source directory. This is not a complete production deployment test.
