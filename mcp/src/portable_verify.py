@@ -51,7 +51,9 @@ def canonical_root(arg):
             nxt = os.open(segment, O_DIR, dir_fd=fd)
             os.close(fd)
             fd = nxt
-        require(stat.S_ISDIR(os.fstat(fd).st_mode), "Invalid tree root")
+        require(stat.S_ISDIR(os.fstat(fd).st_mode) and
+                not os.fstat(fd).st_mode & 0o077,
+                "Tree root must be private")
         return fd
     except BaseException:
         os.close(fd)
@@ -62,11 +64,12 @@ def names(fd):
     return sorted(os.listdir(fd))
 
 
-def read_file(dir_fd, name):
+def read_file(dir_fd, name, owner_uid):
     fd = os.open(name, O_FILE, dir_fd=dir_fd)
     try:
         first = os.fstat(fd)
         require(stat.S_ISREG(first.st_mode) and first.st_nlink == 1
+                and first.st_uid == owner_uid and not first.st_mode & 0o077
                 and first.st_size <= MAX_SINGLE, "Unsafe file or oversized object")
         data = bytearray()
         while len(data) <= MAX_SINGLE:
@@ -99,14 +102,23 @@ def snapshot(root):
             # before reading project bytes. A noncooperating writer is NOT fenced.
             for project in projects:
                 pfd = os.open(project, O_DIR, dir_fd=root_fd)
+                require(not os.fstat(pfd).st_mode & 0o077,
+                        "Owner directory is not private")
                 owner_fds.append((project, pfd))
                 if ".keelaryn-g1" in names(pfd):
                     jfd = os.open(".keelaryn-g1", O_DIR, dir_fd=pfd)
                     try:
+                        require(not os.fstat(jfd).st_mode & 0o077,
+                                "Journal directory is not private")
                         require(".lock" in names(jfd), "Owner journal has no lock")
                         lock_fd = os.open(".lock", O_FILE, dir_fd=jfd)
                         try:
-                            require(os.fstat(lock_fd).st_size == 0,
+                            lock_info = os.fstat(lock_fd)
+                            require(stat.S_ISREG(lock_info.st_mode)
+                                    and lock_info.st_nlink == 1
+                                    and lock_info.st_uid == os.fstat(pfd).st_uid
+                                    and not lock_info.st_mode & 0o077
+                                    and lock_info.st_size == 0,
                                     "Invalid owner journal lock")
                             try:
                                 fcntl.flock(lock_fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
@@ -134,7 +146,8 @@ def snapshot(root):
                 require(documents and all(DOC.fullmatch(x) for x in documents),
                         "Unexpected owner filename")
                 for filename in documents:
-                    add(project + "/" + filename, read_file(pfd, filename))
+                    add(project + "/" + filename,
+                        read_file(pfd, filename, os.fstat(pfd).st_uid))
                 if ".keelaryn-g1" in entries:
                     jfd = os.open(".keelaryn-g1", O_DIR, dir_fd=pfd)
                     try:
@@ -144,7 +157,7 @@ def snapshot(root):
                             or ARCHIVE.fullmatch(x) for x in jnames),
                             "Unexpected journal filename")
                         for name in jnames:
-                            data = read_file(jfd, name)
+                            data = read_file(jfd, name, os.fstat(pfd).st_uid)
                             require(name != ".lock" or data == b"",
                                     "Invalid journal lock contents")
                             add(project + "/.keelaryn-g1/" + name, data)
