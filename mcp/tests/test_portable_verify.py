@@ -145,6 +145,16 @@ def main():
         broken_seq.rename(archive)
         run("verify", restored, marker_path)
         print("PORTABLE_NONCONTIGUOUS_HISTORY_DENIED_PASS", flush=True)
+
+        # The marker is independent from the UID allocated on another host.
+        if os.geteuid() == 0:
+            import pwd
+            new_uid, new_gid = pwd.getpwnam("nobody").pw_uid, pwd.getpwnam("nobody").pw_gid
+            for entry in [restored / "testproject",
+                          *list((restored / "testproject").rglob("*"))]:
+                os.chown(entry, new_uid, new_gid, follow_symlinks=False)
+            run("verify", restored, marker_path)
+            print("PORTABLE_UID_REBIND_BYTE_VERIFICATION_PASS", flush=True)
         print("ALL_PORTABLE_VERIFY_TESTS_PASS", flush=True)
 
 
