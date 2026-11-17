@@ -110,6 +110,31 @@ def main():
         assert large_page["files"][0]["end_of_file"] is False
         print("LARGE_OWNER_LIST_SEARCH_DEFAULT_READ_PAGE_PASS", flush=True)
 
+        def cli(action, *parts, payload=None):
+            p = subprocess.run(
+                ["runuser", "-u", "nobody", "--", sys.executable, "-B",
+                 str(SRC / "owner_cli.py"), action, *parts],
+                input=payload, capture_output=True, text=True, env=env,
+                timeout=30)
+            try:
+                reply = json.loads(p.stdout)
+            except ValueError:
+                raise AssertionError(p.stderr)
+            if p.returncode:
+                assert reply.get("status") == "error", reply
+            return reply
+        cli_list = cli("list", "LargePilot")
+        assert cli_list == listing, (cli_list, listing)
+        cli_search = cli("search", "LargePilot", "TEST-1077", "2")
+        assert cli_search == search and cli_search["matches"][0]["line"] == 1079
+        cli_chunk = cli("read", "LargePilot", "JOURNAL.md", "0", "12288")
+        remote_chunk = call("owner_read_chunk", request("read", "JOURNAL.md",
+                             offset_bytes=0, max_bytes=12288))
+        assert cli_chunk == remote_chunk and cli_chunk["returned_bytes"] > 0
+        assert cli("search", "LargePilot", "TEST-1077", "21").get("status") == "error"
+        assert cli("read", "LargePilot", "../stranger/NOT_A_SOURCE.md").get("status") == "error"
+        print("LOCAL_CLI_READ_SEARCH_MCP_PARITY_AND_SCOPE_DENIAL_PASS", flush=True)
+
         # The feature must fail closed without its separate opt-in.
         noflag = dict(env)
         noflag.pop("KEELARYN_MCP_LARGE_OWNER_PILOT")
