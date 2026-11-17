@@ -155,6 +155,25 @@ def main():
                 os.chown(entry, new_uid, new_gid, follow_symlinks=False)
             run("verify", restored, marker_path)
             print("PORTABLE_UID_REBIND_BYTE_VERIFICATION_PASS", flush=True)
+        # The published tree backup permits up to 400 files. Long valid
+        # owner/document names may produce a marker larger than 64 KiB.
+        big = top / "large-manifest-source"
+        big.mkdir(mode=0o700)
+        for owner_index in range(10):
+            name = "owner" + str(owner_index) + ("x" * 50)
+            owner_dir = big / name
+            owner_dir.mkdir(mode=0o700)
+            for n in range(40):
+                path = owner_dir / ("long" + f"{n:02d}" + ("y" * 64) + ".md")
+                path.write_text("# x\\n", encoding="utf-8")
+                path.chmod(0o600)
+        huge = run("manifest", big).stdout
+        assert len(huge.encode()) > 65536
+        huge_marker = top / "huge-marker.json"
+        huge_marker.write_text(huge, encoding="utf-8")
+        result = json.loads(run("verify", big, huge_marker).stdout)
+        assert result["files"] == 400
+        print("PORTABLE_MAX_FILES_LONG_MARKER_PASS", flush=True)
         print("ALL_PORTABLE_VERIFY_TESTS_PASS", flush=True)
 
 
