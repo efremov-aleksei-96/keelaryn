@@ -27,6 +27,11 @@ def main(argv):
     if len(argv) == 2 and argv[0] == "list":
         project = argv[1]
         return owner_read("list_files", {"path": "", "limit": 100}, _owned(project))
+    if len(argv) in (3, 4) and argv[0] == "search":
+        project, query = argv[1:3]
+        limit = int(argv[3]) if len(argv) == 4 else 20
+        return owner_read("search_files", {"query": query, "limit": limit},
+                          _owned(project))
     if len(argv) in (3, 4, 5) and argv[0] == "read":
         project, path = argv[1:3]
         offset = int(argv[3]) if len(argv) >= 4 else 0
@@ -44,7 +49,8 @@ def main(argv):
         scope = _owned(args.get("project"))
         return edit_delta(scope, args) if argv[0] == "delta" else owner_mutate(args, scope)
     raise ValueError(
-        "Usage: owner_cli.py list PROJECT | read PROJECT FILE [OFFSET MAX_BYTES]"
+        "Usage: owner_cli.py list PROJECT | search PROJECT QUERY [LIMIT]"
+        " | read PROJECT FILE [OFFSET MAX_BYTES]"
         " | delta <request.json | mutate <request.json")
 
 
