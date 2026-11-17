@@ -155,6 +155,17 @@ def main():
         run("verify", restored, marker_path)
         print("PORTABLE_PENDING_RECEIPT_DENIED_PASS", flush=True)
 
+        # Committed status alone is insufficient: malformed or forged
+        # fingerprints/actions must fail the same G1 semantics as recovery.
+        bad = json.loads(original_receipt)
+        bad["fingerprint"] = "invalid"
+        receipt.write_text(json.dumps(bad))
+        run("manifest", restored, success=False)
+        receipt.write_bytes(original_receipt)
+        run("verify", restored, marker_path)
+        print("PORTABLE_MALFORMED_COMMITTED_RECEIPT_DENIED_PASS", flush=True)
+
+
         archive = restored / "testproject" / ".keelaryn-g1" / "history-000001.json"
         broken_seq = archive.with_name("history-000002.json")
         archive.rename(broken_seq)
