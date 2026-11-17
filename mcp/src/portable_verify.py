@@ -27,6 +27,7 @@ HASH = re.compile(r"[0-9a-f]{64}\Z")
 MAX_FILES = 400
 MAX_SINGLE = 2 * 1024 * 1024
 MAX_TOTAL = 64 * 1024 * 1024
+MAX_MARKER = 256 * 1024  # 400 long filename entries exceed 64 KiB
 O_DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 O_FILE = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 
@@ -213,9 +214,9 @@ def identity(manifest):
 def parse_marker(path):
     fd = os.open(path, O_FILE)
     try:
-        require(os.fstat(fd).st_size <= 65536, "Oversized marker")
-        raw = os.read(fd, 65537)
-        require(len(raw) <= 65536, "Oversized marker")
+        require(os.fstat(fd).st_size <= MAX_MARKER, "Oversized marker")
+        raw = os.read(fd, MAX_MARKER + 1)
+        require(len(raw) <= MAX_MARKER, "Oversized marker")
     finally:
         os.close(fd)
     marker = json.loads(raw)
