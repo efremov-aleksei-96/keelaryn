@@ -14,6 +14,36 @@
 
 **Resume safely:** first read `mcp/VPS_MIGRATION_PLAN.md` for the one active queue, exact NEXT and fallback; then only the relevant technical evidence and the affected project owner. The historical engineering checkpoints below are not a second migration agenda. Then read only affected current GitHub source, host state and the chosen domain-owner canon. Do not assume past chat/tool sessions persisted or that GitHub files reproduce private projects. This document must remain human-readable with no dependence on a ChatGPT memory summary.
 
+## Future VPS portability — verified boundaries (2026-11-17)
+
+**Authority:** only the single [VPS_MIGRATION_PLAN.md](./VPS_MIGRATION_PLAN.md) is the active engineering cursor; this section is the human-run recovery procedure and current limits. Nothing here authorizes a cutover, cancellation or deletion. No VPS purchase is currently planned.
+
+**Three distinct layers, never substitute one for another:**
+
+1. **Code:** `mcp/src/*.py` in the pinned GitHub branch, Python 3.12 tested on the existing Ubuntu host; a separate synthetic-only local stdio smoke test passed from an independently fetched source directory. This is not a complete production deployment test.
+2. **State:** the authorized owner project files together with every `.keelaryn-g1/` receipt, archive segment and `.lock`, as a whole. Byte-exact verification requires an original, independently retained completion marker `.keelaryn-tree-complete.json` from the source backup. The current Drive tree backup intentionally covers **only registered canonical VPS owner-fs directories**, not all Drive, projects, secrets or services.
+3. **Host-specific wiring:** systemd DynamicUser service, root-owned `file-scopes.json`, authorized scope allowlists, external `tunnel-client` executable and profile, five currently configured systemd credential bindings, source/backup services, network registration and offsite restore credentials. The repository contains **neither tunnel binary nor credentials**. A source-only clone cannot reconnect the ChatGPT MCP endpoint, run the external backup or recreate the host automatically.
+
+**A future migration, performed only after separate owner approval, must proceed in this order:** confirm a complete external backup and its original marker; stop/fence **all** old writers; recheck exact bytes at the source; reconstruct the new host and its least-privilege service identity with secrets provisioned separately; stage the full owner tree and G1 history without a second active writer; run the independent read-only verifier; verify permissions, installed code, scope boundaries and systemd sandbox; test ordinary CLI and tunnel connectivity, backup plus isolated restore; explicitly switch one whole authorized owner and its references; only then resume writes. Keep the original historical copy. Restore UID may differ from the old host; the file ownership **must be coherent and private on the new host**, not copied as a numeric assumption.
+
+**Offline verification commands** (the root paths must be absolute, non-symlinked and private):
+
+```sh
+# Before transfer, only from an already frozen, trusted source tree:
+umask 077
+python3 -B mcp/src/portable_verify.py manifest /ABSOLUTE/SOURCE_PROJECT_TREE > /SAFE/OFFHOST/ORIGINAL_MARKER.json
+
+# After restoration, verify against that ORIGINAL independently kept marker:
+python3 -B mcp/src/portable_verify.py verify /ABSOLUTE/RESTORED_PROJECT_TREE /SAFE/OFFHOST/ORIGINAL_MARKER.json
+
+# Disposable integration tests, with no real projects:
+python3 -B mcp/tests/test_portable_verify.py
+```
+
+The format matches `drive_tree_backup.py`'s `keelaryn-vps-project-tree-v1` marker and `tree-<hash>` identity. The verifier rejects different bytes, missing/extra names, symlinks, hardlinks, unsafe permissions, unresolved G1 receipts, broken archive ordering and an active cooperative G1 lock. It never writes or restores project data. **Generating a new marker from the restored copy does not prove it matches the original.** The marker is not signed and cannot establish authenticity if an adversary can replace both files and marker; only trusted independently held evidence can do so. A cooperative G1 lock is not a complete freeze of all old Drive or local writers.
+
+**Measured scope:** pinned tests passed on the existing VPS (Ubuntu 24.04, Python 3.12) including simulated UID rebinding. No independent new VPS, full clean systemd install, new tunnel registration, full offsite recovery of the large synthetic owner or real multi-project cutover has been completed. The existing system-mode paths `/var/lib/private/keelarynos-mcp-benchmark`, `/etc/keelarynos-mcp-benchmark/file-scopes.json` and `/usr/local/lib/keelarynos-mcp-benchmark` are part of the present deployment contract, **not proof of arbitrary-path support**.
+
 ## Boundaries and purpose
 
 KeelarynOS owns common architecture and information standards. Domain OS/projects own their factual data and canonical sources. This **Keelaryn MCP** component implements bounded file access, not a competing canonical data store or a LifeOS coordinator. The existing Windows-first `manager/` and its `INSTALLATION.json`, Gate Framework, release identities and qualification remain separate and unchanged.
