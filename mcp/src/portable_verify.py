@@ -108,8 +108,9 @@ def snapshot(root):
                 if ".keelaryn-g1" in names(pfd):
                     jfd = os.open(".keelaryn-g1", O_DIR, dir_fd=pfd)
                     try:
-                        require(not os.fstat(jfd).st_mode & 0o077,
-                                "Journal directory is not private")
+                        require(not os.fstat(jfd).st_mode & 0o077
+                                and os.fstat(jfd).st_uid == os.fstat(pfd).st_uid,
+                                "Journal directory has unsafe ownership or access")
                         require(".lock" in names(jfd), "Owner journal has no lock")
                         lock_fd = os.open(".lock", O_FILE, dir_fd=jfd)
                         try:
@@ -156,10 +157,39 @@ def snapshot(root):
                             x == ".lock" or RECEIPT.fullmatch(x)
                             or ARCHIVE.fullmatch(x) for x in jnames),
                             "Unexpected journal filename")
+                        archives = [x for x in jnames if ARCHIVE.fullmatch(x)]
+                        require(archives == [f"history-{i:06d}.json"
+                                             for i in range(1, len(archives) + 1)],
+                                "Journal history segments are not consecutive")
+                        seen = {}
                         for name in jnames:
                             data = read_file(jfd, name, os.fstat(pfd).st_uid)
-                            require(name != ".lock" or data == b"",
-                                    "Invalid journal lock contents")
+                            if name == ".lock":
+                                require(data == b"", "Invalid journal lock contents")
+                            else:
+                                try:
+                                    obj = json.loads(data)
+                                except (ValueError, UnicodeError):
+                                    raise InvalidTree("Unparseable G1 journal entry") from None
+                                if ARCHIVE.fullmatch(name):
+                                    require(isinstance(obj, dict)
+                                            and set(obj) == {"schema", "receipts"}
+                                            and obj["schema"] == "keelaryn-g1-history-v1"
+                                            and isinstance(obj["receipts"], dict)
+                                            and obj["receipts"],
+                                            "Invalid archived receipt collection")
+                                    records = obj["receipts"]
+                                else:
+                                    records = {name[:-5]: obj}
+                                for req, value in records.items():
+                                    require(re.fullmatch(r"[0-9a-f]{32}", req)
+                                            and isinstance(value, dict)
+                                            and value.get("status") == "committed"
+                                            and value.get("request_id") == req,
+                                            "Unresolved or invalid G1 receipt")
+                                    require(req not in seen or seen[req] == value,
+                                            "Conflicting active/archived G1 receipt")
+                                    seen[req] = value
                             add(project + "/.keelaryn-g1/" + name, data)
                     finally:
                         os.close(jfd)
