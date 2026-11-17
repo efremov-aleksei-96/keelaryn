@@ -175,6 +175,40 @@ print('SYSTEM_HUMAN_PYTHON_OWNER_READ_PASS')
         assert direct.returncode==0,direct.stderr
         print(direct.stdout.strip(),flush=True)
 
+        # One shared business implementation: CLI does not depend on stdio
+        # MCP registration or ChatGPT. It must enforce the same allowlist,
+        # exact CAS receipts, and read/search limits as MCP.
+        def cli(op, *options, payload=None):
+            p=command([str(SRC/"owner_cli.py"), op, *options], payload)
+            if p.returncode:
+                return {"error":p.stdout[:300] or p.stderr[:300]}
+            return json.loads(p.stdout)
+        listed=cli("list", OWNER)
+        assert {x["path"] for x in listed["entries"]} == set(ALLOW), listed
+        found=cli("search",OWNER,"PILOT ONLY","4")
+        via_mcp=request("search_files",{"project":OWNER,"query":"PILOT ONLY","limit":4})
+        assert found == via_mcp and found["matches"][0]["path"]=="PROJECT.md",(found,via_mcp)
+        chunk=cli("read",OWNER,"JOURNAL.md","0","12288")
+        via_mcp=request("owner_read_chunk",a("JOURNAL.md",offset_bytes=0,max_bytes=12288))
+        assert chunk == via_mcp and chunk["total_bytes"]>680000,(chunk,via_mcp)
+        print("SYSTEM_CLI_LIST_SEARCH_READ_MCP_PARITY_PASS",flush=True)
+
+        assert cli("mutate",payload=json.dumps(create))["status"]=="already_committed"
+        assert cli("delta",payload=json.dumps(newstate))["status"]=="already_committed"
+        assert cli("read",OWNER,"NOT_ALLOWLISTED.md").get("error")
+        assert cli("list","UnknownOwner").get("error")
+        assert cli("search",OWNER,"PILOT ONLY","999").get("error")
+        print("SYSTEM_CLI_REPLAY_AND_SCOPE_DENIAL_PASS",flush=True)
+
+        append_cli=a("JOURNAL.md",request_id=ID(10),action="append",
+                     expected_sha256=SHA((owner_dir/"JOURNAL.md").read_bytes()),
+                     content="\n## HUMAN_CLI_WRITTEN_ONCE\n")
+        first=cli("delta",payload=json.dumps(append_cli))
+        assert first["status"]=="committed",first
+        assert request("owner_edit_delta",append_cli)["status"]=="already_committed"
+        assert (owner_dir/"JOURNAL.md").read_text().count("## HUMAN_CLI_WRITTEN_ONCE")==1
+        print("SYSTEM_CLI_WRITE_MCP_REPLAY_EXACTLY_ONCE_PASS",flush=True)
+
         for name in ALLOW:
             assert (owner_dir/name).is_file(),name
         assert (owner_dir/"MASTERY.csv").read_text().count(newrow)==1
