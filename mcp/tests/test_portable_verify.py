@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline portable verifier integration and corruption tests. Synthetic only."""
 import fcntl
+import importlib.util
 import hashlib
 import json
 import os
@@ -9,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 
 SCRIPT = Path(__file__).resolve().parents[1] / "src" / "portable_verify.py"
 
@@ -73,6 +75,21 @@ def main():
         canonical = (json.dumps(without_version, sort_keys=True,
                                 separators=(",", ":")) + "\n").encode()
         assert marker["version"] == "tree-" + hashlib.sha256(canonical).hexdigest()[:24]
+        # Compare against the REAL production backup implementation, with
+        # its Drive transport modules replaced by inert import-only stubs.
+        sender = types.ModuleType("drive_plain_sender")
+        sender.BackupError = ValueError
+        sender.FOLDER = "application/vnd.google-apps.folder"
+        sys.modules["drive_plain_sender"] = sender
+        sys.modules["drive_real_backup"] = types.ModuleType("drive_real_backup")
+        spec = importlib.util.spec_from_file_location(
+            "offline_backup_identity", SCRIPT.parent / "drive_tree_backup.py")
+        backup = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(backup)
+        actual = {path: (original / path).read_bytes() for path in marker["files"]}
+        assert backup._identity(actual) == marker["version"]
+        assert backup._manifest(actual) == without_version
+        print("PORTABLE_BACKUP_MARKER_FORMAT_COMPATIBLE_PASS", flush=True)
         marker_path = top / "marker.json"
         marker_path.write_text(json.dumps(marker), encoding="utf-8")
         restored = top / "new-host-restored-files"
