@@ -107,12 +107,19 @@ def main():
         run("verify", restored, marker_path, success=False)
         wrong.unlink()
         wrong.write_bytes((owner / "STATE.md").read_bytes())
+        wrong.chmod(0o600)
         print("PORTABLE_SYMLINK_DENIED_PASS", flush=True)
 
         alias = top / "root-alias"
         alias.symlink_to(restored, target_is_directory=True)
         run("verify", alias, marker_path, success=False)
         print("PORTABLE_SYMLINK_ROOT_DENIED_PASS", flush=True)
+
+        wrong.chmod(0o644)
+        run("verify", restored, marker_path, success=False)
+        wrong.chmod(0o600)
+        run("verify", restored, marker_path)
+        print("PORTABLE_EXPOSED_FILE_DENIED_PASS", flush=True)
 
         lock = restored / "testproject" / ".keelaryn-g1" / ".lock"
         with lock.open("rb") as stream:
