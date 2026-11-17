@@ -17,6 +17,8 @@ import re
 import stat
 import sys
 
+from owner_history import _valid_record as validate_committed_receipt
+
 SCHEMA = "keelaryn-vps-project-tree-v1"  # Compatible with drive_tree_backup.py
 VERSION = re.compile(r"tree-[0-9a-f]{24}\Z")
 PROJECT = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
@@ -179,15 +181,17 @@ def snapshot(root):
                                             and isinstance(obj["receipts"], dict)
                                             and obj["receipts"],
                                             "Invalid archived receipt collection")
+                                    require(len(data) <= 1024 * 1024,
+                                            "Oversized G1 archive segment")
                                     records = obj["receipts"]
                                 else:
                                     records = {name[:-5]: obj}
                                 for req, value in records.items():
-                                    require(re.fullmatch(r"[0-9a-f]{32}", req)
-                                            and isinstance(value, dict)
-                                            and value.get("status") == "committed"
-                                            and value.get("request_id") == req,
-                                            "Unresolved or invalid G1 receipt")
+                                    try:
+                                        validate_committed_receipt(req, value)
+                                    except ValueError:
+                                        raise InvalidTree(
+                                            "Unresolved or invalid committed G1 receipt") from None
                                     require(req not in seen or seen[req] == value,
                                             "Conflicting active/archived G1 receipt")
                                     seen[req] = value
