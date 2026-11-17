@@ -235,14 +235,14 @@ def main():
         state_after = (folder / "STATE.md").read_bytes()
         replace_cli = request("edit", "STATE.md", request_id=ID(6),
             action="replace", expected_sha256=SHA(state_after),
-            content="# NEXT: local CLI can replace without MCP\\n")
+            content="# NEXT: local CLI can replace without MCP\n")
         assert cli("mutate", payload=json.dumps(replace_cli))["status"] == "committed"
         assert call("owner_mutate", replace_cli)["status"] == "already_committed"
-        assert (folder / "STATE.md").read_text() == "# NEXT: local CLI can replace without MCP\\n"
+        assert (folder / "STATE.md").read_text() == "# NEXT: local CLI can replace without MCP\n"
         journal_after = (folder / "JOURNAL.md").read_bytes()
         append_cli = request("edit", "JOURNAL.md", request_id=ID(7),
             action="append", expected_sha256=SHA(journal_after),
-            content="\\n## LOCAL_CLI_EVENT_ONCE\\n")
+            content="\n## LOCAL_CLI_EVENT_ONCE\n")
         assert cli("delta", payload=json.dumps(append_cli))["status"] == "committed"
         assert call("owner_edit_delta", append_cli)["status"] == "already_committed"
         assert (folder / "JOURNAL.md").read_text().count("## LOCAL_CLI_EVENT_ONCE") == 1
