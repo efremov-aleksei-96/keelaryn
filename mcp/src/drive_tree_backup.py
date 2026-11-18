@@ -122,7 +122,7 @@ def _scopes():
              "Nonportable canonical project scope")
         need(sub not in selected, "Duplicate project root")
         selected[sub] = (path, set(v["allow"]))
-    need(1 <= len(selected) <= 20, "No canonical VPS projects")
+    need(1 <= len(selected) <= 64, "No canonical VPS projects")
     return selected
 
 
