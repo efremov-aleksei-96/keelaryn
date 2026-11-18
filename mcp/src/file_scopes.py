@@ -71,7 +71,7 @@ def load_scopes():
     if not isinstance(data, dict) or set(data) != {"schema", "scopes"} or data["schema"] != "keelarynos_mcp_file_scopes_v1":
         raise ValueError("Unsupported or malformed scope registry")
     scopes = data["scopes"]
-    if not isinstance(scopes, dict) or not ((1 if MODE == "local" else 2) <= len(scopes) <= 20):
+    if not isinstance(scopes, dict) or not ((1 if MODE == "local" else 2) <= len(scopes) <= 64):
         raise ValueError("Invalid scope count")
     if scopes.get("synthetic") != {
         "backend": "workspace",
