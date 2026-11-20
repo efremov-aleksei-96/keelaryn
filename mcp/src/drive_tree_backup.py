@@ -116,15 +116,23 @@ def _scopes():
              "Canonical scope not covered by VPS owner-fs tree")
         sub = name.lower()
         path = ROOT / sub
+        documents = v.get("allow")
+        evidence = v.get("evidence_allow", [])
         need(v.get("root") == str(path) and not path.is_symlink()
-             and isinstance(v.get("allow"), list)
-             and 1 <= len(v["allow"]) <= 40
-             and len(v["allow"]) == len(set(v["allow"]))
+             and isinstance(documents, list)
+             and isinstance(evidence, list)
+             and 1 <= len(documents) + len(evidence) <= 40
+             and len(evidence) <= 12
              and all(isinstance(f, str) and DOC.fullmatch(f)
-                     for f in v["allow"]),
+                     for f in documents)
+             and all(isinstance(f, str) and JPEG.fullmatch(f)
+                     for f in evidence)
+             and len(documents) == len(set(documents))
+             and len(evidence) == len(set(evidence))
+             and not (set(documents) & set(evidence)),
              "Nonportable canonical project scope")
         need(sub not in selected, "Duplicate project root")
-        selected[sub] = (path, set(v["allow"]))
+        selected[sub] = (path, set(documents) | set(evidence))
     need(1 <= len(selected) <= 64, "No canonical VPS projects")
     return selected
 
