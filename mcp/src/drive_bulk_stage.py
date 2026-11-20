@@ -286,7 +286,7 @@ def shared_file_pins(selected):
         suffix = Path(name).suffix.lower() if isinstance(name, str) else ""
         valid_mime = (mime in TEXT_MIME[suffix] if suffix in TEXT_MIME else
                       mime == BINARY_MIME[suffix] if suffix in BINARY_MIME else False)
-        require(owner in owners and owner in selected and
+        require(owner in owners and
                 isinstance(name, str) and NAME.fullmatch(name) and
                 name.lower() not in DENIED and
                 isinstance(fid, str) and ID.fullmatch(fid) and
@@ -297,7 +297,8 @@ def shared_file_pins(selected):
                 "Unapproved, duplicate, or invalid real file pin")
         seen.add((owner, name))
         seen.add(fid)
-        chosen.append(item)
+        if owner in selected:
+            chosen.append(item)
     require(chosen and all(any(x["owner"] == o for x in chosen) for o in selected),
             "Selected owner lacks individually authorized source pins")
     return chosen
