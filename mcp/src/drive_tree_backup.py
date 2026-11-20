@@ -36,11 +36,13 @@ MARKER = ".keelaryn-tree-complete.json"
 VERSION = re.compile(r"tree-[0-9a-f]{24}\Z")
 PROJECT = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}\Z")
 DOC = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.(md|csv|json)\Z")
+JPEG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.jpg\Z")
 RECEIPT = re.compile(r"[0-9a-f]{32}\.json\Z")
 ARCHIVE = re.compile(r"history-[0-9]{6}\.json\Z")
 MAX_FILES = 400
 MAX_BYTES = 64 * 1024 * 1024
-MAX_SINGLE = 2 * 1024 * 1024
+MAX_TEXT = 2 * 1024 * 1024
+MAX_SINGLE = 4_000_000  # bounded JPEG evidence within Drive transport cap
 O_FILE = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 O_DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
@@ -66,15 +68,16 @@ def _stat_dir(path, *, uid=None):
 
 
 def _file(path, uid):
+    cap = MAX_SINGLE if JPEG.fullmatch(path.name) else MAX_TEXT
     fd = os.open(path, O_FILE)
     try:
         before = os.fstat(fd)
         need(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
              and before.st_uid == uid and not before.st_mode & 0o077
-             and before.st_size <= MAX_SINGLE, "Unsafe project file")
-        data = os.read(fd, MAX_SINGLE + 1)
+             and before.st_size <= cap, "Unsafe project file")
+        data = os.read(fd, cap + 1)
         after = os.fstat(fd)
-        need(len(data) == before.st_size and len(data) <= MAX_SINGLE
+        need(len(data) == before.st_size and len(data) <= cap
              and (before.st_dev, before.st_ino, before.st_size,
                   before.st_mtime_ns, before.st_ctime_ns) ==
              (after.st_dev, after.st_ino, after.st_size,
