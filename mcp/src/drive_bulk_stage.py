@@ -263,14 +263,129 @@ def capture(mode, selected):
             "active_canonical_changed": False, "backup_proven": False}
 
 
+
+def shared_file_pins(selected):
+    """Exact authorized files, not Drive folder traversal or all-Drive OAuth."""
+    owners = source_config()
+    raw = private_file(CONFIG)
+    pins = raw.get("pinned_files")
+    require(isinstance(pins, list) and 1 <= len(pins) <= 80,
+            "No controlled service-account file pins")
+    seen = set()
+    chosen = []
+    for item in pins:
+        require(isinstance(item, dict) and set(item) ==
+                {"owner", "id", "name", "mime", "size", "sha256"},
+                "Unexpected pin schema")
+        owner = item["owner"]
+        name = item["name"]
+        fid = item["id"]
+        sha = item["sha256"]
+        size = item["size"]
+        mime = item["mime"]
+        suffix = Path(name).suffix.lower() if isinstance(name, str) else ""
+        valid_mime = (mime in TEXT_MIME[suffix] if suffix in TEXT_MIME else
+                      mime == BINARY_MIME[suffix] if suffix in BINARY_MIME else False)
+        require(owner in owners and owner in selected and
+                isinstance(name, str) and NAME.fullmatch(name) and
+                name.lower() not in DENIED and
+                isinstance(fid, str) and ID.fullmatch(fid) and
+                isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{64}", sha) and
+                type(size) is int and 0 <= size <= REAL_FILE_LIMIT and
+                valid_mime and
+                (owner, name) not in seen and fid not in seen,
+                "Unapproved, duplicate, or invalid real file pin")
+        seen.add((owner, name))
+        seen.add(fid)
+        chosen.append(item)
+    require(chosen and all(any(x["owner"] == o for x in chosen) for o in selected),
+            "Selected owner lacks individually authorized source pins")
+    return chosen
+
+
+def pinned_source_read(api, pin):
+    """Read one file directly shared with the existing read-only service account."""
+    import drive_source_ingest as sa
+    fid = pin["id"]
+    before = sa._meta(api, fid)
+    # Google may omit parents when only a single file, not its folder,
+    # is shared to the service account. Explicit pinned ID + SHA is authority.
+    require(before.get("id") == fid and before.get("name") == pin["name"]
+            and before.get("mimeType") == pin["mime"]
+            and before.get("trashed") is False
+            and before.get("size") == str(pin["size"]),
+            "Shared source has different identity or metadata")
+    raw = api.media(fid)
+    require(len(raw) == pin["size"] and
+            hashlib.sha256(raw).hexdigest() == pin["sha256"],
+            "Shared source SHA256 mismatch")
+    md5 = before.get("md5Checksum")
+    if md5:
+        require(hashlib.md5(raw).hexdigest() == md5, "Provider MD5 mismatch")
+    suffix = Path(pin["name"]).suffix.lower()
+    if suffix in TEXT_MIME:
+        require("\x00" not in raw.decode("utf-8-sig"), "Non-text UTF-8 source")
+    if suffix in (".jpg", ".jpeg"):
+        require(raw.startswith(bytes.fromhex("ffd8ff")) and
+                raw.endswith(bytes.fromhex("ffd9")), "Invalid JPEG source")
+    if suffix == ".png":
+        require(raw.startswith(bytes.fromhex("89504e470d0a1a0a")), "Invalid PNG")
+    if suffix == ".pdf":
+        require(raw.startswith(b"%PDF-"), "Invalid PDF")
+    require(sa._meta(api, fid) == before, "Source modified during pinned read")
+    return raw, before
+
+
+def shared_capture(mode, selected):
+    """No AI or Drive write; only an explicit, already-shared source allowlist."""
+    from drive_source_ingest import _bearer
+    owners = source_config()
+    require(1 <= len(selected) <= len(owners) and
+            len(selected) == len(set(selected)) and
+            all(o in owners for o in selected), "Invalid selected owners")
+    pins = shared_file_pins(selected)
+    api = Drive(_bearer(), max_file=REAL_FILE_LIMIT)
+    rows = []
+    total = 0
+    if mode == "stage-shared":
+        private_dir(STAGE, create=True)
+    for pin in pins:
+        raw, attrs = pinned_source_read(api, pin)
+        total += len(raw)
+        require(total <= LIMIT_TOTAL and len(rows) < LIMIT_FILES,
+                "Source batch exceeds bounds")
+        if mode == "stage-shared":
+            folder = STAGE / pin["owner"]
+            private_dir(folder, create=True)
+            write_exact(folder / pin["name"], raw)
+        rows.append({"owner": pin["owner"], "name": pin["name"],
+                     "source_id": pin["id"], "source_parent": owners[pin["owner"]],
+                     "mime": pin["mime"], "size": len(raw),
+                     "sha256": pin["sha256"],
+                     "source_modified": attrs.get("modifiedTime")})
+    if mode == "stage-shared":
+        manifest_atomic(STAGE, {"schema": SCHEMA,
+                        "status": "staged_not_active",
+                        "created_utc": datetime.now(timezone.utc).isoformat(),
+                        "total_files": len(rows), "files": rows,
+                        "owners": {name: {"pinned_file_count": sum(
+                            p["owner"] == name for p in rows)} for name in selected}})
+    return {"status": ("staged_not_active" if mode == "stage-shared"
+                       else "read_only_pinned_inventory"),
+            "selected_owners": len(selected), "files": len(rows),
+            "bytes": total, "source_auth": "individual_service_account_reader",
+            "active_canonical_changed": False, "backup_proven": False}
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("inventory", "stage", "verify-stage"))
+    parser.add_argument("mode", choices=("inventory", "stage", "inventory-shared", "stage-shared", "verify-stage"))
     parser.add_argument("--owners", nargs="*", default=[])
     args = parser.parse_args()
     require(os.geteuid() == 0, "Root-only migrate")
     if args.mode == "verify-stage":
         result = offline_validate()
+    elif args.mode in ("inventory-shared", "stage-shared"):
+        result = shared_capture(args.mode, args.owners)
     else:
         result = capture(args.mode, args.owners)
     print(json.dumps(result, sort_keys=True, ensure_ascii=False))
