@@ -193,7 +193,12 @@ def _snapshot():
                     files[sub + "/.keelaryn-g1/" + name] = data
             for name in sorted(allowed):
                 data = _file(root / name, uid)
-                data.decode("utf-8")
+                if JPEG.fullmatch(name):
+                    need(data.startswith(bytes.fromhex("ffd8ff")) and
+                         data.endswith(bytes.fromhex("ffd9")),
+                         "Invalid JPEG evidence")
+                else:
+                    data.decode("utf-8")
                 files[sub + "/" + name] = data
         finally:
             if lock_fd is not None:
@@ -260,7 +265,8 @@ def _remote(api, version_id, version):
     # Total and per-file bounds apply to offsite restores as well as upload.
     need(all(isinstance(n, str) and isinstance(v, dict)
              and set(v) == {"bytes", "sha256"}
-             and type(v["bytes"]) is int and 0 <= v["bytes"] <= MAX_SINGLE
+             and type(v["bytes"]) is int and 0 <= v["bytes"] <= (
+                  MAX_SINGLE if JPEG.fullmatch(n.rsplit("/", 1)[-1]) else MAX_TEXT)
              and isinstance(v["sha256"], str)
              and re.fullmatch(r"[0-9a-f]{64}", v["sha256"])
              for n, v in man["files"].items())
@@ -283,9 +289,10 @@ def _remote(api, version_id, version):
             wanted.add(".keelaryn-g1")
         need(set(child) == wanted, "Remote project folder has unexpected contents")
         for name in sorted(wanted - {".keelaryn-g1"}):
-            need(DOC.fullmatch(name) and child[name]["mimeType"] in (
-                 "text/markdown", "text/csv", "application/json"),
-                 "Remote file not a supported document")
+            need((DOC.fullmatch(name) and child[name]["mimeType"] in (
+                 "text/markdown", "text/csv", "application/json"))
+                 or (JPEG.fullmatch(name) and child[name]["mimeType"] == "image/jpeg"),
+                 "Remote file not a supported document or JPEG evidence")
             files[project + "/" + name] = api.media(child[name]["id"])
         if journals:
             need(child[".keelaryn-g1"]["mimeType"] == FOLDER,
@@ -322,7 +329,8 @@ def backup():
                 if not path.startswith(project + "/") or path.count("/") != 1:
                     continue
                 name = path.split("/")[1]
-                mime = ("text/markdown" if name.endswith(".md") else
+                mime = ("image/jpeg" if JPEG.fullmatch(name) else
+                        "text/markdown" if name.endswith(".md") else
                         "text/csv" if name.endswith(".csv") else "application/json")
                 api.ensure_file(dir_id, name, mime, data)
             journal = {p: v for p, v in snapshot.items()
