@@ -32,7 +32,10 @@ TEXT_MIME = {".md": {"text/markdown", "text/plain"},
              ".json": {"application/json", "text/plain"},
              ".txt": {"text/plain"}}
 BINARY_MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-               ".png": "image/png", ".pdf": "application/pdf"}
+               ".png": "image/png", ".pdf": "application/pdf",
+               ".webp": "image/webp",
+               ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+               ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
 LIMIT_FILES = 400
 LIMIT_TOTAL = 64 * 1024 * 1024
 
@@ -144,6 +147,12 @@ def checked_read(api, parent, item):
         require(raw.startswith(bytes.fromhex("89504e470d0a1a0a")), "Invalid PNG")
     elif suffix == ".pdf":
         require(raw.startswith(b"%PDF-"), "Invalid PDF")
+    elif suffix == ".webp":
+        require(raw[:4] == b"RIFF" and raw[8:12] == b"WEBP",
+                "Invalid WebP evidence")
+    elif suffix in (".docx", ".xlsx"):
+        require(raw.startswith(bytes.fromhex("504b0304")),
+                "Invalid Office OpenXML original")
     second = metadata(api, item["id"])
     require(original == second, "Source modified during download")
     return raw, original
@@ -219,11 +228,16 @@ def offline_validate():
             "active_canonical_changed": False}
 
 
-def capture(mode, selected):
+def capture(mode, selected, source_auth="device"):
     owners = source_config()
     require(selected and all(x in owners for x in selected)
             and len(selected) == len(set(selected)), "Select exact allowed owners")
-    api = Drive(fresh_reader(), max_file=REAL_FILE_LIMIT)
+    if source_auth == "service-account":
+        from drive_source_ingest import _bearer
+        api = Drive(_bearer(), max_file=REAL_FILE_LIMIT)
+    else:
+        api = Drive(fresh_reader(), max_file=REAL_FILE_LIMIT)
+    is_stage = mode in ("stage", "stage-folder-sa")
     all_rows, total, report = [], 0, {}
     for owner in selected:
         fid = owners[owner]
@@ -233,7 +247,7 @@ def capture(mode, selected):
         report[owner] = {"supported_direct": len(eligible),
                          "unsupported_or_children": len(blockers),
                          "requires_review": len(blockers) > 0}
-        if mode == "inventory":
+        if not is_stage:
             continue
         private_dir(STAGE, create=True)
         dest = STAGE / owner
@@ -251,16 +265,17 @@ def capture(mode, selected):
                              "source_modified": attributes.get("modifiedTime")})
         after = source_tree(api, owner, fid)
         require(before == after, "Owner listing changed during capture")
-    if mode == "stage":
+    if is_stage:
         manifest_atomic(STAGE, {"schema": SCHEMA,
                         "status": "staged_not_active",
                         "created_utc": datetime.now(timezone.utc).isoformat(),
                         "total_files": len(all_rows), "files": all_rows,
                         "owners": report})
-    return {"status": "staged_not_active" if mode == "stage" else "read_only_inventory",
+    return {"status": "staged_not_active" if is_stage else "read_only_inventory",
             "selected_owners": len(selected), "owners": report,
             "staged_files": len(all_rows), "staged_bytes": total,
-            "active_canonical_changed": False, "backup_proven": False}
+            "active_canonical_changed": False, "backup_proven": False,
+            "source_auth": source_auth}
 
 
 
@@ -379,7 +394,7 @@ def shared_capture(mode, selected):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("inventory", "stage", "inventory-shared", "stage-shared", "verify-stage"))
+    parser.add_argument("mode", choices=("inventory", "stage", "inventory-shared", "stage-shared", "inventory-folder-sa", "stage-folder-sa", "verify-stage"))
     parser.add_argument("--owners", nargs="*", default=[])
     args = parser.parse_args()
     require(os.geteuid() == 0, "Root-only migrate")
@@ -387,6 +402,8 @@ def main():
         result = offline_validate()
     elif args.mode in ("inventory-shared", "stage-shared"):
         result = shared_capture(args.mode, args.owners)
+    elif args.mode in ("inventory-folder-sa", "stage-folder-sa"):
+        result = capture(args.mode, args.owners, source_auth="service-account")
     else:
         result = capture(args.mode, args.owners)
     print(json.dumps(result, sort_keys=True, ensure_ascii=False))
