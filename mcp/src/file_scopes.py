@@ -139,14 +139,29 @@ def load_scopes():
                 and isinstance(info.get("allow"), list)
                 and 1 <= len(info["allow"]) <= 40)
             if (not (local_test or system_pilot or system_music or system_fullpilot or system_generic)
-                    or set(info) != {"backend", "owner", "root", "allow",
+                    or set(info) != ({"backend", "owner", "root", "allow",
                                     "access", "canonical", "snapshot_only"}
+                                   | ({"evidence_allow"} if "evidence_allow" in info else set()))
                     or info["owner"] != project
                     or info["access"] != "read-write"
                     or info["canonical"] is not (system_music or system_generic)
                     or info["snapshot_only"] is not False):
                 raise ValueError("Owner-fs not authorized for this scope")
             validate_local_allow(info["allow"])
+            # Real canonical owners may keep exact JPEG evidence beside their
+            # text documents. JPEG remains backup-only: never add it to the
+            # MCP text read/write allowlist or to noncanonical test scopes.
+            if "evidence_allow" in info:
+                evidence = info["evidence_allow"]
+                if (not system_generic or not isinstance(evidence, list)
+                        or not 1 <= len(evidence) <= 12
+                        or len(info["allow"]) + len(evidence) > 40
+                        or len(evidence) != len(set(map(str, evidence)))
+                        or any(not isinstance(name, str)
+                               or not re.fullmatch(
+                                   r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.jpg", name)
+                               or name in info["allow"] for name in evidence)):
+                    raise ValueError("Unsafe or duplicate owner JPEG evidence allowlist")
             if any(x.endswith("/") or "/" in x for x in info["allow"]):
                 raise ValueError("G1 owner scope permits exact one-level files")
             fd = open_local_root(info)
